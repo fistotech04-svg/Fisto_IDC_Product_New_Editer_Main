@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="210mm" height="297mm" viewBox="0 0 210 297">
+  
+  <!-- Background -->
+  <rect width="210" height="297" fill="#ffffff"/>
+  
+  <!-- Header Background -->
+  <rect x="0" y="0" width="210" height="40" fill="#2c3e50"/>
+  
+  <!-- Logo Placeholder (Circle with Icon) -->
+  <circle cx="25" cy="20" r="12" fill="#3498db"/>
+  <text x="25" y="24" font-family="Arial, sans-serif" font-size="8" fill="white" text-anchor="middle" font-weight="bold">LOGO</text>
+  
+  <!-- Company Name in Header -->
+  <text x="45" y="18" font-family="Arial, sans-serif" font-size="10" fill="white" font-weight="bold">Company Name</text>
+  <text x="45" y="28" font-family="Arial, sans-serif" font-size="5" fill="#bdc3c7">Your Tagline Goes Here</text>
+  
+  <!-- Header Navigation/Contact -->
+  <text x="195" y="15" font-family="Arial, sans-serif" font-size="4" fill="#ecf0f1" text-anchor="end">📧 email@company.com</text>
+  <text x="195" y="22" font-family="Arial, sans-serif" font-size="4" fill="#ecf0f1" text-anchor="end">📞 +1 234 567 890</text>
+  <text x="195" y="29" font-family="Arial, sans-serif" font-size="4" fill="#ecf0f1" text-anchor="end">🌐 www.company.com</text>
+  
+  <!-- Decorative Line -->
+  <rect x="15" y="45" width="180" height="0.5" fill="#3498db"/>
+  
+  <!-- Main Title -->
+  <text x="105" y="60" font-family="Georgia, serif" font-size="14" fill="#2c3e50" text-anchor="middle" font-weight="bold">
+    Document Title
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="105" y="70" font-family="Arial, sans-serif" font-size="6" fill="#7f8c8d" text-anchor="middle">
+    Subtitle or Description Goes Here
+  </text>
+  
+  <!-- Left Column - Image Placeholder 1 -->
+  <rect x="15" y="80" width="60" height="45" fill="#ecf0f1" stroke="#bdc3c7" stroke-width="0.5" rx="2"/>
+  <line x1="15" y1="80" x2="75" y2="125" stroke="#bdc3c7" stroke-width="0.3"/>
+  <line x1="75" y1="80" x2="15" y2="125" stroke="#bdc3c7" stroke-width="0.3"/>
+  <text x="45" y="105" font-family="Arial, sans-serif" font-size="5" fill="#95a5a6" text-anchor="middle">Image 1</text>
+  
+  <!-- Mountain/Landscape Icon in Image Placeholder -->
+  <polygon points="25,118 35,100 45,118" fill="#3498db" opacity="0.5"/>
+  <polygon points="40,118 55,105 70,118" fill="#2980b9" opacity="0.5"/>
+  <circle cx="60" cy="90" r="5" fill="#f39c12" opacity="0.5"/>
+  
+  <!-- Right Column - Text Content -->
+  <text x="85" y="88" font-family="Arial, sans-serif" font-size="6" fill="#2c3e50" font-weight="bold">Section Heading</text>
+  
+  <text x="85" y="96" font-family="Arial, sans-serif" font-size="4" fill="#555">
+    <tspan x="85" dy="0">Lorem ipsum dolor sit amet, consectetur</tspan>
+    <tspan x="85" dy="6">adipiscing elit. Sed do eiusmod tempor</tspan>
+    <tspan x="85" dy="6">incididunt ut labore et dolore magna</tspan>
+    <tspan x="85" dy="6">aliqua. Ut enim ad minim veniam.</tspan>
+  </text>
+  
+  <!-- Bullet Points -->
+  <circle cx="88" cy="122" r="1" fill="#3498db"/>
+  <text x="92" y="123" font-family="Arial, sans-serif" font-size="4" fill="#555">
+    First key point or feature
+  </text>
+  
+  <circle cx="88" cy="130" r="1" fill="#3498db"/>
+  <text x="92" y="131" font-family="Arial, sans-serif" font-size="4" fill="#555">
+    Second key point or feature
+  </text>
+  
+  <circle cx="88" cy="138" r="1" fill="#3498db"/>
+  <text x="92" y="139" font-family="Arial, sans-serif" font-size="4" fill="#555">
+    Third key point or feature
+  </text>
+  
+  <!-- Divider Line -->
+  <rect x="15" y="150" width="180" height="0.3" fill="#bdc3c7"/>
+  
+  <!-- Three Column Section -->
+  <!-- Column 1 -->
+  <rect x="15" y="158" width="55" height="50" fill="#3498db" rx="3" opacity="0.1"/>
+  <rect x="15" y="158" width="55" height="12" fill="#3498db" rx="3"/>
+  <text x="42.5" y="166" font-family="Arial, sans-serif" font-size="5" fill="white" text-anchor="middle" font-weight="bold">Feature 1</text>
+  
+  <text x="42.5" y="180" font-family="Arial, sans-serif" font-size="4" fill="#555" text-anchor="middle">
+    <tspan x="42.5" dy="0">Description of</tspan>
+    <tspan x="42.5" dy="6">the first feature</tspan>
+    <tspan x="42.5" dy="6">goes here.</tspan>
+  </text>
+  
+  <!-- Column 2 -->
+  <rect x="77.5" y="158" width="55" height="50" fill="#e74c3c" rx="3" opacity="0.1"/>
+  <rect x="77.5" y="158" width="55" height="12" fill="#e74c3c" rx="3"/>
+  <text x="105" y="166" font-family="Arial, sans-serif" font-size="5" fill="white" text-anchor="middle" font-weight="bold">Feature 2</text>
+  
+  <text x="105" y="180" font-family="Arial, sans-serif" font-size="4" fill="#555" text-anchor="middle">
+    <tspan x="105" dy="0">Description of</tspan>
+    <tspan x="105" dy="6">the second feature</tspan>
+    <tspan x="105" dy="6">goes here.</tspan>
+  </text>
+  
+  <!-- Column 3 -->
+  <rect x="140" y="158" width="55" height="50" fill="#27ae60" rx="3" opacity="0.1"/>
+  <rect x="140" y="158" width="55" height="12" fill="#27ae60" rx="3"/>
+  <text x="167.5" y="166" font-family="Arial, sans-serif" font-size="5" fill="white" text-anchor="middle" font-weight="bold">Feature 3</text>
+  
+  <text x="167.5" y="180" font-family="Arial, sans-serif" font-size="4" fill="#555" text-anchor="middle">
+    <tspan x="167.5" dy="0">Description of</tspan>
+    <tspan x="167.5" dy="6">the third feature</tspan>
+    <tspan x="167.5" dy="6">goes here.</tspan>
+  </text>
+  
+  <!-- Large Image Placeholder -->
+  <rect x="15" y="215" width="120" height="55" fill="#ecf0f1" stroke="#bdc3c7" stroke-width="0.5" rx="2"/>
+  <line x1="15" y1="215" x2="135" y2="270" stroke="#bdc3c7" stroke-width="0.3"/>
+  <line x1="135" y1="215" x2="15" y2="270" stroke="#bdc3c7" stroke-width="0.3"/>
+  <text x="75" y="245" font-family="Arial, sans-serif" font-size="6" fill="#95a5a6" text-anchor="middle">Large Image Placeholder</text>
+  
+  <!-- Side Info Box -->
+  <rect x="140" y="215" width="55" height="55" fill="#f8f9fa" stroke="#3498db" stroke-width="0.5" rx="3"/>
+  <text x="167.5" y="228" font-family="Arial, sans-serif" font-size="5" fill="#2c3e50" text-anchor="middle" font-weight="bold">Quick Facts</text>
+  
+  <text x="145" y="240" font-family="Arial, sans-serif" font-size="4" fill="#555">
+    <tspan x="145" dy="0">• Fact one here</tspan>
+    <tspan x="145" dy="7">• Fact two here</tspan>
+    <tspan x="145" dy="7">• Fact three here</tspan>
+    <tspan x="145" dy="7">• Fact four here</tspan>
+  </text>
+  
+  <!-- Footer Background -->
+  <rect x="0" y="277" width="210" height="20" fill="#34495e"/>
+  
+  <!-- Footer Content -->
+  <text x="105" y="285" font-family="Arial, sans-serif" font-size="4" fill="#ecf0f1" text-anchor="middle">
+    © 2024 Company Name. All Rights Reserved.
+  </text>
+  
+  <text x="105" y="292" font-family="Arial, sans-serif" font-size="3" fill="#95a5a6" text-anchor="middle">
+    123 Street Name, City, State, ZIP | Terms &amp; Conditions | Privacy Policy
+  </text>
+  
+  <!-- Social Media Icons (Circles) -->
+  <circle cx="85" cy="288" r="3" fill="#3498db"/>
+  <circle cx="93" cy="288" r="3" fill="#e74c3c"/>
+  <circle cx="117" cy="288" r="3" fill="#2ecc71"/>
+  <circle cx="125" cy="288" r="3" fill="#9b59b6"/>
+  
+  <!-- Page Number -->
+  <text x="195" y="293" font-family="Arial, sans-serif" font-size="4" fill="#ecf0f1" text-anchor="end">Page 1</text>
+  
+  <!-- Decorative Corner Elements -->
+  <path d="M0,0 L15,0 L0,15 Z" fill="#3498db" opacity="0.3"/>
+  <path d="M210,297 L195,297 L210,282 Z" fill="#3498db" opacity="0.3"/>
+  
+</svg>

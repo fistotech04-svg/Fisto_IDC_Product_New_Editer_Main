@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A4 Business Report Template - With GIFs</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0f172a',
+                        secondary: '#1e293b',
+                        accent: '#6366f1',
+                        neon: '#22d3ee',
+                        glow: '#a855f7',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .a4-width { width: 595px; }
+            .a4-height { height: 842px; }
+        }
+    </style>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #1e293b;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .gif-frame {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.2);
+        }
+        
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        
+        .animated-gradient {
+            background: linear-gradient(270deg, #6366f1, #a855f7, #22d3ee, #6366f1);
+            background-size: 400% 400%;
+            animation: gradient-shift 8s ease infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-3px); }
+        }
+        
+        .float-animation {
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.08));
+            border: 1px solid rgba(99, 102, 241, 0.25);
+        }
+    </style>
+</head>
+<body class="m-0 p-0">
+    <!-- A4 Page -->
+    <div class="a4-width a4-height bg-primary shadow-2xl relative overflow-hidden glow-border rounded-lg">
+
+        <!-- Decorative Corner Top -->
+        <div class="absolute top-0 left-0">
+            <svg width="60" height="60" viewBox="0 0 60 60">
+                <path d="M0 0 L60 0 L0 60 Z" fill="url(#cornerGrad1)" opacity="0.7"/>
+                <defs>
+                    <linearGradient id="cornerGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#a855f7;stop-opacity:0" />
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
+        
+        <!-- Decorative Corner Bottom -->
+        <div class="absolute bottom-0 right-0 rotate-180">
+            <svg width="60" height="60" viewBox="0 0 60 60">
+                <path d="M0 0 L60 0 L0 60 Z" fill="url(#cornerGrad2)" opacity="0.7"/>
+                <defs>
+                    <linearGradient id="cornerGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#22d3ee;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#6366f1;stop-opacity:0" />
+                    </linearGradient>
+                </defs>
+            </svg>
+        </div>
+
+        <!-- Header -->
+        <header class="w-full h-[100px] bg-gradient-to-br from-secondary to-primary flex items-center px-[25px] relative border-b border-white/10">
+            
+            <!-- Logo GIF -->
+            <div class="w-[60px] h-[60px] rounded-xl overflow-hidden relative z-10 flex-shrink-0 gif-frame float-animation">
+                <img src="https://media.giphy.com/media/3oKIPEqDGUULpEU0aQ/giphy.gif" alt="Logo" class="w-full h-full object-cover">
+            </div>
+            
+            <!-- Company Info -->
+            <div class="ml-4 relative z-10">
+                <h1 class="text-[24px] font-bold text-white mb-[3px]">NEXUS<span class="text-neon">TECH</span></h1>
+                <p class="text-[11px] text-slate-400 tracking-widest">INNOVATION • EXCELLENCE • GROWTH</p>
+            </div>
+            
+            <!-- Contact Info -->
+            <div class="ml-auto text-right relative z-10">
+                <p class="text-[10px] text-slate-300 my-[4px] flex items-center justify-end gap-2">
+                    <span>contact@nexustech.io</span>
+                    <span class="w-4 h-4 rounded-full bg-accent/20 flex items-center justify-center text-[8px]">✉</span>
+                </p>
+                <p class="text-[10px] text-slate-300 my-[4px] flex items-center justify-end gap-2">
+                    <span>+1 (555) 123-4567</span>
+                    <span class="w-4 h-4 rounded-full bg-neon/20 flex items-center justify-center text-[8px]">☎</span>
+                </p>
+                <p class="text-[10px] text-slate-300 my-[4px] flex items-center justify-end gap-2">
+                    <span>www.nexustech.io</span>
+                    <span class="w-4 h-4 rounded-full bg-glow/20 flex items-center justify-center text-[8px]">⌂</span>
+                </p>
+            </div>
+        </header>
+
+        <!-- Accent Line -->
+        <div class="w-[calc(100%-84px)] h-[2px] animated-gradient mx-auto my-[12px] rounded-full"></div>
+
+        <!-- Title Section -->
+        <section class="flex px-[30px] py-[8px] gap-[20px] items-center">
+            <!-- Data GIF -->
+            <div class="w-[130px] h-[90px] gif-frame flex-shrink-0">
+                <img src="https://media.giphy.com/media/l46Cy1rHbQ92uuLXa/giphy.gif" alt="Data Animation" class="w-full h-full object-cover">
+            </div>
+            
+            <div class="flex-1">
+                <h2 class="text-[26px] text-white font-bold mb-1">Annual Report <span class="text-neon">2024</span></h2>
+                <p class="text-[11px] text-slate-400 mb-3">Strategic Vision and Performance Overview</p>
+                
+                <!-- Stats Row -->
+                <div class="flex gap-3">
+                    <div class="stat-card rounded-lg px-3 py-[6px] text-center">
+                        <p class="text-[16px] font-bold text-neon">$48M</p>
+                        <p class="text-[7px] text-slate-400">REVENUE</p>
+                    </div>
+                    <div class="stat-card rounded-lg px-3 py-[6px] text-center">
+                        <p class="text-[16px] font-bold text-glow">156%</p>
+                        <p class="text-[7px] text-slate-400">GROWTH</p>
+                    </div>
+                    <div class="stat-card rounded-lg px-3 py-[6px] text-center">
+                        <p class="text-[16px] font-bold text-accent">50K+</p>
+                        <p class="text-[7px] text-slate-400">CLIENTS</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="w-[calc(100%-60px)] h-px bg-white/10 mx-auto my-[10px]"></div>
+
+        <!-- Content Section -->
+        <section class="flex px-[30px] py-[8px] gap-[20px]">
+            <!-- Analytics GIF -->
+            <div class="w-[180px] h-[110px] gif-frame flex-shrink-0">
+                <img src="https://media.giphy.com/media/JtBZm3Getg3dqxK0zP/giphy.gif" alt="Analytics" class="w-full h-full object-cover">
+            </div>
+            
+            <!-- Content Text -->
+            <div class="flex-1">
+                <h3 class="text-[15px] text-white font-bold mb-2">Our Mission</h3>
+                <p class="text-[10px] text-slate-400 leading-relaxed mb-[12px]">We are dedicated to delivering innovative solutions that transform businesses and create lasting value for our stakeholders through cutting-edge technology.</p>
+                
+                <h4 class="text-[12px] text-white font-bold mb-[8px]">Key Highlights:</h4>
+                
+                <!-- Highlight Items -->
+                <div class="flex items-center mb-[8px]">
+                    <span class="w-2 h-2 rounded-full bg-accent mr-[8px] flex-shrink-0"></span>
+                    <span class="text-[10px] text-slate-400">Revenue growth of 25% year-over-year</span>
+                </div>
+                <div class="flex items-center mb-[8px]">
+                    <span class="w-2 h-2 rounded-full bg-neon mr-[8px] flex-shrink-0"></span>
+                    <span class="text-[10px] text-slate-400">Expanded to 15 new markets globally</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="w-2 h-2 rounded-full bg-glow mr-[8px] flex-shrink-0"></span>
+                    <span class="text-[10px] text-slate-400">Launched 8 innovative products</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="w-[calc(100%-60px)] h-px bg-white/10 mx-auto my-[10px]"></div>
+
+        <!-- Services Section -->
+        <section class="px-[30px]">
+            <h3 class="text-[16px] text-white font-bold text-center mb-4">Our Services</h3>
+            
+            <div class="flex gap-4">
+                <!-- Service Card 1 -->
+                <div class="flex-1 glass-card rounded-lg overflow-hidden h-[145px]">
+                    <div class="w-full h-[70px] overflow-hidden gif-frame rounded-none">
+                        <img src="https://media.giphy.com/media/QpVUMRUJGokfqXyfa1/giphy.gif" alt="AI Solutions" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-2 text-center">
+                        <h4 class="text-[12px] text-white font-bold mb-1">AI Solutions</h4>
+                        <p class="text-[8px] text-slate-400 leading-normal">Machine learning & intelligent automation</p>
+                    </div>
+                </div>
+                
+                <!-- Service Card 2 -->
+                <div class="flex-1 glass-card rounded-lg overflow-hidden h-[145px]">
+                    <div class="w-full h-[70px] overflow-hidden gif-frame rounded-none">
+                        <img src="https://media.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif" alt="Cloud Tech" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-2 text-center">
+                        <h4 class="text-[12px] text-white font-bold mb-1">Cloud Tech</h4>
+                        <p class="text-[8px] text-slate-400 leading-normal">Scalable cloud infrastructure solutions</p>
+                    </div>
+                </div>
+                
+                <!-- Service Card 3 -->
+                <div class="flex-1 glass-card rounded-lg overflow-hidden h-[145px]">
+                    <div class="w-full h-[70px] overflow-hidden gif-frame rounded-none">
+                        <img src="https://media.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif" alt="Cyber Security" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-2 text-center">
+                        <h4 class="text-[12px] text-white font-bold mb-1">Cyber Security</h4>
+                        <p class="text-[8px] text-slate-400 leading-normal">Enterprise protection systems</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="w-[calc(100%-60px)] h-px bg-white/10 mx-auto my-[12px]"></div>
+
+        <!-- Team Section -->
+        <section class="px-[30px] py-[8px]">
+            <h3 class="text-[16px] text-white font-bold text-center mb-4">Our Leadership Team</h3>
+            
+            <div class="flex justify-between items-start">
+                <!-- Team Member 1 -->
+                <div class="text-center w-[85px]">
+                    <div class="w-12 h-12 rounded-full overflow-hidden mx-auto mb-[8px] border-2 border-accent">
+                        <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&h=200&fit=crop" alt="Alex Rivera" class="w-full h-full object-cover">
+                    </div>
+                    <p class="text-[10px] text-white font-bold mb-[2px]">Alex Rivera</p>
+                    <p class="text-[8px] text-accent">CEO</p>
+                </div>
+                
+                <!-- Team Member 2 -->
+                <div class="text-center w-[85px]">
+                    <div class="w-12 h-12 rounded-full overflow-hidden mx-auto mb-[8px] border-2 border-neon">
+                        <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&h=200&fit=crop" alt="Maya Chen" class="w-full h-full object-cover">
+                    </div>
+                    <p class="text-[10px] text-white font-bold mb-[2px]">Maya Chen</p>
+                    <p class="text-[8px] text-neon">CTO</p>
+                </div>
+                
+                <!-- Team Member 3 -->
+                <div class="text-center w-[85px]">
+                    <div class="w-12 h-12 rounded-full overflow-hidden mx-auto mb-[8px] border-2 border-glow">
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop" alt="David Park" class="w-full h-full object-cover">
+                    </div>
+                    <p class="text-[10px] text-white font-bold mb-[2px]">David Park</p>
+                    <p class="text-[8px] text-glow">CFO</p>
+                </div>
+                
+                <!-- Team Member 4 -->
+                <div class="text-center w-[85px]">
+                    <div class="w-12 h-12 rounded-full overflow-hidden mx-auto mb-[8px] border-2 border-green-500">
+                        <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&h=200&fit=crop" alt="Lisa Wong" class="w-full h-full object-cover">
+                    </div>
+                    <p class="text-[10px] text-white font-bold mb-[2px]">Lisa Wong</p>
+                    <p class="text-[8px] text-green-400">COO</p>
+                </div>
+                
+                <!-- World GIF -->
+                <div class="w-[90px] h-[60px] gif-frame">
+                    <img src="https://media.giphy.com/media/l0HlNaQ6gWfllcjDO/giphy.gif" alt="Global" class="w-full h-full object-cover">
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="w-[calc(100%-60px)] h-px bg-white/10 mx-auto my-[10px]"></div>
+
+        <!-- CTA Section -->
+        <section class="px-[30px] py-[8px]">
+            <div class="glass-card rounded-xl p-4 flex items-center gap-4">
+                <!-- Connect GIF -->
+                <div class="w-[60px] h-[60px] gif-frame flex-shrink-0">
+                    <img src="https://media.giphy.com/media/3o7aD2d7hy9ktXNDP2/giphy.gif" alt="Connect" class="w-full h-full object-cover">
+                </div>
+                
+                <!-- CTA Text -->
+                <div class="flex-1">
+                    <h4 class="text-[13px] font-bold text-white mb-1">Ready to Transform Your Business?</h4>
+                    <p class="text-[9px] text-slate-400 mb-2">Connect with us to explore how we can accelerate your digital journey.</p>
+                    <div class="flex gap-2">
+                        <span class="px-3 py-1 rounded-full bg-accent text-white text-[8px] font-bold">Schedule Demo</span>
+                        <span class="px-3 py-1 rounded-full border border-neon text-neon text-[8px] font-bold">Learn More</span>
+                    </div>
+                </div>
+                
+                <!-- QR Code -->
+                <div class="text-center">
+                    <div class="w-[45px] h-[45px] p-1 bg-white rounded-lg">
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://nexustech.io&color=6366f1" alt="QR Code" class="w-full h-full">
+                    </div>
+                    <p class="text-[7px] text-slate-400 mt-1">Scan Me</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="absolute bottom-0 left-0 right-0 h-[42px] bg-gradient-to-br from-secondary to-primary flex flex-col justify-center items-center px-[20px] border-t border-white/10">
+            <div class="animated-gradient h-[1px] w-full absolute top-0 left-0"></div>
+            
+            <div class="flex items-center justify-between w-full">
+                <div class="flex items-center gap-3">
+                    <div class="flex gap-1">
+                        <span class="w-5 h-5 rounded-full bg-accent/20 flex items-center justify-center text-[9px]">📱</span>
+                        <span class="w-5 h-5 rounded-full bg-neon/20 flex items-center justify-center text-[9px]">💼</span>
+                        <span class="w-5 h-5 rounded-full bg-glow/20 flex items-center justify-center text-[9px]">🐦</span>
+                    </div>
+                    <p class="text-[9px] text-slate-400">© 2024 NexusTech Inc. All Rights Reserved.</p>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <p class="text-[8px] text-slate-500">Privacy Policy</p>
+                    <span class="text-slate-600 text-[8px]">•</span>
+                    <p class="text-[8px] text-slate-500">Terms of Service</p>
+                    <span class="text-slate-600 text-[8px]">•</span>
+                    <p class="text-[8px] text-slate-500">Careers</p>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+</body>
+</html>

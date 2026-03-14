@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A4 Business Report Template with Videos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* A4 Page Container */
+        .a4-page {
+            width: 595px;
+            height: 842px;
+            background: #ffffff;
+            position: relative;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Header Section */
+        .header {
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 25px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.3;
+        }
+
+        .header-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, rgba(15, 15, 35, 0.9) 0%, rgba(26, 26, 62, 0.7) 100%);
+            z-index: 1;
+        }
+
+        .logo {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            border: 2px solid #00d4ff;
+            overflow: hidden;
+            position: relative;
+            z-index: 2;
+            flex-shrink: 0;
+        }
+
+        .logo video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .company-info {
+            margin-left: 15px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .company-name {
+            font-size: 22px;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 3px;
+        }
+
+        .company-tagline {
+            font-size: 10px;
+            color: #00d4ff;
+            letter-spacing: 1.5px;
+        }
+
+        .contact-info {
+            margin-left: auto;
+            text-align: right;
+            position: relative;
+            z-index: 2;
+        }
+
+        .contact-info p {
+            font-size: 9px;
+            color: #e2e8f0;
+            margin: 3px 0;
+        }
+
+        /* Accent Line */
+        .accent-line {
+            width: calc(100% - 50px);
+            height: 3px;
+            background: linear-gradient(90deg, #00d4ff 0%, #7c3aed 50%, #f43f5e 100%);
+            margin: 10px auto;
+        }
+
+        /* Title Section */
+        .title-section {
+            text-align: center;
+            padding: 8px 30px;
+        }
+
+        .main-title {
+            font-family: Georgia, serif;
+            font-size: 26px;
+            color: #1a365d;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .subtitle {
+            font-size: 11px;
+            color: #64748b;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 8px 30px;
+            background: linear-gradient(90deg, #f0f9ff 0%, #fdf4ff 100%);
+            margin: 8px 25px;
+            border-radius: 6px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 16px;
+            font-weight: bold;
+            color: #3b82f6;
+        }
+
+        .stat-label {
+            font-size: 8px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        /* Content Section */
+        .content-section {
+            display: flex;
+            padding: 10px 30px;
+            gap: 20px;
+        }
+
+        .main-video-container {
+            width: 200px;
+            height: 120px;
+            border-radius: 8px;
+            overflow: hidden;
+            flex-shrink: 0;
+            border: 2px solid #e2e8f0;
+        }
+
+        .main-video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .content-text {
+            flex: 1;
+        }
+
+        .section-heading {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: bold;
+            margin-bottom: 8px;
+            padding-left: 10px;
+            border-left: 3px solid #00d4ff;
+        }
+
+        .content-text p {
+            font-size: 10px;
+            color: #475569;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+
+        .highlights-title {
+            font-size: 11px;
+            color: #1e293b;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .highlight-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            padding: 5px 8px;
+            background: #f0f9ff;
+            border-radius: 4px;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .highlight-item.green {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .highlight-item span {
+            font-size: 9px;
+            color: #334155;
+        }
+
+        /* Divider */
+        .divider {
+            width: calc(100% - 60px);
+            height: 1px;
+            background: #e2e8f0;
+            margin: 8px auto;
+        }
+
+        /* Services Section */
+        .services-section {
+            padding: 0 30px;
+        }
+
+        .services-title {
+            font-size: 16px;
+            color: #1e293b;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 12px;
+        }
+
+        .services-grid {
+            display: flex;
+            gap: 12px;
+        }
+
+        .service-card {
+            flex: 1;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 140px;
+        }
+
+        .service-card-video {
+            width: 100%;
+            height: 75px;
+            overflow: hidden;
+        }
+
+        .service-card-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .service-card-content {
+            padding: 8px;
+            text-align: center;
+        }
+
+        .service-card-title {
+            font-size: 11px;
+            color: #1e293b;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .service-card-desc {
+            font-size: 8px;
+            color: #64748b;
+            line-height: 1.4;
+        }
+
+        /* Team Section */
+        .team-section {
+            padding: 12px 30px;
+        }
+
+        .team-title {
+            font-size: 16px;
+            color: #1e293b;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .team-grid {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .team-member {
+            text-align: center;
+            width: 85px;
+        }
+
+        .team-video {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            overflow: hidden;
+            margin: 0 auto 6px;
+            border: 2px solid;
+        }
+
+        .team-video.blue { border-color: #3b82f6; }
+        .team-video.green { border-color: #10b981; }
+        .team-video.orange { border-color: #f97316; }
+        .team-video.purple { border-color: #8b5cf6; }
+
+        .team-video video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .team-name {
+            font-size: 9px;
+            color: #1e293b;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .team-role {
+            font-size: 7px;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+
+        .qr-code {
+            text-align: center;
+        }
+
+        .qr-code img {
+            width: 45px;
+            height: 45px;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 2px;
+            background: white;
+        }
+
+        .qr-code p {
+            font-size: 7px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        /* Footer */
+        .footer {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 45px;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 8px;
+            overflow: hidden;
+        }
+
+        .footer-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.2;
+        }
+
+        .footer p {
+            position: relative;
+            z-index: 1;
+        }
+
+        .footer-copyright {
+            font-size: 10px;
+            color: white;
+            margin-bottom: 2px;
+        }
+
+        .footer-address {
+            font-size: 7px;
+            color: #94a3b8;
+        }
+
+        /* Decorative Corners */
+        .corner-top {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 0;
+            border-left: 50px solid rgba(0, 212, 255, 0.7);
+            border-bottom: 50px solid transparent;
+            z-index: 10;
+        }
+
+        .corner-bottom {
+            position: absolute;
+            bottom: 45px;
+            right: 0;
+            width: 0;
+            height: 0;
+            border-right: 50px solid rgba(124, 58, 237, 0.7);
+            border-top: 50px solid transparent;
+        }
+
+        @media print {
+            .a4-page {
+                box-shadow: none;
+            }
+        }
+
+        @page {
+            size: A4;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- A4 Page -->
+    <div class="a4-page">
+
+        <!-- Decorative Corners -->
+        <div class="corner-top"></div>
+        <div class="corner-bottom"></div>
+
+        <!-- Header -->
+        <header class="header">
+            <video class="header-video" autoplay muted loop playsinline>
+                <source src="https://assets.mixkit.co/videos/preview/mixkit-set-of-plateaus-702-large.mp4" type="video/mp4">
+            </video>
+            <div class="header-overlay"></div>
+            
+            <div class="logo">
+                <video autoplay muted loop playsinline>
+                    <source src="https://assets.mixkit.co/videos/preview/mixkit-abstract-technology-network-connections-27968-large.mp4" type="video/mp4">
+                </video>
+            </div>
+            <div class="company-info">
+                <h1 class="company-name">Horizon Business</h1>
+                <p class="company-tagline">INNOVATION • EXCELLENCE • GROWTH</p>
+            </div>
+            <div class="contact-info">
+                <p>✉ contact@horizon.com</p>
+                <p>☎ +1 (555) 123-4567</p>
+                <p>⌂ www.horizon.com</p>
+            </div>
+        </header>
+
+        <!-- Accent Line -->
+        <div class="accent-line"></div>
+
+        <!-- Title Section -->
+        <section class="title-section">
+            <h2 class="main-title">Annual Business Report 2024</h2>
+            <p class="subtitle">Strategic Vision and Performance Overview</p>
+        </section>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-number">$12.5M</div>
+                <div class="stat-label">Revenue</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">250+</div>
+                <div class="stat-label">Clients</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">15</div>
+                <div class="stat-label">Countries</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">98%</div>
+                <div class="stat-label">Satisfaction</div>
+            </div>
+        </div>
+
+        <!-- Content Section -->
+        <section class="content-section">
+            <div class="main-video-container">
+                <video autoplay muted loop playsinline>
+                    <source src="https://www.pexels.com/download/video/854268/" type="video/mp4">
+                </video>
+            </div>
+            <div class="content-text">
+                <h3 class="section-heading">Our Mission</h3>
+                <p>We are dedicated to delivering innovative solutions that transform businesses and create lasting value for our stakeholders.</p>
+                <h4 class="highlights-title">Key Highlights:</h4>
+                <div class="highlight-item">
+                    <span>📈 Revenue growth of 25% year-over-year</span>
+                </div>
+                <div class="highlight-item green">
+                    <span>🌍 Expanded to 15 new markets globally</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <!-- Services Section -->
+        <section class="services-section">
+            <h3 class="services-title">Our Services</h3>
+            <div class="services-grid">
+                <!-- Card 1 -->
+                <div class="service-card">
+                    <div class="service-card-video">
+                        <video autoplay muted loop playsinline>
+                            <source src="https://www.pexels.com/download/video/3195394/" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="service-card-content">
+                        <h4 class="service-card-title">Technology</h4>
+                        <p class="service-card-desc">Cutting-edge solutions for modern challenges</p>
+                    </div>
+                </div>
+                <!-- Card 2 -->
+                <div class="service-card">
+                    <div class="service-card-video">
+                        <video autoplay muted loop playsinline>
+                            <source src="https://www.pexels.com/download/video/4309723/" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="service-card-content">
+                        <h4 class="service-card-title">Consulting</h4>
+                        <p class="service-card-desc">Expert guidance for business growth</p>
+                    </div>
+                </div>
+                <!-- Card 3 -->
+                <div class="service-card">
+                    <div class="service-card-video">
+                        <video autoplay muted loop playsinline>
+                            <source src="https://www.pexels.com/download/video/3042473/" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="service-card-content">
+                        <h4 class="service-card-title">Analytics</h4>
+                        <p class="service-card-desc">Data-driven insights for smart decisions</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="divider"></div>
+
+        <!-- Team Section -->
+        <section class="team-section">
+            <h3 class="team-title">Our Leadership Team</h3>
+            <div class="team-grid">
+                <!-- Member 1 -->
+                <div class="team-member">
+                    <div class="team-video blue">
+                        <img src="https://images.unsplash.com/photo-1560250097-0b93528c311a?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="John Smith" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <p class="team-name">John Smith</p>
+                    <p class="team-role">CEO</p>
+                </div>
+                <!-- Member 2 -->
+                <div class="team-member">
+                    <div class="team-video green">
+                        <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Sarah Johnson" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <p class="team-name">Sarah Johnson</p>
+                    <p class="team-role">CTO</p>
+                </div>
+                <!-- Member 3 -->
+                <div class="team-member">
+                    <div class="team-video orange">
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Mike Davis" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <p class="team-name">Mike Davis</p>
+                    <p class="team-role">CFO</p>
+                </div>
+                <!-- Member 4 -->
+                <div class="team-member">
+                    <div class="team-video purple">
+                        <img src="https://images.unsplash.com/photo-1580489944761-15a19d654956?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Emily Chen" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    <p class="team-name">Emily Chen</p>
+                    <p class="team-role">COO</p>
+                </div>
+                <!-- QR Code -->
+                <div class="qr-code">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://www.example.com" alt="QR Code">
+                    <p>Scan for More</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <img class="footer-video" src="https://images.unsplash.com/photo-1451187580459-43490279c0fa?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80" alt="Footer Background" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.2;">
+            <p class="footer-copyright">© 2024 Horizon Business Inc. All Rights Reserved.</p>
+            <p class="footer-address">123 Business Avenue, Suite 500, New York, NY 10001 | Privacy Policy | Terms of Service</p>
+        </footer>
+
+    </div>
+</body>
+</html>

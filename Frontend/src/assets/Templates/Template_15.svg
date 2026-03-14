@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="595px" height="842px" viewBox="0 0 595 842">
+  
+  <!-- Background -->
+  <rect width="595" height="842" fill="#ffffff"/>
+  
+  <!-- Header Background -->
+  <rect x="0" y="0" width="595" height="113" fill="#1a365d"/>
+  
+  <!-- Header Image/Banner -->
+  <image href="https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&amp;h=300&amp;fit=crop" x="0" y="0" width="595" height="113" opacity="0.3" preserveAspectRatio="xMidYMid slice"/>
+  
+  <!-- Logo Image -->
+  <defs>
+    <clipPath id="logoClip">
+      <circle cx="71" cy="57" r="34"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1599305445671-ac291c95aaa9?w=150&amp;h=150&amp;fit=crop" x="37" y="23" width="68" height="68" clip-path="url(#logoClip)" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="71" cy="57" r="34" fill="none" stroke="white" stroke-width="2"/>
+  
+  <!-- Company Name in Header -->
+  <text x="127" y="50" font-family="Arial, sans-serif" font-size="28" fill="white" font-weight="bold">Horizon Business</text>
+  <text x="127" y="78" font-family="Arial, sans-serif" font-size="14" fill="#a0aec0">Innovation • Excellence • Growth</text>
+  
+  <!-- Header Contact Info -->
+  <text x="553" y="40" font-family="Arial, sans-serif" font-size="11" fill="#e2e8f0" text-anchor="end">✉ contact@horizon.com</text>
+  <text x="553" y="60" font-family="Arial, sans-serif" font-size="11" fill="#e2e8f0" text-anchor="end">☎ +1 (555) 123-4567</text>
+  <text x="553" y="80" font-family="Arial, sans-serif" font-size="11" fill="#e2e8f0" text-anchor="end">⌂ www.horizon.com</text>
+  
+  <!-- Accent Line -->
+  <rect x="42" y="127" width="510" height="3" fill="#4299e1"/>
+  
+  <!-- Main Title -->
+  <text x="297" y="162" font-family="Georgia, serif" font-size="34" fill="#1a365d" text-anchor="middle" font-weight="bold">
+    Annual Business Report 2024
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="297" y="188" font-family="Arial, sans-serif" font-size="14" fill="#718096" text-anchor="middle">
+    Strategic Vision and Performance Overview
+  </text>
+  
+  <!-- Main Feature Image -->
+  <defs>
+    <clipPath id="mainImageClip">
+      <rect x="42" y="212" width="241" height="156" rx="8"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&amp;h=400&amp;fit=crop" x="42" y="212" width="241" height="156" clip-path="url(#mainImageClip)" preserveAspectRatio="xMidYMid slice"/>
+  <rect x="42" y="212" width="241" height="156" fill="none" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+  
+  <!-- Right Side Content -->
+  <text x="306" y="232" font-family="Arial, sans-serif" font-size="17" fill="#1a365d" font-weight="bold">Our Mission</text>
+  
+  <text x="306" y="258" font-family="Arial, sans-serif" font-size="12" fill="#4a5568">
+    <tspan x="306" dy="0">We are dedicated to delivering innovative</tspan>
+    <tspan x="306" dy="18">solutions that transform businesses and</tspan>
+    <tspan x="306" dy="18">create lasting value for our stakeholders.</tspan>
+  </text>
+  
+  <!-- Key Highlights -->
+  <text x="306" y="325" font-family="Arial, sans-serif" font-size="14" fill="#1a365d" font-weight="bold">Key Highlights:</text>
+  
+  <circle cx="315" cy="348" r="4" fill="#4299e1"/>
+  <text x="326" y="352" font-family="Arial, sans-serif" font-size="11" fill="#4a5568">
+    Revenue growth of 25% year-over-year
+  </text>
+  
+  <circle cx="315" cy="370" r="4" fill="#48bb78"/>
+  <text x="326" y="374" font-family="Arial, sans-serif" font-size="11" fill="#4a5568">
+    Expanded to 15 new markets globally
+  </text>
+  
+  <!-- Divider -->
+  <rect x="42" y="395" width="510" height="1" fill="#e2e8f0"/>
+  
+  <!-- Three Image Cards Section -->
+  <text x="297" y="425" font-family="Arial, sans-serif" font-size="20" fill="#1a365d" text-anchor="middle" font-weight="bold">Our Services</text>
+  
+  <!-- Card 1 - Technology -->
+  <rect x="42" y="445" width="156" height="170" fill="#f7fafc" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+  <defs>
+    <clipPath id="card1Clip">
+      <rect x="48" y="451" width="144" height="85" rx="6"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&amp;h=250&amp;fit=crop" x="48" y="451" width="144" height="85" clip-path="url(#card1Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <text x="120" y="560" font-family="Arial, sans-serif" font-size="14" fill="#1a365d" text-anchor="middle" font-weight="bold">Technology</text>
+  <text x="120" y="580" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">Cutting-edge solutions</text>
+  <text x="120" y="596" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">for modern challenges</text>
+  
+  <!-- Card 2 - Consulting -->
+  <rect x="219" y="445" width="156" height="170" fill="#f7fafc" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+  <defs>
+    <clipPath id="card2Clip">
+      <rect x="225" y="451" width="144" height="85" rx="6"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1552664730-d307ca884978?w=400&amp;h=250&amp;fit=crop" x="225" y="451" width="144" height="85" clip-path="url(#card2Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <text x="297" y="560" font-family="Arial, sans-serif" font-size="14" fill="#1a365d" text-anchor="middle" font-weight="bold">Consulting</text>
+  <text x="297" y="580" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">Expert guidance for</text>
+  <text x="297" y="596" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">business growth</text>
+  
+  <!-- Card 3 - Analytics -->
+  <rect x="396" y="445" width="156" height="170" fill="#f7fafc" stroke="#e2e8f0" stroke-width="1" rx="8"/>
+  <defs>
+    <clipPath id="card3Clip">
+      <rect x="402" y="451" width="144" height="85" rx="6"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&amp;h=250&amp;fit=crop" x="402" y="451" width="144" height="85" clip-path="url(#card3Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <text x="474" y="560" font-family="Arial, sans-serif" font-size="14" fill="#1a365d" text-anchor="middle" font-weight="bold">Analytics</text>
+  <text x="474" y="580" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">Data-driven insights</text>
+  <text x="474" y="596" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">for smart decisions</text>
+  
+  <!-- Team Section -->
+  <rect x="42" y="630" width="510" height="1" fill="#e2e8f0"/>
+  
+  <text x="297" y="660" font-family="Arial, sans-serif" font-size="20" fill="#1a365d" text-anchor="middle" font-weight="bold">Our Leadership Team</text>
+  
+  <!-- Team Member 1 -->
+  <defs>
+    <clipPath id="person1Clip">
+      <circle cx="99" cy="714" r="28"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1560250097-0b93528c311a?w=200&amp;h=200&amp;fit=crop" x="71" y="686" width="56" height="56" clip-path="url(#person1Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="99" cy="714" r="28" fill="none" stroke="#4299e1" stroke-width="2"/>
+  <text x="99" y="758" font-family="Arial, sans-serif" font-size="12" fill="#1a365d" text-anchor="middle" font-weight="bold">John Smith</text>
+  <text x="99" y="774" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">CEO</text>
+  
+  <!-- Team Member 2 -->
+  <defs>
+    <clipPath id="person2Clip">
+      <circle cx="212" cy="714" r="28"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&amp;h=200&amp;fit=crop" x="184" y="686" width="56" height="56" clip-path="url(#person2Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="212" cy="714" r="28" fill="none" stroke="#48bb78" stroke-width="2"/>
+  <text x="212" y="758" font-family="Arial, sans-serif" font-size="12" fill="#1a365d" text-anchor="middle" font-weight="bold">Sarah Johnson</text>
+  <text x="212" y="774" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">CTO</text>
+  
+  <!-- Team Member 3 -->
+  <defs>
+    <clipPath id="person3Clip">
+      <circle cx="325" cy="714" r="28"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&amp;h=200&amp;fit=crop" x="297" y="686" width="56" height="56" clip-path="url(#person3Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="325" cy="714" r="28" fill="none" stroke="#ed8936" stroke-width="2"/>
+  <text x="325" y="758" font-family="Arial, sans-serif" font-size="12" fill="#1a365d" text-anchor="middle" font-weight="bold">Mike Davis</text>
+  <text x="325" y="774" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">CFO</text>
+  
+  <!-- Team Member 4 -->
+  <defs>
+    <clipPath id="person4Clip">
+      <circle cx="438" cy="714" r="28"/>
+    </clipPath>
+  </defs>
+  <image href="https://images.unsplash.com/photo-1580489944761-15a19d654956?w=200&amp;h=200&amp;fit=crop" x="410" y="686" width="56" height="56" clip-path="url(#person4Clip)" preserveAspectRatio="xMidYMid slice"/>
+  <circle cx="438" cy="714" r="28" fill="none" stroke="#9f7aea" stroke-width="2"/>
+  <text x="438" y="758" font-family="Arial, sans-serif" font-size="12" fill="#1a365d" text-anchor="middle" font-weight="bold">Emily Chen</text>
+  <text x="438" y="774" font-family="Arial, sans-serif" font-size="10" fill="#718096" text-anchor="middle">COO</text>
+  
+  <!-- QR Code -->
+  <rect x="496" y="686" width="51" height="51" fill="#f7fafc" stroke="#e2e8f0" stroke-width="1" rx="4"/>
+  <image href="https://api.qrserver.com/v1/create-qr-code/?size=150x150&amp;data=https://www.example.com" x="499" y="689" width="45" height="45"/>
+  <text x="521" y="752" font-family="Arial, sans-serif" font-size="8" fill="#718096" text-anchor="middle">Scan Me</text>
+  
+  <!-- Footer -->
+  <rect x="0" y="794" width="595" height="48" fill="#1a365d"/>
+  
+  <!-- Footer Background Image -->
+  <image href="https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&amp;h=150&amp;fit=crop" x="0" y="794" width="595" height="48" opacity="0.2" preserveAspectRatio="xMidYMid slice"/>
+  
+  <text x="297" y="815" font-family="Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">
+    © 2024 Horizon Business Inc. All Rights Reserved.
+  </text>
+  
+  <text x="297" y="833" font-family="Arial, sans-serif" font-size="9" fill="#a0aec0" text-anchor="middle">
+    123 Business Avenue, Suite 500, New York, NY 10001 | Privacy Policy | Terms of Service
+  </text>
+  
+  <!-- Decorative Corners -->
+  <polygon points="0,0 57,0 0,57" fill="#4299e1" opacity="0.6"/>
+  <polygon points="595,842 538,842 595,785" fill="#4299e1" opacity="0.6"/>
+  
+</svg>
