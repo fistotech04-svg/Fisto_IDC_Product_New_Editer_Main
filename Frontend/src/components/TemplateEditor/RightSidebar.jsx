@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
-const RightSidebar = () => {
-  const [isDoublePage, setIsDoublePage] = useState(true);
+const RightSidebar = ({ isDoublePage, setIsDoublePage }) => {
 
   return (
     <div 
