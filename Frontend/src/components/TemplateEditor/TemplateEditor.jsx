@@ -20,7 +20,9 @@ const TemplateEditor = () => {
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
+  const [multiSelectedIds, setMultiSelectedIds] = useState(new Set());
 
   const updatePageHtml = (pageIndex, html) => {
     setPages(prev => {
@@ -47,6 +49,7 @@ const TemplateEditor = () => {
       return updated;
     });
     setSelectedLayerId(null);
+    setMultiSelectedIds(new Set());
   };
 
   const insertPageAfter = (index) => {
@@ -243,65 +246,73 @@ const TemplateEditor = () => {
       const response = await fetch(templateUrl);
       const content = await response.text();
       
-      // Parse SVG to extract nested layers (Figma style)
       const parser = new DOMParser();
       const doc = parser.parseFromString(content, 'image/svg+xml');
-      const svgRoot = doc.querySelector('svg');
+      let svgRoot = doc.querySelector('svg');
       
-      const parseLayers = (element) => {
-        return Array.from(element.children)
-          .filter(child => !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()))
-          .map((child, idx) => {
-            const id = child.id || `${child.tagName}-${Math.random().toString(36).substr(2, 5)}`;
-            if (!child.id) child.setAttribute('id', id); // Ensure DOM has the ID
-
-            const name = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
-            
-            const layer = {
-              id: id,
-              name: name,
-              type: child.tagName.toLowerCase(),
-              visible: true,
-              locked: false
-            };
-
-            if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
-              layer.children = parseLayers(child);
-            }
-
-            return layer;
-          });
-      };
-
       let layers = [];
       let updatedHtml = content;
+
       if (svgRoot) {
+        const parseLayers = (element) => {
+          return Array.from(element.children)
+            .filter(child => !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()))
+            .map((child, idx) => {
+              const id = child.id || `${child.tagName}-${Math.random().toString(36).substr(2, 5)}`;
+              if (!child.id) child.setAttribute('id', id);
+
+              const name = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+              
+              const layer = {
+                id: id,
+                name: name,
+                type: child.tagName.toLowerCase(),
+                visible: true,
+                locked: false
+              };
+
+              if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
+                layer.children = parseLayers(child);
+              }
+
+              return layer;
+            });
+        };
+
         layers = parseLayers(svgRoot);
         const serializer = new XMLSerializer();
         updatedHtml = serializer.serializeToString(svgRoot);
       }
 
+      const targetIndex = templateTargetIndex !== null ? templateTargetIndex : activePageIndex;
+
       setPages(prev => {
         const updated = [...prev];
-        if (updated[activePageIndex]) {
-          updated[activePageIndex] = { 
-            ...updated[activePageIndex], 
+        if (updated[targetIndex]) {
+          updated[targetIndex] = { 
+            ...updated[targetIndex], 
             html: updatedHtml,
             layers: layers
           };
         }
         return updated;
       });
+      
+      setTemplateTargetIndex(null);
     } catch (error) {
       console.error('Failed to load template:', error);
     }
+  };
+
+  const handleOpenTemplateModal = (index) => {
+    setTemplateTargetIndex(index !== undefined ? index : activePageIndex);
+    setShowTemplateModal(true);
   };
 
   useEffect(() => {
     const initializeEditor = async () => {
       setIsLoading(true);
       
-      // 1. Check if we have v_id (Direct Link / Saved Book)
       if (v_id) {
           try {
               const storedUser = localStorage.getItem('user');
@@ -324,7 +335,6 @@ const TemplateEditor = () => {
               console.error("Failed to fetch flipbook:", err);
           }
       } 
-      // 2. Fallback: Check location state (Coming from Create Modal)
       else if (location.state && location.state.pageCount) {
           const count = location.state.pageCount;
           const newPages = Array.from({ length: count }, (_, i) => ({
@@ -334,7 +344,6 @@ const TemplateEditor = () => {
           }));
           setPages(newPages);
       }
-      // 3. Last Fallback: Default 12 pages
       else {
           setPages(Array.from({ length: 12 }, (_, i) => ({
               id: i + 1,
@@ -374,11 +383,13 @@ const TemplateEditor = () => {
         movePageToLast={movePageToLast}
         movePage={movePage}
         clearPage={clearPage}
-        onOpenTemplateModal={() => setShowTemplateModal(true)}
+        onOpenTemplateModal={handleOpenTemplateModal}
         toggleLayerVisibility={toggleLayerVisibility}
         toggleLayerLock={toggleLayerLock}
         selectedLayerId={selectedLayerId}
         setSelectedLayerId={setSelectedLayerId}
+        multiSelectedIds={multiSelectedIds}
+        setMultiSelectedIds={setMultiSelectedIds}
       />
 
       <MainEditor 
@@ -390,10 +401,12 @@ const TemplateEditor = () => {
         duplicatePage={duplicatePage}
         clearPage={clearPage}
         deletePage={deletePage}
-        onOpenTemplateModal={() => setShowTemplateModal(true)}
+        onOpenTemplateModal={handleOpenTemplateModal}
         selectedLayerId={selectedLayerId}
         setSelectedLayerId={setSelectedLayerId}
         updatePageHtml={updatePageHtml}
+        multiSelectedIds={multiSelectedIds}
+        setMultiSelectedIds={setMultiSelectedIds}
       />
       <RightSidebar isDoublePage={isDoublePage} setIsDoublePage={setIsDoublePage} />
       
@@ -401,7 +414,7 @@ const TemplateEditor = () => {
         <TemplateModal 
           showTemplateModal={showTemplateModal} 
           setShowTemplateModal={setShowTemplateModal} 
-          clearCanvas={() => clearPage(activePageIndex)} 
+          clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)} 
           loadTemplate={loadTemplate} 
         />
       )}

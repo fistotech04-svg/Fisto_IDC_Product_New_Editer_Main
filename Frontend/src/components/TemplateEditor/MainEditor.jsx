@@ -12,43 +12,69 @@ const svgGlobalStyles = `
     margin: 0 !important;
     padding: 0 !important;
   }
-  
-  /* Figma-style Selection Highlight */
-  .page-svg-container svg [data-selected="true"] {
-    outline: 3px solid #6366F1 !important;
-    outline-offset: -2px;
-    filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.4));
-  }
 
-  /* Hover Feedback */
-  .page-svg-container svg *:hover {
-    outline: 1px solid rgba(99, 102, 241, 0.4);
-    outline-offset: -1px;
-    cursor: pointer;
-  }
-
-  /* Ensure selected elements stay on top for outline visibility */
-  .page-svg-container svg [data-selected="true"] {
-    paint-order: markers fill stroke;
-  }
+  /* ============================================
+     FIGMA-STYLE FRAME SELECTION SYSTEM
+     ============================================ */
 
   /* Global SVG Interaction Prevention */
   .page-svg-container svg {
     user-select: none !important;
     -webkit-user-select: none !important;
   }
-  
+
   .page-svg-container svg text,
   .page-svg-container svg tspan {
     user-select: none !important;
     -webkit-user-select: none !important;
-    pointer-events: none !important; /* Completely ignore text for click/drag */
+    pointer-events: auto !important;
+    cursor: default;
   }
 
-  /* Dragging State */
+  /* Allow text selection when editing */
+  .page-svg-container svg text[contenteditable="true"],
+  .page-svg-container svg tspan[contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+  }
+
+  /* 1. HOVER state — blue outline on the topmost frame candidate */
+  .page-svg-container svg [data-hovered="true"] {
+    outline: 1.5px solid #6366F1 !important;
+    outline-offset: 0px;
+  }
+
+  /* 2. SELECTED frame — solid thick indigo outline + glow */
+  .page-svg-container svg [data-selected="true"] {
+    outline: 2.5px solid #6366F1 !important;
+    outline-offset: 0px;
+    filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.35));
+  }
+
+  /* 3. ENTERED FRAME indicator — when user has "entered" this frame,
+        show it with a thin dashed blue border (like Figma's current frame) */
+  .page-svg-container svg [data-frame-entered="true"] {
+    outline: 1.5px dashed #6366F1 !important;
+    outline-offset: 2px;
+  }
+
+  /* 4. CHILD HOVER inside an entered frame — dotted outline for child candidates */
+  .page-svg-container svg [data-child-hovered="true"] {
+    outline: 1.5px dashed #6366F1 !important;
+    outline-offset: 0px;
+  }
+
+  /* 5. CHILD SELECTED inside an entered frame — same solid selection look */
+  .page-svg-container svg [data-child-selected="true"] {
+    outline: 2px solid #6366F1 !important;
+    outline-offset: 0px;
+    filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.4));
+  }
+
+  /* 7. Dragging State */
   .page-svg-container svg [data-dragging="true"] {
     filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2)) !important;
-    cursor: grabbing !important;
   }
 `;
 import TopToolbar from './TopToolbar';
@@ -74,7 +100,9 @@ const MainEditor = ({
   onOpenTemplateModal,
   selectedLayerId,
   setSelectedLayerId,
-  updatePageHtml
+  updatePageHtml,
+  multiSelectedIds = new Set(),
+  setMultiSelectedIds
 }) => {
 
   const [showSelectOptions, setShowSelectOptions] = useState(false);
@@ -86,8 +114,22 @@ const MainEditor = ({
   const [activeMainTool, setActiveMainTool] = useState('select'); // 'upload', 'select', 'pen', 'type', 'shapes', 'grid'
   const [zoom, setZoom] = useState(90);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
+
+  // ── Figma Frame Selection State ──────────────────────────────────────────────
+  // currentFrameId: the frame the user has "entered" by clicking into it
+  // selectedLayerId: the currently selected element (frame or child)
+  const [currentFrameId, setCurrentFrameId] = useState(null); // Frame user has entered
+  const currentFrameIdRef = useRef(null);
+
+  // ── Multi-Selection Ref (state is lifted to TemplateEditor via props) ───────────
+  // Keep a mutable ref so interactjs callbacks (closures) always see latest value
+  const multiSelectedIdsRef = useRef(new Set());
+
   const dragStateRef = useRef(null);
   const suppressClickRef = useRef(false);
+  const selectedLayerIdRef = useRef(null);
+  const activeMainToolRef = useRef(activeMainTool);
+  const lastClickRef = useRef({ time: 0, target: null });
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -95,6 +137,36 @@ const MainEditor = ({
     window.addEventListener('click', handleClickOutside);
     return () => window.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // ── Escape key: exit current frame context (go up one level) ──────────────────
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        // Always clear multi-selection first
+        multiSelectedIdsRef.current = new Set();
+        setMultiSelectedIds(new Set());
+
+        const frameId = currentFrameIdRef.current;
+        if (frameId) {
+          // Go up: select the frame we were inside, exit it
+          if (setSelectedLayerId) {
+            setSelectedLayerId(frameId);
+            selectedLayerIdRef.current = frameId;
+          }
+          setCurrentFrameId(null);
+          currentFrameIdRef.current = null;
+        } else if (selectedLayerIdRef.current) {
+          // No frame entered but something is selected → deselect
+          if (setSelectedLayerId) {
+            setSelectedLayerId(null);
+            selectedLayerIdRef.current = null;
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setSelectedLayerId]);
 
   useEffect(() => {
     return () => {
@@ -108,18 +180,72 @@ const MainEditor = ({
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
   const handleResetZoom = () => setZoom(90);
 
-  // Sync data-selected attribute with DOM for instant feedback
+  // ── Sync all Figma-style data attributes with DOM ────────────────────────────
   useEffect(() => {
-    const allSelected = document.querySelectorAll('[data-selected="true"]');
-    allSelected.forEach(el => el.removeAttribute('data-selected'));
+    // Clear ALL previous visual states
+    document.querySelectorAll('[data-selected="true"]').forEach(el => el.removeAttribute('data-selected'));
+    document.querySelectorAll('[data-child-selected="true"]').forEach(el => el.removeAttribute('data-child-selected'));
+    document.querySelectorAll('[data-frame-entered="true"]').forEach(el => el.removeAttribute('data-frame-entered'));
+    document.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+    document.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
 
-    if (selectedLayerId) {
-      const elements = document.querySelectorAll(`[id="${selectedLayerId}"]`);
-      elements.forEach(el => {
-        el.setAttribute('data-selected', 'true');
+    if (currentFrameId) {
+      // Mark the entered frame with dashed border
+      document.querySelectorAll(`[id="${currentFrameId}"]`).forEach(el => {
+        el.setAttribute('data-frame-entered', 'true');
       });
     }
-  }, [selectedLayerId, pages, activePageIndex]);
+
+    // Apply selection highlights for ALL elements in multiSelectedIds
+    // (falls back to just selectedLayerId when multiSelectedIds is empty)
+    const idsToHighlight = multiSelectedIds.size > 0
+      ? multiSelectedIds
+      : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
+
+    idsToHighlight.forEach(id => {
+      if (currentFrameId && id !== currentFrameId) {
+        // Child selected inside entered frame
+        document.querySelectorAll(`[id="${id}"]`).forEach(el => {
+          el.setAttribute('data-child-selected', 'true');
+        });
+      } else {
+        // Top-level frame selected
+        document.querySelectorAll(`[id="${id}"]`).forEach(el => {
+          el.setAttribute('data-selected', 'true');
+        });
+      }
+    });
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex]);
+
+  // Sync refs
+  useEffect(() => { currentFrameIdRef.current = currentFrameId; }, [currentFrameId]);
+
+  // Helper: get direct children of SVG root that have IDs (top-level frames)
+  const getTopLevelFrames = (svg) => {
+    return Array.from(svg.children).filter(el =>
+      el.id &&
+      el.tagName.toLowerCase() !== 'style' &&
+      el.tagName.toLowerCase() !== 'defs' &&
+      el.getAttribute('data-hidden') !== 'true'
+    );
+  };
+
+  // Helper: get direct children of a given element that have IDs
+  const getDirectChildFrames = (el) => {
+    return Array.from(el.children).filter(child =>
+      child.id &&
+      child.tagName.toLowerCase() !== 'style' &&
+      child.tagName.toLowerCase() !== 'defs' &&
+      child.getAttribute('data-hidden') !== 'true'
+    );
+  };
+
+  // Helper: check if a point (clientX, clientY) hits an element's bounding box
+  const hitTest = (el, clientX, clientY) => {
+    const rect = el.getBoundingClientRect();
+    return clientX >= rect.left && clientX <= rect.right &&
+           clientY >= rect.top  && clientY <= rect.bottom;
+  };
 
   // Helper to get all valid SVG elements at a point (z-index ordered, top to bottom)
   const getElementsAtPoint = (x, y) => {
@@ -129,6 +255,13 @@ const MainEditor = ({
       return isSvgContent && isVisible;
     });
   };
+
+
+
+  // Sync refs with props/state
+  useEffect(() => { selectedLayerIdRef.current = selectedLayerId; }, [selectedLayerId]);
+  useEffect(() => { activeMainToolRef.current = activeMainTool; }, [activeMainTool]);
+  useEffect(() => { multiSelectedIdsRef.current = multiSelectedIds; }, [multiSelectedIds]);
 
   const getSvgPoint = (svgElement, clientX, clientY) => {
     const ctm = svgElement?.getScreenCTM();
@@ -181,28 +314,70 @@ const MainEditor = ({
   };
 
   useEffect(() => {
-    // Setup interactjs for elements within the SVG
-    const interactable = interact('.page-svg-container svg *')
+    // Setup interactjs for elements within the SVG - targeting both elements and the background
+    const interactable = interact('.page-svg-container svg, .page-svg-container svg *')
+      .styleCursor(false) // Prevents interact.js from dynamically setting cursors on hover
       .draggable({
+        cursorChecker: () => null, // Second layer of prevention just in case
         inertia: false, // Disable inertia for perfect cursor sync
         autoScroll: true,
         listeners: {
           start(event) {
-            const target = event.target;
-            const svgElement = target.ownerSVGElement;
+            let target = event.target;
+            const svgElement = target.ownerSVGElement || (target.tagName.toLowerCase() === 'svg' ? target : null);
             if (!svgElement) return;
 
-            const isText = ['text', 'tspan', 'foreignObject'].includes(target.tagName.toLowerCase());
-            if (isText || activeMainTool !== 'select') {
+            const isEditing = target.closest('[data-editing="true"]') || (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true');
+            if (activeMainToolRef.current !== 'select' || isEditing) {
               event.interaction.stop();
               return;
             }
 
-            // Find the best element to drag: 
-            // If an ancestor (like a group) is selected, move that.
+            const container = target.closest('.page-svg-container');
+
+            // 1. Handle "Selection Priority" - if clicking inside the current selection's box, drag it!
+            const selectedId = selectedLayerIdRef.current;
+            if (selectedId) {
+              const selectedEl = container?.querySelector(`[id="${selectedId}"]`);
+              if (selectedEl && selectedEl !== svgElement) {
+                const rect = selectedEl.getBoundingClientRect();
+                const buffer = 2;
+                if (event.clientX >= rect.left - buffer && event.clientX <= rect.right + buffer &&
+                    event.clientY >= rect.top - buffer && event.clientY <= rect.bottom + buffer) {
+                  target = selectedEl; // Redirect drag to the current selection!
+                }
+              }
+            }
+
+            // Also allow drag if clicking inside ANY multi-selected element
+            if (target === event.target || target.tagName?.toLowerCase() === 'svg') {
+              const multiIds = multiSelectedIdsRef.current;
+              if (multiIds.size > 1) {
+                for (const id of multiIds) {
+                  const el = container?.querySelector(`[id="${id}"]`);
+                  if (el && el !== svgElement) {
+                    const rect = el.getBoundingClientRect();
+                    const buffer = 2;
+                    if (event.clientX >= rect.left - buffer && event.clientX <= rect.right + buffer &&
+                        event.clientY >= rect.top - buffer && event.clientY <= rect.bottom + buffer) {
+                      target = el;
+                      break;
+                    }
+                  }
+                }
+              }
+            }
+
+            // If still background, stop drag
+            if (target === svgElement) {
+              event.interaction.stop();
+              return;
+            }
+
             let elementToDrag = target;
-            if (selectedLayerId) {
-              const selectedEl = document.getElementById(selectedLayerId);
+            const currentSelectedId = selectedLayerIdRef.current;
+            if (currentSelectedId) {
+              const selectedEl = container?.querySelector(`[id="${currentSelectedId}"]`);
               if (selectedEl && selectedEl !== svgElement && selectedEl.contains(target)) {
                 elementToDrag = selectedEl;
               }
@@ -226,23 +401,44 @@ const MainEditor = ({
               setSelectedLayerId(elementToDrag.id);
             }
 
-            // Store state in interaction object
-            elementToDrag.setAttribute('data-dragging', 'true');
-            elementToDrag.style.cursor = 'grabbing';
-            
+            // ── Build multi-drag list: all multi-selected elements in the same SVG ──
+            const multiIds = multiSelectedIdsRef.current;
+            const multiDragItems = [];
+
+            if (multiIds.size > 1) {
+              for (const id of multiIds) {
+                const el = container?.querySelector(`[id="${id}"]`);
+                if (el && el !== svgElement &&
+                    el.getAttribute('data-hidden') !== 'true' &&
+                    el.getAttribute('data-locked') !== 'true') {
+                  el.setAttribute('data-dragging', 'true');
+                  multiDragItems.push({
+                    element: el,
+                    initialMatrix: getElementMatrix(el)
+                  });
+                }
+              }
+            }
+
+            // If no multi items, just add the primary element
+            if (multiDragItems.length === 0) {
+              elementToDrag.setAttribute('data-dragging', 'true');
+            }
+
             event.interaction.dragState = {
               element: elementToDrag,
               startPoint: startPoint,
               initialMatrix: getElementMatrix(elementToDrag),
               svgElement: svgElement,
-              pageIndex: activePageIndex
+              pageIndex: activePageIndex,
+              // Multi-drag support
+              multiDragItems: multiDragItems.length > 0 ? multiDragItems : null
             };
           },
           move(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
 
-            const target = dragState.element;
             const currentPoint = getSvgPoint(dragState.svgElement, event.clientX, event.clientY);
             if (!currentPoint) return;
 
@@ -250,27 +446,42 @@ const MainEditor = ({
             const dx = currentPoint.x - dragState.startPoint.x;
             const dy = currentPoint.y - dragState.startPoint.y;
 
-            // Apply delta to initial matrix (not current) to avoid drift
-            const translation = new DOMMatrix().translate(dx, dy);
-            const nextMatrix = translation.multiply(dragState.initialMatrix);
+            if (dragState.multiDragItems) {
+              // Move ALL multi-selected elements
+              for (const item of dragState.multiDragItems) {
+                const translation = new DOMMatrix().translate(dx, dy);
+                const nextMatrix = translation.multiply(item.initialMatrix);
+                item.element.setAttribute('transform', matrixToTransform(nextMatrix));
+              }
+            } else {
+              // Single element drag
+              const target = dragState.element;
+              const translation = new DOMMatrix().translate(dx, dy);
+              const nextMatrix = translation.multiply(dragState.initialMatrix);
+              target.setAttribute('transform', matrixToTransform(nextMatrix));
+            }
 
-            target.setAttribute('transform', matrixToTransform(nextMatrix));
             suppressClickRef.current = true;
           },
           end(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
-            
-            const target = dragState.element;
-            target.removeAttribute('data-dragging');
-            target.style.cursor = '';
+
+            if (dragState.multiDragItems) {
+              // Clean up all multi-dragged elements
+              for (const item of dragState.multiDragItems) {
+                item.element.removeAttribute('data-dragging');
+              }
+            } else {
+              dragState.element.removeAttribute('data-dragging');
+            }
 
             if (suppressClickRef.current && updatePageHtml) {
-              const container = target.closest('.page-svg-container');
+              const container = dragState.element.closest('.page-svg-container');
               const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : dragState.pageIndex;
               updatePageHtml(pageIdx, dragState.svgElement.outerHTML);
             }
-            
+
             setTimeout(() => {
               suppressClickRef.current = false;
             }, 50);
@@ -283,22 +494,94 @@ const MainEditor = ({
     return () => {
       interactable.unset();
     };
-  }, [activeMainTool, zoom, updatePageHtml, activePageIndex, setSelectedLayerId]);
+  }, [zoom, updatePageHtml, activePageIndex, setSelectedLayerId]); // No longer depends on frequently changing state like selectedLayerId because of refs
 
-  // Handle manual drag state for selection tool (optional backup or for initial click)
+  // ── FIGMA-STYLE MOUSE DOWN: start drag on already-selected element ────────────
   const handleSvgMouseDown = (pageIndex, e) => {
-    if (e.button !== 0 || activeMainTool !== 'select' || e.ctrlKey || e.shiftKey) {
-      return;
-    }
-    // interactjs handles the drag, we just need to ensure selection happens on mousedown if not dragging
-    const target = getDraggableElement(e.target, e.currentTarget);
-    const isText = target && ['text', 'tspan'].includes(target.tagName.toLowerCase());
+    if (e.button !== 0 || activeMainTool !== 'select') return;
 
-    if (target && !isText && setSelectedLayerId) {
-      setSelectedLayerId(target.id);
+    // If clicking inside the currently selected element's bbox, allow interactjs to drag it
+    // Don't change selection on mousedown — wait for click event
+    const selId = selectedLayerIdRef.current;
+    if (selId) {
+      const selEl = document.getElementById(selId);
+      if (selEl && hitTest(selEl, e.clientX, e.clientY)) {
+        return; // Interactjs will handle drag
+      }
+    }
+
+    // Also allow drag start when clicking any multi-selected element
+    const multiIds = multiSelectedIdsRef.current;
+    if (multiIds.size > 1) {
+      for (const id of multiIds) {
+        const el = document.getElementById(id);
+        if (el && hitTest(el, e.clientX, e.clientY)) {
+          return; // Interactjs will handle multi-drag
+        }
+      }
     }
   };
 
+  // ── FIGMA-STYLE MOUSE MOVE: hover highlight ────────────────────────────────────
+  const handleSvgMouseMove = (e) => {
+    if (activeMainTool !== 'select') return;
+
+    const container = e.currentTarget;
+    const svg = container.querySelector('svg');
+    if (!svg) return;
+
+    // Clear all hover states
+    svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+    svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+
+    const frameId = currentFrameIdRef.current;
+
+    if (frameId) {
+      // ── Inside an entered frame: hover its direct children ──
+      const frameEl = svg.querySelector(`[id="${frameId}"]`);
+      if (frameEl) {
+        const children = getDirectChildFrames(frameEl);
+        for (let i = children.length - 1; i >= 0; i--) {
+          if (hitTest(children[i], e.clientX, e.clientY)) {
+            children[i].setAttribute('data-child-hovered', 'true');
+            return;
+          }
+        }
+      }
+    } else {
+      // ── Top-level: hover top-level frames ──
+      const topLevelEls = getTopLevelFrames(svg);
+      for (let i = topLevelEls.length - 1; i >= 0; i--) {
+        if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+          topLevelEls[i].setAttribute('data-hovered', 'true');
+          return;
+        }
+      }
+    }
+  };
+
+  // ── FIGMA-STYLE MOUSE LEAVE: clear all hovers ─────────────────────────────────
+  const handleSvgMouseLeave = (e) => {
+    const container = e.currentTarget;
+    const svg = container.querySelector('svg');
+    if (svg) {
+      svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+      svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+    }
+  };
+
+  // ── Helper: set single selection and clear multi-selection ───────────────────
+  const setSingleSelection = (id) => {
+    if (setSelectedLayerId) {
+      setSelectedLayerId(id);
+      selectedLayerIdRef.current = id;
+    }
+    const newSet = id ? new Set([id]) : new Set();
+    multiSelectedIdsRef.current = newSet;
+    setMultiSelectedIds(newSet);
+  };
+
+  // ── FIGMA-STYLE CLICK: hierarchical frame drill-down selection ─────────────────
   const handleSvgClick = (e) => {
     e.stopPropagation();
 
@@ -306,72 +589,396 @@ const MainEditor = ({
       suppressClickRef.current = false;
       return;
     }
-    
-    // 1. Direct Leaf Selection (Ctrl + Shift + Click)
+
+    const container = e.currentTarget;
+    const svg = container.querySelector('svg');
+    if (!svg) return;
+
+    // ── Ctrl + Shift + Click: direct deep select (existing behavior preserved) ─
     if (e.ctrlKey && e.shiftKey) {
       const target = e.target;
-      const isText = target && ['text', 'tspan'].includes(target.tagName.toLowerCase());
-      if (target && target.id && target.tagName.toLowerCase() !== 'svg' && !isText) {
-        if (setSelectedLayerId) setSelectedLayerId(target.id);
+      if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
+        setSingleSelection(target.id);
         return;
       }
     }
 
-    // 2. Cycling Logic (Ctrl + Click)
-    if (e.ctrlKey && !e.shiftKey) {
-      const items = getElementsAtPoint(e.clientX, e.clientY).map(el => el.id);
-      if (items.length > 0) {
-        const currentIndex = items.indexOf(selectedLayerId);
-        const nextIndex = (currentIndex + 1) % items.length;
-        if (setSelectedLayerId) setSelectedLayerId(items[nextIndex]);
-        return;
+    // ── Shift + Click (no Ctrl): Multi-select toggle ───────────────────────────
+    // Works at top-level OR inside an entered frame, but does NOT enter frames.
+    if (e.shiftKey && !e.ctrlKey) {
+      const frameId = currentFrameIdRef.current;
+
+      // Determine candidate element pool (same as current navigation level)
+      let candidates;
+      if (frameId) {
+        const frameEl = svg.querySelector(`[id="${frameId}"]`);
+        candidates = frameEl ? getDirectChildFrames(frameEl) : [];
+      } else {
+        candidates = getTopLevelFrames(svg);
       }
-    }
 
-    // 3. Normal Selection / Drill-Down Logic
-    let target = e.target;
-    const canvasRoot = e.currentTarget;
-
-    // Build path from target up to SVG root
-    let path = [];
-    let current = target;
-    while (current && current !== canvasRoot && current.tagName && current.tagName.toLowerCase() !== 'svg') {
-      const isText = ['text', 'tspan'].includes(current.tagName.toLowerCase());
-      if (current.id && !isText) {
-        path.unshift(current.id);
+      // Find the topmost candidate hit at this point
+      let hitEl = null;
+      for (let i = candidates.length - 1; i >= 0; i--) {
+        if (hitTest(candidates[i], e.clientX, e.clientY)) {
+          hitEl = candidates[i];
+          break;
+        }
       }
-      current = current.parentNode;
-    }
 
-    if (path.length === 0) {
-      if (setSelectedLayerId) setSelectedLayerId(null);
+      if (hitEl) {
+        // Toggle this element in/out of the multi-selection
+        const currentSet = new Set(multiSelectedIdsRef.current);
+
+        // Always keep the primary selectedLayerId in the set (if it exists)
+        const primaryId = selectedLayerIdRef.current;
+        if (primaryId) currentSet.add(primaryId);
+
+        if (currentSet.has(hitEl.id)) {
+          currentSet.delete(hitEl.id);
+          // If we removed the primary, promote another
+          if (primaryId === hitEl.id) {
+            const remaining = [...currentSet];
+            const newPrimary = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+            if (setSelectedLayerId) {
+              setSelectedLayerId(newPrimary);
+              selectedLayerIdRef.current = newPrimary;
+            }
+          }
+        } else {
+          currentSet.add(hitEl.id);
+          // The most recently shift-clicked element becomes primary
+          if (setSelectedLayerId) {
+            setSelectedLayerId(hitEl.id);
+            selectedLayerIdRef.current = hitEl.id;
+          }
+        }
+
+        multiSelectedIdsRef.current = currentSet;
+        setMultiSelectedIds(currentSet);
+      }
+      // Shift+Click on empty space does nothing (don't clear multi-selection)
       return;
     }
 
-    // Basic Figma hierarchy behavior:
-    // If current select is an ancestor, go one deeper.
-    // If not, select the root-most parent.
-    const currentIndexInPath = path.indexOf(selectedLayerId);
-    if (currentIndexInPath !== -1 && currentIndexInPath < path.length - 1) {
-      if (setSelectedLayerId) setSelectedLayerId(path[currentIndexInPath + 1]);
+    // ── Non-shift plain click: always clears multi-selection ─────────────────
+    // Reset multi-selection on normal click (will rebuild from single selected)
+    const frameId = currentFrameIdRef.current;
+    const selId = selectedLayerIdRef.current;
+
+    // ── Case 1: We are INSIDE an entered frame — INFINITE RECURSIVE DRILL-DOWN ─
+    //
+    //  • click a child       → SELECT it
+    //  • click already-selected child that has sub-children → ENTER it (recurse)
+    //  • click frame gap     → exit one level (select the entered frame)
+    //  • click outside frame → full exit + maybe select another top-level frame
+    //
+    if (frameId) {
+      const frameEl = svg.querySelector(`[id="${frameId}"]`);
+
+      if (frameEl && hitTest(frameEl, e.clientX, e.clientY)) {
+        // ── Clicked INSIDE the currently entered frame ──
+        const children = getDirectChildFrames(frameEl);
+        let clickedChild = null;
+        for (let i = children.length - 1; i >= 0; i--) {
+          if (hitTest(children[i], e.clientX, e.clientY)) {
+            clickedChild = children[i];
+            break;
+          }
+        }
+
+        if (clickedChild) {
+          if (selId === clickedChild.id) {
+            // ── Already selected this child → try to ENTER it (go deeper)
+            const grandchildren = getDirectChildFrames(clickedChild);
+            if (grandchildren.length > 0) {
+              setCurrentFrameId(clickedChild.id);
+              currentFrameIdRef.current = clickedChild.id;
+              // Immediately select whichever grandchild was actually hit
+              for (let i = grandchildren.length - 1; i >= 0; i--) {
+                if (hitTest(grandchildren[i], e.clientX, e.clientY)) {
+                  setSingleSelection(grandchildren[i].id);
+                  return;
+                }
+              }
+              // Hit the gap inside the child → entered, keep child selected
+              return;
+            }
+            // Child has no sub-frames → stay selected, nothing deeper to enter
+            return;
+          } else {
+            // ── Different child → SELECT it (don't enter yet, wait for 2nd click)
+            setSingleSelection(clickedChild.id);
+          }
+        } else {
+          // ── Clicked the entered frame's empty gap → exit one level
+          setSingleSelection(frameId);
+          setCurrentFrameId(null);
+          currentFrameIdRef.current = null;
+        }
+        return;
+
+      } else {
+        // ── Clicked completely OUTSIDE the entered frame → full exit
+        setCurrentFrameId(null);
+        currentFrameIdRef.current = null;
+        setSingleSelection(null);
+        // Check if a different top-level frame was hit
+        const topLevelEls = getTopLevelFrames(svg);
+        for (let i = topLevelEls.length - 1; i >= 0; i--) {
+          if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+            setSingleSelection(topLevelEls[i].id);
+            break;
+          }
+        }
+        return;
+      }
+    }
+
+    // ── Case 2: No frame entered — top-level selection ────────────────────────
+    const topLevelEls = getTopLevelFrames(svg);
+
+    // Check if clicking inside the currently selected frame (to enter it)
+    if (selId) {
+      const selEl = svg.querySelector(`[id="${selId}"]`);
+      if (selEl && hitTest(selEl, e.clientX, e.clientY)) {
+        // User clicked INSIDE the already-selected frame → ENTER it
+        const hasChildren = getDirectChildFrames(selEl).length > 0;
+        if (hasChildren) {
+          setCurrentFrameId(selId);
+          currentFrameIdRef.current = selId;
+
+          // Immediately check if a child is hit and select it
+          const children = getDirectChildFrames(selEl);
+          for (let i = children.length - 1; i >= 0; i--) {
+            if (hitTest(children[i], e.clientX, e.clientY)) {
+              setSingleSelection(children[i].id);
+              return;
+            }
+          }
+          // Clicked in the gap area of the frame — keep frame selected, just mark as entered
+          return;
+        }
+        // Frame has no children — stay selected
+        return;
+      }
+    }
+
+    // Check if clicking a top-level frame (or changing selection)
+    let hitFrame = null;
+    for (let i = topLevelEls.length - 1; i >= 0; i--) {
+      if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+        hitFrame = topLevelEls[i];
+        break;
+      }
+    }
+
+    if (hitFrame) {
+      setSingleSelection(hitFrame.id);
+      // Exit any previously entered frame if switching to new one
+      setCurrentFrameId(null);
+      currentFrameIdRef.current = null;
     } else {
-      if (setSelectedLayerId) setSelectedLayerId(path[0]);
+      // Clicked canvas background — deselect everything
+      setSingleSelection(null);
+      setCurrentFrameId(null);
+      currentFrameIdRef.current = null;
     }
   };
 
+  // ── FIGMA-STYLE DOUBLE CLICK: enter frame / edit text ─────────────────────────
   const handleSvgDoubleClick = (e) => {
     e.stopPropagation();
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
     }
-    let target = e.target;
-    const isText = target && ['text', 'tspan'].includes(target.tagName.toLowerCase());
-    
-    // On double click, immediately try to select the leaf-most element 
-    // or jump deep into the group hierarchy
-    if (target && target.id && target.tagName.toLowerCase() !== 'svg' && !isText) {
-      if (setSelectedLayerId) setSelectedLayerId(target.id);
+
+    const container = e.currentTarget;
+    const svg = container.querySelector('svg');
+    if (!svg) return;
+
+    // Find deepest element with an ID at this point
+    let target = getDraggableElement(e.target, e.currentTarget);
+    if (!target) return;
+
+    // Text editing on double-click
+    const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
+    if (isText && target.id) {
+      const svgRoot = target.ownerSVGElement;
+      const bbox = target.getBBox();
+      const style = window.getComputedStyle(target);
+      const transform = target.getAttribute('transform');
+      
+      // Hide original text to create illusion of editing in-place
+      target.style.opacity = '0';
+      target.style.visibility = 'hidden';
+      
+      // Create foreignObject directly inside the SVG
+      const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+      const padding = 10; // Extra padding for caret
+      fo.setAttribute('x', bbox.x - padding);
+      fo.setAttribute('y', bbox.y - padding);
+      fo.setAttribute('width', Math.max(bbox.width + padding * 2 + 100, 250)); 
+      fo.setAttribute('height', Math.max(bbox.height + padding * 2 + 50, 100));
+      if (transform) fo.setAttribute('transform', transform);
+      
+      // Mark it so interact.js ignores dragging while editing
+      fo.setAttribute('data-editing', 'true');
+      
+      const div = document.createElement('div');
+      div.setAttribute('contenteditable', 'true');
+      div.style.width = '100%';
+      div.style.height = '100%';
+      div.style.outline = 'none';
+      div.style.border = 'none';
+      div.style.background = 'transparent';
+      
+      // Copy exact styles over to make it look identical to original text
+      div.style.fontFamily = target.getAttribute('font-family') || style.fontFamily;
+      let fSize = target.getAttribute('font-size') || style.fontSize;
+      if (!fSize.toString().includes('px') && !fSize.toString().includes('em') && !fSize.toString().includes('rem')) {
+          fSize += 'px';
+      }
+      div.style.fontSize = fSize;
+      div.style.fontWeight = target.getAttribute('font-weight') || style.fontWeight;
+      
+      let color = target.getAttribute('fill') || style.fill;
+      if (color === 'none') color = target.getAttribute('stroke') || style.stroke || '#000';
+      div.style.color = color;
+      div.style.letterSpacing = target.getAttribute('letter-spacing') || style.letterSpacing;
+      
+      div.style.lineHeight = '1.2';
+      div.style.whiteSpace = 'pre-wrap';
+      div.style.wordWrap = 'break-word';
+      
+      div.style.padding = `${padding}px`;
+      div.style.margin = '0';
+      div.style.display = 'flex';
+      
+      // Alignment mapping
+      const textAnchor = target.getAttribute('text-anchor') || style.textAnchor;
+      if (textAnchor === 'middle') {
+        div.style.justifyContent = 'center';
+        div.style.textAlign = 'center';
+      } else if (textAnchor === 'end') {
+        div.style.justifyContent = 'flex-end';
+        div.style.textAlign = 'right';
+      } else {
+        div.style.justifyContent = 'flex-start';
+        div.style.textAlign = 'left';
+      }
+
+      div.textContent = target.textContent;
+      fo.appendChild(div);
+      
+      // Insert in exact DOM position next to target to inherit proper z-index and scaling context
+      target.parentNode.insertBefore(fo, target.nextSibling);
+
+      // Timeout ensures the browser paints 'contenteditable' and can focus
+      setTimeout(() => {
+        div.focus();
+        
+        // Select all text natively
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(div);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }, 0);
+
+      const initialInnerHTML = target.innerHTML;
+      
+      const cleanup = () => {
+        target.style.removeProperty('opacity');
+        target.style.removeProperty('visibility');
+        if (target.getAttribute('style') === '') target.removeAttribute('style');
+        
+        div.removeEventListener('blur', handleBlur);
+        div.removeEventListener('keydown', handleKeyDown);
+        
+        if (fo.parentNode) {
+          fo.parentNode.removeChild(fo);
+        }
+        
+        const sel = window.getSelection();
+        if (sel) sel.removeAllRanges();
+      };
+
+      const handleBlur = () => {
+        // Try to keep the first tspan to preserve coordinates
+        const tspans = target.querySelectorAll('tspan');
+        if (tspans.length > 0) {
+          tspans[0].textContent = div.textContent;
+          for (let i = 1; i < tspans.length; i++) {
+            tspans[i].remove();
+          }
+        } else {
+          target.textContent = div.textContent;
+        }
+        cleanup();
+        
+        const container = target.closest('.page-svg-container');
+        if (container) {
+          const pageIdx = parseInt(container.getAttribute('data-page-index'));
+          if (svgRoot && updatePageHtml) {
+            updatePageHtml(pageIdx, svgRoot.outerHTML);
+          }
+        }
+      };
+
+      const handleKeyDown = (e) => {
+        // Prevent newlines in SVG text and confirm
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          div.blur();
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          target.innerHTML = initialInnerHTML;
+          cleanup();
+        }
+      };
+
+      div.addEventListener('blur', handleBlur);
+      div.addEventListener('keydown', handleKeyDown);
+      return;
+    }
+
+    // On double-click a frame: enter it immediately
+    const frameId = currentFrameIdRef.current;
+    const selId = selectedLayerIdRef.current;
+
+    if (!frameId && selId) {
+      // Enter the currently selected frame
+      const selEl = svg.querySelector(`[id="${selId}"]`);
+      if (selEl && hitTest(selEl, e.clientX, e.clientY)) {
+        const hasChildren = getDirectChildFrames(selEl).length > 0;
+        if (hasChildren) {
+          setCurrentFrameId(selId);
+          currentFrameIdRef.current = selId;
+          // Select the child at this point as well
+          const children = getDirectChildFrames(selEl);
+          for (let i = children.length - 1; i >= 0; i--) {
+            if (hitTest(children[i], e.clientX, e.clientY)) {
+              if (setSelectedLayerId) {
+                setSelectedLayerId(children[i].id);
+                selectedLayerIdRef.current = children[i].id;
+              }
+              return;
+            }
+          }
+          return;
+        }
+      }
+    }
+
+    // Fallback: select the target element directly
+    if (target.id && target.tagName.toLowerCase() !== 'svg') {
+      if (setSelectedLayerId) {
+        setSelectedLayerId(target.id);
+        selectedLayerIdRef.current = target.id;
+      }
     }
   };
 
@@ -845,14 +1452,14 @@ const MainEditor = ({
                           label="Duplicate" 
                           onClick={() => { duplicatePage(activePageIndex); setOpenMenuIndex(null); }}
                         />
-                        <MenuOption 
-                          icon={<TemplateIcon />} 
-                          label="Template" 
-                          onClick={() => {
-                            onOpenTemplateModal();
-                            setOpenMenuIndex(null);
-                          }}
-                        />
+                          <MenuOption 
+                            icon={<TemplateIcon />} 
+                            label="Template" 
+                            onClick={() => {
+                              onOpenTemplateModal(activePageIndex);
+                              setOpenMenuIndex(null);
+                            }}
+                          />
                         <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
                         <MenuOption 
                           icon={<ClearIcon />} 
@@ -888,6 +1495,8 @@ const MainEditor = ({
                         className="h-full w-full overflow-hidden flex items-center justify-center bg-white"
                         dangerouslySetInnerHTML={{ __html: pages[activePageIndex]?.html }}
                         onMouseDown={(e) => handleSvgMouseDown(activePageIndex, e)}
+                        onMouseMove={handleSvgMouseMove}
+                        onMouseLeave={handleSvgMouseLeave}
                         onClick={handleSvgClick}
                         onDoubleClick={handleSvgDoubleClick}
                       />
@@ -970,7 +1579,7 @@ const MainEditor = ({
                             icon={<TemplateIcon />} 
                             label="Template" 
                             onClick={() => {
-                              onOpenTemplateModal();
+                              onOpenTemplateModal(displayIndex);
                               setOpenMenuIndex(null);
                             }}
                           />
@@ -1014,6 +1623,8 @@ const MainEditor = ({
                           className="h-full w-full overflow-hidden flex items-center justify-center bg-white"
                           dangerouslySetInnerHTML={{ __html: page.html }}
                           onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                          onMouseMove={handleSvgMouseMove}
+                          onMouseLeave={handleSvgMouseLeave}
                           onClick={handleSvgClick}
                           onDoubleClick={handleSvgDoubleClick}
                         />
@@ -1071,6 +1682,7 @@ const MainEditor = ({
             <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#D1D5DB] group-hover:text-[#4B5563] rotate-[90deg]" />
           </button>
         </div>
+
       </div>
     </div>
   );

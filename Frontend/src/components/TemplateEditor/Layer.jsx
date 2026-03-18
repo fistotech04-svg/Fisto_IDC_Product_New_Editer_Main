@@ -10,10 +10,13 @@ import {
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 
 // --- Recursive Layer Item Component (Figma Style) ---
-const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selectedLayerId, setSelectedLayerId }) => {
+const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selectedLayerId, setSelectedLayerId, multiSelectedIds = new Set(), setMultiSelectedIds }) => {
   const [isOpen, setIsOpen] = useState(false);
   const isGroup = layer.type === 'g' || (layer.children && layer.children.length > 0);
   const itemRef = useRef(null);
+
+  // Is it part of multi-selection but not the primary?
+  const isMultiOnly = multiSelectedIds.has(layer.id) && selectedLayerId !== layer.id;
 
   // Auto-scroll to selected layer
   useEffect(() => {
@@ -59,17 +62,53 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
     }
   };
 
+  const handleItemClick = (e) => {
+    e.stopPropagation();
+
+    if (e.shiftKey && !e.ctrlKey) {
+      // ── Shift+Click: Toggle multi-selection ────────────────────────
+      if (!setMultiSelectedIds) return;
+
+      const currentSet = new Set(multiSelectedIds);
+      // Always include the current primary in the set
+      if (selectedLayerId) currentSet.add(selectedLayerId);
+
+      if (currentSet.has(layer.id)) {
+        currentSet.delete(layer.id);
+        // If we deselected the primary, promote another
+        if (selectedLayerId === layer.id) {
+          const remaining = [...currentSet];
+          const newPrimary = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+          if (setSelectedLayerId) setSelectedLayerId(newPrimary);
+        }
+      } else {
+        currentSet.add(layer.id);
+        // Most recently shift-clicked becomes the primary
+        if (setSelectedLayerId) setSelectedLayerId(layer.id);
+      }
+
+      setMultiSelectedIds(currentSet);
+    } else {
+      // ── Plain click: single select, clear multi-selection ─────────────
+      if (setSelectedLayerId) setSelectedLayerId(layer.id);
+      if (setMultiSelectedIds) setMultiSelectedIds(new Set([layer.id]));
+      if (isGroup) setIsOpen(!isOpen);
+    }
+  };
+
   return (
     <div className="flex flex-col select-none">
       <div 
         ref={itemRef}
-        className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] cursor-pointer group/layer transition-colors ${selectedLayerId === layer.id ? 'bg-[#E0E7FF]' : 'hover:bg-[#F3F4F6]'}`}
+        className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] cursor-pointer group/layer transition-colors ${
+          selectedLayerId === layer.id
+            ? 'bg-[#E0E7FF] ring-1 ring-[#6366F1]/30'   // primary selection — solid indigo tint
+            : isMultiOnly
+            ? 'bg-[#EEF2FF]'                             // part of multi-set — lighter tint
+            : 'hover:bg-[#F3F4F6]'
+        }`}
         style={{ paddingLeft: `${depth * 0.8 + 0.5}vw` }}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (setSelectedLayerId) setSelectedLayerId(layer.id);
-          if (isGroup) setIsOpen(!isOpen);
-        }}
+        onClick={handleItemClick}
       >
         {/* Expand/Collapse Chevron */}
         <div className="w-[1vw] flex items-center justify-center">
@@ -87,6 +126,11 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
         <span className="flex-1 text-[0.7vw] font-medium text-gray-700 truncate group-hover/layer:text-[#111827]">
           {layer.name}
         </span>
+
+        {/* Multi-select indicator dot */}
+        {isMultiOnly && (
+          <div className="w-[0.4vw] h-[0.4vw] rounded-full bg-[#6366F1] flex-shrink-0" title="Multi-selected" />
+        )}
 
         {/* Secondary Visibility/Lock Status (Small) */}
         <div className="flex items-center gap-[0.3vw] opacity-0 group-hover/layer:opacity-100 transition-opacity">
@@ -107,7 +151,7 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
 
       {isGroup && isOpen && layer.children && (
         <div className="flex flex-col">
-          {layer.children.map((child, idx) => (
+          {[...layer.children].reverse().map((child, idx) => (
             <LayerItem 
               key={child.id || idx} 
               layer={child} 
@@ -116,6 +160,8 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
               onToggleLock={onToggleLock}
               selectedLayerId={selectedLayerId}
               setSelectedLayerId={setSelectedLayerId}
+              multiSelectedIds={multiSelectedIds}
+              setMultiSelectedIds={setMultiSelectedIds}
             />
           ))}
         </div>
@@ -144,7 +190,9 @@ const Layer = ({
   toggleLayerVisibility,
   toggleLayerLock,
   selectedLayerId,
-  setSelectedLayerId
+  setSelectedLayerId,
+  multiSelectedIds = new Set(),
+  setMultiSelectedIds
 }) => {
   const [isVisible, setIsVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
@@ -410,7 +458,7 @@ const Layer = ({
                           >
                             <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
                               {page.layers && page.layers.length > 0 ? (
-                                page.layers.map((layer, idx) => (
+                                [...page.layers].reverse().map((layer, idx) => (
                                   <LayerItem 
                                     key={layer.id || idx} 
                                     layer={layer} 
@@ -419,6 +467,8 @@ const Layer = ({
                                     onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
                                     selectedLayerId={selectedLayerId}
                                     setSelectedLayerId={setSelectedLayerId}
+                                    multiSelectedIds={multiSelectedIds}
+                                    setMultiSelectedIds={setMultiSelectedIds}
                                   />
                                 ))
                               ) : (

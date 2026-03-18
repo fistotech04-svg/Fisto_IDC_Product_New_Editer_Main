@@ -2,67 +2,94 @@
 import React, { useState, useMemo } from 'react';
 import { Search, X, Plus, FileText } from 'lucide-react';
 
-// Import SVG templates as URLs
-import TemplateSVG1 from "../../assets/Templates/Template_1.svg?url";
-import TemplateSVG2 from "../../assets/Templates/Template_2.svg?url"; 
-import TemplateSVG3 from "../../assets/Templates/Template_3.svg?url"; 
-import TemplateSVG4 from "../../assets/Templates/Template_4.svg?url"; 
-import TemplateSVG5 from "../../assets/Templates/Template_5.svg?url"; 
-import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
+// Import HTML templates as URLs
+import TemplateHTML1 from "../../assets/Templates/template_1.html?url";
+import TemplateHTML2 from "../../assets/Templates/template_2.html?url"; 
+import TemplateHTML3 from "../../assets/Templates/template_3.html?url"; 
+import TemplateHTML4 from "../../assets/Templates/template_4.html?url"; 
+import TemplateHTML5 from "../../assets/Templates/template_5.html?url"; 
+import TemplateHTML6 from "../../assets/Templates/template_6.html?url";   
+import TemplateHTML7 from "../../assets/Templates/template_7.html?url"; 
+import TemplateHTML8 from "../../assets/Templates/template_8.html?url"; 
+import TemplateHTML9 from "../../assets/Templates/template_9.html?url"; 
 
-const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, loadTemplate }) => {
+const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, loadHTMLTemplate }) => {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // SVG Template data
+  // HTML Template data - only HTML templates now
   const templates = [
     { 
       id: 1, 
       name: 'Template 1', 
       category: 'Business', 
-      src: TemplateSVG1, 
-      type: 'svg',
-      description: 'Professional A4 business template'
+      src: TemplateHTML1, 
+      type: 'html',
+      description: 'Professional A4 business report template'
     },
     { 
       id: 2, 
       name: 'Template 2', 
       category: 'Business', 
-      src: TemplateSVG2, 
-      type: 'svg',
-      description: 'Professional A4 business template'
+      src: TemplateHTML2, 
+      type: 'html',
+      description: 'Professional A4 business report template'
     },
     { 
       id: 3, 
       name: 'Template 3', 
       category: 'Business', 
-      src: TemplateSVG3, 
-      type: 'svg',
-      description: 'Professional A4 business template'
+      src: TemplateHTML3, 
+      type: 'html',
+      description: 'Professional A4 business report template'
     },
     { 
       id: 4, 
       name: 'Template 4', 
       category: 'Presentation', 
-      src: TemplateSVG4, 
-      type: 'svg',
+      src: TemplateHTML4, 
+      type: 'html',
       description: 'Professional A4 presentation template'
     },
     { 
       id: 5, 
       name: 'Template 5', 
       category: 'Business', 
-      src: TemplateSVG5, 
-      type: 'svg',
-      description: 'Professional A4 business template'
+      src: TemplateHTML5, 
+      type: 'html',
+      description: 'Professional A4 business report template'
     },
     { 
       id: 6, 
       name: 'Template 6', 
-      category: 'Marketing', 
-      src: TemplateSVG6, 
-      type: 'svg',
-      description: 'Professional A4 marketing template'
+      category: 'Business', 
+      src: TemplateHTML6, 
+      type: 'html',
+      description: 'Professional A4 business report template'
+    },
+    {
+      id: 7,
+      name: 'Template 7',
+      category: 'Business',
+      src: TemplateHTML7,
+      type: 'html',
+      description: 'Professional A4 business report template'
+    },
+    {
+      id: 8,
+      name: 'Template 8',
+      category: 'Business',
+      src: TemplateHTML8,
+      type: 'html',
+      description: 'Professional A4 business report template'
+    },
+    {
+      id: 9,
+      name: 'Template 9',
+      category: 'Business',
+      src: TemplateHTML9,
+      type: 'html',
+      description: 'Professional A4 business report template'
     }
   ];
 
@@ -80,8 +107,8 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
 
   // Load HTML template
   const handleLoadTemplate = async (template) => {
-    if (template.type === 'svg') {
-      await loadTemplate(template.src);
+    if (template.type === 'html') {
+      await loadHTMLTemplate(template.src);
     }
     setShowTemplateModal(false);
   };
@@ -113,19 +140,26 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         {/* Aspect Ratio Container (A4) */}
         <div className="relative w-full pt-[141.4%] bg-gray-50 overflow-hidden">
           
-          {/* SVG Preview Image */}
-          {!loading ? (
-            <div className="absolute inset-0 flex items-center justify-center p-[1vw] bg-gray-100">
-               <img 
-                 src={template.src} 
-                 alt={template.name}
-                 className="w-full h-full object-contain shadow-sm bg-white"
-                 onLoad={() => setLoading(false)}
-               />
+          {/* Iframe Scaled Preview */}
+          {!loading && htmlContent ? (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden bg-gray-100">
+              <div className="transform scale-[0.35] origin-center shadow-md">
+                <iframe
+                  srcDoc={htmlContent}
+                  title={template.name}
+                  className="w-[595px] h-[842px] border-none bg-white"
+                  tabIndex="-1"
+                  scrolling="no"
+                />
+              </div>
             </div>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                <div className="animate-spin rounded-full h-[2vw] w-[2vw] border-b-[0.15vw] border-black"></div>
+               {loading ? (
+                 <div className="animate-spin rounded-full h-[2vw] w-[2vw] border-b-[0.15vw] border-black"></div>
+               ) : (
+                 <FileText size="3vw" className="opacity-20" />
+               )}
             </div>
           )}
 
