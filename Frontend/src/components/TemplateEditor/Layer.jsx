@@ -5,15 +5,46 @@ import {
   Layout, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine, 
   Ban, Trash2, FilePlus, GripVertical, 
   Folder, Type, Image as ImageIcon, Square, Circle, Triangle, Star, Minus, 
-  ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock
+  ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock,
+  Scissors, Clipboard
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 
-// --- Recursive Layer Item Component (Figma Style) ---
-const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selectedLayerId, setSelectedLayerId, multiSelectedIds = new Set(), setMultiSelectedIds }) => {
+const LayerItem = ({ 
+  layer, 
+  depth = 0, 
+  onToggleVisibility, 
+  onToggleLock, 
+  selectedLayerId, 
+  setSelectedLayerId, 
+  multiSelectedIds = new Set(), 
+  setMultiSelectedIds,
+  renameLayer,
+  pageIndex,
+  onLayerContextMenu,
+  onReorderLayer,
+  currentFrameId,
+  setCurrentFrameId
+}) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(layer.name);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const inputRef = useRef(null);
   const isGroup = layer.type === 'g' || (layer.children && layer.children.length > 0);
   const itemRef = useRef(null);
+  
+  // Listen for custom trigger to start editing from context menu
+  useEffect(() => {
+    const handleTriggerRename = (e) => {
+      if (e.detail.layerId === layer.id) {
+        setIsEditing(true);
+        setEditName(layer.name);
+      }
+    };
+    window.addEventListener('trigger-rename-layer', handleTriggerRename);
+    return () => window.removeEventListener('trigger-rename-layer', handleTriggerRename);
+  }, [layer.id, layer.name]);
 
   // Is it part of multi-selection but not the primary?
   const isMultiOnly = multiSelectedIds.has(layer.id) && selectedLayerId !== layer.id;
@@ -21,7 +52,12 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
   // Auto-scroll to selected layer
   useEffect(() => {
     if (selectedLayerId === layer.id && itemRef.current) {
-      itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Small timeout to allow parent folder expansion animation to progress
+      // Delay matched with 0.3s animation to ensure layout is stable
+      const timer = setTimeout(() => {
+        itemRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      }, 300);
+      return () => clearTimeout(timer);
     }
   }, [selectedLayerId, layer.id]);
 
@@ -41,6 +77,13 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
       }
     }
   }, [selectedLayerId, layer, isGroup, isOpen]);
+
+  // Auto-collapse if selection is cleared (click outside workspace)
+  useEffect(() => {
+    if (!selectedLayerId && multiSelectedIds.size === 0 && isOpen) {
+       setIsOpen(false);
+    }
+  }, [selectedLayerId, multiSelectedIds]);
 
   // Icon Helper based on element type
   const getLayerIcon = () => {
@@ -96,19 +139,98 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
     }
   };
 
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Select the layer first if not multi-selecting
+    if (!multiSelectedIds.has(layer.id)) {
+      if (setSelectedLayerId) setSelectedLayerId(layer.id);
+      if (setMultiSelectedIds) setMultiSelectedIds(new Set([layer.id]));
+    }
+    onLayerContextMenu(layer.id, e.clientX, e.clientY);
+  };
+
+  const handleDragStart = (e) => {
+    e.stopPropagation();
+    e.dataTransfer.setData('application/layer-id', layer.id);
+    e.dataTransfer.setData('application/page-index', pageIndex);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    if (!isDragOver) setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+    
+    const sourceId = e.dataTransfer.getData('application/layer-id');
+    const sourcePageIndex = parseInt(e.dataTransfer.getData('application/page-index'));
+    
+    if (sourceId && sourceId !== layer.id && sourcePageIndex === pageIndex) {
+      onReorderLayer(sourceId, layer.id);
+    }
+  };
+
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    setIsEditing(true);
+    setEditName(layer.name);
+  };
+
+  const handleRenameSubmit = () => {
+    if (editName.trim() && editName !== layer.name) {
+      renameLayer(pageIndex, layer.id, editName.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') handleRenameSubmit();
+    if (e.key === 'Escape') setIsEditing(false);
+  };
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
   return (
     <div className="flex flex-col select-none">
       <div 
         ref={itemRef}
-        className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] cursor-pointer group/layer transition-colors ${
+        draggable={!isEditing}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] group/layer transition-all border-l-2 ${
+          isDragOver ? 'border-l-[#6366F1] bg-[#EEF2FF]' : 'border-l-transparent'
+        } ${
           selectedLayerId === layer.id
             ? 'bg-[#E0E7FF] ring-1 ring-[#6366F1]/30'   // primary selection — solid indigo tint
+            : layer.id === currentFrameId
+            ? 'bg-[#F5F3FF] border-l-[#A78BFA] ring-1 ring-dashed ring-[#A78BFA]/50' // Entered Frame style
             : isMultiOnly
             ? 'bg-[#EEF2FF]'                             // part of multi-set — lighter tint
             : 'hover:bg-[#F3F4F6]'
         }`}
         style={{ paddingLeft: `${depth * 0.8 + 0.5}vw` }}
         onClick={handleItemClick}
+        onContextMenu={handleContextMenu}
       >
         {/* Expand/Collapse Chevron */}
         <div className="w-[1vw] flex items-center justify-center">
@@ -123,9 +245,24 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
         </div>
 
         {/* Layer Name */}
-        <span className="flex-1 text-[0.7vw] font-medium text-gray-700 truncate group-hover/layer:text-[#111827]">
-          {layer.name}
-        </span>
+        <div className="flex-1 min-w-0" onDoubleClick={handleDoubleClick}>
+          {isEditing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onBlur={handleRenameSubmit}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-white border border-indigo-500 rounded-[0.1vw] px-[0.2vw] py-0 text-[0.7vw] font-medium text-gray-900 outline-none"
+            />
+          ) : (
+            <span className="block text-[0.7vw] font-medium text-gray-700 truncate group-hover/layer:text-[#111827]">
+              {layer.name}
+            </span>
+          )}
+        </div>
 
         {/* Multi-select indicator dot */}
         {isMultiOnly && (
@@ -135,13 +272,13 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
         {/* Secondary Visibility/Lock Status (Small) */}
         <div className="flex items-center gap-[0.3vw] opacity-0 group-hover/layer:opacity-100 transition-opacity">
           <button 
-            className="text-gray-400 hover:text-indigo-600 cursor-pointer"
+            className="text-gray-400 hover:text-indigo-600"
             onClick={(e) => { e.stopPropagation(); onToggleVisibility && onToggleVisibility(layer.id); }}
           >
             {layer.visible === false ? <EyeOff size="0.7vw" /> : <Eye size="0.7vw" />}
           </button>
           <button 
-            className="text-gray-400 hover:text-indigo-600 cursor-pointer"
+            className="text-gray-400 hover:text-indigo-600"
             onClick={(e) => { e.stopPropagation(); onToggleLock && onToggleLock(layer.id); }}
           >
             {layer.locked === true ? <Lock size="0.7vw" /> : <Unlock size="0.7vw" />}
@@ -149,23 +286,37 @@ const LayerItem = ({ layer, depth = 0, onToggleVisibility, onToggleLock, selecte
         </div>
       </div>
 
-      {isGroup && isOpen && layer.children && (
-        <div className="flex flex-col">
-          {[...layer.children].reverse().map((child, idx) => (
-            <LayerItem 
-              key={child.id || idx} 
-              layer={child} 
-              depth={depth + 1} 
-              onToggleVisibility={onToggleVisibility}
-              onToggleLock={onToggleLock}
-              selectedLayerId={selectedLayerId}
-              setSelectedLayerId={setSelectedLayerId}
-              multiSelectedIds={multiSelectedIds}
-              setMultiSelectedIds={setMultiSelectedIds}
-            />
-          ))}
-        </div>
-      )}
+      <AnimatePresence>
+        {isGroup && isOpen && layer.children && (
+          <motion.div 
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="flex flex-col overflow-hidden"
+          >
+            {[...layer.children].reverse().map((child, idx) => (
+              <LayerItem 
+                key={child.id || idx} 
+                layer={child} 
+                depth={depth + 1} 
+                onToggleVisibility={onToggleVisibility}
+                onToggleLock={onToggleLock}
+                selectedLayerId={selectedLayerId}
+                setSelectedLayerId={setSelectedLayerId}
+                multiSelectedIds={multiSelectedIds}
+                setMultiSelectedIds={setMultiSelectedIds}
+                renameLayer={renameLayer}
+                pageIndex={pageIndex}
+                onLayerContextMenu={onLayerContextMenu}
+                onReorderLayer={onReorderLayer}
+                currentFrameId={currentFrameId}
+                setCurrentFrameId={setCurrentFrameId}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -179,6 +330,7 @@ const Layer = ({
   insertPageAfter,
   duplicatePage,
   renamePage,
+  renameLayer,
   deletePage,
   movePageUp,
   movePageDown,
@@ -189,11 +341,24 @@ const Layer = ({
   onOpenTemplateModal,
   toggleLayerVisibility,
   toggleLayerLock,
+  bringLayerToFront,
+  sendLayerToBack,
+  moveLayerForward,
+  moveLayerBackward,
+  reorderLayer,
+  deleteLayer,
+  copyLayer,
+  cutLayer,
+  pasteLayer,
   selectedLayerId,
   setSelectedLayerId,
   multiSelectedIds = new Set(),
-  setMultiSelectedIds
+  setMultiSelectedIds,
+  currentFrameId,
+  setCurrentFrameId
 }) => {
+  const [activeLayerMenu, setActiveLayerMenu] = useState(null); // { layerId, x, y }
+  const layerMenuRef = useRef(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   
@@ -226,10 +391,27 @@ const Layer = ({
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenuPageId(null);
       }
+      if (layerMenuRef.current && !layerMenuRef.current.contains(event.target)) {
+        setActiveLayerMenu(null);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Listen for canvas context menu trigger
+  useEffect(() => {
+    const handleCanvasContextMenu = (event) => {
+      const { e, layerId } = event.detail;
+      setActiveLayerMenu({ layerId, x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener('show-layer-context-menu', handleCanvasContextMenu);
+    return () => window.removeEventListener('show-layer-context-menu', handleCanvasContextMenu);
+  }, []);
+
+  const handleLayerContextMenu = (layerId, x, y) => {
+    setActiveLayerMenu({ layerId, x, y });
+  };
 
   // Determine if a page index should be expanded/active in the sidebar
   const checkIsExpanded = (index) => {
@@ -330,6 +512,119 @@ const Layer = ({
         </div>
       )}
 
+      {/* Layer Context Menu (createPortal) */}
+      {activeLayerMenu && createPortal(
+        <AnimatePresence>
+          <motion.div 
+            key="layer-context-menu"
+            ref={layerMenuRef}
+            initial={{ opacity: 0, scale: 0.95, y: -5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -5 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            style={{ 
+              position: 'fixed', 
+              left: `${activeLayerMenu.x}px`, 
+              top: `${activeLayerMenu.y}px` 
+            }}
+            className="w-[10vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+          <button 
+            onClick={() => { 
+                window.dispatchEvent(new CustomEvent('trigger-rename-layer', { detail: { layerId: activeLayerMenu.layerId } }));
+                setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <Edit2 size="0.9vw" /> Rename
+          </button>
+
+          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+
+          <button 
+            onClick={() => { 
+              moveLayerForward(activePageIndex, activeLayerMenu.layerId); 
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <ArrowUp size="0.9vw" /> Move Front
+          </button>
+          <button 
+            onClick={() => { 
+              moveLayerBackward(activePageIndex, activeLayerMenu.layerId); 
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <ArrowDown size="0.9vw" /> Move Back
+          </button>
+          <button 
+            onClick={() => { 
+              bringLayerToFront(activePageIndex, activeLayerMenu.layerId); 
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <ArrowUpToLine size="0.9vw" /> Bring to front
+          </button>
+          <button 
+            onClick={() => { 
+              sendLayerToBack(activePageIndex, activeLayerMenu.layerId); 
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <ArrowDownToLine size="0.9vw" /> Send to back
+          </button>
+
+          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+
+          <button 
+            onClick={() => { 
+              cutLayer(activePageIndex, activeLayerMenu.layerId);
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <Scissors size="0.9vw" /> Cut
+          </button>
+          <button 
+            onClick={() => { 
+              copyLayer(activePageIndex, activeLayerMenu.layerId);
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <Copy size="0.9vw" /> Copy
+          </button>
+          <button 
+            onClick={() => { 
+              pasteLayer(activePageIndex);
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <Clipboard size="0.9vw" /> Paste
+          </button>
+
+          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+
+          <button 
+            onClick={() => { 
+              deleteLayer(activePageIndex, activeLayerMenu.layerId);
+              setActiveLayerMenu(null); 
+            }} 
+            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"
+          >
+            <Trash2 size="0.9vw" /> Delete
+          </button>
+        </motion.div>
+      </AnimatePresence>,
+      document.body
+      )}
+
       {/* Sidebar Content */}
       <AnimatePresence>
         {isVisible && (
@@ -368,8 +663,6 @@ const Layer = ({
                     key={page.id} 
                     className="flex flex-col relative" 
                     id={`page-card-${page.id}`}
-                    draggable={!editingPageId}
-                    onDragStart={(e) => handleDragStart(e, index)}
                     onDragOver={(e) => handleDragOver(e, index)}
                     onDragLeave={handleDragLeave}
                     onDragEnd={handleDragEnd}
@@ -381,7 +674,7 @@ const Layer = ({
                     )}
 
                     <motion.div 
-                      layout
+                      layout="position"
                       className={`flex flex-col rounded-[0.6vw] transition-all duration-300 relative group 
                         ${draggedPageIndex === index ? 'opacity-40 scale-[0.98]' : ''} 
                         ${isExpanded 
@@ -391,6 +684,8 @@ const Layer = ({
                     >
                       {/* Page Header (Collapsible) */}
                       <div 
+                        draggable={!editingPageId}
+                        onDragStart={(e) => handleDragStart(e, index)}
                         onClick={() => {
                           if (editingPageId === page.id) return;
                           if (isDoublePage) {
@@ -400,7 +695,8 @@ const Layer = ({
                             setActivePageIndex(index);
                           }
                         }}
-                        className="flex items-center py-[1.2vh] px-[1vw] cursor-pointer relative group/pageitem"
+                        onContextMenu={(e) => handleMenuClick(e, page.id)}
+                        className="flex items-center py-[1.2vh] px-[1vw] relative group/pageitem"
                       >
                         {/* Grip Handle (Hover only) */}
                         {!editingPageId && (
@@ -469,6 +765,12 @@ const Layer = ({
                                     setSelectedLayerId={setSelectedLayerId}
                                     multiSelectedIds={multiSelectedIds}
                                     setMultiSelectedIds={setMultiSelectedIds}
+                                    renameLayer={renameLayer}
+                                    pageIndex={index}
+                                    onLayerContextMenu={handleLayerContextMenu}
+                                    onReorderLayer={(sourceId, targetId) => reorderLayer(index, sourceId, targetId)}
+                                    currentFrameId={currentFrameId}
+                                    setCurrentFrameId={setCurrentFrameId}
                                   />
                                 ))
                               ) : (
@@ -489,33 +791,45 @@ const Layer = ({
 
                     {/* Context Menu Dropdown (createPortal) */}
                     {activeMenuPageId === page.id && createPortal(
-                      <div 
-                        ref={menuRef}
-                        style={(() => {
-                          const element = document.getElementById(`page-card-${page.id}`);
-                          if (!element) return { display: 'none' };
-                          const rect = element.getBoundingClientRect();
-                          return { position: 'fixed', left: `calc(${rect.right}px + 0.6vw)`, top: `${Math.min(rect.top, window.innerHeight - 450)}px` };
-                        })()}
-                        className="w-[12vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw] animate-in fade-in zoom-in-95 duration-100"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {/* Menu Options (Same as previous implementation) */}
-                        <div className="px-[0.5vw] py-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Settings <div className="h-px bg-gray-100 flex-1"></div></div>
-                        <button onClick={() => { insertPageAfter(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Plus size="0.9vw" /> Add Page</button>
-                        <button onClick={() => { setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FilePlus size="0.9vw" /> Add File</button>
-                        <button onClick={() => { duplicatePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Copy size="0.9vw" /> Duplicate</button>
-                        <button onClick={(e) => handleRenameStart(e, page)} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Edit2 size="0.9vw" /> Rename</button>
-                        <button onClick={() => { setActivePageIndex(index); onOpenTemplateModal(); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Layout size="0.9vw" /> Template</button>
-                        <div className="px-[0.5vw] py-[0.2vw] mt-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Order <div className="h-px bg-gray-100 flex-1"></div></div>
-                        <button onClick={() => { movePageUp(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUp size="0.9vw" /> Move Up</button>
-                        <button onClick={() => { movePageDown(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDown size="0.9vw" /> Move Down</button>
-                        <button onClick={() => { movePageToFirst(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUpToLine size="0.9vw" /> Move to First</button>
-                        <button onClick={() => { movePageToLast(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDownToLine size="0.9vw" /> Move to Last</button>
-                        <div className="h-px bg-gray-100 my-[0.2vw]"></div>
-                        <button onClick={() => { clearPage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Ban size="0.9vw" /> Clear</button>
-                        <button onClick={() => { deletePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"><Trash2 size="0.9vw" /> Delete</button>
-                      </div>,
+                      <AnimatePresence mode="wait">
+                        <motion.div 
+                          key={`page-menu-${page.id}`}
+                          ref={menuRef}
+                          initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                          transition={{ duration: 0.15, ease: "easeOut" }}
+                          style={(() => {
+                            const element = document.getElementById(`page-card-${page.id}`);
+                            if (!element) return { display: 'none' };
+                            const rect = element.getBoundingClientRect();
+                            return { 
+                              position: 'fixed', 
+                              left: `calc(${rect.right}px + 0.6vw)`, 
+                              top: `${Math.min(rect.top, window.innerHeight - 450)}px` 
+                            };
+                          })()}
+                          className="w-[12vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-[0.5vw] py-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Settings <div className="h-px bg-gray-100 flex-1"></div></div>
+                          <button onClick={() => { insertPageAfter(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Plus size="0.9vw" /> Add Page</button>
+                          <button onClick={() => { setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FilePlus size="0.9vw" /> Add File</button>
+                          <button onClick={() => { duplicatePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Copy size="0.9vw" /> Duplicate</button>
+                          <button onClick={(e) => handleRenameStart(e, page)} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Edit2 size="0.9vw" /> Rename</button>
+                          <button onClick={() => { setActivePageIndex(index); onOpenTemplateModal(); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Layout size="0.9vw" /> Template</button>
+                          
+                          <div className="px-[0.5vw] py-[0.2vw] mt-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Order <div className="h-px bg-gray-100 flex-1"></div></div>
+                          <button onClick={() => { movePageUp(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUp size="0.9vw" /> Move Up</button>
+                          <button onClick={() => { movePageDown(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDown size="0.9vw" /> Move Down</button>
+                          <button onClick={() => { movePageToFirst(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUpToLine size="0.9vw" /> Move to First</button>
+                          <button onClick={() => { movePageToLast(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDownToLine size="0.9vw" /> Move to Last</button>
+                          
+                          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                          <button onClick={() => { clearPage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Ban size="0.9vw" /> Clear</button>
+                          <button onClick={() => { deletePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"><Trash2 size="0.9vw" /> Delete</button>
+                        </motion.div>
+                      </AnimatePresence>,
                       document.body
                     )}
                   </div>

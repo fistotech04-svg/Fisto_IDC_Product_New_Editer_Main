@@ -28,6 +28,16 @@ const svgGlobalStyles = `
     user-select: none !important;
     -webkit-user-select: none !important;
     pointer-events: auto !important;
+  }
+
+  .page-svg-container svg * {
+    cursor: default;
+  }
+
+  .page-svg-container svg text,
+  .page-svg-container svg tspan {
+    user-select: none !important;
+    -webkit-user-select: none !important;
     cursor: default;
   }
 
@@ -40,37 +50,21 @@ const svgGlobalStyles = `
   }
 
   /* 1. HOVER state — blue outline on the topmost frame candidate */
-  .page-svg-container svg [data-hovered="true"] {
-    outline: 1.5px solid #6366F1 !important;
-    outline-offset: 0px;
-  }
+  /* Replaced visually by exact overlaid SVG shapes */
+  .page-svg-container svg [data-hovered="true"] {}
 
   /* 2. SELECTED frame — solid thick indigo outline + glow */
-  .page-svg-container svg [data-selected="true"] {
-    outline: 2.5px solid #6366F1 !important;
-    outline-offset: 0px;
-    filter: drop-shadow(0 0 5px rgba(99, 102, 241, 0.35));
-  }
+  .page-svg-container svg [data-selected="true"] {}
 
   /* 3. ENTERED FRAME indicator — when user has "entered" this frame,
         show it with a thin dashed blue border (like Figma's current frame) */
-  .page-svg-container svg [data-frame-entered="true"] {
-    outline: 1.5px dashed #6366F1 !important;
-    outline-offset: 2px;
-  }
+  .page-svg-container svg [data-frame-entered="true"] {}
 
   /* 4. CHILD HOVER inside an entered frame — dotted outline for child candidates */
-  .page-svg-container svg [data-child-hovered="true"] {
-    outline: 1.5px dashed #6366F1 !important;
-    outline-offset: 0px;
-  }
+  .page-svg-container svg [data-child-hovered="true"] {}
 
   /* 5. CHILD SELECTED inside an entered frame — same solid selection look */
-  .page-svg-container svg [data-child-selected="true"] {
-    outline: 2px solid #6366F1 !important;
-    outline-offset: 0px;
-    filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.4));
-  }
+  .page-svg-container svg [data-child-selected="true"] {}
 
   /* 7. Dragging State */
   .page-svg-container svg [data-dragging="true"] {
@@ -102,7 +96,13 @@ const MainEditor = ({
   setSelectedLayerId,
   updatePageHtml,
   multiSelectedIds = new Set(),
-  setMultiSelectedIds
+  setMultiSelectedIds,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
+  currentFrameId,
+  setCurrentFrameId
 }) => {
 
   const [showSelectOptions, setShowSelectOptions] = useState(false);
@@ -114,16 +114,160 @@ const MainEditor = ({
   const [activeMainTool, setActiveMainTool] = useState('select'); // 'upload', 'select', 'pen', 'type', 'shapes', 'grid'
   const [zoom, setZoom] = useState(90);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
-
-  // ── Figma Frame Selection State ──────────────────────────────────────────────
-  // currentFrameId: the frame the user has "entered" by clicking into it
-  // selectedLayerId: the currently selected element (frame or child)
-  const [currentFrameId, setCurrentFrameId] = useState(null); // Frame user has entered
+  const [rotation, setRotation] = useState(0);
   const currentFrameIdRef = useRef(null);
+
+  // ── Synchronize rotation with DOM selection ──────────────────────────────────
+  useEffect(() => {
+    const selId = selectedLayerId;
+    if (selId) {
+      const el = document.getElementById(selId);
+      if (el) {
+        const matrix = getElementMatrix(el);
+        const angle = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
+        setRotation(angle < 0 ? angle + 360 : angle);
+      }
+    } else {
+      setRotation(0);
+    }
+  }, [selectedLayerId, multiSelectedIds]);
+
+  const handleRotate = (newAngle) => {
+    const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
+    if (ids.length === 0) return;
+
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const matrix = getElementMatrix(el);
+      const currentAngle = (Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
+      const diff = newAngle - currentAngle;
+      
+      const bbox = el.getBBox();
+      const cx = bbox.x + bbox.width / 2;
+      const cy = bbox.y + bbox.height / 2;
+
+      // Create rotation around center
+      const rotateMatrix = new DOMMatrix()
+        .translate(cx, cy)
+        .rotate(diff)
+        .translate(-cx, -cy);
+      
+      const nextMatrix = rotateMatrix.multiply(matrix);
+      el.setAttribute('transform', matrixToTransform(nextMatrix));
+    });
+
+    setRotation(newAngle);
+    if (updatePageHtml) {
+      // Find the SVG containing the selection
+      const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      const svg = activeContainer?.querySelector('svg');
+      if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
+    }
+  };
+
+  const handleFlip = (direction) => {
+    const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
+    if (ids.length === 0) return;
+
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+
+      const matrix = getElementMatrix(el);
+      const bbox = el.getBBox();
+      
+      // Calculate local center
+      const localCx = bbox.x + bbox.width / 2;
+      const localCy = bbox.y + bbox.height / 2;
+
+      // Transform local center by current matrix to get world center
+      const worldCenter = new DOMPoint(localCx, localCy).matrixTransform(matrix);
+
+      const scaleX = direction === 'h' ? -1 : 1;
+      const scaleY = direction === 'v' ? -1 : 1;
+
+      // Create flip matrix centered at the current world position
+      const flipMatrix = new DOMMatrix()
+        .translate(worldCenter.x, worldCenter.y)
+        .scale(scaleX, scaleY)
+        .translate(-worldCenter.x, -worldCenter.y);
+      
+      const nextMatrix = flipMatrix.multiply(matrix);
+      el.setAttribute('transform', matrixToTransform(nextMatrix));
+    });
+
+    if (updatePageHtml) {
+        const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        const svg = activeContainer?.querySelector('svg');
+        if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
+    }
+  };
 
   // ── Multi-Selection Ref (state is lifted to TemplateEditor via props) ───────────
   // Keep a mutable ref so interactjs callbacks (closures) always see latest value
   const multiSelectedIdsRef = useRef(new Set());
+
+  const handleSvgContextMenu = (pageIndex, e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const container = e.currentTarget.closest('.page-svg-container');
+    const svg = container?.querySelector('svg');
+    if (!svg) return;
+
+    const frameId = currentFrameIdRef.current;
+    const selId = selectedLayerIdRef.current;
+    let layerId = null;
+
+    // 1. Identify which layer was right-clicked using drill-down priority
+    if (frameId) {
+      // ── Inside an entered frame: prioritized children mapping ──
+      const frameEl = svg.querySelector(`[id="${frameId}"]`);
+      if (frameEl && hitTest(frameEl, e.clientX, e.clientY)) {
+        const children = getDirectChildFrames(frameEl);
+        for (let i = children.length - 1; i >= 0; i--) {
+          if (hitTest(children[i], e.clientX, e.clientY)) {
+            layerId = children[i].id;
+            break;
+          }
+        }
+        // If hit frame gap, target the frame itself
+        if (!layerId) layerId = frameId;
+      }
+    } else {
+      // ── Top-level: select top-level frames ──
+      const topLevelEls = getTopLevelFrames(svg);
+      for (let i = topLevelEls.length - 1; i >= 0; i--) {
+        if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+          layerId = topLevelEls[i].id;
+          break;
+        }
+      }
+    }
+
+    // Fallback to original simple detection if hierarchy drill-down didn't catch it
+    if (!layerId) {
+      const target = e.target.closest('[id]');
+      if (target && target.id && target.id !== 'main-svg-root') {
+        layerId = target.id;
+      }
+    }
+
+    if (!layerId) return;
+
+    // 2. Select the layer if not already part of multi-selection
+    if (!multiSelectedIds.has(layerId)) {
+        setSelectedLayerId(layerId);
+        setMultiSelectedIds(new Set([layerId]));
+    }
+
+    // 3. Dispatch event to trigger the Layer.jsx menu
+    window.dispatchEvent(new CustomEvent('show-layer-context-menu', { 
+        detail: { e, layerId, pageIndex } 
+    }));
+  };
 
   const dragStateRef = useRef(null);
   const suppressClickRef = useRef(false);
@@ -180,6 +324,76 @@ const MainEditor = ({
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
   const handleResetZoom = () => setZoom(90);
 
+  // ── Overlay Highlight Drawing Helpers ─────────────────────────────────────
+  const getOverlayForElement = (el) => {
+    const container = el.closest('.page-svg-container');
+    if (!container) return null;
+    const pageIdx = container.getAttribute('data-page-index');
+    return document.getElementById(`highlight-overlay-${pageIdx}`);
+  };
+
+  const clearOverlayType = (typePattern) => {
+    document.querySelectorAll('.selection-overlay-layer').forEach(overlay => {
+      overlay.querySelectorAll(`.overlay-type-${typePattern}`).forEach(p => p.remove());
+    });
+  };
+
+  const drawOverlayHighlight = (el, type) => {
+    if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
+    const overlay = getOverlayForElement(el);
+    if (!overlay) return;
+    
+    try {
+        const bbox = el.getBBox();
+        if (bbox.width === 0 && bbox.height === 0) return;
+        const ctm = el.getScreenCTM();
+        const overlayCtm = overlay.getScreenCTM();
+        if (!ctm || !overlayCtm) return;
+
+        const svgMatrix = overlayCtm.inverse().multiply(ctm);
+        
+        // Expand the bounds dynamically to push the stroke visually outward
+        const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
+        const screenOffset = type.includes('selected') ? 2.5 : 1.5; // Creates a clear breathable gap outside the graphic
+        const localOffset = screenOffset / scale;
+        
+        const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
+        const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
+        const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
+        const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+
+        const pts = [pt1, pt2, pt3, pt4];
+        const mapped = pts.map(p => p.matrixTransform(svgMatrix));
+        const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
+
+        let polyId = `overlay-poly-${type}-${el.id}`;
+        let polygon = overlay.querySelector(`[id="${polyId}"]`);
+        if (!polygon) {
+            polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.id = polyId;
+            polygon.setAttribute('class', `overlay-type-${type}`);
+            
+            polygon.setAttribute('fill', type === 'entered' ? 'rgba(99, 102, 241, 0.05)' : 'none');
+            
+            if (type === 'hover' || type === 'child-hover') {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('stroke-width', '1');
+                if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', '2,2');
+            } else if (type === 'selected' || type === 'child-selected') {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('stroke-width', type === 'selected' ? '1.5' : '1.2');
+                polygon.setAttribute('filter', 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.3))');
+            } else if (type === 'entered') {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('stroke-width', '1');
+                polygon.setAttribute('stroke-dasharray', '4,4');
+            }
+            overlay.appendChild(polygon);
+        }
+        polygon.setAttribute('points', pointsStr);
+    } catch(e) {}
+  };
+
   // ── Sync all Figma-style data attributes with DOM ────────────────────────────
   useEffect(() => {
     // Clear ALL previous visual states
@@ -189,10 +403,15 @@ const MainEditor = ({
     document.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
     document.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
 
+    clearOverlayType('selected');
+    clearOverlayType('entered');
+    clearOverlayType('child-selected');
+
     if (currentFrameId) {
       // Mark the entered frame with dashed border
       document.querySelectorAll(`[id="${currentFrameId}"]`).forEach(el => {
         el.setAttribute('data-frame-entered', 'true');
+        drawOverlayHighlight(el, 'entered');
       });
     }
 
@@ -203,22 +422,42 @@ const MainEditor = ({
       : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
 
     idsToHighlight.forEach(id => {
-      if (currentFrameId && id !== currentFrameId) {
-        // Child selected inside entered frame
-        document.querySelectorAll(`[id="${id}"]`).forEach(el => {
+      document.querySelectorAll(`[id="${id}"]`).forEach(el => {
+        if (currentFrameId && id !== currentFrameId) {
+          // Child selected inside entered frame
           el.setAttribute('data-child-selected', 'true');
-        });
-      } else {
-        // Top-level frame selected
-        document.querySelectorAll(`[id="${id}"]`).forEach(el => {
+          drawOverlayHighlight(el, 'child-selected');
+        } else {
+          // Top-level frame selected
           el.setAttribute('data-selected', 'true');
-        });
-      }
+          drawOverlayHighlight(el, 'selected');
+        }
+      });
     });
-  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex]);
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, rotation, zoom]);
 
   // Sync refs
   useEffect(() => { currentFrameIdRef.current = currentFrameId; }, [currentFrameId]);
+
+  // ── FIGMA-STYLE: Auto-enter the Root Folder on Page Change ──────────────────────
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      const svg = activeContainer?.querySelector('svg');
+      if (svg) {
+        const topFrames = getTopLevelFrames(svg);
+        // If there is exactly ONE top-level frame, enter it automatically
+        if (topFrames.length === 1 && topFrames[0].id) {
+          const rootId = topFrames[0].id;
+          if (currentFrameIdRef.current !== rootId) {
+            setCurrentFrameId(rootId);
+            currentFrameIdRef.current = rootId;
+          }
+        }
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [activePageIndex, pages]);
 
   // Helper: get direct children of SVG root that have IDs (top-level frames)
   const getTopLevelFrames = (svg) => {
@@ -240,11 +479,41 @@ const MainEditor = ({
     );
   };
 
-  // Helper: check if a point (clientX, clientY) hits an element's bounding box
-  const hitTest = (el, clientX, clientY) => {
+  // Helper: check if a point (clientX, clientY) hits an element's bounding box mathematically mapped
+  const hitTest = (el, clientX, clientY, buffer = 0) => {
+    if (!el) return false;
+
+    // 1. Pixel-perfect fast check: native browser hit testing
+    // Handles thin lines, complex strokes, and accurately painted bounds natively
+    const hitElements = document.elementsFromPoint(clientX, clientY);
+    if (hitElements.includes(el)) return true;
+
+    // 2. Extrapolated local Bounding Box hit testing
+    // Handles hitting transparent gaps, transparent shape areas, or hitting areas expanded by exact buffers
+    if (typeof el.getScreenCTM === 'function' && typeof el.getBBox === 'function') {
+      const svg = el.ownerSVGElement || (el.tagName && el.tagName.toLowerCase() === 'svg' ? el : null);
+      if (svg && typeof svg.createSVGPoint === 'function') {
+        const pt = svg.createSVGPoint();
+        pt.x = clientX;
+        pt.y = clientY;
+        try {
+          const ctm = el.getScreenCTM();
+          if (ctm) {
+            const localPt = pt.matrixTransform(ctm.inverse());
+            const bbox = el.getBBox();
+            // Calculate scale from CTM to convert screen buffer into local coordinate units
+            const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
+            const localBuffer = buffer / scale;
+            
+            return localPt.x >= (bbox.x - localBuffer) && localPt.x <= (bbox.x + bbox.width + localBuffer) &&
+                   localPt.y >= (bbox.y - localBuffer) && localPt.y <= (bbox.y + bbox.height + localBuffer);
+          }
+        } catch (e) {}
+      }
+    }
     const rect = el.getBoundingClientRect();
-    return clientX >= rect.left && clientX <= rect.right &&
-           clientY >= rect.top  && clientY <= rect.bottom;
+    return clientX >= rect.left - buffer && clientX <= rect.right + buffer &&
+           clientY >= rect.top - buffer && clientY <= rect.bottom + buffer;
   };
 
   // Helper to get all valid SVG elements at a point (z-index ordered, top to bottom)
@@ -340,10 +609,7 @@ const MainEditor = ({
             if (selectedId) {
               const selectedEl = container?.querySelector(`[id="${selectedId}"]`);
               if (selectedEl && selectedEl !== svgElement) {
-                const rect = selectedEl.getBoundingClientRect();
-                const buffer = 2;
-                if (event.clientX >= rect.left - buffer && event.clientX <= rect.right + buffer &&
-                    event.clientY >= rect.top - buffer && event.clientY <= rect.bottom + buffer) {
+                if (hitTest(selectedEl, event.clientX, event.clientY, 2)) {
                   target = selectedEl; // Redirect drag to the current selection!
                 }
               }
@@ -356,10 +622,7 @@ const MainEditor = ({
                 for (const id of multiIds) {
                   const el = container?.querySelector(`[id="${id}"]`);
                   if (el && el !== svgElement) {
-                    const rect = el.getBoundingClientRect();
-                    const buffer = 2;
-                    if (event.clientX >= rect.left - buffer && event.clientX <= rect.right + buffer &&
-                        event.clientY >= rect.top - buffer && event.clientY <= rect.bottom + buffer) {
+                    if (hitTest(el, event.clientX, event.clientY, 2)) {
                       target = el;
                       break;
                     }
@@ -446,12 +709,14 @@ const MainEditor = ({
             const dx = currentPoint.x - dragState.startPoint.x;
             const dy = currentPoint.y - dragState.startPoint.y;
 
-            if (dragState.multiDragItems) {
+              if (dragState.multiDragItems) {
               // Move ALL multi-selected elements
               for (const item of dragState.multiDragItems) {
                 const translation = new DOMMatrix().translate(dx, dy);
                 const nextMatrix = translation.multiply(item.initialMatrix);
                 item.element.setAttribute('transform', matrixToTransform(nextMatrix));
+                // dynamically update the outline while dragging
+                drawOverlayHighlight(item.element, currentFrameIdRef.current && item.element.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
               }
             } else {
               // Single element drag
@@ -459,6 +724,8 @@ const MainEditor = ({
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
               target.setAttribute('transform', matrixToTransform(nextMatrix));
+              // dynamically update the outline while dragging
+              drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
             }
 
             suppressClickRef.current = true;
@@ -533,6 +800,8 @@ const MainEditor = ({
     // Clear all hover states
     svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
     svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+    clearOverlayType('hover');
+    clearOverlayType('child-hover');
 
     const frameId = currentFrameIdRef.current;
 
@@ -543,9 +812,28 @@ const MainEditor = ({
         const children = getDirectChildFrames(frameEl);
         for (let i = children.length - 1; i >= 0; i--) {
           if (hitTest(children[i], e.clientX, e.clientY)) {
-            children[i].setAttribute('data-child-hovered', 'true');
+            // Only hover if not already selected
+            if (!multiSelectedIdsRef.current.has(children[i].id) && selectedLayerIdRef.current !== children[i].id) {
+              children[i].setAttribute('data-child-hovered', 'true');
+              drawOverlayHighlight(children[i], 'child-hover');
+            }
             return;
           }
+        }
+
+        // Falling outside current frame context: highlight top-level elements
+        if (!hitTest(frameEl, e.clientX, e.clientY)) {
+           const topLevelEls = getTopLevelFrames(svg);
+           for (let i = topLevelEls.length - 1; i >= 0; i--) {
+             if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+               // Only hover if not already selected
+               if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+                 topLevelEls[i].setAttribute('data-hovered', 'true');
+                 drawOverlayHighlight(topLevelEls[i], 'hover');
+               }
+               return;
+             }
+           }
         }
       }
     } else {
@@ -553,7 +841,11 @@ const MainEditor = ({
       const topLevelEls = getTopLevelFrames(svg);
       for (let i = topLevelEls.length - 1; i >= 0; i--) {
         if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-          topLevelEls[i].setAttribute('data-hovered', 'true');
+          // Only hover if not already selected
+          if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+            topLevelEls[i].setAttribute('data-hovered', 'true');
+            drawOverlayHighlight(topLevelEls[i], 'hover');
+          }
           return;
         }
       }
@@ -562,11 +854,13 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE LEAVE: clear all hovers ─────────────────────────────────
   const handleSvgMouseLeave = (e) => {
-    const container = e.currentTarget;
+    const container = e.currentTarget.closest('.page-svg-container') || e.currentTarget;
     const svg = container.querySelector('svg');
     if (svg) {
       svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
       svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+      clearOverlayType('hover');
+      clearOverlayType('child-hover');
     }
   };
 
@@ -593,6 +887,12 @@ const MainEditor = ({
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
     if (!svg) return;
+
+    // Clear hover states immediately on click to prevent overlapping outlines
+    svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+    svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+    clearOverlayType('hover');
+    clearOverlayType('child-hover');
 
     // ── Ctrl + Shift + Click: direct deep select (existing behavior preserved) ─
     if (e.ctrlKey && e.shiftKey) {
@@ -707,28 +1007,55 @@ const MainEditor = ({
             // Child has no sub-frames → stay selected, nothing deeper to enter
             return;
           } else {
-            // ── Different child → SELECT it (don't enter yet, wait for 2nd click)
+            // ── Different child → SELECT it 
             setSingleSelection(clickedChild.id);
           }
         } else {
-          // ── Clicked the entered frame's empty gap → exit one level
-          setSingleSelection(frameId);
-          setCurrentFrameId(null);
-          currentFrameIdRef.current = null;
+          // ── Clicked the entered frame's empty gap → behavior depends on level
+          const topFrames = getTopLevelFrames(svg);
+          const isRootFolder = topFrames.length === 1 && topFrames[0].id === frameId;
+
+          if (isRootFolder) {
+            // ── Root Folder Gap: Behavior changed to KEEP root selected
+            setSingleSelection(frameId);
+          } else {
+            // ── Deeper Frame Gap: exit one level (select frame, keep entered)
+            setSingleSelection(frameId);
+            // Don't null currentFrameId here to keep context
+          }
         }
         return;
 
       } else {
-        // ── Clicked completely OUTSIDE the entered frame → full exit
-        setCurrentFrameId(null);
-        currentFrameIdRef.current = null;
-        setSingleSelection(null);
-        // Check if a different top-level frame was hit
+        // ── Clicked completely OUTSIDE the entered frame
+        // Exit current context and select whatever is at this point
         const topLevelEls = getTopLevelFrames(svg);
+        let hitTopFrame = null;
         for (let i = topLevelEls.length - 1; i >= 0; i--) {
           if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-            setSingleSelection(topLevelEls[i].id);
+            hitTopFrame = topLevelEls[i];
             break;
+          }
+        }
+
+        setCurrentFrameId(null);
+        currentFrameIdRef.current = null;
+
+        if (hitTopFrame) {
+          setSingleSelection(hitTopFrame.id);
+          // If hit top frame is the only root, automatically enter it
+          if (topLevelEls.length === 1) {
+            setCurrentFrameId(hitTopFrame.id);
+            currentFrameIdRef.current = hitTopFrame.id;
+          }
+        } else {
+          // Hit nothing? Behavior for Root Folder
+          if (topLevelEls.length === 1) {
+            setSingleSelection(topLevelEls[0].id);
+            setCurrentFrameId(topLevelEls[0].id);
+            currentFrameIdRef.current = topLevelEls[0].id;
+          } else {
+            setSingleSelection(null);
           }
         }
         return;
@@ -779,10 +1106,18 @@ const MainEditor = ({
       setCurrentFrameId(null);
       currentFrameIdRef.current = null;
     } else {
-      // Clicked canvas background — deselect everything
-      setSingleSelection(null);
-      setCurrentFrameId(null);
-      currentFrameIdRef.current = null;
+      // Clicked canvas background — ONLY deselect everything if there are multiple frames
+      // Otherwise, keep the single root folder selected
+      const currentTopFrames = getTopLevelFrames(svg);
+      if (currentTopFrames.length === 1) {
+        setSingleSelection(currentTopFrames[0].id);
+        setCurrentFrameId(currentTopFrames[0].id);
+        currentFrameIdRef.current = currentTopFrames[0].id;
+      } else {
+        setSingleSelection(null);
+        setCurrentFrameId(null);
+        currentFrameIdRef.current = null;
+      }
     }
   };
 
@@ -1026,12 +1361,64 @@ const MainEditor = ({
         zoom={zoom} 
         onZoomIn={handleZoomIn} 
         onZoomOut={handleZoomOut} 
-        onReset={handleResetZoom} 
+        onReset={handleResetZoom}
+        onUndo={onUndo}
+        onRedo={onRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        rotation={rotation}
+        onRotate={handleRotate}
+        onFlipH={() => handleFlip('h')}
+        onFlipV={() => handleFlip('v')}
+        hasSelection={(() => {
+          // Check if anything is selected
+          if (!selectedLayerId && multiSelectedIds.size === 0) return false;
+          
+          // Identify if the only thing selected is the Root Folder
+          const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+          const svg = activeContainer?.querySelector('svg');
+          if (svg) {
+            const topFrames = getTopLevelFrames(svg);
+            if (topFrames.length === 1) {
+              const rootId = topFrames[0].id;
+              // If only root is selected, we consider it "no valid selection" for rotation
+              const onlyRoot = (selectedLayerId === rootId && multiSelectedIds.size === 0) || 
+                               (multiSelectedIds.size === 1 && multiSelectedIds.has(rootId));
+              if (onlyRoot) return false;
+            }
+          }
+          return true;
+        })()}
       />
-      <div className="flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden">
+      <div 
+        className="flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden bg-[#FBFBFB]"
+        onClick={() => {
+          // Identify Root Folder (single top frame on current page)
+          const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+          const svg = activeContainer?.querySelector('svg');
+          if (svg) {
+            const topFrames = getTopLevelFrames(svg);
+            if (topFrames.length === 1) {
+              const rootId = topFrames[0].id;
+              if (setSelectedLayerId) {
+                setSelectedLayerId(rootId);
+                setMultiSelectedIds(new Set([rootId]));
+                setCurrentFrameId(rootId);
+                currentFrameIdRef.current = rootId;
+              }
+              return;
+            }
+          }
+
+          setSelectedLayerId(null);
+          setMultiSelectedIds(new Set());
+          setCurrentFrameId(null);
+          currentFrameIdRef.current = null;
+        }}
+      >
         
         {/* Top Group: Selection & Primary Tools - Independent Position */}
-        <div className="absolute right-[0.9vw] top-[1.9vh] z-50">
+        <div className="absolute right-[1.05vw] top-[1.9vh] z-50">
           <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
             {/* Black Edit Icon Button */}
             <button className="w-[2.1vw] h-[2.1vw] cursor-pointer bg-[#000000] rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh]">
@@ -1492,14 +1879,24 @@ const MainEditor = ({
                     <style>{svgGlobalStyles}</style>
                     {pages[activePageIndex]?.html ? (
                       <div 
-                        className="h-full w-full overflow-hidden flex items-center justify-center bg-white"
-                        dangerouslySetInnerHTML={{ __html: pages[activePageIndex]?.html }}
-                        onMouseDown={(e) => handleSvgMouseDown(activePageIndex, e)}
-                        onMouseMove={handleSvgMouseMove}
-                        onMouseLeave={handleSvgMouseLeave}
-                        onClick={handleSvgClick}
-                        onDoubleClick={handleSvgDoubleClick}
-                      />
+                        className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center bg-white"
+                      >
+                         <div 
+                           className="w-full h-full flex items-center justify-center"
+                           dangerouslySetInnerHTML={{ __html: pages[activePageIndex]?.html }}
+                           onMouseDown={(e) => handleSvgMouseDown(activePageIndex, e)}
+                           onMouseMove={handleSvgMouseMove}
+                           onMouseLeave={handleSvgMouseLeave}
+                           onClick={handleSvgClick}
+                           onDoubleClick={handleSvgDoubleClick}
+                           onContextMenu={(e) => handleSvgContextMenu(activePageIndex, e)}
+                         />
+                         {/* Selection Overlay (Overlay rotated element perfectly) */}
+                         <svg 
+                           id={`highlight-overlay-${activePageIndex}`}
+                           className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer"
+                         />
+                      </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                         <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">A4 sheet (210 x 297 mm)</span>
@@ -1510,7 +1907,7 @@ const MainEditor = ({
                     {/* Simple Click-to-Open Gallery Overlay for empty pages */}
                     {!pages[activePageIndex]?.html && (
                       <div 
-                        className="absolute inset-0 cursor-pointer z-10"
+                        className="absolute inset-0 z-10"
                         onClick={() => onOpenTemplateModal(activePageIndex)}
                       />
                     )}
@@ -1620,14 +2017,24 @@ const MainEditor = ({
                       
                       return page?.html ? (
                         <div 
-                          className="h-full w-full overflow-hidden flex items-center justify-center bg-white"
-                          dangerouslySetInnerHTML={{ __html: page.html }}
-                          onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                          onMouseMove={handleSvgMouseMove}
-                          onMouseLeave={handleSvgMouseLeave}
-                          onClick={handleSvgClick}
-                          onDoubleClick={handleSvgDoubleClick}
-                        />
+                          className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center bg-white"
+                        >
+                           <div 
+                             className="w-full h-full flex items-center justify-center"
+                             dangerouslySetInnerHTML={{ __html: page.html }}
+                             onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                             onMouseMove={handleSvgMouseMove}
+                             onMouseLeave={handleSvgMouseLeave}
+                             onClick={handleSvgClick}
+                             onDoubleClick={handleSvgDoubleClick}
+                             onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
+                           />
+                           {/* Selection Overlay (Overlay rotated element perfectly) */}
+                           <svg 
+                             id={`highlight-overlay-${displayIndex}`}
+                             className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer"
+                           />
+                        </div>
                       ) : (
                         <>
                           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">

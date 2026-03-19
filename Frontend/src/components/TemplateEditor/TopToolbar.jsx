@@ -2,9 +2,44 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Undo2, Redo2, RotateCcw, Plus, Minus } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
-const TopToolbar = ({ zoom, onZoomIn, onZoomOut, onReset }) => {
+const TopToolbar = ({ 
+  zoom, 
+  onZoomIn, 
+  onZoomOut, 
+  onReset, 
+  onUndo, 
+  onRedo, 
+  canUndo, 
+  canRedo,
+  rotation = 0,
+  onRotate,
+  onFlipH,
+  onFlipV,
+  hasSelection
+}) => {
   const [showRotationOptions, setShowRotationOptions] = useState(false);
   const rotationRef = useRef(null);
+  const [localRotation, setLocalRotation] = useState(rotation);
+
+  useEffect(() => {
+    setLocalRotation(rotation);
+  }, [rotation]);
+
+  const handleRotationChange = (e) => {
+    const val = parseInt(e.target.value);
+    setLocalRotation(isNaN(val) ? 0 : val);
+  };
+
+  const handleRotationBlur = () => {
+    if (onRotate) onRotate(localRotation);
+  };
+
+  const handleRotationKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      if (onRotate) onRotate(localRotation);
+      e.target.blur();
+    }
+  };
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -24,13 +59,19 @@ const TopToolbar = ({ zoom, onZoomIn, onZoomOut, onReset }) => {
     >
       {/* Left Section: History */}
       <div className="flex items-center gap-[1.5vw]">
-        <div className="flex flex-col items-center group cursor-pointer">
-          <Undo2 size="1.2vw" className="text-[#374151] group-hover:text-black transition-colors" />
-          <span className="text-[0.6vw] text-[#6B7280] font-medium group-hover:text-black">Undo</span>
+        <div 
+          onClick={canUndo ? onUndo : undefined}
+          className={`flex flex-col items-center group ${canUndo ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}
+        >
+          <Undo2 size="1.2vw" className={`text-[#374151] ${canUndo ? 'group-hover:text-black' : ''} transition-colors`} />
+          <span className={`text-[0.6vw] text-[#6B7280] font-medium ${canUndo ? 'group-hover:text-black' : ''}`}>Undo</span>
         </div>
-        <div className="flex flex-col items-center group cursor-pointer">
-          <Redo2 size="1.2vw" className="text-[#374151] group-hover:text-black transition-colors" />
-          <span className="text-[0.6vw] text-[#6B7280] font-medium group-hover:text-black">Redo</span>
+        <div 
+          onClick={canRedo ? onRedo : undefined}
+          className={`flex flex-col items-center group ${canRedo ? 'cursor-pointer' : 'cursor-not-allowed opacity-30'}`}
+        >
+          <Redo2 size="1.2vw" className={`text-[#374151] ${canRedo ? 'group-hover:text-black' : ''} transition-colors`} />
+          <span className={`text-[0.6vw] text-[#6B7280] font-medium ${canRedo ? 'group-hover:text-black' : ''}`}>Redo</span>
         </div>
       </div>
 
@@ -77,33 +118,53 @@ const TopToolbar = ({ zoom, onZoomIn, onZoomOut, onReset }) => {
       <div className="flex items-center gap-[1vw]">
         <div className="relative" ref={rotationRef}>
           <div 
-            onClick={() => setShowRotationOptions(!showRotationOptions)}
-            className={`flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] cursor-pointer transition-all ${showRotationOptions ? 'ring-1 ring-gray-300 shadow-sm' : ''}`}
+            onClick={hasSelection ? () => setShowRotationOptions(!showRotationOptions) : undefined}
+            className={`flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] transition-all ${
+              !hasSelection ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+            } ${showRotationOptions ? 'ring-1 ring-gray-300 shadow-sm' : ''}`}
           >
-            <div className={`p-[0.4vw] rounded-[0.4vw] transition-all ${showRotationOptions ? 'bg-white shadow-sm text-black' : 'hover:bg-white text-[#374151] hover:text-black'}`}>
+            <div className={`p-[0.4vw] rounded-[0.4vw] transition-all ${
+              !hasSelection ? '' : 
+              showRotationOptions ? 'bg-white shadow-sm text-black' : 'hover:bg-white text-[#374151] hover:text-black'
+            }`}>
               <Icon icon="icon-park-outline:rotate" width="1.1vw" height="1.1vw" />
             </div>
           </div>
 
           {/* Rotation Options Dropdown */}
-          {showRotationOptions && (
+          {showRotationOptions && hasSelection && (
             <div className="absolute right-0 top-[3.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.8vw] flex items-center gap-[0.8vw] shadow-lg z-[100] border border-gray-200/50">
-              {/* Rotate Tool With Degree */}
-              <div className="flex items-center bg-white px-[0.6vw] py-[0.3vw] rounded-[0.6vw] gap-[0.6vw] shadow-sm">
-                <Icon icon="icon-park-outline:rotate" width="1vw" height="1vw" className="text-black" />
-                <div className="flex items-baseline">
-                  <span className="text-[0.85vw] font-semibold text-black">90</span>
-                  <span className="text-[0.55vw] font-semibold text-black translate-y-[-0.2vw]">°</span>
+              {/* Rotate Tool With Degree Input */}
+              <div className="flex items-center bg-white px-[0.6vw] py-[0.3vw] rounded-[0.6vw] gap-[0.3vw] shadow-sm border border-gray-100">
+                <Icon icon="icon-park-outline:rotate" width="0.9vw" height="0.9vw" className="text-gray-500" />
+                <div className="flex items-center">
+                  <input 
+                    type="text"
+                    value={localRotation}
+                    onChange={handleRotationChange}
+                    onBlur={handleRotationBlur}
+                    onKeyDown={handleRotationKeyDown}
+                    className="w-[1.5vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
+                  />
+                  <span className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw]">°</span>
                 </div>
               </div>
 
               {/* Flip Horizontal */}
-              <div className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group">
+              <div 
+                onClick={(e) => { e.stopPropagation(); onFlipH && onFlipH(); }}
+                className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
+                title="Flip Horizontal"
+              >
                 <Icon icon="vaadin:flip-h" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
               </div>
 
               {/* Flip Vertical */}
-              <div className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group">
+              <div 
+                onClick={(e) => { e.stopPropagation(); onFlipV && onFlipV(); }}
+                className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
+                title="Flip Vertical"
+              >
                 <Icon icon="vaadin:flip-v" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
               </div>
             </div>
