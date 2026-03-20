@@ -2,7 +2,33 @@ import React, { useState } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
-const RightSidebar = ({ isDoublePage, setIsDoublePage }) => {
+const RightSidebar = ({ 
+  isDoublePage, 
+  setIsDoublePage, 
+  activeMainTool,
+  activePageIndex,
+  pages,
+  updatePageBackground,
+  selectedLayerId
+}) => {
+  const bgColor = (() => {
+    const page = pages[activePageIndex];
+    if (page && page.html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const overlay = doc.querySelector('[data-name="Overlay"]');
+      return overlay?.getAttribute('fill') || '#ffffff';
+    }
+    return '#ffffff';
+  })();
+
+  const presetColors = [
+    '#ffffff', '#f3f4f6', '#e5e7eb', '#d1d5db', '#9ca3af', '#4b5563', '#1f2937', '#000000',
+    '#eff6ff', '#dbeafe', '#bfdbfe', '#93c5fd', '#60a5fa', '#3b82f6', '#2563eb', '#1d4ed8',
+    '#ecfdf5', '#d1fae5', '#a7f3d0', '#6ee7b7', '#34d399', '#10b981', '#059669', '#047857',
+    '#fff7ed', '#ffedd5', '#fed7aa', '#fdba74', '#fb923c', '#f97316', '#ea580c', '#c2410c',
+    '#fef2f2', '#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c'
+  ];
 
   return (
     <div 
@@ -31,69 +57,183 @@ const RightSidebar = ({ isDoublePage, setIsDoublePage }) => {
       <div className="h-[1px] bg-[#EEEEEE] mx-[-1.5vw]"></div>
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[#f5f6f7]">
-        <div className="p-[1.5vw] flex flex-col gap-[3.5vh]">
-          {/* Upload Files Section */}
-          <div className="flex flex-col gap-[2.5vh]">
-            <div className="flex items-center gap-[0.75vw]">
-              <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Upload Files</span>
-              <div className="h-[0.1vw] flex-1 bg-gray-300 opacity-50"></div>
+        {activeMainTool === 'upload' ? (
+          <div className="p-[1.5vw] flex flex-col gap-[3.5vh]">
+            {/* Upload Files Section */}
+            <div className="flex flex-col gap-[2.5vh]">
+              <div className="flex items-center gap-[0.75vw]">
+                <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Upload Files</span>
+                <div className="h-[0.1vw] flex-1 bg-gray-300 opacity-50"></div>
+              </div>
+
+              {/* Upload Box */}
+              <div
+                className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
+              >
+                <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
+                  Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
+                </div>
+
+                <div className="mb-[1.5vw] transition-colors text-gray-400 group-hover:text-blue-500">
+                  <Icon icon="heroicons:arrow-up-tray" width="2vw" />
+                </div>
+
+                <div className="text-center">
+                  <div className="text-[0.65vw] font-bold text-gray-600 uppercase tracking-wide mb-[0.25vw]">
+                    Supported File
+                  </div>
+                  <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[12vw] font-medium text-center">
+                    Image, Video, Audio, GIF, SVG
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Upload Box */}
-            <div
-              className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
-            >
-              <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
-                Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
-              </div>
-
-              <div className="mb-[1.5vw] transition-colors text-gray-400 group-hover:text-blue-500">
-                <Icon icon="heroicons:arrow-up-tray" width="2vw" />
-              </div>
-
-              <div className="text-center">
-                <div className="text-[0.65vw] font-bold text-gray-600 uppercase tracking-wide mb-[0.25vw]">
-                  Supported File
+            {/* Gallery Button Section */}
+            <div className="mt-[1vh]">
+              <div 
+                className="w-full h-[6vh] rounded-[0.8vw] relative overflow-hidden flex items-center justify-center cursor-pointer shadow-lg group transition-transform"
+              >
+                {/* Collage Background */}
+                <div className="absolute inset-0 flex">
+                  <img 
+                    src="https://images.unsplash.com/photo-1557683316-973673baf926?w=200&q=80" 
+                    className="w-1/3 h-full object-cover brightness-[0.4] transition-all duration-500 group-hover:brightness-[0.6]" 
+                    alt=""
+                  />
+                  <img 
+                    src="https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&q=80" 
+                    className="w-1/3 h-full object-cover brightness-[0.4] transition-all duration-500 group-hover:brightness-[0.6]" 
+                    alt=""
+                  />
+                  <img 
+                    src="https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=200&q=80" 
+                    className="w-1/3 h-full object-cover brightness-[0.4] transition-all duration-500 group-hover:brightness-[0.6]" 
+                    alt=""
+                  />
                 </div>
-                <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[12vw] font-medium text-center">
-                  Image, Video, Audio, GIF, SVG
+                
+                {/* Center Content */}
+                <div className="relative z-10 flex items-center gap-[1vw] text-white">
+                  <ImageIcon size="1.4vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+                  <span className="text-[1.1vw] font-bold">Gallery</span>
                 </div>
               </div>
             </div>
           </div>
+        ) : (
+          <div className="flex-1 flex flex-col p-[1.5vw] overflow-y-auto">
+             {(() => {
+               const rootId = (() => {
+                 const page = pages[activePageIndex];
+                 if (page && page.html) {
+                   const parser = new DOMParser();
+                   const doc = parser.parseFromString(page.html, 'image/svg+xml');
+                   return doc.querySelector('svg > g')?.id;
+                 }
+                 return null;
+               })();
+               
+               const isPageSelected = !selectedLayerId || selectedLayerId === rootId;
+               
+               if (isPageSelected) {
+                 return (
+                   <div className="flex flex-col gap-[3vh]">
+                     {/* Page Background Section */}
+                     <div className="flex flex-col gap-[1.5vh]">
+                       <div className="flex items-center gap-[0.75vw]">
+                         <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap uppercase tracking-wider">Page Background</span>
+                         <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                       </div>
 
-          {/* Gallery Button Section */}
-          <div className="mt-[1vh]">
-            <div 
-              className="w-full h-[6vh] rounded-[0.8vw] relative overflow-hidden flex items-center justify-center cursor-pointer shadow-lg group transition-transform hover:scale-[1.01]"
-            >
-              {/* Collage Background */}
-              <div className="absolute inset-0 flex">
-                <img 
-                  src="https://images.unsplash.com/photo-1557683316-973673baf926?w=200&q=80" 
-                  className="w-1/3 h-full object-cover brightness-[0.4] transition-all duration-500 group-hover:brightness-[0.6]" 
-                  alt=""
-                />
-                <img 
-                  src="https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=200&q=80" 
-                  className="w-1/3 h-full object-cover brightness-[0.4] transition-all duration-500 group-hover:brightness-[0.6]" 
-                  alt=""
-                />
-                <img 
-                  src="https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=200&q=80" 
-                  className="w-1/3 h-full object-cover brightness-[0.4] transition-all duration-500 group-hover:brightness-[0.6]" 
-                  alt=""
-                />
-              </div>
-              
-              {/* Center Content */}
-              <div className="relative z-10 flex items-center gap-[1vw] text-white">
-                <ImageIcon size="1.4vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-                <span className="text-[1.1vw] font-bold">Gallery</span>
-              </div>
-            </div>
+                       <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
+                         <div className="flex items-center justify-between mb-[1.5vh]">
+                            <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
+                            <div className="flex items-center gap-[0.5vw]">
+                              <div 
+                                className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner" 
+                                style={{ backgroundColor: bgColor }}
+                              />
+                              <span className="text-[0.7vw] font-mono text-gray-400">{bgColor.toUpperCase()}</span>
+                            </div>
+                         </div>
+
+                         {/* Color Palette */}
+                         <div className="grid grid-cols-8 gap-[0.4vw]">
+                            {presetColors.map((color) => (
+                              <button
+                                key={color}
+                                onClick={() => updatePageBackground(activePageIndex, color)}
+                                className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${bgColor.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                         </div>
+
+                         {/* Custom Color Selector */}
+                         <div className="mt-[2vh] pt-[2vh] border-t border-gray-100">
+                            <div className="flex items-center gap-[1vw]">
+                               <div className="relative w-full">
+                                  <input 
+                                    type="text"
+                                    value={bgColor.toUpperCase()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (val.startsWith('#') && val.length <= 7) {
+                                        updatePageBackground(activePageIndex, val);
+                                      }
+                                    }}
+                                    className="w-full pl-[0.8vw] pr-[2.5vw] py-[0.6vh] bg-gray-50 border border-gray-200 rounded-[0.4vw] text-[0.75vw] font-mono focus:outline-none focus:border-blue-500 transition-colors"
+                                  />
+                                  <input 
+                                    type="color"
+                                    value={bgColor}
+                                    onChange={(e) => updatePageBackground(activePageIndex, e.target.value)}
+                                    className="absolute right-[0.4vw] top-1/2 -translate-y-1/2 w-[1.4vw] h-[1.4vw] opacity-0 cursor-pointer"
+                                  />
+                                  <div 
+                                    className="absolute right-[0.4vw] top-1/2 -translate-y-1/2 w-[1.4vw] h-[1.4vw] rounded-[0.2vw] border border-gray-200 pointer-events-none"
+                                    style={{ backgroundColor: bgColor }}
+                                  />
+                               </div>
+                            </div>
+                         </div>
+                       </div>
+                     </div>
+
+                     {/* Document Info Section */}
+                     <div className="flex flex-col gap-[1.5vh]">
+                       <div className="flex items-center gap-[0.75vw]">
+                         <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap uppercase tracking-wider">Document info</span>
+                         <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                       </div>
+                       <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
+                          <div className="flex justify-between items-center text-[0.75vw]">
+                            <span className="text-gray-500 font-medium">Format</span>
+                            <span className="text-gray-900 font-semibold">A4 Sheet</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[0.75vw]">
+                            <span className="text-gray-500 font-medium">Dimensions</span>
+                            <span className="text-gray-900 font-semibold">210 x 297 mm</span>
+                          </div>
+                       </div>
+                     </div>
+                   </div>
+                 );
+               } else {
+                 return (
+                   <div className="flex-1 flex flex-col items-center justify-center text-center">
+                     <div className="text-gray-400 mb-[1vw]">
+                         <Icon icon="solar:widget-linear" width="3vw" />
+                     </div>
+                     <p className="text-[0.8vw] text-gray-400 font-medium">Layer properties panel coming soon</p>
+                   </div>
+                 );
+               }
+             })()}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

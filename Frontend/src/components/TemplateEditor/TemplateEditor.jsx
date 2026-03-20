@@ -15,7 +15,7 @@ const TemplateEditor = () => {
   const location = useLocation();
   const { setCurrentBook } = useOutletContext();
   
-  const [isDoublePage, setIsDoublePage] = useState(true);
+  const [isDoublePage, setIsDoublePage] = useState(false);
   const [pages, setPages] = useState([]);
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -25,8 +25,29 @@ const TemplateEditor = () => {
   const [multiSelectedIds, setMultiSelectedIds] = useState(new Set());
   const [clipboard, setClipboard] = useState(null); // { layer, svgSnippet }
   const [currentFrameId, setCurrentFrameId] = useState(null); // Figma-style "entered" frame
+  const [activeMainTool, setActiveMainTool] = useState('select'); // 'upload', 'select', 'pen', 'type', 'shapes', 'grid'
 
-  // ── HISTORY STATE (Undo / Redo) ───────────────────────────────────────────
+  const createDefaultPageData = (name) => {
+    const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
+    const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
+    const html = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 297" width="100%" height="100%" style="overflow: visible">
+  <g id="${rootId}" data-name="${name}" data-type="frame">
+\n    <rect id="${overlayId}" x="0" y="0" width="210" height="297" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" />\n  </g>\n</svg>`;
+
+    const layers = [
+      {
+        id: rootId,
+        name: name,
+        type: 'g',
+        visible: true,
+        locked: false,
+        children: []
+      }
+    ];
+
+    return { html, layers };
+  };
+
   const [history, setHistory] = useState([]); // Past states
   const [redoStack, setRedoStack] = useState([]); // States for redo
   const MAX_HISTORY = 50;
@@ -74,7 +95,8 @@ const TemplateEditor = () => {
     setPages(prev => {
       const updated = [...prev];
       if (updated[index]) {
-        updated[index] = { ...updated[index], html: '', layers: [] };
+        const { html, layers } = createDefaultPageData(updated[index].name);
+        updated[index] = { ...updated[index], html, layers };
       }
       return updated;
     });
@@ -85,10 +107,13 @@ const TemplateEditor = () => {
   const insertPageAfter = (index) => {
     saveToHistory();
     setPages(prev => {
+      const name = `Page ${prev.length + 1}`;
+      const { html, layers } = createDefaultPageData(name);
       const newPage = {
         id: 'page_' + Math.random().toString(36).substr(2, 9),
-        name: `Page ${prev.length + 1}`,
-        html: ''
+        name: name,
+        html,
+        layers
       };
       const updated = [...prev];
       updated.splice(index + 1, 0, newPage);
@@ -546,6 +571,25 @@ const TemplateEditor = () => {
     });
   };
 
+  const updatePageBackground = (pageIndex, color) => {
+    saveToHistory();
+    setPages(prev => {
+      const updated = [...prev];
+      const page = updated[pageIndex];
+      if (page && page.html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(page.html, 'image/svg+xml');
+          const overlay = doc.querySelector('[data-name="Overlay"]');
+          if (overlay) {
+              overlay.setAttribute('fill', color);
+              page.html = new XMLSerializer().serializeToString(doc);
+          }
+          updated[pageIndex] = { ...page };
+      }
+      return updated;
+    });
+  };
+
   const deleteLayer = (pageIndex, layerId) => {
     saveToHistory();
     setPages(prev => {
@@ -835,44 +879,268 @@ const TemplateEditor = () => {
       const content = await response.text();
       
       const parser = new DOMParser();
-      const doc = parser.parseFromString(content, 'image/svg+xml');
-      let svgRoot = doc.querySelector('svg');
+      const targetIndex = templateTargetIndex !== null ? templateTargetIndex : activePageIndex;
+      const currentPage = pages[targetIndex];
       
-      let layers = [];
-      let updatedHtml = content;
+      if (!currentPage) return;
 
-      if (svgRoot) {
-        const parseLayers = (element) => {
-          return Array.from(element.children)
-            .filter(child => !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()))
-            .map((child, idx) => {
-              const id = child.id || `${child.tagName}-${Math.random().toString(36).substr(2, 5)}`;
-              if (!child.id) child.setAttribute('id', id);
+      // 1. Parse template content
+      const templateDoc = parser.parseFromString(content, 'image/svg+xml');
+      const templateSvg = templateDoc.querySelector('svg');
+      if (!templateSvg) return;
 
-              const name = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
-              
-              const layer = {
-                id: id,
-                name: name,
-                type: child.tagName.toLowerCase(),
-                visible: true,
-                locked: false
-              };
+      // --- CRITICAL: Scope all IDs and Classes in the template to avoid collisions ---
+      const tplPrefix = `tpl-${Math.random().toString(36).substr(2, 4)}`;
+      const allTplElements = templateSvg.querySelectorAll('*');
+      const idRefRegex = /url\(['"]?#([^)'"]+)['"]?\)/g;
 
-              if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
-                layer.children = parseLayers(child);
-              }
+      // Step A: Prefix every ID and update references in attributes
+      allTplElements.forEach(el => {
+        // IDs
+        if (el.id) el.id = `${tplPrefix}-${el.id}`;
 
-              return layer;
-            });
-        };
+        // Classes
+        const classVal = el.getAttribute('class');
+        if (classVal) {
+          const prefixedClasses = classVal.split(/\s+/).map(c => c ? `${tplPrefix}-${c}` : c).join(' ');
+          el.setAttribute('class', prefixedClasses);
+        }
 
-        layers = parseLayers(svgRoot);
-        const serializer = new XMLSerializer();
-        updatedHtml = serializer.serializeToString(svgRoot);
+        // Direct Attributes that refer to IDs (fill, stroke, etc.)
+        const refAttrs = ['fill', 'stroke', 'filter', 'mask', 'clip-path'];
+        refAttrs.forEach(attr => {
+          const val = el.getAttribute(attr);
+          if (val) {
+            const newVal = val.replace(idRefRegex, `url(#${tplPrefix}-$1)`);
+            if (newVal !== val) el.setAttribute(attr, newVal);
+          }
+        });
+
+        // Inline Styles (e.g. style="fill:url(#id)")
+        const styleText = el.getAttribute('style');
+        if (styleText && styleText.includes('url(#')) {
+          el.setAttribute('style', styleText.replace(idRefRegex, `url(#${tplPrefix}-$1)`));
+        }
+
+        // Links
+        ['xlink:href', 'href'].forEach(attr => {
+          const val = el.getAttribute(attr);
+          if (val && val.startsWith('#')) {
+            el.setAttribute(attr, `#${tplPrefix}-${val.substring(1)}`);
+          }
+        });
+      });
+
+      // Step B: Update references and CLASS selectors INSIDE <style> blocks
+      const tplStyles_scoping = templateSvg.querySelectorAll('style');
+      tplStyles_scoping.forEach(style => {
+        if (style.textContent) {
+          // 1. Update ID references: url(#id) -> url(#prefix-id)
+          let css = style.textContent.replace(idRefRegex, `url(#${tplPrefix}-$1)`);
+          // 2. Update Class selectors: .st0 { -> .prefix-st0 {
+          // This matches a dot followed by alphanumeric/dashes, ensuring it's a class selector
+          css = css.replace(/\.([a-zA-Z0-9_-]+)(?=[^{}]*\{)/g, `.${tplPrefix}-$1`);
+          style.textContent = css;
+        }
+      });
+      // -------------------------------------------------------------------
+
+      // 2. Parse current page SVG (or create default if missing)
+      const pageDoc = parser.parseFromString(currentPage.html || '', 'image/svg+xml');
+      let pageSvg = pageDoc.querySelector('svg');
+      
+      if (!pageSvg) {
+        const { html: defaultHtml } = createDefaultPageData(currentPage.name);
+        const defaultDoc = parser.parseFromString(defaultHtml, 'image/svg+xml');
+        pageSvg = defaultDoc.querySelector('svg');
       }
 
-      const targetIndex = templateTargetIndex !== null ? templateTargetIndex : activePageIndex;
+      // 3. Find the Root Folder (<g>) - prioritized by data-type="frame"
+      const rootFolder = pageSvg.querySelector('g[data-type="frame"]') || pageSvg.querySelector('g');
+      
+      // 4. Calculate Scale to Fit (Target: A4 210x297)
+      const targetW = 210;
+      const targetH = 297;
+      let templateWidth = parseFloat(templateSvg.getAttribute('width'));
+      let templateHeight = parseFloat(templateSvg.getAttribute('height'));
+      const viewBoxStr = templateSvg.getAttribute('viewBox');
+      
+      if (viewBoxStr) {
+        const parts = viewBoxStr.trim().split(/[ ,]+/).map(parseFloat);
+        if (parts.length === 4) {
+          templateWidth = parts[2];
+          templateHeight = parts[3];
+        }
+      }
+
+      // Default to target dimensions if unknown to avoid division by zero
+      if (!templateWidth) templateWidth = targetW;
+      if (!templateHeight) templateHeight = targetH;
+
+      const scale = Math.min(targetW / templateWidth, targetH / templateHeight);
+      const offsetX = (targetW - templateWidth * scale) / 2;
+      const offsetY = (targetH - templateHeight * scale) / 2;
+
+      // 5. Handle Defs, Style and Resource merging
+      const RESOURCE_TAGS = ['mask', 'clippath', 'lineargradient', 'radialgradient', 'pattern', 'filter', 'symbol', 'marker'];
+      
+      // Automatically move ALL resource tags found ANYWHERE in the template into our target defs
+      const allResources = templateSvg.querySelectorAll(RESOURCE_TAGS.join(','));
+      let targetDefs = pageSvg.querySelector('defs');
+      
+      if (allResources.length > 0) {
+        if (!targetDefs) {
+          targetDefs = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+          pageSvg.insertBefore(targetDefs, pageSvg.firstChild);
+        }
+        allResources.forEach(res => {
+          const imported = pageDoc.importNode(res, true);
+          targetDefs.appendChild(imported);
+        });
+      }
+
+      const templateDefs = templateSvg.querySelector('defs');
+      if (templateDefs) {
+        if (!targetDefs) {
+          targetDefs = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+          pageSvg.insertBefore(targetDefs, pageSvg.firstChild);
+        }
+        Array.from(templateDefs.children).forEach(child => {
+          targetDefs.appendChild(pageDoc.importNode(child, true));
+        });
+      }
+
+      const templateStyles = templateSvg.querySelectorAll('style');
+      if (templateStyles.length > 0) {
+        let targetStyle = pageSvg.querySelector('style');
+        if (!targetStyle) {
+          targetStyle = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'style');
+          const firstEl = pageSvg.firstChild;
+          pageSvg.insertBefore(targetStyle, firstEl);
+        }
+        templateStyles.forEach(s => {
+          targetStyle.textContent += s.textContent + '\n';
+        });
+      }
+
+      // 6. Inject template content into root folder (Ungrouped)
+      // Extract children from the template - if it has a single main container <g>, we enter it
+      const getExplodedTemplateChildren = (svg) => {
+        // Now identify renderable content (filtering out metadata/defs/style)
+        let infants = Array.from(svg.children).filter(child => 
+          !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
+          !RESOURCE_TAGS.includes(child.tagName.toLowerCase())
+        );
+        
+        // If there's exactly one main group, we "explode" it to take its contents directly
+        if (infants.length === 1 && infants[0].tagName.toLowerCase() === 'g') {
+          const mainGroup = infants[0];
+          const children = Array.from(mainGroup.children);
+          
+          // IMPORTANT: Transfer visual inheritance (fill, stroke, masks, etc.)
+          // This prevents elements from losing their masks or colors when the container is exploded.
+          const attrsToInherit = [
+            'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 
+            'opacity', 'visibility', 'filter', 'color'
+          ];
+          attrsToInherit.forEach(attr => {
+            const val = mainGroup.getAttribute(attr);
+            if (val) {
+              children.forEach(child => {
+                if (!child.hasAttribute(attr)) {
+                  child.setAttribute(attr, val);
+                }
+              });
+            }
+          });
+
+          // Inherit the main container's transform to keep positions stable
+          const groupTransform = mainGroup.getAttribute('transform') || '';
+          if (groupTransform) {
+            children.forEach(child => {
+              const childTransform = child.getAttribute('transform') || '';
+              child.setAttribute('transform', `${groupTransform} ${childTransform}`.trim());
+            });
+          }
+
+          return children;
+        }
+        return infants;
+      };
+
+      const finalTemplateElements = getExplodedTemplateChildren(templateSvg);
+
+      // 6. Inject template content into root folder (Ungrouped & Non-Destructive)
+      if (rootFolder || pageSvg) {
+        const targetParent = rootFolder || pageSvg;
+        
+        // Find the 'Overlay' layer (absolute background) to insert AFTER it
+        const overlayChild = Array.from(targetParent.children).find(el => el.getAttribute('data-name') === 'Overlay');
+        const nextSiblingRef = overlayChild ? overlayChild.nextSibling : targetParent.firstChild;
+
+        // Inherit visual attributes from the original template SVG
+        const svgAttrs = ['fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color'];
+        
+        finalTemplateElements.forEach(child => {
+          const imported = pageDoc.importNode(child, true);
+          
+          // Inherit top-level SVG attributes if not explicitly set on element
+          svgAttrs.forEach(attr => {
+            const val = templateSvg.getAttribute(attr);
+            if (val && !imported.hasAttribute(attr)) {
+              imported.setAttribute(attr, val);
+            }
+          });
+
+          // Apply scaling and translation to fit A4
+          const currentTransform = imported.getAttribute('transform') || '';
+          const fittingTransform = `translate(${offsetX}, ${offsetY}) scale(${scale})`;
+          imported.setAttribute('transform', `${fittingTransform} ${currentTransform}`.trim());
+          
+          // Insert into target parent
+          if (nextSiblingRef) {
+            targetParent.insertBefore(imported, nextSiblingRef);
+          } else {
+            targetParent.appendChild(imported);
+          }
+        });
+      }
+
+      // 7. Update HTML and Layers state
+      const serializer = new XMLSerializer();
+
+      const parseLayersAndSetIds = (element) => {
+        return Array.from(element.children)
+          .filter(child => 
+            !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
+            child.getAttribute('data-name') !== 'Overlay'
+          )
+          .map((child) => {
+            const id = child.id || `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+            if (!child.id) child.setAttribute('id', id);
+
+            const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+            // Strip the unique template prefix for cleaner display (e.g. tpl-a1b2-MyLayer -> MyLayer)
+            const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
+            
+            const layer = {
+              id: id,
+              name: cleanName,
+              type: child.tagName.toLowerCase(),
+              visible: true,
+              locked: false
+            };
+
+            if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
+              layer.children = parseLayersAndSetIds(child);
+            }
+
+            return layer;
+          });
+      };
+
+      const updatedLayers = parseLayersAndSetIds(pageSvg);
+      const updatedHtml = serializer.serializeToString(pageSvg);
 
       setPages(prev => {
         const updated = [...prev];
@@ -880,7 +1148,7 @@ const TemplateEditor = () => {
           updated[targetIndex] = { 
             ...updated[targetIndex], 
             html: updatedHtml,
-            layers: layers
+            layers: updatedLayers
           };
         }
         return updated;
@@ -912,11 +1180,24 @@ const TemplateEditor = () => {
               });
               
               if (res.data && res.data.pages) {
-                  setPages(res.data.pages.map((p, i) => ({
-                      id: p.v_id || i + 1,
-                      name: p.name,
-                      html: p.html
-                  })));
+                  setPages(res.data.pages.map((p, i) => {
+                      const name = p.name || `Page ${i + 1}`;
+                      if (!p.html || p.html.trim() === '') {
+                          const { html, layers } = createDefaultPageData(name);
+                          return {
+                              id: p.v_id || i + 1,
+                              name: name,
+                              html: html,
+                              layers: layers
+                          };
+                      }
+                      return {
+                          id: p.v_id || i + 1,
+                          name: name,
+                          html: p.html,
+                          layers: p.layers
+                      };
+                  }));
                   setCurrentBook(res.data.meta);
               }
           } catch (err) {
@@ -925,19 +1206,29 @@ const TemplateEditor = () => {
       } 
       else if (location.state && location.state.pageCount) {
           const count = location.state.pageCount;
-          const newPages = Array.from({ length: count }, (_, i) => ({
-              id: i + 1,
-              name: `Page ${i + 1}`,
-              html: '' 
-          }));
+          const newPages = Array.from({ length: count }, (_, i) => {
+              const name = `Page ${i + 1}`;
+              const { html, layers } = createDefaultPageData(name);
+              return {
+                  id: i + 1,
+                  name,
+                  html,
+                  layers
+              };
+          });
           setPages(newPages);
       }
       else {
-          setPages(Array.from({ length: 12 }, (_, i) => ({
-              id: i + 1,
-              name: `Page ${i + 1}`,
-              html: ''
-          })));
+          setPages(Array.from({ length: 12 }, (_, i) => {
+              const name = `Page ${i + 1}`;
+              const { html, layers } = createDefaultPageData(name);
+              return {
+                  id: i + 1,
+                  name,
+                  html,
+                  layers
+              };
+          }));
       }
       
       setIsLoading(false);
@@ -1013,8 +1304,18 @@ const TemplateEditor = () => {
         canRedo={redoStack.length > 0}
         currentFrameId={currentFrameId}
         setCurrentFrameId={setCurrentFrameId}
+        activeMainTool={activeMainTool}
+        setActiveMainTool={setActiveMainTool}
       />
-      <RightSidebar isDoublePage={isDoublePage} setIsDoublePage={setIsDoublePage} />
+      <RightSidebar 
+        isDoublePage={isDoublePage} 
+        setIsDoublePage={setIsDoublePage} 
+        activeMainTool={activeMainTool}
+        activePageIndex={activePageIndex}
+        pages={pages}
+        updatePageBackground={updatePageBackground}
+        selectedLayerId={selectedLayerId}
+      />
       
       {showTemplateModal && (
         <TemplateModal 

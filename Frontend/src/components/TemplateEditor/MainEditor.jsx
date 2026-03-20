@@ -11,6 +11,7 @@ const svgGlobalStyles = `
     display: block !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
   }
 
   /* ============================================
@@ -70,6 +71,16 @@ const svgGlobalStyles = `
   .page-svg-container svg [data-dragging="true"] {
     filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2)) !important;
   }
+
+  /* 8. Direct Selection Tool Cursor */
+  .page-svg-container.tool-direct svg * {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto !important;
+  }
+
+  /* 9. Fixed Overlay Prevention */
+  .page-svg-container svg [data-name="Overlay"] {
+    pointer-events: none !important;
+  }
 `;
 import TopToolbar from './TopToolbar';
 
@@ -102,7 +113,9 @@ const MainEditor = ({
   canUndo,
   canRedo,
   currentFrameId,
-  setCurrentFrameId
+  setCurrentFrameId,
+  activeMainTool,
+  setActiveMainTool
 }) => {
 
   const [showSelectOptions, setShowSelectOptions] = useState(false);
@@ -111,11 +124,73 @@ const MainEditor = ({
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
-  const [activeMainTool, setActiveMainTool] = useState('select'); // 'upload', 'select', 'pen', 'type', 'shapes', 'grid'
   const [zoom, setZoom] = useState(90);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
   const currentFrameIdRef = useRef(null);
+
+  // ── Overlay Highlight Drawing Helpers ─────────────────────────────────────
+  const getOverlayForElement = (el) => {
+    const container = el.closest('.page-svg-container');
+    if (!container) return null;
+    const pageIdx = container.getAttribute('data-page-index');
+    return document.getElementById(`highlight-overlay-${pageIdx}`);
+  };
+
+  const drawOverlayHighlight = (el, type) => {
+    if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
+    const overlay = getOverlayForElement(el);
+    if (!overlay) return;
+    
+    try {
+        const bbox = el.getBBox();
+        if (bbox.width === 0 && bbox.height === 0) return;
+        const ctm = el.getScreenCTM();
+        const overlayCtm = overlay.getScreenCTM();
+        if (!ctm || !overlayCtm) return;
+
+        const svgMatrix = overlayCtm.inverse().multiply(ctm);
+        
+        const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
+        const screenOffset = type.includes('selected') ? 2.5 : 1.5;
+        const localOffset = screenOffset / scale;
+        
+        const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
+        const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
+        const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
+        const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+
+        const pts = [pt1, pt2, pt3, pt4];
+        const mapped = pts.map(p => p.matrixTransform(svgMatrix));
+        const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
+
+        let polyId = `overlay-poly-${type}-${el.id}`;
+        let polygon = overlay.querySelector(`[id="${polyId}"]`);
+        if (!polygon) {
+            polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.id = polyId;
+            polygon.setAttribute('class', `overlay-type-${type}`);
+            
+            polygon.setAttribute('fill', 'none');
+            
+            if (type === 'hover' || type === 'child-hover') {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('stroke-width', '1');
+                if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', '2,2');
+            } else if (type === 'selected' || type === 'child-selected') {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('stroke-width', type === 'selected' ? '1.5' : '1.2');
+                polygon.setAttribute('filter', 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.3))');
+            } else if (type === 'entered') {
+                polygon.setAttribute('stroke', '#6366F1');
+                polygon.setAttribute('stroke-width', '1');
+                polygon.setAttribute('stroke-dasharray', '4,4');
+            }
+            overlay.appendChild(polygon);
+        }
+        polygon.setAttribute('points', pointsStr);
+    } catch(e) {}
+  };
 
   // ── Synchronize rotation with DOM selection ──────────────────────────────────
   useEffect(() => {
@@ -156,6 +231,10 @@ const MainEditor = ({
       
       const nextMatrix = rotateMatrix.multiply(matrix);
       el.setAttribute('transform', matrixToTransform(nextMatrix));
+
+      // Force-sync the highlight overlay immediately while dragging
+      const highlightType = (currentFrameId && el.id !== currentFrameId) ? 'child-selected' : 'selected';
+      drawOverlayHighlight(el, highlightType);
     });
 
     setRotation(newAngle);
@@ -196,6 +275,10 @@ const MainEditor = ({
       
       const nextMatrix = flipMatrix.multiply(matrix);
       el.setAttribute('transform', matrixToTransform(nextMatrix));
+
+      // Force-sync the highlight overlay immediately after flip
+      const highlightType = (currentFrameId && el.id !== currentFrameId) ? 'child-selected' : 'selected';
+      drawOverlayHighlight(el, highlightType);
     });
 
     if (updatePageHtml) {
@@ -273,6 +356,7 @@ const MainEditor = ({
   const suppressClickRef = useRef(false);
   const selectedLayerIdRef = useRef(null);
   const activeMainToolRef = useRef(activeMainTool);
+  const selectedSelectToolRef = useRef(selectedSelectTool);
   const lastClickRef = useRef({ time: 0, target: null });
 
   // Close menu when clicking outside
@@ -285,6 +369,12 @@ const MainEditor = ({
   // ── Escape key: exit current frame context (go up one level) ──────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
+      // Ignore if typing in an input, textarea or contenteditable element
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || 
+          document.activeElement.contentEditable === 'true') {
+        return;
+      }
+
       if (e.key === 'Escape') {
         // Always clear multi-selection first
         multiSelectedIdsRef.current = new Set();
@@ -306,6 +396,12 @@ const MainEditor = ({
             selectedLayerIdRef.current = null;
           }
         }
+      } else if (e.key.toLowerCase() === 'a') {
+        setActiveMainTool('select');
+        setSelectedSelectTool('direct');
+      } else if (e.key.toLowerCase() === 'v') {
+        setActiveMainTool('select');
+        setSelectedSelectTool('select');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -320,78 +416,37 @@ const MainEditor = ({
     };
   }, []);
 
+  // ── Clear selection on tool switch ──────────────────────────────────────────
+  useEffect(() => {
+    if (setSelectedLayerId) {
+      setSelectedLayerId(null);
+      if (setMultiSelectedIds) {
+        setMultiSelectedIds(new Set());
+        multiSelectedIdsRef.current = new Set();
+      }
+      // Force immediate visual cleanup of active selections
+      clearOverlayType('selected');
+      clearOverlayType('child-selected');
+      document.querySelectorAll('[data-selected="true"]').forEach(el => el.removeAttribute('data-selected'));
+      document.querySelectorAll('[data-child-selected="true"]').forEach(el => el.removeAttribute('data-child-selected'));
+    }
+  }, [activeMainTool, selectedSelectTool, selectedPenTool, selectedShapeTool, setSelectedLayerId, setMultiSelectedIds]);
+
+  // ── Sync multi-selection ref with prop ────────────────────────────────────────
+  useEffect(() => {
+    if (multiSelectedIds) {
+      multiSelectedIdsRef.current = multiSelectedIds;
+    }
+  }, [multiSelectedIds]);
+
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 200));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
   const handleResetZoom = () => setZoom(90);
-
-  // ── Overlay Highlight Drawing Helpers ─────────────────────────────────────
-  const getOverlayForElement = (el) => {
-    const container = el.closest('.page-svg-container');
-    if (!container) return null;
-    const pageIdx = container.getAttribute('data-page-index');
-    return document.getElementById(`highlight-overlay-${pageIdx}`);
-  };
 
   const clearOverlayType = (typePattern) => {
     document.querySelectorAll('.selection-overlay-layer').forEach(overlay => {
       overlay.querySelectorAll(`.overlay-type-${typePattern}`).forEach(p => p.remove());
     });
-  };
-
-  const drawOverlayHighlight = (el, type) => {
-    if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
-    const overlay = getOverlayForElement(el);
-    if (!overlay) return;
-    
-    try {
-        const bbox = el.getBBox();
-        if (bbox.width === 0 && bbox.height === 0) return;
-        const ctm = el.getScreenCTM();
-        const overlayCtm = overlay.getScreenCTM();
-        if (!ctm || !overlayCtm) return;
-
-        const svgMatrix = overlayCtm.inverse().multiply(ctm);
-        
-        // Expand the bounds dynamically to push the stroke visually outward
-        const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
-        const screenOffset = type.includes('selected') ? 2.5 : 1.5; // Creates a clear breathable gap outside the graphic
-        const localOffset = screenOffset / scale;
-        
-        const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
-        const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
-        const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
-        const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
-
-        const pts = [pt1, pt2, pt3, pt4];
-        const mapped = pts.map(p => p.matrixTransform(svgMatrix));
-        const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
-
-        let polyId = `overlay-poly-${type}-${el.id}`;
-        let polygon = overlay.querySelector(`[id="${polyId}"]`);
-        if (!polygon) {
-            polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            polygon.id = polyId;
-            polygon.setAttribute('class', `overlay-type-${type}`);
-            
-            polygon.setAttribute('fill', type === 'entered' ? 'rgba(99, 102, 241, 0.05)' : 'none');
-            
-            if (type === 'hover' || type === 'child-hover') {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('stroke-width', '1');
-                if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', '2,2');
-            } else if (type === 'selected' || type === 'child-selected') {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('stroke-width', type === 'selected' ? '1.5' : '1.2');
-                polygon.setAttribute('filter', 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.3))');
-            } else if (type === 'entered') {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('stroke-width', '1');
-                polygon.setAttribute('stroke-dasharray', '4,4');
-            }
-            overlay.appendChild(polygon);
-        }
-        polygon.setAttribute('points', pointsStr);
-    } catch(e) {}
   };
 
   // ── Sync all Figma-style data attributes with DOM ────────────────────────────
@@ -530,6 +585,7 @@ const MainEditor = ({
   // Sync refs with props/state
   useEffect(() => { selectedLayerIdRef.current = selectedLayerId; }, [selectedLayerId]);
   useEffect(() => { activeMainToolRef.current = activeMainTool; }, [activeMainTool]);
+  useEffect(() => { selectedSelectToolRef.current = selectedSelectTool; }, [selectedSelectTool]);
   useEffect(() => { multiSelectedIdsRef.current = multiSelectedIds; }, [multiSelectedIds]);
 
   const getSvgPoint = (svgElement, clientX, clientY) => {
@@ -571,7 +627,8 @@ const MainEditor = ({
       if (
         current.id &&
         current.getAttribute('data-hidden') !== 'true' &&
-        current.getAttribute('data-locked') !== 'true'
+        current.getAttribute('data-locked') !== 'true' &&
+        current.getAttribute('data-name') !== 'Overlay'
       ) {
         return current;
       }
@@ -597,7 +654,7 @@ const MainEditor = ({
             if (!svgElement) return;
 
             const isEditing = target.closest('[data-editing="true"]') || (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true');
-            if (activeMainToolRef.current !== 'select' || isEditing) {
+            if (!['select', 'upload'].includes(activeMainToolRef.current) || isEditing) {
               event.interaction.stop();
               return;
             }
@@ -605,8 +662,9 @@ const MainEditor = ({
             const container = target.closest('.page-svg-container');
 
             // 1. Handle "Selection Priority" - if clicking inside the current selection's box, drag it!
+            // (Only for normal select mode, direct mode always targets whatever is hit)
             const selectedId = selectedLayerIdRef.current;
-            if (selectedId) {
+            if (selectedId && selectedSelectToolRef.current !== 'direct') {
               const selectedEl = container?.querySelector(`[id="${selectedId}"]`);
               if (selectedEl && selectedEl !== svgElement) {
                 if (hitTest(selectedEl, event.clientX, event.clientY, 2)) {
@@ -615,8 +673,8 @@ const MainEditor = ({
               }
             }
 
-            // Also allow drag if clicking inside ANY multi-selected element
-            if (target === event.target || target.tagName?.toLowerCase() === 'svg') {
+            // Also allow drag if clicking inside ANY multi-selected element (ignored in direct mode)
+            if (selectedSelectToolRef.current !== 'direct' && (target === event.target || target.tagName?.toLowerCase() === 'svg')) {
               const multiIds = multiSelectedIdsRef.current;
               if (multiIds.size > 1) {
                 for (const id of multiIds) {
@@ -631,24 +689,39 @@ const MainEditor = ({
               }
             }
 
-            // If still background, stop drag
-            if (target === svgElement) {
+            // If background (SVG or Overlay), stop drag completely
+            if (target === svgElement || target.getAttribute('data-name') === 'Overlay') {
               event.interaction.stop();
               return;
             }
 
-            let elementToDrag = target;
-            const currentSelectedId = selectedLayerIdRef.current;
-            if (currentSelectedId) {
-              const selectedEl = container?.querySelector(`[id="${currentSelectedId}"]`);
-              if (selectedEl && selectedEl !== svgElement && selectedEl.contains(target)) {
-                elementToDrag = selectedEl;
+            let elementToDrag = null;
+
+            // In Direct mode, the elementToDrag is the deep target
+            if (selectedSelectToolRef.current === 'direct') {
+               const directTarget = getDraggableElement(event.target, svgElement);
+               if (directTarget) elementToDrag = directTarget;
+            } else {
+              const currentSelectedId = selectedLayerIdRef.current;
+              if (currentSelectedId) {
+                const selectedEl = container?.querySelector(`[id="${currentSelectedId}"]`);
+                if (selectedEl && selectedEl !== svgElement && selectedEl.contains(target)) {
+                  // Only allow dragging if it's NOT the root page-level frame
+                  const topFrames = getTopLevelFrames(svgElement);
+                  const isMainPageFrame = topFrames.length === 1 && selectedEl.id === topFrames[0].id;
+                  
+                  if (!isMainPageFrame) {
+                    elementToDrag = selectedEl;
+                  }
+                }
               }
             }
 
             // Safety check for metadata-based 'locked' or 'hidden'
-            if (elementToDrag.getAttribute('data-hidden') === 'true' || 
-                elementToDrag.getAttribute('data-locked') === 'true') {
+            if (!elementToDrag || 
+                elementToDrag.getAttribute('data-hidden') === 'true' || 
+                elementToDrag.getAttribute('data-locked') === 'true' ||
+                elementToDrag.getAttribute('data-name') === 'Overlay') {
               event.interaction.stop();
               return;
             }
@@ -660,8 +733,13 @@ const MainEditor = ({
               return;
             }
 
-            if (setSelectedLayerId) {
-              setSelectedLayerId(elementToDrag.id);
+            // 2. ONLY allow dragging if the element is already selected
+            const isSelected = (selectedLayerIdRef.current === elementToDrag.id) || 
+                               (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(elementToDrag.id));
+            
+            if (!isSelected) {
+              event.interaction.stop();
+              return;
             }
 
             // ── Build multi-drag list: all multi-selected elements in the same SVG ──
@@ -765,7 +843,7 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE DOWN: start drag on already-selected element ────────────
   const handleSvgMouseDown = (pageIndex, e) => {
-    if (e.button !== 0 || activeMainTool !== 'select') return;
+    if (e.button !== 0 || !['select', 'upload'].includes(activeMainTool)) return;
 
     // If clicking inside the currently selected element's bbox, allow interactjs to drag it
     // Don't change selection on mousedown — wait for click event
@@ -791,7 +869,7 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE MOVE: hover highlight ────────────────────────────────────
   const handleSvgMouseMove = (e) => {
-    if (activeMainTool !== 'select') return;
+    if (!['select', 'upload'].includes(activeMainTool)) return;
 
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
@@ -802,6 +880,18 @@ const MainEditor = ({
     svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
     clearOverlayType('hover');
     clearOverlayType('child-hover');
+
+    // ── Direct selection mode: hover the deepest element with an ID ──────────
+    if (selectedSelectTool === 'direct') {
+      const target = getDraggableElement(e.target, svg);
+      if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
+        if (!multiSelectedIdsRef.current.has(target.id) && selectedLayerIdRef.current !== target.id) {
+          target.setAttribute('data-hovered', 'true');
+          drawOverlayHighlight(target, 'child-hover');
+        }
+        return;
+      }
+    }
 
     const frameId = currentFrameIdRef.current;
 
@@ -894,10 +984,41 @@ const MainEditor = ({
     clearOverlayType('hover');
     clearOverlayType('child-hover');
 
-    // ── Ctrl + Shift + Click: direct deep select (existing behavior preserved) ─
-    if (e.ctrlKey && e.shiftKey) {
-      const target = e.target;
+    // ── CLICK-OUTSIDE-PREVENTION (if in tools like pen/shapes but not typing) ───
+    if (!['select', 'upload', 'type'].includes(activeMainToolRef.current) && 
+        !getDraggableElement(e.target, e.currentTarget)) {
+        return;
+    }
+
+    // ── Ctrl + Shift + Click OR Direct selection tool: deep selection ────────
+    if ((e.ctrlKey && e.shiftKey) || selectedSelectTool === 'direct') {
+      const target = getDraggableElement(e.target, svg);
       if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
+        if (e.shiftKey && selectedSelectTool === 'direct') {
+          // Multi-toggle in direct mode
+          const currentSet = new Set(multiSelectedIdsRef.current);
+          if (currentSet.has(target.id)) {
+            currentSet.delete(target.id);
+            if (selectedLayerIdRef.current === target.id) {
+              const remaining = [...currentSet];
+              const newPrimary = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+              if (setSelectedLayerId) {
+                setSelectedLayerId(newPrimary);
+                selectedLayerIdRef.current = newPrimary;
+              }
+            }
+          } else {
+            currentSet.add(target.id);
+            if (setSelectedLayerId) {
+              setSelectedLayerId(target.id);
+              selectedLayerIdRef.current = target.id;
+            }
+          }
+          multiSelectedIdsRef.current = currentSet;
+          setMultiSelectedIds(currentSet);
+          return;
+        }
+
         setSingleSelection(target.id);
         return;
       }
@@ -1351,6 +1472,7 @@ const MainEditor = ({
     setShowShapesOptions(false);
   };
 
+  const isPageEmpty = !pages[activePageIndex]?.html;
 
   return (
     <div 
@@ -1406,6 +1528,7 @@ const MainEditor = ({
                 setCurrentFrameId(rootId);
                 currentFrameIdRef.current = rootId;
               }
+              setActiveMainTool('select');
               return;
             }
           }
@@ -1414,6 +1537,7 @@ const MainEditor = ({
           setMultiSelectedIds(new Set());
           setCurrentFrameId(null);
           currentFrameIdRef.current = null;
+          setActiveMainTool('select');
         }}
       >
         
@@ -1875,12 +1999,12 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className="flex-1 w-full relative page-svg-container" data-page-index={activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool}`} data-page-index={activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {pages[activePageIndex]?.html ? (
-                      <div 
-                        className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center bg-white"
-                      >
+                        <div 
+                          className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
+                        >
                          <div 
                            className="w-full h-full flex items-center justify-center"
                            dangerouslySetInnerHTML={{ __html: pages[activePageIndex]?.html }}
@@ -1894,7 +2018,7 @@ const MainEditor = ({
                          {/* Selection Overlay (Overlay rotated element perfectly) */}
                          <svg 
                            id={`highlight-overlay-${activePageIndex}`}
-                           className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer"
+                           className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
                          />
                       </div>
                     ) : (
@@ -1913,14 +2037,6 @@ const MainEditor = ({
                     )}
                   </div>
 
-                  {/* Minimalist Page Number Indicator - Transparent/Floating */}
-                  <div className="absolute bottom-[2vh] left-[2vw] pointer-events-none z-20">
-                    <div className="w-[1.8vw] h-[1.8vw] bg-black/80 backdrop-blur-sm rounded-full flex items-center justify-center">
-                        <span className="text-white text-[0.6vw] font-bold">
-                          {(activePageIndex + 1).toString().padStart(2, '0')}
-                        </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
@@ -2009,7 +2125,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className="flex-1 w-full relative page-svg-container" data-page-index={activePageIndex === 0 ? 0 : activePageIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${activePageIndex === 0 ? selectedSelectTool : selectedSelectTool}`} data-page-index={activePageIndex === 0 ? 0 : activePageIndex + 1}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
                       const displayIndex = activePageIndex === 0 ? 0 : activePageIndex + 1;
@@ -2017,7 +2133,7 @@ const MainEditor = ({
                       
                       return page?.html ? (
                         <div 
-                          className="absolute inset-0 w-full h-full overflow-hidden flex items-center justify-center bg-white"
+                          className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
                         >
                            <div 
                              className="w-full h-full flex items-center justify-center"
@@ -2032,7 +2148,7 @@ const MainEditor = ({
                            {/* Selection Overlay (Overlay rotated element perfectly) */}
                            <svg 
                              id={`highlight-overlay-${displayIndex}`}
-                             className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer"
+                             className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
                            />
                         </div>
                       ) : (
@@ -2048,16 +2164,9 @@ const MainEditor = ({
                           />
                         </>
                       );
-                    })()}
-                  </div>
+                  })()}
+                </div>
                   
-                  <div className="absolute bottom-[2vh] right-[2vw] pointer-events-none z-20">
-                    <div className="w-[1.8vw] h-[1.8vw] bg-black/80 backdrop-blur-sm rounded-full flex items-center justify-center">
-                        <span className="text-white text-[0.6vw] font-bold">
-                          {(activePageIndex === 0 ? 1 : activePageIndex + 2).toString().padStart(2, '0')}
-                        </span>
-                    </div>
-                  </div>
                 </div>
               </div>
             )}

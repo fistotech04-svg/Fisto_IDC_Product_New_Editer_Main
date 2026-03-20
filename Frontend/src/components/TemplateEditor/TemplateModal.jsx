@@ -1,6 +1,6 @@
 // TemplateModal.jsx - HTML Template Selection
 import React, { useState, useMemo } from 'react';
-import { Search, X, Plus, FileText } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 // Import SVG templates as URLs
 import TemplateSVG1 from "../../assets/Templates/Template_1.svg?url";
@@ -201,23 +201,6 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         {/* Template Grid */}
         <div className="flex-1 overflow-y-auto p-[2vw] bg-gray-50/50">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[2vw] pb-[2.5vw]">
-            {/* Blank Template */}
-            <div
-              onClick={() => {
-                clearCanvas();
-                setShowTemplateModal(false);
-              }}
-              className="group bg-white rounded-[0.8vw] overflow-hidden border-[0.15vw] border-dashed border-gray-300 cursor-pointer hover:border-black hover:bg-gray-50 transition-all duration-300 hover:-translate-y-[0.3vw] flex flex-col"
-            >
-              <div className="aspect-[1/1.414] flex items-center justify-center bg-gray-50/50 m-[0.5vw] rounded-[0.8vw] group-hover:bg-white transition-colors">
-                <div className="text-center transform group-hover:scale-110 transition-transform duration-300">
-                  <div className="w-[4vw] h-[4vw] rounded-full bg-white border border-gray-200 flex items-center justify-center mx-auto shadow-sm group-hover:shadow-md group-hover:border-gray-300 mb-[0.8vw]">
-                    <Plus size="2vw" className="text-gray-400 group-hover:text-black transition-colors" />
-                  </div>
-                  <p className="text-[0.8vw] font-semibold text-gray-500 group-hover:text-black px-[1vw]">Start from Blank</p>
-                </div>
-              </div>
-            </div>
 
             {/* Dynamic Template Cards */}
             {filteredTemplates.map((template) => (

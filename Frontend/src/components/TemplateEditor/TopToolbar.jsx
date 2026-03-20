@@ -19,6 +19,9 @@ const TopToolbar = ({
 }) => {
   const [showRotationOptions, setShowRotationOptions] = useState(false);
   const rotationRef = useRef(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const dragStartValue = useRef(0);
   const [localRotation, setLocalRotation] = useState(rotation);
 
   useEffect(() => {
@@ -27,19 +30,67 @@ const TopToolbar = ({
 
   const handleRotationChange = (e) => {
     const val = parseInt(e.target.value);
-    setLocalRotation(isNaN(val) ? 0 : val);
+    setLocalRotation(isNaN(val) ? '' : val);
   };
 
   const handleRotationBlur = () => {
-    if (onRotate) onRotate(localRotation);
+    let val = parseInt(localRotation);
+    if (isNaN(val)) val = 0;
+    const wrappedVal = ((val % 360) + 360) % 360;
+    setLocalRotation(wrappedVal);
+    if (onRotate) onRotate(wrappedVal);
   };
 
   const handleRotationKeyDown = (e) => {
     if (e.key === 'Enter') {
-      if (onRotate) onRotate(localRotation);
+      handleRotationBlur();
       e.target.blur();
     }
   };
+
+  const hasMoved = useRef(false);
+
+  const handleMouseDown = (e) => {
+    e.stopPropagation(); // Prevent dropdown from closing due to outside click logic
+    setIsDragging(true);
+    hasMoved.current = false;
+    dragStartPos.current = { x: e.clientX, y: e.clientY };
+    dragStartValue.current = localRotation || 0;
+    document.body.style.cursor = 'ew-resize';
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    if (!isDragging) return;
+
+    const handleMouseMove = (e) => {
+      const deltaX = e.clientX - dragStartPos.current.x;
+      if (Math.abs(deltaX) > 2) {
+        hasMoved.current = true;
+      }
+      
+      // 1 pixel drag = 1 degree change
+      let newValue = Math.round(dragStartValue.current + deltaX);
+      
+      // Wrap around logic: ensure it stays in 0-360
+      newValue = ((newValue % 360) + 360) % 360;
+      
+      setLocalRotation(newValue);
+      if (onRotate) onRotate(newValue);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      document.body.style.cursor = 'default';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, onRotate]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -76,7 +127,7 @@ const TopToolbar = ({
       </div>
 
       {/* Center Section: Alignment Groups */}
-      <div className="flex items-center gap-[1vw]">
+      <div className={`flex items-center gap-[1vw] ${!hasSelection ? 'opacity-30 pointer-events-none' : ''}`}>
         {/* Group 1 */}
         <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
           <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
@@ -133,10 +184,19 @@ const TopToolbar = ({
 
           {/* Rotation Options Dropdown */}
           {showRotationOptions && hasSelection && (
-            <div className="absolute right-0 top-[3.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.8vw] flex items-center gap-[0.8vw] shadow-lg z-[100] border border-gray-200/50">
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 top-[3.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.8vw] flex items-center gap-[0.8vw] shadow-lg z-[100] border border-gray-200/50"
+            >
               {/* Rotate Tool With Degree Input */}
               <div className="flex items-center bg-white px-[0.6vw] py-[0.3vw] rounded-[0.6vw] gap-[0.3vw] shadow-sm border border-gray-100">
-                <Icon icon="icon-park-outline:rotate" width="0.9vw" height="0.9vw" className="text-gray-500" />
+                <div 
+                  onMouseDown={handleMouseDown}
+                  className="cursor-ew-resize flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors"
+                  title="Drag to rotate"
+                >
+                  <Icon icon="icon-park-outline:rotate" width="0.9vw" height="0.9vw" className="text-gray-500" />
+                </div>
                 <div className="flex items-center">
                   <input 
                     type="text"
@@ -144,9 +204,11 @@ const TopToolbar = ({
                     onChange={handleRotationChange}
                     onBlur={handleRotationBlur}
                     onKeyDown={handleRotationKeyDown}
-                    className="w-[1.5vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
+                    className="w-[1.8vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
                   />
-                  <span className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw]">°</span>
+                  <span 
+                    className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw] select-none"
+                  >°</span>
                 </div>
               </div>
 
