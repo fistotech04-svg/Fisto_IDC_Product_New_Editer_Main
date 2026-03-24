@@ -46,8 +46,12 @@ const LayerItem = ({
     return () => window.removeEventListener('trigger-rename-layer', handleTriggerRename);
   }, [layer.id, layer.name]);
 
+  // Determine if this item should be styled as "Selected"
+  // In spread mode, we treat both root folders as "selected" if they are both in the set
+  const isSelected = selectedLayerId === layer.id || (multiSelectedIds.size > 1 && multiSelectedIds.has(layer.id) && depth === 0);
+  
   // Is it part of multi-selection but not the primary?
-  const isMultiOnly = multiSelectedIds.has(layer.id) && selectedLayerId !== layer.id;
+  const isMultiOnly = multiSelectedIds.has(layer.id) && !isSelected && multiSelectedIds.size > 1;
 
   // Auto-scroll to selected layer
   useEffect(() => {
@@ -98,8 +102,9 @@ const LayerItem = ({
       case 'rect': return <Square size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'circle': 
       case 'ellipse': return <Circle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
-      case 'polygon': return <Triangle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
-      case 'path': return <Star size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
+      case 'triangle':
+      case 'path': return <Triangle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
+      case 'star': return <Star size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'line': return <Minus size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       default: return <Layers size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
     }
@@ -107,30 +112,12 @@ const LayerItem = ({
 
   const handleItemClick = (e) => {
     e.stopPropagation();
-
-    if (e.shiftKey && !e.ctrlKey) {
-      // ── Shift+Click: Toggle multi-selection ────────────────────────
-      if (!setMultiSelectedIds) return;
-
-      const currentSet = new Set(multiSelectedIds);
-      // Always include the current primary in the set
-      if (selectedLayerId) currentSet.add(selectedLayerId);
-
-      if (currentSet.has(layer.id)) {
-        currentSet.delete(layer.id);
-        // If we deselected the primary, promote another
-        if (selectedLayerId === layer.id) {
-          const remaining = [...currentSet];
-          const newPrimary = remaining.length > 0 ? remaining[remaining.length - 1] : null;
-          if (setSelectedLayerId) setSelectedLayerId(newPrimary);
-        }
-      } else {
-        currentSet.add(layer.id);
-        // Most recently shift-clicked becomes the primary
-        if (setSelectedLayerId) setSelectedLayerId(layer.id);
-      }
-
-      setMultiSelectedIds(currentSet);
+    if (e.shiftKey) {
+      // ── Shift+Click: Multi-select block ───────────────────────────────────
+      const newSet = new Set(multiSelectedIds);
+      if (newSet.has(layer.id)) newSet.delete(layer.id);
+      else newSet.add(layer.id);
+      if (setMultiSelectedIds) setMultiSelectedIds(newSet);
     } else {
       // ── Plain click: single select, clear multi-selection ─────────────
       if (setSelectedLayerId) setSelectedLayerId(layer.id);
@@ -142,56 +129,43 @@ const LayerItem = ({
   const handleContextMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // Select the layer first if not multi-selecting
-    if (!multiSelectedIds.has(layer.id)) {
-      if (setSelectedLayerId) setSelectedLayerId(layer.id);
-      if (setMultiSelectedIds) setMultiSelectedIds(new Set([layer.id]));
+    if (onLayerContextMenu) {
+      onLayerContextMenu(e, layer.id, pageIndex);
     }
-    onLayerContextMenu(layer.id, e.clientX, e.clientY);
   };
 
   const handleDragStart = (e) => {
-    e.stopPropagation();
-    e.dataTransfer.setData('application/layer-id', layer.id);
-    e.dataTransfer.setData('application/page-index', pageIndex);
+    e.dataTransfer.setData('text/plain', JSON.stringify({ pageIndex, layerId: layer.id }));
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    if (!isDragOver) setIsDragOver(true);
+    setIsDragOver(true);
   };
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleDragLeave = () => {
     setIsDragOver(false);
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragOver(false);
-    
-    const sourceId = e.dataTransfer.getData('application/layer-id');
-    const sourcePageIndex = parseInt(e.dataTransfer.getData('application/page-index'));
-    
-    if (sourceId && sourceId !== layer.id && sourcePageIndex === pageIndex) {
-      onReorderLayer(sourceId, layer.id);
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    if (data.pageIndex === pageIndex && onReorderLayer) {
+      onReorderLayer(pageIndex, data.layerId, layer.id);
     }
   };
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
     setIsEditing(true);
-    setEditName(layer.name);
   };
 
   const handleRenameSubmit = () => {
-    if (editName.trim() && editName !== layer.name) {
-      renameLayer(pageIndex, layer.id, editName.trim());
+    if (editName.trim() !== '' && editName !== layer.name) {
+      renameLayer(pageIndex, layer.id, editName);
     }
     setIsEditing(false);
   };
@@ -220,7 +194,7 @@ const LayerItem = ({
         className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] group/layer transition-all border-l-2 ${
           isDragOver ? 'border-l-[#6366F1] bg-[#EEF2FF]' : 'border-l-transparent'
         } ${
-          selectedLayerId === layer.id
+          isSelected
             ? 'bg-[#E0E7FF] ring-1 ring-[#6366F1]/30'   // primary selection — solid indigo tint
             : layer.id === currentFrameId
             ? 'bg-[#F5F3FF] border-l-[#A78BFA] ring-1 ring-dashed ring-[#A78BFA]/50' // Entered Frame style
@@ -265,7 +239,7 @@ const LayerItem = ({
         </div>
 
         {/* Multi-select indicator dot */}
-        {isMultiOnly && (
+        {multiSelectedIds.size > 1 && multiSelectedIds.has(layer.id) && (
           <div className="w-[0.4vw] h-[0.4vw] rounded-full bg-[#6366F1] flex-shrink-0" title="Multi-selected" />
         )}
 
@@ -417,7 +391,13 @@ const Layer = ({
   const checkIsExpanded = (index) => {
     if (!isDoublePage) return activePageIndex === index;
     if (activePageIndex === 0) return index === 0;
-    return index === activePageIndex || index === activePageIndex + 1;
+    
+    // Check if activePageIndex starts a spread
+    const isSpread = activePageIndex > 0 && activePageIndex + 1 < pages.length - 1;
+    if (isSpread) {
+      return index === activePageIndex || index === activePageIndex + 1;
+    }
+    return activePageIndex === index;
   };
 
   const handleMenuClick = (e, pageId) => {
@@ -689,8 +669,21 @@ const Layer = ({
                         onClick={() => {
                           if (editingPageId === page.id) return;
                           if (isDoublePage) {
-                            if (index === 0) setActivePageIndex(0);
-                            else setActivePageIndex(index % 2 === 0 ? index - 1 : index);
+                            if (index === 0) {
+                              setActivePageIndex(0);
+                            } else if (index === pages.length - 1) {
+                              setActivePageIndex(index);
+                            } else {
+                              // If even index (like 2), it could be the RIGHT half of a spread starting at index-1
+                              const potentialStart = index % 2 === 0 ? index - 1 : index;
+                              const isStartASpread = potentialStart > 0 && potentialStart + 1 < pages.length - 1;
+                              
+                              if (isStartASpread) {
+                                setActivePageIndex(potentialStart);
+                              } else {
+                                setActivePageIndex(index);
+                              }
+                            }
                           } else {
                             setActivePageIndex(index);
                           }

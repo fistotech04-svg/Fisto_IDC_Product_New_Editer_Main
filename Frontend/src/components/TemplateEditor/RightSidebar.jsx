@@ -124,19 +124,29 @@ const RightSidebar = ({
         ) : (
           <div className="flex-1 flex flex-col p-[1.5vw] overflow-y-auto">
              {(() => {
-               const rootId = (() => {
-                 const page = pages[activePageIndex];
-                 if (page && page.html) {
-                   const parser = new DOMParser();
-                   const doc = parser.parseFromString(page.html, 'image/svg+xml');
-                   return doc.querySelector('svg > g')?.id;
-                 }
-                 return null;
-               })();
-               
-               const isPageSelected = !selectedLayerId || selectedLayerId === rootId;
-               
-               if (isPageSelected) {
+                const rootId = (() => {
+                  const page = pages[activePageIndex];
+                  if (page && page.html) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(page.html, 'image/svg+xml');
+                    return doc.querySelector('svg > g')?.id;
+                  }
+                  return null;
+                })();
+                
+                const overlayId = (() => {
+                  const page = pages[activePageIndex];
+                  if (page && page.html) {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(page.html, 'image/svg+xml');
+                    return doc.querySelector('[data-name="Overlay"]')?.id;
+                  }
+                  return null;
+                })();
+                
+                const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
+                
+                if (isPageSelected) {
                  return (
                    <div className="flex flex-col gap-[3vh]">
                      {/* Page Background Section */}

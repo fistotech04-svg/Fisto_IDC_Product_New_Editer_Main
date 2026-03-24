@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams, useOutletContext } from 'react-router-dom';
 import axios from 'axios';
 import Layer from './Layer';
@@ -52,6 +52,63 @@ const TemplateEditor = () => {
   const [redoStack, setRedoStack] = useState([]); // States for redo
   const MAX_HISTORY = 50;
 
+  const lastPageIndexRef = useRef(-1);
+
+  // ── FIGMA-STYLE: Unified Page Selection & Frame Sync ──────────────────────────
+  useEffect(() => {
+    if (pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return;
+
+    // Track if we just switched to a new page/spread
+    const hasSwitchedPage = lastPageIndexRef.current !== activePageIndex;
+    lastPageIndexRef.current = activePageIndex;
+
+    // A: Double Page Spread Logic (Starts at odd indices: 1, 3, 5...)
+    const isSpread = isDoublePage && activePageIndex > 0 && activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length;
+
+    if (isSpread) {
+      const page1 = pages[activePageIndex];
+      const page2 = pages[activePageIndex + 1];
+
+      if (page1?.layers?.[0] && page2?.layers?.[0]) {
+        const root1 = page1.layers[0].id;
+        const root2 = page2.layers[0].id;
+
+        // Auto-select roots ONLY if we just landed here OR selection became empty
+        const currentIds = multiSelectedIds || new Set();
+        if (hasSwitchedPage || currentIds.size === 0) {
+          setMultiSelectedIds(new Set([root1, root2]));
+          setSelectedLayerId(root1);
+          setCurrentFrameId(null);
+        }
+      }
+    } else {
+      // B: Single Page Logic (Cover, Last Page, or Standard Single View)
+      const page = pages[activePageIndex];
+      if (page?.layers?.[0]) {
+        const rootId = page.layers[0].id;
+        
+        // Auto-select root ONLY if we just landed here OR selection became empty
+        const currentIds = multiSelectedIds || new Set();
+        if (hasSwitchedPage || currentIds.size === 0) {
+          setMultiSelectedIds(new Set([rootId]));
+          setSelectedLayerId(rootId);
+          setCurrentFrameId(rootId);
+        }
+      }
+    }
+  }, [activePageIndex, isDoublePage, pages, multiSelectedIds.size]);
+
+  // ── NEW: Spread Alignment Snapping ───────────────────────────────────────────
+  useEffect(() => {
+    if (isDoublePage && pages.length > 2) {
+      // If we are on an EVEN index > 0 (Page 3, 5, 7...), it should be the RIGHT 
+      // half of a spread. Snap activePageIndex back by 1 to start the spread.
+      if (activePageIndex > 0 && activePageIndex % 2 === 0) {
+        setActivePageIndex(activePageIndex - 1);
+      }
+    }
+  }, [isDoublePage]);
+
   const saveToHistory = () => {
     setHistory(prev => [...prev.slice(-(MAX_HISTORY - 1)), pages]);
     setRedoStack([]); // Clear redo on new action
@@ -95,8 +152,28 @@ const TemplateEditor = () => {
     setPages(prev => {
       const updated = [...prev];
       if (updated[index]) {
+        // Find existing background color to preserve it
+        let currentBg = '#ffffff';
+        const parser = new DOMParser();
+        if (updated[index].html) {
+          const oldDoc = parser.parseFromString(updated[index].html, 'image/svg+xml');
+          currentBg = oldDoc.querySelector('[data-name="Overlay"]')?.getAttribute('fill') || '#ffffff';
+        }
+
         const { html, layers } = createDefaultPageData(updated[index].name);
-        updated[index] = { ...updated[index], html, layers };
+        
+        // Apply existing background to new default HTML
+        const newDoc = parser.parseFromString(html, 'image/svg+xml');
+        const newOverlay = newDoc.querySelector('[data-name="Overlay"]');
+        if (newOverlay) {
+          newOverlay.setAttribute('fill', currentBg);
+        }
+
+        updated[index] = { 
+          ...updated[index], 
+          html: new XMLSerializer().serializeToString(newDoc), 
+          layers 
+        };
       }
       return updated;
     });
@@ -597,6 +674,17 @@ const TemplateEditor = () => {
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const element = doc.querySelector(`[id="${layerId}"]`);
+
+      // ── PROTECT THE BASE OVERLAY & ROOT FOLDER ──
+      if (element) {
+        if (element.getAttribute('data-name') === 'Overlay' || element.getAttribute('data-type') === 'frame') {
+          return updated; // Abort deletion
+        }
+      }
+
       const deleteFromLayers = (layersList) => {
         const index = layersList.findIndex(l => l.id === layerId);
         if (index !== -1) {
@@ -612,9 +700,6 @@ const TemplateEditor = () => {
       const newLayers = JSON.parse(JSON.stringify(page.layers));
       deleteFromLayers(newLayers);
 
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
       if (element) {
         element.remove();
       }

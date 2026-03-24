@@ -77,9 +77,10 @@ const svgGlobalStyles = `
     cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto !important;
   }
 
-  /* 9. Fixed Overlay Prevention */
+  /* 9. Fixed Overlay Prevention - changed to allow interaction */
   .page-svg-container svg [data-name="Overlay"] {
-    pointer-events: none !important;
+    pointer-events: auto !important;
+    cursor: default;
   }
 `;
 import TopToolbar from './TopToolbar';
@@ -128,6 +129,18 @@ const MainEditor = ({
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
   const currentFrameIdRef = useRef(null);
+
+  // ── Marquee Selection State ───────────────────────────────────────────────
+  const [marquee, setMarquee] = useState(null); // { pageIndex }
+  const marqueeRef = useRef(null);
+  const marqueeOverlayRef1 = useRef(null);
+  const marqueeOverlayRef2 = useRef(null);
+  const marqueeCandidatesRef = useRef([]);
+  const marqueeDataRef = useRef({ startX: 0, startY: 0, containerRect: null, scale: 1 });
+  
+  useEffect(() => { marqueeRef.current = marquee; }, [marquee]);
+
+  const setsAreEqual = (a, b) => a.size === b.size && [...a].every(v => b.has(v));
 
   // ── Overlay Highlight Drawing Helpers ─────────────────────────────────────
   const getOverlayForElement = (el) => {
@@ -216,18 +229,23 @@ const MainEditor = ({
       if (!el) return;
 
       const matrix = getElementMatrix(el);
+      const bbox = el.getBBox();
+      
+      // Calculate local center
+      const localCx = bbox.x + bbox.width / 2;
+      const localCy = bbox.y + bbox.height / 2;
+      
+      // Transform local center by current matrix to get world center
+      const worldCenter = new DOMPoint(localCx, localCy).matrixTransform(matrix);
+      
       const currentAngle = (Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
       const diff = newAngle - currentAngle;
-      
-      const bbox = el.getBBox();
-      const cx = bbox.x + bbox.width / 2;
-      const cy = bbox.y + bbox.height / 2;
 
-      // Create rotation around center
+      // Create rotation around world center
       const rotateMatrix = new DOMMatrix()
-        .translate(cx, cy)
+        .translate(worldCenter.x, worldCenter.y)
         .rotate(diff)
-        .translate(-cx, -cy);
+        .translate(-worldCenter.x, -worldCenter.y);
       
       const nextMatrix = rotateMatrix.multiply(matrix);
       el.setAttribute('transform', matrixToTransform(nextMatrix));
@@ -300,6 +318,11 @@ const MainEditor = ({
     const svg = container?.querySelector('svg');
     if (!svg) return;
 
+    // Check if right-clicked directly on the default overlay or background
+    if (e.target && (e.target.getAttribute('data-name') === 'Overlay' || e.target.closest('[data-name="Overlay"]'))) {
+        return;
+    }
+
     const frameId = currentFrameIdRef.current;
     const selId = selectedLayerIdRef.current;
     let layerId = null;
@@ -339,6 +362,11 @@ const MainEditor = ({
     }
 
     if (!layerId) return;
+
+    // Don't show context menu if the layer is an "Overlay"
+    const layerEl = svg.querySelector(`[id="${layerId}"]`);
+    if (layerEl && layerEl.getAttribute('data-name') === 'Overlay') return;
+
 
     // 2. Select the layer if not already part of multi-selection
     if (!multiSelectedIds.has(layerId)) {
@@ -390,7 +418,7 @@ const MainEditor = ({
           setCurrentFrameId(null);
           currentFrameIdRef.current = null;
         } else if (selectedLayerIdRef.current) {
-          // No frame entered but something is selected → deselect
+          // No frame entered but something is selected Deselect
           if (setSelectedLayerId) {
             setSelectedLayerId(null);
             selectedLayerIdRef.current = null;
@@ -402,11 +430,43 @@ const MainEditor = ({
       } else if (e.key.toLowerCase() === 'v') {
         setActiveMainTool('select');
         setSelectedSelectTool('select');
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        // Core Logic: Move selected element with arrow keys
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        let dx = 0, dy = 0;
+        if (e.key === 'ArrowUp') dy = -step;
+        else if (e.key === 'ArrowDown') dy = step;
+        else if (e.key === 'ArrowLeft') dx = -step;
+        else if (e.key === 'ArrowRight') dx = step;
+
+        const ids = multiSelectedIdsRef.current.size > 0 
+          ? Array.from(multiSelectedIdsRef.current) 
+          : (selectedLayerIdRef.current ? [selectedLayerIdRef.current] : []);
+        
+        if (ids.length === 0) return;
+
+        ids.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const matrix = getElementMatrix(el);
+          const nextMatrix = new DOMMatrix().translate(dx, dy).multiply(matrix);
+          el.setAttribute('transform', matrixToTransform(nextMatrix));
+          // Update highlights
+          const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+          drawOverlayHighlight(el, highlightType);
+        });
+
+        if (updatePageHtml) {
+          const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+          const svg = activeContainer?.querySelector('svg');
+          if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setSelectedLayerId]);
+  }, [setSelectedLayerId, setMultiSelectedIds, setCurrentFrameId, activePageIndex, updatePageHtml, setActiveMainTool, setSelectedSelectTool]);
 
   useEffect(() => {
     return () => {
@@ -424,6 +484,7 @@ const MainEditor = ({
         setMultiSelectedIds(new Set());
         multiSelectedIdsRef.current = new Set();
       }
+      setMarquee(null);
       // Force immediate visual cleanup of active selections
       clearOverlayType('selected');
       clearOverlayType('child-selected');
@@ -449,70 +510,45 @@ const MainEditor = ({
     });
   };
 
-  // ── Sync all Figma-style data attributes with DOM ────────────────────────────
-  useEffect(() => {
-    // Clear ALL previous visual states
-    document.querySelectorAll('[data-selected="true"]').forEach(el => el.removeAttribute('data-selected'));
-    document.querySelectorAll('[data-child-selected="true"]').forEach(el => el.removeAttribute('data-child-selected'));
-    document.querySelectorAll('[data-frame-entered="true"]').forEach(el => el.removeAttribute('data-frame-entered'));
-    document.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
-    document.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+  // Helper: check if the current activePageIndex starts a spread (1, 3, 5...)
+  const isCurrentlySpread = isDoublePage && activePageIndex > 0 && activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length;
 
+  // ── Sync refs and perform page-level DOM highlights ──────────────────────────
+  useEffect(() => {
+    // Force immediate visual cleanup of all overlays before redraw
     clearOverlayType('selected');
     clearOverlayType('entered');
     clearOverlayType('child-selected');
+    
+    // Highlights across all visible pages in the spread
+    const pageIndices = [activePageIndex];
+    if (isCurrentlySpread) pageIndices.push(activePageIndex + 1);
 
-    if (currentFrameId) {
-      // Mark the entered frame with dashed border
-      document.querySelectorAll(`[id="${currentFrameId}"]`).forEach(el => {
-        el.setAttribute('data-frame-entered', 'true');
-        drawOverlayHighlight(el, 'entered');
-      });
-    }
-
-    // Apply selection highlights for ALL elements in multiSelectedIds
-    // (falls back to just selectedLayerId when multiSelectedIds is empty)
     const idsToHighlight = multiSelectedIds.size > 0
       ? multiSelectedIds
       : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
 
     idsToHighlight.forEach(id => {
       document.querySelectorAll(`[id="${id}"]`).forEach(el => {
-        if (currentFrameId && id !== currentFrameId) {
-          // Child selected inside entered frame
-          el.setAttribute('data-child-selected', 'true');
-          drawOverlayHighlight(el, 'child-selected');
-        } else {
-          // Top-level frame selected
-          el.setAttribute('data-selected', 'true');
-          drawOverlayHighlight(el, 'selected');
-        }
+        // Highlights across multiple pages are drawn in their respective containers
+        const type = (currentFrameId && id !== currentFrameId) ? 'child-selected' : 'selected';
+        el.setAttribute(`data-${type}`, 'true');
+        drawOverlayHighlight(el, type);
       });
     });
-  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, rotation, zoom]);
+
+    if (currentFrameId) {
+      document.querySelectorAll(`[id="${currentFrameId}"]`).forEach(el => {
+        el.setAttribute('data-frame-entered', 'true');
+        drawOverlayHighlight(el, 'entered');
+      });
+    }
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom]);
 
   // Sync refs
-  useEffect(() => { currentFrameIdRef.current = currentFrameId; }, [currentFrameId]);
-
-  // ── FIGMA-STYLE: Auto-enter the Root Folder on Page Change ──────────────────────
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-      const svg = activeContainer?.querySelector('svg');
-      if (svg) {
-        const topFrames = getTopLevelFrames(svg);
-        // If there is exactly ONE top-level frame, enter it automatically
-        if (topFrames.length === 1 && topFrames[0].id) {
-          const rootId = topFrames[0].id;
-          if (currentFrameIdRef.current !== rootId) {
-            setCurrentFrameId(rootId);
-            currentFrameIdRef.current = rootId;
-          }
-        }
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [activePageIndex, pages]);
+  useEffect(() => { 
+    currentFrameIdRef.current = currentFrameId; 
+  }, [currentFrameId]);
 
   // Helper: get direct children of SVG root that have IDs (top-level frames)
   const getTopLevelFrames = (svg) => {
@@ -654,12 +690,18 @@ const MainEditor = ({
             if (!svgElement) return;
 
             const isEditing = target.closest('[data-editing="true"]') || (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true');
-            if (!['select', 'upload'].includes(activeMainToolRef.current) || isEditing) {
+            // If Ctrl is held or not in selection mode, stop interact.js drag
+            if (!['select', 'upload'].includes(activeMainToolRef.current) || isEditing || event.ctrlKey) {
               event.interaction.stop();
               return;
             }
 
             const container = target.closest('.page-svg-container');
+            const startPoint = getSvgPoint(svgElement, event.clientX, event.clientY);
+            if (!startPoint) {
+              event.interaction.stop();
+              return;
+            }
 
             // 1. Handle "Selection Priority" - if clicking inside the current selection's box, drag it!
             // (Only for normal select mode, direct mode always targets whatever is hit)
@@ -702,6 +744,8 @@ const MainEditor = ({
                const directTarget = getDraggableElement(event.target, svgElement);
                if (directTarget) elementToDrag = directTarget;
             } else {
+              // ── Select Mode Candidate Logic ─────────────────────────────────
+              // 1. Check current selection first (Selection Priority)
               const currentSelectedId = selectedLayerIdRef.current;
               if (currentSelectedId) {
                 const selectedEl = container?.querySelector(`[id="${currentSelectedId}"]`);
@@ -715,6 +759,31 @@ const MainEditor = ({
                   }
                 }
               }
+
+              // 2. If nothing selected or selection not hit, find a new candidate
+              if (!elementToDrag) {
+                  let candidates = [];
+                  const frameId = currentFrameIdRef.current;
+                  if (frameId) {
+                      const frameEl = svgElement.querySelector(`[id="${frameId}"]`);
+                      candidates = frameEl ? getDirectChildFrames(frameEl) : [];
+                  } else {
+                      candidates = getTopLevelFrames(svgElement);
+                  }
+
+                  // Find the top-most hit candidate
+                  for (let i = candidates.length - 1; i >= 0; i--) {
+                      if (hitTest(candidates[i], event.clientX, event.clientY)) {
+                          // Prevent dragging the main page base
+                          const topFrames = getTopLevelFrames(svgElement);
+                          const isBaseFrame = topFrames.length === 1 && candidates[i].id === topFrames[0].id;
+                          if (!isBaseFrame) {
+                              elementToDrag = candidates[i];
+                          }
+                          break;
+                      }
+                  }
+              }
             }
 
             // Safety check for metadata-based 'locked' or 'hidden'
@@ -726,20 +795,21 @@ const MainEditor = ({
               return;
             }
 
-            // Get initial SVG coordinates for absolute delta tracking
-            const startPoint = getSvgPoint(svgElement, event.clientX, event.clientY);
-            if (!startPoint) {
-              event.interaction.stop();
-              return;
-            }
-
-            // 2. ONLY allow dragging if the element is already selected
+            // 2. AUTO-SELECT if not already selected
             const isSelected = (selectedLayerIdRef.current === elementToDrag.id) || 
                                (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(elementToDrag.id));
             
             if (!isSelected) {
-              event.interaction.stop();
-              return;
+              if (setSelectedLayerId) {
+                  setSelectedLayerId(elementToDrag.id);
+                  if (setMultiSelectedIds) setMultiSelectedIds(new Set([elementToDrag.id]));
+                  // Force update ref so it's visible to subsequent drag steps
+                  selectedLayerIdRef.current = elementToDrag.id;
+                  multiSelectedIdsRef.current = new Set([elementToDrag.id]);
+                  
+                  // Visualize selection immediately
+                  drawOverlayHighlight(elementToDrag, currentFrameIdRef.current && elementToDrag.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+              }
             }
 
             // ── Build multi-drag list: all multi-selected elements in the same SVG ──
@@ -845,33 +915,110 @@ const MainEditor = ({
   const handleSvgMouseDown = (pageIndex, e) => {
     if (e.button !== 0 || !['select', 'upload'].includes(activeMainTool)) return;
 
-    // If clicking inside the currently selected element's bbox, allow interactjs to drag it
-    // Don't change selection on mousedown — wait for click event
-    const selId = selectedLayerIdRef.current;
-    if (selId) {
-      const selEl = document.getElementById(selId);
-      if (selEl && hitTest(selEl, e.clientX, e.clientY)) {
-        return; // Interactjs will handle drag
-      }
+    const container = e.currentTarget;
+    const svg = container.querySelector('svg');
+    if (!svg) return;
+
+    // 1. Identify level candidates and check if click hit any (including gaps)
+    let candidates = [];
+    const frameId = currentFrameIdRef.current;
+    if (frameId) {
+        const frameEl = svg.querySelector(`[id="${frameId}"]`);
+        candidates = frameEl ? getDirectChildFrames(frameEl) : [];
+    } else {
+        candidates = getTopLevelFrames(svg);
+    }
+    
+    let hitCandidate = null;
+    for (let i = candidates.length - 1; i >= 0; i--) {
+        if (hitTest(candidates[i], e.clientX, e.clientY, 2)) {
+            hitCandidate = candidates[i];
+            break;
+        }
     }
 
-    // Also allow drag start when clicking any multi-selected element
-    const multiIds = multiSelectedIdsRef.current;
-    if (multiIds.size > 1) {
-      for (const id of multiIds) {
-        const el = document.getElementById(id);
-        if (el && hitTest(el, e.clientX, e.clientY)) {
-          return; // Interactjs will handle multi-drag
-        }
+    const topFrames = getTopLevelFrames(svg);
+    const hitBaseFrame = hitCandidate && topFrames.length === 1 && hitCandidate.id === topFrames[0].id;
+
+    // 2. Selection/Drag Priority
+    // If we hit any valid child candidate (even in its gap), don't start a marquee.
+    // Return early to allow interactjs to handle dragging and handleSvgClick to handle selection focus.
+    if (hitCandidate && !hitBaseFrame && !e.ctrlKey && selectedSelectToolRef.current !== 'direct') {
+        return; 
+    }
+
+    // 3. Marquee Start Detection
+    // Start marquee if forced (Ctrl) OR if clicking purely on the background / base page.
+    const isBackground = e.target.tagName.toLowerCase() === 'svg' || e.target.getAttribute('data-name') === 'Overlay';
+    const shouldStartMarquee = e.ctrlKey || (isBackground && (!hitCandidate || hitBaseFrame));
+
+    if (shouldStartMarquee) {
+      const rect = container.getBoundingClientRect();
+      const scale = zoom / 100;
+      const startX = (e.clientX - rect.left) / scale;
+      const startY = (e.clientY - rect.top) / scale;
+      
+      marqueeDataRef.current = { startX, startY, containerRect: rect, scale };
+      
+      // Cache candidates and their bounding boxes for the marquee operation
+      let marqueeCandidates = candidates.filter(el => {
+          const isOverlay = el.getAttribute('data-name') === 'Overlay';
+          const isBasePage = topFrames.length === 1 && el.id === topFrames[0].id;
+          return !isOverlay && !isBasePage;
+      });
+
+      marqueeCandidatesRef.current = marqueeCandidates.map(el => ({
+          id: el.id,
+          rect: el.getBoundingClientRect()
+      }));
+
+      setMarquee({ pageIndex });
+      
+      const activeRef = pageIndex === activePageIndex ? marqueeOverlayRef1 : marqueeOverlayRef2;
+      if (activeRef.current) {
+          Object.assign(activeRef.current.style, {
+              display: 'block',
+              left: `${startX}px`,
+              top: `${startY}px`,
+              width: '0px',
+              height: '0px'
+          });
       }
+      return;
     }
   };
 
-  // ── FIGMA-STYLE MOUSE MOVE: hover highlight ────────────────────────────────────
+  // ── FIGMA-STYLE MOUSE MOVE: hover highlight & Marquee update ─────────────────
   const handleSvgMouseMove = (e) => {
     if (!['select', 'upload'].includes(activeMainTool)) return;
 
     const container = e.currentTarget;
+
+    // ── MARQUEE UPDATE ──
+    if (marqueeRef.current) {
+        const { startX, startY, containerRect, scale } = marqueeDataRef.current;
+        const curX = (e.clientX - containerRect.left) / scale;
+        const curY = (e.clientY - containerRect.top) / scale;
+        
+        const x = Math.min(curX, startX);
+        const y = Math.min(curY, startY);
+        const width = Math.abs(curX - startX);
+        const height = Math.abs(curY - startY);
+        
+        // Direct DOM update for marquee box - avoids React re-render lag
+        const activeRef = marqueeRef.current.pageIndex === activePageIndex ? marqueeOverlayRef1 : marqueeOverlayRef2;
+        if (activeRef.current) {
+            activeRef.current.style.left = `${x}px`;
+            activeRef.current.style.top = `${y}px`;
+            activeRef.current.style.width = `${width}px`;
+            activeRef.current.style.height = `${height}px`;
+            activeRef.current.style.display = 'block';
+        }
+        
+        updateMarqueeSelection(x, y, width, height, containerRect, scale);
+        return;
+    }
+
     const svg = container.querySelector('svg');
     if (!svg) return;
 
@@ -894,10 +1041,22 @@ const MainEditor = ({
     }
 
     const frameId = currentFrameIdRef.current;
+    
+    // ── DYNAMIC CONTEXT (Double Page): Auto-adjust target level for easy edit ─────
+    // If we're at top level (null frameId) on a spread, and hover a root folder,
+    // let's treat it as entered context so user can hit children immediately.
+    let effectiveFrameId = frameId;
+    if (!frameId && isDoublePage) {
+        const topFrames = getTopLevelFrames(svg);
+        const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
+        if (hitRoot && topFrames.length === 1) {
+            effectiveFrameId = hitRoot.id;
+        }
+    }
 
-    if (frameId) {
-      // ── Inside an entered frame: hover its direct children ──
-      const frameEl = svg.querySelector(`[id="${frameId}"]`);
+    if (effectiveFrameId) {
+      // ── Inside a frame: hover its direct children ──
+      const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
       if (frameEl) {
         const children = getDirectChildFrames(frameEl);
         for (let i = children.length - 1; i >= 0; i--) {
@@ -941,6 +1100,54 @@ const MainEditor = ({
       }
     }
   };
+
+  // ── MARQUEE SELECTION LOGIC (Optimized) ──
+  const updateMarqueeSelection = (mx, my, mw, mh, containerRect, scale) => {
+    const newSelectedIds = new Set();
+
+    marqueeCandidatesRef.current.forEach(item => {
+        const { id, rect: elRect } = item;
+        
+        const relElRect = {
+            left: (elRect.left - containerRect.left) / scale,
+            top: (elRect.top - containerRect.top) / scale,
+            right: (elRect.right - containerRect.left) / scale,
+            bottom: (elRect.bottom - containerRect.top) / scale
+        };
+
+        const intersects = !(
+            mx > relElRect.right || 
+            mx + mw < relElRect.left || 
+            my > relElRect.bottom || 
+            my + mh < relElRect.top
+        );
+
+        if (intersects) {
+            newSelectedIds.add(id);
+        }
+    });
+
+    // Avoid state updates if selection is identical
+    if (!setsAreEqual(newSelectedIds, multiSelectedIdsRef.current)) {
+        setMultiSelectedIds(newSelectedIds);
+        const primary = Array.from(newSelectedIds)[newSelectedIds.size - 1];
+        setSelectedLayerId(primary || null);
+    }
+  };
+
+  // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee) ─────────────────────
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+        if (marqueeRef.current) {
+            const pageIdx = marqueeRef.current.pageIndex;
+            setMarquee(null);
+            if (marqueeOverlayRef1.current) marqueeOverlayRef1.current.style.display = 'none';
+            if (marqueeOverlayRef2.current) marqueeOverlayRef2.current.style.display = 'none';
+        }
+    };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
+  }, []);
 
   // ── FIGMA-STYLE MOUSE LEAVE: clear all hovers ─────────────────────────────────
   const handleSvgMouseLeave = (e) => {
@@ -1087,15 +1294,21 @@ const MainEditor = ({
     const frameId = currentFrameIdRef.current;
     const selId = selectedLayerIdRef.current;
 
+    // ── DYNAMIC CONTEXT (Double Page): Auto-enter context to avoid double click ───
+    let effectiveFrameId = frameId;
+    if (!frameId && isDoublePage) {
+        const topFrames = getTopLevelFrames(svg);
+        const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
+        if (hitRoot && topFrames.length === 1) {
+            effectiveFrameId = hitRoot.id;
+            setCurrentFrameId(hitRoot.id);
+            currentFrameIdRef.current = hitRoot.id;
+        }
+    }
+
     // ── Case 1: We are INSIDE an entered frame — INFINITE RECURSIVE DRILL-DOWN ─
-    //
-    //  • click a child       → SELECT it
-    //  • click already-selected child that has sub-children → ENTER it (recurse)
-    //  • click frame gap     → exit one level (select the entered frame)
-    //  • click outside frame → full exit + maybe select another top-level frame
-    //
-    if (frameId) {
-      const frameEl = svg.querySelector(`[id="${frameId}"]`);
+    if (effectiveFrameId) {
+      const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
 
       if (frameEl && hitTest(frameEl, e.clientX, e.clientY)) {
         // ── Clicked INSIDE the currently entered frame ──
@@ -1186,33 +1399,7 @@ const MainEditor = ({
     // ── Case 2: No frame entered — top-level selection ────────────────────────
     const topLevelEls = getTopLevelFrames(svg);
 
-    // Check if clicking inside the currently selected frame (to enter it)
-    if (selId) {
-      const selEl = svg.querySelector(`[id="${selId}"]`);
-      if (selEl && hitTest(selEl, e.clientX, e.clientY)) {
-        // User clicked INSIDE the already-selected frame → ENTER it
-        const hasChildren = getDirectChildFrames(selEl).length > 0;
-        if (hasChildren) {
-          setCurrentFrameId(selId);
-          currentFrameIdRef.current = selId;
-
-          // Immediately check if a child is hit and select it
-          const children = getDirectChildFrames(selEl);
-          for (let i = children.length - 1; i >= 0; i--) {
-            if (hitTest(children[i], e.clientX, e.clientY)) {
-              setSingleSelection(children[i].id);
-              return;
-            }
-          }
-          // Clicked in the gap area of the frame — keep frame selected, just mark as entered
-          return;
-        }
-        // Frame has no children — stay selected
-        return;
-      }
-    }
-
-    // Check if clicking a top-level frame (or changing selection)
+    // 1. Identify which top-level frame was hit (topmost in z-order)
     let hitFrame = null;
     for (let i = topLevelEls.length - 1; i >= 0; i--) {
       if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
@@ -1222,12 +1409,35 @@ const MainEditor = ({
     }
 
     if (hitFrame) {
-      setSingleSelection(hitFrame.id);
-      // Exit any previously entered frame if switching to new one
-      setCurrentFrameId(null);
-      currentFrameIdRef.current = null;
+      if (selId === hitFrame.id) {
+        // User clicked the ALREADY-SELECTED frame -> try to ENTER it (drill-down)
+        const hasChildren = getDirectChildFrames(hitFrame).length > 0;
+        if (hasChildren) {
+          setCurrentFrameId(selId);
+          currentFrameIdRef.current = selId;
+
+          // Immediately check if a child is hit and select it
+          const children = getDirectChildFrames(hitFrame);
+          for (let i = children.length - 1; i >= 0; i--) {
+            if (hitTest(children[i], e.clientX, e.clientY)) {
+              setSingleSelection(children[i].id);
+              return;
+            }
+          }
+          // Clicked in the gap area of the frame — keep primary frame selected, just mark as entered
+          return;
+        }
+        // Frame has no children — stay selected
+        return;
+      } else {
+        // User clicked a DIFFERENT top-level frame -> SELECT it (unselects old)
+        setSingleSelection(hitFrame.id);
+        setCurrentFrameId(null);
+        currentFrameIdRef.current = null;
+        return;
+      }
     } else {
-      // Clicked canvas background — ONLY deselect everything if there are multiple frames
+      // 2. Clicked canvas background — ONLY deselect everything if there are multiple frames
       // Otherwise, keep the single root folder selected
       const currentTopFrames = getTopLevelFrames(svg);
       if (currentTopFrames.length === 1) {
@@ -1440,10 +1650,19 @@ const MainEditor = ({
 
   const handlePrevPage = () => {
     if (isDoublePage) {
+      if (activePageIndex === 0) return;
+      
+      const prevIdx = activePageIndex - 1;
+      const wasPrevSpread = isDoublePage && prevIdx - 1 > 0 && prevIdx < pages.length - 1;
+      
       if (activePageIndex === 1) {
         setActivePageIndex(0);
+      } else if (wasPrevSpread) {
+        // Jump back to start of previous spread
+        setActivePageIndex(prev => Math.max(1, prev - 2));
       } else {
-        setActivePageIndex(prev => Math.max(0, prev - 2));
+        // Just go back one
+        setActivePageIndex(prev => Math.max(0, prev - 1));
       }
     } else {
       setActivePageIndex(prev => Math.max(0, prev - 1));
@@ -1454,9 +1673,15 @@ const MainEditor = ({
     if (isDoublePage) {
       if (activePageIndex === 0) {
         if (pages.length > 1) setActivePageIndex(1);
-      } else {
+      } else if (isCurrentlySpread) {
+        // We are on a spread, jump 2
         if (activePageIndex + 2 < pages.length) {
           setActivePageIndex(prev => prev + 2);
+        }
+      } else {
+        // We are on a single page, jump 1
+        if (activePageIndex + 1 < pages.length) {
+          setActivePageIndex(prev => prev + 1);
         }
       }
     } else {
@@ -1478,6 +1703,7 @@ const MainEditor = ({
     <div 
       className="bg-white flex-1 flex flex-col overflow-hidden h-[92vh]"
       onClick={closeAllDropdowns}
+      onContextMenu={(e) => e.preventDefault()}
     >
       <TopToolbar 
         zoom={zoom} 
@@ -1503,9 +1729,12 @@ const MainEditor = ({
             const topFrames = getTopLevelFrames(svg);
             if (topFrames.length === 1) {
               const rootId = topFrames[0].id;
-              // If only root is selected, we consider it "no valid selection" for rotation
-              const onlyRoot = (selectedLayerId === rootId && multiSelectedIds.size === 0) || 
-                               (multiSelectedIds.size === 1 && multiSelectedIds.has(rootId));
+              const overlayId = topFrames[0].querySelector('[data-name="Overlay"]')?.id;
+              const isBase = (id) => id === rootId || (overlayId && id === overlayId);
+
+              // If only root or its background overlay is selected, we consider it "no valid selection" for rotation
+              const onlyRoot = (isBase(selectedLayerId) && multiSelectedIds.size === 0) || 
+                               (multiSelectedIds.size === 1 && Array.from(multiSelectedIds).some(isBase));
               if (onlyRoot) return false;
             }
           }
@@ -1514,30 +1743,40 @@ const MainEditor = ({
       />
       <div 
         className="flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden bg-[#FBFBFB]"
-        onClick={() => {
-          // Identify Root Folder (single top frame on current page)
-          const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-          const svg = activeContainer?.querySelector('svg');
-          if (svg) {
-            const topFrames = getTopLevelFrames(svg);
-            if (topFrames.length === 1) {
-              const rootId = topFrames[0].id;
-              if (setSelectedLayerId) {
-                setSelectedLayerId(rootId);
-                setMultiSelectedIds(new Set([rootId]));
-                setCurrentFrameId(rootId);
-                currentFrameIdRef.current = rootId;
-              }
-              setActiveMainTool('select');
-              return;
-            }
+        onClick={(e) => {
+          // ── Background Click: Identify Base Root Folder(s) ─────────────────
+          const containers = [];
+          containers.push(document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`));
+          if (isCurrentlySpread) {
+            containers.push(document.querySelector(`.page-svg-container[data-page-index="${activePageIndex + 1}"]`));
           }
 
-          setSelectedLayerId(null);
-          setMultiSelectedIds(new Set());
-          setCurrentFrameId(null);
-          currentFrameIdRef.current = null;
-          setActiveMainTool('select');
+          const rootIds = [];
+          containers.forEach(container => {
+            const svg = container?.querySelector('svg');
+            if (svg) {
+              const topFrames = getTopLevelFrames(svg);
+              if (topFrames.length === 1) {
+                rootIds.push(topFrames[0].id);
+              }
+            }
+          });
+
+          if (rootIds.length > 0) {
+            if (setSelectedLayerId) {
+              setSelectedLayerId(rootIds[0]);
+              setMultiSelectedIds(new Set(rootIds));
+              setCurrentFrameId(null); // Deselect sub-frame to allow whole page moving
+              currentFrameIdRef.current = null;
+            }
+            setActiveMainTool('select');
+          } else {
+            setSelectedLayerId(null);
+            setMultiSelectedIds(new Set());
+            setCurrentFrameId(null);
+            currentFrameIdRef.current = null;
+            setActiveMainTool('select');
+          }
         }}
       >
         
@@ -1906,7 +2145,7 @@ const MainEditor = ({
             className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-20 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${activePageIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
             style={{ 
               left: `calc(50% - ${
-                isDoublePage && activePageIndex > 0 && pages[activePageIndex + 1]
+                isCurrentlySpread
                   ? '((78vh / 1.414) * 1.0)' 
                   : '((78vh / 1.414) / 2)'
               } * (${zoom / 100}) - 3vw)`,
@@ -1928,7 +2167,7 @@ const MainEditor = ({
             {pages.length > 0 && (isDoublePage ? (activePageIndex > 0 && pages[activePageIndex]) : pages[activePageIndex]) && (
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top) */}
-                <div className="absolute top-[-2.5vw] z-30" style={{ [isDoublePage ? 'left' : 'right']: '0vw' }}>
+                <div className="absolute top-[-2.5vw] z-30" style={{ [isCurrentlySpread ? 'left' : 'right']: '0vw' }}>
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1936,7 +2175,7 @@ const MainEditor = ({
                     }}
                     className={`cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200`}
                   >
-                    <Icon icon={isDoublePage ? "ri:menu-fold-4-fill" : "ri:menu-unfold-4-fill"} width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                    <Icon icon={isCurrentlySpread ? "ri:menu-fold-4-fill" : "ri:menu-unfold-4-fill"} width="1.2vw" height="1.2vw" className="text-[#111827]" />
                   </button>
 
                   <AnimatePresence>
@@ -2020,6 +2259,19 @@ const MainEditor = ({
                            id={`highlight-overlay-${activePageIndex}`}
                            className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
                          />
+
+                          {/* Marquee Selection Box */}
+                          <div 
+                            ref={marqueeOverlayRef1}
+                            style={{
+                              position: 'absolute',
+                              border: '1px solid #6366F1',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              pointerEvents: 'none',
+                              zIndex: 1000,
+                              display: 'none'
+                            }}
+                          />
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
@@ -2033,6 +2285,7 @@ const MainEditor = ({
                       <div 
                         className="absolute inset-0 z-10"
                         onClick={() => onOpenTemplateModal(activePageIndex)}
+                        onContextMenu={(e) => e.preventDefault()}
                       />
                     )}
                   </div>
@@ -2042,12 +2295,12 @@ const MainEditor = ({
             )}
 
             {/* Subtle Center Divider for Double Page - Only show if it's a spread */}
-            {isDoublePage && (activePageIndex > 0 && pages[activePageIndex + 1]) && (
+            {isCurrentlySpread && (
               <div className="w-[1px] h-[78vh] bg-gray-100/50 relative z-10 shrink-0"></div>
             )}
 
             {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
-            {isDoublePage && (activePageIndex === 0 ? pages[0] : pages[activePageIndex + 1]) && (
+            {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top - Right Side) */}
                 <div className="absolute top-[-2.5vw] right-0 z-30">
@@ -2130,12 +2383,12 @@ const MainEditor = ({
                     {(() => {
                       const displayIndex = activePageIndex === 0 ? 0 : activePageIndex + 1;
                       const page = pages[displayIndex];
-                      
+
                       return page?.html ? (
-                        <div 
+                        <div
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
                         >
-                           <div 
+                           <div
                              className="w-full h-full flex items-center justify-center"
                              dangerouslySetInnerHTML={{ __html: page.html }}
                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
@@ -2150,6 +2403,19 @@ const MainEditor = ({
                              id={`highlight-overlay-${displayIndex}`}
                              className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
                            />
+
+                           {/* Marquee Selection Box */}
+                           <div 
+                             ref={marqueeOverlayRef2}
+                             style={{
+                               position: 'absolute',
+                               border: '1px solid #6366F1',
+                               backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                               pointerEvents: 'none',
+                               zIndex: 1000,
+                               display: 'none'
+                             }}
+                           />
                         </div>
                       ) : (
                         <>
@@ -2161,6 +2427,7 @@ const MainEditor = ({
                           <div 
                             className="absolute inset-0 cursor-pointer z-10"
                             onClick={() => onOpenTemplateModal(displayIndex)}
+                            onContextMenu={(e) => e.preventDefault()}
                           />
                         </>
                       );
@@ -2175,19 +2442,19 @@ const MainEditor = ({
           {/* Right Navigation Button */}
           <button 
             disabled={isDoublePage 
-              ? (activePageIndex === 0 ? pages.length <= 1 : activePageIndex + 2 >= pages.length) 
+              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? activePageIndex + 2 >= pages.length : activePageIndex + 1 >= pages.length)) 
               : activePageIndex + 1 >= pages.length
             }
             onClick={handleNextPage}
             className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-20 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${ 
               (isDoublePage 
-                ? (activePageIndex === 0 ? pages.length <= 1 : activePageIndex + 2 >= pages.length) 
+                ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? activePageIndex + 2 >= pages.length : activePageIndex + 1 >= pages.length)) 
                 : activePageIndex + 1 >= pages.length
               ) ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
             }`}
             style={{ 
               right: `calc(50% - ${
-                isDoublePage && activePageIndex > 0 && pages[activePageIndex + 1]
+                isCurrentlySpread
                   ? '((78vh / 1.414) * 1.0)' 
                   : '((78vh / 1.414) / 2)'
               } * (${zoom / 100}) - 3vw)`,
