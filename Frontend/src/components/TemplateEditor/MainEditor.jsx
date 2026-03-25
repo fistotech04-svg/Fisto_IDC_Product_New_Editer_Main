@@ -744,21 +744,32 @@ const MainEditor = ({
                const directTarget = getDraggableElement(event.target, svgElement);
                if (directTarget) elementToDrag = directTarget;
             } else {
-              // ── Select Mode Candidate Logic ─────────────────────────────────
-              // 1. Check current selection first (Selection Priority)
-              const currentSelectedId = selectedLayerIdRef.current;
-              if (currentSelectedId) {
-                const selectedEl = container?.querySelector(`[id="${currentSelectedId}"]`);
-                if (selectedEl && selectedEl !== svgElement && selectedEl.contains(target)) {
-                  // Only allow dragging if it's NOT the root page-level frame
-                  const topFrames = getTopLevelFrames(svgElement);
-                  const isMainPageFrame = topFrames.length === 1 && selectedEl.id === topFrames[0].id;
-                  
-                  if (!isMainPageFrame) {
-                    elementToDrag = selectedEl;
-                  }
-                }
-              }
+               // 1. Check current selection first (Selection Priority)
+               // Priority: if clicking inside any element already part of the multi-selection, 
+               // let's assume the user wants to drag the group (including clicking gaps inside or descendants).
+               const currentMultiIds = multiSelectedIdsRef.current;
+               if (currentMultiIds.size > 0 && selectedSelectToolRef.current !== 'direct') {
+                 const entries = Array.from(currentMultiIds);
+                 for (const id of entries) {
+                   const selEl = container?.querySelector(`[id="${id}"]`);
+                   if (selEl && selEl !== svgElement) {
+                     // Check if we hit the element's bounding box OR one of its descendants
+                     const isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                     const isMemberHit = target && selEl.contains(target);
+                     
+                     if (isHit || isMemberHit) {
+                        // Only allow dragging if it's NOT the root page-level frame
+                        const topFrames = getTopLevelFrames(svgElement);
+                        const isMainPageFrame = topFrames.length === 1 && selEl.id === topFrames[0].id;
+                        
+                        if (!isMainPageFrame) {
+                          elementToDrag = selEl;
+                          break; // Found it!
+                        }
+                     }
+                   }
+                 }
+               }
 
               // 2. If nothing selected or selection not hit, find a new candidate
               if (!elementToDrag) {
@@ -937,13 +948,26 @@ const MainEditor = ({
         }
     }
 
+    // ── NEW: Check if we hit ANY already-selected element's bounding box ──────────
+    let hitAnySelected = false;
+    const currentMultiIds = multiSelectedIdsRef.current;
+    if (currentMultiIds.size > 0) {
+        for (const id of currentMultiIds) {
+            const el = svg.querySelector(`[id="${id}"]`);
+            if (el && hitTest(el, e.clientX, e.clientY, 2)) {
+                hitAnySelected = true;
+                break;
+            }
+        }
+    }
+
     const topFrames = getTopLevelFrames(svg);
     const hitBaseFrame = hitCandidate && topFrames.length === 1 && hitCandidate.id === topFrames[0].id;
 
     // 2. Selection/Drag Priority
-    // If we hit any valid child candidate (even in its gap), don't start a marquee.
-    // Return early to allow interactjs to handle dragging and handleSvgClick to handle selection focus.
-    if (hitCandidate && !hitBaseFrame && !e.ctrlKey && selectedSelectToolRef.current !== 'direct') {
+    // If we hit any valid child candidate OR any already-selected element, 
+    // don't start a marquee. Return early to allow interactjs to handle dragging.
+    if ((hitCandidate && !hitBaseFrame || hitAnySelected) && !e.ctrlKey && selectedSelectToolRef.current !== 'direct') {
         return; 
     }
 

@@ -130,7 +130,7 @@ const LayerItem = ({
     e.preventDefault();
     e.stopPropagation();
     if (onLayerContextMenu) {
-      onLayerContextMenu(e, layer.id, pageIndex);
+      onLayerContextMenu(layer.id, e.clientX, e.clientY);
     }
   };
 
@@ -247,13 +247,21 @@ const LayerItem = ({
         <div className="flex items-center gap-[0.3vw] opacity-0 group-hover/layer:opacity-100 transition-opacity">
           <button 
             className="text-gray-400 hover:text-indigo-600"
-            onClick={(e) => { e.stopPropagation(); onToggleVisibility && onToggleVisibility(layer.id); }}
+            onClick={(e) => { 
+                e.stopPropagation(); 
+                const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
+                onToggleVisibility && onToggleVisibility(ids); 
+            }}
           >
             {layer.visible === false ? <EyeOff size="0.7vw" /> : <Eye size="0.7vw" />}
           </button>
           <button 
             className="text-gray-400 hover:text-indigo-600"
-            onClick={(e) => { e.stopPropagation(); onToggleLock && onToggleLock(layer.id); }}
+            onClick={(e) => { 
+                e.stopPropagation(); 
+                const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
+                onToggleLock && onToggleLock(ids); 
+            }}
           >
             {layer.locked === true ? <Lock size="0.7vw" /> : <Unlock size="0.7vw" />}
           </button>
@@ -502,104 +510,123 @@ const Layer = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -5 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
-            style={{ 
-              position: 'fixed', 
-              left: `${activeLayerMenu.x}px`, 
-              top: `${activeLayerMenu.y}px` 
-            }}
+            style={(() => {
+               // Safely clamp the menu within the viewport
+               // Menu width is roughly 10vw, height is estimated at 350px
+               const menuWidth = window.innerWidth * 0.11; 
+               const menuHeight = 350; 
+               return {
+                 position: 'fixed',
+                 left: `${Math.min(activeLayerMenu.x, window.innerWidth - menuWidth)}px`,
+                 top: `${Math.min(activeLayerMenu.y, window.innerHeight - menuHeight)}px`
+               };
+            })()}
             className="w-[10vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
             onClick={(e) => e.stopPropagation()}
           >
-          <button 
-            onClick={() => { 
-                window.dispatchEvent(new CustomEvent('trigger-rename-layer', { detail: { layerId: activeLayerMenu.layerId } }));
-                setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <Edit2 size="0.9vw" /> Rename
-          </button>
+          {(() => {
+            const targetIds = multiSelectedIds.has(activeLayerMenu.layerId) 
+              ? Array.from(multiSelectedIds) 
+              : [activeLayerMenu.layerId];
 
-          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+            return (
+              <>
+                {multiSelectedIds.size <= 1 && (
+                  <>
+                    <button 
+                      onClick={() => { 
+                          window.dispatchEvent(new CustomEvent('trigger-rename-layer', { detail: { layerId: activeLayerMenu.layerId } }));
+                          setActiveLayerMenu(null); 
+                      }} 
+                      className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                    >
+                      <Edit2 size="0.9vw" /> Rename
+                    </button>
+                    <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                  </>
+                )}
 
-          <button 
-            onClick={() => { 
-              moveLayerForward(activePageIndex, activeLayerMenu.layerId); 
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <ArrowUp size="0.9vw" /> Move Front
-          </button>
-          <button 
-            onClick={() => { 
-              moveLayerBackward(activePageIndex, activeLayerMenu.layerId); 
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <ArrowDown size="0.9vw" /> Move Back
-          </button>
-          <button 
-            onClick={() => { 
-              bringLayerToFront(activePageIndex, activeLayerMenu.layerId); 
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <ArrowUpToLine size="0.9vw" /> Bring to front
-          </button>
-          <button 
-            onClick={() => { 
-              sendLayerToBack(activePageIndex, activeLayerMenu.layerId); 
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <ArrowDownToLine size="0.9vw" /> Send to back
-          </button>
+                <button 
+                  onClick={() => { 
+                    moveLayerForward(activePageIndex, targetIds); 
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <ArrowUp size="0.9vw" /> Move Front
+                </button>
+                <button 
+                  onClick={() => { 
+                    moveLayerBackward(activePageIndex, targetIds); 
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <ArrowDown size="0.9vw" /> Move Back
+                </button>
+                <button 
+                  onClick={() => { 
+                    bringLayerToFront(activePageIndex, targetIds); 
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <ArrowUpToLine size="0.9vw" /> Bring to front
+                </button>
+                <button 
+                  onClick={() => { 
+                    sendLayerToBack(activePageIndex, targetIds); 
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <ArrowDownToLine size="0.9vw" /> Send to back
+                </button>
 
-          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                <div className="h-px bg-gray-100 my-[0.2vw]"></div>
 
-          <button 
-            onClick={() => { 
-              cutLayer(activePageIndex, activeLayerMenu.layerId);
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <Scissors size="0.9vw" /> Cut
-          </button>
-          <button 
-            onClick={() => { 
-              copyLayer(activePageIndex, activeLayerMenu.layerId);
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <Copy size="0.9vw" /> Copy
-          </button>
-          <button 
-            onClick={() => { 
-              pasteLayer(activePageIndex);
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <Clipboard size="0.9vw" /> Paste
-          </button>
+                <button 
+                  onClick={() => { 
+                    cutLayer(activePageIndex, targetIds);
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <Scissors size="0.9vw" /> Cut
+                </button>
+                <button 
+                  onClick={() => { 
+                    copyLayer(activePageIndex, targetIds);
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <Copy size="0.9vw" /> Copy
+                </button>
+                <button 
+                  onClick={() => { 
+                    pasteLayer(activePageIndex);
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <Clipboard size="0.9vw" /> Paste
+                </button>
 
-          <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                <div className="h-px bg-gray-100 my-[0.2vw]"></div>
 
-          <button 
-            onClick={() => { 
-              deleteLayer(activePageIndex, activeLayerMenu.layerId);
-              setActiveLayerMenu(null); 
-            }} 
-            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"
-          >
-            <Trash2 size="0.9vw" /> Delete
-          </button>
+                <button 
+                  onClick={() => { 
+                    deleteLayer(activePageIndex, targetIds);
+                    setActiveLayerMenu(null); 
+                  }} 
+                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"
+                >
+                  <Trash2 size="0.9vw" /> Delete
+                </button>
+              </>
+            );
+          })()}
         </motion.div>
       </AnimatePresence>,
       document.body

@@ -284,96 +284,82 @@ const TemplateEditor = () => {
     setActivePageIndex(toIndex);
   };
 
-  const toggleLayerVisibility = (pageIndex, layerId) => {
+  const toggleLayerVisibility = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
-      let newVisibility = true;
-      const toggleInLayers = (layersList) => {
+      let forceState = null;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+
+      const processLayers = (layersList) => {
         return layersList.map(layer => {
-          if (layer.id === layerId) {
-            newVisibility = !layer.visible;
-            return { ...layer, visible: newVisibility };
+          let newLayer = { ...layer };
+          if (idList.includes(layer.id)) {
+            if (forceState === null) forceState = !layer.visible;
+            newLayer.visible = forceState;
+            const element = doc.querySelector(`[id="${layer.id}"]`);
+            if (element) {
+              if (!newLayer.visible) {
+                element.setAttribute('data-hidden', 'true');
+                element.style.display = 'none';
+              } else {
+                element.removeAttribute('data-hidden');
+                element.style.display = '';
+              }
+            }
           }
-          if (layer.children) {
-            return { ...layer, children: toggleInLayers(layer.children) };
-          }
-          return layer;
+          if (newLayer.children) newLayer.children = processLayers(newLayer.children);
+          return newLayer;
         });
       };
 
-      const newLayers = toggleInLayers(page.layers);
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-      if (element) {
-        if (!newVisibility) {
-          element.setAttribute('data-hidden', 'true');
-          element.style.display = 'none';
-        } else {
-          element.removeAttribute('data-hidden');
-          element.style.display = '';
-        }
-      }
-
+      const newLayers = processLayers(page.layers);
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = {
-        ...page,
-        layers: newLayers,
-        html: newHtml
-      };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
   };
 
-  const toggleLayerLock = (pageIndex, layerId) => {
+  const toggleLayerLock = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
-      let newLocked = false;
-      const toggleInLayers = (layersList) => {
+      let forceState = null;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+
+      const processLayers = (layersList) => {
         return layersList.map(layer => {
-          if (layer.id === layerId) {
-            newLocked = !layer.locked;
-            return { ...layer, locked: newLocked };
+          let newLayer = { ...layer };
+          if (idList.includes(layer.id)) {
+            if (forceState === null) forceState = !layer.locked;
+            newLayer.locked = forceState;
+            const element = doc.querySelector(`[id="${layer.id}"]`);
+            if (element) {
+              if (newLayer.locked) {
+                element.setAttribute('data-locked', 'true');
+                element.style.pointerEvents = 'none';
+              } else {
+                element.removeAttribute('data-locked');
+                element.style.pointerEvents = '';
+              }
+            }
           }
-          if (layer.children) {
-            return { ...layer, children: toggleInLayers(layer.children) };
-          }
-          return layer;
+          if (newLayer.children) newLayer.children = processLayers(newLayer.children);
+          return newLayer;
         });
       };
 
-      const newLayers = toggleInLayers(page.layers);
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-      if (element) {
-        if (newLocked) {
-          element.setAttribute('data-locked', 'true');
-          element.style.pointerEvents = 'none';
-        } else {
-          element.removeAttribute('data-locked');
-          element.style.pointerEvents = '';
-        }
-      }
-
+      const newLayers = processLayers(page.layers);
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = {
-        ...page,
-        layers: newLayers,
-        html: newHtml
-      };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
   };
@@ -418,161 +404,139 @@ const TemplateEditor = () => {
     });
   };
 
-  const bringLayerToFront = (pageIndex, layerId) => {
+  const bringLayerToFront = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
-      const moveToFront = (layersList) => {
-        const index = layersList.findIndex(l => l.id === layerId);
-        if (index !== -1) {
-          const item = layersList.splice(index, 1)[0];
-          layersList.push(item);
-          return true;
-        }
-        for (let layer of layersList) {
-          if (layer.children && moveToFront(layer.children)) return true;
-        }
-        return false;
-      };
-
-      const newLayers = JSON.parse(JSON.stringify(page.layers));
-      moveToFront(newLayers);
-
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-      if (element && element.parentNode) {
-        element.parentNode.appendChild(element);
-      }
+      const newLayers = JSON.parse(JSON.stringify(page.layers));
 
+      const processList = (list) => {
+        const toMove = list.filter(l => idList.includes(l.id));
+        if (toMove.length > 0) {
+          toMove.forEach(item => {
+            const idx = list.findIndex(l => l.id === item.id);
+            if (idx !== -1) {
+              list.splice(idx, 1);
+              list.push(item);
+              const element = doc.querySelector(`[id="${item.id}"]`);
+              if (element && element.parentNode) element.parentNode.appendChild(element);
+            }
+          });
+        }
+        list.forEach(l => { if (l.children) processList(l.children); });
+      };
+
+      processList(newLayers);
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
   };
 
-  const sendLayerToBack = (pageIndex, layerId) => {
+  const sendLayerToBack = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
-      const moveToBack = (layersList) => {
-        const index = layersList.findIndex(l => l.id === layerId);
-        if (index !== -1) {
-          const item = layersList.splice(index, 1)[0];
-          layersList.unshift(item);
-          return true;
-        }
-        for (let layer of layersList) {
-          if (layer.children && moveToBack(layer.children)) return true;
-        }
-        return false;
-      };
-
-      const newLayers = JSON.parse(JSON.stringify(page.layers));
-      moveToBack(newLayers);
-
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-      if (element && element.parentNode) {
-        element.parentNode.insertBefore(element, element.parentNode.firstChild);
-      }
+      const newLayers = JSON.parse(JSON.stringify(page.layers));
 
+      const processList = (list) => {
+        const toMove = list.filter(l => idList.includes(l.id)).reverse();
+        if (toMove.length > 0) {
+          toMove.forEach(item => {
+            const idx = list.findIndex(l => l.id === item.id);
+            if (idx !== -1) {
+              list.splice(idx, 1);
+              list.unshift(item);
+              const element = doc.querySelector(`[id="${item.id}"]`);
+              if (element && element.parentNode) element.parentNode.insertBefore(element, element.parentNode.firstChild);
+            }
+          });
+        }
+        list.forEach(l => { if (l.children) processList(l.children); });
+      };
+
+      processList(newLayers);
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
   };
 
-  const moveLayerForward = (pageIndex, layerId) => {
+  const moveLayerForward = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
-      const moveForward = (layersList) => {
-        const index = layersList.findIndex(l => l.id === layerId);
-        if (index !== -1) {
-          if (index < layersList.length - 1) {
-            const item = layersList.splice(index, 1)[0];
-            layersList.splice(index + 1, 0, item);
-            return true;
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const newLayers = JSON.parse(JSON.stringify(page.layers));
+
+      const processList = (list) => {
+        // Iterate backwards to not mess up indices as we move things forward
+        for (let i = list.length - 1; i >= 0; i--) {
+          if (idList.includes(list[i].id) && i < list.length - 1) {
+            const item = list.splice(i, 1)[0];
+            list.splice(i + 1, 0, item);
+            const element = doc.querySelector(`[id="${item.id}"]`);
+            if (element && element.parentNode && element.nextElementSibling) {
+              element.parentNode.insertBefore(element.nextElementSibling, element);
+            }
           }
-          return false;
         }
-        for (let layer of layersList) {
-          if (layer.children && moveForward(layer.children)) return true;
-        }
-        return false;
+        list.forEach(l => { if (l.children) processList(l.children); });
       };
 
-      const newLayers = JSON.parse(JSON.stringify(page.layers));
-      moveForward(newLayers);
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-      if (element && element.parentNode && element.nextElementSibling) {
-        // Swap with next element
-        element.parentNode.insertBefore(element.nextElementSibling, element);
-      }
-
+      processList(newLayers);
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
   };
 
-  const moveLayerBackward = (pageIndex, layerId) => {
+  const moveLayerBackward = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page || !page.html || !page.layers) return updated;
 
-      const moveBackward = (layersList) => {
-        const index = layersList.findIndex(l => l.id === layerId);
-        if (index !== -1) {
-          if (index > 0) {
-            const item = layersList.splice(index, 1)[0];
-            layersList.splice(index - 1, 0, item);
-            return true;
-          }
-          return false;
-        }
-        for (let layer of layersList) {
-          if (layer.children && moveBackward(layer.children)) return true;
-        }
-        return false;
-      };
-
-      const newLayers = JSON.parse(JSON.stringify(page.layers));
-      moveBackward(newLayers);
-
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-      if (element && element.parentNode && element.previousElementSibling) {
-        element.parentNode.insertBefore(element, element.previousElementSibling);
-      }
+      const newLayers = JSON.parse(JSON.stringify(page.layers));
 
+      const processList = (list) => {
+        for (let i = 0; i < list.length; i++) {
+          if (idList.includes(list[i].id) && i > 0) {
+            const item = list.splice(i, 1)[0];
+            list.splice(i - 1, 0, item);
+            const element = doc.querySelector(`[id="${item.id}"]`);
+            if (element && element.parentNode && element.previousElementSibling) {
+              element.parentNode.insertBefore(element, element.previousElementSibling);
+            }
+          }
+        }
+        list.forEach(l => { if (l.children) processList(l.children); });
+      };
+
+      processList(newLayers);
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
   };
@@ -667,7 +631,8 @@ const TemplateEditor = () => {
     });
   };
 
-  const deleteLayer = (pageIndex, layerId) => {
+  const deleteLayer = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
     saveToHistory();
     setPages(prev => {
       const updated = [...prev];
@@ -676,33 +641,26 @@ const TemplateEditor = () => {
 
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.querySelector(`[id="${layerId}"]`);
-
-      // ── PROTECT THE BASE OVERLAY & ROOT FOLDER ──
-      if (element) {
-        if (element.getAttribute('data-name') === 'Overlay' || element.getAttribute('data-type') === 'frame') {
-          return updated; // Abort deletion
-        }
-      }
 
       const deleteFromLayers = (layersList) => {
-        const index = layersList.findIndex(l => l.id === layerId);
-        if (index !== -1) {
-          layersList.splice(index, 1);
-          return true;
+        for (let i = layersList.length - 1; i >= 0; i--) {
+          const layerId = layersList[i].id;
+          if (idList.includes(layerId)) {
+            const element = doc.querySelector(`[id="${layerId}"]`);
+            // PROTECT THE BASE OVERLAY & ROOT FOLDER
+            if (element && (element.getAttribute('data-name') === 'Overlay' || element.getAttribute('data-type') === 'frame')) {
+              continue; 
+            }
+            layersList.splice(i, 1);
+            if (element) element.remove();
+          } else if (layersList[i].children) {
+            deleteFromLayers(layersList[i].children);
+          }
         }
-        for (let layer of layersList) {
-          if (layer.children && deleteFromLayers(layer.children)) return true;
-        }
-        return false;
       };
 
       const newLayers = JSON.parse(JSON.stringify(page.layers));
       deleteFromLayers(newLayers);
-
-      if (element) {
-        element.remove();
-      }
 
       const serializer = new XMLSerializer();
       const newHtml = serializer.serializeToString(doc.documentElement);
@@ -710,54 +668,54 @@ const TemplateEditor = () => {
       updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
       return updated;
     });
-    if (selectedLayerId === layerId) setSelectedLayerId(null);
-  };
 
-  const copyLayer = (pageIndex, layerId) => {
-    const page = pages[pageIndex];
-    if (!page) return;
-
-    // Find layer and its parent to remember context
-    let parentId = null;
-    const findLayerAndParent = (layersList, pid = null) => {
-      for (let layer of layersList) {
-        if (layer.id === layerId) return { layer, parentId: pid };
-        if (layer.children) {
-          const found = findLayerAndParent(layer.children, layer.id);
-          if (found) return found;
-        }
-      }
-      return null;
-    };
-
-    const result = findLayerAndParent(page.layers);
-    if (!result) return;
-
-    const { layer, parentId: originalParentId } = result;
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(page.html, 'image/svg+xml');
-    const element = doc.querySelector(`[id="${layerId}"]`);
-    if (!element) return;
-
-    const serializer = new XMLSerializer();
-    setClipboard({
-      layer: JSON.parse(JSON.stringify(layer)),
-      svgSnippet: serializer.serializeToString(element),
-      originalParentId
+    if (idList.includes(selectedLayerId)) setSelectedLayerId(null);
+    setMultiSelectedIds(prev => {
+      const next = new Set(prev);
+      idList.forEach(id => next.delete(id));
+      return next;
     });
   };
 
-  const cutLayer = (pageIndex, layerId) => {
-    copyLayer(pageIndex, layerId);
-    deleteLayer(pageIndex, layerId);
+  const copyLayer = (pageIndex, ids) => {
+    const idList = Array.isArray(ids) ? ids : (ids instanceof Set ? Array.from(ids) : [ids]);
+    const page = pages[pageIndex];
+    if (!page) return;
+
+    const clipboardItems = [];
+    const findLayers = (layersList, parentId = null) => {
+      for (let layer of layersList) {
+        if (idList.includes(layer.id)) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(page.html, 'image/svg+xml');
+          const element = doc.querySelector(`[id="${layer.id}"]`);
+          if (element) {
+            clipboardItems.push({
+              layer: JSON.parse(JSON.stringify(layer)),
+              svgSnippet: new XMLSerializer().serializeToString(element),
+              originalParentId: parentId
+            });
+          }
+        }
+        if (layer.children) findLayers(layer.children, layer.id);
+      }
+    };
+
+    findLayers(page.layers);
+    if (clipboardItems.length > 0) {
+      setClipboard(clipboardItems);
+    }
+  };
+
+  const cutLayer = (pageIndex, ids) => {
+    copyLayer(pageIndex, ids);
+    deleteLayer(pageIndex, ids);
   };
 
   const pasteLayer = (pageIndex) => {
-    if (!clipboard) return;
+    if (!clipboard || !Array.isArray(clipboard)) return;
     saveToHistory();
 
-    // Deep copy and regenerate IDs for uniqueness
     const prepareLayer = (l) => {
       const id = `${l.type}-${Math.random().toString(36).substr(2, 9)}`;
       return {
@@ -767,7 +725,10 @@ const TemplateEditor = () => {
       };
     };
 
-    const newLayer = prepareLayer(clipboard.layer);
+    const newItems = clipboard.map(item => ({
+      ...item,
+      newLayer: prepareLayer(item.layer)
+    }));
 
     setPages(prev => {
       const updated = [...prev];
@@ -775,134 +736,113 @@ const TemplateEditor = () => {
       if (!page) return updated;
 
       let newLayers = JSON.parse(JSON.stringify(page.layers || []));
-      
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html || '<svg xmlns="http://www.w3.org/2000/svg"></svg>', 'image/svg+xml');
       const svgRoot = doc.querySelector('svg');
 
-      const snippetDoc = parser.parseFromString(clipboard.svgSnippet, 'image/svg+xml');
-      const newElement = doc.importNode(snippetDoc.documentElement, true);
-      
-      // Update the root element ID
-      newElement.setAttribute('id', newLayer.id);
-      
-      // If it's a group, recursively update IDs in the DOM
-      if (newLayer.type === 'g') {
-         const updateRecursiveIds = (el, meta) => {
+      newItems.forEach(({ svgSnippet, newLayer, originalParentId }) => {
+        const snippetDoc = parser.parseFromString(svgSnippet, 'image/svg+xml');
+        const newElement = doc.importNode(snippetDoc.documentElement, true);
+        newElement.setAttribute('id', newLayer.id);
+
+        if (newLayer.type === 'g') {
+          const updateRecursiveIds = (el, meta) => {
             if (meta.children) {
-               Array.from(el.children).forEach((childEl, i) => {
-                  if (meta.children[i]) {
-                     childEl.setAttribute('id', meta.children[i].id);
-                     updateRecursiveIds(childEl, meta.children[i]);
-                  }
-               });
+              Array.from(el.children).forEach((childEl, i) => {
+                if (meta.children[i]) {
+                  childEl.setAttribute('id', meta.children[i].id);
+                  updateRecursiveIds(childEl, meta.children[i]);
+                }
+              });
             }
-         };
-         updateRecursiveIds(newElement, newLayer);
-      }
-
-      // ── SMART PASTE LOGIC ──────────────────────────────────────────────────
-      let pasted = false;
-
-      // 1. If we have a selection, paste in same parent as selection, immediately on top of it
-      if (selectedLayerId) {
-        const insertNextTo = (list) => {
-          for (let i = 0; i < list.length; i++) {
-            if (list[i].id === selectedLayerId) {
-              // Paste AFTER selected in array (which is ABOVE in z-order/sidebar)
-              list.splice(i + 1, 0, newLayer);
-              return true;
-            }
-            if (list[i].children && insertNextTo(list[i].children)) return true;
-          }
-          return false;
-        };
-
-        if (insertNextTo(newLayers)) {
-          const selectedEl = doc.querySelector(`[id="${selectedLayerId}"]`);
-          if (selectedEl && selectedEl.parentNode) {
-            // SVG z-index: last child is on top. 
-            // To place ABOVE selection in canvas/sidebar, we insert it AFTER selection in DOM.
-            selectedEl.parentNode.insertBefore(newElement, selectedEl.nextSibling);
-            pasted = true;
-          }
-        }
-      }
-
-      // 2. If nothing pasted yet, but we have an "Entered Frame" (Figma-style), paste inside it at the top
-      if (!pasted && currentFrameId) {
-        const insertInside = (list) => {
-          for (let i = 0; i < list.length; i++) {
-            if (list[i].id === currentFrameId) {
-              list[i].children = [...(list[i].children || []), newLayer];
-              return true;
-            }
-            if (list[i].children && insertInside(list[i].children)) return true;
-          }
-          return false;
-        };
-
-        if (insertInside(newLayers)) {
-          const parentEl = doc.querySelector(`[id="${currentFrameId}"]`);
-          if (parentEl) {
-            parentEl.appendChild(newElement);
-            pasted = true;
-          }
-        }
-      }
-
-      // 3. Fallback to Original Parent (if it still exists in the same page)
-      if (!pasted && clipboard.originalParentId) {
-        const insertAtEnd = (list) => {
-          for (let i = 0; i < list.length; i++) {
-            if (list[i].id === clipboard.originalParentId) {
-              list[i].children = [...(list[i].children || []), newLayer];
-              return true;
-            }
-            if (list[i].children && insertAtEnd(list[i].children)) return true;
-          }
-          return false;
-        };
-
-        if (insertAtEnd(newLayers)) {
-          const parentEl = doc.querySelector(`[id="${clipboard.originalParentId}"]`);
-          if (parentEl) {
-            parentEl.appendChild(newElement);
-            pasted = true;
-          }
-        }
-      }
-
-      // 4. Last fallback: Paste at the very top (SVG root level)
-      if (!pasted) {
-        // If there is a single root "Root Folder" group, paste inside it
-        if (newLayers.length === 1 && newLayers[0].type === 'g') {
-          newLayers[0] = {
-            ...newLayers[0],
-            children: [...(newLayers[0].children || []), newLayer]
           };
-          const rootEl = doc.querySelector(`[id="${newLayers[0].id}"]`);
-          if (rootEl) {
-            rootEl.appendChild(newElement);
-          } else {
-            svgRoot.appendChild(newElement);
-          }
-        } else {
-          newLayers = [...newLayers, newLayer];
-          svgRoot.appendChild(newElement);
+          updateRecursiveIds(newElement, newLayer);
         }
-      }
+
+        let pasted = false;
+        if (selectedLayerId) {
+          const insertNextTo = (list) => {
+            for (let i = 0; i < list.length; i++) {
+              if (list[i].id === selectedLayerId) {
+                list.splice(i + 1, 0, newLayer);
+                return true;
+              }
+              if (list[i].children && insertNextTo(list[i].children)) return true;
+            }
+            return false;
+          };
+          if (insertNextTo(newLayers)) {
+            const selectedEl = doc.querySelector(`[id="${selectedLayerId}"]`);
+            if (selectedEl && selectedEl.parentNode) {
+              selectedEl.parentNode.insertBefore(newElement, selectedEl.nextSibling);
+              pasted = true;
+            }
+          }
+        }
+
+        if (!pasted && currentFrameId) {
+          const insertInside = (list) => {
+            for (let i = 0; i < list.length; i++) {
+              if (list[i].id === currentFrameId) {
+                list[i].children = [...(list[i].children || []), newLayer];
+                return true;
+              }
+              if (list[i].children && insertInside(list[i].children)) return true;
+            }
+            return false;
+          };
+          if (insertInside(newLayers)) {
+            const parentEl = doc.querySelector(`[id="${currentFrameId}"]`);
+            if (parentEl) {
+              parentEl.appendChild(newElement);
+              pasted = true;
+            }
+          }
+        }
+
+        if (!pasted && originalParentId) {
+          const insertAtEnd = (list) => {
+            for (let i = 0; i < list.length; i++) {
+              if (list[i].id === originalParentId) {
+                list[i].children = [...(list[i].children || []), newLayer];
+                return true;
+              }
+              if (list[i].children && insertAtEnd(list[i].children)) return true;
+            }
+            return false;
+          };
+          if (insertAtEnd(newLayers)) {
+            const parentEl = doc.querySelector(`[id="${originalParentId}"]`);
+            if (parentEl) {
+              parentEl.appendChild(newElement);
+              pasted = true;
+            }
+          }
+        }
+        
+        // 4. Fallback
+        if (!pasted) {
+           if (newLayers.length === 1 && newLayers[0].type === 'g') {
+              newLayers[0].children = [...(newLayers[0].children || []), newLayer];
+              const rootEl = doc.querySelector(`[id="${newLayers[0].id}"]`);
+              if (rootEl) rootEl.appendChild(newElement);
+              else if (svgRoot) svgRoot.appendChild(newElement);
+           } else {
+              newLayers.push(newLayer);
+              if (svgRoot) svgRoot.appendChild(newElement);
+           }
+        }
+      });
 
       const serializer = new XMLSerializer();
-      const newHtml = serializer.serializeToString(doc.documentElement);
-
-      updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      updated[pageIndex] = { ...page, layers: newLayers, html: serializer.serializeToString(doc.documentElement) };
       return updated;
     });
 
-    // ── SELECT NEWLY PASTED ELEMENT ───────────────────────────────────────────
-    setSelectedLayerId(newLayer.id);
-    setMultiSelectedIds(new Set([newLayer.id]));
+    // Select all newly pasted elements
+    const newIds = new Set(newItems.map(item => item.newLayer.id));
+    setMultiSelectedIds(newIds);
+    if (newItems.length > 0) setSelectedLayerId(newItems[newItems.length - 1].newLayer.id);
   };
 
   // ── KEYBOARD SHORTCUTS (Cut, Copy, Paste) ──────────────────────────────────
