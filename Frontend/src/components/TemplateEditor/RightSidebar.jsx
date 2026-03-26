@@ -152,7 +152,9 @@ const RightSidebar = ({
                      {/* Page Background Section */}
                      <div className="flex flex-col gap-[1.5vh]">
                        <div className="flex items-center gap-[0.75vw]">
-                         <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap uppercase tracking-wider">Page Background</span>
+                         <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap uppercase tracking-wider">
+                           Page Background - {pages[activePageIndex]?.name || `Page ${activePageIndex + 1}`}
+                         </span>
                          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
                        </div>
 

@@ -65,6 +65,28 @@ const LayerItem = ({
     }
   }, [selectedLayerId, layer.id]);
 
+  // Listen for external expand trigger (e.g. from Pencil tool drawing)
+  useEffect(() => {
+    const handleExpandChain = (e) => {
+      if (!isGroup) return;
+      
+      const hasDescendant = (node, id) => {
+        if (!node.children) return false;
+        for (const child of node.children) {
+          if (child.id === id) return true;
+          if (hasDescendant(child, id)) return true;
+        }
+        return false;
+      };
+
+      if (hasDescendant(layer, e.detail.id)) {
+        setIsOpen(true);
+      }
+    };
+    window.addEventListener('expand-layer-parent', handleExpandChain);
+    return () => window.removeEventListener('expand-layer-parent', handleExpandChain);
+  }, [layer, isGroup]);
+
   // Auto-expand folder if a child is selected
   useEffect(() => {
     if (selectedLayerId && isGroup && !isOpen) {
@@ -238,9 +260,9 @@ const LayerItem = ({
           )}
         </div>
 
-        {/* Multi-select indicator dot */}
-        {multiSelectedIds.size > 1 && multiSelectedIds.has(layer.id) && (
-          <div className="w-[0.4vw] h-[0.4vw] rounded-full bg-[#6366F1] flex-shrink-0" title="Multi-selected" />
+        {/* Selection indicator dot - only for primary selection */}
+        {selectedLayerId === layer.id && (
+          <div className="w-[0.4vw] h-[0.4vw] rounded-full bg-[#6366F1] flex-shrink-0" title="Primary selection" />
         )}
 
         {/* Secondary Visibility/Lock Status (Small) */}
@@ -337,7 +359,8 @@ const Layer = ({
   multiSelectedIds = new Set(),
   setMultiSelectedIds,
   currentFrameId,
-  setCurrentFrameId
+  setCurrentFrameId,
+  clipboard
 }) => {
   const [activeLayerMenu, setActiveLayerMenu] = useState(null); // { layerId, x, y }
   const layerMenuRef = useRef(null);
@@ -384,8 +407,8 @@ const Layer = ({
   // Listen for canvas context menu trigger
   useEffect(() => {
     const handleCanvasContextMenu = (event) => {
-      const { e, layerId } = event.detail;
-      setActiveLayerMenu({ layerId, x: e.clientX, y: e.clientY });
+      const { e, layerId, isOverlay } = event.detail;
+      setActiveLayerMenu({ layerId, x: e.clientX, y: e.clientY, isOverlay });
     };
     window.addEventListener('show-layer-context-menu', handleCanvasContextMenu);
     return () => window.removeEventListener('show-layer-context-menu', handleCanvasContextMenu);
@@ -400,11 +423,15 @@ const Layer = ({
     if (!isDoublePage) return activePageIndex === index;
     if (activePageIndex === 0) return index === 0;
     
-    // Check if activePageIndex starts a spread
-    const isSpread = activePageIndex > 0 && activePageIndex + 1 < pages.length - 1;
-    if (isSpread) {
-      return index === activePageIndex || index === activePageIndex + 1;
+    // Spread Logic: Odd index is Left, Even index is Right
+    // Find the left-side index of the current spread
+    const spreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
+    
+    // Check if both sides of the spread exist
+    if (spreadStart > 0 && spreadStart + 1 < pages.length) {
+      return index === spreadStart || index === spreadStart + 1;
     }
+    
     return activePageIndex === index;
   };
 
@@ -529,6 +556,49 @@ const Layer = ({
               ? Array.from(multiSelectedIds) 
               : [activeLayerMenu.layerId];
 
+            const page = pages[activePageIndex];
+            const isRootLayer = activeLayerMenu.isOverlay || 
+                                (page && page.layers && page.layers.some(l => l.id === activeLayerMenu.layerId));
+
+            if (isRootLayer) {
+                return (
+                  <>
+                    <button 
+                      onClick={() => { 
+                        cutLayer(activePageIndex, targetIds);
+                        setActiveLayerMenu(null); 
+                      }} 
+                      className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                    >
+                      <Scissors size="0.9vw" /> Cut
+                    </button>
+                    <button 
+                      onClick={() => { 
+                        copyLayer(activePageIndex, targetIds);
+                        setActiveLayerMenu(null); 
+                      }} 
+                      className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                    >
+                      <Copy size="0.9vw" /> Copy
+                    </button>
+                    <button 
+                      disabled={!clipboard || (Array.isArray(clipboard) && clipboard.length === 0)}
+                      onClick={() => { 
+                        pasteLayer(activePageIndex);
+                        setActiveLayerMenu(null); 
+                      }} 
+                      className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${
+                        (!clipboard || (Array.isArray(clipboard) && clipboard.length === 0))
+                          ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60' 
+                          : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                      }`}
+                    >
+                      <Clipboard size="0.9vw" /> Paste
+                    </button>
+                  </>
+                );
+            }
+
             return (
               <>
                 {multiSelectedIds.size <= 1 && (
@@ -604,11 +674,16 @@ const Layer = ({
                   <Copy size="0.9vw" /> Copy
                 </button>
                 <button 
+                  disabled={!clipboard || (Array.isArray(clipboard) && clipboard.length === 0)}
                   onClick={() => { 
                     pasteLayer(activePageIndex);
                     setActiveLayerMenu(null); 
                   }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${
+                    (!clipboard || (Array.isArray(clipboard) && clipboard.length === 0))
+                      ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60' 
+                      : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                  }`}
                 >
                   <Clipboard size="0.9vw" /> Paste
                 </button>

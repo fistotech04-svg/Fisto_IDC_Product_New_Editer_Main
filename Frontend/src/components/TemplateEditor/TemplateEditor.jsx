@@ -58,38 +58,60 @@ const TemplateEditor = () => {
   useEffect(() => {
     if (pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return;
 
-    // Track if we just switched to a new page/spread
+    // Track spread transitions to avoid unnecessary selection resets
+    const lastSpreadStart = (lastPageIndexRef.current > 0) ? (lastPageIndexRef.current % 2 === 1 ? lastPageIndexRef.current : lastPageIndexRef.current - 1) : 0;
+    const currentSpreadStart = (activePageIndex > 0) ? (activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1) : 0;
+    
     const hasSwitchedPage = lastPageIndexRef.current !== activePageIndex;
+    const hasSwitchedSpread = lastSpreadStart !== currentSpreadStart;
     lastPageIndexRef.current = activePageIndex;
 
-    // A: Double Page Spread Logic (Starts at odd indices: 1, 3, 5...)
-    const isSpread = isDoublePage && activePageIndex > 0 && activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length;
+    // A: Double Page Spread Logic (Can be on odd OR even index if it's a middle spread)
+    const isSpread = isDoublePage && activePageIndex > 0 && (
+      (activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length) || 
+      (activePageIndex % 2 === 0 && activePageIndex - 1 > 0)
+    );
+
 
     if (isSpread) {
-      const page1 = pages[activePageIndex];
-      const page2 = pages[activePageIndex + 1];
+        const leftIdx = activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1;
+        const rightIdx = activePageIndex % 2 === 1 ? activePageIndex + 1 : activePageIndex;
+        
+        const page1 = pages[leftIdx];
+        const page2 = pages[rightIdx];
 
-      if (page1?.layers?.[0] && page2?.layers?.[0]) {
-        const root1 = page1.layers[0].id;
-        const root2 = page2.layers[0].id;
+        if (page1?.layers?.[0] && page2?.layers?.[0]) {
+          const root1 = page1.layers[0].id;
+          const root2 = page2.layers[0].id;
+          // The active page root — determines which frame context is "entered"
+          const activeRoot = activePageIndex === leftIdx ? root1 : root2;
 
-        // Auto-select roots ONLY if we just landed here OR selection became empty
-        const currentIds = multiSelectedIds || new Set();
-        if (hasSwitchedPage || currentIds.size === 0) {
-          setMultiSelectedIds(new Set([root1, root2]));
-          setSelectedLayerId(root1);
-          setCurrentFrameId(null);
+          // On any page switch: always clear old selection and reset to roots.
+          // Set currentFrameId to the active page root so the first single click
+          // can immediately select child elements without needing to enter the frame first.
+          if (hasSwitchedPage || hasSwitchedSpread) {
+            setMultiSelectedIds(new Set([root1, root2]));
+            setSelectedLayerId(activeRoot);
+            setCurrentFrameId(activeRoot);
+          } else {
+            // Selection became empty — restore roots (Only if not using a tool)
+            const currentIds = multiSelectedIds || new Set();
+            if (currentIds.size === 0 && activeMainTool === 'select') {
+              setMultiSelectedIds(new Set([root1, root2]));
+              setSelectedLayerId(activeRoot);
+              setCurrentFrameId(activeRoot);
+            }
+          }
         }
-      }
     } else {
       // B: Single Page Logic (Cover, Last Page, or Standard Single View)
       const page = pages[activePageIndex];
       if (page?.layers?.[0]) {
         const rootId = page.layers[0].id;
         
-        // Auto-select root ONLY if we just landed here OR selection became empty
+        // Auto-select root ONLY if we just landed here OR selection became empty (Only if not using a tool)
         const currentIds = multiSelectedIds || new Set();
-        if (hasSwitchedPage || currentIds.size === 0) {
+        if (hasSwitchedPage || (currentIds.size === 0 && activeMainTool === 'select')) {
           setMultiSelectedIds(new Set([rootId]));
           setSelectedLayerId(rootId);
           setCurrentFrameId(rootId);
@@ -99,15 +121,13 @@ const TemplateEditor = () => {
   }, [activePageIndex, isDoublePage, pages, multiSelectedIds.size]);
 
   // ── NEW: Spread Alignment Snapping ───────────────────────────────────────────
+  // UPDATED: Only snap if we are in double-page mode AND current logic requires it for initial navigation.
+  // We allow clicking the right-side page to set the active index to even (right page).
   useEffect(() => {
-    if (isDoublePage && pages.length > 2) {
-      // If we are on an EVEN index > 0 (Page 3, 5, 7...), it should be the RIGHT 
-      // half of a spread. Snap activePageIndex back by 1 to start the spread.
-      if (activePageIndex > 0 && activePageIndex % 2 === 0) {
-        setActivePageIndex(activePageIndex - 1);
-      }
-    }
+    if (!isDoublePage) return;
+    // If we were on single page view and switched to double, we might need a jump.
   }, [isDoublePage]);
+
 
   const saveToHistory = () => {
     setHistory(prev => [...prev.slice(-(MAX_HISTORY - 1)), pages]);
@@ -132,6 +152,41 @@ const TemplateEditor = () => {
 
   const updatePageHtml = (pageIndex, html) => {
     saveToHistory();
+
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'image/svg+xml');
+    const svgEl = doc.querySelector('svg');
+
+    const parseLayersRecursive = (element) => {
+      return Array.from(element.children)
+        .filter(child => 
+          !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
+          child.getAttribute('data-name') !== 'Overlay'
+        )
+        .map(child => {
+          const id = child.id || `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+          const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+          const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
+
+          const layer = {
+            id,
+            name: cleanName,
+            type: child.tagName.toLowerCase(),
+            visible: child.getAttribute('data-hidden') !== 'true',
+            locked: child.getAttribute('data-locked') === 'true'
+          };
+
+          if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
+            const subLayers = parseLayersRecursive(child);
+            if (subLayers.length > 0) layer.children = subLayers;
+          }
+
+          return layer;
+        });
+    };
+
+    const newLayers = svgEl ? parseLayersRecursive(svgEl) : [];
+
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
@@ -140,7 +195,8 @@ const TemplateEditor = () => {
 
       updated[pageIndex] = {
         ...page,
-        html
+        html,
+        layers: newLayers
       };
 
       return updated;
@@ -682,17 +738,61 @@ const TemplateEditor = () => {
     const page = pages[pageIndex];
     if (!page) return;
 
+    const parser = new DOMParser();
+    if (!page.html) return;
+    const doc = parser.parseFromString(page.html, 'image/svg+xml');
+
     const clipboardItems = [];
     const findLayers = (layersList, parentId = null) => {
       for (let layer of layersList) {
         if (idList.includes(layer.id)) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(page.html, 'image/svg+xml');
           const element = doc.querySelector(`[id="${layer.id}"]`);
           if (element) {
+            let svgSnippet = new XMLSerializer().serializeToString(element);
+            
+            // Extract external definitions (clipPath, grads) used by this snippet
+            const defSnippets = [];
+            const collectedIds = new Set();
+            const extractDefs = (snippet) => {
+              // match url(#id) or url('#id') or url("#id")
+              const urlRegex = /url\(['"]?#([^)'"]+)['"]?\)/g;
+              let match;
+              while ((match = urlRegex.exec(snippet)) !== null) {
+                const defId = match[1];
+                if (!collectedIds.has(defId)) {
+                  collectedIds.add(defId);
+                  const safeId = defId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                  const defEl = doc.querySelector(`[id="${safeId}"]`);
+                  if (defEl) {
+                    const defHtml = new XMLSerializer().serializeToString(defEl);
+                    defSnippets.push(defHtml);
+                    extractDefs(defHtml); // recursively find deeper dependencies
+                  }
+                }
+              }
+
+              // match href="#id" or xlink:href="#id"
+              const hrefRegex = /href=['"]#([^'"]+)['"]/g;
+              while ((match = hrefRegex.exec(snippet)) !== null) {
+                const defId = match[1];
+                if (!collectedIds.has(defId)) {
+                  collectedIds.add(defId);
+                  const safeId = defId.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                  const defEl = doc.querySelector(`[id="${safeId}"]`);
+                  if (defEl) {
+                    const defHtml = new XMLSerializer().serializeToString(defEl);
+                    defSnippets.push(defHtml);
+                    extractDefs(defHtml);
+                  }
+                }
+              }
+            };
+            extractDefs(svgSnippet);
+
             clipboardItems.push({
               layer: JSON.parse(JSON.stringify(layer)),
-              svgSnippet: new XMLSerializer().serializeToString(element),
+              svgSnippet: svgSnippet,
+              defSnippets: defSnippets,
               originalParentId: parentId
             });
           }
@@ -740,7 +840,29 @@ const TemplateEditor = () => {
       const doc = parser.parseFromString(page.html || '<svg xmlns="http://www.w3.org/2000/svg"></svg>', 'image/svg+xml');
       const svgRoot = doc.querySelector('svg');
 
-      newItems.forEach(({ svgSnippet, newLayer, originalParentId }) => {
+      // Ensure <defs> exists on the target page
+      let defs = doc.querySelector('defs');
+      if (!defs && svgRoot) {
+         defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+         svgRoot.insertBefore(defs, svgRoot.firstChild);
+      }
+
+      newItems.forEach(({ svgSnippet, defSnippets, newLayer, originalParentId }) => {
+        // Add missing defs to the current page's <defs>
+        if (defSnippets && defs) {
+           defSnippets.forEach(defHtml => {
+              const defDoc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${defHtml}</svg>`, 'image/svg+xml');
+              const defEl = defDoc.querySelector('svg').firstElementChild;
+              if (defEl && defEl.id) {
+                // Check if it already exists, if not, append to defs
+                const safeId = defEl.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+                if (!doc.querySelector(`[id="${safeId}"]`)) {
+                   defs.appendChild(doc.importNode(defEl, true));
+                }
+              }
+           });
+        }
+
         const snippetDoc = parser.parseFromString(svgSnippet, 'image/svg+xml');
         const newElement = doc.importNode(snippetDoc.documentElement, true);
         newElement.setAttribute('id', newLayer.id);
@@ -761,21 +883,40 @@ const TemplateEditor = () => {
 
         let pasted = false;
         if (selectedLayerId) {
-          const insertNextTo = (list) => {
+          const insertNextTo = (list, isTopLevel = true) => {
             for (let i = 0; i < list.length; i++) {
               if (list[i].id === selectedLayerId) {
-                list.splice(i + 1, 0, newLayer);
-                return true;
+                if (isTopLevel) {
+                  // Never paste alongside a top-level root folder, paste inside it
+                  list[i].children = [...(list[i].children || []), newLayer];
+                  return { method: 'inside', parentId: list[i].id };
+                } else {
+                  list.splice(i + 1, 0, newLayer);
+                  return { method: 'alongside' };
+                }
               }
-              if (list[i].children && insertNextTo(list[i].children)) return true;
+              if (list[i].children) {
+                const res = insertNextTo(list[i].children, false);
+                if (res) return res;
+              }
             }
             return false;
           };
-          if (insertNextTo(newLayers)) {
-            const selectedEl = doc.querySelector(`[id="${selectedLayerId}"]`);
-            if (selectedEl && selectedEl.parentNode) {
-              selectedEl.parentNode.insertBefore(newElement, selectedEl.nextSibling);
-              pasted = true;
+          
+          const result = insertNextTo(newLayers, true);
+          if (result) {
+            if (result.method === 'inside') {
+              const parentEl = doc.querySelector(`[id="${result.parentId}"]`);
+              if (parentEl) {
+                parentEl.appendChild(newElement);
+                pasted = true;
+              }
+            } else {
+              const selectedEl = doc.querySelector(`[id="${selectedLayerId}"]`);
+              if (selectedEl && selectedEl.parentNode) {
+                selectedEl.parentNode.insertBefore(newElement, selectedEl.nextSibling);
+                pasted = true;
+              }
             }
           }
         }
@@ -820,11 +961,12 @@ const TemplateEditor = () => {
           }
         }
         
-        // 4. Fallback
+        // 4. Fallback: Always insert into the page's root frame to keep it inside the page layer
         if (!pasted) {
-           if (newLayers.length === 1 && newLayers[0].type === 'g') {
-              newLayers[0].children = [...(newLayers[0].children || []), newLayer];
-              const rootEl = doc.querySelector(`[id="${newLayers[0].id}"]`);
+           const topFrame = newLayers.find(l => l.type === 'g');
+           if (topFrame) {
+              topFrame.children = [...(topFrame.children || []), newLayer];
+              const rootEl = doc.querySelector(`[id="${topFrame.id}"]`);
               if (rootEl) rootEl.appendChild(newElement);
               else if (svgRoot) svgRoot.appendChild(newElement);
            } else {
@@ -970,14 +1112,17 @@ const TemplateEditor = () => {
       });
       // -------------------------------------------------------------------
 
-      // 2. Parse current page SVG (or create default if missing)
-      const pageDoc = parser.parseFromString(currentPage.html || '', 'image/svg+xml');
+      // 2. Always start with a fresh canvas when applying a template, preserving the background color
+      const oldDoc = parser.parseFromString(currentPage.html || '', 'image/svg+xml');
+      const currentBg = oldDoc.querySelector('[data-name="Overlay"]')?.getAttribute('fill') || '#ffffff';
+      
+      const { html: defaultHtml } = createDefaultPageData(currentPage.name);
+      const pageDoc = parser.parseFromString(defaultHtml, 'image/svg+xml');
       let pageSvg = pageDoc.querySelector('svg');
       
-      if (!pageSvg) {
-        const { html: defaultHtml } = createDefaultPageData(currentPage.name);
-        const defaultDoc = parser.parseFromString(defaultHtml, 'image/svg+xml');
-        pageSvg = defaultDoc.querySelector('svg');
+      const newOverlay = pageSvg.querySelector('[data-name="Overlay"]');
+      if (newOverlay) {
+        newOverlay.setAttribute('fill', currentBg);
       }
 
       // 3. Find the Root Folder (<g>) - prioritized by data-type="frame"
@@ -1178,6 +1323,14 @@ const TemplateEditor = () => {
         }
         return updated;
       });
+
+      // Update selection to the new root folder of the active page
+      if (updatedLayers.length > 0 && targetIndex === activePageIndex) {
+        const rootId = updatedLayers[0].id;
+        setSelectedLayerId(rootId);
+        setMultiSelectedIds(new Set([rootId]));
+        setCurrentFrameId(rootId);
+      }
       
       setTemplateTargetIndex(null);
     } catch (error) {
@@ -1306,6 +1459,7 @@ const TemplateEditor = () => {
         setMultiSelectedIds={setMultiSelectedIds}
         currentFrameId={currentFrameId}
         setCurrentFrameId={setCurrentFrameId}
+        clipboard={clipboard}
       />
 
       <MainEditor 

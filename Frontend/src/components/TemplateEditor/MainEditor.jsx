@@ -3,6 +3,9 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 
+const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
+const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2V22M2 12H22' stroke='%236366F1' stroke-width='2' stroke-linecap='round'/></svg>") 12 12, crosshair`;
+
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
   .page-svg-container svg {
@@ -82,6 +85,28 @@ const svgGlobalStyles = `
     pointer-events: auto !important;
     cursor: default;
   }
+
+  /* 10. Pencil Tool Cursor */
+  .page-svg-container.pencil-mode svg,
+  .page-svg-container.pencil-mode svg *,
+  .page-svg-container.pencil-mode svg [data-name="Overlay"] {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair !important;
+  }
+
+  /* 10b. Shape Tool Cursor */
+  .page-svg-container.shape-mode svg,
+  .page-svg-container.shape-mode svg *,
+  .page-svg-container.shape-mode svg [data-name="Overlay"] {
+    cursor: ${SHAPE_CURSOR} !important;
+  }
+
+  /* 11. Active Page Indicator - Glow/Shadow selection without solid border */
+  .active-page-outline {
+    outline: 2px solid #5145f6 !important;
+    box-shadow: 0 0 10px rgba(16, 0, 188, 0.45) !important;
+    z-index: 10 !important;
+    transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 `;
 import TopToolbar from './TopToolbar';
 
@@ -93,6 +118,7 @@ const CurveIcon = ({ width, height, className }) => (
     <path d="M12.897 10.8196L11.4993 9.42188L10.1016 10.8196L11.4993 12.2164L12.897 10.8196Z" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinejoin="round"/>
   </svg>
 );
+
 
 const MainEditor = ({ 
   isDoublePage, 
@@ -318,8 +344,8 @@ const MainEditor = ({
     const svg = container?.querySelector('svg');
     if (!svg) return;
 
-    // Check if right-clicked directly on the default overlay or background
-    if (e.target && (e.target.getAttribute('data-name') === 'Overlay' || e.target.closest('[data-name="Overlay"]'))) {
+    // Allow right click on overlay, but block pure svg background clicks if any
+    if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'svg') {
         return;
     }
 
@@ -363,10 +389,8 @@ const MainEditor = ({
 
     if (!layerId) return;
 
-    // Don't show context menu if the layer is an "Overlay"
     const layerEl = svg.querySelector(`[id="${layerId}"]`);
-    if (layerEl && layerEl.getAttribute('data-name') === 'Overlay') return;
-
+    const isOverlay = layerEl ? layerEl.getAttribute('data-name') === 'Overlay' : false;
 
     // 2. Select the layer if not already part of multi-selection
     if (!multiSelectedIds.has(layerId)) {
@@ -376,7 +400,7 @@ const MainEditor = ({
 
     // 3. Dispatch event to trigger the Layer.jsx menu
     window.dispatchEvent(new CustomEvent('show-layer-context-menu', { 
-        detail: { e, layerId, pageIndex } 
+        detail: { e, layerId, pageIndex, isOverlay } 
     }));
   };
 
@@ -385,6 +409,14 @@ const MainEditor = ({
   const selectedLayerIdRef = useRef(null);
   const activeMainToolRef = useRef(activeMainTool);
   const selectedSelectToolRef = useRef(selectedSelectTool);
+  const selectedPenToolRef = useRef(selectedPenTool);
+  const drawingPathRef = useRef(null);
+  const drawingPointsRef = useRef([]);
+  const drawingPageIndexRef = useRef(null);
+  const drawingSvgRef = useRef(null);
+  const drawingShapeRef = useRef(null);
+  const shapeStartPointRef = useRef(null);
+  const skipClearSelectionRef = useRef(false);
   const lastClickRef = useRef({ time: 0, target: null });
 
   // Close menu when clicking outside
@@ -430,6 +462,9 @@ const MainEditor = ({
       } else if (e.key.toLowerCase() === 'v') {
         setActiveMainTool('select');
         setSelectedSelectTool('select');
+      } else if (e.key === 'P' && e.shiftKey) {
+        setActiveMainTool('pen');
+        setSelectedPenTool('pencil');
       } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         // Core Logic: Move selected element with arrow keys
         e.preventDefault();
@@ -478,6 +513,10 @@ const MainEditor = ({
 
   // ── Clear selection on tool switch ──────────────────────────────────────────
   useEffect(() => {
+    if (skipClearSelectionRef.current) {
+      skipClearSelectionRef.current = false;
+      return;
+    }
     if (setSelectedLayerId) {
       setSelectedLayerId(null);
       if (setMultiSelectedIds) {
@@ -510,8 +549,13 @@ const MainEditor = ({
     });
   };
 
-  // Helper: check if the current activePageIndex starts a spread (1, 3, 5...)
-  const isCurrentlySpread = isDoublePage && activePageIndex > 0 && activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length;
+  // Helper: Get the starting index (left page) of the spread containing activePageIndex
+  const spreadStartIndex = (isDoublePage && activePageIndex > 0) 
+    ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+    : activePageIndex;
+    
+  const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+
 
   // ── Sync refs and perform page-level DOM highlights ──────────────────────────
   useEffect(() => {
@@ -522,7 +566,11 @@ const MainEditor = ({
     
     // Highlights across all visible pages in the spread
     const pageIndices = [activePageIndex];
-    if (isCurrentlySpread) pageIndices.push(activePageIndex + 1);
+    if (isCurrentlySpread) {
+      if (!pageIndices.includes(spreadStartIndex)) pageIndices.push(spreadStartIndex);
+      if (!pageIndices.includes(spreadStartIndex + 1)) pageIndices.push(spreadStartIndex + 1);
+    }
+
 
     const idsToHighlight = multiSelectedIds.size > 0
       ? multiSelectedIds
@@ -566,7 +614,8 @@ const MainEditor = ({
       child.id &&
       child.tagName.toLowerCase() !== 'style' &&
       child.tagName.toLowerCase() !== 'defs' &&
-      child.getAttribute('data-hidden') !== 'true'
+      child.getAttribute('data-hidden') !== 'true' &&
+      child.getAttribute('data-name') !== 'Overlay'
     );
   };
 
@@ -623,6 +672,7 @@ const MainEditor = ({
   useEffect(() => { activeMainToolRef.current = activeMainTool; }, [activeMainTool]);
   useEffect(() => { selectedSelectToolRef.current = selectedSelectTool; }, [selectedSelectTool]);
   useEffect(() => { multiSelectedIdsRef.current = multiSelectedIds; }, [multiSelectedIds]);
+  useEffect(() => { selectedPenToolRef.current = selectedPenTool; }, [selectedPenTool]);
 
   const getSvgPoint = (svgElement, clientX, clientY) => {
     const ctm = svgElement?.getScreenCTM();
@@ -924,17 +974,129 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE DOWN: start drag on already-selected element ────────────
   const handleSvgMouseDown = (pageIndex, e) => {
-    if (e.button !== 0 || !['select', 'upload'].includes(activeMainTool)) return;
+    if (e.button !== 0) return;
 
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
     if (!svg) return;
 
+    // ── Pencil Tool Drawing (Only on Active Page) ─────────────────────────────
+    if (activeMainTool === 'pen' && selectedPenTool === 'pencil' && pageIndex === activePageIndex) {
+      const pt = getSvgPoint(svg, e.clientX, e.clientY);
+      if (!pt) return;
+
+      const frameId = currentFrameIdRef.current;
+      let parentEl = svg.querySelector(`[id="${frameId}"]`) || svg.querySelector('g[data-type="frame"]') || svg.querySelector('g');
+
+      if (parentEl) {
+        const existingPencils = svg.querySelectorAll('path[data-pencil="true"]').length;
+        const name = `pencil path ${existingPencils + 1}`;
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const id = `pencil-${Math.random().toString(36).substr(2, 9)}`;
+        path.setAttribute('id', id);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#000000');
+        path.setAttribute('stroke-width', '1.2');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('d', `M ${pt.x} ${pt.y}`);
+        path.setAttribute('data-name', name);
+        path.setAttribute('data-pencil', 'true');
+        
+        parentEl.appendChild(path);
+        drawingPathRef.current = path;
+        drawingPointsRef.current = [{ x: pt.x, y: pt.y }];
+        drawingPageIndexRef.current = pageIndex;
+        drawingSvgRef.current = svg;
+      }
+      return;
+    }
+
+    // ── Shapes Tool Drawing (Only on Active Page) ──────────────────────────────
+    if (activeMainTool === 'shapes' && pageIndex === activePageIndex) {
+      const pt = getSvgPoint(svg, e.clientX, e.clientY);
+      if (!pt) return;
+
+      const frameId = currentFrameIdRef.current;
+      let parentEl = svg.querySelector(`[id="${frameId}"]`) || svg.querySelector('g[data-type="frame"]') || svg.querySelector('g');
+
+      if (parentEl) {
+        let shape;
+        const id = `shape-${Math.random().toString(36).substr(2, 9)}`;
+
+        switch (selectedShapeTool) {
+          case 'rectangle':
+            shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            shape.setAttribute('x', pt.x);
+            shape.setAttribute('y', pt.y);
+            shape.setAttribute('width', '0');
+            shape.setAttribute('height', '0');
+            break;
+          case 'circle':
+            shape = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            shape.setAttribute('cx', pt.x);
+            shape.setAttribute('cy', pt.y);
+            shape.setAttribute('r', '0');
+            break;
+          case 'line':
+            shape = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            shape.setAttribute('x1', pt.x);
+            shape.setAttribute('y1', pt.y);
+            shape.setAttribute('x2', pt.x);
+            shape.setAttribute('y2', pt.y);
+            break;
+          case 'polygon':
+          case 'star':
+            shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            shape.setAttribute('d', `M ${pt.x} ${pt.y}`);
+            break;
+        }
+
+        if (shape) {
+          shape.setAttribute('id', id);
+          shape.setAttribute('fill', 'none');
+          shape.setAttribute('stroke', '#000000');
+          shape.setAttribute('stroke-width', '1');
+          shape.setAttribute('data-name', `${selectedShapeTool} ${id.substr(0, 4)}`);
+          shape.setAttribute('data-type', 'shape');
+
+          parentEl.appendChild(shape);
+          drawingShapeRef.current = shape;
+          shapeStartPointRef.current = pt;
+          drawingPageIndexRef.current = pageIndex;
+          drawingSvgRef.current = svg;
+          suppressClickRef.current = true;
+        }
+      }
+      return;
+    }
+
+    if (!['select', 'upload'].includes(activeMainTool)) return;
+
+    // ── Update Active Page on MouseDown ─────────────────────────────────────
+    if (setActivePageIndex && activePageIndex !== pageIndex) {
+      setActivePageIndex(pageIndex);
+    }
+
+
     // 1. Identify level candidates and check if click hit any (including gaps)
     let candidates = [];
-    const frameId = currentFrameIdRef.current;
-    if (frameId) {
-        const frameEl = svg.querySelector(`[id="${frameId}"]`);
+    let effectiveFrameId = currentFrameIdRef.current;
+    
+    // Auto-enter root frame context on mouse down for double pageview
+    if (isDoublePage) {
+        const topLevels = getTopLevelFrames(svg);
+        const hitRoot = topLevels.find(f => hitTest(f, e.clientX, e.clientY));
+        if (hitRoot && topLevels.length === 1 && effectiveFrameId !== hitRoot.id) {
+            effectiveFrameId = hitRoot.id;
+            setCurrentFrameId(hitRoot.id);
+            currentFrameIdRef.current = hitRoot.id;
+        }
+    }
+
+    if (effectiveFrameId) {
+        const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
         candidates = frameEl ? getDirectChildFrames(frameEl) : [];
     } else {
         candidates = getTopLevelFrames(svg);
@@ -972,9 +1134,8 @@ const MainEditor = ({
     }
 
     // 3. Marquee Start Detection
-    // Start marquee if forced (Ctrl) OR if clicking purely on the background / base page.
-    const isBackground = e.target.tagName.toLowerCase() === 'svg' || e.target.getAttribute('data-name') === 'Overlay';
-    const shouldStartMarquee = e.ctrlKey || (isBackground && (!hitCandidate || hitBaseFrame));
+    // Start marquee ONLY if forced (Ctrl). Normal drags will not start it.
+    const shouldStartMarquee = e.ctrlKey;
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -998,7 +1159,18 @@ const MainEditor = ({
 
       setMarquee({ pageIndex });
       
-      const activeRef = pageIndex === activePageIndex ? marqueeOverlayRef1 : marqueeOverlayRef2;
+      let activeRef;
+      if (isDoublePage) {
+          if (activePageIndex === 0 && pageIndex === 0) {
+              activeRef = marqueeOverlayRef2; // Cover is on the right
+          } else if (pageIndex === spreadStartIndex) {
+              activeRef = marqueeOverlayRef1; // Left side of spread
+          } else {
+              activeRef = marqueeOverlayRef2; // Right side of spread
+          }
+      } else {
+          activeRef = marqueeOverlayRef1; // Single page is always container 1
+      }
       if (activeRef.current) {
           Object.assign(activeRef.current.style, {
               display: 'block',
@@ -1013,8 +1185,78 @@ const MainEditor = ({
   };
 
   // ── FIGMA-STYLE MOUSE MOVE: hover highlight & Marquee update ─────────────────
-  const handleSvgMouseMove = (e) => {
-    if (!['select', 'upload'].includes(activeMainTool)) return;
+  const handleSvgMouseMove = (pageIndex, e) => {
+    // ── Pencil Drawing Update ────────────────────────────────────────────────
+    if (drawingPathRef.current) {
+        const svg = drawingSvgRef.current;
+        const pt = getSvgPoint(svg, e.clientX, e.clientY);
+        if (pt) {
+            const points = drawingPointsRef.current;
+            points.push({ x: pt.x, y: pt.y });
+            const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+            drawingPathRef.current.setAttribute('d', pathData);
+            suppressClickRef.current = true;
+        }
+        return;
+    }
+
+    // ── Shapes Drawing Update ────────────────────────────────────────────────
+    if (drawingShapeRef.current) {
+        const svg = drawingSvgRef.current;
+        const pt = getSvgPoint(svg, e.clientX, e.clientY);
+        const start = shapeStartPointRef.current;
+        
+        if (pt && start) {
+            const shape = drawingShapeRef.current;
+            const dx = pt.x - start.x;
+            const dy = pt.y - start.y;
+            
+            switch (selectedShapeTool) {
+              case 'rectangle':
+                shape.setAttribute('x', Math.min(start.x, pt.x));
+                shape.setAttribute('y', Math.min(start.y, pt.y));
+                shape.setAttribute('width', Math.abs(dx));
+                shape.setAttribute('height', Math.abs(dy));
+                break;
+              case 'circle':
+                const radius = Math.sqrt(dx * dx + dy * dy);
+                shape.setAttribute('r', radius);
+                break;
+              case 'line':
+                shape.setAttribute('x2', pt.x);
+                shape.setAttribute('y2', pt.y);
+                break;
+              case 'polygon': {
+                const p1 = `${start.x},${start.y}`;
+                const p2 = `${pt.x},${pt.y}`;
+                const p3 = `${start.x - (pt.x - start.x)},${pt.y}`;
+                shape.setAttribute('d', `M ${p1} L ${p2} L ${p3} Z`);
+                break;
+              }
+              case 'star': {
+                const rOuter = Math.sqrt(dx * dx + dy * dy);
+                const rInner = rOuter / 2.5;
+                const points = [];
+                for (let i = 0; i < 10; i++) {
+                    const r = (i % 2 === 0) ? rOuter : rInner;
+                    const angle = (Math.PI / 5) * i - Math.PI / 2;
+                    points.push(`${start.x + r * Math.cos(angle)},${start.y + r * Math.sin(angle)}`);
+                }
+                shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+                break;
+              }
+            }
+            suppressClickRef.current = true;
+        }
+        return;
+    }
+
+    const isDrawing = activeMainTool === 'pen' && selectedPenTool === 'pencil';
+    const isShapes = activeMainTool === 'shapes';
+    const isSelectionTool = ['select', 'upload'].includes(activeMainTool);
+    const allowSelection = isSelectionTool || ((isDrawing || isShapes) && pageIndex !== activePageIndex);
+
+    if (!allowSelection) return;
 
     const container = e.currentTarget;
 
@@ -1030,7 +1272,18 @@ const MainEditor = ({
         const height = Math.abs(curY - startY);
         
         // Direct DOM update for marquee box - avoids React re-render lag
-        const activeRef = marqueeRef.current.pageIndex === activePageIndex ? marqueeOverlayRef1 : marqueeOverlayRef2;
+        let activeRef;
+        if (isDoublePage) {
+            if (activePageIndex === 0 && marqueeRef.current.pageIndex === 0) {
+                activeRef = marqueeOverlayRef2;
+            } else if (marqueeRef.current.pageIndex === spreadStartIndex) {
+                activeRef = marqueeOverlayRef1;
+            } else {
+                activeRef = marqueeOverlayRef2;
+            }
+        } else {
+            activeRef = marqueeOverlayRef1;
+        }
         if (activeRef.current) {
             activeRef.current.style.left = `${x}px`;
             activeRef.current.style.top = `${y}px`;
@@ -1067,14 +1320,16 @@ const MainEditor = ({
     const frameId = currentFrameIdRef.current;
     
     // ── DYNAMIC CONTEXT (Double Page): Auto-adjust target level for easy edit ─────
-    // If we're at top level (null frameId) on a spread, and hover a root folder,
-    // let's treat it as entered context so user can hit children immediately.
+    // If we're on a spread, always try to "enter" the page we are hovering
     let effectiveFrameId = frameId;
-    if (!frameId && isDoublePage) {
-        const topFrames = getTopLevelFrames(svg);
-        const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
-        if (hitRoot && topFrames.length === 1) {
+    if (isDoublePage) {
+        const tops = getTopLevelFrames(svg);
+        const hitRoot = tops.find(f => hitTest(f, e.clientX, e.clientY));
+        if (hitRoot && tops.length === 1 && effectiveFrameId !== hitRoot.id) {
             effectiveFrameId = hitRoot.id;
+            // No need to set state via setCurrentFrameId here, 
+            // the handleClick will finalize it. 
+            // Just use local effectiveFrameId for hover highlighting.
         }
     }
 
@@ -1162,6 +1417,93 @@ const MainEditor = ({
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee) ─────────────────────
   useEffect(() => {
     const handleGlobalMouseUp = () => {
+        if (drawingPathRef.current) {
+            const points = drawingPointsRef.current;
+            const pageIdx = drawingPageIndexRef.current;
+            const path = drawingPathRef.current;
+            const svgEl = path?.ownerSVGElement;
+            
+            // If it was just a single click (one point), make it a dot
+            if (points.length === 1 && path) {
+                const pt = points[0];
+                path.setAttribute('d', `M ${pt.x} ${pt.y} L ${pt.x + 0.01} ${pt.y}`);
+            }
+
+            drawingPathRef.current = null;
+            drawingPointsRef.current = [];
+            drawingPageIndexRef.current = null;
+            drawingSvgRef.current = null;
+
+            if (svgEl && updatePageHtml) {
+                updatePageHtml(pageIdx, svgEl.outerHTML);
+                
+                // Ensure parents are expanded in sidebar
+                if (path && path.id) {
+                    window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: path.id } }));
+                }
+            }
+            
+            setTimeout(() => {
+                suppressClickRef.current = false;
+            }, 50);
+            return;
+        }
+
+        if (drawingShapeRef.current) {
+            const shape = drawingShapeRef.current;
+            const pageIdx = drawingPageIndexRef.current;
+            const svgEl = shape?.ownerSVGElement;
+
+            drawingShapeRef.current = null;
+            shapeStartPointRef.current = null;
+            drawingPageIndexRef.current = null;
+            drawingSvgRef.current = null;
+
+            if (svgEl && updatePageHtml) {
+                updatePageHtml(pageIdx, svgEl.outerHTML);
+                if (shape && shape.id) {
+                    window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: shape.id } }));
+                    
+                    // Auto-select the newly created shape
+                    if (setSelectedLayerId) {
+                        setSelectedLayerId(shape.id);
+                        selectedLayerIdRef.current = shape.id;
+                    }
+                    if (setMultiSelectedIds) {
+                        setMultiSelectedIds(new Set([shape.id]));
+                        multiSelectedIdsRef.current = new Set([shape.id]);
+                        
+                        // Force highlight preview
+                        drawOverlayHighlight(shape, 'selected');
+                    }
+                }
+                
+                // Switch back to selection tool after creation with a slight delay
+                // to avoid race conditions where the end-of-drag click might clear selection
+                skipClearSelectionRef.current = true;
+                setTimeout(() => {
+                    if (setActiveMainTool) setActiveMainTool('select');
+                    
+                    // Final re-assertion of selection after tool change to ensure it sticks
+                    if (setSelectedLayerId) {
+                        setSelectedLayerId(shape.id);
+                        selectedLayerIdRef.current = shape.id;
+                    }
+                    if (setMultiSelectedIds) {
+                        setMultiSelectedIds(new Set([shape.id]));
+                        multiSelectedIdsRef.current = new Set([shape.id]);
+                        drawOverlayHighlight(shape, 'selected');
+                    }
+                    suppressClickRef.current = false;
+                }, 100);
+            } else {
+                setTimeout(() => {
+                    suppressClickRef.current = false;
+                }, 100);
+            }
+            return;
+        }
+
         if (marqueeRef.current) {
             const pageIdx = marqueeRef.current.pageIndex;
             setMarquee(null);
@@ -1191,7 +1533,28 @@ const MainEditor = ({
       setSelectedLayerId(id);
       selectedLayerIdRef.current = id;
     }
+    
+    // In double page mode, if we are selecting a root folder, 
+    // we should try to keep both root folders in the multi-selection set.
     const newSet = id ? new Set([id]) : new Set();
+    
+    if (isDoublePage && id && pages.length > 0) {
+      // Find the page index this ID belongs to
+      const pgIdx = pages.findIndex(p => p.layers?.[0]?.id === id);
+      if (pgIdx !== -1) {
+        // If it's a root folder, check if its spread-mate should stay selected
+        const lIdx = pgIdx % 2 === 1 ? pgIdx : pgIdx - 1;
+        const rIdx = pgIdx % 2 === 1 ? pgIdx + 1 : pgIdx;
+        
+        if (lIdx >= 0 && lIdx < pages.length && rIdx < pages.length) {
+          const rootL = pages[lIdx]?.layers?.[0]?.id;
+          const rootR = pages[rIdx]?.layers?.[0]?.id;
+          if (rootL) newSet.add(rootL);
+          if (rootR) newSet.add(rootR);
+        }
+      }
+    }
+
     multiSelectedIdsRef.current = newSet;
     setMultiSelectedIds(newSet);
   };
@@ -1200,12 +1563,21 @@ const MainEditor = ({
   const handleSvgClick = (e) => {
     e.stopPropagation();
 
+    // ── Update Active Page on Click ─────────────────────────────────────────
+    const container = e.currentTarget.closest('.page-svg-container');
+    if (container) {
+      const pageIdx = parseInt(container.getAttribute('data-page-index'));
+      if (!isNaN(pageIdx) && setActivePageIndex && activePageIndex !== pageIdx) {
+        setActivePageIndex(pageIdx);
+      }
+    }
+
+
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
       return;
     }
 
-    const container = e.currentTarget;
     const svg = container.querySelector('svg');
     if (!svg) return;
 
@@ -1216,8 +1588,12 @@ const MainEditor = ({
     clearOverlayType('child-hover');
 
     // ── CLICK-OUTSIDE-PREVENTION (if in tools like pen/shapes but not typing) ───
-    if (!['select', 'upload', 'type'].includes(activeMainToolRef.current) && 
-        !getDraggableElement(e.target, e.currentTarget)) {
+    const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+    const isPencil = activeMainToolRef.current === 'pen' && selectedPenTool === 'pencil';
+    const isSelectionTool = ['select', 'upload', 'type'].includes(activeMainToolRef.current);
+    const allowClick = isSelectionTool || (isPencil && pageIdx !== activePageIndex);
+
+    if (!allowClick && !getDraggableElement(e.target, e.currentTarget)) {
         return;
     }
 
@@ -1320,13 +1696,15 @@ const MainEditor = ({
 
     // ── DYNAMIC CONTEXT (Double Page): Auto-enter context to avoid double click ───
     let effectiveFrameId = frameId;
-    if (!frameId && isDoublePage) {
-        const topFrames = getTopLevelFrames(svg);
-        const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
-        if (hitRoot && topFrames.length === 1) {
-            effectiveFrameId = hitRoot.id;
-            setCurrentFrameId(hitRoot.id);
-            currentFrameIdRef.current = hitRoot.id;
+    const topFrames = getTopLevelFrames(svg);
+    const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
+
+    if (isDoublePage && hitRoot && topFrames.length === 1) {
+        // Always enter the context of the page we click, even if another was entered
+        effectiveFrameId = hitRoot.id;
+        if (frameId !== hitRoot.id) {
+          setCurrentFrameId(hitRoot.id);
+          currentFrameIdRef.current = hitRoot.id;
         }
     }
 
@@ -1374,8 +1752,10 @@ const MainEditor = ({
           const isRootFolder = topFrames.length === 1 && topFrames[0].id === frameId;
 
           if (isRootFolder) {
-            // ── Root Folder Gap: Behavior changed to KEEP root selected
-            setSingleSelection(frameId);
+            // ── Root Folder Gap (Canvas Background): Deselect everything
+            setSingleSelection(null);
+            setCurrentFrameId(null);
+            currentFrameIdRef.current = null;
           } else {
             // ── Deeper Frame Gap: exit one level (select frame, keep entered)
             setSingleSelection(frameId);
@@ -1407,14 +1787,8 @@ const MainEditor = ({
             currentFrameIdRef.current = hitTopFrame.id;
           }
         } else {
-          // Hit nothing? Behavior for Root Folder
-          if (topLevelEls.length === 1) {
-            setSingleSelection(topLevelEls[0].id);
-            setCurrentFrameId(topLevelEls[0].id);
-            currentFrameIdRef.current = topLevelEls[0].id;
-          } else {
-            setSingleSelection(null);
-          }
+          // Hit nothing? Deselect everything
+          setSingleSelection(null);
         }
         return;
       }
@@ -1461,18 +1835,10 @@ const MainEditor = ({
         return;
       }
     } else {
-      // 2. Clicked canvas background — ONLY deselect everything if there are multiple frames
-      // Otherwise, keep the single root folder selected
-      const currentTopFrames = getTopLevelFrames(svg);
-      if (currentTopFrames.length === 1) {
-        setSingleSelection(currentTopFrames[0].id);
-        setCurrentFrameId(currentTopFrames[0].id);
-        currentFrameIdRef.current = currentTopFrames[0].id;
-      } else {
-        setSingleSelection(null);
-        setCurrentFrameId(null);
-        currentFrameIdRef.current = null;
-      }
+      // 2. Clicked canvas background — deselect everything
+      setSingleSelection(null);
+      setCurrentFrameId(null);
+      currentFrameIdRef.current = null;
     }
   };
 
@@ -1674,20 +2040,14 @@ const MainEditor = ({
 
   const handlePrevPage = () => {
     if (isDoublePage) {
-      if (activePageIndex === 0) return;
-      
-      const prevIdx = activePageIndex - 1;
-      const wasPrevSpread = isDoublePage && prevIdx - 1 > 0 && prevIdx < pages.length - 1;
-      
-      if (activePageIndex === 1) {
+      if (activePageIndex <= 0) return;
+      if (activePageIndex === 1 || activePageIndex === 2) {
         setActivePageIndex(0);
-      } else if (wasPrevSpread) {
-        // Jump back to start of previous spread
-        setActivePageIndex(prev => Math.max(1, prev - 2));
-      } else {
-        // Just go back one
-        setActivePageIndex(prev => Math.max(0, prev - 1));
+        return;
       }
+      // Jump to the start of the previous spread
+      const currentSpreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
+      setActivePageIndex(Math.max(1, currentSpreadStart - 2));
     } else {
       setActivePageIndex(prev => Math.max(0, prev - 1));
     }
@@ -1697,16 +2057,15 @@ const MainEditor = ({
     if (isDoublePage) {
       if (activePageIndex === 0) {
         if (pages.length > 1) setActivePageIndex(1);
-      } else if (isCurrentlySpread) {
-        // We are on a spread, jump 2
-        if (activePageIndex + 2 < pages.length) {
-          setActivePageIndex(prev => prev + 2);
-        }
-      } else {
-        // We are on a single page, jump 1
-        if (activePageIndex + 1 < pages.length) {
-          setActivePageIndex(prev => prev + 1);
-        }
+        return;
+      }
+      
+      // Jump to the start of the next spread/page after the current spread
+      const currentSpreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
+      const nextIdx = currentSpreadStart + 2;
+      
+      if (nextIdx < pages.length) {
+        setActivePageIndex(nextIdx);
       }
     } else {
       if (activePageIndex + 1 < pages.length) {
@@ -1743,65 +2102,44 @@ const MainEditor = ({
         onFlipH={() => handleFlip('h')}
         onFlipV={() => handleFlip('v')}
         hasSelection={(() => {
-          // Check if anything is selected
-          if (!selectedLayerId && multiSelectedIds.size === 0) return false;
-          
-          // Identify if the only thing selected is the Root Folder
-          const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-          const svg = activeContainer?.querySelector('svg');
-          if (svg) {
-            const topFrames = getTopLevelFrames(svg);
-            if (topFrames.length === 1) {
-              const rootId = topFrames[0].id;
-              const overlayId = topFrames[0].querySelector('[data-name="Overlay"]')?.id;
-              const isBase = (id) => id === rootId || (overlayId && id === overlayId);
+          const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
+          if (ids.length === 0) return false;
 
-              // If only root or its background overlay is selected, we consider it "no valid selection" for rotation
-              const onlyRoot = (isBase(selectedLayerId) && multiSelectedIds.size === 0) || 
-                               (multiSelectedIds.size === 1 && Array.from(multiSelectedIds).some(isBase));
-              if (onlyRoot) return false;
-            }
-          }
-          return true;
+          // Collect all "Base" (Root Frame or Background Overlay) IDs across all visible containers
+          // (Handles both single and double-page spread selections)
+          const baseIds = new Set();
+          document.querySelectorAll('.page-svg-container svg').forEach(svg => {
+            const topLevelFrames = getTopLevelFrames(svg);
+            topLevelFrames.forEach(frame => {
+              baseIds.add(frame.id);
+              const overlay = frame.querySelector('[data-name="Overlay"]');
+              if (overlay) baseIds.add(overlay.id);
+            });
+          });
+
+          // Enable tools ONLY if at least one selected ID is NOT a base/root frame
+          return ids.some(id => id && !baseIds.has(id));
         })()}
       />
       <div 
         className="flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden bg-[#FBFBFB]"
         onClick={(e) => {
-          // ── Background Click: Identify Base Root Folder(s) ─────────────────
-          const containers = [];
-          containers.push(document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`));
-          if (isCurrentlySpread) {
-            containers.push(document.querySelector(`.page-svg-container[data-page-index="${activePageIndex + 1}"]`));
+          // ── Background Click: Deselect everything ─────────────────
+          const container = e.target.closest('.page-svg-container');
+          const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+          
+          if (setActivePageIndex && activePageIndex !== pageIdx) {
+            setActivePageIndex(pageIdx);
           }
 
-          const rootIds = [];
-          containers.forEach(container => {
-            const svg = container?.querySelector('svg');
-            if (svg) {
-              const topFrames = getTopLevelFrames(svg);
-              if (topFrames.length === 1) {
-                rootIds.push(topFrames[0].id);
-              }
-            }
-          });
-
-          if (rootIds.length > 0) {
-            if (setSelectedLayerId) {
-              setSelectedLayerId(rootIds[0]);
-              setMultiSelectedIds(new Set(rootIds));
-              setCurrentFrameId(null); // Deselect sub-frame to allow whole page moving
-              currentFrameIdRef.current = null;
-            }
-            setActiveMainTool('select');
-          } else {
+          if (setSelectedLayerId) {
             setSelectedLayerId(null);
             setMultiSelectedIds(new Set());
             setCurrentFrameId(null);
             currentFrameIdRef.current = null;
-            setActiveMainTool('select');
           }
         }}
+
       >
         
         {/* Top Group: Selection & Primary Tools - Independent Position */}
@@ -2188,22 +2526,29 @@ const MainEditor = ({
             }}
           >
             {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
-            {pages.length > 0 && (isDoublePage ? (activePageIndex > 0 && pages[activePageIndex]) : pages[activePageIndex]) && (
+            {pages.length > 0 && (isDoublePage ? (spreadStartIndex > 0 && pages[spreadStartIndex]) : pages[activePageIndex]) && (
+
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top) */}
+                {((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
                 <div className="absolute top-[-2.5vw] z-30" style={{ [isCurrentlySpread ? 'left' : 'right']: '0vw' }}>
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      setOpenMenuIndex(openMenuIndex === activePageIndex ? null : activePageIndex);
+                      const displayIdx = isDoublePage ? spreadStartIndex : activePageIndex;
+                      setOpenMenuIndex(openMenuIndex === displayIdx ? null : displayIdx);
                     }}
+
                     className={`cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200`}
                   >
                     <Icon icon={isCurrentlySpread ? "ri:menu-fold-4-fill" : "ri:menu-unfold-4-fill"} width="1.2vw" height="1.2vw" className="text-[#111827]" />
                   </button>
 
                   <AnimatePresence>
-                    {openMenuIndex === activePageIndex && (
+                    {(() => {
+                      const displayIdx = isDoublePage ? spreadStartIndex : activePageIndex;
+                      return openMenuIndex === displayIdx && (
+
                       <motion.div
                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2248,13 +2593,15 @@ const MainEditor = ({
                           onClick={() => { deletePage(activePageIndex); setOpenMenuIndex(null); }}
                         />
                       </motion.div>
-                    )}
+                      );
+                    })()}
                   </AnimatePresence>
                 </div>
+                )}
 
                 {/* A4 Canvas Page 1 Inner */}
                 <div 
-                  className="relative z-0 flex flex-col overflow-hidden bg-white group/inner"
+                  className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
                   style={{ 
                     height: '78vh', 
                     aspectRatio: '1 / 1.414',
@@ -2262,27 +2609,34 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool}`} data-page-index={activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
-                    {pages[activePageIndex]?.html ? (
+                    {(() => {
+                        const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
+                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                        const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+
+                        return pages[displayIndex]?.html ? (
                         <div 
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
+                          style={{ cursor: isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : 'default') }}
                         >
                          <div 
                            className="w-full h-full flex items-center justify-center"
-                           dangerouslySetInnerHTML={{ __html: pages[activePageIndex]?.html }}
-                           onMouseDown={(e) => handleSvgMouseDown(activePageIndex, e)}
-                           onMouseMove={handleSvgMouseMove}
+                           dangerouslySetInnerHTML={{ __html: pages[displayIndex]?.html }}
+                           onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                           onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
                            onMouseLeave={handleSvgMouseLeave}
                            onClick={handleSvgClick}
                            onDoubleClick={handleSvgDoubleClick}
-                           onContextMenu={(e) => handleSvgContextMenu(activePageIndex, e)}
+                           onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                          />
                          {/* Selection Overlay (Overlay rotated element perfectly) */}
                          <svg 
-                           id={`highlight-overlay-${activePageIndex}`}
+                           id={`highlight-overlay-${displayIndex}`}
                            className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
                          />
+
 
                           {/* Marquee Selection Box */}
                           <div 
@@ -2300,18 +2654,26 @@ const MainEditor = ({
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                         <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">A4 sheet (210 x 297 mm)</span>
-                        <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
+                        {displayIndex === activePageIndex && (
+                          <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
+                        )}
                       </div>
-                    )}
+                    );
+                    })()}
+
 
                     {/* Simple Click-to-Open Gallery Overlay for empty pages */}
-                    {!pages[activePageIndex]?.html && (
-                      <div 
-                        className="absolute inset-0 z-10"
-                        onClick={() => onOpenTemplateModal(activePageIndex)}
-                        onContextMenu={(e) => e.preventDefault()}
-                      />
-                    )}
+                    {(() => {
+                      const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
+                      return !pages[displayIndex]?.html && displayIndex === activePageIndex && (
+                        <div 
+                          className="absolute inset-0 z-10"
+                          onClick={() => onOpenTemplateModal(displayIndex)}
+                          onContextMenu={(e) => e.preventDefault()}
+                        />
+                      );
+                    })()}
+
                   </div>
 
                 </div>
@@ -2325,15 +2687,18 @@ const MainEditor = ({
 
             {/* A4 Canvas Page 2 (Visible if Double Page is enabled OR Right-Side Cover) */}
             {(activePageIndex === 0 ? (isDoublePage && pages[0]) : isCurrentlySpread) && (
+
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top - Right Side) */}
+                {((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
                 <div className="absolute top-[-2.5vw] right-0 z-30">
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      const displayIndex = activePageIndex === 0 ? 0 : activePageIndex + 1;
+                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
                       setOpenMenuIndex(openMenuIndex === displayIndex ? null : displayIndex);
                     }}
+
                     className="cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200"
                   >
                     <Icon icon="ri:menu-unfold-4-fill" width="1.2vw" height="1.2vw" className="text-[#111827]" />
@@ -2341,8 +2706,9 @@ const MainEditor = ({
 
                   <AnimatePresence>
                     {(() => {
-                      const displayIndex = activePageIndex === 0 ? 0 : activePageIndex + 1;
+                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
                       return openMenuIndex === displayIndex && (
+
                         <motion.div
                           initial={{ opacity: 0, y: -10, scale: 0.95 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2391,10 +2757,11 @@ const MainEditor = ({
                     })()}
                   </AnimatePresence>
                 </div>
+                )}
 
                 {/* A4 Canvas Page 2 Inner */}
                 <div 
-                  className="relative z-0 flex flex-col overflow-hidden bg-white group/inner"
+                  className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
                   style={{ 
                     height: '78vh', 
                     aspectRatio: '1 / 1.414',
@@ -2402,21 +2769,26 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${activePageIndex === 0 ? selectedSelectTool : selectedSelectTool}`} data-page-index={activePageIndex === 0 ? 0 : activePageIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+
                     <style>{svgGlobalStyles}</style>
                     {(() => {
-                      const displayIndex = activePageIndex === 0 ? 0 : activePageIndex + 1;
+                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
                       const page = pages[displayIndex];
+                      const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                      const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+
 
                       return page?.html ? (
                         <div
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
+                          style={{ cursor: isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : 'default') }}
                         >
                            <div
                              className="w-full h-full flex items-center justify-center"
                              dangerouslySetInnerHTML={{ __html: page.html }}
                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                             onMouseMove={handleSvgMouseMove}
+                             onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
                              onMouseLeave={handleSvgMouseLeave}
                              onClick={handleSvgClick}
                              onDoubleClick={handleSvgDoubleClick}
@@ -2445,19 +2817,22 @@ const MainEditor = ({
                         <>
                           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
                             <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">A4 sheet (210 x 297 mm)</span>
-                            <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
+                            {displayIndex === activePageIndex && (
+                              <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
+                            )}
                           </div>
                           {/* Click Overlay to open gallery */}
-                          <div 
-                            className="absolute inset-0 cursor-pointer z-10"
-                            onClick={() => onOpenTemplateModal(displayIndex)}
-                            onContextMenu={(e) => e.preventDefault()}
-                          />
+                          {displayIndex === activePageIndex && (
+                            <div 
+                              className="absolute inset-0 cursor-pointer z-10"
+                              onClick={() => onOpenTemplateModal(displayIndex)}
+                              onContextMenu={(e) => e.preventDefault()}
+                            />
+                          )}
                         </>
                       );
                   })()}
-                </div>
-                  
+                  </div>
                 </div>
               </div>
             )}
@@ -2466,13 +2841,13 @@ const MainEditor = ({
           {/* Right Navigation Button */}
           <button 
             disabled={isDoublePage 
-              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? activePageIndex + 2 >= pages.length : activePageIndex + 1 >= pages.length)) 
+              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length)) 
               : activePageIndex + 1 >= pages.length
             }
             onClick={handleNextPage}
             className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-20 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${ 
               (isDoublePage 
-                ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? activePageIndex + 2 >= pages.length : activePageIndex + 1 >= pages.length)) 
+                ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length)) 
                 : activePageIndex + 1 >= pages.length
               ) ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
             }`}
@@ -2489,11 +2864,11 @@ const MainEditor = ({
             <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#D1D5DB] group-hover:text-[#4B5563] rotate-[90deg]" />
           </button>
         </div>
-
       </div>
     </div>
   );
 };
+
 
 const PlusIcon = () => (
   <svg width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
