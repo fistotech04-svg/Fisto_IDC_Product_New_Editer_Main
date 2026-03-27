@@ -5,6 +5,7 @@ import interact from 'interactjs';
 
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
 const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2V22M2 12H22' stroke='%236366F1' stroke-width='2' stroke-linecap='round'/></svg>") 12 12, crosshair`;
+const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 15 15'><path fill='%23000' d='M10.5 1a.5.5 0 0 1 0 1c-.922 0-1.54.23-1.92.563C8.206 2.89 8 3.366 8 4v3h1.25a.5.5 0 0 1 0 1H8v3c0 .634.207 1.11.58 1.437c.38.333.998.563 1.92.563a.5.5 0 0 1 0 1c-1.078 0-1.96-.27-2.58-.812a2.6 2.6 0 0 1-.42-.47q-.177.256-.42.47C6.46 13.73 5.577 14 4.5 14a.5.5 0 0 1 0-1c.922 0 1.54-.23 1.92-.563c.373-.326.58-.803.58-1.437V8H5.75a.5.5 0 0 1 0-1H7V4c0-.634-.207-1.11-.58-1.437C6.04 2.23 5.423 2 4.5 2a.5.5 0 0 1 0-1c1.078 0 1.96.27 2.58.812q.243.213.42.468q.177-.255.42-.468C8.54 1.27 9.423 1 10.5 1' /></svg>") 7 7, text`;
 
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
@@ -42,15 +43,22 @@ const svgGlobalStyles = `
   .page-svg-container svg tspan {
     user-select: none !important;
     -webkit-user-select: none !important;
-    cursor: default;
+    cursor: inherit;
   }
 
   /* Allow text selection when editing */
-  .page-svg-container svg text[contenteditable="true"],
-  .page-svg-container svg tspan[contenteditable="true"] {
+  .page-svg-container svg [contenteditable="true"],
+  .page-svg-container svg foreignObject[data-editing="true"] {
     user-select: text !important;
     -webkit-user-select: text !important;
-    cursor: text !important;
+    cursor: ${TYPE_CURSOR} !important;
+    outline: none;
+  }
+
+  div.text-edit-box {
+    outline: 1.5px solid #6366F1 !important;
+    box-shadow: 0 0 4px rgba(99, 102, 241, 0.3) !important;
+    background: white !important;
   }
 
   /* 1. HOVER state — blue outline on the topmost frame candidate */
@@ -98,6 +106,13 @@ const svgGlobalStyles = `
   .page-svg-container.shape-mode svg *,
   .page-svg-container.shape-mode svg [data-name="Overlay"] {
     cursor: ${SHAPE_CURSOR} !important;
+  }
+
+  /* 10c. Type Tool Cursor */
+  .page-svg-container.type-mode svg,
+  .page-svg-container.type-mode svg *,
+  .page-svg-container.type-mode svg [data-name="Overlay"] {
+    cursor: ${TYPE_CURSOR} !important;
   }
 
   /* 11. Active Page Indicator - Glow/Shadow selection without solid border */
@@ -148,6 +163,7 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
+  const [isEditingText, setIsEditingText] = useState(false);
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
@@ -178,6 +194,10 @@ const MainEditor = ({
 
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
+    
+    // Skip if element is hidden (e.g. while editing text)
+    if (el.style.visibility === 'hidden' || el.style.opacity === '0') return;
+
     const overlay = getOverlayForElement(el);
     if (!overlay) return;
     
@@ -576,6 +596,8 @@ const MainEditor = ({
       ? multiSelectedIds
       : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
 
+    if (isEditingText) return;
+
     idsToHighlight.forEach(id => {
       document.querySelectorAll(`[id="${id}"]`).forEach(el => {
         // Highlights across multiple pages are drawn in their respective containers
@@ -591,7 +613,7 @@ const MainEditor = ({
         drawOverlayHighlight(el, 'entered');
       });
     }
-  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom]);
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, isEditingText]);
 
   // Sync refs
   useEffect(() => { 
@@ -979,6 +1001,34 @@ const MainEditor = ({
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
     if (!svg) return;
+
+    // ── Creation Tool: Text (Type) Tool ─────────────────────────────────────────
+    if (activeMainTool === 'type') {
+      const pt = getSvgPoint(svg, e.clientX, e.clientY);
+      if (!pt) return;
+
+      const frameId = currentFrameIdRef.current;
+      let parentEl = svg.querySelector(`[id="${frameId}"]`) || svg.querySelector('g[data-type="frame"]') || svg.querySelector('g');
+
+      if (parentEl) {
+        const id = `text-${Math.random().toString(36).substr(2, 9)}`;
+        const newText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        newText.setAttribute('id', id);
+        newText.setAttribute('x', pt.x);
+        newText.setAttribute('y', pt.y);
+        newText.setAttribute('fill', '#000000');
+        newText.setAttribute('font-family', 'Inter, sans-serif');
+        newText.setAttribute('font-size', '16');
+        newText.textContent = ''; 
+        
+        parentEl.appendChild(newText);
+        
+        // Ensure it's rendered so we can get its context
+        enterTextEditMode(newText);
+        suppressClickRef.current = true;
+      }
+      return;
+    }
 
     // ── Pencil Tool Drawing (Only on Active Page) ─────────────────────────────
     if (activeMainTool === 'pen' && selectedPenTool === 'pencil' && pageIndex === activePageIndex) {
@@ -1559,6 +1609,237 @@ const MainEditor = ({
     setMultiSelectedIds(newSet);
   };
 
+  const enterTextEditMode = (target) => {
+    const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
+    if (isText && target.id) {
+      setIsEditingText(true);
+      const svgRoot = target.ownerSVGElement;
+      const bbox = target.getBBox();
+      const style = window.getComputedStyle(target);
+      const transform = target.getAttribute('transform');
+      
+      // Hide original text to create illusion of editing in-place
+      target.style.opacity = '0';
+      target.style.visibility = 'hidden';
+      
+      // Create foreignObject directly inside the SVG
+      const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+      const padX = 1; 
+      const padY = 1;
+      
+      // Initial calculated dimensions
+      const initialWidth = Math.max(bbox.width + padX * 2, 4);
+      const initialHeight = Math.max(bbox.height + padY * 2, 20);
+      
+      const isNewCreation = target.textContent.length === 0;
+      
+      fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || bbox.x) - padX);
+      
+      if (isNewCreation) {
+          // For new creation, use baseline adjustment so it centered on click
+          fo.setAttribute('y', (parseFloat(target.getAttribute('y')) || bbox.y) - (initialHeight * 0.8));
+      } else {
+          // For existing text, use the actual visual top (bbox.y)
+          fo.setAttribute('y', bbox.y - padY);
+      }
+      
+      fo.setAttribute('width', initialWidth + 100); // Leave room for growth initially
+      fo.setAttribute('height', initialHeight + 50);
+      if (transform) fo.setAttribute('transform', transform);
+      
+      // Mark it so interact.js ignores dragging while editing
+      fo.setAttribute('data-editing', 'true');
+      fo.style.cursor = TYPE_CURSOR;
+      fo.style.overflow = 'visible';
+      
+      const div = document.createElement('div');
+      div.setAttribute('contenteditable', 'true');
+      div.className = 'text-edit-box';
+      div.style.width = 'fit-content';
+      div.style.minWidth = '1px';
+      div.style.height = 'fit-content';
+      div.style.minHeight = '1em';
+      div.style.outline = 'none';
+      div.style.border = 'none';
+      div.style.background = 'transparent';
+      div.style.cursor = TYPE_CURSOR;
+      div.style.userSelect = 'text';
+      div.style.overflow = 'visible';
+      
+      // Copy exact styles over to make it look identical to original text
+      div.style.fontFamily = target.getAttribute('font-family') || style.fontFamily;
+      let fSize = target.getAttribute('font-size') || style.fontSize;
+      if (!fSize.toString().includes('px') && !fSize.toString().includes('em') && !fSize.toString().includes('rem')) {
+          fSize += 'px';
+      }
+      div.style.fontSize = fSize;
+      div.style.fontWeight = target.getAttribute('font-weight') || style.fontWeight;
+      
+      let color = target.getAttribute('fill') || style.fill;
+      if (color === 'none') color = target.getAttribute('stroke') || style.stroke || '#000';
+      div.style.color = color;
+      div.style.letterSpacing = target.getAttribute('letter-spacing') || style.letterSpacing;
+      
+      div.style.lineHeight = '1.2';
+      div.style.whiteSpace = 'pre';
+      div.style.wordWrap = 'normal';
+      
+      div.style.padding = `${padY}px ${padX}px`; 
+      div.style.margin = '0';
+      div.style.display = 'inline-block';
+      div.style.webkitFontSmoothing = 'antialiased';
+      div.style.mozOsxFontSmoothing = 'grayscale';
+      
+      // Alignment mapping
+      const textAnchor = target.getAttribute('text-anchor') || style.textAnchor;
+      if (textAnchor === 'middle') {
+        div.style.textAlign = 'center';
+        fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || (bbox.x + bbox.width/2)) - padX);
+        div.style.transform = 'translateX(-50%)';
+      } else if (textAnchor === 'end') {
+        div.style.textAlign = 'right';
+        fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || (bbox.x + bbox.width)) - padX);
+        div.style.transform = 'translateX(-100%)';
+      } else {
+        div.style.textAlign = 'left';
+      }
+
+      // Correctly load multi-line text from tspans
+      const tspans = target.querySelectorAll('tspan');
+      if (tspans.length > 0) {
+          div.innerText = Array.from(tspans).map(t => t.textContent).join('\n');
+      } else {
+          div.textContent = target.textContent;
+      }
+      fo.appendChild(div);
+      
+      // Insert in exact DOM position next to target to inherit proper z-index and scaling context
+      target.parentNode.insertBefore(fo, target.nextSibling);
+
+      // Function to sync foreignObject size to content dynamically
+      const syncSize = () => {
+          // Inside foreignObject, 1 CSS pixel matches 1 SVG user unit
+          // scrollWidth/Height gives us the content size without browser zoom scaling issues
+          const w = Math.max(div.scrollWidth, 10);
+          const h = Math.max(div.scrollHeight, 20);
+          
+          fo.setAttribute('width', w + 40); // Breathing room for the caret and outline
+          fo.setAttribute('height', h + 20);
+      };
+
+      div.addEventListener('input', syncSize);
+
+      // Timeout ensures the browser paints 'contenteditable' and can focus
+      setTimeout(() => {
+        div.focus();
+        syncSize();
+        
+        // Select all text natively if it's not a new creation
+        if (target.textContent.length > 0) {
+            const selection = window.getSelection();
+            const range = document.createRange();
+            range.selectNodeContents(div);
+            selection.removeAllRanges();
+            selection.addRange(range);
+        }
+      }, 0);
+
+      const initialInnerHTML = target.innerHTML;
+      
+      const cleanup = () => {
+        setIsEditingText(false);
+        target.style.removeProperty('opacity');
+        target.style.removeProperty('visibility');
+        if (target.getAttribute('style') === '') target.removeAttribute('style');
+        
+        div.removeEventListener('blur', handleBlur);
+        div.removeEventListener('keydown', handleKeyDown);
+        div.removeEventListener('input', syncSize);
+        
+        if (fo.parentNode) {
+          fo.parentNode.removeChild(fo);
+        }
+        
+        const sel = window.getSelection();
+        if (sel) sel.removeAllRanges();
+      };
+
+      const handleBlur = () => {
+        const finalContent = div.innerText.trim();
+        // If the content is empty, remove the layer.
+        if (finalContent.length === 0) {
+          if (target.parentNode) {
+            target.parentNode.removeChild(target);
+          }
+          cleanup();
+          
+          if (setSelectedLayerId) {
+            setSelectedLayerId(null);
+            selectedLayerIdRef.current = null;
+            if (setMultiSelectedIds) {
+              setMultiSelectedIds(new Set());
+              multiSelectedIdsRef.current = new Set();
+            }
+          }
+
+          const container = target.closest('.page-svg-container');
+          if (container) {
+            const pageIdx = parseInt(container.getAttribute('data-page-index'));
+            if (svgRoot && updatePageHtml) {
+              updatePageHtml(pageIdx, svgRoot.outerHTML);
+            }
+          }
+          return;
+        }
+
+        // Handle multi-line conversion
+        // Trim only the very end to remove the phantom newline added by contenteditable
+        const lines = div.innerText.trimEnd().split(/\r?\n/);
+        target.innerHTML = '';
+        const x = target.getAttribute('x') || '0';
+        
+        lines.forEach((line, i) => {
+          const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+          tspan.textContent = line || '\u00A0';
+          tspan.setAttribute('x', x);
+          if (i > 0) tspan.setAttribute('dy', '1.2em');
+          target.appendChild(tspan);
+        });
+
+        cleanup();
+        
+        const container = target.closest('.page-svg-container');
+        if (container) {
+          const pageIdx = parseInt(container.getAttribute('data-page-index'));
+          if (svgRoot && updatePageHtml) {
+            updatePageHtml(pageIdx, svgRoot.outerHTML);
+          }
+        }
+      };
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            // Check if it's empty - if so, blur to remove
+            if (div.innerText.trim() === '') {
+                e.preventDefault();
+                div.blur();
+            }
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          target.innerHTML = initialInnerHTML;
+          if (target.textContent.trim().length === 0) {
+             if (target.parentNode) target.parentNode.removeChild(target);
+          }
+          cleanup();
+        }
+      };
+
+      div.addEventListener('blur', handleBlur);
+      div.addEventListener('keydown', handleKeyDown);
+    }
+  };
+
   // ── FIGMA-STYLE CLICK: hierarchical frame drill-down selection ─────────────────
   const handleSvgClick = (e) => {
     e.stopPropagation();
@@ -1587,10 +1868,13 @@ const MainEditor = ({
     clearOverlayType('hover');
     clearOverlayType('child-hover');
 
+    // ── Creation Tool: Text (Type) Tool logic removed (moved to mousedown) ──────
+
+
     // ── CLICK-OUTSIDE-PREVENTION (if in tools like pen/shapes but not typing) ───
     const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
-    const isPencil = activeMainToolRef.current === 'pen' && selectedPenTool === 'pencil';
-    const isSelectionTool = ['select', 'upload', 'type'].includes(activeMainToolRef.current);
+    const isPencil = activeMainTool === 'pen' && selectedPenTool === 'pencil';
+    const isSelectionTool = ['select', 'upload', 'type'].includes(activeMainTool);
     const allowClick = isSelectionTool || (isPencil && pageIdx !== activePageIndex);
 
     if (!allowClick && !getDraggableElement(e.target, e.currentTarget)) {
@@ -1861,143 +2145,7 @@ const MainEditor = ({
     // Text editing on double-click
     const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
     if (isText && target.id) {
-      const svgRoot = target.ownerSVGElement;
-      const bbox = target.getBBox();
-      const style = window.getComputedStyle(target);
-      const transform = target.getAttribute('transform');
-      
-      // Hide original text to create illusion of editing in-place
-      target.style.opacity = '0';
-      target.style.visibility = 'hidden';
-      
-      // Create foreignObject directly inside the SVG
-      const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-      const padding = 10; // Extra padding for caret
-      fo.setAttribute('x', bbox.x - padding);
-      fo.setAttribute('y', bbox.y - padding);
-      fo.setAttribute('width', Math.max(bbox.width + padding * 2 + 100, 250)); 
-      fo.setAttribute('height', Math.max(bbox.height + padding * 2 + 50, 100));
-      if (transform) fo.setAttribute('transform', transform);
-      
-      // Mark it so interact.js ignores dragging while editing
-      fo.setAttribute('data-editing', 'true');
-      
-      const div = document.createElement('div');
-      div.setAttribute('contenteditable', 'true');
-      div.style.width = '100%';
-      div.style.height = '100%';
-      div.style.outline = 'none';
-      div.style.border = 'none';
-      div.style.background = 'transparent';
-      
-      // Copy exact styles over to make it look identical to original text
-      div.style.fontFamily = target.getAttribute('font-family') || style.fontFamily;
-      let fSize = target.getAttribute('font-size') || style.fontSize;
-      if (!fSize.toString().includes('px') && !fSize.toString().includes('em') && !fSize.toString().includes('rem')) {
-          fSize += 'px';
-      }
-      div.style.fontSize = fSize;
-      div.style.fontWeight = target.getAttribute('font-weight') || style.fontWeight;
-      
-      let color = target.getAttribute('fill') || style.fill;
-      if (color === 'none') color = target.getAttribute('stroke') || style.stroke || '#000';
-      div.style.color = color;
-      div.style.letterSpacing = target.getAttribute('letter-spacing') || style.letterSpacing;
-      
-      div.style.lineHeight = '1.2';
-      div.style.whiteSpace = 'pre-wrap';
-      div.style.wordWrap = 'break-word';
-      
-      div.style.padding = `${padding}px`;
-      div.style.margin = '0';
-      div.style.display = 'flex';
-      
-      // Alignment mapping
-      const textAnchor = target.getAttribute('text-anchor') || style.textAnchor;
-      if (textAnchor === 'middle') {
-        div.style.justifyContent = 'center';
-        div.style.textAlign = 'center';
-      } else if (textAnchor === 'end') {
-        div.style.justifyContent = 'flex-end';
-        div.style.textAlign = 'right';
-      } else {
-        div.style.justifyContent = 'flex-start';
-        div.style.textAlign = 'left';
-      }
-
-      div.textContent = target.textContent;
-      fo.appendChild(div);
-      
-      // Insert in exact DOM position next to target to inherit proper z-index and scaling context
-      target.parentNode.insertBefore(fo, target.nextSibling);
-
-      // Timeout ensures the browser paints 'contenteditable' and can focus
-      setTimeout(() => {
-        div.focus();
-        
-        // Select all text natively
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(div);
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }, 0);
-
-      const initialInnerHTML = target.innerHTML;
-      
-      const cleanup = () => {
-        target.style.removeProperty('opacity');
-        target.style.removeProperty('visibility');
-        if (target.getAttribute('style') === '') target.removeAttribute('style');
-        
-        div.removeEventListener('blur', handleBlur);
-        div.removeEventListener('keydown', handleKeyDown);
-        
-        if (fo.parentNode) {
-          fo.parentNode.removeChild(fo);
-        }
-        
-        const sel = window.getSelection();
-        if (sel) sel.removeAllRanges();
-      };
-
-      const handleBlur = () => {
-        // Try to keep the first tspan to preserve coordinates
-        const tspans = target.querySelectorAll('tspan');
-        if (tspans.length > 0) {
-          tspans[0].textContent = div.textContent;
-          for (let i = 1; i < tspans.length; i++) {
-            tspans[i].remove();
-          }
-        } else {
-          target.textContent = div.textContent;
-        }
-        cleanup();
-        
-        const container = target.closest('.page-svg-container');
-        if (container) {
-          const pageIdx = parseInt(container.getAttribute('data-page-index'));
-          if (svgRoot && updatePageHtml) {
-            updatePageHtml(pageIdx, svgRoot.outerHTML);
-          }
-        }
-      };
-
-      const handleKeyDown = (e) => {
-        // Prevent newlines in SVG text and confirm
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          div.blur();
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          target.innerHTML = initialInnerHTML;
-          cleanup();
-        }
-      };
-
-      div.addEventListener('blur', handleBlur);
-      div.addEventListener('keydown', handleKeyDown);
+      enterTextEditMode(target);
       return;
     }
 
@@ -2609,17 +2757,18 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
                         const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
                         const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
                         const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
 
                         return pages[displayIndex]?.html ? (
                         <div 
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
-                          style={{ cursor: isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : 'default') }}
+                          style={{ cursor: isEditingText ? 'text' : (isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default'))) }}
                         >
                          <div 
                            className="w-full h-full flex items-center justify-center"
@@ -2769,7 +2918,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
 
                     <style>{svgGlobalStyles}</style>
                     {(() => {
@@ -2777,12 +2926,13 @@ const MainEditor = ({
                       const page = pages[displayIndex];
                       const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
                       const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+                      const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
 
 
                       return page?.html ? (
                         <div
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
-                          style={{ cursor: isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : 'default') }}
+                          style={{ cursor: isEditingText ? 'text' : (isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default'))) }}
                         >
                            <div
                              className="w-full h-full flex items-center justify-center"
