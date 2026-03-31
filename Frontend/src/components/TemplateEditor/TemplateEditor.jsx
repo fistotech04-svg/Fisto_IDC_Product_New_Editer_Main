@@ -186,11 +186,10 @@ const TemplateEditor = () => {
     };
 
     const newLayers = svgEl ? parseLayersRecursive(svgEl) : [];
-
+    
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
-
       if (!page) return prev;
 
       updated[pageIndex] = {
@@ -198,7 +197,6 @@ const TemplateEditor = () => {
         html,
         layers: newLayers
       };
-
       return updated;
     });
   };

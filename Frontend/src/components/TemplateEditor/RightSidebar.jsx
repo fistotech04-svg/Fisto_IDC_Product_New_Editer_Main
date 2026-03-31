@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload } from 'lucide-react';
 import { Icon } from '@iconify/react';
 
@@ -11,6 +11,80 @@ const RightSidebar = ({
   updatePageBackground,
   selectedLayerId
 }) => {
+  const fileInputRef = useRef(null);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Optional: Limit raw file size to 15MB
+    if (file.size > 15 * 1024 * 1024) {
+        alert("File is too large! Please upload images smaller than 15MB.");
+        e.target.value = '';
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      const dataUrl = event.target.result;
+      
+      // Compress/Downscale before sending
+      const compressedUrl = await compressImage(dataUrl);
+
+      // Dispatch event to MainEditor
+      window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+        detail: {
+          pageIndex: activePageIndex,
+          dataUrl: compressedUrl
+        }
+      }));
+    };
+    reader.readAsDataURL(file);
+    e.target.value = ''; // Reset input
+  };
+
+  const compressImage = (dataUrl, maxWidth = 1200, maxHeight = 1200) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        // If it's already small enough, no need to downscale
+        if (width <= maxWidth && height <= maxHeight) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
+            return;
+        }
+
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width *= maxHeight / height;
+          height = maxHeight;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.75)); // Compress to 75% quality JPEG
+      };
+      img.src = dataUrl;
+    });
+  };
+
   const bgColor = (() => {
     const page = pages[activePageIndex];
     if (page && page.html) {
@@ -68,8 +142,16 @@ const RightSidebar = ({
 
               {/* Upload Box */}
               <div
+                onClick={handleUploadClick}
                 className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
               >
+                <input 
+                  type="file" 
+                  ref={fileInputRef} 
+                  onChange={handleFileChange} 
+                  className="hidden" 
+                  accept="image/*"
+                />
                 <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
                   Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
                 </div>

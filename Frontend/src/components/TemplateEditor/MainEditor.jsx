@@ -3,7 +3,10 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 
+import paper from 'paper';
+
 const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair`;
+const PEN_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g transform='rotate(135 12 12)' fill='%23FFF' stroke='%23000' stroke-linejoin='round' stroke-miterlimit='10' stroke-width='1'><path d='M16 4.5H7l-1.5-3h12zm3.5 7l-7 12h-2l-7-12l3.5-7h9z' /><path stroke-linecap='round' d='M11.5 23.5V13' /><path d='M13 11.5L11.5 10L10 11.5l1.5 1.499z' /></g></svg>") 3 3, crosshair`;
 const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2V22M2 12H22' stroke='%236366F1' stroke-width='2' stroke-linecap='round'/></svg>") 12 12, crosshair`;
 const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 15 15'><path fill='%23000' d='M10.5 1a.5.5 0 0 1 0 1c-.922 0-1.54.23-1.92.563C8.206 2.89 8 3.366 8 4v3h1.25a.5.5 0 0 1 0 1H8v3c0 .634.207 1.11.58 1.437c.38.333.998.563 1.92.563a.5.5 0 0 1 0 1c-1.078 0-1.96-.27-2.58-.812a2.6 2.6 0 0 1-.42-.47q-.177.256-.42.47C6.46 13.73 5.577 14 4.5 14a.5.5 0 0 1 0-1c.922 0 1.54-.23 1.92-.563c.373-.326.58-.803.58-1.437V8H5.75a.5.5 0 0 1 0-1H7V4c0-.634-.207-1.11-.58-1.437C6.04 2.23 5.423 2 4.5 2a.5.5 0 0 1 0-1c1.078 0 1.96.27 2.58.812q.243.213.42.468q.177-.255.42-.468C8.54 1.27 9.423 1 10.5 1' /></svg>") 7 7, text`;
 
@@ -98,7 +101,14 @@ const svgGlobalStyles = `
   .page-svg-container.pencil-mode svg,
   .page-svg-container.pencil-mode svg *,
   .page-svg-container.pencil-mode svg [data-name="Overlay"] {
-    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g fill='none' fill-rule='evenodd'><path d='m12.593 23.258l-.011.002l-.071.035l-.02.004l-.014-.004l-.071-.035q-.016-.005-.024.005l-.004.01l-.017.428l.005.02l.01.013l.104.074l.015.004l.012-.004l.104-.074l.012-.016l.004-.017l-.017-.427q-.004-.016-.017-.018m.265-.113l-.013.002l-.185.093l-.01.01l-.003.011l.018.43l.005.012l.008.007l.201.093q.019.005.029-.008l.004-.014l-.034-.614q-.005-.018-.02-.022m-.715.002a.02.02 0 0 0-.027.006l-.006.014l-.034.614q.001.018.017.024l.015-.002l.201-.093l.01-.008l.004-.011l.017-.43l-.003-.012l-.01-.01z' /><path fill='%23000' d='M20.131 3.16a3 3 0 0 0-4.242 0l-.707.708l4.95 4.95l.706-.707a3 3 0 0 0 0-4.243l-.707-.707Zm-1.414 7.072l-4.95-4.95l-9.09 9.091a1.5 1.5 0 0 0-.401.724l-1.029 4.455a1 1 0 0 0 1.2 1.2l4.456-1.028a1.5 1.5 0 0 0 .723-.401z' /></g></svg>") 1 16, crosshair !important;
+    cursor: ${PENCIL_CURSOR} !important;
+  }
+
+  /* 10a. Pen/Curve Tool Cursor */
+  .page-svg-container.pen-mode svg,
+  .page-svg-container.pen-mode svg *,
+  .page-svg-container.pen-mode svg [data-name="Overlay"] {
+    cursor: ${PEN_CURSOR} !important;
   }
 
   /* 10b. Shape Tool Cursor */
@@ -121,6 +131,12 @@ const svgGlobalStyles = `
     box-shadow: 0 0 10px rgba(16, 0, 188, 0.45) !important;
     z-index: 10 !important;
     transition: box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .pen-tool-node {
+    pointer-events: none;
+    filter: drop-shadow(0 0 1px rgba(0,0,0,0.2));
+    transition: all 0.1s ease;
   }
 `;
 import TopToolbar from './TopToolbar';
@@ -170,7 +186,13 @@ const MainEditor = ({
   const [zoom, setZoom] = useState(90);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
+  const paperScopeRef = useRef(null);
   const currentFrameIdRef = useRef(null);
+
+  useEffect(() => {
+    paperScopeRef.current = new paper.PaperScope();
+    paperScopeRef.current.setup(document.createElement('canvas'));
+  }, []);
 
   // ── Marquee Selection State ───────────────────────────────────────────────
   const [marquee, setMarquee] = useState(null); // { pageIndex }
@@ -192,6 +214,13 @@ const MainEditor = ({
     return document.getElementById(`highlight-overlay-${pageIdx}`);
   };
 
+  const getHtmlOverlayForElement = (el) => {
+    const container = el.closest('.page-svg-container');
+    if (!container) return null;
+    const pageIdx = container.getAttribute('data-page-index');
+    return document.getElementById(`highlight-overlay-html-${pageIdx}`);
+  };
+
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
     
@@ -202,6 +231,11 @@ const MainEditor = ({
     if (el.style.visibility === 'hidden' || el.style.opacity === '0') {
        const existingPoly = overlay.querySelector(`[id="overlay-poly-${type}-${el.id}"]`);
        if (existingPoly) existingPoly.remove();
+       const htmlOverlay = getHtmlOverlayForElement(el);
+       if (htmlOverlay) {
+           const existingHandles = htmlOverlay.querySelectorAll(`[id^="resize-handle-${el.id}-"]`);
+           existingHandles.forEach(h => h.remove());
+       }
        return;
     }
     
@@ -243,15 +277,53 @@ const MainEditor = ({
             } else if (type === 'selected' || type === 'child-selected') {
                 polygon.setAttribute('stroke', '#6366F1');
                 polygon.setAttribute('stroke-width', type === 'selected' ? '1.5' : '1.2');
-                polygon.setAttribute('filter', 'drop-shadow(0 0 2px rgba(99, 102, 241, 0.3))');
+                // crisp lines without massive drop shadow
             } else if (type === 'entered') {
                 polygon.setAttribute('stroke', '#6366F1');
                 polygon.setAttribute('stroke-width', '1');
                 polygon.setAttribute('stroke-dasharray', '4,4');
             }
+            
+            polygon.setAttribute('pointer-events', 'none'); 
             overlay.appendChild(polygon);
         }
         polygon.setAttribute('points', pointsStr);
+        
+        // ── RESIZE HANDLES ──
+        if (type === 'selected' || type === 'child-selected') {
+            const htmlOverlay = getHtmlOverlayForElement(el);
+            const handleSize = 10;
+            const handleNames = ['nw', 'ne', 'se', 'sw'];
+            
+            // Handles match the corners defined in pts array: 
+            // 0:Top-Left(nw), 1:Top-Right(ne), 2:Bottom-Right(se), 3:Bottom-Left(sw)
+            mapped.forEach((p, i) => {
+                let handleId = `resize-handle-${el.id}-${handleNames[i]}`;
+                let handle = htmlOverlay?.querySelector(`[id="${handleId}"]`);
+                if (!handle && htmlOverlay) {
+                    handle = document.createElement('div');
+                    handle.id = handleId;
+                    // Removed rounded-sm to make them perfect squares like Fabric.js
+                    handle.className = `resize-handle overlay-type-${type} absolute bg-white`;
+                    handle.style.width = `${handleSize}px`;
+                    handle.style.height = `${handleSize}px`;
+                    handle.style.border = '1.5px solid #6366F1';
+                    handle.style.boxSizing = 'border-box';
+                    handle.style.pointerEvents = 'auto';
+                    
+                    // Determine cursor based on corner and current element rotation
+                    const angle = Math.atan2(ctm.b, ctm.a) * (180 / Math.PI);
+                    const isDiagonal1 = (i === 0 || i === 2); // NW or SE
+                    handle.style.cursor = isDiagonal1 ? 'nwse-resize' : 'nesw-resize';
+                    
+                    htmlOverlay.appendChild(handle);
+                }
+                if (handle) {
+                    handle.style.left = `${p.x - handleSize/2}px`;
+                    handle.style.top = `${p.y - handleSize/2}px`;
+                }
+            });
+        }
     } catch(e) {}
   };
 
@@ -442,6 +514,25 @@ const MainEditor = ({
   const shapeStartPointRef = useRef(null);
   const skipClearSelectionRef = useRef(false);
   const lastClickRef = useRef({ time: 0, target: null });
+  const draggedNodeIndexRef = useRef({ pIdx: -1, ptIdx: -1 });
+  const bendingStateRef = useRef(null);
+  const drawingSubPathsRef = useRef([]); // [[{x,y..}], [{x,y..}]]
+  const drawingSubPathElsRef = useRef([]); // [pathElement, pathElement]
+  const activeBendingSegmentRef = useRef(null);
+  const handleDraggingStateRef = useRef(null);
+
+  // ── Sync refs with state/props ──────────────────────────────────────────────
+  useEffect(() => { activeMainToolRef.current = activeMainTool; }, [activeMainTool]);
+  useEffect(() => { selectedSelectToolRef.current = selectedSelectTool; }, [selectedSelectTool]);
+  useEffect(() => { selectedPenToolRef.current = selectedPenTool; }, [selectedPenTool]);
+  useEffect(() => { selectedLayerIdRef.current = selectedLayerId; }, [selectedLayerId]);
+
+  useEffect(() => {
+    if (activeBendingSegmentRef.current) {
+        clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
+        activeBendingSegmentRef.current = null;
+    }
+  }, [activeMainTool]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -460,22 +551,40 @@ const MainEditor = ({
       }
 
       if (e.key === 'Escape') {
-        // Cancel active pen path if drawing
-        if (activeMainTool === 'pen' && drawingPathRef.current) {
+        const isPenDrawing = activeMainTool === 'pen' && drawingPathRef.current;
+        
+        if (isPenDrawing) {
+          const subPaths = drawingSubPathsRef.current;
+          const currentPts = subPaths[subPaths.length - 1];
+          
+          // If the group is totally empty (first segment has 1 or 0 points), cancel the whole group
+          if (subPaths.length === 1 && (!currentPts || currentPts.length <= 1)) {
             const path = drawingPathRef.current;
             if (path.parentNode) path.parentNode.removeChild(path);
             drawingPathRef.current = null;
-            drawingPointsRef.current = [];
+            drawingSubPathsRef.current = [];
+            drawingSubPathElsRef.current = [];
+            clearPenToolNodes(activePageIndex);
             return;
+          }
+
+          // Otherwise, just finish the current segment (allow starting next path in same group)
+          drawingPathRef.current.isFinished = true;
+          drawPenToolNodes(activePageIndex, drawingPathRef.current, subPaths);
+          
+          const currentIdx = subPaths.length - 1;
+          if (drawingSubPathElsRef.current[currentIdx]) {
+            drawingSubPathElsRef.current[currentIdx].setAttribute('d', generatePathData(subPaths[currentIdx], false, selectedPenTool));
+          }
+          return;
         }
 
-        // Always clear multi-selection first
+        // Standard Navigation logic: clear selection or exit frame
         multiSelectedIdsRef.current = new Set();
         setMultiSelectedIds(new Set());
 
         const frameId = currentFrameIdRef.current;
         if (frameId) {
-          // Go up: select the frame we were inside, exit it
           if (setSelectedLayerId) {
             setSelectedLayerId(frameId);
             selectedLayerIdRef.current = frameId;
@@ -483,39 +592,37 @@ const MainEditor = ({
           setCurrentFrameId(null);
           currentFrameIdRef.current = null;
         } else if (selectedLayerIdRef.current) {
-          // No frame entered but something is selected Deselect
           if (setSelectedLayerId) {
             setSelectedLayerId(null);
             selectedLayerIdRef.current = null;
           }
         }
-      } else if (e.key.toLowerCase() === 'a') {
-        setActiveMainTool('select');
-        setSelectedSelectTool('direct');
-      } else if (e.key.toLowerCase() === 'v') {
-        setActiveMainTool('select');
-        setSelectedSelectTool('select');
-      } else if (e.key === 'Enter') {
+      } else if (e.key.toLowerCase() === 'a' || e.key === 'Enter') {
         if (activeMainTool === 'pen' && drawingPathRef.current) {
-            const path = drawingPathRef.current;
-            const points = drawingPointsRef.current;
+            const group = drawingPathRef.current;
             const pageIdx = drawingPageIndexRef.current;
-            const svgEl = path.ownerSVGElement;
+            const svgEl = group?.ownerSVGElement;
 
             drawingPathRef.current = null;
-            drawingPointsRef.current = [];
-            drawingPageIndexRef.current = null;
+            drawingSubPathsRef.current = [];
+            drawingSubPathElsRef.current = [];
+            draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
+            clearPenToolNodes(pageIdx);
 
             if (svgEl && updatePageHtml) {
                 updatePageHtml(pageIdx, svgEl.outerHTML);
                 
                 // Auto-select and switch to selection tool
-                if (path && path.id) {
+                if (group && group.id) {
                     if (setSelectedLayerId) {
-                        setSelectedLayerId(path.id);
-                        selectedLayerIdRef.current = path.id;
-                        drawOverlayHighlight(path, 'selected');
+                        setSelectedLayerId(group.id);
+                        selectedLayerIdRef.current = group.id;
                     }
+                    if (setMultiSelectedIds) {
+                        setMultiSelectedIds(new Set([group.id]));
+                        multiSelectedIdsRef.current = new Set([group.id]);
+                    }
+                    drawOverlayHighlight(group, 'selected');
                 }
                 skipClearSelectionRef.current = true;
                 setTimeout(() => {
@@ -589,6 +696,9 @@ const MainEditor = ({
       // Force immediate visual cleanup of active selections
       clearOverlayType('selected');
       clearOverlayType('child-selected');
+      // Clear pen tool nodes on tool switch
+      document.querySelectorAll('.pen-tool-node').forEach(n => n.remove());
+      
       document.querySelectorAll('[data-selected="true"]').forEach(el => el.removeAttribute('data-selected'));
       document.querySelectorAll('[data-child-selected="true"]').forEach(el => el.removeAttribute('data-child-selected'));
     }
@@ -605,10 +715,292 @@ const MainEditor = ({
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
   const handleResetZoom = () => setZoom(90);
 
+  const insertImageIntoPage = (pageIdx, dataUrl) => {
+    // 1. Find the SVG of the target page
+    const container = document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"]`);
+    const svg = container?.querySelector('svg');
+    if (!svg) return;
+
+    // 2. Create SVG <image>
+    const imgId = `image-${Math.random().toString(36).substr(2, 9)}`;
+    const newImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+    newImg.setAttribute('id', imgId);
+    newImg.setAttribute('href', dataUrl);
+    newImg.setAttribute('data-type', 'image');
+    newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    
+    // Load image to get dimensions
+    const i = new Image();
+    i.onload = () => {
+      const width = i.width;
+      const height = i.height;
+
+      // Scale up to fit page width roughly
+      let displayWidth = Math.min(width, 210);
+      let displayHeight = (height / width) * displayWidth;
+
+      if (displayHeight > 297) {
+          displayHeight = 297;
+          displayWidth = (width / height) * displayHeight;
+      }
+
+      // Append to root frame
+      const topFrames = getTopLevelFrames(svg);
+      const rootFrame = topFrames[0] || svg.querySelector('g');
+      if (rootFrame) {
+          try {
+              const bbox = rootFrame.getBBox();
+              const cx = bbox.x + bbox.width / 2;
+              const cy = bbox.y + bbox.height / 2;
+              
+              newImg.setAttribute('x', cx - displayWidth / 2);
+              newImg.setAttribute('y', cy - displayHeight / 2);
+              newImg.setAttribute('width', displayWidth);
+              newImg.setAttribute('height', displayHeight);
+              
+              rootFrame.appendChild(newImg);
+              
+              if (updatePageHtml) {
+                  saveModifiedPageHtml(pageIdx, svg);
+              }
+              
+              if (setSelectedLayerId) setSelectedLayerId(imgId);
+              if (setMultiSelectedIds) setMultiSelectedIds(new Set([imgId]));
+              if (setActiveMainTool) setActiveMainTool('select');
+          } catch (err) {}
+      }
+    };
+    i.src = dataUrl;
+  };
+
+  useEffect(() => {
+    const handleAddImageEvent = (e) => {
+      const { pageIndex, dataUrl } = e.detail;
+      insertImageIntoPage(pageIndex, dataUrl);
+    };
+    window.addEventListener('upload-image-to-editor', handleAddImageEvent);
+    return () => window.removeEventListener('upload-image-to-editor', handleAddImageEvent);
+  }, [activePageIndex]);
+
   const clearOverlayType = (typePattern) => {
     document.querySelectorAll('.selection-overlay-layer').forEach(overlay => {
+      overlay.querySelectorAll(`.overlay-pattern-${typePattern}`).forEach(p => p.remove());
       overlay.querySelectorAll(`.overlay-type-${typePattern}`).forEach(p => p.remove());
+      // Also clear resize handles if we are clearing selection
+      if (typePattern.includes('selected')) {
+        overlay.querySelectorAll('.resize-handle').forEach(h => h.remove());
+      }
     });
+
+    // Clean up HTML-based UI elements (resize handles)
+    document.querySelectorAll('[id^="highlight-overlay-html-"]').forEach(htmlOverlay => {
+      htmlOverlay.querySelectorAll(`.overlay-type-${typePattern}`).forEach(p => p.remove());
+      if (typePattern.includes('selected')) {
+        htmlOverlay.querySelectorAll('.resize-handle').forEach(h => h.remove());
+      }
+    });
+  };
+
+  const clearPenToolNodes = (pageIndex) => {
+    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+    if (overlay) {
+      overlay.querySelectorAll('.pen-tool-node').forEach(n => n.remove());
+    }
+  };
+
+  const drawBendingNodes = (pageIndex, pathEl, paperPath, activeCurveIndex) => {
+    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+    if (!overlay || !pathEl) return;
+
+    // IF drawing session active, draw ALL pen points first
+    if (drawingPathRef.current) {
+        drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
+    } else {
+        clearPenToolNodes(pageIndex);
+    }
+
+    try {
+      const ctm = pathEl.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return;
+      const svgMatrix = overlayCtm.inverse().multiply(ctm);
+
+      const curve = paperPath.curves[activeCurveIndex];
+      const segments = [curve.segment1, curve.segment2];
+
+      // Draw the Indigo highlight for ONLY the active segment
+      const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      
+      const map = (x, y) => new DOMPoint(x, y).matrixTransform(svgMatrix);
+      const p1 = map(curve.point1.x, curve.point1.y);
+      const p2 = map(curve.point2.x, curve.point2.y);
+      const h1 = map(curve.point1.x + curve.segment1.handleOut.x, curve.point1.y + curve.segment1.handleOut.y);
+      const h2 = map(curve.point2.x + curve.segment2.handleIn.x, curve.point2.y + curve.segment2.handleIn.y);
+
+      highlight.setAttribute('d', `M ${p1.x} ${p1.y} C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${p2.x} ${p2.y}`);
+      
+      highlight.setAttribute('stroke', '#6366F1');
+      highlight.setAttribute('stroke-width', '2.5');
+      highlight.setAttribute('fill', 'none');
+      highlight.setAttribute('class', 'pen-tool-node');
+      highlight.style.pointerEvents = 'none';
+      overlay.appendChild(highlight);
+
+      segments.forEach(seg => {
+        const pt = seg.point;
+        
+        // Draw Nodes
+        const mappedPt = new DOMPoint(pt.x, pt.y).matrixTransform(svgMatrix);
+        const node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        node.setAttribute('cx', mappedPt.x);
+        node.setAttribute('cy', mappedPt.y);
+        node.setAttribute('r', '3.5');
+        node.setAttribute('class', 'pen-tool-node');
+        node.setAttribute('stroke', '#6366F1');
+        node.setAttribute('stroke-width', '1.5');
+        node.setAttribute('fill', '#FFFFFF');
+        overlay.appendChild(node);
+
+        // Draw Handles
+        const drawHandle = (h) => {
+          if (!h || h.isZero()) return;
+          const absH = pt.add(h);
+          const mappedH = new DOMPoint(absH.x, absH.y).matrixTransform(svgMatrix);
+          
+          const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', mappedPt.x);
+          line.setAttribute('y1', mappedPt.y);
+          line.setAttribute('x2', mappedH.x);
+          line.setAttribute('y2', mappedH.y);
+          line.setAttribute('stroke', '#6366F1');
+          line.setAttribute('stroke-width', '1');
+          line.setAttribute('class', 'pen-tool-node');
+          overlay.appendChild(line);
+
+          const diamond = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          diamond.setAttribute('x', mappedH.x - 3);
+          diamond.setAttribute('y', mappedH.y - 3);
+          diamond.setAttribute('width', '6');
+          diamond.setAttribute('height', '6');
+          diamond.setAttribute('transform', `rotate(45, ${mappedH.x}, ${mappedH.y})`);
+          diamond.setAttribute('fill', '#FFFFFF');
+          diamond.setAttribute('stroke', '#6366F1');
+          diamond.setAttribute('stroke-width', '1');
+          diamond.setAttribute('class', 'pen-tool-node');
+          overlay.appendChild(diamond);
+        };
+
+        drawHandle(seg.handleIn);
+        drawHandle(seg.handleOut);
+      });
+    } catch (e) {}
+  };
+
+  const generatePathData = (pts, isClosed = false, toolType = 'pen', activePoint = null) => {
+    let subPts = [...pts];
+    if (activePoint) subPts.push(activePoint);
+    if (subPts.length === 0) return "";
+    
+    const subIsClosed = isClosed || (pts && pts.isZ);
+    const isCurve = toolType === 'curve';
+    
+    if (!isCurve) {
+      return subPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + (subIsClosed ? ' Z' : '');
+    }
+
+    // Curve Logic
+    if (subPts.length === 1) return `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
+    if (subPts.length === 2 && !subIsClosed) {
+      return `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)} L ${subPts[1].x.toFixed(1)} ${subPts[1].y.toFixed(1)}`;
+    }
+
+    let d = `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
+    const count = subIsClosed ? subPts.length : subPts.length - 1;
+    
+    for (let i = 0; i < count; i++) {
+      const p1 = subPts[i];
+      const p2 = subPts[(i + 1) % subPts.length];
+      
+      // Support manual Bézier handles (from bending tool)
+      if (p1.handleOut || p2.handleIn) {
+        const h1 = p1.handleOut || { x: 0, y: 0 };
+        const h2 = p2.handleIn || { x: 0, y: 0 };
+        const cp1x = p1.x + h1.x;
+        const cp1y = p1.y + h1.y;
+        const cp2x = p2.x + h2.x;
+        const cp2y = p2.y + h2.y;
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)} ${cp2x.toFixed(1)} ${cp2y.toFixed(1)} ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+        continue;
+      }
+
+      if (p1.isCorner || p2.isCorner || !isCurve) {
+        d += ` L ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+        continue;
+      }
+
+      const p0 = subPts[i === 0 ? (subIsClosed ? subPts.length - 1 : 0) : i - 1] || p1;
+      const p3 = subPts[(i + 2) % subPts.length] || p2;
+      
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      
+      d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+    }
+    if (subIsClosed) d += " Z";
+    return d;
+  };
+
+  const drawPenToolNodes = (pageIndex, parentEl, nestedPoints, currentPoint = null) => {
+    const overlay = document.getElementById(`highlight-overlay-${pageIndex}`);
+    if (!overlay || !parentEl) return;
+
+    clearPenToolNodes(pageIndex);
+
+    try {
+      const ctm = parentEl.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return;
+      const svgMatrix = overlayCtm.inverse().multiply(ctm);
+
+      nestedPoints.forEach((pts, pIdx) => {
+        const allPts = [...pts];
+        const isCurrentPath = pIdx === nestedPoints.length - 1;
+        if (isCurrentPath && currentPoint && !pts.isZ) allPts.push(currentPoint);
+
+        allPts.forEach((pt, i) => {
+          const svgPt = overlay.createSVGPoint();
+          svgPt.x = pt.x;
+          svgPt.y = pt.y;
+          const mapped = svgPt.matrixTransform(svgMatrix);
+
+          const isCorner = pt.isCorner;
+          let node;
+          if (isCorner) {
+            node = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            node.setAttribute('x', mapped.x - 3.5);
+            node.setAttribute('y', mapped.y - 3.5);
+            node.setAttribute('width', '7');
+            node.setAttribute('height', '7');
+          } else {
+            node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            node.setAttribute('cx', mapped.x);
+            node.setAttribute('cy', mapped.y);
+            node.setAttribute('r', '4');
+          }
+          
+          node.setAttribute('class', 'pen-tool-node');
+          node.setAttribute('stroke', '#6366F1');
+          node.setAttribute('stroke-width', '1.5');
+          
+          const isLast = isCurrentPath && i === allPts.length - 1 && !pts.isZ;
+          node.setAttribute('fill', isLast ? '#6366F1' : '#FFFFFF');
+          
+          overlay.appendChild(node);
+        });
+      });
+    } catch (e) {}
   };
 
   // Helper: Get the starting index (left page) of the spread containing activePageIndex
@@ -789,17 +1181,22 @@ const MainEditor = ({
     return null;
   };
 
+  const updatePageHtmlRef = useRef(updatePageHtml);
+  useEffect(() => { updatePageHtmlRef.current = updatePageHtml; }, [updatePageHtml]);
+
   useEffect(() => {
     // Setup interactjs for elements within the SVG - targeting both elements and the background
     const interactable = interact('.page-svg-container svg, .page-svg-container svg *')
       .styleCursor(false) // Prevents interact.js from dynamically setting cursors on hover
       .draggable({
+        ignoreFrom: '.resize-handle, .text-edit-box, [data-editing="true"]',
         cursorChecker: () => null, // Second layer of prevention just in case
         inertia: false, // Disable inertia for perfect cursor sync
         autoScroll: true,
         listeners: {
           start(event) {
             let target = event.target;
+            
             const svgElement = target.ownerSVGElement || (target.tagName.toLowerCase() === 'svg' ? target : null);
             if (!svgElement) return;
 
@@ -1026,7 +1423,15 @@ const MainEditor = ({
               suppressClickRef.current = false;
             }, 50);
 
+            // Access data BEFORE deleting
+            const svgEl = dragState.svgElement;
+            const pageIndex = dragState.pageIndex;
             delete event.interaction.dragState;
+            
+            // Single reliable update call
+            if (updatePageHtmlRef.current && svgEl) {
+               updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
+            }
           }
         }
       });
@@ -1034,7 +1439,119 @@ const MainEditor = ({
     return () => {
       interactable.unset();
     };
-  }, [zoom, updatePageHtml, activePageIndex, setSelectedLayerId]); // No longer depends on frequently changing state like selectedLayerId because of refs
+  }, [zoom, activePageIndex]); // No longer depends on frequently changing callbacks
+
+  useEffect(() => {
+    const interactable = interact('.resize-handle')
+      .draggable({
+        listeners: {
+          start(event) {
+            suppressClickRef.current = true;
+            const handle = event.target;
+            const handleId = handle.id;
+            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw)/);
+            if (!match) return;
+            
+            const elId = match[1];
+            const dir = match[2];
+            const el = document.getElementById(elId);
+            if (!el) return;
+
+            const svg = el.ownerSVGElement;
+            const startPoint = getSvgPoint(svg, event.clientX, event.clientY);
+            const matrix = getElementMatrix(el);
+            const bbox = el.getBBox();
+
+            // Define anchor point in local space (opposite corner)
+            let localAnchor;
+            if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
+            else if (dir === 'sw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y };
+            else if (dir === 'ne') localAnchor = { x: bbox.x, y: bbox.y + bbox.height };
+            else if (dir === 'nw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
+
+            const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
+
+            event.interaction.resizeState = {
+              el,
+              dir,
+              matrix,
+              bbox,
+              worldAnchor,
+              startPoint,
+              svg
+            };
+          },
+          move(event) {
+            const state = event.interaction.resizeState;
+            if (!state) return;
+
+            const currentPoint = getSvgPoint(state.svg, event.clientX, event.clientY);
+            if (!currentPoint) return;
+
+            const { el, bbox, worldAnchor, matrix, dir } = state;
+            
+            // Vector from anchor to current cursor position
+            const vCurrent = { x: currentPoint.x - worldAnchor.x, y: currentPoint.y - worldAnchor.y };
+            
+            // Vector from anchor to original handle position in world space
+            let localHandle;
+            if (dir === 'se') localHandle = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
+            else if (dir === 'sw') localHandle = { x: bbox.x, y: bbox.y + bbox.height };
+            else if (dir === 'ne') localHandle = { x: bbox.x + bbox.width, y: bbox.y };
+            else if (dir === 'nw') localHandle = { x: bbox.x, y: bbox.y };
+            
+            const worldHandle = new DOMPoint(localHandle.x, localHandle.y).matrixTransform(matrix);
+            const vOriginal = { x: worldHandle.x - worldAnchor.x, y: worldHandle.y - worldAnchor.y };
+
+            // Transform vectors to local space of the element (ignoring its translation component)
+            const invMatrix = matrix.inverse();
+            invMatrix.e = 0; invMatrix.f = 0; 
+
+            const vCurrentLocal = new DOMPoint(vCurrent.x, vCurrent.y).matrixTransform(invMatrix);
+            const vOriginalLocal = new DOMPoint(vOriginal.x, vOriginal.y).matrixTransform(invMatrix);
+
+            let scaleX = Math.abs(vOriginalLocal.x) < 0.1 ? 1 : vCurrentLocal.x / vOriginalLocal.x;
+            let scaleY = Math.abs(vOriginalLocal.y) < 0.1 ? 1 : vCurrentLocal.y / vOriginalLocal.y;
+
+            // Maintain Aspect Ratio for images or if Shift key is held
+            const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image';
+            if (event.shiftKey || isImage) {
+                const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
+                scaleX = s;
+                scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
+            }
+
+            const scaleMatrix = new DOMMatrix()
+              .translate(worldAnchor.x, worldAnchor.y)
+              .scale(scaleX, scaleY)
+              .translate(-worldAnchor.x, -worldAnchor.y);
+            
+            const nextMatrix = scaleMatrix.multiply(matrix);
+            el.setAttribute('transform', matrixToTransform(nextMatrix));
+
+            // Force update selection highlight immediately
+            const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+            drawOverlayHighlight(el, highlightType);
+          },
+          end(event) {
+            const state = event.interaction.resizeState;
+            if (state && updatePageHtmlRef.current) {
+               const container = state.el.closest('.page-svg-container');
+               const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+               saveModifiedPageHtml(pageIdx, state.svg);
+            }
+            delete event.interaction.resizeState;
+            setTimeout(() => {
+              suppressClickRef.current = false;
+            }, 50);
+          }
+        }
+      });
+
+    return () => {
+      interactable.unset();
+    };
+  }, [activePageIndex]);
 
   // ── FIGMA-STYLE MOUSE DOWN: start drag on already-selected element ────────────
   const getLocalPoint = (svg, element, clientX, clientY) => {
@@ -1045,7 +1562,7 @@ const MainEditor = ({
   };
 
   const saveModifiedPageHtml = (targetPageIndex, targetSvg) => {
-      if (!updatePageHtml) return;
+      if (!updatePageHtmlRef.current) return;
       let finalHtml = targetSvg.outerHTML;
       if (isDoublePage && pages && pages[targetPageIndex]) {
           const groupWrap = targetSvg.querySelector(`#page-group-${targetPageIndex}`);
@@ -1082,11 +1599,61 @@ const MainEditor = ({
   };
 
   const handleSvgMouseDown = (pageIndex, e) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 || e.target.closest('.resize-handle')) return;
 
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
     if (!svg) return;
+
+    // ── Universal cleanup for Bending State ──
+    if (activeBendingSegmentRef.current && !e.ctrlKey) {
+        clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
+        activeBendingSegmentRef.current = null;
+    }
+
+    // ── Ctrl + Click Bending Detection (Universal across Pen/Select tools) ──
+    if (e.ctrlKey && ['select', 'upload', 'pen', 'curve'].includes(activeMainToolRef.current || activeMainTool)) {
+        const targetPath = e.target.closest('path');
+        if (targetPath && targetPath.id && targetPath.getAttribute('data-type') !== 'Overlay') {
+            const pt = getLocalPoint(svg, targetPath, e.clientX, e.clientY);
+            paperScopeRef.current.activate();
+            const paperPath = new paperScopeRef.current.Path(targetPath.getAttribute('d'));
+            const location = paperPath.getNearestLocation(new paperScopeRef.current.Point(pt.x, pt.y));
+            
+            // Check for hits on existing handles first (prioritize handle dragging)
+            const curves = paperPath.curves;
+            for (let i = 0; i < curves.length; i++) {
+                const c = curves[i];
+                const hOut = c.point1.add(c.segment1.handleOut);
+                const hIn = c.point2.add(c.segment2.handleIn);
+                
+                if (hOut.subtract(pt).length < 15) {
+                    handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'out', pageIndex };
+                    suppressClickRef.current = true;
+                    return;
+                }
+                if (hIn.subtract(pt).length < 15) {
+                    handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'in', pageIndex };
+                    suppressClickRef.current = true;
+                    return;
+                }
+            }
+
+            // If no handle hit, check for segment bending
+            if (location && location.distance < 40) {
+                bendingStateRef.current = {
+                    pathEl: targetPath,
+                    paperPath,
+                    curveIndex: location.curve.index,
+                    startPoint: pt,
+                    pageIndex
+                };
+                drawBendingNodes(pageIndex, targetPath, paperPath, location.curve.index);
+                suppressClickRef.current = true;
+                return;
+            }
+        }
+    }
 
     // ── Creation Tool: Text (Type) Tool ─────────────────────────────────────────
     if (activeMainTool === 'type') {
@@ -1144,111 +1711,96 @@ const MainEditor = ({
     }
 
     // ── Pen/Pencil/Curve Tool Drawing (Only on Active Page) ─────────────────────────────
-    if (activeMainTool === 'pen' && pageIndex === activePageIndex) {
-      let parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
+    if (activeMainTool === 'pen' && pageIndex === activePageIndex && !e.ctrlKey) {
+      const parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
       if (!parentEl) return;
       const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
 
       if (parentEl) {
-        // Node-based Pen/Curve tool: adds a point OR closes path if snap to start
-        if ((selectedPenTool === 'pen' || selectedPenTool === 'curve') && drawingPathRef.current) {
-            const points = drawingPointsRef.current;
-            
-            // Check for snap to first node (close path)
-            const dist = Math.hypot(pt.x - points[0].x, pt.y - points[0].y);
-            if (dist < 8 && points.length > 2) {
-                let pathData = "";
-                if (selectedPenTool === 'curve') {
-                   // Final smooth closed path
-                   pathData = `M ${points[0].x} ${points[0].y}`;
-                   for (let i = 0; i < points.length; i++) {
-                       const p0 = points[i === 0 ? points.length - 1 : i - 1];
-                       const p1 = points[i];
-                       const p2 = points[(i + 1) % points.length];
-                       const p3 = points[(i + 2) % points.length];
-                       
-                       const xc = (p1.x + p2.x) / 2;
-                       const yc = (p1.y + p2.y) / 2;
-                       pathData += ` Q ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}, ${xc.toFixed(1)} ${yc.toFixed(1)}`;
-                   }
-                   pathData += " Z";
-                } else {
-                   pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ' Z';
-                }
-                
-                drawingPathRef.current.setAttribute('d', pathData);
-                
-                // Finish path logic
-                const path = drawingPathRef.current;
-                drawingPathRef.current = null;
-                drawingPointsRef.current = [];
-                drawingPageIndexRef.current = null;
-                
-                if (updatePageHtml) {
-                    const svgEl = path.ownerSVGElement;
-                    if (svgEl) updatePageHtml(pageIndex, svgEl.outerHTML);
-                    if (path.id) window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: path.id } }));
-                }
+        // If already drawing, add point or close path
+        if (drawingPathRef.current) {
+            const nestedPoints = drawingSubPathsRef.current;
+            const currentSubIdx = nestedPoints.length - 1;
+            const currentPts = nestedPoints[currentSubIdx];
 
-                // Auto-select and switch to selection tool
-                if (path && path.id) {
-                    if (setSelectedLayerId) {
-                        setSelectedLayerId(path.id);
-                        selectedLayerIdRef.current = path.id;
-                        drawOverlayHighlight(path, 'selected');
-                    }
+            // Hit test nodes
+            let hitPIdx = -1, hitPtIdx = -1;
+            nestedPoints.forEach((pts, pi) => {
+                const idx = pts.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 8);
+                if (idx !== -1) { hitPIdx = pi; hitPtIdx = idx; }
+            });
+
+            if (hitPIdx !== -1) {
+                if (hitPIdx === currentSubIdx && hitPtIdx === 0 && currentPts.length > 2 && !currentPts.isZ) {
+                    currentPts.isZ = true;
+                    drawingPathRef.current.isFinished = true;
+                    const pathData = generatePathData(currentPts, true, selectedPenTool);
+                    drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
+                    drawPenToolNodes(pageIndex, drawingPathRef.current, nestedPoints);
+                    suppressClickRef.current = true;
+                    return;
                 }
-                skipClearSelectionRef.current = true;
-                setTimeout(() => {
-                    if (setActiveMainTool) setActiveMainTool('select');
-                    suppressClickRef.current = false;
-                }, 100);
+                draggedNodeIndexRef.current = { pIdx: hitPIdx, ptIdx: hitPtIdx };
+                suppressClickRef.current = true;
                 return;
             }
 
-            points.push({ x: pt.x, y: pt.y });
-            
-            let pathData = "";
-            if (selectedPenTool === 'curve' && points.length > 2) {
-                pathData = `M ${points[0].x} ${points[0].y}`;
-                for (let i = 1; i < points.length - 2; i++) {
-                    const xc = (points[i].x + points[i + 1].x) / 2;
-                    const yc = (points[i].y + points[i + 1].y) / 2;
-                    pathData += ` Q ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)}, ${xc.toFixed(1)} ${yc.toFixed(1)}`;
-                }
-                const last = points.length - 1;
-                pathData += ` Q ${points[last-1].x.toFixed(1)} ${points[last-1].y.toFixed(1)}, ${points[last].x.toFixed(1)} ${points[last].y.toFixed(1)}`;
+            if (drawingPathRef.current.isFinished) {
+               drawingPathRef.current.isFinished = false;
+               const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+               const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
+               newPath.setAttribute('id', pathId);
+               newPath.setAttribute('data-type', 'vector-path');
+               newPath.setAttribute('fill', 'none');
+               newPath.setAttribute('stroke', '#000000');
+               newPath.setAttribute('stroke-width', '1.5');
+               newPath.setAttribute('stroke-linecap', 'round');
+               newPath.setAttribute('stroke-linejoin', 'round');
+               newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
+               drawingPathRef.current.appendChild(newPath);
+               drawingSubPathsRef.current.push([{ x: pt.x, y: pt.y, isCorner: false }]);
+               drawingSubPathElsRef.current.push(newPath);
+               draggedNodeIndexRef.current = { pIdx: drawingSubPathsRef.current.length - 1, ptIdx: 0 };
             } else {
-                pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+               currentPts.push({ x: pt.x, y: pt.y, isCorner: false });
+               draggedNodeIndexRef.current = { pIdx: currentSubIdx, ptIdx: currentPts.length - 1 };
+               const pathData = generatePathData(currentPts, false, selectedPenTool);
+               drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
             }
-            
-            drawingPathRef.current.setAttribute('d', pathData);
+            drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
             suppressClickRef.current = true;
             return;
         }
 
-        // Initialize new drawing path for Pencil, Curve, or first segment of Pen
-        const typeLabel = selectedPenTool === 'pencil' ? 'pencil' : (selectedPenTool === 'curve' ? 'curve' : 'pen');
-        const existingPaths = svg.querySelectorAll(`path[data-${typeLabel}="true"]`).length;
-        const name = `${typeLabel} path ${existingPaths + 1}`;
-
+        // Start new group
+        const typeLabel = (selectedPenTool === 'curve' ? 'curve' : 'pen');
+        const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const id = `${typeLabel}-group-${Math.random().toString(36).substr(2, 9)}`;
+        group.setAttribute('id', id);
+        group.setAttribute(`data-${typeLabel}-group`, 'true');
+        group.setAttribute('data-type', 'vector-object');
+        
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        const id = `${typeLabel}-${Math.random().toString(36).substr(2, 9)}`;
-        path.setAttribute('id', id);
+        const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
+        path.setAttribute('id', pathId);
+        path.setAttribute('data-type', 'vector-path');
         path.setAttribute('fill', 'none');
         path.setAttribute('stroke', '#000000');
         path.setAttribute('stroke-width', '1.5');
         path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('stroke-linejoin', 'round');
         path.setAttribute('d', `M ${pt.x} ${pt.y}`);
-        path.setAttribute('data-name', name);
-        path.setAttribute(`data-${typeLabel}`, 'true');
-        
-        parentEl.appendChild(path);
-        drawingPathRef.current = path;
-        drawingPointsRef.current = [{ x: pt.x, y: pt.y }];
+        group.appendChild(path);
+
+        parentEl.appendChild(group);
+        drawingPathRef.current = group;
+        drawingSubPathsRef.current = [[{ x: pt.x, y: pt.y, isCorner: false }]];
+        drawingSubPathElsRef.current = [path];
+        draggedNodeIndexRef.current = { pIdx: 0, ptIdx: 0 };
         drawingPageIndexRef.current = pageIndex;
         drawingSvgRef.current = svg;
+        
+        drawPenToolNodes(pageIndex, group, drawingSubPathsRef.current);
         suppressClickRef.current = true;
       }
       return;
@@ -1425,6 +1977,78 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE MOVE: hover highlight & Marquee update ─────────────────
   const handleSvgMouseMove = (pageIndex, e) => {
+    // ── Ctrl + Click Bending Update ──
+    if (bendingStateRef.current) {
+        const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
+        const svg = pathEl.ownerSVGElement;
+        const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
+        
+        paperScopeRef.current.activate();
+        const curve = paperPath.curves[curveIndex];
+        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+        
+        // Symmetrical bending logic: point handles towards mouse
+        const p1 = curve.segment1.point;
+        const p2 = curve.segment2.point;
+        
+        // Factor of 0.45 creates a natural-looking bow that passes near the cursor
+        curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
+        curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
+        
+        pathEl.setAttribute('d', paperPath.pathData);
+        drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+
+        // ── SYNC WITH PEN TOOL STATE ──
+        // If this path is part of an active drawing session, we must update the handles in drawingSubPathsRef
+        // otherwise finalize/redraw (like pressing Enter) will recalculate automated curves and lose the bend.
+        const subPathIdx = drawingSubPathElsRef.current.indexOf(pathEl);
+        if (subPathIdx !== -1) {
+            const subPath = drawingSubPathsRef.current[subPathIdx];
+            const p1Ref = subPath[curveIndex];
+            const p2Ref = subPath[(curveIndex + 1) % subPath.length];
+            
+            p1Ref.handleOut = { x: curve.segment1.handleOut.x, y: curve.segment1.handleOut.y };
+            p2Ref.handleIn = { x: curve.segment2.handleIn.x, y: curve.segment2.handleIn.y };
+        }
+
+        suppressClickRef.current = true;
+        return;
+    }
+
+    // ── Handle Dragging Logic ───────────────────────────────────────────────
+    if (handleDraggingStateRef.current) {
+        const { pathEl, paperPath, curveIndex, handleSide, pageIndex: activePageIdx } = handleDraggingStateRef.current;
+        const svg = pathEl.ownerSVGElement;
+        const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
+        
+        paperScopeRef.current.activate();
+        const curve = paperPath.curves[curveIndex];
+        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+        
+        if (handleSide === 'out') {
+            curve.segment1.handleOut = mousePoint.subtract(curve.segment1.point);
+        } else {
+            curve.segment2.handleIn = mousePoint.subtract(curve.segment2.point);
+        }
+        
+        pathEl.setAttribute('d', paperPath.pathData);
+        drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+
+        // Sync with Pen session points
+        const subPathIdx = drawingSubPathElsRef.current.indexOf(pathEl);
+        if (subPathIdx !== -1) {
+            const subPath = drawingSubPathsRef.current[subPathIdx];
+            if (handleSide === 'out') {
+                subPath[curveIndex].handleOut = { x: curve.segment1.handleOut.x, y: curve.segment1.handleOut.y };
+            } else {
+                subPath[(curveIndex + 1) % subPath.length].handleIn = { x: curve.segment2.handleIn.x, y: curve.segment2.handleIn.y };
+            }
+        }
+
+        suppressClickRef.current = true;
+        return;
+    }
+
     // ── Pencil/Pen/Curve Drawing Update ────────────────────────────────────────────────
     if (drawingPathRef.current) {
         const svg = drawingSvgRef.current;
@@ -1432,23 +2056,28 @@ const MainEditor = ({
         if (pt) {
             const points = drawingPointsRef.current;
             
-            // For node-based tools, we just preview the "rubber band" to current mouse
+            // For node-based tools, we either drag an existing node or preview the new one
             if (selectedPenTool === 'pen' || selectedPenTool === 'curve') {
-                let pathData = '';
-                if (selectedPenTool === 'curve' && points.length >= 2) {
-                    // Smooth rubber band preview
-                    pathData = `M ${points[0].x} ${points[0].y}`;
-                    for (let i = 1; i < points.length - 1; i++) {
-                        const xc = (points[i].x + points[i + 1].x) / 2;
-                        const yc = (points[i].y + points[i + 1].y) / 2;
-                        pathData += ` Q ${points[i].x.toFixed(1)} ${points[i].y.toFixed(1)}, ${xc.toFixed(1)} ${yc.toFixed(1)}`;
-                    }
-                    const last = points[points.length - 1];
-                    pathData += ` Q ${last.x.toFixed(1)} ${last.y.toFixed(1)}, ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
-                } else {
-                    pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + ` L ${pt.x.toFixed(1)} ${pt.y.toFixed(1)}`;
+                const subPaths = drawingSubPathsRef.current;
+                const activePIdx = subPaths.length - 1;
+                const dNode = draggedNodeIndexRef.current;
+
+                if (dNode.pIdx !== -1) {
+                  // Update existing node in any subpath
+                  const targetPt = subPaths[dNode.pIdx][dNode.ptIdx];
+                  targetPt.x = pt.x;
+                  targetPt.y = pt.y;
+                  
+                  const pathData = generatePathData(subPaths[dNode.pIdx], false, selectedPenTool);
+                  drawingSubPathElsRef.current[dNode.pIdx].setAttribute('d', pathData);
+                  drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths);
+                } else if (!drawingPathRef.current.isFinished) {
+                  // Preview: only rubber-band for current subpath if not closed
+                  const currentPts = subPaths[activePIdx];
+                  const pathData = generatePathData(currentPts, false, selectedPenTool, pt);
+                  drawingSubPathElsRef.current[activePIdx].setAttribute('d', pathData);
+                  drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths, pt);
                 }
-                drawingPathRef.current.setAttribute('d', pathData);
                 return;
             }
 
@@ -1680,12 +2309,28 @@ const MainEditor = ({
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee or tool drawing) ────────────────
   useEffect(() => {
     const handleGlobalMouseUp = () => {
-      // Termination for drag-based pen tools (Pencil, Curve)
+      // ── Bending/Handle Dragging Finalization ──
+      const activeState = (bendingStateRef.current || handleDraggingStateRef.current);
+      if (activeState) {
+          const { pathEl, paperPath, curveIndex, pageIndex } = activeState;
+          const svgEl = pathEl.ownerSVGElement;
+          if (svgEl && updatePageHtml) {
+              saveModifiedPageHtml(pageIndex, svgEl);
+          }
+          activeBendingSegmentRef.current = { pathEl, paperPath, curveIndex, pageIndex };
+          bendingStateRef.current = null;
+          handleDraggingStateRef.current = null;
+          return;
+      }
+
+      // Termination for drag-based pen tools (Pencil)
       if (drawingPathRef.current) {
         const points = drawingPointsRef.current;
         const tool = selectedPenTool;
 
-        if (tool !== 'pen') {
+          draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
+
+        if (tool === 'pencil') {
           const path = drawingPathRef.current;
           const pageIdx = drawingPageIndexRef.current;
           const svgEl = path?.ownerSVGElement;
@@ -1723,8 +2368,12 @@ const MainEditor = ({
               if (setSelectedLayerId) {
                 setSelectedLayerId(path.id);
                 selectedLayerIdRef.current = path.id;
-                drawOverlayHighlight(path, 'selected');
               }
+              if (setMultiSelectedIds) {
+                setMultiSelectedIds(new Set([path.id]));
+                multiSelectedIdsRef.current = new Set([path.id]);
+              }
+              if (path) drawOverlayHighlight(path, 'selected');
             }
           }
 
@@ -1739,6 +2388,7 @@ const MainEditor = ({
           drawingPointsRef.current = [];
           drawingPageIndexRef.current = null;
           drawingSvgRef.current = null;
+          clearPenToolNodes(pageIdx);
         }
         
         return;
@@ -1762,6 +2412,10 @@ const MainEditor = ({
             if (setSelectedLayerId) {
               setSelectedLayerId(shape.id);
               selectedLayerIdRef.current = shape.id;
+            }
+            if (setMultiSelectedIds) {
+              setMultiSelectedIds(new Set([shape.id]));
+              multiSelectedIdsRef.current = new Set([shape.id]);
             }
           }
           skipClearSelectionRef.current = true;
@@ -2036,6 +2690,10 @@ const MainEditor = ({
         if (target.id) {
             if (setSelectedLayerId) setSelectedLayerId(target.id);
             selectedLayerIdRef.current = target.id;
+            if (setMultiSelectedIds) {
+                setMultiSelectedIds(new Set([target.id]));
+                multiSelectedIdsRef.current = new Set([target.id]);
+            }
             drawOverlayHighlight(target, 'selected');
         }
         
@@ -2071,6 +2729,8 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE CLICK: hierarchical frame drill-down selection ─────────────────
   const handleSvgClick = (e) => {
+    if (e.target.closest('.resize-handle')) return;
+    
     e.stopPropagation();
 
     const now = Date.now();
@@ -2108,7 +2768,8 @@ const MainEditor = ({
          // Switch tool
          skipClearSelectionRef.current = true;
          setTimeout(() => {
-             if (setActiveMainTool) setActiveMainTool('select');
+             // if (setActiveMainTool) setActiveMainTool('select');
+
              suppressClickRef.current = false;
          }, 100);
          return;
@@ -2500,7 +3161,25 @@ const MainEditor = ({
         }
     }
 
-    if (!target) return;
+    if (!target) {
+        // If in curve tool, check for double click on a node to toggle corner/smooth
+        if (activeMainTool === 'pen' && selectedPenTool === 'curve' && drawingPathRef.current) {
+            const svgEl = svg;
+            const containerBox = container.getBoundingClientRect();
+            const scale = zoom / 100;
+            const pt = getSvgPoint(svgEl, e.clientX, e.clientY);
+            
+            const points = drawingPointsRef.current;
+            const hitIdx = points.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 10 / scale);
+            if (hitIdx !== -1) {
+                points[hitIdx].isCorner = !points[hitIdx].isCorner;
+                drawingPathRef.current.setAttribute('d', generatePathData(points, false, 'curve'));
+                drawPenToolNodes(activePageIndex, drawingPathRef.current.parentNode, points);
+                return;
+            }
+        }
+        return;
+    }
 
     const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
     if (isText && target.id) {
@@ -3141,18 +3820,19 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
                         const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
                         const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
                         const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
                         const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
 
                         return pages[displayIndex]?.html ? (
                         <div 
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
-                          style={{ cursor: isEditingText ? 'text' : (isPencilActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default'))) }}
+                          style={{ cursor: isEditingText ? 'text' : (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
                         >
                          <div 
                            className="w-full h-full flex items-center justify-center"
@@ -3167,7 +3847,7 @@ const MainEditor = ({
                          {/* Selection Overlay (Overlay rotated element perfectly) */}
                          <svg 
                            id={`highlight-overlay-${displayIndex}`}
-                           className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
+                           className="absolute inset-0 w-full h-full selection-overlay-layer" style={{ overflow: 'visible', pointerEvents: 'none' }}
                          />
 
 
@@ -3302,7 +3982,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
 
                     <style>{svgGlobalStyles}</style>
                     {(() => {
@@ -3316,7 +3996,7 @@ const MainEditor = ({
                       return page?.html ? (
                         <div
                           className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
-                          style={{ cursor: isEditingText ? 'text' : (isPenToolActive ? PENCIL_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default'))) }}
+                          style={{ cursor: isEditingText ? 'text' : ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
                         >
                            <div
                              className="w-full h-full flex items-center justify-center"
@@ -3331,7 +4011,13 @@ const MainEditor = ({
                            {/* Selection Overlay (Overlay rotated element perfectly) */}
                            <svg 
                              id={`highlight-overlay-${displayIndex}`}
-                             className="absolute inset-0 w-full h-full pointer-events-none z-[100] selection-overlay-layer" style={{ overflow: 'visible' }}
+                             className="absolute inset-0 w-full h-full selection-overlay-layer" style={{ overflow: 'visible', pointerEvents: 'none' }}
+                           />
+                           
+                           {/* HTML Overlay for Resize Handles (Clickable) */}
+                           <div 
+                             id={`highlight-overlay-html-${displayIndex}`}
+                             className="absolute inset-0 w-full h-full" style={{ overflow: 'visible', pointerEvents: 'none' }}
                            />
 
                            {/* Marquee Selection Box */}
