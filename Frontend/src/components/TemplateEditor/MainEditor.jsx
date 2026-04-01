@@ -9,6 +9,8 @@ const PENCIL_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.or
 const PEN_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24'><g transform='rotate(135 12 12)' fill='%23FFF' stroke='%23000' stroke-linejoin='round' stroke-miterlimit='10' stroke-width='1'><path d='M16 4.5H7l-1.5-3h12zm3.5 7l-7 12h-2l-7-12l3.5-7h9z' /><path stroke-linecap='round' d='M11.5 23.5V13' /><path d='M13 11.5L11.5 10L10 11.5l1.5 1.499z' /></g></svg>") 3 3, crosshair`;
 const SHAPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path d='M12 2V22M2 12H22' stroke='%236366F1' stroke-width='2' stroke-linecap='round'/></svg>") 12 12, crosshair`;
 const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 15 15'><path fill='%23000' d='M10.5 1a.5.5 0 0 1 0 1c-.922 0-1.54.23-1.92.563C8.206 2.89 8 3.366 8 4v3h1.25a.5.5 0 0 1 0 1H8v3c0 .634.207 1.11.58 1.437c.38.333.998.563 1.92.563a.5.5 0 0 1 0 1c-1.078 0-1.96-.27-2.58-.812a2.6 2.6 0 0 1-.42-.47q-.177.256-.42.47C6.46 13.73 5.577 14 4.5 14a.5.5 0 0 1 0-1c.922 0 1.54-.23 1.92-.563c.373-.326.58-.803.58-1.437V8H5.75a.5.5 0 0 1 0-1H7V4c0-.634-.207-1.11-.58-1.437C6.04 2.23 5.423 2 4.5 2a.5.5 0 0 1 0-1c1.078 0 1.96.27 2.58.812q.243.213.42.468q.177-.255.42-.468C8.54 1.27 9.423 1 10.5 1' /></svg>") 7 7, text`;
+const BENDING_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='%23000' d='M5.5 3.483c0-1.248 1.436-1.95 2.421-1.184l13.514 10.513c1.128.877.508 2.684-.92 2.684h-6.853c-.505 0-.981.23-1.294.626l-4.191 5.3c-.882 1.116-2.677.492-2.677-.93zm15.014 10.513L7 3.483v17.009l4.191-5.3a3.15 3.15 0 0 1 2.47-1.196z' /></svg>") 5 3, auto`;
+const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto`;
 
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
@@ -40,6 +42,7 @@ const svgGlobalStyles = `
 
   .page-svg-container svg * {
     cursor: default;
+    vector-effect: non-scaling-stroke !important;
   }
 
   .page-svg-container svg text,
@@ -81,14 +84,14 @@ const svgGlobalStyles = `
   /* 5. CHILD SELECTED inside an entered frame — same solid selection look */
   .page-svg-container svg [data-child-selected="true"] {}
 
-  /* 7. Dragging State */
+  /* 7. Dragging State - Removed Shadow */
   .page-svg-container svg [data-dragging="true"] {
-    filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2)) !important;
+    filter: none !important;
   }
 
   /* 8. Direct Selection Tool Cursor */
   .page-svg-container.tool-direct svg * {
-    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto !important;
+    cursor: ${DIRECT_CURSOR} !important;
   }
 
   /* 9. Fixed Overlay Prevention - changed to allow interaction */
@@ -109,6 +112,13 @@ const svgGlobalStyles = `
   .page-svg-container.pen-mode svg *,
   .page-svg-container.pen-mode svg [data-name="Overlay"] {
     cursor: ${PEN_CURSOR} !important;
+  }
+
+  /* 10b. Bending Mode (Ctrl held in Pen mode) ────────── */
+  .page-svg-container.pen-mode.ctrl-down svg,
+  .page-svg-container.pen-mode.ctrl-down svg *,
+  .page-svg-container.pen-mode.ctrl-down svg [data-name="Overlay"] {
+    cursor: ${BENDING_CURSOR} !important;
   }
 
   /* 10b. Shape Tool Cursor */
@@ -137,6 +147,12 @@ const svgGlobalStyles = `
     pointer-events: none;
     filter: drop-shadow(0 0 1px rgba(0,0,0,0.2));
     transition: all 0.1s ease;
+  }
+
+  /* Global Resize Cursor Lock */
+  body.resizing-active, 
+  body.resizing-active * {
+    cursor: var(--resizing-cursor, inherit) !important;
   }
 `;
 import TopToolbar from './TopToolbar';
@@ -180,27 +196,113 @@ const MainEditor = ({
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
   const [isEditingText, setIsEditingText] = useState(false);
+  
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
   const [zoom, setZoom] = useState(90);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
+
+  // ── Refs ─────────────────────────────────────────────────────────────
+  const isCtrlPressedRef = useRef(false);
   const paperScopeRef = useRef(null);
   const currentFrameIdRef = useRef(null);
-
-  useEffect(() => {
-    paperScopeRef.current = new paper.PaperScope();
-    paperScopeRef.current.setup(document.createElement('canvas'));
-  }, []);
-
-  // ── Marquee Selection State ───────────────────────────────────────────────
-  const [marquee, setMarquee] = useState(null); // { pageIndex }
   const marqueeRef = useRef(null);
   const marqueeOverlayRef1 = useRef(null);
   const marqueeOverlayRef2 = useRef(null);
   const marqueeCandidatesRef = useRef([]);
   const marqueeDataRef = useRef({ startX: 0, startY: 0, containerRect: null, scale: 1 });
+  const multiSelectedIdsRef = useRef(new Set());
+  const selectedLayerIdRef = useRef(null);
+  const dragStateRef = useRef(null);
+  const suppressClickRef = useRef(false);
+  const activeMainToolRef = useRef(activeMainTool);
+  const selectedSelectToolRef = useRef(selectedSelectTool);
+  const selectedPenToolRef = useRef(selectedPenTool);
+  const drawingPathRef = useRef(null);
+  const drawingPointsRef = useRef([]);
+  const isFreehandDrawingRef = useRef(false);
+  const drawingPageIndexRef = useRef(null);
+  const drawingSvgRef = useRef(null);
+  const drawingShapeRef = useRef(null);
+  const shapeStartPointRef = useRef(null);
+  const skipClearSelectionRef = useRef(false);
+  const lastClickRef = useRef({ time: 0, target: null });
+  const draggedNodeIndexRef = useRef({ pIdx: -1, ptIdx: -1 });
+  const bendingStateRef = useRef(null);
+  const drawingSubPathsRef = useRef([]); 
+  const drawingSubPathElsRef = useRef([]); 
+  const activeBendingSegmentRef = useRef(null);
+  const handleDraggingStateRef = useRef(null);
+  const updatePageHtmlRef = useRef(updatePageHtml);
+
+  useEffect(() => {
+    paperScopeRef.current = new paper.PaperScope();
+    paperScopeRef.current.setup(document.createElement('canvas'));
+
+    const handleKeyDown = (e) => {
+      // 1. Skip shortcuts if user is typing
+      if (document.activeElement.tagName === 'INPUT' || 
+          document.activeElement.tagName === 'TEXTAREA' || 
+          isEditingText || 
+          document.activeElement.isContentEditable) return;
+
+      const key = e.key.toLowerCase();
+
+      // ── Tool Shortcuts ─────────────
+      // V for selection
+      if (key === 'v' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        setActiveMainTool('select');
+        setSelectedSelectTool('select');
+        closeAllDropdowns();
+      }
+      
+      // A for direct tool
+      if (key === 'a' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        setActiveMainTool('select');
+        setSelectedSelectTool('direct');
+        closeAllDropdowns();
+      }
+      
+      // P or Shift+P for pen tool
+      if (key === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        setActiveMainTool('pen');
+        if (e.shiftKey) {
+          setSelectedPenTool('pencil');
+        } else {
+          setSelectedPenTool('pen');
+        }
+        closeAllDropdowns();
+      }
+
+      // ── Ctrl detection (for bending mode) ──
+      if (e.key === 'Control' && !isCtrlPressedRef.current) {
+        // ONLY trigger for pen tool
+        if ((activeMainToolRef.current || activeMainTool) !== 'pen') return;
+
+        isCtrlPressedRef.current = true;
+        document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('ctrl-down'));
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (e.key === 'Control') {
+        isCtrlPressedRef.current = false;
+        document.querySelectorAll('.page-svg-container').forEach(el => el.classList.remove('ctrl-down'));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    // Cleanup to prevent leaks
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // ── Marquee Selection State ───────────────────────────────────────────────
+  const [marquee, setMarquee] = useState(null); // { pageIndex }
   
   useEffect(() => { marqueeRef.current = marquee; }, [marquee]);
 
@@ -221,14 +323,30 @@ const MainEditor = ({
     return document.getElementById(`highlight-overlay-html-${pageIdx}`);
   };
 
+  const getRotatingCursor = (dir, rotation) => {
+    // Map base directions to their local angles (0 is East/Right)
+    const baseAngles = { 'e': 0, 'se': 45, 's': 90, 'sw': 135, 'w': 180, 'nw': 225, 'n': 270, 'ne': 315 };
+    const angle = (baseAngles[dir] + rotation + 360) % 180;
+    
+    if (angle >= 22.5 && angle < 67.5) return 'nwse-resize';
+    if (angle >= 67.5 && angle < 112.5) return 'ns-resize';
+    if (angle >= 112.5 && angle < 157.5) return 'nesw-resize';
+    return 'ew-resize';
+  };
+
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
     
     const overlay = getOverlayForElement(el);
     if (!overlay) return;
 
-    // Skip if element is hidden (e.g. while editing text), but DO clear its stale overlay!
-    if (el.style.visibility === 'hidden' || el.style.opacity === '0') {
+    // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
+    const isOverlay = el.getAttribute('data-name') === 'Overlay' || 
+                      el.getAttribute('data-type') === 'background' ||
+                      el.getAttribute('data-type') === 'frame' ||
+                      el.getAttribute('data-locked') === 'true';
+                      
+    if (el.style.visibility === 'hidden' || el.style.opacity === '0' || isOverlay) {
        const existingPoly = overlay.querySelector(`[id="overlay-poly-${type}-${el.id}"]`);
        if (existingPoly) existingPoly.remove();
        const htmlOverlay = getHtmlOverlayForElement(el);
@@ -249,7 +367,7 @@ const MainEditor = ({
         const svgMatrix = overlayCtm.inverse().multiply(ctm);
         
         const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
-        const screenOffset = type.includes('selected') ? 2.5 : 1.5;
+        const screenOffset = 0; // Use zero offset for tightest fitting selection
         const localOffset = screenOffset / scale;
         
         const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
@@ -267,7 +385,6 @@ const MainEditor = ({
             polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
             polygon.id = polyId;
             polygon.setAttribute('class', `overlay-type-${type}`);
-            
             polygon.setAttribute('fill', 'none');
             
             if (type === 'hover' || type === 'child-hover') {
@@ -277,7 +394,6 @@ const MainEditor = ({
             } else if (type === 'selected' || type === 'child-selected') {
                 polygon.setAttribute('stroke', '#6366F1');
                 polygon.setAttribute('stroke-width', type === 'selected' ? '1.5' : '1.2');
-                // crisp lines without massive drop shadow
             } else if (type === 'entered') {
                 polygon.setAttribute('stroke', '#6366F1');
                 polygon.setAttribute('stroke-width', '1');
@@ -289,38 +405,77 @@ const MainEditor = ({
         }
         polygon.setAttribute('points', pointsStr);
         
-        // ── RESIZE HANDLES ──
-        if (type === 'selected' || type === 'child-selected') {
+        // ── RESIZE HANDLES (8 handles) ──
+        // Only show handles if exactly ONE element is selected
+        const selectionCount = multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0);
+        if (selectionCount === 1 && (type === 'selected' || type === 'child-selected')) {
             const htmlOverlay = getHtmlOverlayForElement(el);
-            const handleSize = 10;
-            const handleNames = ['nw', 'ne', 'se', 'sw'];
+            const handleSize = 7.5; // Optimized for a clean, professional look
+            const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
             
-            // Handles match the corners defined in pts array: 
-            // 0:Top-Left(nw), 1:Top-Right(ne), 2:Bottom-Right(se), 3:Bottom-Left(sw)
-            mapped.forEach((p, i) => {
-                let handleId = `resize-handle-${el.id}-${handleNames[i]}`;
+            // Define all 8 points in world space
+            const worldPts = [...mapped]; // Corners
+            const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
+            const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
+            const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
+            const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
+            
+            const allPts = [...worldPts, midN, midE, midS, midW];
+
+            // Detect current rotation for cursor mapping
+            const matrix = getElementMatrix(el);
+            const rotation = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
+
+            allPts.forEach((p, i) => {
+                const name = handleNames[i];
+                const isSide = ['n', 'e', 's', 'w'].includes(name);
+                const handleId = `resize-handle-${el.id}-${name}`;
                 let handle = htmlOverlay?.querySelector(`[id="${handleId}"]`);
+                
                 if (!handle && htmlOverlay) {
                     handle = document.createElement('div');
                     handle.id = handleId;
-                    // Removed rounded-sm to make them perfect squares like Fabric.js
-                    handle.className = `resize-handle overlay-type-${type} absolute bg-white`;
-                    handle.style.width = `${handleSize}px`;
-                    handle.style.height = `${handleSize}px`;
-                    handle.style.border = '1.5px solid #6366F1';
+                    handle.className = `resize-handle overlay-type-${type} absolute`;
+                    
+                    if (isSide) {
+                        // Edge-handle: Invisible, spans the whole side
+                        handle.classList.add('bg-transparent');
+                    } else {
+                        // Corner-handle: Professional white square
+                        handle.classList.add('bg-white');
+                        handle.style.border = '1.5px solid #6366F1';
+                        handle.style.boxShadow = '0 1px 3px rgba(0,0,0,0.15)';
+                        handle.style.borderRadius = '1px';
+                    }
+                    
                     handle.style.boxSizing = 'border-box';
                     handle.style.pointerEvents = 'auto';
-                    
-                    // Determine cursor based on corner and current element rotation
-                    const angle = Math.atan2(ctm.b, ctm.a) * (180 / Math.PI);
-                    const isDiagonal1 = (i === 0 || i === 2); // NW or SE
-                    handle.style.cursor = isDiagonal1 ? 'nwse-resize' : 'nesw-resize';
-                    
+                    handle.style.zIndex = isSide ? '999' : '1000'; // Corners on top
                     htmlOverlay.appendChild(handle);
                 }
+
                 if (handle) {
-                    handle.style.left = `${p.x - handleSize/2}px`;
-                    handle.style.top = `${p.y - handleSize/2}px`;
+                    if (isSide) {
+                        const isHorizontal = (name === 'n' || name === 's');
+                        // Calculate length of the side including current scaling/zoom
+                        const length = (isHorizontal ? bbox.width : bbox.height) * scale;
+                        const thickness = handleSize * 1.5; // Slightly thicker for easier hover
+                        
+                        handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
+                        handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
+                        handle.style.left = `${p.x}px`;
+                        handle.style.top = `${p.y}px`;
+                        handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                    } else {
+                        // Standard corner handle positioning
+                        handle.style.width = `${handleSize}px`;
+                        handle.style.height = `${handleSize}px`;
+                        handle.style.left = `${p.x - handleSize/2}px`;
+                        handle.style.top = `${p.y - handleSize/2}px`;
+                        handle.style.transform = ''; // No transform needed for corners if using p.x/p.y
+                    }
+                    // Dynamically update cursor based on handle orientation relative to viewport
+                    handle.style.cursor = getRotatingCursor(name, rotation);
                 }
             });
         }
@@ -428,10 +583,7 @@ const MainEditor = ({
     }
   };
 
-  // ── Multi-Selection Ref (state is lifted to TemplateEditor via props) ───────────
-  // Keep a mutable ref so interactjs callbacks (closures) always see latest value
-  const multiSelectedIdsRef = useRef(new Set());
-
+  // ── Interaction Contexts ──
   const handleSvgContextMenu = (pageIndex, e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -500,32 +652,14 @@ const MainEditor = ({
     }));
   };
 
-  const dragStateRef = useRef(null);
-  const suppressClickRef = useRef(false);
-  const selectedLayerIdRef = useRef(null);
-  const activeMainToolRef = useRef(activeMainTool);
-  const selectedSelectToolRef = useRef(selectedSelectTool);
-  const selectedPenToolRef = useRef(selectedPenTool);
-  const drawingPathRef = useRef(null);
-  const drawingPointsRef = useRef([]);
-  const drawingPageIndexRef = useRef(null);
-  const drawingSvgRef = useRef(null);
-  const drawingShapeRef = useRef(null);
-  const shapeStartPointRef = useRef(null);
-  const skipClearSelectionRef = useRef(false);
-  const lastClickRef = useRef({ time: 0, target: null });
-  const draggedNodeIndexRef = useRef({ pIdx: -1, ptIdx: -1 });
-  const bendingStateRef = useRef(null);
-  const drawingSubPathsRef = useRef([]); // [[{x,y..}], [{x,y..}]]
-  const drawingSubPathElsRef = useRef([]); // [pathElement, pathElement]
-  const activeBendingSegmentRef = useRef(null);
-  const handleDraggingStateRef = useRef(null);
-
-  // ── Sync refs with state/props ──────────────────────────────────────────────
+  // ── Sync refs with props ──────────────────────────────────────────────────
   useEffect(() => { activeMainToolRef.current = activeMainTool; }, [activeMainTool]);
   useEffect(() => { selectedSelectToolRef.current = selectedSelectTool; }, [selectedSelectTool]);
   useEffect(() => { selectedPenToolRef.current = selectedPenTool; }, [selectedPenTool]);
   useEffect(() => { selectedLayerIdRef.current = selectedLayerId; }, [selectedLayerId]);
+  useEffect(() => { multiSelectedIdsRef.current = multiSelectedIds; }, [multiSelectedIds]);
+  useEffect(() => { updatePageHtmlRef.current = updatePageHtml; }, [updatePageHtml]);
+  useEffect(() => { currentFrameIdRef.current = currentFrameId; }, [currentFrameId]);
 
   useEffect(() => {
     if (activeBendingSegmentRef.current) {
@@ -677,6 +811,7 @@ const MainEditor = ({
       dragStateRef.current = null;
       document.body.style.userSelect = '';
       document.body.style.cursor = '';
+      document.body.classList.remove('resizing-active');
     };
   }, []);
 
@@ -1181,9 +1316,6 @@ const MainEditor = ({
     return null;
   };
 
-  const updatePageHtmlRef = useRef(updatePageHtml);
-  useEffect(() => { updatePageHtmlRef.current = updatePageHtml; }, [updatePageHtml]);
-
   useEffect(() => {
     // Setup interactjs for elements within the SVG - targeting both elements and the background
     const interactable = interact('.page-svg-container svg, .page-svg-container svg *')
@@ -1443,13 +1575,15 @@ const MainEditor = ({
 
   useEffect(() => {
     const interactable = interact('.resize-handle')
+      .styleCursor(false)
       .draggable({
+        cursorChecker: () => null,
         listeners: {
           start(event) {
             suppressClickRef.current = true;
             const handle = event.target;
             const handleId = handle.id;
-            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw)/);
+            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw|n|e|s|w)/);
             if (!match) return;
             
             const elId = match[1];
@@ -1457,17 +1591,27 @@ const MainEditor = ({
             const el = document.getElementById(elId);
             if (!el) return;
 
+            // Lock cursor globally while dragging to prevent flicker
+            const currentCursor = window.getComputedStyle(handle).cursor;
+            document.documentElement.style.setProperty('--resizing-cursor', currentCursor);
+            document.body.style.cursor = currentCursor;
+            document.body.classList.add('resizing-active');
+
             const svg = el.ownerSVGElement;
             const startPoint = getSvgPoint(svg, event.clientX, event.clientY);
             const matrix = getElementMatrix(el);
             const bbox = el.getBBox();
 
-            // Define anchor point in local space (opposite corner)
+            // Define anchor point in local space (opposite point)
             let localAnchor;
             if (dir === 'se') localAnchor = { x: bbox.x, y: bbox.y };
             else if (dir === 'sw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y };
             else if (dir === 'ne') localAnchor = { x: bbox.x, y: bbox.y + bbox.height };
             else if (dir === 'nw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
+            else if (dir === 'n') localAnchor = { x: bbox.x + bbox.width/2, y: bbox.y + bbox.height };
+            else if (dir === 's') localAnchor = { x: bbox.x + bbox.width/2, y: bbox.y };
+            else if (dir === 'e') localAnchor = { x: bbox.x, y: bbox.y + bbox.height/2 };
+            else if (dir === 'w') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height/2 };
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
@@ -1478,12 +1622,22 @@ const MainEditor = ({
               bbox,
               worldAnchor,
               startPoint,
-              svg
+              svg,
+              cursor: currentCursor // Store for reinforcement
             };
           },
           move(event) {
             const state = event.interaction.resizeState;
             if (!state) return;
+
+            // Reinforce cursor during move to prevent flicker from other handlers or React re-renders
+            if (state.cursor && document.body.style.cursor !== state.cursor) {
+               document.body.style.cursor = state.cursor;
+               document.documentElement.style.setProperty('--resizing-cursor', state.cursor);
+               if (!document.body.classList.contains('resizing-active')) {
+                  document.body.classList.add('resizing-active');
+               }
+            }
 
             const currentPoint = getSvgPoint(state.svg, event.clientX, event.clientY);
             if (!currentPoint) return;
@@ -1499,6 +1653,10 @@ const MainEditor = ({
             else if (dir === 'sw') localHandle = { x: bbox.x, y: bbox.y + bbox.height };
             else if (dir === 'ne') localHandle = { x: bbox.x + bbox.width, y: bbox.y };
             else if (dir === 'nw') localHandle = { x: bbox.x, y: bbox.y };
+            else if (dir === 'n') localHandle = { x: bbox.x + bbox.width/2, y: bbox.y };
+            else if (dir === 's') localHandle = { x: bbox.x + bbox.width/2, y: bbox.y + bbox.height };
+            else if (dir === 'e') localHandle = { x: bbox.x + bbox.width, y: bbox.y + bbox.height/2 };
+            else if (dir === 'w') localHandle = { x: bbox.x, y: bbox.y + bbox.height/2 };
             
             const worldHandle = new DOMPoint(localHandle.x, localHandle.y).matrixTransform(matrix);
             const vOriginal = { x: worldHandle.x - worldAnchor.x, y: worldHandle.y - worldAnchor.y };
@@ -1513,9 +1671,14 @@ const MainEditor = ({
             let scaleX = Math.abs(vOriginalLocal.x) < 0.1 ? 1 : vCurrentLocal.x / vOriginalLocal.x;
             let scaleY = Math.abs(vOriginalLocal.y) < 0.1 ? 1 : vCurrentLocal.y / vOriginalLocal.y;
 
-            // Maintain Aspect Ratio for images or if Shift key is held
+            // Constrain scaling for side handles
+            if (dir === 'n' || dir === 's') scaleX = 1;
+            if (dir === 'e' || dir === 'w') scaleY = 1;
+
+            // Maintain Aspect Ratio for images or if Shift key is held (only for corners)
             const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image';
-            if (event.shiftKey || isImage) {
+            const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
+            if (isCorner && (event.shiftKey || isImage)) {
                 const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
                 scaleX = s;
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
@@ -1534,6 +1697,11 @@ const MainEditor = ({
             drawOverlayHighlight(el, highlightType);
           },
           end(event) {
+            // Unlock cursor back to default
+            document.body.style.cursor = '';
+            document.body.classList.remove('resizing-active');
+            document.documentElement.style.removeProperty('--resizing-cursor');
+            
             const state = event.interaction.resizeState;
             if (state && updatePageHtmlRef.current) {
                const container = state.el.closest('.page-svg-container');
@@ -1611,8 +1779,8 @@ const MainEditor = ({
         activeBendingSegmentRef.current = null;
     }
 
-    // ── Ctrl + Click Bending Detection (Universal across Pen/Select tools) ──
-    if (e.ctrlKey && ['select', 'upload', 'pen', 'curve'].includes(activeMainToolRef.current || activeMainTool)) {
+    // ── Ctrl + Click Bending Detection (Pen Tools Only) ──────────────────────────
+    if (e.ctrlKey && (activeMainToolRef.current === 'pen' || activeMainTool === 'pen')) {
         const targetPath = e.target.closest('path');
         if (targetPath && targetPath.id && targetPath.getAttribute('data-type') !== 'Overlay') {
             const pt = getLocalPoint(svg, targetPath, e.clientX, e.clientY);
@@ -1712,6 +1880,31 @@ const MainEditor = ({
 
     // ── Pen/Pencil/Curve Tool Drawing (Only on Active Page) ─────────────────────────────
     if (activeMainTool === 'pen' && pageIndex === activePageIndex && !e.ctrlKey) {
+      if (selectedPenTool === 'pencil') {
+        const parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
+        if (!parentEl) return;
+        const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
+
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        const id = `pencil-${Math.random().toString(36).substr(2, 9)}`;
+        path.setAttribute('id', id);
+        path.setAttribute('data-type', 'vector-path');
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', '#000000');
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('stroke-linejoin', 'round');
+        path.setAttribute('d', `M ${pt.x} ${pt.y}`);
+
+        parentEl.appendChild(path);
+        drawingPathRef.current = path;
+        drawingPointsRef.current = [{ x: pt.x, y: pt.y }];
+        drawingPageIndexRef.current = pageIndex;
+        drawingSvgRef.current = svg;
+        isFreehandDrawingRef.current = true;
+        suppressClickRef.current = true;
+        return;
+      }
       const parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
       if (!parentEl) return;
       const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
@@ -1753,7 +1946,7 @@ const MainEditor = ({
                newPath.setAttribute('data-type', 'vector-path');
                newPath.setAttribute('fill', 'none');
                newPath.setAttribute('stroke', '#000000');
-               newPath.setAttribute('stroke-width', '1.5');
+               newPath.setAttribute('stroke-width', '2');
                newPath.setAttribute('stroke-linecap', 'round');
                newPath.setAttribute('stroke-linejoin', 'round');
                newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
@@ -1786,7 +1979,7 @@ const MainEditor = ({
         path.setAttribute('data-type', 'vector-path');
         path.setAttribute('fill', 'none');
         path.setAttribute('stroke', '#000000');
-        path.setAttribute('stroke-width', '1.5');
+        path.setAttribute('stroke-width', '2');
         path.setAttribute('stroke-linecap', 'round');
         path.setAttribute('stroke-linejoin', 'round');
         path.setAttribute('d', `M ${pt.x} ${pt.y}`);
@@ -1846,9 +2039,9 @@ const MainEditor = ({
 
         if (shape) {
           shape.setAttribute('id', id);
-          shape.setAttribute('fill', 'none');
-          shape.setAttribute('stroke', '#000000');
-          shape.setAttribute('stroke-width', '1');
+          shape.setAttribute('fill', '#d0ccff');
+          shape.setAttribute('stroke', 'none');
+          shape.setAttribute('stroke-width', '0');
           shape.setAttribute('data-name', `${selectedShapeTool} ${id.substr(0, 4)}`);
           shape.setAttribute('data-type', 'shape');
 
@@ -2049,43 +2242,48 @@ const MainEditor = ({
         return;
     }
 
-    // ── Pencil/Pen/Curve Drawing Update ────────────────────────────────────────────────
-    if (drawingPathRef.current) {
+    // ── Freehand Pencil Update (During Drag) ──────────
+    if (isFreehandDrawingRef.current && drawingPathRef.current) {
+        const svg = drawingSvgRef.current || (e.currentTarget.closest('.page-svg-container')?.querySelector('svg'));
+        if (!svg) return;
+        const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
+        
+        const lastPt = drawingPointsRef.current[drawingPointsRef.current.length - 1];
+        if (lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 2) return;
+
+        drawingPointsRef.current.push(pt);
+        const d = drawingPointsRef.current.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+        drawingPathRef.current.setAttribute('d', d);
+        suppressClickRef.current = true;
+        return;
+    }
+
+    // ── Pen/Curve/Click-to-Click Drawing Preview ────────────────────────────────────────────────
+    if (drawingPathRef.current && !isFreehandDrawingRef.current) {
         const svg = drawingSvgRef.current;
-        const pt = getSvgPoint(svg, e.clientX, e.clientY);
+        // Use getLocalPoint relative to the parentEl of the path
+        const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
         if (pt) {
-            const points = drawingPointsRef.current;
-            
-            // For node-based tools, we either drag an existing node or preview the new one
-            if (selectedPenTool === 'pen' || selectedPenTool === 'curve') {
-                const subPaths = drawingSubPathsRef.current;
-                const activePIdx = subPaths.length - 1;
-                const dNode = draggedNodeIndexRef.current;
+            const subPaths = drawingSubPathsRef.current;
+            const activePIdx = subPaths.length - 1;
+            const dNode = draggedNodeIndexRef.current;
 
-                if (dNode.pIdx !== -1) {
-                  // Update existing node in any subpath
-                  const targetPt = subPaths[dNode.pIdx][dNode.ptIdx];
-                  targetPt.x = pt.x;
-                  targetPt.y = pt.y;
-                  
-                  const pathData = generatePathData(subPaths[dNode.pIdx], false, selectedPenTool);
-                  drawingSubPathElsRef.current[dNode.pIdx].setAttribute('d', pathData);
-                  drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths);
-                } else if (!drawingPathRef.current.isFinished) {
-                  // Preview: only rubber-band for current subpath if not closed
-                  const currentPts = subPaths[activePIdx];
-                  const pathData = generatePathData(currentPts, false, selectedPenTool, pt);
-                  drawingSubPathElsRef.current[activePIdx].setAttribute('d', pathData);
-                  drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths, pt);
-                }
-                return;
+            if (dNode.pIdx !== -1) {
+              // Update existing node in any subpath
+              const targetPt = subPaths[dNode.pIdx][dNode.ptIdx];
+              targetPt.x = pt.x;
+              targetPt.y = pt.y;
+              
+              const pathData = generatePathData(subPaths[dNode.pIdx], false, selectedPenTool);
+              drawingSubPathElsRef.current[dNode.pIdx].setAttribute('d', pathData);
+              drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths);
+            } else if (!drawingPathRef.current.isFinished) {
+              // Preview: only rubber-band for current subpath if not closed
+              const currentPts = subPaths[activePIdx];
+              const pathData = generatePathData(currentPts, false, selectedPenTool, pt);
+              drawingSubPathElsRef.current[activePIdx].setAttribute('d', pathData);
+              drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths, pt);
             }
-
-            // Pencil (Freehand) logic adds points on every move
-            points.push({ x: pt.x, y: pt.y });
-            const pathData = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-            
-            drawingPathRef.current.setAttribute('d', pathData);
             suppressClickRef.current = true;
         }
         return;
@@ -2388,6 +2586,7 @@ const MainEditor = ({
           drawingPointsRef.current = [];
           drawingPageIndexRef.current = null;
           drawingSvgRef.current = null;
+          isFreehandDrawingRef.current = false;
           clearPenToolNodes(pageIdx);
         }
         
@@ -3430,7 +3629,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedSelectTool('select');
-                      setShowSelectOptions(false);
+                      setActiveMainTool('select');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="clarity:cursor-arrow-line" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3442,7 +3642,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedSelectTool('direct');
-                      setShowSelectOptions(false);
+                      setActiveMainTool('select');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="clarity:cursor-arrow-solid" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3497,7 +3698,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedPenTool('pen');
-                      setShowPenOptions(false);
+                      setActiveMainTool('pen');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="streamline-cyber:pen-tool" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3509,7 +3711,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedPenTool('curve');
-                      setShowPenOptions(false);
+                      setActiveMainTool('pen');
+                      closeAllDropdowns();
                     }}
                   >
                     <CurveIcon width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3521,7 +3724,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedPenTool('pencil');
-                      setShowPenOptions(false);
+                      setActiveMainTool('pen');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="mingcute:pencil-fill" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3593,7 +3797,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedShapeTool('rectangle');
-                      setShowShapesOptions(false);
+                      setActiveMainTool('shapes');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="lucide:square" width="1vw" height="1vw" className={`${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3605,7 +3810,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedShapeTool('circle');
-                      setShowShapesOptions(false);
+                      setActiveMainTool('shapes');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="lucide:circle" width="1vw" height="1vw" className={`${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3617,7 +3823,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedShapeTool('polygon');
-                      setShowShapesOptions(false);
+                      setActiveMainTool('shapes');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="lucide:triangle" width="1vw" height="1vw" className={`${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3629,7 +3836,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedShapeTool('line');
-                      setShowShapesOptions(false);
+                      setActiveMainTool('shapes');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="tabler:line" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827] rotate-[-45deg]`} />
@@ -3641,7 +3849,8 @@ const MainEditor = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       setSelectedShapeTool('star');
-                      setShowShapesOptions(false);
+                      setActiveMainTool('shapes');
+                      closeAllDropdowns();
                     }}
                   >
                     <Icon icon="lucide:star" width="1vw" height="1vw" className={`${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
@@ -3844,25 +4053,31 @@ const MainEditor = ({
                            // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
                            onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
                          />
-                         {/* Selection Overlay (Overlay rotated element perfectly) */}
-                         <svg 
-                           id={`highlight-overlay-${displayIndex}`}
-                           className="absolute inset-0 w-full h-full selection-overlay-layer" style={{ overflow: 'visible', pointerEvents: 'none' }}
-                         />
-
-
-                          {/* Marquee Selection Box */}
-                          <div 
-                            ref={marqueeOverlayRef1}
-                            style={{
-                              position: 'absolute',
-                              border: '1px solid #6366F1',
-                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                              pointerEvents: 'none',
-                              zIndex: 1000,
-                              display: 'none'
-                            }}
+                          {/* Selection Overlay (Overlay rotated element perfectly) */}
+                          <svg 
+                            id={`highlight-overlay-${displayIndex}`}
+                            className="absolute inset-0 w-full h-full selection-overlay-layer" style={{ overflow: 'visible', pointerEvents: 'none' }}
                           />
+
+                          {/* HTML Overlay for Resize Handles (Clickable) */}
+                          <div 
+                            id={`highlight-overlay-html-${displayIndex}`}
+                            className="absolute inset-0 w-full h-full" style={{ overflow: 'visible', pointerEvents: 'none' }}
+                          />
+
+
+                           {/* Marquee Selection Box */}
+                           <div 
+                             ref={marqueeOverlayRef1}
+                             style={{
+                               position: 'absolute',
+                               border: '1px solid #6366F1',
+                               backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                               pointerEvents: 'none',
+                               zIndex: 1000,
+                               display: 'none'
+                             }}
+                           />
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">

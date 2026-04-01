@@ -514,7 +514,16 @@ const TemplateEditor = () => {
               list.splice(idx, 1);
               list.unshift(item);
               const element = doc.querySelector(`[id="${item.id}"]`);
-              if (element && element.parentNode) element.parentNode.insertBefore(element, element.parentNode.firstChild);
+              if (element && element.parentNode) {
+                const overlay = element.parentNode.querySelector(':scope > [data-name="Overlay"]');
+                if (overlay) {
+                  // If there is an overlay, move after it
+                  element.parentNode.insertBefore(element, overlay.nextSibling);
+                } else {
+                  // Standard send to back
+                  element.parentNode.insertBefore(element, element.parentNode.firstChild);
+                }
+              }
             }
           });
         }
@@ -581,7 +590,13 @@ const TemplateEditor = () => {
             list.splice(i - 1, 0, item);
             const element = doc.querySelector(`[id="${item.id}"]`);
             if (element && element.parentNode && element.previousElementSibling) {
-              element.parentNode.insertBefore(element, element.previousElementSibling);
+              const prev = element.previousElementSibling;
+              // Check if we are trying to move behind the Overlay
+              if (prev.getAttribute('data-name') === 'Overlay') {
+                // Do nothing, we are already as far back as we can go!
+                return;
+              }
+              element.parentNode.insertBefore(element, prev);
             }
           }
         }
@@ -662,6 +677,100 @@ const TemplateEditor = () => {
       const newHtml = serializer.serializeToString(doc.documentElement);
 
       updated[pageIndex] = { ...page, layers: newLayers, html: newHtml };
+      return updated;
+    });
+  };
+
+  const syncGradient = (doc, element, baseAttr) => {
+    const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
+    const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear' or 'radial'
+    const stopsJson = element.getAttribute(`${baseAttr}-stops`);
+    
+    if (type !== 'gradient' || !stopsJson) return;
+
+    let stops = [];
+    try { stops = JSON.parse(stopsJson); } catch (e) { return; }
+
+    const svgRoot = doc.querySelector('svg');
+    let defs = svgRoot.querySelector('defs');
+    if (!defs) {
+      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+      svgRoot.insertBefore(defs, svgRoot.firstChild);
+    }
+
+    const gradId = `grad-${element.id}-${baseAttr}`;
+    let gradEl = defs.querySelector(`[id="${gradId}"]`);
+    
+    // Remove if wrong type
+    if (gradEl && gradEl.tagName.toLowerCase() !== `${gradType}Gradient`) {
+      gradEl.remove();
+      gradEl = null;
+    }
+
+    if (!gradEl) {
+      gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${gradType}Gradient`);
+      gradEl.id = gradId;
+      if (gradType === 'linear') {
+        gradEl.setAttribute('x1', '0%');
+        gradEl.setAttribute('y1', '0%');
+        gradEl.setAttribute('x2', '100%');
+        gradEl.setAttribute('y2', '0%');
+      }
+      defs.appendChild(gradEl);
+    }
+
+    // Update stops
+    gradEl.innerHTML = '';
+    stops.forEach(s => {
+      const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop.setAttribute('offset', `${s.offset}%`);
+      stop.setAttribute('stop-color', s.color);
+      stop.setAttribute('stop-opacity', s.opacity || 1);
+      gradEl.appendChild(stop);
+    });
+
+    element.setAttribute(baseAttr, `url(#${gradId})`);
+  };
+
+  const updateElementAttribute = (pageIndex, elementId, attribute, value) => {
+    saveToHistory();
+    setPages(prev => {
+      const updated = [...prev];
+      const page = updated[pageIndex];
+      if (!page || !page.html) return prev;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const element = doc.getElementById(elementId);
+      if (element) {
+        if (value === null || value === 'none' || (attribute === 'stroke-width' && value === '0')) {
+           element.removeAttribute(attribute);
+           if (attribute === 'stroke-width') element.setAttribute('stroke', 'none');
+        } else {
+           element.setAttribute(attribute, value);
+           if (attribute === 'stroke-width' && value !== '0' && element.getAttribute('stroke') === 'none') {
+             element.setAttribute('stroke', '#000000');
+           }
+        }
+        
+        // --- GRADIENT SYNC ---
+        if (attribute.startsWith('fill') || attribute.startsWith('stroke')) {
+           const base = attribute.startsWith('fill') ? 'fill' : 'stroke';
+           const type = element.getAttribute(`${base}-type`);
+           if (type === 'gradient') {
+              syncGradient(doc, element, base);
+           } else if (attribute === `${base}-type` && value === 'solid') {
+              // Revert to a solid color if we just switched back
+              const lastColor = element.getAttribute(base);
+              if (lastColor && lastColor.startsWith('url(#')) {
+                 element.setAttribute(base, '#000000'); // Fallback to black or last solid
+              }
+           }
+        }
+        
+        const serializer = new XMLSerializer();
+        updated[pageIndex] = { ...page, html: serializer.serializeToString(doc) };
+      }
       return updated;
     });
   };
@@ -1492,6 +1601,7 @@ const TemplateEditor = () => {
         pages={pages}
         updatePageBackground={updatePageBackground}
         selectedLayerId={selectedLayerId}
+        updateElementAttribute={updateElementAttribute}
       />
       
       {showTemplateModal && (
