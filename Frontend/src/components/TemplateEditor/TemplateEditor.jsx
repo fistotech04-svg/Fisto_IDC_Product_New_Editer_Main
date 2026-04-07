@@ -7,27 +7,151 @@ import RightSidebar from './RightSidebar';
 import TemplateModal from './TemplateModal';
 
 /**
+ * Internal helper to parse layers from SVG content recursively.
+ * Ensures the layer panel stays in sync with the SVG DOM structure.
+ */
+const parseLayersFromSVG = (element) => {
+  return Array.from(element.children)
+    .filter(child => 
+      !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
+      child.getAttribute('data-name') !== 'Overlay'
+    )
+    .map(child => {
+      // Ensure element has a unique ID for selection and state tracking
+      if (!child.id) {
+        child.id = `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+      }
+      const id = child.id;
+      const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+      const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
+
+      const layer = {
+        id,
+        name: cleanName,
+        type: child.tagName.toLowerCase(),
+        visible: child.getAttribute('data-hidden') !== 'true',
+        locked: child.getAttribute('data-locked') === 'true'
+      };
+
+      if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
+        const subLayers = parseLayersFromSVG(child);
+        if (subLayers.length > 0) layer.children = subLayers;
+      }
+
+      return layer;
+    });
+};
+
+/**
  * TemplateEditor Layout Component
  * Integrates the various sub-components into a single editor interface.
  */
 const TemplateEditor = () => {
   const { folder, v_id } = useParams();
   const location = useLocation();
-  const { setCurrentBook } = useOutletContext();
-  
-  const [isDoublePage, setIsDoublePage] = useState(false);
+
+  const { 
+    setSaveHandler, 
+    setHasUnsavedChanges, 
+    triggerSaveSuccess,
+    isAutoSaveEnabled,
+    setIsSaving,
+    currentBook,
+    setCurrentBook
+  } = useOutletContext();
+
+  // ── States & Refs ──────────────────────────────────────────────────────────
   const [pages, setPages] = useState([]);
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDoublePage, setIsDoublePage] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [multiSelectedIds, setMultiSelectedIds] = useState(new Set());
-  const [clipboard, setClipboard] = useState(null); // { layer, svgSnippet }
-  const [currentFrameId, setCurrentFrameId] = useState(null); // Figma-style "entered" frame
-  const [activeMainTool, setActiveMainTool] = useState('select'); // 'upload', 'select', 'pen', 'type', 'shapes', 'grid'
+  const [clipboard, setClipboard] = useState(null);
+  const [currentFrameId, setCurrentFrameId] = useState(null);
+  const [activeMainTool, setActiveMainTool] = useState('select');
+  const [activeTopTool, setActiveTopTool] = useState('editor');
+  
+  const autoSaveTimerRef = useRef(null);
+  const isFirstLoadRef = useRef(true);
+  const lastPageIndexRef = useRef(-1);
+  const historyRef = useRef([]); 
+  const [history, setHistory] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
+  const MAX_HISTORY = 50;
+
+  // ── Save Logic ─────────────────────────────────────────────────────────────
+  const saveFlipbook = async (isManual = false) => {
+    try {
+      setIsSaving(true);
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      
+      const payload = {
+        emailId: user?.emailId,
+        v_id: v_id,
+        flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+        folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
+        overwrite: true,
+        pages: pages.map((p, i) => ({
+          pageName: p.name || `Page ${i+1}`,
+          content: p.html,
+          v_id: p.v_id || null
+        }))
+      };
+
+      const res = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+      if (res.data && res.data.v_id) {
+        setHasUnsavedChanges(false);
+        triggerSaveSuccess({
+          name: payload.flipbookName,
+          folder: payload.folderName,
+          isManual
+        });
+        console.log("Flipbook saved successfully:", res.data);
+      }
+    } catch (err) {
+      console.error("Failed to save flipbook:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Register Save Handler to Navbar (Pass true for manual save)
+  useEffect(() => {
+    setSaveHandler(() => () => saveFlipbook(true));
+    return () => setSaveHandler(null);
+  }, [pages, currentBook, v_id]);
+
+  // Track Changes for Unsaved Indicator
+  useEffect(() => {
+    if (pages.length > 0 && !isLoading) {
+      if (isFirstLoadRef.current) {
+        isFirstLoadRef.current = false;
+        return;
+      }
+      setHasUnsavedChanges(true);
+    }
+  }, [pages]);
+
+  // ── Auto-Save Mechanism ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (isAutoSaveEnabled && pages.length > 0 && !isLoading) {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        saveFlipbook(false); // false = auto save
+      }, 1500);
+    }
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [pages, isAutoSaveEnabled]);
 
   const createDefaultPageData = (name) => {
+    // ... rest of code same ...
     const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
     const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
     const html = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 297" width="100%" height="100%" style="overflow: visible">
@@ -48,11 +172,6 @@ const TemplateEditor = () => {
     return { html, layers };
   };
 
-  const [history, setHistory] = useState([]); // Past states
-  const [redoStack, setRedoStack] = useState([]); // States for redo
-  const MAX_HISTORY = 50;
-
-  const lastPageIndexRef = useRef(-1);
 
   // ── FIGMA-STYLE: Unified Page Selection & Frame Sync ──────────────────────────
   useEffect(() => {
@@ -157,35 +276,7 @@ const TemplateEditor = () => {
     const doc = parser.parseFromString(html, 'image/svg+xml');
     const svgEl = doc.querySelector('svg');
 
-    const parseLayersRecursive = (element) => {
-      return Array.from(element.children)
-        .filter(child => 
-          !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
-          child.getAttribute('data-name') !== 'Overlay'
-        )
-        .map(child => {
-          const id = child.id || `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
-          const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
-          const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
-
-          const layer = {
-            id,
-            name: cleanName,
-            type: child.tagName.toLowerCase(),
-            visible: child.getAttribute('data-hidden') !== 'true',
-            locked: child.getAttribute('data-locked') === 'true'
-          };
-
-          if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
-            const subLayers = parseLayersRecursive(child);
-            if (subLayers.length > 0) layer.children = subLayers;
-          }
-
-          return layer;
-        });
-    };
-
-    const newLayers = svgEl ? parseLayersRecursive(svgEl) : [];
+    const newLayers = svgEl ? parseLayersFromSVG(svgEl) : [];
     
     setPages(prev => {
       const updated = [...prev];
@@ -683,10 +774,21 @@ const TemplateEditor = () => {
 
   const syncGradient = (doc, element, baseAttr) => {
     const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
+    const currentValue = element.getAttribute(baseAttr);
+    const isUrl = currentValue && currentValue.startsWith('url(#');
     const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear' or 'radial'
     const stopsJson = element.getAttribute(`${baseAttr}-stops`);
     
-    if (type !== 'gradient' || !stopsJson) return;
+    // SKILLFUL RETURN: Only apply gradient logic if the element is currently in gradient mode.
+    // If it's 'solid' or 'none', the attribute (fill/stroke) should be left as is (the actual color).
+    if (type === 'solid' || type === 'none') {
+       return;
+    }
+
+    // Default to solid if type missing and it's not currently an url()
+    if (!type && !isUrl) return;
+
+    if (!stopsJson) return;
 
     let stops = [];
     try { stops = JSON.parse(stopsJson); } catch (e) { return; }
@@ -698,11 +800,14 @@ const TemplateEditor = () => {
       svgRoot.insertBefore(defs, svgRoot.firstChild);
     }
 
+    if (!element.id) {
+      element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
+    }
     const gradId = `grad-${element.id}-${baseAttr}`;
     let gradEl = defs.querySelector(`[id="${gradId}"]`);
     
-    // Remove if wrong type
-    if (gradEl && gradEl.tagName.toLowerCase() !== `${gradType}Gradient`) {
+    // Remove if wrong type (case-insensitive check for safety, but creation is exact)
+    if (gradEl && gradEl.tagName.toLowerCase() !== `${gradType}gradient`.toLowerCase()) {
       gradEl.remove();
       gradEl = null;
     }
@@ -715,21 +820,33 @@ const TemplateEditor = () => {
         gradEl.setAttribute('y1', '0%');
         gradEl.setAttribute('x2', '100%');
         gradEl.setAttribute('y2', '0%');
+      } else {
+        gradEl.setAttribute('cx', '50%');
+        gradEl.setAttribute('cy', '50%');
+        gradEl.setAttribute('r', '50%');
       }
       defs.appendChild(gradEl);
     }
 
     // Update stops
-    gradEl.innerHTML = '';
+    while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
     stops.forEach(s => {
       const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
       stop.setAttribute('offset', `${s.offset}%`);
       stop.setAttribute('stop-color', s.color);
-      stop.setAttribute('stop-opacity', s.opacity || 1);
+      stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
       gradEl.appendChild(stop);
     });
 
     element.setAttribute(baseAttr, `url(#${gradId})`);
+    
+    // If it's a group (like a vpath), child elements might have their own fill/stroke
+    // which prevents inheritance. We remove them to let the gradient through.
+    if (element.tagName.toLowerCase() === 'g') {
+       Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
+          child.removeAttribute(baseAttr);
+       });
+    }
   };
 
   const updateElementAttribute = (pageIndex, elementId, attribute, value) => {
@@ -743,33 +860,139 @@ const TemplateEditor = () => {
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
       const element = doc.getElementById(elementId);
       if (element) {
-        if (value === null || value === 'none' || (attribute === 'stroke-width' && value === '0')) {
-           element.removeAttribute(attribute);
+        if (value === null || value === 'none' || value === '#') {
+           // For Fill/Stroke, we explicitly set 'none' to avoid SVG default black
+           if (attribute === 'fill' || attribute === 'stroke') {
+              element.setAttribute(attribute, 'none');
+           } else {
+              element.removeAttribute(attribute);
+           }
+           
            if (attribute === 'stroke-width') element.setAttribute('stroke', 'none');
         } else {
            element.setAttribute(attribute, value);
-           if (attribute === 'stroke-width' && value !== '0' && element.getAttribute('stroke') === 'none') {
+           if (attribute === 'stroke-width' && value !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
+             // If we're setting a stroke width, make sure there's a color
              element.setAttribute('stroke', '#000000');
            }
-        }
-        
-        // --- GRADIENT SYNC ---
-        if (attribute.startsWith('fill') || attribute.startsWith('stroke')) {
-           const base = attribute.startsWith('fill') ? 'fill' : 'stroke';
-           const type = element.getAttribute(`${base}-type`);
-           if (type === 'gradient') {
-              syncGradient(doc, element, base);
-           } else if (attribute === `${base}-type` && value === 'solid') {
-              // Revert to a solid color if we just switched back
-              const lastColor = element.getAttribute(base);
-              if (lastColor && lastColor.startsWith('url(#')) {
-                 element.setAttribute(base, '#000000'); // Fallback to black or last solid
+           
+           // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
+           const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attribute);
+           if (attribute === 'data-count' || attribute === 'data-rx' || attribute === 'data-ry' || attribute === 'data-ratio' || attribute === 'data-radius' || isRectCorner) {
+              const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
+              
+              if (shapeType === 'polygon' || shapeType === 'star') {
+                 // ... (existing polygon/star logic) ...
+                 const cx = parseFloat(element.getAttribute('data-cx') || 0);
+                 const cy = parseFloat(element.getAttribute('data-cy') || 0);
+                 const rx = parseFloat(element.getAttribute('data-rx') || 0);
+                 const count = parseInt(attribute === 'data-count' ? value : (element.getAttribute('data-count') || 3));
+                 const cr = parseFloat(attribute === 'data-radius' ? value : (element.getAttribute('data-radius') || 0));
+                 
+                 const pts = [];
+                 if (shapeType === 'polygon') {
+                    for (let i = 0; i < count; i++) {
+                       const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
+                       pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
+                    }
+                 } else if (shapeType === 'star') {
+                    const ratio = parseFloat(attribute === 'data-ratio' ? value : (element.getAttribute('data-ratio') || 40)) / 100;
+                    const ri = rx * ratio;
+                    const sides = count * 2;
+                    for (let i = 0; i < sides; i++) {
+                       const r = (i % 2 === 0) ? rx : ri;
+                       const angle = (Math.PI / count) * i - Math.PI / 2;
+                       pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+                    }
+                 }
+
+                 if (cr > 0 && pts.length > 2) {
+                    let pathData = "";
+                    const cornerPoints = pts.map((curr, i) => {
+                       const prev = pts[(i + pts.length - 1) % pts.length];
+                       const next = pts[(i + 1) % pts.length];
+                       const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+                       const d2 = { x: next.x - curr.x, y: next.y - curr.y };
+                       const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
+                       const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
+                       const limit = Math.min(cr, l1 / 2, l2 / 2);
+                       return {
+                          q: { x: curr.x, y: curr.y },
+                          p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
+                          p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
+                       };
+                    });
+                    cornerPoints.forEach((cp, i) => {
+                       if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
+                       else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
+                       pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
+                    });
+                    pathData += " Z";
+                    element.setAttribute('d', pathData);
+                 } else {
+                    element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
+                 }
+              } 
+              else if (shapeType === 'rectangle' && (isRectCorner || attribute === 'rx')) {
+                 // Convert rect to path if individual corners are used
+                 const x = parseFloat(element.getAttribute('x') || 0);
+                 const y = parseFloat(element.getAttribute('y') || 0);
+                 const w = parseFloat(element.getAttribute('width') || 0);
+                 const h = parseFloat(element.getAttribute('height') || 0);
+                 const defR = parseFloat(element.getAttribute('rx') || 0);
+                 
+                 const tl = parseFloat(element.getAttribute('data-tl') || defR);
+                 const tr = parseFloat(element.getAttribute('data-tr') || defR);
+                 const bl = parseFloat(element.getAttribute('data-bl') || defR);
+                 const br = parseFloat(element.getAttribute('data-br') || defR);
+
+                 const d = `
+                    M ${x + tl},${y}
+                    L ${x + w - tr},${y}
+                    Q ${x + w},${y} ${x + w},${y + tr}
+                    L ${x + w},${y + h - br}
+                    Q ${x + w},${y + h} ${x + w - br},${y + h}
+                    L ${x + bl},${y + h}
+                    Q ${x},${y + h} ${x},${y + h - bl}
+                    L ${x},${y + tl}
+                    Q ${x},${y} ${x + tl},${y}
+                    Z
+                 `.replace(/\s+/g, ' ').trim();
+
+                 // Crucial: keep width/height so interact.js still works, but render as path
+                 if (element.tagName === 'rect') {
+                    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    // Copy all attributes
+                    Array.from(element.attributes).forEach(attr => path.setAttribute(attr.name, attr.value));
+                    path.setAttribute('d', d);
+                    path.setAttribute('data-shape-type', 'rectangle');
+                    element.parentNode.replaceChild(path, element);
+                 } else {
+                    element.setAttribute('d', d);
+                 }
               }
            }
         }
         
+        // --- GRADIENT SYNC ---
+        const isGradientRelated = attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type');
+        if (attribute.startsWith('fill') || attribute.startsWith('stroke') || isGradientRelated || attribute.includes('stroke-')) {
+           const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
+           syncGradient(doc, element, base);
+           
+           // DEFAULT STROKE THICKNESS: When picking a stroke color, if no width exists, default to 1.
+           if (attribute === 'stroke' && value !== 'none' && value !== '#') {
+              const currentWidth = element.getAttribute('stroke-width');
+              if (!currentWidth || currentWidth === '0') {
+                 element.setAttribute('stroke-width', '1');
+              }
+           }
+           
+           // The syncGradient logic above handles the 'solid' type, so no fallback needed.
+        }
+        
         const serializer = new XMLSerializer();
-        updated[pageIndex] = { ...page, html: serializer.serializeToString(doc) };
+        updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
       }
       return updated;
     });
@@ -1465,6 +1688,7 @@ const TemplateEditor = () => {
               });
               
               if (res.data && res.data.pages) {
+                  const parser = new DOMParser();
                   setPages(res.data.pages.map((p, i) => {
                       const name = p.name || `Page ${i + 1}`;
                       if (!p.html || p.html.trim() === '') {
@@ -1476,14 +1700,30 @@ const TemplateEditor = () => {
                               layers: layers
                           };
                       }
+
+                      // Re-parse layers from HTML if missing or invalid (source of truth)
+                      let layers = p.layers;
+                      let updatedHtml = p.html;
+                      if (!layers || layers.length === 0) {
+                          const doc = parser.parseFromString(p.html || '', 'image/svg+xml');
+                          const svgEl = doc.querySelector('svg');
+                          if (svgEl) {
+                              layers = parseLayersFromSVG(svgEl);
+                              updatedHtml = new XMLSerializer().serializeToString(doc);
+                          } else {
+                              layers = [];
+                          }
+                      }
+
                       return {
                           id: p.v_id || i + 1,
                           name: name,
-                          html: p.html,
-                          layers: p.layers
+                          html: updatedHtml,
+                          layers: layers
                       };
                   }));
                   setCurrentBook(res.data.meta);
+                  setHasUnsavedChanges(false);
               }
           } catch (err) {
               console.error("Failed to fetch flipbook:", err);
@@ -1592,11 +1832,20 @@ const TemplateEditor = () => {
         setCurrentFrameId={setCurrentFrameId}
         activeMainTool={activeMainTool}
         setActiveMainTool={setActiveMainTool}
+        activeTopTool={activeTopTool}
+        setActiveTopTool={(tool) => {
+          setActiveTopTool(tool);
+          if (tool !== 'editor') {
+            setActiveMainTool('select');
+          }
+        }}
+        onSave={saveFlipbook}
       />
       <RightSidebar 
         isDoublePage={isDoublePage} 
         setIsDoublePage={setIsDoublePage} 
         activeMainTool={activeMainTool}
+        activeTopTool={activeTopTool}
         activePageIndex={activePageIndex}
         pages={pages}
         updatePageBackground={updatePageBackground}

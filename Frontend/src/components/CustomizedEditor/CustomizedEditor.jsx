@@ -14,7 +14,7 @@ import Statistic from './Statistic';
 
 const CustomizedEditor = () => {
   const { folder, v_id } = useParams();
-  const { setExportHandler, setSaveHandler, setHasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, setCurrentBook } = useOutletContext() || {};
+  const { setExportHandler, setSaveHandler, setHasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, setIsSaving, setCurrentBook } = useOutletContext() || {};
   const [bookName, setBookName] = useState('Name of the Book');
   const [activeSubView, setActiveSubView] = useState(null);
   const [pages, setPages] = useState([]);
@@ -214,6 +214,7 @@ const CustomizedEditor = () => {
 
   const handleSave = async () => {
     try {
+      if (setIsSaving) setIsSaving(true);
       const storedUser = localStorage.getItem('user');
       if (!storedUser) {
         console.error("User not found");
@@ -248,6 +249,8 @@ const CustomizedEditor = () => {
       setTimeout(() => setSaveSuccessInfo(null), 3000);
     } catch (error) {
        console.error("Save failed", error);
+    } finally {
+      if (setIsSaving) setIsSaving(false);
     }
   };
 

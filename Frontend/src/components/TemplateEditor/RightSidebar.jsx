@@ -7,6 +7,7 @@ const RightSidebar = ({
   isDoublePage, 
   setIsDoublePage, 
   activeMainTool,
+  activeTopTool,
   activePageIndex,
   pages,
   updatePageBackground,
@@ -197,8 +198,9 @@ const RightSidebar = ({
       </div>
 
       {/* Persistent Dimension Section (Common for all) */}
-      <div className="bg-[#f6f6f6] px-[1.5vw] py-[0.8vw] border-b border-gray-100 flex-shrink-0">
-         <div className="space-y-[0.8vw]">
+      {activeTopTool === 'editor' && (
+        <div className="bg-[#f6f6f6] px-[1.5vw] py-[0.8vw] border-b border-gray-100 flex-shrink-0">
+          <div className="space-y-[0.8vw]">
             <div className="flex items-center gap-[0.4vw]">
                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Dimension</span>
                <div className="h-px flex-grow bg-gray-200"></div>
@@ -293,108 +295,202 @@ const RightSidebar = ({
                   </div>
                </div>
             </div>
-         </div>
-      </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[#fbfbfb]">
-        {activeMainTool === 'upload' ? (
-          <div className="p-[1.5vw] flex flex-col gap-[3.5vh]">
-            <div className="flex flex-col gap-[2.5vh]">
-              <div className="flex items-center gap-[0.75vw]">
-                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Upload Files</span>
-                <div className="h-[0.1vw] flex-1 bg-gray-300 opacity-50"></div>
-              </div>
-              <div
-                onClick={handleUploadClick}
-                className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
-              >
-                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-                <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
-                  Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
+        {activeTopTool === 'editor' ? (
+          activeMainTool === 'upload' ? (
+            <div className="p-[1.5vw] flex flex-col gap-[3.5vh]">
+              <div className="flex flex-col gap-[2.5vh]">
+                <div className="flex items-center gap-[0.75vw]">
+                  <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Upload Files</span>
+                  <div className="h-[0.1vw] flex-1 bg-gray-300 opacity-50"></div>
                 </div>
-                <div className="mb-[1.5vw] transition-colors text-gray-400 group-hover:text-blue-500">
-                  <Icon icon="heroicons:arrow-up-tray" width="2vw" />
-                </div>
-                <div className="text-center">
-                  <div className="text-[0.65vw] font-bold text-gray-600 uppercase tracking-wide mb-[0.25vw]">Supported File</div>
-                  <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[12vw] font-medium text-center">Image, Video, Audio, GIF, SVG</div>
+                <div
+                  onClick={handleUploadClick}
+                  className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
+                >
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+                  <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
+                    Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
+                  </div>
+                  <div className="mb-[1.5vw] transition-colors text-gray-400 group-hover:text-blue-500">
+                    <Icon icon="heroicons:arrow-up-tray" width="2vw" />
+                  </div>
+                  <div className="text-center">
+                    <div className="text-[0.65vw] font-bold text-gray-600 uppercase tracking-wide mb-[0.25vw]">Supported File</div>
+                    <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[12vw] font-medium text-center">Image, Video, Audio, GIF, SVG</div>
+                  </div>
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="flex-1 flex flex-col p-[1.5vw] overflow-y-auto no-scrollbar gap-[1.5vw]">
+              {selectedElementProps ? (
+                <div className="flex flex-col gap-[1.5vw]">
+                  <ShapeProperties 
+                    selectedElementProps={selectedElementProps}
+                    activePageIndex={activePageIndex}
+                    selectedLayerId={selectedLayerId}
+                    updateElementAttribute={updateElementAttribute}
+                  />
+                </div>
+              ) : (
+                /* Page Properties (Default View) */
+                (() => {
+                  const page = pages[activePageIndex];
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
+                  const overlay = doc.querySelector('[data-name="Overlay"]');
+                  const currentBg = overlay?.getAttribute('fill') || '#ffffff';
+
+                  return (
+                    <div className="flex flex-col gap-[3vh]">
+                      <div className="flex flex-col gap-[1.5vh]">
+                        <div className="flex items-center gap-[0.75vw]">
+                          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
+                            Page Background
+                          </span>
+                          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                        </div>
+
+                        <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
+                          <div className="flex items-center justify-between mb-[1.5vh]">
+                            <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
+                            <div className="flex items-center gap-[0.5vw]">
+                              <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: currentBg }} />
+                              <span className="text-[0.7vw] font-mono text-gray-400">{currentBg.toUpperCase()}</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-8 gap-[0.4vw]">
+                            {presetColors.map((color) => (
+                              <button
+                                key={color}
+                                onClick={() => updatePageBackground(activePageIndex, color)}
+                                className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
+                                style={{ backgroundColor: color }}
+                                title={color}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-[1.5vh]">
+                        <div className="flex items-center gap-[0.75vw]">
+                          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Document info</span>
+                          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                        </div>
+                        <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
+                          <div className="flex justify-between items-center text-[0.75vw]">
+                            <span className="text-gray-500 font-medium">Format</span>
+                            <span className="text-gray-900 font-semibold">A4 Sheet</span>
+                          </div>
+                          <div className="flex justify-between items-center text-[0.75vw]">
+                            <span className="text-gray-500 font-medium">Dimensions</span>
+                            <span className="text-gray-900 font-semibold">210 x 297 mm</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          )
+        ) : activeTopTool === 'interaction' ? (
+          <div className="flex-1 flex flex-col p-[1.5vw] gap-[2.5vw] overflow-y-auto no-scrollbar">
+            <div className="flex flex-col gap-[1.5vh]">
+              <div className="flex items-center gap-[0.75vw]">
+                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider uppercase">Interaction Settings</span>
+                <div className="h-[0.1vw] flex-1 bg-indigo-100"></div>
+              </div>
+              <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1.5vh]">
+                <div className="text-[0.7vw] text-gray-400 font-medium italic">Configure interactive behaviors for the selected element.</div>
+                <div className="grid grid-cols-2 gap-[0.8vw]">
+                  {[
+                    { label: 'Link', icon: 'lucide:link' },
+                    { label: 'Popup', icon: 'lucide:external-link' },
+                    { label: 'Tooltip', icon: 'lucide:message-square' },
+                    { label: 'Audio', icon: 'lucide:volume-2' }
+                  ].map(type => (
+                    <div key={type.label} className="p-[0.8vw] bg-gray-50/50 rounded-[0.6vw] border border-gray-100 hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all flex flex-col items-center gap-[0.5vh] group/type">
+                      <Icon icon={type.icon} width="1.2vw" className="text-gray-400 group-hover/type:text-indigo-600 transition-colors" />
+                      <span className="text-[0.7vw] font-bold text-gray-600 group-hover/type:text-indigo-700">{type.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-[1.5vh]">
+              <div className="flex items-center gap-[0.75vw]">
+                <span className="text-[0.75vw] font-bold text-gray-400 whitespace-nowrap tracking-widest uppercase">Triggers</span>
+                <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
+              </div>
+              {['On Click', 'On Hover', 'On View'].map(trigger => (
+                <div key={trigger} className="flex items-center justify-between p-[0.8vw] bg-white border border-gray-100 rounded-[0.6vw] hover:shadow-sm cursor-pointer transition-all group">
+                  <span className="text-[0.8vw] font-medium text-gray-700">{trigger}</span>
+                  <div className="w-[1.4vw] h-[1.4vw] rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
+                    <Icon icon="lucide:plus" width="0.8vw" className="text-gray-400 group-hover:text-indigo-600" />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
-          <div className="flex-1 flex flex-col p-[1.5vw] overflow-y-auto no-scrollbar gap-[1.5vw]">
-            {selectedElementProps ? (
-                <div className="flex flex-col gap-[1.5vw]">
-                   <ShapeProperties 
-                      selectedElementProps={selectedElementProps}
-                      activePageIndex={activePageIndex}
-                      selectedLayerId={selectedLayerId}
-                      updateElementAttribute={updateElementAttribute}
-                   />
+          /* Animation Mode */
+          <div className="flex-1 flex flex-col p-[1.5vw] gap-[2.5vw] overflow-y-auto no-scrollbar">
+            <div className="flex flex-col gap-[1.5vh]">
+              <div className="flex items-center gap-[0.75vw]">
+                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider uppercase">Animation Effects</span>
+                <div className="h-[0.1vw] flex-1 bg-purple-100"></div>
+              </div>
+              <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1.5vh]">
+                <div className="text-[0.7vw] text-gray-400 font-medium italic">Add motion presets to breathe life into your page.</div>
+                <div className="space-y-[1vh]">
+                  {[
+                    { label: 'Fade In', desc: 'Smooth opacity transition' },
+                    { label: 'Slide Up', desc: 'Entrance from bottom' },
+                    { label: 'Zoom In', desc: 'Scale from center' },
+                    { label: 'Bounce', desc: 'Playful entry effect' }
+                  ].map(anim => (
+                    <div key={anim.label} className="flex items-center justify-between p-[0.7vw] bg-gray-50/50 rounded-[0.6vw] border border-gray-100 hover:bg-white hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group/anim">
+                      <div className="flex items-center gap-[0.8vw]">
+                        <div className="w-[1.8vw] h-[1.8vw] bg-white rounded-full flex items-center justify-center shadow-sm text-gray-400 group-hover/anim:text-purple-600 transition-colors">
+                          <Icon icon="mdi:motion-play-outline" width="1vw" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-[0.75vw] font-bold text-gray-700 group-hover/anim:text-purple-900">{anim.label}</span>
+                          <span className="text-[0.6vw] text-gray-400">{anim.desc}</span>
+                        </div>
+                      </div>
+                      <Icon icon="lucide:chevron-right" width="0.8vw" className="text-gray-300 group-hover/anim:text-purple-400" />
+                    </div>
+                  ))}
                 </div>
-            ) : (
-               /* Page Properties (Default View) */
-               (() => {
-                 const page = pages[activePageIndex];
-                 const parser = new DOMParser();
-                 const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-                 const overlay = doc.querySelector('[data-name="Overlay"]');
-                 const currentBg = overlay?.getAttribute('fill') || '#ffffff';
+              </div>
+            </div>
 
-                 return (
-                   <div className="flex flex-col gap-[3vh]">
-                     <div className="flex flex-col gap-[1.5vh]">
-                       <div className="flex items-center gap-[0.75vw]">
-                         <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
-                           Page Background
-                         </span>
-                         <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                       </div>
-
-                       <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
-                         <div className="flex items-center justify-between mb-[1.5vh]">
-                           <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
-                           <div className="flex items-center gap-[0.5vw]">
-                             <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: currentBg }} />
-                             <span className="text-[0.7vw] font-mono text-gray-400">{currentBg.toUpperCase()}</span>
-                           </div>
-                         </div>
-
-                         <div className="grid grid-cols-8 gap-[0.4vw]">
-                           {presetColors.map((color) => (
-                             <button
-                               key={color}
-                               onClick={() => updatePageBackground(activePageIndex, color)}
-                               className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
-                               style={{ backgroundColor: color }}
-                               title={color}
-                             />
-                           ))}
-                         </div>
-                       </div>
-                     </div>
-
-                     <div className="flex flex-col gap-[1.5vh]">
-                       <div className="flex items-center gap-[0.75vw]">
-                         <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Document info</span>
-                         <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                       </div>
-                       <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
-                         <div className="flex justify-between items-center text-[0.75vw]">
-                           <span className="text-gray-500 font-medium">Format</span>
-                           <span className="text-gray-900 font-semibold">A4 Sheet</span>
-                         </div>
-                         <div className="flex justify-between items-center text-[0.75vw]">
-                           <span className="text-gray-500 font-medium">Dimensions</span>
-                           <span className="text-gray-900 font-semibold">210 x 297 mm</span>
-                         </div>
-                       </div>
-                     </div>
-                   </div>
-                 );
-               })()
-            )}
+            <div className="flex flex-col gap-[1.5vh]">
+              <div className="flex items-center gap-[0.7vw]">
+                 <span className="text-[0.75vw] font-bold text-gray-400 tracking-widest uppercase">Presets Tuning</span>
+                 <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
+              </div>
+              <div className="grid grid-cols-2 gap-[1vw]">
+                 <div className="flex flex-col gap-[0.5vh]">
+                   <span className="text-[0.65vw] font-bold text-gray-500">Duration</span>
+                   <div className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700">0.5s</div>
+                 </div>
+                 <div className="flex flex-col gap-[0.5vh]">
+                   <span className="text-[0.65vw] font-bold text-gray-500">Delay</span>
+                   <div className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700">0s</div>
+                 </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

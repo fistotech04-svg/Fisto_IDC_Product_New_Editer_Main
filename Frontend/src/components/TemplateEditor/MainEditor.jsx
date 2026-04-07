@@ -189,7 +189,9 @@ const MainEditor = ({
   currentFrameId,
   setCurrentFrameId,
   activeMainTool,
-  setActiveMainTool
+  setActiveMainTool,
+  activeTopTool,
+  setActiveTopTool
 }) => {
 
   const [showSelectOptions, setShowSelectOptions] = useState(false);
@@ -249,6 +251,12 @@ const MainEditor = ({
           document.activeElement.isContentEditable) return;
 
       const key = e.key.toLowerCase();
+      
+      // ── Restrict shortcuts in non-editor modes ─────────────────
+      if (activeTopTool !== 'editor') {
+        const isSelectionKey = key === 'v' || key === 'a';
+        if (!isSelectionKey) return;
+      }
 
       // ── Tool Shortcuts ─────────────
       // V for selection
@@ -299,7 +307,7 @@ const MainEditor = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, []);
+  }, [activeTopTool]);
 
   // ── Marquee Selection State ───────────────────────────────────────────────
   const [marquee, setMarquee] = useState(null); // { pageIndex }
@@ -678,6 +686,14 @@ const MainEditor = ({
   // ── Escape key: exit current frame context (go up one level) ──────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const key = e.key.toLowerCase();
+
+      // ── Restrict shortcuts in non-editor modes ─────────────────
+      if (activeTopTool !== 'editor') {
+        const isSelectionKey = key === 'v' || key === 'a';
+        if (!isSelectionKey) return;
+      }
+
       // Ignore if typing in an input, textarea or contenteditable element
       if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || 
           document.activeElement.contentEditable === 'true') {
@@ -804,7 +820,7 @@ const MainEditor = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setSelectedLayerId, setMultiSelectedIds, setCurrentFrameId, activePageIndex, updatePageHtml, setActiveMainTool, setSelectedSelectTool]);
+  }, [setSelectedLayerId, setMultiSelectedIds, setCurrentFrameId, activePageIndex, updatePageHtml, setActiveMainTool, setSelectedSelectTool, activeTopTool]);
 
   useEffect(() => {
     return () => {
@@ -2034,14 +2050,25 @@ const MainEditor = ({
           case 'star':
             shape = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             shape.setAttribute('d', `M ${pt.x} ${pt.y}`);
+            shape.setAttribute('data-cx', pt.x);
+            shape.setAttribute('data-cy', pt.y);
+            shape.setAttribute('data-count', selectedShapeTool === 'polygon' ? '3' : '5');
+            shape.setAttribute('data-ratio', '40');
+            shape.setAttribute('data-shape-type', selectedShapeTool);
             break;
         }
 
         if (shape) {
           shape.setAttribute('id', id);
-          shape.setAttribute('fill', '#d0ccff');
-          shape.setAttribute('stroke', 'none');
-          shape.setAttribute('stroke-width', '0');
+          if (selectedShapeTool === 'line') {
+            shape.setAttribute('fill', 'none');
+            shape.setAttribute('stroke', '#000000');
+            shape.setAttribute('stroke-width', '2');
+          } else {
+            shape.setAttribute('fill', '#d0ccff');
+            shape.setAttribute('stroke', 'none');
+            shape.setAttribute('stroke-width', '0');
+          }
           shape.setAttribute('data-name', `${selectedShapeTool} ${id.substr(0, 4)}`);
           shape.setAttribute('data-type', 'shape');
 
@@ -2316,22 +2343,33 @@ const MainEditor = ({
                 shape.setAttribute('y2', pt.y);
                 break;
               case 'polygon': {
-                const p1 = `${start.x},${start.y}`;
-                const p2 = `${pt.x},${pt.y}`;
-                const p3 = `${start.x - (pt.x - start.x)},${pt.y}`;
-                shape.setAttribute('d', `M ${p1} L ${p2} L ${p3} Z`);
+                const radius = Math.sqrt(dx * dx + dy * dy);
+                const sides = parseInt(shape.getAttribute('data-count') || 3);
+                const points = [];
+                for (let i = 0; i < sides; i++) {
+                    const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+                    points.push(`${start.x + radius * Math.cos(angle)},${start.y + radius * Math.sin(angle)}`);
+                }
+                shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+                shape.setAttribute('data-rx', radius);
+                shape.setAttribute('data-ry', radius);
                 break;
               }
               case 'star': {
                 const rOuter = Math.sqrt(dx * dx + dy * dy);
-                const rInner = rOuter / 2.5;
+                const ratio = parseFloat(shape.getAttribute('data-ratio') || 40) / 100;
+                const rInner = rOuter * ratio;
+                const count = parseInt(shape.getAttribute('data-count') || 5);
+                const sides = count * 2;
                 const points = [];
-                for (let i = 0; i < 10; i++) {
+                for (let i = 0; i < sides; i++) {
                     const r = (i % 2 === 0) ? rOuter : rInner;
-                    const angle = (Math.PI / 5) * i - Math.PI / 2;
+                    const angle = (Math.PI / count) * i - Math.PI / 2;
                     points.push(`${start.x + r * Math.cos(angle)},${start.y + r * Math.sin(angle)}`);
                 }
                 shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+                shape.setAttribute('data-rx', rOuter);
+                shape.setAttribute('data-ry', rOuter);
                 break;
               }
             }
@@ -3532,17 +3570,26 @@ const MainEditor = ({
         <div className="absolute right-[1.05vw] top-[1.9vh] z-50">
           <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
             {/* Black Edit Icon Button */}
-            <button className="w-[2.1vw] h-[2.1vw] cursor-pointer bg-[#000000] rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh]">
-              <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className="text-white" />
+            <button 
+              onClick={() => setActiveTopTool('editor')}
+              className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh] ${activeTopTool === 'editor' ? 'bg-[#000000]' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+            >
+              <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className={activeTopTool === 'editor' ? 'text-white' : ''} />
             </button>
             
             {/* Hand / Pan Tool */}
-            <button className="w-[2.1vw] h-[2.1vw] cursor-pointer hover:bg-white rounded-[0.4vw] flex items-center justify-center text-[#9EA1A7] hover:text-[#111827] transition-all">
+            <button 
+              onClick={() => setActiveTopTool('interaction')}
+              className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'interaction' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+            >
               <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" height="1.2vw" />
             </button>
             
             {/* Star / Special Tool */}
-            <button className="w-[2.1vw] h-[2.1vw] cursor-pointer hover:bg-white rounded-[0.4vw] flex items-center justify-center text-[#9EA1A7] hover:text-[#111827] transition-all mb-[0.2vh]">
+            <button 
+              onClick={() => setActiveTopTool('animation')}
+              className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'animation' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+            >
               <Icon icon="tdesign:animation-1" width="1.2vw" height="1.2vw" />
             </button>
           </div>
@@ -3585,338 +3632,340 @@ const MainEditor = ({
         </div>
 
         {/* Bottom Group: Creation & Widgets - Perfected Integrated Design */}
-        <div className="absolute right-0 top-[20vh] z-50">
-          <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
-            
-            {/* Perfect Inverted Corner Top */}
-            <div className="absolute -top-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] border-gray-300 pointer-events-none">
-              <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4"/>
-                <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#acb0b6ff" strokeWidth="3"/>
-              </svg>
-            </div>
-
-            {/* Perfect Inverted Corner Bottom */}
-            <div className="absolute -bottom-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] pointer-events-none">
-              <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4"/>
-                <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#acb0b6ff" strokeWidth="3"/>
-              </svg>
-            </div>
-
-            {/* White Upload Button - matching top group size */}
-            <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMainTool('upload');
-                  closeAllDropdowns();
-                }}
-                className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${activeMainTool === 'upload' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-              >
-                <Icon icon="prime:upload" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-              </button>
-              <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
-            </div>
-
-            {/* Select Tool Row */}
-            <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
-              {/* Select Tool Options Dropdown */}
-              {showSelectOptions && (
-                <div className="absolute right-[4.2vw] top-[-1.5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'select' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSelectTool('select');
-                      setActiveMainTool('select');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="clarity:cursor-arrow-line" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Select</span>
-                  </button>
-                  
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'direct' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSelectTool('direct');
-                      setActiveMainTool('select');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="clarity:cursor-arrow-solid" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Direct</span>
-                  </button>
-                </div>
-              )}
-
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMainTool('select');
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowSelectOptions(!showSelectOptions);
-                  setShowPenOptions(false);
-                  setShowShapesOptions(false);
-                  setActiveMainTool('select');
-                }}
-                className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'select' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-              >
-                <Icon 
-                  icon={selectedSelectTool === 'select' ? 'clarity:cursor-arrow-line' : 'clarity:cursor-arrow-solid'} 
-                  width="1.2vw" 
-                  height="1.2vw" 
-                  className="text-[#111827]" 
-                />
-              </button>
-              <div 
-                className="w-[0.7vw] flex justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowSelectOptions(!showSelectOptions);
-                  setShowPenOptions(false);
-                  setShowShapesOptions(false);
-                  setActiveMainTool('select');
-                }}
-              >
-                <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showSelectOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
+        {activeTopTool === 'editor' && (
+          <div className="absolute right-0 top-[20vh] z-50">
+            <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
+              
+              {/* Perfect Inverted Corner Top */}
+              <div className="absolute -top-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] border-gray-300 pointer-events-none">
+                <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4"/>
+                  <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#acb0b6ff" strokeWidth="3"/>
+                </svg>
               </div>
-            </div>
 
-            {/* Pen Tool Row */}
-            <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
-              {/* Pen Tool Options Dropdown */}
-              {showPenOptions && (
-                <div className="absolute right-[4.2vw] top-[-5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pen' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPenTool('pen');
-                      setActiveMainTool('pen');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="streamline-cyber:pen-tool" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pen</span>
-                  </button>
-                  
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.3vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'curve' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPenTool('curve');
-                      setActiveMainTool('pen');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <CurveIcon width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Curve</span>
-                  </button>
+              {/* Perfect Inverted Corner Bottom */}
+              <div className="absolute -bottom-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] pointer-events-none">
+                <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4"/>
+                  <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#acb0b6ff" strokeWidth="3"/>
+                </svg>
+              </div>
 
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pencil' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPenTool('pencil');
-                      setActiveMainTool('pen');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="mingcute:pencil-fill" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pencil</span>
-                  </button>
-                </div>
-              )}
+              {/* White Upload Button - matching top group size */}
+              <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMainTool('upload');
+                    closeAllDropdowns();
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] rounded-[0.4vw] flex items-center justify-center transition-all cursor-pointer ${activeMainTool === 'upload' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="prime:upload" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+              </div>
 
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMainTool('pen');
-                  closeAllDropdowns();
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowPenOptions(!showPenOptions);
-                  setShowSelectOptions(false);
-                  setShowShapesOptions(false);
-                  setActiveMainTool('pen');
-                }}
-                className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'pen' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-              >
-                {selectedPenTool === 'pencil' ? (
-                  <Icon icon="mingcute:pencil-fill" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                ) : selectedPenTool === 'curve' ? (
-                  <CurveIcon width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                ) : (
-                  <Icon icon="streamline-cyber:pen-tool" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+              {/* Select Tool Row */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
+                {/* Select Tool Options Dropdown */}
+                {showSelectOptions && (
+                  <div className="absolute right-[4.2vw] top-[-1.5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'select' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSelectTool('select');
+                        setActiveMainTool('select');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="clarity:cursor-arrow-line" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Select</span>
+                    </button>
+                    
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'direct' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedSelectTool('direct');
+                        setActiveMainTool('select');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="clarity:cursor-arrow-solid" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'direct' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Direct</span>
+                    </button>
+                  </div>
                 )}
-              </button>
-              <div 
-                className="w-[0.7vw] flex justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowPenOptions(!showPenOptions);
-                  setShowSelectOptions(false);
-                  setShowShapesOptions(false);
-                  setActiveMainTool('pen');
-                }}
-              >
-                <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showPenOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
-              </div>
-            </div>
 
-            {/* Type Tool Row */}
-            <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMainTool('type');
-                  closeAllDropdowns();
-                }}
-                className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'type' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-              >
-                <Icon icon="mi:text" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-              </button>
-              <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
-            </div>
-
-            {/* Shapes Tool Row */}
-            <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
-              {/* Shapes Tool Options Dropdown */}
-              {showShapesOptions && (
-                <div className="absolute right-[4.2vw] top-[-12vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.8vh] shadow-lg z-50 w-[2.7vw]">
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'rectangle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedShapeTool('rectangle');
-                      setActiveMainTool('shapes');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="lucide:square" width="1vw" height="1vw" className={`${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Rectangle</span>
-                  </button>
-                  
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'circle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedShapeTool('circle');
-                      setActiveMainTool('shapes');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="lucide:circle" width="1vw" height="1vw" className={`${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Circle</span>
-                  </button>
-
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'polygon' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedShapeTool('polygon');
-                      setActiveMainTool('shapes');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="lucide:triangle" width="1vw" height="1vw" className={`${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Polygon</span>
-                  </button>
-
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'line' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedShapeTool('line');
-                      setActiveMainTool('shapes');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="tabler:line" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827] rotate-[-45deg]`} />
-                    <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Line</span>
-                  </button>
-
-                  <button 
-                    className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'star' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedShapeTool('star');
-                      setActiveMainTool('shapes');
-                      closeAllDropdowns();
-                    }}
-                  >
-                    <Icon icon="lucide:star" width="1vw" height="1vw" className={`${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
-                    <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Star</span>
-                  </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMainTool('select');
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowSelectOptions(!showSelectOptions);
+                    setShowPenOptions(false);
+                    setShowShapesOptions(false);
+                    setActiveMainTool('select');
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'select' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon 
+                    icon={selectedSelectTool === 'select' ? 'clarity:cursor-arrow-line' : 'clarity:cursor-arrow-solid'} 
+                    width="1.2vw" 
+                    height="1.2vw" 
+                    className="text-[#111827]" 
+                  />
+                </button>
+                <div 
+                  className="w-[0.7vw] flex justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSelectOptions(!showSelectOptions);
+                    setShowPenOptions(false);
+                    setShowShapesOptions(false);
+                    setActiveMainTool('select');
+                  }}
+                >
+                  <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showSelectOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
                 </div>
-              )}
-
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMainTool('shapes');
-                  closeAllDropdowns();
-                }}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowShapesOptions(!showShapesOptions);
-                  setShowSelectOptions(false);
-                  setShowPenOptions(false);
-                  setActiveMainTool('shapes');
-                }}
-                className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'shapes' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-              >
-                <Icon 
-                  icon={
-                    selectedShapeTool === 'rectangle' ? 'lucide:square' : 
-                    selectedShapeTool === 'circle' ? 'lucide:circle' : 
-                    selectedShapeTool === 'polygon' ? 'lucide:triangle' : 
-                    selectedShapeTool === 'line' ? 'tabler:line' : 'lucide:star'
-                  } 
-                  width="1.2vw" 
-                  height="1.2vw" 
-                  className={`text-[#111827] ${selectedShapeTool === 'line' ? 'rotate-[-45deg]' : ''}`} 
-                />
-              </button>
-              <div 
-                className="w-[0.7vw] flex justify-center"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowShapesOptions(!showShapesOptions);
-                  setShowSelectOptions(false);
-                  setShowPenOptions(false);
-                  setActiveMainTool('shapes');
-                }}
-              >
-                <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showShapesOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
               </div>
-            </div>
 
-            {/* Grid Tool Row */}
-            <div className="flex items-center justify-start group gap-[0.3vw] cursor-pointer">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveMainTool('grid');
-                  closeAllDropdowns();
-                }}
-                className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'grid' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
-              >
-                <Icon icon="tabler:icons" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-              </button>
-              <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+              {/* Pen Tool Row */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
+                {/* Pen Tool Options Dropdown */}
+                {showPenOptions && (
+                  <div className="absolute right-[4.2vw] top-[-5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pen' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPenTool('pen');
+                        setActiveMainTool('pen');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="streamline-cyber:pen-tool" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pen</span>
+                    </button>
+                    
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.3vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'curve' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPenTool('curve');
+                        setActiveMainTool('pen');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <CurveIcon width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Curve</span>
+                    </button>
+
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pencil' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPenTool('pencil');
+                        setActiveMainTool('pen');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="mingcute:pencil-fill" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pencil' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pencil</span>
+                    </button>
+                  </div>
+                )}
+
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMainTool('pen');
+                    closeAllDropdowns();
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowPenOptions(!showPenOptions);
+                    setShowSelectOptions(false);
+                    setShowShapesOptions(false);
+                    setActiveMainTool('pen');
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'pen' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  {selectedPenTool === 'pencil' ? (
+                    <Icon icon="mingcute:pencil-fill" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                  ) : selectedPenTool === 'curve' ? (
+                    <CurveIcon width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                  ) : (
+                    <Icon icon="streamline-cyber:pen-tool" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                  )}
+                </button>
+                <div 
+                  className="w-[0.7vw] flex justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowPenOptions(!showPenOptions);
+                    setShowSelectOptions(false);
+                    setShowShapesOptions(false);
+                    setActiveMainTool('pen');
+                  }}
+                >
+                  <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showPenOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
+                </div>
+              </div>
+
+              {/* Type Tool Row */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMainTool('type');
+                    closeAllDropdowns();
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'type' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="mi:text" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+              </div>
+
+              {/* Shapes Tool Row */}
+              <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer relative">
+                {/* Shapes Tool Options Dropdown */}
+                {showShapesOptions && (
+                  <div className="absolute right-[4.2vw] top-[-12vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.8vh] shadow-lg z-50 w-[2.7vw]">
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'rectangle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedShapeTool('rectangle');
+                        setActiveMainTool('shapes');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="lucide:square" width="1vw" height="1vw" className={`${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Rectangle</span>
+                    </button>
+                    
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'circle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedShapeTool('circle');
+                        setActiveMainTool('shapes');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="lucide:circle" width="1vw" height="1vw" className={`${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Circle</span>
+                    </button>
+
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'polygon' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedShapeTool('polygon');
+                        setActiveMainTool('shapes');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="lucide:triangle" width="1vw" height="1vw" className={`${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Polygon</span>
+                    </button>
+
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'line' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedShapeTool('line');
+                        setActiveMainTool('shapes');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="tabler:line" width="1.1vw" height="1.1vw" className={`${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827] rotate-[-45deg]`} />
+                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Line</span>
+                    </button>
+
+                    <button 
+                      className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'star' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedShapeTool('star');
+                        setActiveMainTool('shapes');
+                        closeAllDropdowns();
+                      }}
+                    >
+                      <Icon icon="lucide:star" width="1vw" height="1vw" className={`${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
+                      <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'star' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Star</span>
+                    </button>
+                  </div>
+                )}
+
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMainTool('shapes');
+                    closeAllDropdowns();
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowShapesOptions(!showShapesOptions);
+                    setShowSelectOptions(false);
+                    setShowPenOptions(false);
+                    setActiveMainTool('shapes');
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'shapes' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon 
+                    icon={
+                      selectedShapeTool === 'rectangle' ? 'lucide:square' : 
+                      selectedShapeTool === 'circle' ? 'lucide:circle' : 
+                      selectedShapeTool === 'polygon' ? 'lucide:triangle' : 
+                      selectedShapeTool === 'line' ? 'tabler:line' : 'lucide:star'
+                    } 
+                    width="1.2vw" 
+                    height="1.2vw" 
+                    className={`text-[#111827] ${selectedShapeTool === 'line' ? 'rotate-[-45deg]' : ''}`} 
+                  />
+                </button>
+                <div 
+                  className="w-[0.7vw] flex justify-center"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowShapesOptions(!showShapesOptions);
+                    setShowSelectOptions(false);
+                    setShowPenOptions(false);
+                    setActiveMainTool('shapes');
+                  }}
+                >
+                  <Icon icon="lucide:chevron-down" className={`w-[0.7vw] h-[0.7vw] text-[#4B5563] transition-all ${showShapesOptions ? 'opacity-100 rotate-180' : 'opacity-50 group-hover:opacity-100'}`} />
+                </div>
+              </div>
+
+              {/* Grid Tool Row */}
+              <div className="flex items-center justify-start group gap-[0.3vw] cursor-pointer">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveMainTool('grid');
+                    closeAllDropdowns();
+                  }}
+                  className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'grid' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
+                >
+                  <Icon icon="tabler:icons" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+                <div className="w-[0.7vw]"></div> {/* Alignment spacer */}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Canvas Area container */}
         <div className="w-full h-full flex items-center justify-center relative overflow-hidden bg-white">

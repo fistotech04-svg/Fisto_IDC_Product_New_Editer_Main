@@ -2,11 +2,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logo from '../assets/logo/Fisto_logo.png';
-import { User, Share2, Save, Download } from 'lucide-react';
+import { User, Share2, Save, Download, Loader2 } from 'lucide-react';
 import ProfileModal from './ProfileModal';
 
 
-const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave }) => {
+const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
@@ -155,11 +155,11 @@ const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSa
                   }`}
                 title={hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "All changes saved"}
               >
-                <Save size="1.2vw" />
+                {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
               </button>
               
               {/* Success Toast Popup */}
-              {saveSuccessInfo && (
+              {saveSuccessInfo && (saveSuccessInfo.isManual || !isAutoSaveEnabled) && (
                 <div className="absolute top-full right-0 mt-[0.5vw] w-[12vw] z-[60] animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="bg-[#5CBC49] rounded-[0.5vw] shadow-lg p-[0.6vw] text-white relative">
                     {/* Arrow pointing up */}
