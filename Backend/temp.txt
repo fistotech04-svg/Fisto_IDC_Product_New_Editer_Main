@@ -1,0 +1,1 @@
+{"message":"Flipbook saved successfully","flipbookName":"test2","v_id":"_Cp-bFBPxVX5Z2i13arY","savedPagesCount":6,"location":"E:\\Fisto\\Web\\Customized IDC\\source\\Fisto_IDC_Products\\Backend\\uploads\\test2_test_com\\My_Flipbooks\\test2\\test2"}

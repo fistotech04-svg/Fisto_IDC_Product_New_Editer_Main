@@ -9,6 +9,8 @@ import {
   Scissors, Clipboard
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
+import axios from 'axios';
+import AlertModal from '../AlertModal';
 
 const LayerItem = ({ 
   layer, 
@@ -360,7 +362,10 @@ const Layer = ({
   setMultiSelectedIds,
   currentFrameId,
   setCurrentFrameId,
-  clipboard
+  clipboard,
+  currentBook,
+  setCurrentBook,
+  onSave
 }) => {
   const [activeLayerMenu, setActiveLayerMenu] = useState(null); // { layerId, x, y }
   const layerMenuRef = useRef(null);
@@ -382,6 +387,47 @@ const Layer = ({
   
   // Use a motion value for persistent Y
   const y = useMotionValue(0);
+
+  // Rename Validation State
+  const [allBooks, setAllBooks] = useState([]);
+  const [isNameDuplicate, setIsNameDuplicate] = useState(false);
+  const [alertState, setAlertState] = useState({
+      isOpen: false,
+      title: '',
+      message: '',
+      type: 'error'
+  });
+  const nameInputRef = useRef(null);
+
+  // Fetch all books for uniqueness validation
+  useEffect(() => {
+    const fetchBooks = async () => {
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      if (user?.emailId) {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        try {
+          const res = await axios.get(`${backendUrl}/api/flipbook/list`, { params: { emailId: user.emailId } });
+          if (res.data && res.data.books) {
+            setAllBooks(res.data.books);
+          }
+        } catch (err) {
+          console.error("Error fetching books for validation:", err);
+        }
+      }
+    };
+    fetchBooks();
+  }, []);
+
+  const checkDuplicate = (name) => {
+    if (!name.trim()) return false;
+    const isDup = allBooks.some(b => 
+      b.title.toLowerCase() === name.trim().toLowerCase() && 
+      (currentBook?.v_id ? b.v_id !== currentBook.v_id : b.realName !== currentBook?.flipbookName)
+    );
+    setIsNameDuplicate(isDup);
+    return isDup;
+  };
 
   // Sync check: if activePageIndex is out of bounds, reset it
   useEffect(() => {
@@ -718,9 +764,54 @@ const Layer = ({
             className="flex flex-col px-[0.8vw] pb-[1.5vh] select-none h-full w-[16vw] overflow-hidden"
           >
             {/* Sidebar Header */}
-            <div className="flex items-center justify-between px-[0.2vw] flex-shrink-0" style={{ height: '8vh' }}>
-              <div className="bg-[#F1F3F4] px-[1vw] py-[0.5vh] rounded-[0.5vw] text-[0.75vw] font-medium text-[#374151]">
-                Layers
+            <div className="flex items-center justify-between px-[0.2vw] flex-shrink-0" style={{ height: '8vh', gap: '0.8vw' }}>
+              <div className={`flex-1 min-w-0 flex items-center bg-[#F1F3F4] px-[0.6vw] py-[0.5vh] rounded-[0.5vw] border transition-all ${
+                isNameDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus-within:border-indigo-400 focus-within:bg-white'
+              }`}>
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={currentBook?.flipbookName || ''}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    setCurrentBook(prev => ({ ...prev, flipbookName: newName }));
+                    checkDuplicate(newName);
+                  }}
+                  onBlur={() => {
+                    if (isNameDuplicate) {
+                       setAlertState({
+                           isOpen: true,
+                           title: 'Duplicate Name',
+                           message: 'Book name already exists. Please choose a different name.',
+                           type: 'error'
+                       });
+                       if (nameInputRef.current) nameInputRef.current.select();
+                    } else if (onSave) {
+                       onSave(false);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (isNameDuplicate) {
+                         setAlertState({
+                             isOpen: true,
+                             title: 'Duplicate Name',
+                             message: 'Book name already exists. Please choose a different name.',
+                             type: 'error'
+                         });
+                         if (nameInputRef.current) nameInputRef.current.select();
+                      } else {
+                        e.target.blur();
+                        if (onSave) onSave(true);
+                      }
+                    }
+                  }}
+                  className={`w-full bg-transparent border-none outline-none text-[0.75vw] font-bold truncate ${
+                    isNameDuplicate ? 'text-red-600 placeholder-red-300' : 'text-[#374151] placeholder-gray-400'
+                  }`}
+                  placeholder="Flipbook Name..."
+                />
               </div>
               <button 
                 onClick={() => setIsVisible(false)}
@@ -945,6 +1036,13 @@ const Layer = ({
           </motion.div>
         )}
       </AnimatePresence>
+      <AlertModal
+          isOpen={alertState.isOpen}
+          title={alertState.title}
+          message={alertState.message}
+          type={alertState.type}
+          onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+      />
     </motion.div>
   );
 };

@@ -124,15 +124,8 @@ export default function MyFlipbooks() {
         return;
     }
 
-    // If Auto-Save is DISABLED, do not save to backend yet. 
-    // Just navigate to the editor with the template data.
-    if (!isAutoSave) {
-        console.log("Auto-save is disabled. Skipping backend pre-creation.");
-        navigate('/editor', { state: templateData });
-        return;
-    }
-
-    // Pre-create flipbook to get v_id and avoid "redirect" effect
+    // Always pre-create the flipbook record to ensure we have a stable v_id
+    // for assets and saves, regardless of whether periodic auto-save is enabled.
     setIsLoading(true);
     console.log("Pre-creating flipbook record...");
     
@@ -162,7 +155,7 @@ export default function MyFlipbooks() {
         if (res.data && res.data.v_id) {
             const redirectUrl = `/editor/${encodeURIComponent(targetFolder)}/${res.data.v_id}`;
             console.log("Navigating with v_id:", redirectUrl);
-            navigate(redirectUrl);
+            navigate(redirectUrl, { state: templateData });
         } else {
             console.warn("Backend didn't return v_id, using fallback editor route");
             navigate('/editor', { state: templateData });

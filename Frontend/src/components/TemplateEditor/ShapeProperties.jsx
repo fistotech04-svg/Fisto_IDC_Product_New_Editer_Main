@@ -1,18 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { createPortal } from 'react-dom';
 import ColorPicker from './ColorPicker';
 import { 
-  ChevronUp, ChevronDown, SlidersHorizontal, Palette, Eye, RotateCcw, X, 
-  ArrowLeftRight, Minus, ChevronLeft, ChevronRight, Link2, Link2Off 
+  ArrowLeftRight, Minus, ChevronLeft, ChevronRight, Link2, Link2Off, Trash2, Plus, Pipette, ChevronUp, ChevronDown, SlidersHorizontal, Palette, Eye, RotateCcw, X
 } from 'lucide-react';
 
 const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled = false }) => {
   // Use local state for the input to allow smooth multi-digit typing
-  const [localVal, setLocalVal] = React.useState(value);
-  const isFocused = React.useRef(false);
+  const [localVal, setLocalVal] = useState(value);
+  const isFocused = useRef(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isFocused.current) {
       setLocalVal(value);
     }
@@ -80,6 +79,30 @@ const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled =
   );
 };
 
+const NumberInput = ({ value, onChange }) => (
+  <div className="flex items-center gap-[0.2vw]">
+     <button 
+        className="p-[0.15vw] hover:bg-gray-100 rounded text-gray-400 transition-colors cursor-pointer"
+        onClick={() => onChange(Math.max(0, parseInt(value || 0) - 1))}
+     >
+        <ChevronLeft size="1vw" />
+     </button>
+     <div className="w-[3.5vw] h-[2vw] border border-gray-200 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
+        <input 
+           className="w-full text-center bg-transparent outline-none text-[0.8vw] font-bold text-gray-700"
+           value={value}
+           onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
+        />
+     </div>
+     <button 
+        className="p-[0.15vw] hover:bg-gray-100 rounded text-gray-400 transition-colors cursor-pointer"
+        onClick={() => onChange(parseInt(value || 0) + 1)}
+     >
+        <ChevronRight size="1vw" />
+     </button>
+  </div>
+);
+
 const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onPickerToggle, baseAttr, selectedElementProps }) => (
   <div className="flex items-center gap-[0.4vw] py-[0.4vw]">
      <span className="text-[0.85vw] font-semibold text-gray-700 min-w-[3vw]">{label} :</span>
@@ -143,9 +166,9 @@ const ShapeProperties = ({
 }) => {
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
   const [pickerPosition, setPickerPosition] = useState({ top: 0, right: 0 });
-  const [isColorOpen, setIsColorOpen] = useState(true);
-  const [isCornerOpen, setIsCornerOpen] = useState(true);
-  const [isEffectOpen, setIsEffectOpen] = useState(false);
+  const [openAccordion, setOpenAccordion] = useState('color'); // 'color' | 'corner' | 'effect' | null
+  const [activeEffectPopupId, setActiveEffectPopupId] = useState(null);
+  const [effectPopupPos, setEffectPopupPos] = useState({ top: 0, right: '16.5vw' });
   const [isStrokeTypeOpen, setIsStrokeTypeOpen] = useState(false);
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -183,8 +206,25 @@ const ShapeProperties = ({
 
   if (!selectedElementProps) return null;
 
-  const updateAttr = (attr, val) => {
-    updateElementAttribute(activePageIndex, selectedLayerId, attr, val);
+  const updateAttr = (attribute, value) => {
+    updateElementAttribute(activePageIndex, selectedLayerId, attribute, value);
+    // If we're toggling an effect off, and it's the one currently being edited in a popup, close the popup.
+    if (value === 'false' && attribute.startsWith('data-effect-')) {
+       const effectId = attribute.replace('data-effect-', '');
+       if (activeEffectPopupId === effectId) {
+          setActiveEffectPopupId(null);
+       }
+    }
+  };
+
+  const handleEffectRowClick = (e, effectId) => {
+    const target = e.currentTarget.closest('.effect-row') || e.currentTarget;
+    const rect = target.getBoundingClientRect();
+    setEffectPopupPos({ 
+      top: Math.min(rect.top, window.innerHeight - 480), 
+      right: '16.5vw' 
+    });
+    setActiveEffectPopupId(effectId);
   };
 
   // --- CLICK OUTSIDE HANDLER (Replced Overlay) ---
@@ -196,7 +236,8 @@ const ShapeProperties = ({
            const isTrigger = e.target.closest('.color-field-trigger');
            const isStrokePopup = e.target.closest('#stroke-settings-popup');
            
-           if (!isSelector && !isPicker && !isTrigger && !isStrokePopup) {
+           const isEffectPopup = e.target.closest('.effect-popup-container');
+            if (!isSelector && !isPicker && !isTrigger && !isStrokePopup && !isEffectPopup) {
               setActiveColorPicker(null);
               setShowStrokeSettings(false);
               setShowDetailedPicker(false);
@@ -245,14 +286,14 @@ const ShapeProperties = ({
           />
         )}
 
-        {/* Corner/Rounding control: Smoothing for Polygons/Stars/Rects */}
-        {(selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type'] === 'polygon' || selectedElementProps['data-shape-type'] === 'star') && (
+        {/* Corner/Rounding control: Smoothing for Polygons/Stars only (Hidden for Rects) */}
+        {(selectedElementProps['data-shape-type'] === 'polygon' || selectedElementProps['data-shape-type'] === 'star') && (
           <PropertySlider 
             label="Corner" 
             value={Math.round(parseFloat(
-              selectedElementProps.tagName === 'rect' ? (selectedElementProps.rx || 0) : (selectedElementProps['data-radius'] || 0)
+              selectedElementProps['data-radius'] || 0
             ))} 
-            onChange={(val) => updateAttr(selectedElementProps.tagName === 'rect' ? 'rx' : 'data-radius', val)} 
+            onChange={(val) => updateAttr('data-radius', val)} 
             max={50}
           />
         )}
@@ -262,18 +303,19 @@ const ShapeProperties = ({
       {/* COLOR ACCORDION CARDS (EXACT TEXT EDITOR STYLE) */}
       <div className={`bg-white border border-gray-200 rounded-[0.75vw] shadow-sm ${!isStrokeTypeOpen ? 'overflow-hidden' : ''}`}>
         <div 
-          onClick={() => setIsColorOpen(!isColorOpen)}
-          className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${isColorOpen ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          onClick={() => setOpenAccordion(openAccordion === 'color' ? null : 'color')}
+          className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'color' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
             <Palette size="1vw" className="text-gray-600" />
             <span className="font-semibold text-gray-900 text-[0.85vw]">Color</span>
           </div>
-          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${isColorOpen ? '' : 'rotate-180'}`} />
+          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'color' ? '' : 'rotate-180'}`} />
         </div>
 
-        {isColorOpen && (
-          <div className="p-[1vw] pt-[0.75vw] space-y-[0.5vw]">
+        <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'color' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden">
+            <div className="p-[1vw] pt-[0.75vw] space-y-[0.5vw]">
              <ColorField 
                label="Fill" 
                color={selectedElementProps.fill} 
@@ -398,27 +440,29 @@ const ShapeProperties = ({
                       </div>
                    </div>
                 </div>
-              )}
+               )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* CORNER RADIUS ACCORDION (FIGMA STYLE) */}
       {(selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type'] === 'rectangle') && (
         <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
           <div 
-            onClick={() => setIsCornerOpen(!isCornerOpen)}
-            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${isCornerOpen ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+            onClick={() => setOpenAccordion(openAccordion === 'corner' ? null : 'corner')}
+            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
           >
             <div className="flex items-center gap-[0.5vw]">
                <Icon icon="material-symbols:rounded-corner" width="1vw" height="1vw" className="text-gray-600" />
                <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
             </div>
-            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${isCornerOpen ? '' : 'rotate-180'}`} />
+            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'corner' ? '' : 'rotate-180'}`} />
           </div>
 
-          {isCornerOpen && (
-             <div className="p-[1.5vw] relative flex flex-col items-center justify-center min-h-[9vw] bg-white">
+          <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'corner' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="overflow-hidden">
+               <div className="p-[1.5vw] relative flex flex-col items-center justify-center min-h-[9vw] bg-white">
                 {/* 2x2 Grid of Inputs */}
                 <div className="grid grid-cols-2 gap-x-[2.5vw] gap-y-[1.5vw] relative">
                    {[
@@ -514,23 +558,251 @@ const ShapeProperties = ({
                    </div>
                 </div>
              </div>
-          )}
+          </div>
         </div>
-      )}
+      </div>
+    )}
 
       {/* EFFECT ACCORDION CARDS (EXACT TEXT EDITOR STYLE) */}
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
         <div 
-          onClick={() => setIsEffectOpen(!isEffectOpen)}
-          className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${isEffectOpen ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          onClick={() => setOpenAccordion(openAccordion === 'effect' ? null : 'effect')}
+          className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'effect' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
             <Eye size="1vw" className="text-gray-600" />
             <span className="font-semibold text-gray-900 text-[0.85vw]">Effect</span>
           </div>
-          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${isEffectOpen ? '' : 'rotate-180'}`} />
+          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'effect' ? '' : 'rotate-180'}`} />
+        </div>
+
+        <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'effect' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+          <div className="overflow-hidden">
+            <div className="p-[1vw] space-y-[0.6vw]">
+              {[
+                { id: 'drop-shadow', label: 'Drop Shadow' },
+                { id: 'inner-shadow', label: 'Inner Shadow' },
+                { id: 'blur', label: 'Blur' },
+                { id: 'background-blur', label: 'Background Blur' }
+              ].map(effect => {
+                const isActive = selectedElementProps[`data-effect-${effect.id}`] === 'true';
+                return (
+                  <div 
+                    key={effect.id}
+                    onClick={(e) => {
+                      if (!isActive) {
+                        updateAttr(`data-effect-${effect.id}`, 'true');
+                      }
+                      handleEffectRowClick(e, effect.id);
+                    }}
+                    className={`effect-row flex items-center justify-between px-[1vw] py-[0.8vw] bg-gray-50/50 rounded-[0.8vw] border transition-all group cursor-pointer ${activeEffectPopupId === effect.id ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-100 hover:border-gray-300'}`}
+                  >
+                    <span className={`text-[0.85vw] font-semibold transition-colors ${activeEffectPopupId === effect.id ? 'text-indigo-600' : 'text-gray-800'}`}>{effect.label}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isActive) {
+                           // When adding, both enable the effect and open the properties
+                           updateAttr(`data-effect-${effect.id}`, 'true');
+                           handleEffectRowClick(e, effect.id);
+                        } else {
+                           // When removing, just disable it
+                           updateAttr(`data-effect-${effect.id}`, 'false');
+                        }
+                      }}
+                      className={`transition-colors ${isActive ? 'text-red-500 hover:text-red-700' : 'text-gray-500 hover:text-indigo-600'}`}
+                    >
+                      {isActive ? <Trash2 size="1vw" /> : <Plus size="1vw" />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* PORTALED EFFECT PROPERTIES */}
+      {activeEffectPopupId && createPortal(
+        <div 
+          className="effect-popup-container fixed z-[4000] w-[19vw] bg-white rounded-[1.2vw] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-gray-100 p-[1.2vw] animate-in fade-in zoom-in-95 duration-200"
+          style={{ 
+            top: effectPopupPos.top - 5,
+            right: effectPopupPos.right 
+          }}
+        >
+          <div className="flex flex-col space-y-[1.2vw]">
+              {/* Header with Close */}
+              <div className="flex items-center gap-[0.8vw]">
+                  <span className="text-[0.9vw] font-semibold text-gray-800 whitespace-nowrap">
+                    {{
+                      'drop-shadow': 'Drop Shadow',
+                      'inner-shadow': 'Inner Shadow',
+                      'blur': 'Blur',
+                      'background-blur': 'Background Blur'
+                    }[activeEffectPopupId]}
+                  </span>
+                  <div className="h-px flex-grow bg-gray-100"></div>
+                  <button 
+                    onClick={() => {
+                        setActiveEffectPopupId(null);
+                        if (activeColorPicker?.includes('effect-')) {
+                            setActiveColorPicker(null);
+                            setShowDetailedPicker(false);
+                        }
+                    }}
+                    className="p-[0.3vw] hover:bg-gray-100 rounded-full cursor-pointer transition-colors"
+                  >
+                    <X size="1.1vw" className="text-gray-400" />
+                  </button>
+              </div>
+
+              {/* Main Controls Overlay (Matches User Image) */}
+              {activeEffectPopupId.includes('shadow') && (
+                <>
+                    <div className="flex items-center gap-[1.2vw]">
+                        {/* 1. Extra Compact Color Preview Box */}
+                        <div 
+                            className={`w-[3.8vw] h-[3.2vw] rounded-[0.5vw] border relative overflow-hidden flex items-center justify-center text-[0.65vw] font-bold text-white shadow-inner cursor-pointer transition-all hover:scale-105 active:scale-95 flex-shrink-0 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-gray-100 hover:border-gray-300'}`}
+                            style={{ 
+                                backgroundColor: 'white',
+                                backgroundImage: `linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee), linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee)`,
+                                backgroundSize: '6px 6px',
+                                backgroundPosition: '0 0, 3px 3px'
+                            }}
+                            onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setPickerPosition({ top: rect.top, right: window.innerWidth - rect.left + 15 });
+                                setActiveColorPicker(`data-effect-${activeEffectPopupId}-color`);
+                                setShowDetailedPicker(true);
+                            }}
+                        >
+                            <div 
+                                className="absolute inset-0"
+                                style={{ 
+                                    backgroundColor: selectedElementProps[`data-effect-${activeEffectPopupId}-color`] || '#000000',
+                                    opacity: (selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35) / 100
+                                }}
+                            />
+                            <span className="relative z-10 drop-shadow-md">
+                                {selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
+                            </span>
+                        </div>
+
+                        {/* 2. Code & Opacity Right Side */}
+                        <div className="flex-grow min-w-0 space-y-[0.8vw]">
+                            <div className="flex items-center gap-[0.5vw]">
+                                <span className="text-[0.8vw] font-medium text-gray-800 w-[3.5vw] flex-shrink-0 text-right whitespace-nowrap">Code :</span>
+                                <div className={`flex-grow flex items-center h-[2.2vw] bg-white border rounded-[0.5vw] px-[0.4vw] transition-all overflow-hidden ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500' : 'border-gray-200 hover:border-indigo-300'}`}>
+                                    <input 
+                                        type="text" 
+                                        value={(selectedElementProps[`data-effect-${activeEffectPopupId}-color`] || '#000000').toUpperCase()} 
+                                        onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-color`, e.target.value)}
+                                        className="w-full bg-transparent outline-none text-[0.75vw] font-mono font-bold text-gray-700 min-w-0"
+                                    />
+                                    <Pipette size="0.9vw" className="text-gray-400 rotate-90 flex-shrink-0" />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-[0.5vw]">
+                                <span className="text-[0.8vw] font-medium text-gray-800 w-[3.5vw] flex-shrink-0 text-right whitespace-nowrap">Opacity :</span>
+                                <div className="flex-grow flex items-center gap-[0.4vw] min-w-0">
+                                    <input 
+                                        type="range" 
+                                        min="0" max="100" 
+                                        value={selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35} 
+                                        onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
+                                        className="flex-grow h-[0.35vw] bg-gray-100 rounded-full appearance-none accent-indigo-500 cursor-pointer min-w-[2vw]"
+                                    />
+                                    <span className="text-[0.75vw] font-bold text-gray-800 min-w-[2.2vw] text-right whitespace-nowrap">
+                                        {selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Axis, Blur, Spread Grid */}
+                    <div className="space-y-[0.8vw] pt-[0.2vw]">
+                        {[
+                            { id: 'x', label: 'X Axis :', default: 0 },
+                            { id: 'y', label: 'Y Axis :', default: 4 },
+                            { id: 'blur', label: 'Blur % :', default: 4 },
+                            { id: 'spread', label: 'Spread :', default: 0 }
+                        ].map((row) => (
+                            <div key={row.id} className="flex items-center">
+                                <span className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw]">{row.label}</span>
+                                <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
+                                    <ChevronLeft 
+                                        size="1vw" 
+                                        className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                                        onClick={() => {
+                                            const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
+                                        }}
+                                    />
+                                    <div className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all">
+                                        <input 
+                                            type="number"
+                                            value={selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default}
+                                            onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
+                                            className="w-full text-center text-[0.85vw] font-bold text-gray-800 outline-none no-spin bg-transparent"
+                                        />
+                                    </div>
+                                    <ChevronRight 
+                                        size="1vw" 
+                                        className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                                        onClick={() => {
+                                            const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
+                                        }}
+                                    />
+                                </div>
+                                <div className="w-[0.5vw]"></div>
+                            </div>
+                        ))}
+                    </div>
+                </>
+              )}
+
+              {/* Blur Only Style (Simplified) */}
+              {(activeEffectPopupId === 'blur' || activeEffectPopupId === 'background-blur') && (
+                 <div className="space-y-[1.5vw]">
+                    <div className="flex items-center">
+                        <span className="text-[0.9vw] font-medium text-gray-800 w-[6vw]">Value :</span>
+                        <div className="flex items-center justify-center gap-[1vw] flex-grow">
+                            <ChevronLeft 
+                                size="1.2vw" 
+                                className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                                onClick={() => {
+                                    const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-value`] || 4);
+                                    updateAttr(`data-effect-${activeEffectPopupId}-value`, (val - 1).toString());
+                                }}
+                            />
+                            <div className="w-[6vw] h-[2.8vw] border border-gray-200 rounded-[0.8vw] flex items-center justify-center bg-white">
+                                <input 
+                                    type="number"
+                                    value={selectedElementProps[`data-effect-${activeEffectPopupId}-value`] || 4}
+                                    onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-value`, e.target.value)}
+                                    className="w-full text-center text-[1vw] font-bold text-gray-800 outline-none no-spin bg-transparent"
+                                />
+                            </div>
+                            <ChevronRight 
+                                size="1.2vw" 
+                                className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                                onClick={() => {
+                                    const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-value`] || 4);
+                                    updateAttr(`data-effect-${activeEffectPopupId}-value`, (val + 1).toString());
+                                }}
+                            />
+                        </div>
+                    </div>
+                 </div>
+              )}
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* PORTALED COLOR SELECTOR PANELS (EXACT TEXT EDITOR STYLE) */}
       {showStrokeSettings && createPortal(
@@ -547,6 +819,18 @@ const ShapeProperties = ({
           <div className="flex items-center gap-[0.5vw]">
             <span className="text-[0.85vw] font-bold text-gray-800">Dashed</span>
             <div className="h-px flex-grow bg-gray-100"></div>
+            <button 
+              onClick={() => {
+                setShowStrokeSettings(false);
+                if (activeColorPicker?.includes('stroke')) {
+                    setActiveColorPicker(null);
+                    setShowDetailedPicker(false);
+                }
+              }}
+              className="p-[0.3vw] hover:bg-gray-100 rounded-[0.5vw] transition-colors"
+            >
+              <X size="1vw" className="text-gray-400" />
+            </button>
           </div>
 
           {/* Position Selection */}
@@ -662,81 +946,86 @@ const ShapeProperties = ({
       {/* PORTALED COLOR SELECTOR PANELS (EXACT TEXT EDITOR STYLE) */}
       {activeColorPicker && createPortal(
         <>
-          {/* COLOR FILL/STROKE CONTAINER */}
-          <div 
-            id="main-color-selector"
-            className="fixed z-[3000] w-[19.4vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
-            style={{ 
-              top: '50%',
-              right: '18.5vw', 
-              transform: 'translateY(-50%)'
-            }}
-          >
+          {/* COLOR FILL/STROKE CONTAINER (Selector) */}
+          {!activeColorPicker.includes('effect-') && (
+            <div 
+              id="main-color-selector"
+              className="fixed z-[3000] w-[19.4vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+              style={{ 
+                top: '50%',
+                right: '18.5vw', 
+                transform: 'translateY(-50%)'
+              }}
+            >
               {/* Header */}
               <div className="flex items-center justify-between p-[1vw] border-b border-gray-50 bg-white">
                 <div className="flex items-center gap-[0.5vw]">
-                  <div className="relative type-dropdown-container">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsTypeDropdownOpen(!isTypeDropdownOpen);
-                      }}
-                      className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] border border-gray-200 text-[0.75vw] font-bold text-gray-700 hover:bg-gray-50 transition-all bg-white shadow-sm min-w-[5.5vw] justify-between"
-                    >
-                      <span className="capitalize">{selectedElementProps[`${activeColorPicker}-type`] || 'solid'}</span>
-                      <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    {isTypeDropdownOpen && (
-                      <div className="absolute top-[110%] left-0 w-[8vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[3100] py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
-                        {['solid', 'gradient'].map(type => (
-                          <button
-                            key={type}
-                            onClick={() => {
-                              updateAttr(`${activeColorPicker}-type`, type);
-                              if (type === 'gradient' && !selectedElementProps[`${activeColorPicker}-stops`]) {
-                                updateAttr(`${activeColorPicker}-stops`, JSON.stringify(defaultStops));
-                                updateAttr(`${activeColorPicker}-gradient-type`, 'linear');
-                              }
-                              setIsTypeDropdownOpen(false);
-                            }}
-                            className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                          >
-                            {type.charAt(0).toUpperCase() + type.slice(1)}
-                          </button>
-                        ))}
+                  {!activeColorPicker?.includes('effect-') && (
+                    <>
+                      <div className="relative type-dropdown-container">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsTypeDropdownOpen(!isTypeDropdownOpen);
+                          }}
+                          className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] border border-gray-200 text-[0.75vw] font-bold text-gray-700 hover:bg-gray-50 transition-all bg-white shadow-sm min-w-[5.5vw] justify-between"
+                        >
+                          <span className="capitalize">{selectedElementProps[`${activeColorPicker}-type`] || 'solid'}</span>
+                          <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {isTypeDropdownOpen && (
+                          <div className="absolute top-[110%] left-0 w-[8vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[3100] py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                            {['solid', 'gradient'].map(type => (
+                              <button
+                                key={type}
+                                onClick={() => {
+                                  updateAttr(`${activeColorPicker}-type`, type);
+                                  if (type === 'gradient' && !selectedElementProps[`${activeColorPicker}-stops`]) {
+                                    updateAttr(`${activeColorPicker}-stops`, JSON.stringify(defaultStops));
+                                    updateAttr(`${activeColorPicker}-gradient-type`, 'linear');
+                                  }
+                                  setIsTypeDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                              >
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {(selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient' && (
-                    <div className="relative type-dropdown-container">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsStrokeTypeOpen(!isStrokeTypeOpen); // RE-USING STATE
-                        }}
-                        className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] border border-gray-200 text-[0.75vw] font-bold text-gray-700 hover:bg-gray-50 transition-all bg-white shadow-sm min-w-[5.5vw] justify-between"
-                      >
-                        <span className="capitalize">{selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear'}</span>
-                        <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${isStrokeTypeOpen ? 'rotate-180' : ''}`} />
-                      </button>
-                      {isStrokeTypeOpen && (
-                        <div className="absolute top-[110%] left-0 w-[8vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[3100] py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
-                          {['linear', 'radial'].map(type => (
-                            <button
-                              key={type}
-                              onClick={() => {
-                                updateAttr(`${activeColorPicker}-gradient-type`, type);
-                                setIsStrokeTypeOpen(false);
-                              }}
-                              className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                            >
-                              {type.charAt(0).toUpperCase() + type.slice(1)}
-                            </button>
-                          ))}
+                      {(selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient' && (
+                        <div className="relative type-dropdown-container">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsStrokeTypeOpen(!isStrokeTypeOpen);
+                            }}
+                            className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] border border-gray-200 text-[0.75vw] font-bold text-gray-700 hover:bg-gray-50 transition-all bg-white shadow-sm min-w-[5.5vw] justify-between"
+                          >
+                            <span className="capitalize">{selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear'}</span>
+                            <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${isStrokeTypeOpen ? 'rotate-180' : ''}`} />
+                          </button>
+                          {isStrokeTypeOpen && (
+                            <div className="absolute top-[110%] left-0 w-[8vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[3100] py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
+                              {['linear', 'radial'].map(type => (
+                                <button
+                                  key={type}
+                                  onClick={() => {
+                                    updateAttr(`${activeColorPicker}-gradient-type`, type);
+                                    setIsStrokeTypeOpen(false);
+                                  }}
+                                  className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                                >
+                                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
 
@@ -972,20 +1261,21 @@ const ShapeProperties = ({
                   <span className="text-[0.85vw] font-bold text-gray-600">Customize Colors</span>
                 </button>
               </div>
-          </div>
+            </div>
+          )}
  
           {/* LEVEL 2: DEEPER CUSTOM COLOR PICKER */}
           {showDetailedPicker && (
              <div 
                id="deep-color-picker"
-               className="fixed z-[3001] w-[15vw] animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-[1vw] bg-white overflow-hidden"
+               className="fixed z-[3005] w-[15vw] animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-[1vw] bg-white overflow-hidden"
                style={{ 
-                 top: '50%', 
-                 right: '3vw', 
-                 transform: 'translateY(-50%)'
+                 top: activeColorPicker?.includes('effect-') ? `${effectPopupPos.top - 5}px` : '50%', 
+                 right: activeColorPicker?.includes('effect-') ? '36vw' : '3vw', 
+                 transform: activeColorPicker?.includes('effect-') ? 'none' : 'translateY(-50%)'
                }}
              >
-               <ColorPicker 
+                <ColorPicker 
                  color={
                    (selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient'
                    ? (JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops))[activeStopIndex]?.color || '#ffffff')
@@ -1004,20 +1294,23 @@ const ShapeProperties = ({
                     }
                  }}
                  opacity={
-                   (selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient'
-                   ? (JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops))[activeStopIndex]?.opacity * 100 || 100)
-                   : 100
-                 }
+                    (selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient'
+                    ? (JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops))[activeStopIndex]?.opacity * 100 || 100)
+                    : (activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100)
+                  }
                  onOpacityChange={(newOpacity) => {
                     if ((selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient') {
-                       const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
-                       if (stops[activeStopIndex]) {
-                         stops[activeStopIndex].opacity = newOpacity / 100;
-                         updateAttr(`${activeColorPicker}-stops`, JSON.stringify(stops));
-                       }
-                    }
-                 }}
+                        const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
+                        if (stops[activeStopIndex]) {
+                          stops[activeStopIndex].opacity = newOpacity / 100;
+                          updateAttr(`${activeColorPicker}-stops`, JSON.stringify(stops));
+                        }
+                     } else if (activeColorPicker === 'fill') {
+                        updateAttr('opacity', (newOpacity / 100).toString());
+                     }
+                  }}
                  onClose={() => setShowDetailedPicker(false)}
+                 className={activeColorPicker?.includes('effect-') ? "hide-opacity-bar" : ""}
                />
              </div>
           )}
@@ -1027,6 +1320,9 @@ const ShapeProperties = ({
 
       {/* CUSTOM CSS */}
       <style>{`
+        .hide-opacity-bar .space-y-\\[1vw\\] > div:nth-child(2) {
+          display: none !important;
+        }
         input[type='range']::-webkit-slider-thumb {
           -webkit-appearance: none;
           height: 1.1vw;
@@ -1047,3 +1343,7 @@ const ShapeProperties = ({
 };
 
 export default ShapeProperties;
+
+
+
+

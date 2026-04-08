@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useLocation, useParams, useOutletContext } from 'react-router-dom';
+import { useLocation, useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Layer from './Layer';
 import MainEditor from './MainEditor';
@@ -49,12 +49,14 @@ const parseLayersFromSVG = (element) => {
 const TemplateEditor = () => {
   const { folder, v_id } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const { 
     setSaveHandler, 
     setHasUnsavedChanges, 
     triggerSaveSuccess,
     isAutoSaveEnabled,
+    isSaving,
     setIsSaving,
     currentBook,
     setCurrentBook
@@ -84,6 +86,11 @@ const TemplateEditor = () => {
 
   // ── Save Logic ─────────────────────────────────────────────────────────────
   const saveFlipbook = async (isManual = false) => {
+    if (isSaving) {
+      console.warn("Save already in progress, skipping...");
+      return;
+    }
+
     try {
       setIsSaving(true);
       const storedUser = localStorage.getItem('user');
@@ -99,9 +106,12 @@ const TemplateEditor = () => {
         pages: pages.map((p, i) => ({
           pageName: p.name || `Page ${i+1}`,
           content: p.html,
-          v_id: p.v_id || null
+          v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
         }))
       };
+
+      const payloadSize = JSON.stringify(payload).length;
+      console.log(`[Save] Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
 
       const res = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
       if (res.data && res.data.v_id) {
@@ -112,9 +122,17 @@ const TemplateEditor = () => {
           isManual
         });
         console.log("Flipbook saved successfully:", res.data);
+
+        // Transition to project URL if we don't have a v_id yet
+        if (!v_id) {
+          const newUrl = `/editor/${encodeURIComponent(payload.folderName)}/${res.data.v_id}`;
+          navigate(newUrl, { replace: true, state: location.state });
+        }
       }
     } catch (err) {
       console.error("Failed to save flipbook:", err);
+      // Show an alert to provide user feedback when a silent failure occurs
+      alert(err?.response?.status === 413 ? "Save failed: The template size is too large." : "Failed to save flipbook. Please try again.");
     } finally {
       setIsSaving(false);
     }
@@ -135,7 +153,7 @@ const TemplateEditor = () => {
       }
       setHasUnsavedChanges(true);
     }
-  }, [pages]);
+  }, [pages, currentBook]);
 
   // ── Auto-Save Mechanism ────────────────────────────────────────────────────
   useEffect(() => {
@@ -148,7 +166,7 @@ const TemplateEditor = () => {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [pages, isAutoSaveEnabled]);
+  }, [pages, isAutoSaveEnabled, currentBook]);
 
   const createDefaultPageData = (name) => {
     // ... rest of code same ...
@@ -849,6 +867,168 @@ const TemplateEditor = () => {
     }
   };
 
+  const syncFilters = (doc, element) => {
+    const svgRoot = doc.querySelector('svg');
+    let defs = svgRoot.querySelector('defs');
+    if (!defs) {
+      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+      svgRoot.insertBefore(defs, svgRoot.firstChild);
+    }
+
+    const filterId = `filter-${element.id}`;
+    let filterEl = defs.querySelector(`[id="${filterId}"]`);
+
+    const hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
+    const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
+    const hasBlur = element.getAttribute('data-effect-blur') === 'true';
+    const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
+
+    if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
+      if (filterEl) filterEl.remove();
+      element.removeAttribute('filter');
+      element.style.backdropFilter = '';
+      return;
+    }
+
+    if (!filterEl) {
+      filterEl = doc.createElementNS("http://www.w3.org/2000/svg", "filter");
+      filterEl.id = filterId;
+      filterEl.setAttribute('x', '-50%');
+      filterEl.setAttribute('y', '-50%');
+      filterEl.setAttribute('width', '200%');
+      filterEl.setAttribute('height', '200%');
+      defs.appendChild(filterEl);
+    }
+
+    // Clear existing primitives
+    while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+
+    // Helper to get attribute with default
+    const getVal = (attr, def) => element.getAttribute(attr) || def;
+
+    // 1. Layer Blur
+    if (hasBlur) {
+      const blurVal = parseFloat(getVal('data-effect-blur-blur', '4'));
+      const blur = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blur.setAttribute('stdDeviation', blurVal);
+      filterEl.appendChild(blur);
+    }
+
+    // 2. Drop Shadow (Improved: Spread affects ONLY shadow, element stays sharp)
+    if (hasDropShadow) {
+      const color = getVal('data-effect-drop-shadow-color', '#000000');
+      const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
+      const dx = getVal('data-effect-drop-shadow-x', '0');
+      const dy = getVal('data-effect-drop-shadow-y', '4');
+      const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
+      const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
+
+      // a. Morphology for Spread (Dilate/Erode)
+      const morphology = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morphology.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morphology.setAttribute('radius', Math.abs(spread));
+      morphology.setAttribute('in', 'SourceAlpha');
+      morphology.setAttribute('result', 'm_out');
+      filterEl.appendChild(morphology);
+
+      // b. Blur
+      const gaussian = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      gaussian.setAttribute('stdDeviation', blur);
+      gaussian.setAttribute('in', 'm_out');
+      gaussian.setAttribute('result', 'b_out');
+      filterEl.appendChild(gaussian);
+
+      // c. Offset
+      const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+      offset.setAttribute('dx', dx);
+      offset.setAttribute('dy', dy);
+      offset.setAttribute('in', 'b_out');
+      offset.setAttribute('result', 'o_out');
+      filterEl.appendChild(offset);
+
+      // d. Color & Opacity
+      const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+      flood.setAttribute('flood-color', color);
+      flood.setAttribute('flood-opacity', opacity);
+      flood.setAttribute('result', 'f_out');
+      filterEl.appendChild(flood);
+
+      const composite = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      composite.setAttribute('in', 'f_out');
+      composite.setAttribute('in2', 'o_out');
+      composite.setAttribute('operator', 'in');
+      composite.setAttribute('result', 'shadow_final');
+      filterEl.appendChild(composite);
+
+      // e. Merge with SourceGraphic (Crutial: keeps element sharp)
+      const merge = doc.createElementNS("http://www.w3.org/2000/svg", "feMerge");
+      const nodeShadow = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      nodeShadow.setAttribute('in', 'shadow_final');
+      const nodeGraphic = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      nodeGraphic.setAttribute('in', 'SourceGraphic');
+      merge.appendChild(nodeShadow);
+      merge.appendChild(nodeGraphic);
+      filterEl.appendChild(merge);
+    }
+
+    // 3. Inner Shadow (Complex chain)
+    if (hasInnerShadow) {
+      const color = getVal('data-effect-inner-shadow-color', '#000000');
+      const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
+      const dx = getVal('data-effect-inner-shadow-x', '0');
+      const dy = getVal('data-effect-inner-shadow-y', '4');
+      const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
+
+      const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+      offset.setAttribute('dx', dx);
+      offset.setAttribute('dy', dy);
+      filterEl.appendChild(offset);
+      
+      const iBlur = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      iBlur.setAttribute('stdDeviation', blur);
+      iBlur.setAttribute('result', 'offset-blur');
+      filterEl.appendChild(iBlur);
+
+      const compOut = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compOut.setAttribute('operator', 'out');
+      compOut.setAttribute('in', 'SourceAlpha');
+      compOut.setAttribute('in2', 'offset-blur');
+      compOut.setAttribute('result', 'inverse');
+      filterEl.appendChild(compOut);
+
+      const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+      flood.setAttribute('flood-color', color);
+      flood.setAttribute('flood-opacity', opacity);
+      flood.setAttribute('result', 'color');
+      filterEl.appendChild(flood);
+
+      const compIn = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compIn.setAttribute('operator', 'in');
+      compIn.setAttribute('in', 'color');
+      compIn.setAttribute('in2', 'inverse');
+      compIn.setAttribute('result', 'shadow');
+      filterEl.appendChild(compIn);
+
+      const compOver = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compOver.setAttribute('operator', 'over');
+      compOver.setAttribute('in', 'shadow');
+      compOver.setAttribute('in2', 'SourceGraphic');
+      filterEl.appendChild(compOver);
+    }
+
+    element.setAttribute('filter', `url(#${filterId})`);
+    
+    // Background Blur via Backdrop Filter (CSS style)
+    if (hasBackgroundBlur) {
+      const bBlur = getVal('data-effect-background-blur-blur', '10');
+      element.style.backdropFilter = `blur(${bBlur}px)`;
+      element.style.webkitBackdropFilter = `blur(${bBlur}px)`;
+    } else {
+      element.style.backdropFilter = '';
+      element.style.webkitBackdropFilter = '';
+    }
+  };
+
   const updateElementAttribute = (pageIndex, elementId, attribute, value) => {
     saveToHistory();
     setPages(prev => {
@@ -979,18 +1159,37 @@ const TemplateEditor = () => {
         if (attribute.startsWith('fill') || attribute.startsWith('stroke') || isGradientRelated || attribute.includes('stroke-')) {
            const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
            syncGradient(doc, element, base);
-           
-           // DEFAULT STROKE THICKNESS: When picking a stroke color, if no width exists, default to 1.
-           if (attribute === 'stroke' && value !== 'none' && value !== '#') {
-              const currentWidth = element.getAttribute('stroke-width');
-              if (!currentWidth || currentWidth === '0') {
-                 element.setAttribute('stroke-width', '1');
-              }
+
+           // If it's a group, remove child attributes to allow inheritance
+           if (element.tagName.toLowerCase() === 'g') {
+              const children = element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon');
+              children.forEach(child => {
+                 // Remove child-level definition to let group-level value through
+                 if (attribute === 'fill' || attribute === 'stroke' || attribute === 'stroke-width' || attribute === 'stroke-dasharray' || attribute === 'opacity') {
+                    child.removeAttribute(attribute);
+                 }
+                 // If it was a gradient related change, we might need to remove BOTH fill and stroke from child
+                 // to ensure they don't block inheritance.
+                 if (isGradientRelated) {
+                    child.removeAttribute(base);
+                 }
+              });
            }
            
-           // The syncGradient logic above handles the 'solid' type, so no fallback needed.
-        }
-        
+           // DEFAULT STROKE THICKNESS: When picking a stroke color, if no width exists, default to 1.
+            if (attribute === 'stroke' && value !== 'none' && value !== '#') {
+               const currentWidth = element.getAttribute('stroke-width');
+               if (!currentWidth || currentWidth === '0') {
+                  element.setAttribute('stroke-width', '1');
+               }
+            }
+            
+            // The syncGradient logic above handles the 'solid' type, so no fallback needed.
+         }
+
+         if (attribute.startsWith('data-effect-')) {
+            syncFilters(doc, element);
+         }
         const serializer = new XMLSerializer();
         updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
       }
@@ -1717,6 +1916,7 @@ const TemplateEditor = () => {
 
                       return {
                           id: p.v_id || i + 1,
+                          v_id: p.v_id,
                           name: name,
                           html: updatedHtml,
                           layers: layers
@@ -1742,6 +1942,10 @@ const TemplateEditor = () => {
               };
           });
           setPages(newPages);
+          setCurrentBook({
+              flipbookName: location.state.flipbookName || 'Untitled Flipbook',
+              folderName: location.state.folderName || 'Recent Book'
+          });
       }
       else {
           setPages(Array.from({ length: 12 }, (_, i) => {
@@ -1754,6 +1958,10 @@ const TemplateEditor = () => {
                   layers
               };
           }));
+          setCurrentBook({
+              flipbookName: 'Untitled Flipbook',
+              folderName: 'Recent Book'
+          });
       }
       
       setIsLoading(false);
@@ -1807,6 +2015,9 @@ const TemplateEditor = () => {
         currentFrameId={currentFrameId}
         setCurrentFrameId={setCurrentFrameId}
         clipboard={clipboard}
+        currentBook={currentBook}
+        setCurrentBook={setCurrentBook}
+        onSave={saveFlipbook}
       />
 
       <MainEditor 
@@ -1866,3 +2077,5 @@ const TemplateEditor = () => {
 };
 
 export default TemplateEditor;
+
+

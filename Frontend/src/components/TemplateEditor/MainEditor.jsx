@@ -1956,17 +1956,12 @@ const MainEditor = ({
 
             if (drawingPathRef.current.isFinished) {
                drawingPathRef.current.isFinished = false;
-               const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-               const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
-               newPath.setAttribute('id', pathId);
-               newPath.setAttribute('data-type', 'vector-path');
-               newPath.setAttribute('fill', 'none');
-               newPath.setAttribute('stroke', '#000000');
-               newPath.setAttribute('stroke-width', '2');
-               newPath.setAttribute('stroke-linecap', 'round');
-               newPath.setAttribute('stroke-linejoin', 'round');
-               newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
-               drawingPathRef.current.appendChild(newPath);
+                const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
+                newPath.setAttribute('id', pathId);
+                newPath.setAttribute('data-type', 'vector-path');
+                newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
+                drawingPathRef.current.appendChild(newPath);
                drawingSubPathsRef.current.push([{ x: pt.x, y: pt.y, isCorner: false }]);
                drawingSubPathElsRef.current.push(newPath);
                draggedNodeIndexRef.current = { pIdx: drawingSubPathsRef.current.length - 1, ptIdx: 0 };
@@ -1988,16 +1983,16 @@ const MainEditor = ({
         group.setAttribute('id', id);
         group.setAttribute(`data-${typeLabel}-group`, 'true');
         group.setAttribute('data-type', 'vector-object');
+        group.setAttribute('fill', 'none');
+        group.setAttribute('stroke', '#000000');
+        group.setAttribute('stroke-width', '2');
+        group.setAttribute('stroke-linecap', 'round');
+        group.setAttribute('stroke-linejoin', 'round');
         
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
         path.setAttribute('id', pathId);
         path.setAttribute('data-type', 'vector-path');
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', '#000000');
-        path.setAttribute('stroke-width', '2');
-        path.setAttribute('stroke-linecap', 'round');
-        path.setAttribute('stroke-linejoin', 'round');
         path.setAttribute('d', `M ${pt.x} ${pt.y}`);
         group.appendChild(path);
 
