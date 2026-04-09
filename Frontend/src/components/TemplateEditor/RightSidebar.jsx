@@ -110,31 +110,80 @@ const RightSidebar = ({
       
       if (el && !isPageSelected) {
         let w = '0', h = '0', x = '0', y = '0', r = '0';
+        
+        // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
+        const actualEl = document.getElementById(selectedLayerId);
+        if (actualEl && typeof actualEl.getBBox === 'function') {
+           try {
+              const bbox = actualEl.getBBox();
+              w = bbox.width.toString();
+              h = bbox.height.toString();
+              x = bbox.x.toString();
+              y = bbox.y.toString();
+              
+              // If there's a matrix transform, it usually handles position.
+              // In this editor, interact.js uses matrix transforms for movement.
+              const transform = actualEl.getAttribute('transform');
+              if (transform && transform.includes('matrix')) {
+                 const match = transform.match(/matrix\(([^)]+)\)/);
+                 if (match) {
+                    const m = match[1].split(/[\s,]+/).map(parseFloat);
+                    // matrix(a, b, c, d, e, f) -> e, f are translation
+                    if (m.length === 6) {
+                       x = (parseFloat(x) + m[4]).toString();
+                       y = (parseFloat(y) + m[5]).toString();
+                       // Width/Height are already "local" to the matrix if we use getBBox(),
+                       // but visual width/height should include scaling.
+                       w = (parseFloat(w) * Math.abs(m[0])).toString();
+                       h = (parseFloat(h) * Math.abs(m[3])).toString();
+                    }
+                 }
+              }
+           } catch (e) {
+              console.warn("Failed to get BBox for element", e);
+           }
+        }
+
+        // --- FALLBACK / OVERRIDE: Tags that have preferred source of truth ---
         if (el.tagName === 'rect') {
-           w = el.getAttribute('width') || '0';
-           h = el.getAttribute('height') || '0';
-           x = el.getAttribute('x') || '0';
-           y = el.getAttribute('y') || '0';
+           // For simple rects, use attributes if transform is NOT present
+           if (!el.getAttribute('transform')) {
+              w = el.getAttribute('width') || w;
+              h = el.getAttribute('height') || h;
+              x = el.getAttribute('x') || x;
+              y = el.getAttribute('y') || y;
+           }
            r = el.getAttribute('rx') || '0';
         } else if (el.tagName === 'circle') {
            const radius = parseFloat(el.getAttribute('r')) || 0;
            w = (radius * 2).toString();
            h = w;
-           x = (parseFloat(el.getAttribute('cx')) - radius).toString() || '0';
-           y = (parseFloat(el.getAttribute('cy')) - radius).toString() || '0';
+           // Use cx/cy for position if no matrix
+           if (!el.getAttribute('transform')) {
+              x = (parseFloat(el.getAttribute('cx') || '0') - radius).toString();
+              y = (parseFloat(el.getAttribute('cy') || '0') - radius).toString();
+           }
         } else if (el.tagName === 'ellipse') {
            const rx = parseFloat(el.getAttribute('rx')) || 0;
            const ry = parseFloat(el.getAttribute('ry')) || 0;
            w = (rx * 2).toString();
            h = (ry * 2).toString();
-           x = (parseFloat(el.getAttribute('cx')) - rx).toString() || '0';
-           y = (parseFloat(el.getAttribute('cy')) - ry).toString() || '0';
+           if (!el.getAttribute('transform')) {
+              x = (parseFloat(el.getAttribute('cx') || '0') - rx).toString();
+              y = (parseFloat(el.getAttribute('cy') || '0') - ry).toString();
+           }
         } else if (el.tagName === 'text') {
-           const bbox = el.getBBox ? el.getBBox() : { width: 0, height: 0, x: 0, y: 0 };
-           w = bbox.width.toString();
-           h = bbox.height.toString();
-           x = el.getAttribute('x') || '0';
-           y = el.getAttribute('y') || '0';
+           // x/y on text is start position, bbox handles the rest
+           if (!el.getAttribute('transform')) {
+              x = el.getAttribute('x') || x;
+              y = el.getAttribute('y') || y;
+           }
+        } else if (el.tagName === 'image' || el.tagName === 'path' || el.tagName === 'g') {
+           // Fallback to width/height attributes if bbox failed or were zero
+           if (parseFloat(w) === 0) w = el.getAttribute('width') || '0';
+           if (parseFloat(h) === 0) h = el.getAttribute('height') || '0';
+           if (parseFloat(x) === 0) x = el.getAttribute('x') || '0';
+           if (parseFloat(y) === 0) y = el.getAttribute('y') || '0';
         }
 
         const fillStyle = el.getAttribute('fill') || '#000000';

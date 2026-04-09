@@ -84,10 +84,8 @@ const svgGlobalStyles = `
   /* 5. CHILD SELECTED inside an entered frame — same solid selection look */
   .page-svg-container svg [data-child-selected="true"] {}
 
-  /* 7. Dragging State - Removed Shadow */
-  .page-svg-container svg [data-dragging="true"] {
-    filter: none !important;
-  }
+  /* 7. Dragging State - Allowed Shadow */
+  .page-svg-container svg [data-dragging="true"] {}
 
   /* 8. Direct Selection Tool Cursor */
   .page-svg-container.tool-direct svg * {
@@ -418,7 +416,7 @@ const MainEditor = ({
         const selectionCount = multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0);
         if (selectionCount === 1 && (type === 'selected' || type === 'child-selected')) {
             const htmlOverlay = getHtmlOverlayForElement(el);
-            const handleSize = 7.5; // Optimized for a clean, professional look
+            const handleSize = 9; // Slightly larger for better accessibility
             const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
             
             // Define all 8 points in world space
@@ -443,22 +441,22 @@ const MainEditor = ({
                 if (!handle && htmlOverlay) {
                     handle = document.createElement('div');
                     handle.id = handleId;
-                    handle.className = `resize-handle overlay-type-${type} absolute`;
+                    handle.className = `resize-handle overlay-type-${type} absolute transition-colors duration-150`;
                     
                     if (isSide) {
-                        // Edge-handle: Invisible, spans the whole side
-                        handle.classList.add('bg-transparent');
+                        // Edge-handle: Invisible, but large hit area
+                        handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)'; // Use 0.01 instead of 0 for perfect hit detection
                     } else {
                         // Corner-handle: Professional white square
-                        handle.classList.add('bg-white');
+                        handle.style.backgroundColor = '#FFFFFF';
                         handle.style.border = '1.5px solid #6366F1';
-                        handle.style.boxShadow = '0 1px 3px rgba(0,0,0,0.15)';
-                        handle.style.borderRadius = '1px';
+                        handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+                        handle.style.borderRadius = '2px';
                     }
                     
                     handle.style.boxSizing = 'border-box';
                     handle.style.pointerEvents = 'auto';
-                    handle.style.zIndex = isSide ? '999' : '1000'; // Corners on top
+                    handle.style.zIndex = isSide ? '999' : '1000'; // Corners always stay on top
                     htmlOverlay.appendChild(handle);
                 }
 
@@ -466,21 +464,24 @@ const MainEditor = ({
                     if (isSide) {
                         const isHorizontal = (name === 'n' || name === 's');
                         // Calculate length of the side including current scaling/zoom
-                        const length = (isHorizontal ? bbox.width : bbox.height) * scale;
-                        const thickness = handleSize * 1.5; // Slightly thicker for easier hover
+                        // Apply a minimum length to ensure very small elements still have hoverable edges
+                        const rawLength = (isHorizontal ? bbox.width : bbox.height) * scale;
+                        const length = Math.max(rawLength, 20); 
+                        const thickness = 16; // Significant increase for easier multi-platform hover (was ~11)
                         
                         handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
                         handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
                         handle.style.left = `${p.x}px`;
                         handle.style.top = `${p.y}px`;
+                        // Side handles are centered on the edge and rotated with the element
                         handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
                     } else {
                         // Standard corner handle positioning
                         handle.style.width = `${handleSize}px`;
                         handle.style.height = `${handleSize}px`;
-                        handle.style.left = `${p.x - handleSize/2}px`;
-                        handle.style.top = `${p.y - handleSize/2}px`;
-                        handle.style.transform = ''; // No transform needed for corners if using p.x/p.y
+                        handle.style.left = `${p.x}px`;
+                        handle.style.top = `${p.y}px`;
+                        handle.style.transform = 'translate(-50%, -50%)'; // Center corner handles correctly
                     }
                     // Dynamically update cursor based on handle orientation relative to viewport
                     handle.style.cursor = getRotatingCursor(name, rotation);
@@ -729,7 +730,8 @@ const MainEditor = ({
           return;
         }
 
-        // Standard Navigation logic: clear selection or exit frame
+        /* Standard Navigation logic: clear selection or exit frame 
+           (Disabled per user request to keep Shape Properties open)
         multiSelectedIdsRef.current = new Set();
         setMultiSelectedIds(new Set());
 
@@ -747,6 +749,7 @@ const MainEditor = ({
             selectedLayerIdRef.current = null;
           }
         }
+        */
       } else if (e.key.toLowerCase() === 'a' || e.key === 'Enter') {
         if (activeMainTool === 'pen' && drawingPathRef.current) {
             const group = drawingPathRef.current;
@@ -870,56 +873,84 @@ const MainEditor = ({
     // 1. Find the SVG of the target page
     const container = document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"]`);
     const svg = container?.querySelector('svg');
-    if (!svg) return;
+    if (!svg) {
+      console.error(`[MainEditor] Could not find SVG container for page ${pageIdx}`);
+      return;
+    }
 
     // 2. Create SVG <image>
     const imgId = `image-${Math.random().toString(36).substr(2, 9)}`;
     const newImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-    newImg.setAttribute('id', imgId);
+    newImg.id = imgId;
+    // Set both for maximum cross-browser/renderer compatibility
+    newImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
     newImg.setAttribute('href', dataUrl);
     newImg.setAttribute('data-type', 'image');
+    newImg.setAttribute('data-name', 'Image'); // Ensure it shows up clearly in layers
     newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     
     // Load image to get dimensions
     const i = new Image();
     i.onload = () => {
-      const width = i.width;
-      const height = i.height;
+      const imgWidth = i.width || 100;
+      const imgHeight = i.height || 100;
 
-      // Scale up to fit page width roughly
-      let displayWidth = Math.min(width, 210);
-      let displayHeight = (height / width) * displayWidth;
+      // Scale to fit page width roughly
+      let displayWidth = Math.min(imgWidth, 150); // Default to a reasonable size
+      let displayHeight = (imgHeight / imgWidth) * displayWidth;
 
-      if (displayHeight > 297) {
-          displayHeight = 297;
-          displayWidth = (width / height) * displayHeight;
+      // Ensure it's not taller than the page
+      if (displayHeight > 250) {
+          displayHeight = 250;
+          displayWidth = (imgWidth / imgHeight) * displayHeight;
       }
 
       // Append to root frame
       const topFrames = getTopLevelFrames(svg);
       const rootFrame = topFrames[0] || svg.querySelector('g');
+      
       if (rootFrame) {
           try {
-              const bbox = rootFrame.getBBox();
-              const cx = bbox.x + bbox.width / 2;
-              const cy = bbox.y + bbox.height / 2;
+              // Try to center in the root frame (usually the A4 page container)
+              let cx = 105, cy = 148.5; // Default A4 center
               
-              newImg.setAttribute('x', cx - displayWidth / 2);
-              newImg.setAttribute('y', cy - displayHeight / 2);
-              newImg.setAttribute('width', displayWidth);
-              newImg.setAttribute('height', displayHeight);
+              try {
+                const bbox = rootFrame.getBBox();
+                if (bbox.width > 0 && bbox.height > 0) {
+                  cx = bbox.x + bbox.width / 2;
+                  cy = bbox.y + bbox.height / 2;
+                }
+              } catch (e) {
+                // If getBBox fails (e.g. detached node), keep defaults
+              }
+              
+              newImg.setAttribute('x', (cx - displayWidth / 2).toString());
+              newImg.setAttribute('y', (cy - displayHeight / 2).toString());
+              newImg.setAttribute('width', displayWidth.toString());
+              newImg.setAttribute('height', displayHeight.toString());
               
               rootFrame.appendChild(newImg);
               
+              // CRITICAL: Synchronize changes back to the state
               if (updatePageHtml) {
                   saveModifiedPageHtml(pageIdx, svg);
               }
               
+              // Select the newly added image
               if (setSelectedLayerId) setSelectedLayerId(imgId);
               if (setMultiSelectedIds) setMultiSelectedIds(new Set([imgId]));
               if (setActiveMainTool) setActiveMainTool('select');
-          } catch (err) {}
+              
+              console.log(`[MainEditor] Image ${imgId} uploaded and inserted into page ${pageIdx}`);
+          } catch (err) {
+              console.error("[MainEditor] Failed to insert image into SVG frame:", err);
+          }
+      } else {
+          console.error("[MainEditor] No root frame found to append image.");
       }
+    };
+    i.onerror = (err) => {
+      console.error("[MainEditor] Failed to load uploaded image data URL", err);
     };
     i.src = dataUrl;
   };
@@ -1431,26 +1462,36 @@ const MainEditor = ({
                }
 
               // 2. If nothing selected or selection not hit, find a new candidate
+              // 2. Identify candidate from hit-test (Drill-down support)
               if (!elementToDrag) {
-                  let candidates = [];
                   const frameId = currentFrameIdRef.current;
-                  if (frameId) {
-                      const frameEl = svgElement.querySelector(`[id="${frameId}"]`);
-                      candidates = frameEl ? getDirectChildFrames(frameEl) : [];
-                  } else {
-                      candidates = getTopLevelFrames(svgElement);
+                  let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
+                  
+                  // Auto-Enter logic for single-page root frames (matching mousedown behavior)
+                  const topFrames = getTopLevelFrames(svgElement);
+                  if (!frameId && topFrames.length === 1) {
+                      if (hitTest(topFrames[0], event.clientX, event.clientY)) {
+                          context = topFrames[0];
+                          if (setCurrentFrameId) {
+                            setCurrentFrameId(topFrames[0].id);
+                            currentFrameIdRef.current = topFrames[0].id;
+                          }
+                      }
                   }
 
-                  // Find the top-most hit candidate
-                  for (let i = candidates.length - 1; i >= 0; i--) {
-                      if (hitTest(candidates[i], event.clientX, event.clientY)) {
-                          // Prevent dragging the main page base
-                          const topFrames = getTopLevelFrames(svgElement);
-                          const isBaseFrame = topFrames.some(f => f.id === candidates[i].id);
-                          if (!isBaseFrame) {
-                              elementToDrag = candidates[i];
-                          }
-                          break;
+                  // Find deepest hit leaf
+                  const leafTarget = getDraggableElement(event.target, svgElement);
+                  if (leafTarget) {
+                      // Drill UP from leaf to find the child of our active context
+                      let candidate = leafTarget;
+                      while (candidate.parentNode && candidate.parentNode !== context && candidate.parentNode !== svgElement) {
+                          candidate = candidate.parentNode;
+                      }
+
+                      // Validate if candidate is draggable (not the base frame background)
+                      const isBaseFrame = topFrames.some(f => f.id === candidate.id);
+                      if (!isBaseFrame && candidate.id && candidate.getAttribute('data-name') !== 'Overlay') {
+                          elementToDrag = candidate;
                       }
                   }
               }
@@ -1519,6 +1560,25 @@ const MainEditor = ({
           move(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
+
+            // ── RE-SYNC: If React re-rendered and the original nodes were detached, ──
+            // find the new live nodes in the DOM by their IDs to keep the drag alive.
+            if (dragState.svgElement && !dragState.svgElement.isConnected) {
+              const liveSvg = document.querySelector(`.page-svg-container[data-page-index="${dragState.pageIndex}"] svg`);
+              if (liveSvg) dragState.svgElement = liveSvg;
+            }
+            if (dragState.element && !dragState.element.isConnected) {
+              const liveEl = document.getElementById(dragState.element.id);
+              if (liveEl) dragState.element = liveEl;
+            }
+            if (dragState.multiDragItems) {
+              for (const item of dragState.multiDragItems) {
+                if (!item.element.isConnected) {
+                  const liveEl = document.getElementById(item.element.id);
+                  if (liveEl) item.element = liveEl;
+                }
+              }
+            }
 
             const currentPoint = getSvgPoint(dragState.svgElement, event.clientX, event.clientY);
             if (!currentPoint) return;

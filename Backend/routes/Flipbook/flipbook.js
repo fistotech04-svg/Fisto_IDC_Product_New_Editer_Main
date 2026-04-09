@@ -208,14 +208,16 @@ router.post("/save", async (req, res) => {
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
       const { pageName, content, v_id } = page;
-      if (!pageName || content === undefined) continue;
+      if (!pageName) continue;
 
       const fileName = pageName.endsWith(".html")
         ? pageName
         : `${pageName}.html`;
       const filePath = path.join(flipbookDir, fileName);
 
-      fs.writeFileSync(filePath, content, "utf8");
+      if (content !== undefined && content !== null) {
+        fs.writeFileSync(filePath, content, "utf8");
+      }
       savedPages.push(fileName);
       savedFileNames.add(fileName);
 

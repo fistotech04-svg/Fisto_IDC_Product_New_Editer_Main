@@ -84,6 +84,8 @@ const TemplateEditor = () => {
   const [redoStack, setRedoStack] = useState([]);
   const MAX_HISTORY = 50;
 
+  const lastSavedHtmlsRef = useRef({});
+
   // ── Save Logic ─────────────────────────────────────────────────────────────
   const saveFlipbook = async (isManual = false) => {
     if (isSaving) {
@@ -95,43 +97,90 @@ const TemplateEditor = () => {
       setIsSaving(true);
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
       
-      const payload = {
-        emailId: user?.emailId,
-        v_id: v_id,
-        flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
-        folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
-        overwrite: true,
-        pages: pages.map((p, i) => ({
-          pageName: p.name || `Page ${i+1}`,
-          content: p.html,
-          v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
-        }))
-      };
+      const modifiedPagesIndices = [];
+      pages.forEach((p, index) => {
+          const pid = p.v_id || p.id;
+          if (!lastSavedHtmlsRef.current[pid] || lastSavedHtmlsRef.current[pid] !== p.html) {
+              modifiedPagesIndices.push(index);
+          }
+      });
 
-      const payloadSize = JSON.stringify(payload).length;
-      console.log(`[Save] Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
+      const CHUNK_SIZE = 2; // Number of pages to send content for per request
+      let lastRes = null;
 
-      const res = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
-      if (res.data && res.data.v_id) {
+      if (modifiedPagesIndices.length === 0) {
+         // No content changes, but maybe order/name/deletions changed. Send just the structure!
+         const payloadPages = pages.map((p, index) => ({
+             pageName: p.name || `Page ${index + 1}`,
+             content: undefined,
+             v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
+         }));
+
+         const payload = {
+            emailId: user?.emailId,
+            v_id: v_id,
+            flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+            folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
+            overwrite: true,
+            pages: payloadPages
+         };
+
+         lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+      } else {
+         // Chunk the modified indices
+         for (let skip = 0; skip < modifiedPagesIndices.length; skip += CHUNK_SIZE) {
+            const currentChunkIndices = new Set(modifiedPagesIndices.slice(skip, skip + CHUNK_SIZE));
+            
+            const payloadPages = pages.map((p, index) => {
+                return {
+                    pageName: p.name || `Page ${index + 1}`,
+                    content: currentChunkIndices.has(index) ? p.html : undefined, 
+                    v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
+                };
+            });
+
+            const payload = {
+               emailId: user?.emailId,
+               v_id: v_id,
+               flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+               folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
+               overwrite: true,
+               pages: payloadPages
+            };
+
+            const payloadSize = JSON.stringify(payload).length;
+            console.log(`[Save] Chunk diffing: sending modified pages ${Array.from(currentChunkIndices).map(n => n + 1).join(', ')}. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
+
+            lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+         }
+      }
+
+      if (lastRes && lastRes.data && lastRes.data.v_id) {
+        // Track successfully saved HTML to rapidly skip unchanged pages next time
+        pages.forEach(p => {
+             const pid = p.v_id || p.id;
+             lastSavedHtmlsRef.current[pid] = p.html;
+        });
+
         setHasUnsavedChanges(false);
         triggerSaveSuccess({
-          name: payload.flipbookName,
-          folder: payload.folderName,
+          name: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+          folder: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
           isManual
         });
-        console.log("Flipbook saved successfully:", res.data);
+        console.log("Flipbook saved successfully:", lastRes.data);
 
         // Transition to project URL if we don't have a v_id yet
         if (!v_id) {
-          const newUrl = `/editor/${encodeURIComponent(payload.folderName)}/${res.data.v_id}`;
+          const folderName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book');
+          const newUrl = `/editor/${encodeURIComponent(folderName)}/${lastRes.data.v_id}`;
           navigate(newUrl, { replace: true, state: location.state });
         }
       }
     } catch (err) {
       console.error("Failed to save flipbook:", err);
-      // Show an alert to provide user feedback when a silent failure occurs
       alert(err?.response?.status === 413 ? "Save failed: The template size is too large." : "Failed to save flipbook. Please try again.");
     } finally {
       setIsSaving(false);
@@ -416,28 +465,21 @@ const TemplateEditor = () => {
 
   const movePageToFirst = (index) => {
     if (index === 0) return;
-    setPages(prev => {
-      const updated = [...prev];
-      const page = updated.splice(index, 1)[0];
-      updated.unshift(page);
-      return updated;
-    });
-    setActivePageIndex(0);
+    saveToHistory();
+    movePage(index, 0, true); // true indicates history is already saved
   };
 
   const movePageToLast = (index) => {
     if (index === pages.length - 1) return;
-    setPages(prev => {
-      const updated = [...prev];
-      const page = updated.splice(index, 1)[0];
-      updated.push(page);
-      return updated;
-    });
-    setActivePageIndex(pages.length - 1);
+    saveToHistory();
+    movePage(index, pages.length - 1, true); // true indicates history is already saved
   };
 
 
-  const movePage = (fromIndex, toIndex) => {
+  const movePage = (fromIndex, toIndex, alreadySaved = false) => {
+    if (fromIndex === toIndex) return;
+    if (!alreadySaved) saveToHistory();
+    
     setPages(prev => {
       const updated = [...prev];
       const page = updated.splice(fromIndex, 1)[0];
@@ -906,15 +948,37 @@ const TemplateEditor = () => {
     // Helper to get attribute with default
     const getVal = (attr, def) => element.getAttribute(attr) || def;
 
+    // We chain effects by tracking the current input name
+    let currentIn = "SourceGraphic";
+
     // 1. Layer Blur
     if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-blur', '4'));
-      const blur = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      blur.setAttribute('stdDeviation', blurVal);
-      filterEl.appendChild(blur);
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '4'));
+      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+
+      let blurSource = currentIn;
+
+      // a. Spread (Morphology)
+      if (spreadVal !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spreadVal));
+        morph.setAttribute('in', currentIn);
+        morph.setAttribute('result', 'blur_morph');
+        filterEl.appendChild(morph);
+        blurSource = "blur_morph";
+      }
+
+      // b. Blur
+      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('in', blurSource);
+      blurNode.setAttribute('result', 'blur_out');
+      filterEl.appendChild(blurNode);
+      currentIn = "blur_out";
     }
 
-    // 2. Drop Shadow (Improved: Spread affects ONLY shadow, element stays sharp)
+    // 2. Drop Shadow
     if (hasDropShadow) {
       const color = getVal('data-effect-drop-shadow-color', '#000000');
       const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
@@ -923,104 +987,129 @@ const TemplateEditor = () => {
       const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
       const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
-      // a. Morphology for Spread (Dilate/Erode)
-      const morphology = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-      morphology.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
-      morphology.setAttribute('radius', Math.abs(spread));
-      morphology.setAttribute('in', 'SourceAlpha');
-      morphology.setAttribute('result', 'm_out');
-      filterEl.appendChild(morphology);
+      // a. Spread (Morphology)
+      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spread));
+      morph.setAttribute('in', 'SourceAlpha');
+      morph.setAttribute('result', 'ds_morph');
+      filterEl.appendChild(morph);
 
       // b. Blur
-      const gaussian = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      gaussian.setAttribute('stdDeviation', blur);
-      gaussian.setAttribute('in', 'm_out');
-      gaussian.setAttribute('result', 'b_out');
-      filterEl.appendChild(gaussian);
+      const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('in', 'ds_morph');
+      gauss.setAttribute('result', 'ds_blur');
+      filterEl.appendChild(gauss);
 
       // c. Offset
       const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
       offset.setAttribute('dx', dx);
       offset.setAttribute('dy', dy);
-      offset.setAttribute('in', 'b_out');
-      offset.setAttribute('result', 'o_out');
+      offset.setAttribute('in', 'ds_blur');
+      offset.setAttribute('result', 'ds_offset');
       filterEl.appendChild(offset);
 
-      // d. Color & Opacity
+      // d. Color
       const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
       flood.setAttribute('flood-color', color);
       flood.setAttribute('flood-opacity', opacity);
-      flood.setAttribute('result', 'f_out');
+      flood.setAttribute('result', 'ds_flood');
       filterEl.appendChild(flood);
 
-      const composite = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
-      composite.setAttribute('in', 'f_out');
-      composite.setAttribute('in2', 'o_out');
-      composite.setAttribute('operator', 'in');
-      composite.setAttribute('result', 'shadow_final');
-      filterEl.appendChild(composite);
+      // e. Composite (Clip to Alpha)
+      const comp = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      comp.setAttribute('in', 'ds_flood');
+      comp.setAttribute('in2', 'ds_offset');
+      comp.setAttribute('operator', 'in');
+      comp.setAttribute('result', 'ds_final');
+      filterEl.appendChild(comp);
 
-      // e. Merge with SourceGraphic (Crutial: keeps element sharp)
+      // f. Merge with current chain
       const merge = doc.createElementNS("http://www.w3.org/2000/svg", "feMerge");
       const nodeShadow = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
-      nodeShadow.setAttribute('in', 'shadow_final');
-      const nodeGraphic = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
-      nodeGraphic.setAttribute('in', 'SourceGraphic');
+      nodeShadow.setAttribute('in', 'ds_final');
+      const nodeInput = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+      nodeInput.setAttribute('in', currentIn);
       merge.appendChild(nodeShadow);
-      merge.appendChild(nodeGraphic);
+      merge.appendChild(nodeInput);
+      merge.setAttribute('result', 'drop_shadow_merged');
       filterEl.appendChild(merge);
+      
+      currentIn = "drop_shadow_merged";
     }
 
-    // 3. Inner Shadow (Complex chain)
+    // 3. Inner Shadow
     if (hasInnerShadow) {
       const color = getVal('data-effect-inner-shadow-color', '#000000');
       const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
       const dx = getVal('data-effect-inner-shadow-x', '0');
       const dy = getVal('data-effect-inner-shadow-y', '4');
       const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
+      const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
 
+      // a. Spread (Morphology)
+      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spread));
+      morph.setAttribute('in', 'SourceAlpha');
+      morph.setAttribute('result', 'is_morph');
+      filterEl.appendChild(morph);
+
+      // b. Blur
+      const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('in', 'is_morph');
+      gauss.setAttribute('result', 'is_blur');
+      filterEl.appendChild(gauss);
+
+      // c. Offset
       const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
       offset.setAttribute('dx', dx);
       offset.setAttribute('dy', dy);
+      offset.setAttribute('in', 'is_blur');
+      offset.setAttribute('result', 'is_offset');
       filterEl.appendChild(offset);
-      
-      const iBlur = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      iBlur.setAttribute('stdDeviation', blur);
-      iBlur.setAttribute('result', 'offset-blur');
-      filterEl.appendChild(iBlur);
 
+      // d. Invert to get inner part
       const compOut = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
       compOut.setAttribute('operator', 'out');
       compOut.setAttribute('in', 'SourceAlpha');
-      compOut.setAttribute('in2', 'offset-blur');
-      compOut.setAttribute('result', 'inverse');
+      compOut.setAttribute('in2', 'is_offset');
+      compOut.setAttribute('result', 'is_inverse');
       filterEl.appendChild(compOut);
 
+      // e. Color
       const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
       flood.setAttribute('flood-color', color);
       flood.setAttribute('flood-opacity', opacity);
-      flood.setAttribute('result', 'color');
+      flood.setAttribute('result', 'is_flood');
       filterEl.appendChild(flood);
 
+      // f. Clip color to inner shape
       const compIn = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
       compIn.setAttribute('operator', 'in');
-      compIn.setAttribute('in', 'color');
-      compIn.setAttribute('in2', 'inverse');
-      compIn.setAttribute('result', 'shadow');
+      compIn.setAttribute('in', 'is_flood');
+      compIn.setAttribute('in2', 'is_inverse');
+      compIn.setAttribute('result', 'is_final');
       filterEl.appendChild(compIn);
 
+      // g. Composite over current chain
       const compOver = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
       compOver.setAttribute('operator', 'over');
-      compOver.setAttribute('in', 'shadow');
-      compOver.setAttribute('in2', 'SourceGraphic');
+      compOver.setAttribute('in', 'is_final');
+      compOver.setAttribute('in2', currentIn);
+      compOver.setAttribute('result', 'inner_shadow_merged');
       filterEl.appendChild(compOver);
+
+      currentIn = "inner_shadow_merged";
     }
 
     element.setAttribute('filter', `url(#${filterId})`);
     
     // Background Blur via Backdrop Filter (CSS style)
     if (hasBackgroundBlur) {
-      const bBlur = getVal('data-effect-background-blur-blur', '10');
+      const bBlur = getVal('data-effect-background-blur-value', '10');
       element.style.backdropFilter = `blur(${bBlur}px)`;
       element.style.webkitBackdropFilter = `blur(${bBlur}px)`;
     } else {
@@ -1272,9 +1361,11 @@ const TemplateEditor = () => {
     const doc = parser.parseFromString(page.html, 'image/svg+xml');
 
     const clipboardItems = [];
-    const findLayers = (layersList, parentId = null) => {
+    const findLayers = (layersList, parentId = null, alreadyCopyingAncestor = false) => {
       for (let layer of layersList) {
-        if (idList.includes(layer.id)) {
+        const isSelected = idList.includes(layer.id);
+        
+        if (isSelected && !alreadyCopyingAncestor) {
           const element = doc.querySelector(`[id="${layer.id}"]`);
           if (element) {
             let svgSnippet = new XMLSerializer().serializeToString(element);
@@ -1283,7 +1374,6 @@ const TemplateEditor = () => {
             const defSnippets = [];
             const collectedIds = new Set();
             const extractDefs = (snippet) => {
-              // match url(#id) or url('#id') or url("#id")
               const urlRegex = /url\(['"]?#([^)'"]+)['"]?\)/g;
               let match;
               while ((match = urlRegex.exec(snippet)) !== null) {
@@ -1295,12 +1385,11 @@ const TemplateEditor = () => {
                   if (defEl) {
                     const defHtml = new XMLSerializer().serializeToString(defEl);
                     defSnippets.push(defHtml);
-                    extractDefs(defHtml); // recursively find deeper dependencies
+                    extractDefs(defHtml);
                   }
                 }
               }
 
-              // match href="#id" or xlink:href="#id"
               const hrefRegex = /href=['"]#([^'"]+)['"]/g;
               while ((match = hrefRegex.exec(snippet)) !== null) {
                 const defId = match[1];
@@ -1326,7 +1415,10 @@ const TemplateEditor = () => {
             });
           }
         }
-        if (layer.children) findLayers(layer.children, layer.id);
+        
+        if (layer.children) {
+          findLayers(layer.children, layer.id, alreadyCopyingAncestor || isSelected);
+        }
       }
     };
 
@@ -1540,12 +1632,14 @@ const TemplateEditor = () => {
           redo(); // Ctrl+Y
           e.preventDefault();
         } else if (e.key.toLowerCase() === 'c') {
-          if (selectedLayerId) {
-            copyLayer(activePageIndex, selectedLayerId);
+          const idsToCopy = multiSelectedIds.size > 0 ? multiSelectedIds : (selectedLayerId ? [selectedLayerId] : []);
+          if (idsToCopy && (Array.isArray(idsToCopy) ? idsToCopy.length > 0 : idsToCopy.size > 0)) {
+            copyLayer(activePageIndex, idsToCopy);
           }
         } else if (e.key.toLowerCase() === 'x') {
-          if (selectedLayerId) {
-            cutLayer(activePageIndex, selectedLayerId);
+          const idsToCut = multiSelectedIds.size > 0 ? multiSelectedIds : (selectedLayerId ? [selectedLayerId] : []);
+          if (idsToCut && (Array.isArray(idsToCut) ? idsToCut.length > 0 : idsToCut.size > 0)) {
+            cutLayer(activePageIndex, idsToCut);
           }
         } else if (e.key.toLowerCase() === 'v') {
           if (clipboard) {
@@ -1556,10 +1650,12 @@ const TemplateEditor = () => {
         // Handle physical Delete and Backspace keys (no modifiers)
         if (e.key === 'Delete' || e.key === 'Backspace') {
           if (multiSelectedIds.size > 0) {
-            multiSelectedIds.forEach(id => deleteLayer(activePageIndex, id));
+            deleteLayer(activePageIndex, multiSelectedIds);
             setMultiSelectedIds(new Set());
+            setSelectedLayerId(null);
           } else if (selectedLayerId) {
             deleteLayer(activePageIndex, selectedLayerId);
+            setSelectedLayerId(null);
           }
         }
       }
@@ -1888,7 +1984,7 @@ const TemplateEditor = () => {
               
               if (res.data && res.data.pages) {
                   const parser = new DOMParser();
-                  setPages(res.data.pages.map((p, i) => {
+                  const mappedPages = res.data.pages.map((p, i) => {
                       const name = p.name || `Page ${i + 1}`;
                       if (!p.html || p.html.trim() === '') {
                           const { html, layers } = createDefaultPageData(name);
@@ -1921,7 +2017,16 @@ const TemplateEditor = () => {
                           html: updatedHtml,
                           layers: layers
                       };
-                  }));
+                  });
+
+                  setPages(mappedPages);
+                  
+                  // Initialize tracking reference to avoid massive resyncs of untouched pages
+                  mappedPages.forEach((p, i) => {
+                      const pid = p.v_id || p.id;
+                      lastSavedHtmlsRef.current[pid] = p.html;
+                  });
+
                   setCurrentBook(res.data.meta);
                   setHasUnsavedChanges(false);
               }

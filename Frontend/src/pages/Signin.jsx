@@ -41,7 +41,7 @@ export default function Signin() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
       const res = await axios.post(`${backendUrl}/api/auth/login`, {
         emailId: formData.emailId,
         password: formData.password

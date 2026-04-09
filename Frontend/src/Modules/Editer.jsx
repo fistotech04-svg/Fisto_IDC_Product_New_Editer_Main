@@ -71,7 +71,7 @@ const Editor = () => {
         if (storedUser) {
             try {
                 const user = JSON.parse(storedUser);
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
                 const res = await axios.get(`${backendUrl}/api/usersetting/get-settings`, {
                     params: { emailId: user.emailId }
                 });
@@ -97,7 +97,7 @@ const Editor = () => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             const user = JSON.parse(storedUser);
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
             
             await axios.post(`${backendUrl}/api/usersetting/update-autosave`, {
                 emailId: user.emailId,

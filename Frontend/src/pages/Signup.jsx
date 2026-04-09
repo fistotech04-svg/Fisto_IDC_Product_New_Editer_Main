@@ -54,7 +54,7 @@ export default function Signup() {
     setIsLoading(true);
     try {
       // Backend expects emailId, frontend has email
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
       const res = await axios.post(`${backendUrl}/api/auth/signup`, {
         emailId: formData.email,
         password: formData.password
@@ -224,8 +224,15 @@ export default function Signup() {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full py-[0.875vw] px-[1vw] cursor-pointer rounded-full bg-[#4c5add] hover:bg-[#3f4bc0] text-white font-semibold text-[1.125vw] shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] focus:outline-none text-center block disabled:opacity-70 disabled:cursor-not-allowed"
+                disabled={
+                  isLoading || 
+                  !formData.email || 
+                  !formData.password || 
+                  !formData.confirmPassword || 
+                  formData.password !== formData.confirmPassword ||
+                  !Object.values(passwordCriteria).every(Boolean)
+                }
+                className="w-full py-[0.875vw] px-[1vw] cursor-pointer rounded-full bg-[#4c5add] hover:bg-[#3f4bc0] text-white font-semibold text-[1.125vw] shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] focus:outline-none text-center block disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-[#4c5add] disabled:shadow-none"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-[0.5vw]">

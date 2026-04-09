@@ -6,6 +6,66 @@ import {
   ArrowLeftRight, Minus, ChevronLeft, ChevronRight, Link2, Link2Off, Trash2, Plus, Pipette, ChevronUp, ChevronDown, SlidersHorizontal, Palette, Eye, RotateCcw, X
 } from 'lucide-react';
 
+const handleScrubHelper = (e, initialVal, updateFn, sensitivity = 5) => {
+  const sValue = parseFloat(initialVal) || 0;
+  let accumulatedDelta = 0;
+  let virtualX = e.clientX;
+  let virtualY = e.clientY;
+
+  document.body.classList.add('is-scrubbing');
+
+  // Use Pointer Capture instead of Pointer Lock to avoid browser "Press Esc" message
+  if (e.pointerId !== undefined) {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (err) {}
+  }
+
+  // Create virtual cursor
+  const vCursor = document.createElement('div');
+  vCursor.className = 'virtual-scrub-cursor';
+  vCursor.style.left = `${virtualX}px`;
+  vCursor.style.top = `${virtualY}px`;
+  vCursor.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 15L21 12L18 9" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6 9L3 12L6 15" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 12H20" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M18 15L21 12L18 9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6 9L3 12L6 15" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 12H20" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+  document.body.appendChild(vCursor);
+
+  const onMouseMove = (moveEvent) => {
+    // movementX is still available in pointer/mouse events in most modern browsers
+    // even without pointer lock, but it might stop at screen edges.
+    const dx = moveEvent.movementX || 0;
+    accumulatedDelta += dx;
+    
+    // Update and Wrap Virtual Cursor
+    virtualX += dx;
+    if (virtualX < 0) virtualX = window.innerWidth;
+    if (virtualX > window.innerWidth) virtualX = 0;
+    vCursor.style.left = `${virtualX}px`;
+
+    const newVal = sValue + Math.round(accumulatedDelta / sensitivity);
+    updateFn(newVal.toString());
+  };
+
+  const onMouseUp = (moveEvent) => {
+    if (moveEvent.pointerId !== undefined) {
+        try { moveEvent.target.releasePointerCapture(moveEvent.pointerId); } catch(e) {}
+    }
+    if (vCursor.parentNode) vCursor.parentNode.removeChild(vCursor);
+    document.body.classList.remove('is-scrubbing');
+    window.removeEventListener('pointermove', onMouseMove);
+    window.removeEventListener('pointerup', onMouseUp);
+  };
+
+  window.addEventListener('pointermove', onMouseMove);
+  window.addEventListener('pointerup', onMouseUp);
+};
+
 const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled = false }) => {
   // Use local state for the input to allow smooth multi-digit typing
   const [localVal, setLocalVal] = useState(value);
@@ -44,7 +104,16 @@ const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled =
 
   return (
     <div className={`flex items-center gap-[1vw] py-[0.4vw] transition-opacity duration-200 ${disabled ? 'opacity-40 pointer-events-none' : ''}`}>
-       <span className="text-[0.8vw] font-semibold text-gray-600 w-[4vw] flex-shrink-0">{label} :</span>
+       <span 
+         className="text-[0.8vw] font-semibold text-gray-600 w-[4vw] flex-shrink-0 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+         onPointerDown={(e) => {
+            handleScrubHelper(e, value, (v) => {
+               const num = parseFloat(v);
+               const corrected = Math.min(Math.max(num, min), max);
+               onChange(corrected.toString());
+            });
+         }}
+       >{label} :</span>
        <div className="flex-grow flex items-center gap-[1vw]">
           <input
             type="range"
@@ -143,17 +212,22 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
          className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] font-mono tracking-tight"
          maxLength={7}
        />
-       <div className="flex items-center gap-[0.1vw] ml-[0.5vw]">
-         <input
-           type="number"
-           value={Math.round((opacity !== undefined ? opacity : 1) * 100)}
-           onChange={(e) => onOpacityChange(parseFloat(e.target.value) / 100)}
-           className="w-[1.5vw] text-right text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent appearance-none no-spin"
-           min="0"
-           max="100"
-         />
-         <span className="text-[0.75vw] font-medium text-gray-500">%</span>
-       </div>
+        <div 
+          className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
+          onPointerDown={(e) => {
+             const currentPct = Math.round(parseFloat(opacity !== undefined ? opacity : 1) * 100);
+             handleScrubHelper(e, currentPct, (val) => {
+                const num = parseInt(val);
+                const clamped = Math.min(Math.max(num, 0), 100);
+                onOpacityChange(clamped / 100);
+             });
+          }}
+        >
+          <span className="text-[0.75vw] font-semibold text-gray-700">
+            {Math.round(parseFloat(opacity !== undefined ? opacity : 1) * 100)}
+          </span>
+          <span className="text-[0.75vw] font-medium text-gray-500">%</span>
+        </div>
      </div>
   </div>
 );
@@ -169,6 +243,7 @@ const ShapeProperties = ({
   const [openAccordion, setOpenAccordion] = useState('color'); // 'color' | 'corner' | 'effect' | null
   const [activeEffectPopupId, setActiveEffectPopupId] = useState(null);
   const [effectPopupPos, setEffectPopupPos] = useState({ top: 0, right: '16.5vw' });
+  const [isStrokeStyleOpen, setIsStrokeStyleOpen] = useState(false);
   const [isStrokeTypeOpen, setIsStrokeTypeOpen] = useState(false);
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
@@ -176,6 +251,7 @@ const ShapeProperties = ({
   const [showStrokeSettings, setShowStrokeSettings] = useState(false);
   const [strokeSettingsPos, setStrokeSettingsPos] = useState({ top: 0, right: 0 });
   const [isDashPosOpen, setIsDashPosOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   const reverseGradient = (baseAttr) => {
     const stops = JSON.parse(selectedElementProps[`${baseAttr}-stops`] || JSON.stringify(defaultStops));
@@ -217,18 +293,40 @@ const ShapeProperties = ({
     }
   };
 
+  const handleScrub = (e, initialVal, updateFn, sensitivity = 5) => {
+    handleScrubHelper(e, initialVal, updateFn, sensitivity);
+  };
+
   const handleEffectRowClick = (e, effectId) => {
     const target = e.currentTarget.closest('.effect-row') || e.currentTarget;
     const rect = target.getBoundingClientRect();
+    // Shadow popups are taller than blur popups
+    const popupHeight = effectId.includes('shadow') ? 350 : 220; 
+    const centerY = rect.top + (rect.height / 2) - (popupHeight / 2);
+    // Keep within bounds (top of screen near navbar and bottom of screen)
+    const finalTop = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
+
     setEffectPopupPos({ 
-      top: Math.min(rect.top, window.innerHeight - 480), 
-      right: '16.5vw' 
+      top: finalTop, 
+      right: `calc(100vw - ${rect.left}px + 0.1vw)`
     });
     setActiveEffectPopupId(effectId);
   };
 
   // --- CLICK OUTSIDE HANDLER (Replced Overlay) ---
   React.useEffect(() => {
+     const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+           if (activeEffectPopupId || activeColorPicker || showStrokeSettings) {
+              setActiveEffectPopupId(null);
+              setActiveColorPicker(null);
+              setShowStrokeSettings(false);
+              setShowDetailedPicker(false);
+              setIsTypeDropdownOpen(false);
+           }
+        }
+     };
+
      const handleClickOutside = (e) => {
         if (activeColorPicker || showStrokeSettings) {
            const isSelector = e.target.closest('#main-color-selector');
@@ -248,8 +346,12 @@ const ShapeProperties = ({
         }
      };
      document.addEventListener('mousedown', handleClickOutside);
-     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activeColorPicker]);
+     window.addEventListener('keydown', handleKeyDown);
+     return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        window.removeEventListener('keydown', handleKeyDown);
+     };
+  }, [activeColorPicker, activeEffectPopupId, showStrokeSettings]);
 
   return (
     <div className="flex flex-col space-y-[0.60vw] font-sans">
@@ -301,7 +403,7 @@ const ShapeProperties = ({
       </div>
 
       {/* COLOR ACCORDION CARDS (EXACT TEXT EDITOR STYLE) */}
-      <div className={`bg-white border border-gray-200 rounded-[0.75vw] shadow-sm ${!isStrokeTypeOpen ? 'overflow-hidden' : ''}`}>
+      <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div 
           onClick={() => setOpenAccordion(openAccordion === 'color' ? null : 'color')}
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'color' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
@@ -319,20 +421,22 @@ const ShapeProperties = ({
              <ColorField 
                label="Fill" 
                color={selectedElementProps.fill} 
-               opacity={parseFloat(selectedElementProps.opacity || 1)}
+               opacity={selectedElementProps.opacity}
                onColorChange={(val) => updateAttr('fill', val)}
-               onOpacityChange={(val) => updateAttr('opacity', (parseFloat(val) / 100).toString())}
+               onOpacityChange={(val) => updateAttr('opacity', val.toString())}
                onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'fill' ? null : 'fill')}
                baseAttr="fill"
+               selectedElementProps={selectedElementProps}
              />
              <ColorField 
                label="Stroke" 
                color={selectedElementProps.stroke} 
-               opacity={1}
+               opacity={selectedElementProps['stroke-opacity']}
                onColorChange={(val) => updateAttr('stroke', val)}
-               onOpacityChange={(val) => null}
+               onOpacityChange={(val) => updateAttr('stroke-opacity', val.toString())}
                onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'stroke' ? null : 'stroke')}
                baseAttr="stroke"
+               selectedElementProps={selectedElementProps}
              />
 
               {/* STROKE SETTINGS (ONLY SHOW IF STROKE IS NOT NONE) */}
@@ -373,17 +477,24 @@ const ShapeProperties = ({
                    <div className="flex-grow flex items-center gap-[0.4vw]">
                       <div className="relative flex-grow h-[2.5vw]">
                          <div 
-                            className={`h-full px-[0.7vw] border-[0.1vw] rounded-[0.75vw] flex items-center gap-[0.5vw] cursor-pointer justify-between bg-white transition-all font-semibold ${isStrokeTypeOpen ? 'border-indigo-500 shadow-sm' : 'border-gray-400 hover:border-indigo-400'}`}
-                            onClick={() => setIsStrokeTypeOpen(!isStrokeTypeOpen)}
-                         >
-                            <span className="text-[0.75vw] text-gray-700 whitespace-nowrap overflow-hidden">
-                              {(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid'}
-                            </span>
-                            <ChevronDown size="0.9vw" className={`text-gray-500 transition-transform ${isStrokeTypeOpen ? 'rotate-180' : ''}`} />
-                         </div>
+                             className={`h-full px-[0.7vw] border-[0.1vw] rounded-[0.75vw] flex items-center gap-[0.5vw] cursor-pointer justify-between bg-white transition-all font-semibold ${isStrokeTypeOpen ? 'border-indigo-500 shadow-sm' : 'border-gray-400 hover:border-indigo-400'}`}
+                             onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setDropdownPos({ top: rect.bottom + 5, left: rect.left, width: rect.width });
+                                setIsStrokeStyleOpen(!isStrokeStyleOpen);
+                             }}
+                          >
+                             <span className="text-[0.75vw] text-gray-700 whitespace-nowrap overflow-hidden">
+                               {(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid'}
+                             </span>
+                             <ChevronDown size="0.9vw" className={`text-gray-500 transition-transform ${isStrokeStyleOpen ? 'rotate-180' : ''}`} />
+                          </div>
 
-                         {isStrokeTypeOpen && (
-                            <div className="absolute top-[110%] left-0 right-0 py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-50 animate-in fade-in zoom-in duration-200">
+                         {isStrokeStyleOpen && createPortal(
+                            <div 
+                              className="absolute py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[9999] animate-in fade-in zoom-in duration-200"
+                              style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                            >
                                {['Solid', 'Dashed'].map((type) => (
                                   <div
                                      key={type}
@@ -395,38 +506,26 @@ const ShapeProperties = ({
                                      }`}
                                      onClick={() => {
                                         updateAttr('stroke-dasharray', type === 'Dashed' ? '5,5' : 'none');
-                                        setIsStrokeTypeOpen(false);
+                                        setIsStrokeStyleOpen(false);
                                      }}
                                   >
                                      {type}
                                   </div>
                                ))}
-                            </div>
+                            </div>,
+                            document.body
                          )}
                       </div>
 
                       <div className="h-[2.5vw] w-[4.5vw] border-[0.1vw] border-gray-400 rounded-[0.75vw] flex items-center px-[0.6vw] gap-[0.3vw] bg-white hover:border-indigo-400 transition-colors flex-shrink-0">
                           <div 
                             className="cursor-ew-resize hover:bg-gray-50 p-[0.2vw] rounded-[0.3vw] transition-colors"
-                            onMouseDown={(e) => {
-                              const startX = e.clientX;
+                            onPointerDown={(e) => {
                               const initialVal = parseFloat(selectedElementProps.strokeWidth || 1);
-                              
-                              const onMouseMove = (moveEvent) => {
-                                const deltaX = moveEvent.clientX - startX;
-                                const newVal = Math.max(0, initialVal + Math.round(deltaX / 8));
+                              handleScrubHelper(e, initialVal, (val) => {
+                                const newVal = Math.max(0, parseInt(val));
                                 updateAttr('stroke-width', newVal.toString());
-                                document.body.style.cursor = 'ew-resize';
-                              };
-                              
-                              const onMouseUp = () => {
-                                window.removeEventListener('mousemove', onMouseMove);
-                                window.removeEventListener('mouseup', onMouseUp);
-                                document.body.style.cursor = 'default';
-                              };
-                              
-                              window.addEventListener('mousemove', onMouseMove);
-                              window.addEventListener('mouseup', onMouseUp);
+                              }, 8);
                             }}
                           >
                              <Icon icon="material-symbols:line-weight" width="1vw" height="1vw" className="text-gray-500 flex-shrink-0" />
@@ -489,33 +588,13 @@ const ShapeProperties = ({
                       return (
                         <div key={corner.key} className="flex flex-col items-center">
                            <div 
-                              onMouseDown={(e) => {
-                                 // Only initiate drag if not clicking directly inside the numeric input
-                                 if (e.target.tagName === 'INPUT') return;
-                                 
-                                 const startX = e.clientX;
-                                 const initialVal = val;
-                                 
-                                 const onMouseMove = (moveEvent) => {
-                                    const deltaX = moveEvent.clientX - startX;
-                                    const sensitivity = 5; // pixels per unit change
-                                    const newVal = Math.max(0, initialVal + Math.round(deltaX / sensitivity));
-                                    updateVal(newVal);
-                                    document.body.style.cursor = 'ew-resize';
-                                 };
-                                 
-                                 const onMouseUp = () => {
-                                    window.removeEventListener('mousemove', onMouseMove);
-                                    window.removeEventListener('mouseup', onMouseUp);
-                                    document.body.style.cursor = 'default';
-                                 };
-                                 
-                                 window.addEventListener('mousemove', onMouseMove);
-                                 window.addEventListener('mouseup', onMouseUp);
-                                 document.body.style.cursor = 'ew-resize';
-                              }}
-                              className={`w-[5.2vw] h-[2.8vw] border border-gray-400 ${corner.roundedClass} flex items-center justify-between px-[0.4vw] bg-white relative transition-colors hover:border-gray-600 cursor-ew-resize select-none`}
-                           >
+                               onPointerDown={(e) => {
+                                  // Only initiate drag if not clicking directly inside the numeric input
+                                  if (e.target.tagName === 'INPUT') return;
+                                  handleScrubHelper(e, val, (newVal) => updateVal(parseInt(newVal)));
+                               }}
+                               className={`w-[5.2vw] h-[2.8vw] border border-gray-400 ${corner.roundedClass} flex items-center justify-between px-[0.4vw] bg-white relative transition-colors hover:border-gray-600 cursor-ew-resize select-none`}
+                            >
                               <button 
                                 onClick={() => updateVal(val - 1)}
                                 className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
@@ -625,9 +704,9 @@ const ShapeProperties = ({
       {/* PORTALED EFFECT PROPERTIES */}
       {activeEffectPopupId && createPortal(
         <div 
-          className="effect-popup-container fixed z-[4000] w-[19vw] bg-white rounded-[1.2vw] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] border border-gray-100 p-[1.2vw] animate-in fade-in zoom-in-95 duration-200"
+          className="effect-popup-container fixed z-[4000] w-[18.5vw] bg-white rounded-[1.2vw] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.2)] border border-gray-100 p-[1.2vw] animate-in fade-in zoom-in-95 duration-200"
           style={{ 
-            top: effectPopupPos.top - 5,
+            top: effectPopupPos.top,
             right: effectPopupPos.right 
           }}
         >
@@ -705,7 +784,16 @@ const ShapeProperties = ({
                             </div>
 
                             <div className="flex items-center gap-[0.5vw]">
-                                <span className="text-[0.8vw] font-medium text-gray-800 w-[3.5vw] flex-shrink-0 text-right whitespace-nowrap">Opacity :</span>
+                                <span 
+                                  className="text-[0.8vw] font-medium text-gray-800 w-[3.5vw] flex-shrink-0 text-right whitespace-nowrap cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                                  onPointerDown={(e) => {
+                                      const currentVal = selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35;
+                                      handleScrub(e, currentVal, (val) => {
+                                          const clamped = Math.max(0, Math.min(100, parseInt(val)));
+                                          updateAttr(`data-effect-${activeEffectPopupId}-opacity`, clamped.toString());
+                                      });
+                                  }}
+                                >Opacity :</span>
                                 <div className="flex-grow flex items-center gap-[0.4vw] min-w-0">
                                     <input 
                                         type="range" 
@@ -731,7 +819,13 @@ const ShapeProperties = ({
                             { id: 'spread', label: 'Spread :', default: 0 }
                         ].map((row) => (
                             <div key={row.id} className="flex items-center">
-                                <span className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw]">{row.label}</span>
+                                <span 
+                                  className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                                  onPointerDown={(e) => {
+                                      const currentVal = selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                                      handleScrub(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                                  }}
+                                >{row.label}</span>
                                 <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
                                     <ChevronLeft 
                                         size="1vw" 
@@ -766,37 +860,50 @@ const ShapeProperties = ({
               )}
 
               {/* Blur Only Style (Simplified) */}
+              {/* Blur Style (Matches User Image) */}
               {(activeEffectPopupId === 'blur' || activeEffectPopupId === 'background-blur') && (
-                 <div className="space-y-[1.5vw]">
-                    <div className="flex items-center">
-                        <span className="text-[0.9vw] font-medium text-gray-800 w-[6vw]">Value :</span>
-                        <div className="flex items-center justify-center gap-[1vw] flex-grow">
-                            <ChevronLeft 
-                                size="1.2vw" 
-                                className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
-                                onClick={() => {
-                                    const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-value`] || 4);
-                                    updateAttr(`data-effect-${activeEffectPopupId}-value`, (val - 1).toString());
-                                }}
-                            />
-                            <div className="w-[6vw] h-[2.8vw] border border-gray-200 rounded-[0.8vw] flex items-center justify-center bg-white">
-                                <input 
-                                    type="number"
-                                    value={selectedElementProps[`data-effect-${activeEffectPopupId}-value`] || 4}
-                                    onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-value`, e.target.value)}
-                                    className="w-full text-center text-[1vw] font-bold text-gray-800 outline-none no-spin bg-transparent"
+                 <div className="space-y-[0.8vw] pt-[0.2vw]">
+                    {[
+                        { id: 'value', label: 'Blur % :', default: 4 },
+                        { id: 'spread', label: 'Spread :', default: 0 }
+                    ].map((row) => (
+                        <div key={row.id} className="flex items-center">
+                            <span 
+                              className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                              onPointerDown={(e) => {
+                                  const currentVal = selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                                  handleScrub(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                              }}
+                            >{row.label}</span>
+                            <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
+                                <ChevronLeft 
+                                    size="1vw" 
+                                    className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                                    onClick={() => {
+                                        const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                                        updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
+                                    }}
+                                />
+                                <div className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all">
+                                    <input 
+                                        type="number"
+                                        value={selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default}
+                                        onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
+                                        className="w-full text-center text-[0.85vw] font-bold text-gray-800 outline-none no-spin bg-transparent"
+                                    />
+                                </div>
+                                <ChevronRight 
+                                    size="1vw" 
+                                    className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                                    onClick={() => {
+                                        const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                                        updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
+                                    }}
                                 />
                             </div>
-                            <ChevronRight 
-                                size="1.2vw" 
-                                className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
-                                onClick={() => {
-                                    const val = parseInt(selectedElementProps[`data-effect-${activeEffectPopupId}-value`] || 4);
-                                    updateAttr(`data-effect-${activeEffectPopupId}-value`, (val + 1).toString());
-                                }}
-                            />
+                            <div className="w-[0.5vw]"></div>
                         </div>
-                    </div>
+                    ))}
                  </div>
               )}
           </div>
@@ -838,7 +945,7 @@ const ShapeProperties = ({
              <span className="text-[0.75vw] font-bold text-gray-600">Position :</span>
              <div className="relative flex-grow ml-[1vw]">
                 <div 
-                   className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
+                   className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white min-w-[5.5vw]"
                    onClick={() => setIsDashPosOpen(!isDashPosOpen)}
                 >
                    <span className="text-[0.7vw] font-bold text-gray-700 capitalize">{selectedElementProps['data-stroke-position'] || 'Center'}</span>
@@ -883,26 +990,15 @@ const ShapeProperties = ({
 
                 return (
                    <div key={item.key} className="flex items-center justify-between">
-                      <span className="text-[0.75vw] font-bold text-gray-600">{item.label} :</span>
+                      <span 
+                        className="text-[0.75vw] font-bold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                        onPointerDown={(e) => handleScrub(e, val, (v) => updateValue(parseInt(v)))}
+                      >{item.label} :</span>
                       <div 
                          className="flex items-center gap-[0.4vw] h-[2vw] cursor-ew-resize select-none"
-                         onMouseDown={(e) => {
+                         onPointerDown={(e) => {
                             if (e.target.tagName === 'INPUT') return;
-                            const startX = e.clientX;
-                            const initialVal = val;
-                            const onMouseMove = (moveEvent) => {
-                               const deltaX = moveEvent.clientX - startX;
-                               const newVal = Math.max(0, initialVal + Math.round(deltaX / 5));
-                               updateValue(newVal);
-                               document.body.style.cursor = 'ew-resize';
-                            };
-                            const onMouseUp = () => {
-                               window.removeEventListener('mousemove', onMouseMove);
-                               window.removeEventListener('mouseup', onMouseUp);
-                               document.body.style.cursor = 'default';
-                            };
-                            window.addEventListener('mousemove', onMouseMove);
-                            window.addEventListener('mouseup', onMouseUp);
+                            handleScrubHelper(e, val, (newVal) => updateValue(parseInt(newVal)));
                          }}
                       >
                          <button onClick={() => updateValue(val - 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronLeft size="0.9vw"/></button>
@@ -950,7 +1046,7 @@ const ShapeProperties = ({
           {!activeColorPicker.includes('effect-') && (
             <div 
               id="main-color-selector"
-              className="fixed z-[3000] w-[19.4vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+              className={`fixed z-[3000] w-[19.4vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-200 ${(isTypeDropdownOpen || isStrokeTypeOpen) ? 'overflow-visible' : 'overflow-hidden'}`}
               style={{ 
                 top: '50%',
                 right: '18.5vw', 
@@ -1270,8 +1366,8 @@ const ShapeProperties = ({
                id="deep-color-picker"
                className="fixed z-[3005] w-[15vw] animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-[1vw] bg-white overflow-hidden"
                style={{ 
-                 top: activeColorPicker?.includes('effect-') ? `${effectPopupPos.top - 5}px` : '50%', 
-                 right: activeColorPicker?.includes('effect-') ? '36vw' : '3vw', 
+                 top: activeColorPicker?.includes('effect-') ? `${effectPopupPos.top}px` : '50%', 
+                 right: activeColorPicker?.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '3vw', 
                  transform: activeColorPicker?.includes('effect-') ? 'none' : 'translateY(-50%)'
                }}
              >
@@ -1336,6 +1432,26 @@ const ShapeProperties = ({
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;
+        }
+        body.is-scrubbing, body.is-scrubbing * {
+          cursor: none !important;
+          user-select: none !important;
+        }
+        .hide-cursor, .hide-cursor * {
+          cursor: none !important;
+        }
+        .virtual-scrub-cursor {
+          position: fixed;
+          pointer-events: none;
+          z-index: 100000;
+          width: 2vw;
+          height: 2vw;
+          margin-left: -1vw;
+          margin-top: -1vw;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          filter: drop-shadow(0 0.1vw 0.2vw rgba(0,0,0,0.3));
         }
       `}</style>
     </div>
