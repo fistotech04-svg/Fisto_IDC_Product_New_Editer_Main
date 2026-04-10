@@ -4,6 +4,7 @@ import { X, Crown, LogOut } from 'lucide-react';
 
 export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onToggleAutoSave }) {
   const [user, setUser] = useState({ name: 'Guest', email: 'guest@example.com' });
+  const [storage, setStorage] = useState({ used: 0, total: 300 * 1024 * 1024 });
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -14,6 +15,23 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
   };
 
   useEffect(() => {
+    const fetchSettings = async () => {
+      if (user.email && user.email !== 'No Email' && user.email !== 'guest@example.com') {
+        try {
+          const response = await fetch(`/api/usersetting/get-settings?emailId=${user.email}`);
+          const data = await response.json();
+          if (data) {
+            setStorage({
+                used: data.usedStorage || 0,
+                total: data.maxStorage || 300 * 1024 * 1024
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching storage settings:", error);
+        }
+      }
+    };
+
     if (isOpen) {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
@@ -27,8 +45,23 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
             console.error("Failed to parse user data", e);
         }
       }
+      fetchSettings();
     }
-  }, [isOpen]);
+  }, [isOpen, user.email]);
+
+  const formatBytes = (bytes) => {
+    if (bytes <= 0) return '0MB';
+    const mb = bytes / (1024 * 1024);
+    if (mb < 1) return '1MB';
+    return `${Math.round(mb)}MB`;
+  };
+
+  const getBarColor = () => {
+    const percentage = (storage.used / storage.total) * 100;
+    if (percentage >= 85) return 'bg-red-500';
+    if (percentage >= 50) return 'bg-yellow-500';
+    return 'bg-indigo-600';
+  };
 
   if (!isOpen) return null;
 
@@ -65,7 +98,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
             </div>
             <div className="flex flex-col min-w-0">
                 <h3 className="text-[0.9vw] font-bold text-gray-900 truncate">{user.name}</h3>
-                <p className="text-[0.75vw] text-gray-500 truncate">{user.email}</p>
+                <p className="text-[0.75vw] text-gray-500 font-semibold truncate">{user.email}</p>
             </div>
         </div>
 
@@ -75,7 +108,7 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
         <div className="flex items-center justify-between gap-[0.5vw] mb-[1.5vw] px-[0.25vw]">
             <div className="flex items-center gap-[0.5vw]">
                 <Crown size="1.25vw" className="text-yellow-400 fill-yellow-400" />
-                <span className="text-[0.75vw] font-semibold text-gray-700">Your Current Plan</span>
+                <span className="text-[0.85vw] font-semibold text-gray-700">Your Current Plan</span>
             </div>
             <div className="px-[0.75vw] py-[0.25vw] rounded-[0.25vw] bg-gradient-to-r from-green-500 to-green-600 text-white text-[0.65vw] font-semibold uppercase tracking-wider shadow-sm">
                 Free
@@ -87,22 +120,38 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
             <span className="text-[0.85vw] font-semibold text-gray-700">Auto Save</span>
             <button 
                 onClick={() => onToggleAutoSave(!isAutoSaveEnabled)}
-                className={`w-[2.75vw] h-[1.5vw] flex items-center rounded-full p-[0.25vw] transition-colors duration-200 ease-in-out ${isAutoSaveEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
+                className={`w-[2.75vw] h-[1.5vw] flex items-center rounded-full p-[0.25vw] cursor-pointer transition-colors duration-200 ease-in-out ${isAutoSaveEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
                 title={isAutoSaveEnabled ? "Disable Auto Save" : "Enable Auto Save"}
             >
                 <div className={`bg-white w-[1vw] h-[1vw] rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${isAutoSaveEnabled ? 'translate-x-[1.25vw]' : 'translate-x-0'}`}></div>
             </button>
         </div>
 
+        {/* Storage Info */}
+        <div className="mb-[1.5vw] px-[0.25vw]">
+            <div className="flex justify-between items-center mb-[0.5vw]">
+                <span className="text-[0.85vw] font-semibold text-gray-900">Storage</span>
+                <span className="text-[0.75vw] text-gray-500">
+                    {formatBytes(storage.used)} / {formatBytes(storage.total)}
+                </span>
+            </div>
+            <div className="w-full h-[0.65vw] bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                    className={`h-full transition-all duration-500 ease-out rounded-full ${getBarColor()}`}
+                    style={{ width: `${Math.min(100, (storage.used / storage.total) * 100)}%` }}
+                ></div>
+            </div>
+        </div>
+
         {/* Subscribe Button */}
-        <button className="w-full bg-black text-white text-[0.85vw] font-semibold py-[0.85vw] rounded-[0.75vw] hover:bg-zinc-800 transition-colors shadow-lg mb-[0.75vw]">
+        <button className="w-full bg-black text-white text-[0.85vw] font-semibold py-[0.85vw] rounded-[0.75vw] hover:bg-zinc-800 cursor-pointer transition-colors shadow-lg mb-[0.75vw]">
             399/- Subscribe Now
         </button>
 
         {/* Logout Button */}
         <button 
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-[0.5vw] text-red-500 hover:text-white border border-red-100 hover:bg-red-500 hover:border-red-500 transition-all duration-200 rounded-[0.75vw] py-[0.6vw] text-[0.85vw] font-semibold group"
+            className="w-full flex items-center justify-center gap-[0.5vw] text-red-500 hover:text-white border border-red-100 hover:bg-red-500 hover:border-red-500 cursor-pointer transition-all duration-200 rounded-[0.75vw] py-[0.6vw] text-[0.85vw] font-semibold group"
         >
             <LogOut size="1vw" className="group-hover:text-white transition-colors" />
             Logout

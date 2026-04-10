@@ -6,6 +6,7 @@ import Flipbook from "../../models/Flipbook.js"; // Import Model
 import { nanoid } from "nanoid";
 import multer from "multer";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
+import UserSettings from "../../models/UserSettings.js";
 
 const router = express.Router();
 // ... (rest of top) ...
@@ -1781,6 +1782,27 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       return res.status(400).json({ message: "Missing fields: emailId" });
     }
 
+    // --- Storage Limit Check ---
+    try {
+      const userSettings = await UserSettings.findOne({ emailId });
+      const maxStorage = userSettings?.maxStorage || 300 * 1024 * 1024;
+      
+      const sanitizedEmailForStorage = emailId.replace(/[@.]/g, "_");
+      const userUploadsDirForCheck = path.join(__dirname, "../../uploads", sanitizedEmailForStorage);
+      const currentUsedStorage = getDirSize(userUploadsDirForCheck);
+
+      if (currentUsedStorage + file.size > maxStorage) {
+        if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+        return res.status(413).json({ 
+          message: `Storage limit reached (${Math.round(maxStorage / (1024 * 1024))}MB). Please upgrade your plan to upload more assets.`,
+          code: "STORAGE_LIMIT_EXCEEDED"
+        });
+      }
+    } catch (storageErr) {
+      console.error("Error during storage limit check:", storageErr);
+      // Continue upload if check fails? Or block? Safe to continue but log error.
+    }
+
     // 1. Resolve Project Metadata (V_ID, Folder, Name)
     if (v_id) {
       const dbDoc = await Flipbook.findOne({ v_id });
@@ -2051,79 +2073,7 @@ router.get("/get-gallery-assets", async (req, res) => {
   }
 });
 
-// @route   POST /api/flipbook/upload-asset
-// @desc    Upload asset (image/video/gif) to flipbook's assets folder
-// @access  Public
-router.post("/upload-asset", assetUpload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
-    }
 
-    const {
-      emailId,
-      folderName,
-      flipbookName,
-      assetType,
-      pageVId,
-      flipbookVId,
-    } = req.body;
-
-    if (!emailId || !folderName || !flipbookName || !assetType) {
-      // Clean up uploaded file
-      fs.unlinkSync(req.file.path);
-      return res.status(400).json({ message: "Missing required fields" });
-    }
-
-    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-
-    // Construct URL
-    const url = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${flipbookName}/assets/${assetType}/${req.file.filename}`;
-
-    // Generate unique file_v_id
-    const fileVId = nanoid();
-
-    // Save to database
-    const assetDoc = await FlipbookAsset.create({
-      flipbook_v_id: flipbookVId || "unknown",
-      file_v_id: fileVId,
-      page_v_id: pageVId || "global",
-      assetType: assetType,
-      fileName: req.file.filename,
-      flipbookName: flipbookName,
-      folderName: folderName,
-      url: url,
-      size: req.file.size,
-    });
-
-    res.status(200).json({
-      message: "Asset uploaded successfully",
-      asset: {
-        file_v_id: fileVId,
-        url: url,
-        fileName: req.file.filename,
-        size: req.file.size,
-        assetType: assetType,
-      },
-    });
-  } catch (error) {
-    console.error("Error uploading asset:", error);
-
-    // Clean up file if database save failed
-    if (req.file && fs.existsSync(req.file.path)) {
-      try {
-        fs.unlinkSync(req.file.path);
-      } catch (unlinkErr) {
-        console.error("Failed to clean up file:", unlinkErr);
-      }
-    }
-
-    res.status(500).json({
-      message: "Server error uploading asset",
-      error: error.message,
-    });
-  }
-});
 
 // @route   DELETE /api/flipbook/delete-asset
 // @desc    Delete an asset from flipbook

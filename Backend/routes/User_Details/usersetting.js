@@ -1,7 +1,34 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import UserSettings from '../../models/UserSettings.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const router = express.Router();
+
+// Helper to get folder size
+const getDirSize = (dirPath) => {
+  let size = 0;
+  try {
+    if (!fs.existsSync(dirPath)) return 0;
+    const files = fs.readdirSync(dirPath);
+    for (const file of files) {
+      const filePath = path.join(dirPath, file);
+      const stats = fs.statSync(filePath);
+      if (stats.isDirectory()) {
+        size += getDirSize(filePath);
+      } else {
+        size += stats.size;
+      }
+    }
+  } catch (e) {
+    return 0;
+  }
+  return size;
+};
 
 // @route   GET /api/usersetting/get-settings
 // @desc    Get user settings by email
@@ -20,7 +47,17 @@ router.get('/get-settings', async (req, res) => {
         await settings.save();
     }
 
-    res.json(settings);
+    // Calculate Storage Usage
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const userUploadsDir = path.join(__dirname, "../../uploads", sanitizedEmail);
+    const usedStorage = getDirSize(userUploadsDir);
+
+    // Return settings with storage info
+    res.json({
+        ...settings._doc,
+        usedStorage,
+        maxStorage: settings.maxStorage || 300 * 1024 * 1024
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server error' });

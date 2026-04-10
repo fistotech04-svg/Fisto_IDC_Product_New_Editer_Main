@@ -20,6 +20,7 @@ import { OBJExporter } from "three-stdlib";
 import { STLExporter } from "three-stdlib";
 import CameraModal from "./Components/CameraModal";
 import { useOutletContext } from "react-router-dom";
+import axios from "axios";
 
 
 export default function ThreedEditor() {
@@ -41,6 +42,7 @@ export default function ThreedEditor() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(models.length === 0); // If model exists, don't collapse
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(true);
 
   // Sync manual loading with useProgress active state
   const { active } = useProgress();
@@ -80,7 +82,6 @@ export default function ThreedEditor() {
   const [showModelGalleryModal, setShowModelGalleryModal] = useState(false);
 
   // Right Panel & Sidebar State
-  const [activeRightTab, setActiveRightTab] = useState("pre"); // "pre" | "custom"
   const [activeAccordion, setActiveAccordion] = useState("factor"); // "factor" | "position" | "lighting"
 
   // Transform Tools State
@@ -162,6 +163,67 @@ export default function ThreedEditor() {
           deletedMaterials
       }));
   }, [models, modelUrl, modelFile, modelType, modelStats, transformValues, materialSettings, modelName, materialList, hiddenMaterials, deletedMaterials, setThreedState]);
+
+  // --- Dynamic Model Loading & Validation ---
+  useEffect(() => {
+    const syncWithServerModels = async () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) return;
+        const user = JSON.parse(storedUser);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        
+        const response = await axios.get(`${backendUrl}/api/3d-models/get-models`, {
+          params: { emailId: user.emailId }
+        });
+        const serverModels = response.data.models || [];
+        
+        // 1. Identify valid remote URLs
+        const validRemoteUrls = new Set(serverModels.map(m => m.url));
+
+        // 2. Filter out stale remote models, but keep local blobs
+        const filteredNextModels = models.filter(m => {
+          if (!m.url) return false;
+          // Keep if it's a local blob
+          if (m.url.startsWith('blob:')) return true;
+          // Keep if it's a relative path starting with /uploads and exists on server
+          const relativeUrl = m.url.replace(backendUrl, '');
+          return validRemoteUrls.has(relativeUrl);
+        });
+
+        // 3. If everything was stale/empty, and we have server models, pick the first one
+        if (filteredNextModels.length === 0 && serverModels.length > 0) {
+          const firstModel = serverModels[0];
+          const fullUrl = `${backendUrl}${firstModel.url}`;
+          
+          const newModel = {
+            id: Date.now().toString(),
+            url: fullUrl,
+            file: null,
+            type: firstModel.type,
+            name: firstModel.name.replace(/\.[^/.]+$/, "")
+          };
+          
+          setModels([newModel]);
+          setModelUrl(fullUrl);
+          setModelType(newModel.type);
+          setModelName(newModel.name);
+          setIsSidebarCollapsed(false);
+        } else if (filteredNextModels.length !== models.length) {
+          // If we filtered out some stale models, update state
+          setModels(filteredNextModels);
+        }
+      } catch (error) {
+        console.error("Error syncing with server models:", error);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    syncWithServerModels();
+    // Only run on mount to validate initial state
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddModel = (file) => {
       if (!file) return;
@@ -633,7 +695,7 @@ export default function ThreedEditor() {
     const nextMaterialSettings = {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
-        color: '#000000', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+        color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         maps: {},
         lightPosition: { x: 10, y: 10, z: 10 }
@@ -695,7 +757,7 @@ export default function ThreedEditor() {
     const nextMaterialSettings = {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
-        color: '#000000', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+        color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         lightPosition: { x: 10, y: 10, z: 10 }
     };
@@ -918,7 +980,7 @@ export default function ThreedEditor() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
     >
-      <GlobalLoader manualLoading={manualLoading} />
+      <GlobalLoader manualLoading={manualLoading || isSyncing} />
       
       {/* --- WARNING MODAL --- */}
       {showWarning && (
@@ -960,7 +1022,7 @@ export default function ThreedEditor() {
             <TopToolbar 
               isSidebarCollapsed={isSidebarCollapsed} 
               setIsSidebarCollapsed={setIsSidebarCollapsed}
-              isTextureOpen={isTextureOpen && activeRightTab === "pre"}
+              isTextureOpen={isTextureOpen}
               onReset={handleResetView}
               targetPosition={targetPosition}
               materialList={activeMaterialList}
@@ -994,7 +1056,6 @@ export default function ThreedEditor() {
             setTransformMode={(mode) => {
                 setTransformMode(mode);
                 if (mode) {
-                    setActiveRightTab("pre");
                     setActiveAccordion("position");
                 }
             }}
@@ -1016,7 +1077,7 @@ export default function ThreedEditor() {
           )}
 
 
-          {models.length > 0 && activeRightTab === "pre" && (
+          {models.length > 0 && (
             <TextureGalleryBar
               isOpen={isTextureOpen}
               setIsOpen={setIsTextureOpen}
@@ -1029,7 +1090,7 @@ export default function ThreedEditor() {
                           ...prev,
                           metallic: 100,
                           roughness: 100,
-                          color: "#ffffff",
+                          color: prev.color,
                           useFactorColor: true,
                           appliedTexture: newTexture
                       };
@@ -1049,7 +1110,7 @@ export default function ThreedEditor() {
           {models.length > 0 && (
             <div
               className={`absolute left-[1vw] z-20 p-[0.25vw] transition-all duration-500 ease-in-out overflow-hidden w-[13.5vw] pointer-events-none select-none
-                ${activeRightTab === "custom" ? "bottom-[1vw]" : isTextureOpen ? "bottom-[11vw]" : "bottom-[3.7vw]"}
+                ${isTextureOpen ? "bottom-[13vw]" : "bottom-[3.7vw]"}
               `}
             >
                 <EditorInfoBox stats={combinedStats} />
@@ -1068,6 +1129,7 @@ export default function ThreedEditor() {
 
           {/* 3D CANVAS */}
           <div className="flex-1 h-full w-full">
+            {!isSyncing && (
             <Canvas
               camera={{ position: [0, 1, 5], fov: 45 }}
               shadows
@@ -1229,7 +1291,7 @@ export default function ThreedEditor() {
               {models.length > 0 && !isCapturing && (
                   <AnimatedGizmo 
                       isTextureOpen={isTextureOpen} 
-                      activeTab={activeRightTab} 
+                      activeTab="properties" 
                   />
               )}
 
@@ -1254,6 +1316,7 @@ export default function ThreedEditor() {
                    rotation={[0, (materialSettings.envRotation || 0) * (Math.PI / 180), 0]}
                />
             </Canvas>
+            )}
           </div>
         </div>
 
@@ -1268,11 +1331,6 @@ export default function ThreedEditor() {
             isLoading={isGlobalLoading}
             materialSettings={materialSettings}
             onUpdateMaterialSetting={handleMaterialUIUpdate}
-            activeTab={activeRightTab}
-            setActiveTab={(tab) => {
-                setActiveRightTab(tab);
-                if (tab === "custom") setIsTextureOpen(false);
-            }}
             activeAccordion={activeAccordion}
             setActiveAccordion={setActiveAccordion}
             transformValues={transformValues}
@@ -1291,7 +1349,7 @@ export default function ThreedEditor() {
                         scaleY: 100,
                         rotation: 0,
                         offset: { x: 0, y: 0 },
-                        color: '#000000',
+                        color: '#ffffff',
                         useFactorColor: false,
                         maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null }
                     };

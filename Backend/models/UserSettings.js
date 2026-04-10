@@ -9,6 +9,10 @@ const userSettingsSchema = new mongoose.Schema({
   isAutoSaveEnabled: {
     type: Boolean,
     default: true
+  },
+  maxStorage: {
+    type: Number,
+    default: 300 * 1024 * 1024 // 300MB in bytes
   }
 });
 

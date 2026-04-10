@@ -124,7 +124,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                            
                            // Reset color to white so diffuse map is not tinted
                            if (newMaps.map && mat.color && typeof mat.color.set === 'function') {
-                               mat.color.set(0xffffff);
+                               // mat.color.set(0xffffff);
                            }
                         }
                         
@@ -203,6 +203,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     if (newMapsList.metalnessMap) loadedMaps.metalnessMap = loadMap(newMapsList.metalnessMap, false);
     if (newMapsList.bumpMap) loadedMaps.bumpMap = loadMap(newMapsList.bumpMap, false);
     if (newMapsList.aoMap) loadedMaps.aoMap = loadMap(newMapsList.aoMap, false);
+    if (newMapsList.alphaMap) loadedMaps.alphaMap = loadMap(newMapsList.alphaMap, false);
+    if (newMapsList.emissiveMap) loadedMaps.emissiveMap = loadMap(newMapsList.emissiveMap, true);
 
     scene.traverse((child) => {
          if (child.isMesh && child.material) {
@@ -267,6 +269,20 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                           if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
                           mat.userData.manualMaps.aoMap = newMapsList.aoMap;
                           if (mat.aoMap && mat.aoMapIntensity === undefined) mat.aoMapIntensity = 1;
+                      }
+
+                      if (newMapsList.hasOwnProperty('alphaMap') && newMapsList.alphaMap !== "existing") {
+                          const nextAlpha = loadedMaps.alphaMap || null;
+                          if (mat.alphaMap !== nextAlpha) mat.alphaMap = nextAlpha;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.alphaMap = newMapsList.alphaMap;
+                      }
+
+                      if (newMapsList.hasOwnProperty('emissiveMap') && newMapsList.emissiveMap !== "existing") {
+                          const nextEmissive = loadedMaps.emissiveMap || null;
+                          if (mat.emissiveMap !== nextEmissive) mat.emissiveMap = nextEmissive;
+                          if (!mat.userData.manualMaps) mat.userData.manualMaps = {};
+                          mat.userData.manualMaps.emissiveMap = newMapsList.emissiveMap;
                       }
                       
                       mat.needsUpdate = true;
@@ -610,12 +626,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         }
 
         if (isTarget) {
-            if (!m.userData.originalEmissive && m.emissive && typeof m.emissive.clone === 'function') {
+            // Only capture original state if we aren't already in a flash cycle
+            if (!m.userData.isFlashing) {
+                if (m.emissive && typeof m.emissive.clone === 'function') {
                     m.userData.originalEmissive = m.emissive.clone();
                     m.userData.originalIntensity = m.emissiveIntensity;
+                }
             }
             
-            m.emissive = FLASH_COLOR;
+            m.userData.isFlashing = true;
+            m.emissive.copy(FLASH_COLOR);
             m.emissiveIntensity = FLASH_INTENSITY; 
 
             timeouts.push(setTimeout(() => {
@@ -629,20 +649,24 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             const hasOriginal = m.userData.originalEmissive && typeof m.userData.originalEmissive.clone === 'function';
             
             timeouts.push(setTimeout(() => {
+                    const hasOriginal = m.userData.originalEmissive && typeof m.userData.originalEmissive.clone === 'function';
                     if (hasOriginal) {
-                        m.emissive = m.userData.originalEmissive.clone();
+                        m.emissive.copy(m.userData.originalEmissive);
                         m.emissiveIntensity = m.userData.originalIntensity;
                     } else if (m.emissive) {
                         if (typeof m.emissive.set === 'function') m.emissive.set(0, 0, 0); 
-                        else m.emissive = new THREE.Color(0, 0, 0);
+                        else m.emissive.setRGB(0, 0, 0);
                         m.emissiveIntensity = 0; 
                     }
+                    m.userData.isFlashing = false;
             }, 450));
 
         } else {
-            if (m.userData.originalEmissive && typeof m.userData.originalEmissive.clone === 'function') {
-                m.emissive = m.userData.originalEmissive.clone();
+            // If another material is selected, instantly restore this one's original state if it was flashing
+            if (m.userData.isFlashing && m.userData.originalEmissive) {
+                m.emissive.copy(m.userData.originalEmissive);
                 m.emissiveIntensity = m.userData.originalIntensity;
+                m.userData.isFlashing = false;
             }
         }
     };
@@ -721,12 +745,18 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
            const m = foundMat;
            if (m.opacity !== undefined) safeUpdate('alpha', Math.round(m.opacity * 100));
            
-           if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
-                if (m.metalness !== undefined) safeUpdate('metallic', Math.round(m.metalness * 100));
-                if (m.roughness !== undefined) safeUpdate('roughness', Math.round(m.roughness * 100));
-                if (m.envMapIntensity !== undefined) safeUpdate('reflection', Math.round(m.envMapIntensity * 50));
-                if (m.aoMapIntensity !== undefined) safeUpdate('ao', Math.round(m.aoMapIntensity * 100));
-           }
+            if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+                 if (m.metalness !== undefined) safeUpdate('metallic', Math.round(m.metalness * 100));
+                 if (m.roughness !== undefined) safeUpdate('roughness', Math.round(m.roughness * 100));
+                 if (m.envMapIntensity !== undefined) safeUpdate('reflection', Math.round(m.envMapIntensity * 50));
+                 if (m.aoMapIntensity !== undefined) safeUpdate('ao', Math.round(m.aoMapIntensity * 100));
+                 
+                 // Sync Intensity Values
+                 safeUpdate('colorIntensity', 100); 
+                 if (m.emissiveIntensity !== undefined) {
+                     safeUpdate('emissiveIntensity', Math.round(m.emissiveIntensity * 100));
+                 }
+            }
 
            if (m.normalMap && m.normalScale) safeUpdate('normal', Math.round(m.normalScale.x * 100));
            if (m.bumpMap && m.bumpScale !== undefined) safeUpdate('bump', Math.round(m.bumpScale * 100));
@@ -773,7 +803,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     // Still don't apply anything if there's no selection at all.
     if (!targetMatName) return; 
 
-
     // Safety: ensure materialSettings properties exist before use
     const alphaVal = (materialSettings && typeof materialSettings.alpha === 'number') ? materialSettings.alpha : 100;
     const alpha = alphaVal / 100;
@@ -801,11 +830,28 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                 }
 
                 if (isMatch && (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial || m.isMeshPhongMaterial)) {
-                    // 1. Transparency
+                    // 1. Color & Intensity
+                    if (color && m.color && typeof m.color.set === 'function') {
+                        const intensity = (materialSettings.colorIntensity ?? 100) / 100;
+                        const finalColor = new THREE.Color(color);
+                        finalColor.multiplyScalar(intensity);
+                        m.color.copy(finalColor);
+                    }
+
+                    // 2. Emissive
+                    if (m.emissive && typeof m.emissive.set === 'function' && !m.userData.isFlashing) {
+                        const emissiveCol = materialSettings.emissiveColor || '#ffffff';
+                        const emissiveInt = (materialSettings.emissiveIntensity ?? 0) / 100;
+                        m.emissive.set(emissiveCol);
+                        m.emissiveIntensity = emissiveInt;
+                    }
+
+                    // 3. Transparency
                     m.transparent = alpha < 0.999 || (m.userData.originalOpacity !== undefined && m.userData.originalOpacity < 1);
                     m.opacity = alpha;
+                    m.depthWrite = alpha > 0.999;
                     
-                    // 2. Factors (Standard / Physical)
+                    // 4. Factors (Standard / Physical)
                     if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
                         m.metalness = metallic;
                         m.roughness = roughness;
@@ -826,7 +872,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                         }
                     }
 
-                    // 3. Phong Specific (if used)
+                    // 5. Phong Specific (if used)
                     if (m.isMeshPhongMaterial) {
                         m.shininess = (1 - roughness) * 100;
                         if (m.specular && typeof m.specular.setScalar === 'function') {
@@ -911,12 +957,6 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     
                     if (!m.userData.originalColor) {
                         m.userData.originalColor = m.color.clone();
-                    }
-
-                    if (materialSettings.useFactorColor && color) {
-                         m.color.set(color);
-                    } else if (!materialSettings.useFactorColor && m.userData.originalColor) {
-                         m.color.copy(m.userData.originalColor);
                     }
 
                     m.needsUpdate = true;

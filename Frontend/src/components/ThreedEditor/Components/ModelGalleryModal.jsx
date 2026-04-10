@@ -115,7 +115,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                             />
                         </div>
                         {/* Filter Button */}
-                        <button className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-full text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                        <button className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] border border-gray-300 rounded-full text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 cursor-pointer transition-all">
                             <Icon icon="mi:filter" className="w-[1vw] h-[1vw]" />
                             Filter
                         </button>
@@ -132,7 +132,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                             <div className="w-[3vw] h-[3vw] border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
                             <p className="text-[1vw] text-gray-500 font-medium">Fetching Models...</p>
                         </div>
-                    ) : (
+                    ) : filteredModels.length > 0 ? (
                         <div className="grid grid-cols-5 gap-[1.2vw] pb-[2vw]">
                             {filteredModels.map((model, idx) => (
                                 <div 
@@ -171,6 +171,14 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-[8vw] bg-gray-50/50 rounded-[1vw] border border-dashed border-gray-200 mx-auto">
+                             <div className="p-[1.5vw] bg-gray-100 rounded-full mb-[1vw] text-gray-400">
+                                 <Icon icon="solar:box-minimalistic-linear" width="3vw" height="3vw" />
+                             </div>
+                             <p className="text-[1.2vw] font-bold text-gray-800">3D Model not available in your gallery</p>
+                             <p className="text-[0.85vw] text-gray-500 mt-[0.2vw]">Please upload a professional 3D model first to see it here</p>
                         </div>
                     )}
                 </div>

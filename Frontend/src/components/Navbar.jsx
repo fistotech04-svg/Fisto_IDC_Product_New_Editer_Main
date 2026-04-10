@@ -128,7 +128,7 @@ const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSa
           {/* Profile */}
           <button 
             onClick={() => setIsProfileOpen(true)}
-            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 rounded-[0.5vw] transition-colors text-gray-700"
+            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
             title="Profile"
           >
             <User size="1.2vw" />
@@ -136,7 +136,7 @@ const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSa
 
           {/* Share */}
           <button 
-            className={`p-[0.6vw] bg-gray-100 hover:bg-gray-200 rounded-[0.5vw] transition-colors text-gray-700 ${isThreedEditor ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
+            className={`p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ${isThreedEditor ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
             title="Share"
             disabled={isThreedEditor}
           >

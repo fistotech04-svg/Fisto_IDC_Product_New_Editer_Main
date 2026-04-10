@@ -1,7 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Icon } from "@iconify/react";
-import PreDefined from "./PreDefined";
-import Customized from "./Customized";
+import MaterialProperties from "./Customized";
 
 export default function RightPanel({ 
     onFileProcess, 
@@ -155,88 +154,23 @@ export default function RightPanel({
             />
           </div>
         ) : (
-          <div className="flex flex-col h-full bg-gray-50">
-            {/* TABS (Segmented Pill Style) */}
-            <div className="px-[1vw] pt-[1vw] pb-[0.75vw] bg-white">
-              <div className="bg-gray-100 p-[0.25vw] rounded-[0.75vw] flex gap-[0.25vw]">
-                <button
-                  onClick={() => setActiveTab("pre")}
-                  className={`flex-1 py-[0.65vw] text-[0.75vw] font-semibold rounded-[0.5vw] transition-all duration-300 flex items-center justify-center gap-[0.5vw] ${
-                    activeTab === "pre"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <div
-                    className="w-[0.85vw] h-[0.85vw] border-[0.1vw] border-current rounded-[0.15vw] relative opacity-70"
-                    style={{
-                      backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 1px, currentColor 1px, currentColor 2px)",
-                      backgroundSize: "0.25vw 0.25vw",
-                    }}
-                  ></div>
-                  Pre Defined
-                </button>
+          <div className="flex flex-col h-full bg-gray-50 overflow-hidden">
 
-                <button
-                  onClick={() => setActiveTab("custom")}
-                  className={`flex-1 py-[0.65vw] text-[0.75vw] font-semibold rounded-[0.5vw] transition-all duration-300 flex items-center justify-center gap-[0.5vw] ${
-                    activeTab === "custom"
-                      ? "bg-white shadow-sm text-gray-900"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Icon icon="heroicons:pencil-square" width="0.85vw" height="0.85vw" className="opacity-70" />
-                  Customized
-                </button>
-              </div>
-            </div>
-
-            {/* TAB CONTENT (Scrollable Area with Animation) */}
-            <div className="flex-1 overflow-hidden relative">
-              {/* Pre Defined Tab */}
-              <div
-                className={`absolute inset-0 overflow-y-auto p-[1vw] custom-scrollbar transition-all duration-300 ${
-                  activeTab === "pre"
-                    ? "opacity-100 translate-x-0 pointer-events-auto"
-                    : "opacity-0 -translate-x-4 pointer-events-none"
-                }`}
-              >
-                <PreDefined 
-                    controls={materialSettings} 
-                    updateControl={onUpdateMaterialSetting}
-                    activePanel={activeAccordion}
-                    setActivePanel={setActiveAccordion}
-                    transformValues={transformValues}
-                    onManualTransformChange={onManualTransformChange}
-                    onResetTransform={onResetTransform}
-                    onResetFactor={onResetFactorSettings}
-                    onUvUnwrap={onUvUnwrap}
-                    onMapUpload={onMapUpload}
-                />
-              </div>
-
-              {/* Customized Tab */}
-              <div
-                className={`absolute inset-0 overflow-y-auto p-[1vw] custom-scrollbar transition-all duration-300 ${
-                  activeTab === "custom"
-                    ? "opacity-100 translate-x-0 pointer-events-auto"
-                    : "opacity-0 translate-x-4 pointer-events-none"
-                }`}
-              >
-                <Customized 
-                    controls={materialSettings} 
-                    updateControl={onUpdateMaterialSetting}
-                    activePanel={activeAccordion}
-                    setActivePanel={setActiveAccordion}
-                    transformValues={transformValues}
-                    onManualTransformChange={onManualTransformChange}
-                    onResetTransform={onResetTransform}
-                    onResetFactor={onResetFactorSettings}
-                    onMapUpload={onMapUpload}
-                    selectedTextureId={selectedTextureId}
-                    onSelectTexture={onSelectTexture}
-                />
-              </div>
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-[1vw] custom-scrollbar">
+              <MaterialProperties 
+                  controls={materialSettings} 
+                  updateControl={onUpdateMaterialSetting}
+                  activePanel={activeAccordion}
+                  setActivePanel={setActiveAccordion}
+                  transformValues={transformValues}
+                  onManualTransformChange={onManualTransformChange}
+                  onResetTransform={onResetTransform}
+                  onResetFactor={onResetFactorSettings}
+                  onMapUpload={onMapUpload}
+                  selectedTextureId={selectedTextureId}
+                  onSelectTexture={onSelectTexture}
+              />
             </div>
           </div>
         )}

@@ -3,6 +3,8 @@ import { Icon } from "@iconify/react";
 import ColorPicker from "./ColorPicker";
 import { createPortal } from "react-dom";
 import { textureData } from "../../data/textureData";
+import { useRef } from "react";
+import { useEffect } from "react";
 
 // --- Reusable UI Components (Matched to PreDefined.jsx) ---
 
@@ -43,7 +45,7 @@ const Accordion = ({ title, icon: iconName, children, isOpen, onToggle, iconSize
           isOpen ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
-        <div className="p-[1.25vw] pt-[0.5vw]">{children}</div>
+        <div className="p-[0.65vw] pt-[0.5vw]">{children}</div>
       </div>
     </div>
   );
@@ -58,7 +60,7 @@ const SectionHeader = ({ label, showLine = true }) => (
   </div>
 );
 
-const MapUploadControl = ({ mapType, currentMap, onUpload }) => {
+const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) => {
   const fileInputRef = React.useRef(null);
   const [isDragging, setIsDragging] = React.useState(false);
 
@@ -90,6 +92,82 @@ const MapUploadControl = ({ mapType, currentMap, onUpload }) => {
       onUpload(mapType, file);
     }
   };
+
+  const [showMenu, setShowMenu] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const menuRef = useRef(null);
+  const buttonRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+        if (menuRef.current && !menuRef.current.contains(event.target) && 
+            buttonRef.current && !buttonRef.current.contains(event.target)) {
+            setShowMenu(false);
+        }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  if (overlay) {
+    return (
+        <div 
+            className="absolute inset-0 cursor-pointer group/upload"
+            onClick={() => fileInputRef.current.click()}
+        >
+            <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} />
+            
+            {/* Menu Button */}
+            <div 
+                ref={buttonRef}
+                className="absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] bg-white/95 backdrop-blur-sm rounded-[0.4vw] border border-gray-300 flex items-center justify-center text-gray-500 shadow-sm hover:text-[#5d5efc] hover:bg-white transition-all z-20"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setMenuPos({ top: rect.bottom + 5, left: rect.left - 40 });
+                    setShowMenu(!showMenu);
+                }}
+            >
+                <Icon icon="heroicons:ellipsis-vertical-20-solid" width="1vw" />
+            </div>
+
+            {/* Dropdown Menu Portaled */}
+            {showMenu && createPortal(
+                <div 
+                    ref={menuRef}
+                    className="fixed w-[6vw] bg-white rounded-[0.65vw] shadow-2xl border border-gray-500 py-[0.4vw] z-[9999] animate-in fade-in zoom-in duration-200"
+                    style={{ top: menuPos.top, left: menuPos.left }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <button 
+                        className="w-full flex items-center cursor-pointer gap-[0.5vw] px-[0.75vw] py-[0.5vw] hover:bg-gray-50 text-gray-700 transition-colors"
+                        onClick={() => {
+                            fileInputRef.current.click();
+                            setShowMenu(false);
+                        }}
+                    >
+                        <Icon icon="ix:replace" className="w-[1vw] h-[1vw]" />
+                        <span className="text-[0.7vw] font-semibold">Replace</span>
+                    </button>
+                    <button 
+                        className="w-full flex items-center cursor-pointer gap-[0.5vw] px-[0.75vw] py-[0.5vw] hover:bg-red-50 text-red-500 transition-colors"
+                        onClick={() => {
+                            if (onUpload) onUpload(mapType, null);
+                            setShowMenu(false);
+                        }}
+                    >
+                        <Icon icon="solar:trash-bin-trash-linear" className="w-[1vw] h-[1vw]" />
+                        <span className="text-[0.7vw] font-semibold">Delete</span>
+                    </button>
+                </div>,
+                document.body
+            )}
+
+            {/* Hover state overlay */}
+            <div className="absolute inset-0 bg-[#5d5efc]/5 opacity-0 group-hover/upload:opacity-100 transition-opacity rounded-[0.5vw]" />
+        </div>
+    );
+  }
 
   return (
     <div 
@@ -128,22 +206,92 @@ const MapUploadControl = ({ mapType, currentMap, onUpload }) => {
   );
 };
 
+const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, description, isOpen, onToggle, isIntensityDisabled = false, extra }) => {
+    return (
+      <div className={`border border-gray-300 rounded-[0.5vw] mb-[0.65vw] bg-white transition-all duration-200 ${isOpen ? 'shadow-sm' : 'hover:bg-gray-50/50'}`}>
+        <div 
+          className={`flex items-center justify-between px-[0.65vw] py-[0.75vw] cursor-pointer group select-none ${isOpen ? 'border-b border-gray-200' : ''}`}
+          onClick={onToggle}
+        >
+          <div className="flex items-center gap-[0.5vw]">
+            <span className={`text-[0.75vw] font-semibold transition-colors ${isOpen ? 'text-[#5d5efc]' : 'text-gray-700 group-hover:text-gray-950'}`}>{title}</span>
+          </div>
+          <Icon 
+             icon="heroicons:chevron-down" 
+             className={`text-gray-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} 
+             width="0.85vw" 
+          />
+        </div>
+        
+        <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[30vw] opacity-100 p-[0.65vw]' : 'max-h-0 opacity-0'}`}>
+            <div className="space-y-[1.25vw]">
+                {!isIntensityDisabled && (
+                    <CustomSlider
+                        label=""
+                        value={value}
+                        onChange={onChange}
+                    />
+                )}
+                
+                <div className="flex gap-[0.65vw] items-start">
+                    <div className="w-[7vw] h-[7vw] bg-white rounded-[0.5vw] shrink-0 overflow-hidden relative group border border-gray-300 shadow-inner cursor-pointer hover:border-[#5d5efc] transition-colors">
+                        {currentMap ? (
+                            <img src={currentMap} className="w-full h-full object-cover" alt={title} />
+                        ) : (
+                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300">
+                                <Icon icon="glyphs:image-duo" width="5.5vw" />
+                                <span className="text-[0.7vw] text-gray-400 font-semibold -mt-[0.5vw]">No Image Found</span>
+                            </div>
+                        )}
+                        <MapUploadControl 
+                            mapType={mapType} 
+                            currentMap={currentMap} 
+                            onUpload={onUpload} 
+                            overlay={true}
+                        />
+                    </div>
+                    <div className="flex-1 space-y-[1vw]">
+                        {extra}
+                        <div className="space-y-[1vw]">
+                            {description.split('\n\n').map((paragraph, pIdx) => (
+                                <p key={pIdx} className="text-[0.68vw] text-gray-500 leading-relaxed font-medium whitespace-pre-line">
+                                    {paragraph.split(/(metal|main color|surface appearance|surface details|bumps and grooves|rough or smooth|shiny surface|ridges or dots|soft shadows|crevices|visibility|emits light|glow effect|additional surface depth|Enhances shadows|crevices and corners|depth and realism|glowing areas)/g).map((part, i) => {
+                                        const highlight = ["metal", "main color", "surface appearance", "surface details", "bumps and grooves", "rough or smooth", "shiny surface", "ridges or dots", "soft shadows", "crevices", "visibility", "emits light", "glow effect", "additional surface depth", "Enhances shadows", "crevices and corners", "depth and realism", "glowing areas"].includes(part);
+                                        return (
+                                            <span key={i} className={highlight ? "text-[#5d5efc]" : ""}>
+                                                {part}
+                                            </span>
+                                        );
+                                    })}
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </div>
+    );
+};
+
 const CustomSlider = ({ label, value, onChange, unit = "%", min = 0, max = 100, step = 1 }) => {
   const percentage = ((value - min) / (max - min)) * 100;
   return (
-    <div className="flex items-center justify-between mb-[1.25vw] last:mb-0 h-[1.75vw]">
-      <div className="w-[6vw] text-[0.75vw] font-medium text-gray-600 shrink-0 flex items-center justify-between pr-[0.5vw]">
-        {label} <span>:</span>
-      </div>
+    <div className="flex items-center justify-between mb-[1.25vw] last:mb-0 h-[1.75vw] px-[0.5vw]">
+      {label && (
+        <div className="w-[6vw] text-[0.75vw] font-medium text-gray-600 shrink-0 flex items-center justify-between pr-[0.5vw]">
+          {label} <span>:</span>
+        </div>
+      )}
       <div className="relative flex-1 h-[0.4vw] bg-gray-100 rounded-full cursor-pointer group touch-none">
         {/* Fill */}
         <div
-          className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full transition-all duration-75"
+          className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full"
           style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
         ></div>
         {/* Thumb */}
         <div
-          className="absolute top-1/2 -translate-y-1/2 w-[0.9vw] h-[0.9vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md hover:scale-110 transition-transform duration-100"
+          className="absolute top-1/2 -translate-y-1/2 w-[0.9vw] h-[0.9vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md hover:scale-110"
           style={{ left: `${Math.max(0, Math.min(100, percentage))}%`, marginLeft: "-0.45vw" }}
         ></div>
         {/* Input Range (Hidden overlay for functionality) */}
@@ -175,11 +323,11 @@ const StackedSliderBox = ({ label, val, onChange, children, min = 0, max = 100, 
         {/* Reusing CustomSlider logic but horizontal layout inside flex */}
         <div className="relative flex-1 h-[0.4vw] bg-gray-100 rounded-full cursor-pointer group touch-none">
           <div
-            className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full transition-all duration-75"
+            className="absolute top-0 left-0 h-full bg-[#5d5efc] rounded-full"
             style={{ width: `${Math.max(0, Math.min(100, percentage))}%` }}
           ></div>
           <div
-            className="absolute top-1/2 -translate-y-1/2 w-[0.9vw] h-[0.9vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md hover:scale-110 transition-transform duration-100"
+            className="absolute top-1/2 -translate-y-1/2 w-[0.9vw] h-[0.9vw] bg-[#5d5efc] border-[0.15vw] border-white rounded-full shadow-md hover:scale-110"
             style={{ left: `${Math.max(0, Math.min(100, percentage))}%`, marginLeft: "-0.45vw" }}
           ></div>
           <input
@@ -345,11 +493,13 @@ export default function Customized({
     onManualTransformChange, 
     onResetFactor, 
     onResetTransform,
+    onUvUnwrap,
     onMapUpload,
     selectedTextureId,
     onSelectTexture
 }) {
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [activeColorType, setActiveColorType] = useState('color');
   const [pickerPos, setPickerPos] = useState({ top: 0, right: 0 });
 
   const currentGalleryTexture = useMemo(() => {
@@ -357,18 +507,26 @@ export default function Customized({
       return textureData.find(t => t.id === selectedTextureId);
   }, [selectedTextureId]);
 
-  const handleColorClick = (e) => {
+  const handleColorClick = (e, type = 'color') => {
+      e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
       const topPos = Math.max(10, rect.top - 80);
       setPickerPos({ 
           top: topPos, 
           right: window.innerWidth - rect.left + 16 
       });
+      setActiveColorType(type);
       setShowColorPicker(!showColorPicker);
   };
 
+  const [openInnerAccordion, setOpenInnerAccordion] = useState("base");
+
   const handlePanelToggle = (panelName) => {
     setActivePanel(activePanel === panelName ? null : panelName);
+  };
+
+  const toggleInnerAccordion = (name) => {
+    setOpenInnerAccordion(openInnerAccordion === name ? null : name);
   };
 
   // Helper to format values safely
@@ -377,156 +535,184 @@ export default function Customized({
 
   return (
     <div className="flex flex-col gap-[0.25vw] pb-[2.5vw]">
-      {/* --- FACTOR ADJUSTMENT COMPONENT --- */}
       <Accordion
-        title="Factor Adjustment"
+        title="Material Properties"
         icon="icon-park-outline:texture-two"
         isOpen={activePanel === "factor"}
         onToggle={() => handlePanelToggle("factor")}
         onReset={onResetFactor}
       >
-        <div className="space-y-[1.5vw]">
-            {/* Color & Transparency Section */}
+        <div className="space-y-[1.2vw]">
+            {/* Texture Maps Section */}
             <div>
-                <SectionHeader label="Color & Transparency" />
-                <div className="flex items-center gap-[0.75vw] mb-[1.25vw] mt-[1vw]">
-                    <span className="text-[0.75vw] font-medium text-gray-600 w-[6vw]">
-                        Factor :
-                    </span>
-                    <div className="flex items-center gap-[0.65vw] flex-1">
-                        <MapUploadControl 
-                            mapType="map" 
-                            currentMap={controls.maps?.map || currentGalleryTexture?.preview} 
-                            onUpload={(type, file) => {
-                                if (file === null && !controls.maps?.map && selectedTextureId) {
-                                    onSelectTexture({ id: null, maps: {} });
-                                } else {
-                                    onMapUpload(type, file);
-                                }
-                            }} 
-                        />
-                        <div 
-                            className="w-[2vw] h-[2vw] rounded-[0.35vw] border border-gray-200 shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors relative overflow-hidden"
-                            style={{ backgroundColor: controls.color || '#000000' }}
-                            onClick={handleColorClick}
-                        >
-                            <div className="absolute inset-0 bg-linear-to-tr from-white/10 to-transparent"></div>
-                        </div>
-                        <div 
-                            className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.35vw] px-[0.75vw] py-[0.4vw] bg-white shadow-sm cursor-pointer hover:border-gray-300 transition-colors"
-                            onClick={handleColorClick}
-                        >
-                            <span className="text-[0.65vw] text-gray-600 font-medium tracking-wide font-mono uppercase">{controls.color || '#000000'}</span>
-                            <span className="text-[0.65vw] text-gray-400 font-medium">{controls.alpha}%</span>
-                        </div>
-                    </div>
+                <div className="flex items-center justify-between mb-[1vw]">
+                   <div className="flex items-center gap-[0.75vw] flex-1">
+                      <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">
+                        Textures : <span className="text-gray-600 ml-[0.25vw]">{currentGalleryTexture?.name || "Default"}</span>
+                      </span>
+                      <div className="h-[0.05vw] bg-gray-100 flex-1"></div>
+                   </div>
+                   <button 
+                    onClick={() => onSelectTexture({ id: null, maps: {} })}
+                    className="flex items-center gap-[0.4vw] ml-[0.5vw] px-[0.65vw] py-[0.35vw] bg-gray-100 rounded-[0.4vw] text-gray-700 hover:bg-gray-200 transition-colors shrink-0 group"
+                   >
+                      <span className="text-[0.75vw] font-semibold">Reset</span>
+                      <Icon icon="solar:restart-bold" className="text-gray-500 group-hover:rotate-[-90deg] transition-transform duration-300 w-[1vw] h-[1vw]" />
+                   </button>
                 </div>
 
-                {showColorPicker && createPortal(
-                    <>
-                        <div className="fixed inset-0 z-[9998] bg-transparent" onClick={() => setShowColorPicker(false)}></div>
-                        <ColorPicker 
-                            color={controls.color || '#000000'} 
-                            onChange={(c) => {
-                                updateControl('color', c);
-                                updateControl('useFactorColor', true);
-                            }}
-                            opacity={controls.alpha}
-                            onOpacityChange={(val) => updateControl('alpha', val)}
-                            onClose={() => setShowColorPicker(false)}
-                            style={{ 
-                                position: 'fixed', 
-                                top: pickerPos.top, 
-                                right: pickerPos.right, 
-                                zIndex: 9999 
-                            }}
-                        />
-                    </>,
-                    document.body
-                )}
+                <div className="flex flex-col">
+                    <MapAccordion 
+                        title="Base Map"
+                        isOpen={openInnerAccordion === "base"}
+                        onToggle={() => toggleInnerAccordion("base")}
+                        value={controls.colorIntensity || 100}
+                        onChange={(v) => updateControl("colorIntensity", v)}
+                        mapType="map"
+                        currentMap={controls.maps?.map || currentGalleryTexture?.preview}
+                        onUpload={onMapUpload}
+                        description="Defines the main color and surface appearance of the material."
+                        extra={
+                            <div className="flex items-center gap-[0.5vw]">
+                                <div 
+                                    className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 shadow-sm cursor-pointer hover:scale-105 transition-transform shrink-0"
+                                    style={{ backgroundColor: controls.color || '#000000' }}
+                                    onClick={(e) => handleColorClick(e, 'color')}
+                                />
+                                <div 
+                                    className="flex-1 flex items-center justify-between border border-gray-300 rounded-[0.4vw] px-[0.5vw] py-[0.4vw] bg-white cursor-pointer hover:border-[#5d5efc] transition-colors shadow-xs"
+                                    onClick={(e) => handleColorClick(e, 'color')}
+                                >
+                                    <input 
+                                        type="text"
+                                        className="text-[0.68vw] text-gray-700 font-bold uppercase tracking-tight bg-transparent border-none outline-none w-[3.2vw] p-0 cursor-text"
+                                        value={controls.color || '#ffffff'}
+                                        onChange={(e) => updateControl('color', e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        spellCheck="false"
+                                    />
+                                    <span className="text-[0.68vw] text-gray-400 font-bold ml-[0.25vw] shrink-0">{controls.colorIntensity ?? 100}%</span>
+                                </div>
+                            </div>
+                        }
+                    />
+                    <MapAccordion 
+                        title="Normal Map"
+                        isOpen={openInnerAccordion === "normal"}
+                        onToggle={() => toggleInnerAccordion("normal")}
+                        value={controls.normal}
+                        onChange={(v) => updateControl("normal", v)}
+                        mapType="normalMap"
+                        currentMap={controls.maps?.normalMap}
+                        onUpload={onMapUpload}
+                        description="Adds surface details like bumps and grooves without changing the model geometry."
+                    />
+                    <MapAccordion 
+                        title="Metallic Map"
+                        isOpen={openInnerAccordion === "metallic"}
+                        onToggle={() => toggleInnerAccordion("metallic")}
+                        value={controls.metallic}
+                        onChange={(v) => updateControl("metallic", v)}
+                        mapType="metalnessMap"
+                        currentMap={controls.maps?.metalnessMap}
+                        onUpload={onMapUpload}
+                        description={"Determines which parts of the material behave like metal.\nWhite areas appear metallic, black areas remain non-metal."}
+                    />
+                    <MapAccordion 
+                        title="Roughness Map"
+                        isOpen={openInnerAccordion === "roughness"}
+                        onToggle={() => toggleInnerAccordion("roughness")}
+                        value={controls.roughness}
+                        onChange={(v) => updateControl("roughness", v)}
+                        mapType="roughnessMap"
+                        currentMap={controls.maps?.roughnessMap}
+                        onUpload={onMapUpload}
+                        description={"Controls how rough or smooth the material surface appears.\n\nLower values create a shiny surface."}
+                    />
+                    <MapAccordion 
+                        title="Height/Bump Map"
+                        isOpen={openInnerAccordion === "bump"}
+                        onToggle={() => toggleInnerAccordion("bump")}
+                        value={controls.bump}
+                        onChange={(v) => updateControl("bump", v)}
+                        mapType="bumpMap"
+                        currentMap={controls.maps?.bumpMap}
+                        onUpload={onMapUpload}
+                        description="Adds additional surface depth by simulating height variations on the material."
+                    />
+                    <MapAccordion 
+                        title="A/O Map"
+                        isOpen={openInnerAccordion === "ao"}
+                        onToggle={() => toggleInnerAccordion("ao")}
+                        value={controls.ao || 100}
+                        onChange={(v) => updateControl("ao", v)}
+                        mapType="aoMap"
+                        currentMap={controls.maps?.aoMap}
+                        onUpload={onMapUpload}
+                        description="Enhances shadows in small crevices and corners to add depth and realism to the material."
+                    />
+                    <MapAccordion 
+                        title="Emissive Map"
+                        isOpen={openInnerAccordion === "emissive"}
+                        onToggle={() => toggleInnerAccordion("emissive")}
+                        value={controls.emissiveIntensity || 0}
+                        onChange={(v) => updateControl("emissiveIntensity", v)}
+                        mapType="emissiveMap"
+                        currentMap={controls.maps?.emissiveMap}
+                        onUpload={onMapUpload}
+                        description="Adds glowing areas to the material."
+                        extra={
+                            <div className="flex items-center gap-[0.5vw]">
+                                <div 
+                                    className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 shadow-sm cursor-pointer hover:scale-105 transition-transform shrink-0"
+                                    style={{ backgroundColor: controls.emissiveColor || '#ffffff' }}
+                                    onClick={(e) => handleColorClick(e, 'emissiveColor')}
+                                />
+                                <div 
+                                    className="flex-1 flex items-center justify-between border border-gray-300 rounded-[0.4vw] px-[0.5vw] py-[0.4vw] bg-white cursor-pointer hover:border-[#5d5efc] transition-colors shadow-xs"
+                                    onClick={(e) => handleColorClick(e, 'emissiveColor')}
+                                >
+                                    <input 
+                                        type="text"
+                                        className="text-[0.68vw] text-gray-700 font-bold uppercase tracking-tight bg-transparent border-none outline-none w-[3.2vw] p-0 cursor-text"
+                                        value={controls.emissiveColor || '#ffffff'}
+                                        onChange={(e) => updateControl('emissiveColor', e.target.value)}
+                                        onClick={(e) => e.stopPropagation()}
+                                        spellCheck="false"
+                                    />
+                                    <span className="text-[0.68vw] text-gray-400 font-bold ml-[0.25vw] shrink-0">{controls.emissiveIntensity ?? 0}%</span>
+                                </div>
+                            </div>
+                        }
+                    />
+                </div>
+            </div>
 
+            {/* Opacity Section */}
+            <div>
+                <SectionHeader label="Opacity" />
+                <p className="text-[0.7vw] text-gray-500 mb-[1vw] -mt-[0.5vw]">
+                    Controls the <span className="text-[#5d5efc]">transparency</span> of the material.
+                </p>
                 <CustomSlider
-                    label="Alpha Blend"
+                    label=""
                     value={controls.alpha}
                     onChange={(v) => updateControl("alpha", v)}
                 />
             </div>
 
-            {/* Surface Finish Section */}
-            <div>
-                <SectionHeader label="Surface Finish" />
-                <div className="space-y-[0.5vw]">
-                    <StackedSliderBox
-                        label="Metallic"
-                        val={controls.metallic}
-                        onChange={(v) => updateControl("metallic", v)}
-                    >
-                        <MapUploadControl 
-                            mapType="metalnessMap" 
-                            currentMap={controls.maps?.metalnessMap} 
-                            onUpload={onMapUpload} 
-                        />
-                    </StackedSliderBox>
-
-                    <StackedSliderBox
-                        label="Roughness"
-                        val={controls.roughness}
-                        onChange={(v) => updateControl("roughness", v)}
-                    >
-                        <MapUploadControl 
-                            mapType="roughnessMap" 
-                            currentMap={controls.maps?.roughnessMap} 
-                            onUpload={onMapUpload} 
-                        />
-                    </StackedSliderBox>
-                </div>
-            </div>
-
-            {/* Surface Detail Section */}
-            <div>
-                <SectionHeader label="Surface Detail" />
-                <div className="space-y-[0.5vw]">
-                    <StackedSliderBox
-                        label="Normal Map"
-                        val={controls.normal}
-                        min={0}
-                        max={200}
-                        onChange={(v) => updateControl("normal", v)}
-                    >
-                        <MapUploadControl 
-                            mapType="normalMap" 
-                            currentMap={controls.maps?.normalMap} 
-                            onUpload={onMapUpload} 
-                        />
-                    </StackedSliderBox>
-
-                    <StackedSliderBox
-                        label="Bump"
-                        val={controls.bump}
-                        min={0}
-                        max={200}
-                        onChange={(v) => updateControl("bump", v)}
-                    >
-                        <MapUploadControl 
-                            mapType="bumpMap" 
-                            currentMap={controls.maps?.bumpMap} 
-                            onUpload={onMapUpload} 
-                        />
-                    </StackedSliderBox>
-                </div>
-            </div>
-
             {/* Texture Placement Section */}
-            <div>
+            <div className="pt-[0.5vw]">
                 <SectionHeader label="Texture Placement" />
-                <div className="space-y-[0.25vw]">
+                
+                <div className="space-y-[0.5vw] mt-[0.5vw]">
                     <CustomSlider
                         label="Scale"
                         value={controls.scale}
                         onChange={(v) => updateControl("scale", v)}
                         min={-100}
                         max={100}
-                        unit=""
+                        unit="%"
                     />
                     <CustomSlider
                         label="Rotation"
@@ -534,30 +720,39 @@ export default function Customized({
                         min={-180}
                         max={180}
                         onChange={(v) => updateControl("rotation", v)}
-                        unit="°"
+                        unit="%"
+                    />
+                    <CustomSlider
+                        label="Offset (X)"
+                        value={controls.offset?.x || 0}
+                        onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), x: val })}
+                        min={-100}
+                        max={100}
+                        step={0.1}
+                        unit="%"
+                    />
+                    <CustomSlider
+                        label="Offset (Y)"
+                        value={controls.offset?.y || 0}
+                        onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), y: val })}
+                        min={-100}
+                        max={100}
+                        step={0.1}
+                        unit="%"
                     />
                 </div>
-
-                <div className="flex items-center justify-between mt-[1.5vw]">
-                    <span className="text-[0.65vw] font-medium text-gray-600 w-[6vw]">
-                        Offset :
-                    </span>
-                    <div className="flex gap-[0.35vw] flex-1 justify-end">
-                        <NumberStepper 
-                            value={fmt(controls.offset?.x || 0)} 
-                            axisLabel="X" 
-                            compact 
-                            onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), x: val })}
-                            step={0.1}
-                        />
-                        <NumberStepper 
-                            value={fmt(controls.offset?.y || 0)} 
-                            axisLabel="Y" 
-                            compact 
-                            onChange={(val) => updateControl('offset', { ...(controls.offset || {x:0,y:0}), y: val })}
-                            step={0.1}
-                        />
+                
+                <div className="flex items-center justify-between mt-[1.25vw] bg-[#f8fafc] px-[0.75vw] py-[0.5vw] rounded-[0.5vw] border border-gray-100">
+                    <div className="flex items-center gap-[0.5vw]">
+                        <Icon icon="fluent:checkmark-circle-20-filled" className="text-green-500 w-[1vw] h-[1vw]" />
+                        <span className="text-[0.75vw] font-bold text-gray-700">UV Protection</span>
                     </div>
+                    <button 
+                        onClick={onUvUnwrap}
+                        className="text-[0.65vw] font-bold text-[#5d5efc] hover:underline cursor-pointer"
+                    >
+                        Unwrap UV
+                    </button>
                 </div>
             </div>
         </div>
@@ -784,6 +979,22 @@ export default function Customized({
             </div>
         </div>
       </Accordion>
+       {showColorPicker && createPortal(
+            <ColorPicker
+                color={controls[activeColorType] || (activeColorType === 'emissiveColor' ? '#ffffff' : '#000000')}
+                onChange={(color) => updateControl(activeColorType, color)}
+                opacity={activeColorType === 'color' ? (controls.colorIntensity ?? 100) : (controls.emissiveIntensity ?? 0)}
+                onOpacityChange={(v) => updateControl(activeColorType === 'color' ? "colorIntensity" : "emissiveIntensity", v)}
+                onClose={() => setShowColorPicker(false)}
+                style={{ 
+                    position: 'fixed', 
+                    top: pickerPos.top, 
+                    right: pickerPos.right, 
+                    zIndex: 9999 
+                }}
+            />,
+            document.body
+        )}
     </div>
   );
 }
