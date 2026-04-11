@@ -37,6 +37,7 @@ app.use(bodyParser.urlencoded({ limit: "500mb", extended: true }));
 
 // Serve Static Uploads
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/textures", express.static(path.join(__dirname, "Texture")));
 
 // Basic Route
 app.get("/", (req, res) => {

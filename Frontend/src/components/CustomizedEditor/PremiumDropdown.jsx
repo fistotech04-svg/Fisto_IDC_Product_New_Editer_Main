@@ -8,9 +8,11 @@ const PremiumDropdown = ({
   onChange, 
   width = '9vw', 
   menuWidth = 'w-full',
-  label = '',
   placeholder = 'Select option...',
-  className = ''
+  className = '',
+  buttonClassName = '',
+  isFont = false,
+  align = 'left'
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -26,19 +28,24 @@ const PremiumDropdown = ({
   }, []);
 
   return (
-    <div className={`relative dropdown-container ${className}`} ref={dropdownRef} style={{ width }}>
+    <div className={`relative dropdown-container ${className} ${isOpen ? 'z-[1001]' : ''}`} ref={dropdownRef} style={{ width }}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full bg-white rounded-[0.75vw] px-[1.1vw] py-[0.50vw] flex items-center justify-between shadow-[0.15vw_0.15vw_0.4vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.08)] transition-all active:scale-95 border border-transparent"
+        className={`w-full h-[1.9vw] bg-white rounded-[0.5vw] px-[0.5vw] py-[0.45vw] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 border border-gray-100 group ${buttonClassName}`}
       >
-        <span className="text-[0.6875vw] font-semibold text-gray-700 truncate">{value || placeholder}</span>
-        <ChevronDown className={`w-[1vw] h-[1vw] text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <span 
+          className="text-[0.78vw] font-semibold text-gray-700 align-center text-left flex-1"
+          style={isFont ? { fontFamily: value } : {}}
+        >
+          {value || placeholder}
+        </span>
+        <Icon icon="ph:caret-down-bold" className={`w-[0.9vw] h-[0.9vw] text-gray-700 transition-transform duration-300 ${isOpen ? 'rotate-180 text-[#5551FF]' : 'group-hover:text-gray-600'}`} />
       </button>
       
       {isOpen && (
         <div 
-          className={`absolute top-full mt-[0.5vw] ${menuWidth === 'w-full' ? 'w-full' : ''} bg-white rounded-[1vw] shadow-[0_1.25vw_3.125vw_rgba(0,0,0,0.15)] border border-gray-50 z-[100] overflow-hidden py-[0.5vw] animate-in fade-in slide-in-from-top-2`}
-          style={menuWidth !== 'w-full' ? { width: menuWidth } : {}}
+          className={`absolute top-full mt-[0.5vw] ${align === 'right' ? 'right-0' : 'left-0'} ${menuWidth === 'w-full' ? 'w-full' : ''} bg-white rounded-[0.6vw] shadow-[0_1.25vw_3.125vw_rgba(0,0,0,0.15)] border border-gray-50 z-[100] overflow-hidden py-[0.5vw] animate-in fade-in slide-in-from-top-2`}
+          style={menuWidth !== 'w-full' ? { width: menuWidth, zIndex: 9999 } : { zIndex: 9999 }}
         >
           <div className="max-h-[12vw] overflow-y-auto custom-scrollbar">
             {options.map((opt) => {
@@ -49,15 +56,21 @@ const PremiumDropdown = ({
               return (
                 <button
                   key={optionValue}
+                  disabled={opt.disabled}
                   onClick={() => {
-                    onChange(optionValue);
-                    setIsOpen(false);
+                    if (!opt.disabled) {
+                      onChange(optionValue);
+                      setIsOpen(false);
+                    }
                   }}
-                  className={`w-full text-left px-[1.1vw] py-[0.5vw] text-[0.6875vw] font-semibold transition-colors ${
-                    isSelected 
-                      ? 'text-[#3E4491] bg-gray-50' 
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-[#3E4491]'
+                  className={`w-full text-center px-[1.1vw] py-[0.5vw] text-[0.75vw] items-center font-semibold transition-colors ${
+                    opt.disabled 
+                      ? 'opacity-40 cursor-not-allowed' 
+                      : isSelected 
+                        ? 'text-[#3E4491] bg-gray-50' 
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-[#3E4491]'
                   }`}
+                  style={isFont ? { fontFamily: optionValue } : {}}
                 >
                   {optionLabel}
                 </button>

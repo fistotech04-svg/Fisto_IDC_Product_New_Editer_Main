@@ -61,9 +61,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
       case 'Public':
         return (
           <div className="p-[1.5vw] bg-white rounded-[0.75vw] border border-gray-100 shadow-sm space-y-[1vw]">
-            <div className="flex items-center gap-[0.75vw] text-green-600">
-              <Icon icon="lucide:globe" className="w-[1.5vw] h-[1.5vw]" />
-              <span className="font-bold text-[1vw]">Public Access</span>
+            <div className="flex items-center gap-[0.75vw] ">
+              <Icon icon="lucide:globe" className="w-[1vw] h-[1vw]" />
+              <span className="text-[1vw] font-semibold text-gray-900">Public Access</span>
             </div>
             <p className="text-gray-500 text-[0.8vw] leading-relaxed">
               Anyone with the link can view this flipbook. Search engines might index this flipbook.
@@ -73,9 +73,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
       case 'Private':
         return (
           <div className="p-[1.5vw] bg-white rounded-[0.75vw] border border-gray-100 shadow-sm space-y-[1vw]">
-            <div className="flex items-center gap-[0.75vw] text-red-500">
-              <Icon icon="lucide:lock" className="w-[1.5vw] h-[1.5vw]" />
-              <span className="font-bold text-[1vw]">Private Access</span>
+            <div className="flex items-center gap-[0.75vw] ">
+              <Icon icon="lucide:lock" className="w-[1vw] h-[1vw]" />
+              <span className="text-[1vw] font-semibold text-gray-900">Private Access</span>
             </div>
             <p className="text-gray-500 text-[0.8vw] leading-relaxed">
               Only you can see this flipbook. It will not be accessible to anyone else, even with the link.
@@ -85,9 +85,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
       case 'Password Protect':
         return (
           <div className="p-[1.5vw] bg-white rounded-[0.75vw] border border-gray-100 shadow-sm space-y-[1.25vw]">
-            <div className="flex items-center gap-[0.75vw] text-indigo-600">
-              <Icon icon="lucide:key-round" className="w-[1.5vw] h-[1.5vw]" />
-              <span className="font-bold text-[1vw]">Password Protected</span>
+            <div className="flex items-center gap-[0.75vw] ">
+              <Icon icon="lucide:key-round" className="w-[1vw] h-[1vw]" />
+              <span className="text-[1vw] font-semibold text-gray-900">Password Protected</span>
             </div>
             <div className="space-y-[0.75vw]">
               <label className="text-[0.85vw] font-semibold text-gray-700 block">Set Access Password</label>
@@ -111,9 +111,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
           <>
             {/* Access Settings Block */}
             <div className="space-y-[1vw]">
-              <div className="flex items-center gap-[0.5vw]">
-                <h3 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Access Settings Block</h3>
-                <div className="h-[0.0925vw] bg-gray-200 w-full"></div>
+              <div className="flex items-center gap-[1vw]">
+                <h3 className="text-[1.1vw] font-bold text-gray-800 whitespace-nowrap">Access Settings Block</h3>
+                <div className="h-[1px] bg-gray-200 w-full mt-[0.2vw]"></div>
               </div>
               
               <div className="space-y-[0.8vw] bg-white p-[1vw] rounded-[0.75vw] border border-gray-100 shadow-sm">
@@ -135,13 +135,20 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                         value={settings.inviteOnly.autoExpire.duration}
                         onChange={(val) => updateAutoExpire('duration', val)}
                         width="7vw"
+                        align="right"
                       />
                   </div>
                   <button
                     onClick={() => updateAutoExpire('enabled', !settings.inviteOnly.autoExpire.enabled)}
-                    className={`w-[2.2vw] h-[1.1vw] rounded-full transition-colors relative ${settings.inviteOnly.autoExpire.enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+                    className={`group relative inline-flex items-center h-[1.1vw] w-[2.2vw] shrink-0 cursor-pointer rounded-full transition-all duration-300 ease-in-out border-[1.2px] outline-none ${
+                      settings.inviteOnly.autoExpire.enabled ? 'bg-white border-[#5551FF]' : 'bg-white border-gray-300'
+                    }`}
                   >
-                    <div className={`absolute top-[0.15vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all ${settings.inviteOnly.autoExpire.enabled ? 'left-[1.25vw]' : 'left-[0.15vw]'}`} />
+                    <div
+                      className={`pointer-events-none h-[0.7vw] w-[0.7vw] rounded-full shadow-sm transition-all duration-300 ease-in-out absolute ${
+                        settings.inviteOnly.autoExpire.enabled ? 'left-[1.2vw] bg-[#5551FF]' : 'left-[0.15vw] bg-gray-300'
+                      }`}
+                    />
                   </button>
                 </div>
               </div>
@@ -151,7 +158,7 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
             <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
                 <button 
                     onClick={() => setActiveAccordion(activeAccordion === 'email' ? null : 'email')}
-                    className="w-full flex items-center justify-between p-[1vw] font-bold text-gray-800"
+                    className="w-full flex items-center justify-between p-[1vw] font-semibold text-gray-800"
                 >
                     <span>Invite by Specific Email</span>
                     <Icon icon={activeAccordion === 'email' ? "lucide:chevron-up" : "lucide:chevron-down"} className="w-[1.2vw] h-[1.2vw] text-gray-400" />
@@ -160,9 +167,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                 {activeAccordion === 'email' && (
                     <div className="p-[1vw] pt-0 space-y-[1.25vw] animate-in fade-in slide-in-from-top-2">
                         <div className="space-y-[0.75vw]">
-                            <div className="flex items-center gap-[0.5vw]">
-                                <h4 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Add Emails</h4>
-                                <div className="h-[0.0925vw] bg-gray-200 w-full"></div>
+                            <div className="flex items-center gap-[1vw]">
+                                <h4 className="text-[1.1vw] font-bold text-gray-800 whitespace-nowrap">Add Emails</h4>
+                                <div className="h-[1px] bg-gray-200 w-full mt-[0.2vw]"></div>
                             </div>
                             <div className="flex gap-[0.75vw]">
                                 <input 
@@ -174,7 +181,7 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                                 />
                                 <button 
                                     onClick={addEmail}
-                                    className="bg-indigo-600 text-white px-[1vw] py-[0.5vw] rounded-[0.5vw] font-bold text-[0.75vw] hover:bg-indigo-700 transition-colors shadow-sm"
+                                    className="bg-indigo-600 text-white px-[1vw] py-[0.5vw] rounded-[0.5vw] font-semibold text-[0.75vw] hover:bg-indigo-700 transition-colors shadow-sm"
                                 >
                                     Add Email
                                 </button>
@@ -182,20 +189,20 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                         </div>
 
                         <div className="text-center">
-                            <span className="text-gray-400 font-bold text-[0.7vw] italic">or</span>
+                            <span className="text-gray-400 font-semibold text-[0.7vw] italic">or</span>
                         </div>
 
                         <div className="border-2 border-dashed border-gray-200 rounded-[0.75vw] p-[1.5vw] flex flex-col items-center justify-center gap-[0.5vw] bg-[#fcfcfc] cursor-pointer hover:bg-gray-50 transition-colors">
                             <Icon icon="lucide:upload" className="w-[1.5vw] h-[1.5vw] text-gray-400" />
                             <p className="text-[0.7vw] text-gray-400 font-medium">
-                                Drag & Drop or <span className="text-indigo-600 font-bold underline">Upload</span> CSV file
+                                Drag & Drop or <span className="text-indigo-600 font-semibold underline">Upload</span> CSV file
                             </p>
                         </div>
 
                         <div className="space-y-[1vw] pt-[0.5vw]">
-                            <div className="flex items-center gap-[0.5vw]">
-                                <h4 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Added Email List</h4>
-                                <div className="h-[0.0925vw] bg-gray-200 w-full"></div>
+                            <div className="flex items-center gap-[1vw]">
+                                <h4 className="text-[1.1vw] font-bold text-gray-800 whitespace-nowrap">Added Email List</h4>
+                                <div className="h-[1px] bg-gray-200 w-full mt-[0.2vw]"></div>
                             </div>
                             
                             <div className="flex items-center gap-[0.75vw]">
@@ -209,7 +216,7 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                                         className="w-full bg-white border border-gray-200 rounded-[0.4vw] pl-[2vw] pr-[0.75vw] py-[0.35vw] text-[0.75vw] focus:outline-none focus:border-indigo-500 shadow-sm"
                                     />
                                  </div>
-                                 <button className="flex items-center gap-[0.4vw] bg-black text-white px-[0.75vw] py-[0.35vw] rounded-[0.4vw] text-[0.7vw] font-bold">
+                                 <button className="flex items-center gap-[0.4vw] bg-black text-white px-[0.75vw] py-[0.35vw] rounded-[0.4vw] text-[0.7vw] font-semibold">
                                     <Icon icon="lucide:filter" className="w-[0.8vw] h-[0.8vw]" />
                                     Sort
                                  </button>
@@ -219,9 +226,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                                 <table className="w-full text-left text-[0.7vw]">
                                     <thead>
                                         <tr className="border-b border-gray-100 bg-white">
-                                            <th className="p-[0.75vw] font-bold text-gray-700">Emails</th>
-                                            <th className="p-[0.75vw] font-bold text-gray-700 text-center">Status</th>
-                                            <th className="p-[0.75vw] font-bold text-gray-700 text-right">Action</th>
+                                            <th className="p-[0.75vw] font-semibold text-gray-700">Emails</th>
+                                            <th className="p-[0.75vw] font-semibold text-gray-700 text-center">Status</th>
+                                            <th className="p-[0.75vw] font-semibold text-gray-700 text-right">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -257,7 +264,7 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
             <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
                 <button 
                     onClick={() => setActiveAccordion(activeAccordion === 'domain' ? null : 'domain')}
-                    className="w-full flex items-center justify-between p-[1vw] font-bold text-gray-800"
+                    className="w-full flex items-center justify-between p-[1vw] font-semibold text-gray-800"
                 >
                     <span>Allow Access by Domain</span>
                     <Icon icon={activeAccordion === 'domain' ? "lucide:chevron-up" : "lucide:chevron-down"} className="w-[1.2vw] h-[1.2vw] text-gray-400" />
@@ -266,9 +273,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                 {activeAccordion === 'domain' && (
                     <div className="p-[1vw] pt-0 space-y-[1.25vw] animate-in fade-in slide-in-from-top-2">
                         <div className="space-y-[0.75vw]">
-                            <div className="flex items-center gap-[0.5vw]">
-                                <h4 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Add Domine</h4>
-                                <div className="h-[0.0925vw] bg-gray-200 w-full"></div>
+                            <div className="flex items-center gap-[1vw]">
+                                <h4 className="text-[1.1vw] font-bold text-gray-800 whitespace-nowrap">Add Domine</h4>
+                                <div className="h-[1px] bg-gray-200 w-full mt-[0.2vw]"></div>
                             </div>
                             <div className="space-y-[0.75vw]">
                                 <label className="text-[0.85vw] font-semibold text-gray-700 block">Enter Domine Name</label>
@@ -282,7 +289,7 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                                 <div className="flex justify-end">
                                     <button 
                                         onClick={addDomain}
-                                        className="bg-indigo-600 text-white px-[1.5vw] py-[0.5vw] rounded-[0.5vw] font-bold text-[0.75vw] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
+                                        className="bg-indigo-600 text-white px-[1.5vw] py-[0.5vw] rounded-[0.5vw] font-semibold text-[0.75vw] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
                                     >
                                         Add Domine
                                     </button>
@@ -291,9 +298,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                         </div>
 
                         <div className="space-y-[1vw] pt-[0.5vw]">
-                            <div className="flex items-center gap-[0.5vw]">
-                                <h4 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Added Domine List</h4>
-                                <div className="h-[0.0925vw] bg-gray-200 w-full"></div>
+                            <div className="flex items-center gap-[1vw]">
+                                <h4 className="text-[1.1vw] font-bold text-gray-800 whitespace-nowrap">Added Domine List</h4>
+                                <div className="h-[1px] bg-gray-200 w-full mt-[0.2vw]"></div>
                             </div>
                             
                             <div className="flex items-center gap-[0.75vw]">
@@ -307,7 +314,7 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                                         className="w-full bg-white border border-gray-200 rounded-[0.4vw] pl-[2vw] pr-[0.75vw] py-[0.35vw] text-[0.75vw] focus:outline-none focus:border-indigo-500 shadow-sm"
                                     />
                                  </div>
-                                 <button className="flex items-center gap-[0.4vw] bg-black text-white px-[0.75vw] py-[0.35vw] rounded-[0.4vw] text-[0.7vw] font-bold">
+                                 <button className="flex items-center gap-[0.4vw] bg-black text-white px-[0.75vw] py-[0.35vw] rounded-[0.4vw] text-[0.7vw] font-semibold">
                                     <Icon icon="lucide:filter" className="w-[0.8vw] h-[0.8vw]" />
                                     Sort
                                  </button>
@@ -317,9 +324,9 @@ const Visibility = ({ onBack, settings, onUpdate }) => {
                                 <table className="w-full text-left text-[0.7vw]">
                                     <thead>
                                         <tr className="border-b border-gray-100 bg-white">
-                                            <th className="p-[0.75vw] font-bold text-gray-700">Domines</th>
-                                            <th className="p-[0.75vw] font-bold text-gray-700 text-center">Status</th>
-                                            <th className="p-[0.75vw] font-bold text-gray-700 text-right">Action</th>
+                                            <th className="p-[0.75vw] font-semibold text-gray-700">Domines</th>
+                                            <th className="p-[0.75vw] font-semibold text-gray-700 text-center">Status</th>
+                                            <th className="p-[0.75vw] font-semibold text-gray-700 text-right">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -386,19 +393,15 @@ const ToggleItem = ({ label, checked, onChange }) => (
     <span className="text-[0.85vw] font-semibold text-gray-700">{label}</span>
     <button
       onClick={() => onChange(!checked)}
-      className={`group relative inline-flex items-center h-[1.2vw] w-[2.5vw] shrink-0 cursor-pointer rounded-full transition-all duration-200 ease-in-out focus:outline-none ${
-        checked ? 'bg-[#4A3AFF] border-transparent' : 'bg-white border-2 border-[#4A3AFF]'
+      className={`group relative inline-flex items-center h-[1.3vw] w-[2.6vw] shrink-0 cursor-pointer rounded-full transition-all duration-300 ease-in-out border-[1.5px] outline-none ${
+        checked ? 'bg-white border-[#5551FF]' : 'bg-white border-gray-300'
       }`}
     >
       <div
-        className={`pointer-events-none flex items-center justify-center h-[1.3vw] w-[1.3vw] rounded-full bg-[#4A3AFF] shadow-[0_2px_4px_rgba(0,0,0,0.2)] transition-all duration-200 ease-in-out absolute ${
-          checked ? 'left-[1.5vw]' : 'left-[-0.2vw]'
+        className={`pointer-events-none h-[0.85vw] w-[0.85vw] rounded-full shadow-sm transition-all duration-300 ease-in-out absolute ${
+          checked ? 'left-[1.4vw] bg-[#5551FF]' : 'left-[0.2vw] bg-gray-300'
         }`}
-      >
-        {checked && (
-          <Icon icon="lucide:check" className="w-[0.9vw] h-[0.9vw] text-white stroke-[3px]" />
-        )}
-      </div>
+      />
     </button>
   </div>
 );

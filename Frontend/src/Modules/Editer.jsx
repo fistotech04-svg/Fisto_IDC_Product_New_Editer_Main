@@ -3,55 +3,10 @@ import { Outlet } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import axios from 'axios';
 
-// IndexedDB Helpers
-const DB_NAME = 'Fisto3DContext';
-const STORE_NAME = 'EditorState';
+import { getFromDB, saveToDB } from '../utils/dbUtils';
+
 const STATE_KEY = 'threed_editor_state';
 
-const initDB = () => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const saveToDB = async (key, value) => {
-   try {
-       const db = await initDB();
-       return new Promise((resolve, reject) => {
-           const tx = db.transaction(STORE_NAME, 'readwrite');
-           const store = tx.objectStore(STORE_NAME);
-           store.put(value, key);
-           tx.oncomplete = () => resolve();
-           tx.onerror = () => reject(tx.error);
-       });
-   } catch (err) {
-       console.error("IDB Save Error", err);
-   }
-};
-
-const getFromDB = async (key) => {
-   try {
-       const db = await initDB();
-       return new Promise((resolve, reject) => {
-           const tx = db.transaction(STORE_NAME, 'readonly');
-           const store = tx.objectStore(STORE_NAME);
-           const req = store.get(key);
-           req.onsuccess = () => resolve(req.result);
-           req.onerror = () => reject(req.error);
-       });
-   } catch (err) {
-       console.error("IDB Load Error", err);
-       return null;
-   }
-};
 
 const Editor = () => {
   // Auto Save Preferences
@@ -111,6 +66,7 @@ const Editor = () => {
 
   const [exportHandler, setExportHandler] = useState(null);
   const [saveHandler, setSaveHandler] = useState(null);
+  const [previewHandler, setPreviewHandler] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [currentBook, setCurrentBook] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -141,6 +97,14 @@ const Editor = () => {
     }
   };
 
+  const handlePreview = () => {
+    if (previewHandler) {
+      previewHandler();
+    } else {
+      console.warn("Preview handler is not attached.");
+    }
+  };
+
   // 3D Editor Persistence State
   const [threedState, setThreedState] = useState({
       modelUrl: null,
@@ -161,7 +125,7 @@ const Editor = () => {
       materialSettings: {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
-        color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+        color: '#000000', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         lightPosition: { x: 10, y: 10, z: 10 }
       },
       modelName: "",
@@ -249,6 +213,7 @@ const Editor = () => {
   const contextValue = React.useMemo(() => ({ 
     setExportHandler, 
     setSaveHandler,
+    setPreviewHandler,
     hasUnsavedChanges,
     setHasUnsavedChanges,
     triggerSaveSuccess: handleSaveSuccess,
@@ -274,7 +239,8 @@ const Editor = () => {
     <div className="flex flex-col h-screen">
       <Navbar 
         onExport={handleExport} 
-        onSave={handleSave} 
+        onSave={handleSave}
+        onPreview={handlePreview}
         hasUnsavedChanges={hasUnsavedChanges}
         saveSuccessInfo={saveSuccessInfo}
         isAutoSaveEnabled={isAutoSaveEnabled}

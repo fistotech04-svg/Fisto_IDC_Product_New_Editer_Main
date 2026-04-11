@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLocation, useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { saveToDB } from '../../utils/dbUtils';
 import Layer from './Layer';
 import MainEditor from './MainEditor';
 import RightSidebar from './RightSidebar';
 import TemplateModal from './TemplateModal';
+import FlipbookPreview from './FlipbookPreview';
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -52,7 +54,8 @@ const TemplateEditor = () => {
   const navigate = useNavigate();
 
   const { 
-    setSaveHandler, 
+    setSaveHandler,
+    setPreviewHandler,
     setHasUnsavedChanges, 
     triggerSaveSuccess,
     isAutoSaveEnabled,
@@ -67,6 +70,7 @@ const TemplateEditor = () => {
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isDoublePage, setIsDoublePage] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
@@ -193,6 +197,17 @@ const TemplateEditor = () => {
     return () => setSaveHandler(null);
   }, [pages, currentBook, v_id]);
 
+  // Register Preview Handler to Navbar
+  const stablePreviewHandler = useCallback(() => setShowPreview(true), []);
+  useEffect(() => {
+    if (setPreviewHandler) {
+      setPreviewHandler(() => stablePreviewHandler);
+    }
+    return () => {
+      if (setPreviewHandler) setPreviewHandler(null);
+    };
+  }, [setPreviewHandler, stablePreviewHandler]);
+
   // Track Changes for Unsaved Indicator
   useEffect(() => {
     if (pages.length > 0 && !isLoading) {
@@ -216,6 +231,18 @@ const TemplateEditor = () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
   }, [pages, isAutoSaveEnabled, currentBook]);
+
+  // Sync state to IndexedDB for Customized Editor
+  useEffect(() => {
+    if (pages.length > 0 && !isLoading) {
+      saveToDB('editor_autosave', {
+        pages: pages,
+        activePageIndex: activePageIndex,
+        pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+        timestamp: Date.now()
+      });
+    }
+  }, [pages, activePageIndex, isLoading, currentBook, location.state]);
 
   const createDefaultPageData = (name) => {
     // ... rest of code same ...
@@ -2027,7 +2054,11 @@ const TemplateEditor = () => {
                       lastSavedHtmlsRef.current[pid] = p.html;
                   });
 
-                  setCurrentBook(res.data.meta);
+                  setCurrentBook(prev => ({ 
+                      ...res.data.meta, 
+                      ...(prev || {}), 
+                      flipbookName: prev?.flipbookName || res.data.meta.flipbookName 
+                  }));
                   setHasUnsavedChanges(false);
               }
           } catch (err) {
@@ -2047,10 +2078,11 @@ const TemplateEditor = () => {
               };
           });
           setPages(newPages);
-          setCurrentBook({
-              flipbookName: location.state.flipbookName || 'Untitled Flipbook',
-              folderName: location.state.folderName || 'Recent Book'
-          });
+          setCurrentBook(prev => ({
+              ...(prev || {}),
+              flipbookName: prev?.flipbookName || location.state.flipbookName || 'Untitled Flipbook',
+              folderName: prev?.folderName || location.state.folderName || 'Recent Book'
+          }));
       }
       else {
           setPages(Array.from({ length: 12 }, (_, i) => {
@@ -2063,10 +2095,11 @@ const TemplateEditor = () => {
                   layers
               };
           }));
-          setCurrentBook({
-              flipbookName: 'Untitled Flipbook',
-              folderName: 'Recent Book'
-          });
+          setCurrentBook(prev => ({
+              ...(prev || {}),
+              flipbookName: prev?.flipbookName || 'Untitled Flipbook',
+              folderName: prev?.folderName || 'Recent Book'
+          }));
       }
       
       setIsLoading(false);
@@ -2167,6 +2200,7 @@ const TemplateEditor = () => {
         updatePageBackground={updatePageBackground}
         selectedLayerId={selectedLayerId}
         updateElementAttribute={updateElementAttribute}
+        onPreview={() => setShowPreview(true)}
       />
       
       {showTemplateModal && (
@@ -2175,6 +2209,18 @@ const TemplateEditor = () => {
           setShowTemplateModal={setShowTemplateModal} 
           clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)} 
           loadTemplate={loadTemplate} 
+        />
+      )}
+
+      {showPreview && (
+        <FlipbookPreview
+          pages={pages.map(p => ({ ...p, content: p.html || '' }))}
+          pageName={currentBook?.flipbookName || 'Preview'}
+          onClose={() => setShowPreview(false)}
+          isMobile={false}
+          isDoublePage={isDoublePage}
+          targetPage={0}
+          settings={{}}
         />
       )}
     </div>

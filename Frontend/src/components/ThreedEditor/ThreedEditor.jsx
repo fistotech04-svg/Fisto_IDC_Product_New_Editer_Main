@@ -931,10 +931,47 @@ export default function ThreedEditor() {
       setSelectedTextureId(id);
   }, []);
 
-  const handleTextureApplied = useCallback(() => {
-      // Clear selectedTexture after it's applied so it doesn't bleed to other materials
-      setSelectedTexture(null);
-  }, []);
+   const handleTextureApplied = useCallback(() => {
+       // Clear selectedTexture after it's applied so it doesn't bleed to other materials
+       setSelectedTexture(null);
+   }, []);
+
+   const handleSelectTexture = useCallback((textureData) => {
+       const isReset = !textureData || !textureData.id;
+       const newTexture = isReset ? null : { ...textureData, ts: Date.now() };
+       
+       setSelectedTextureId(isReset ? null : textureData.id);
+       setSelectedTexture(newTexture);
+
+       setMaterialSettings(prev => {
+           const next = {
+               ...prev,
+               appliedTexture: newTexture
+           };
+
+           if (isReset) {
+               next.maps = { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null };
+           } else {
+               next.maps = { ...(prev.maps || {}), ...textureData.maps };
+               // Set factors to 100% when applying a full texture set
+               next.metallic = 100;
+               next.roughness = 100;
+               next.normal = 100;
+               next.bump = 10;
+               next.ao = 100;
+               next.color = '#ffffff';
+               next.useFactorColor = true;
+           }
+
+           pushHistory({
+               ...stateRef.current,
+               selectedTexture: newTexture,
+               materialSettings: next
+           });
+
+           return next;
+       });
+   }, [pushHistory]);
 
   const handleSelectMaterial = useCallback((val) => {
       setSelectedTexture(null);
@@ -1081,29 +1118,7 @@ export default function ThreedEditor() {
             <TextureGalleryBar
               isOpen={isTextureOpen}
               setIsOpen={setIsTextureOpen}
-              onSelectTexture={(textureData) => {
-                  const newTexture = { ...textureData, ts: Date.now() };
-                  setSelectedTexture(newTexture);
-                  // Reset factors to 1.0 (100 in UI) so maps have full influence
-                  setMaterialSettings(prev => {
-                      const next = {
-                          ...prev,
-                          metallic: 100,
-                          roughness: 100,
-                          color: prev.color,
-                          useFactorColor: true,
-                          appliedTexture: newTexture
-                      };
-
-                      pushHistory({
-                          ...stateRef.current,
-                          selectedTexture: newTexture,
-                          materialSettings: next
-                      });
-
-                      return next;
-                  });
-              }}
+              onSelectTexture={handleSelectTexture}
             />
           )}
 
@@ -1322,45 +1337,47 @@ export default function ThreedEditor() {
 
         {/* RIGHT SETTINGS PANEL */}
         <div className="w-[22vw] h-full border-l border-gray-100 bg-white z-40 relative flex flex-col shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.05)]">
-          <RightPanel
-            onFileProcess={processFile}
-            hasModel={models.length > 0}
-            onExport={() => setShowExportModal(true)}
-            autoRotate={autoRotate}
-            setAutoRotate={setAutoRotate}
-            isLoading={isGlobalLoading}
-            materialSettings={materialSettings}
-            onUpdateMaterialSetting={handleMaterialUIUpdate}
-            activeAccordion={activeAccordion}
-            setActiveAccordion={setActiveAccordion}
-            transformValues={transformValues}
-            onManualTransformChange={handleManualTransformChange}
-            onResetTransform={handleResetTransform}
-            onResetFactorSettings={() => {
-                setMaterialSettings(prev => {
-                    const next = {
-                        ...prev,
-                        alpha: 100,
-                        metallic: 0,
-                        roughness: 50,
-                        normal: 100,
-                        bump: 100,
-                        scale: 100,
-                        scaleY: 100,
-                        rotation: 0,
-                        offset: { x: 0, y: 0 },
-                        color: '#ffffff',
-                        useFactorColor: false,
-                        maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null }
-                    };
-                    pushHistory({ ...stateRef.current, materialSettings: next });
-                    return next;
-                });
-                setResetKey(prev => prev + 1);
-            }}
-            onUvUnwrap={() => setUvUnwrapTrigger(prev => prev + 1)}
-            onMapUpload={handleMapUpload}
-          />
+            <RightPanel
+              onFileProcess={processFile}
+              hasModel={models.length > 0}
+              onExport={() => setShowExportModal(true)}
+              autoRotate={autoRotate}
+              setAutoRotate={setAutoRotate}
+              isLoading={isGlobalLoading}
+              materialSettings={materialSettings}
+              onUpdateMaterialSetting={handleMaterialUIUpdate}
+              activeAccordion={activeAccordion}
+              setActiveAccordion={setActiveAccordion}
+              transformValues={transformValues}
+              onManualTransformChange={handleManualTransformChange}
+              onResetTransform={handleResetTransform}
+              onResetFactorSettings={() => {
+                  setMaterialSettings(prev => {
+                      const next = {
+                          ...prev,
+                          alpha: 100,
+                          metallic: 0,
+                          roughness: 50,
+                          normal: 100,
+                          bump: 100,
+                          scale: 100,
+                          scaleY: 100,
+                          rotation: 0,
+                          offset: { x: 0, y: 0 },
+                          color: '#ffffff',
+                          useFactorColor: false,
+                          maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null }
+                      };
+                      pushHistory({ ...stateRef.current, materialSettings: next });
+                      return next;
+                  });
+                  setResetKey(prev => prev + 1);
+              }}
+              onUvUnwrap={() => setUvUnwrapTrigger(prev => prev + 1)}
+              onMapUpload={handleMapUpload}
+              selectedTextureId={selectedTextureId}
+              onSelectTexture={handleSelectTexture}
+            />
         </div>
       </div>
 

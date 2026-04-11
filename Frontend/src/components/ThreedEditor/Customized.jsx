@@ -635,10 +635,10 @@ export default function Customized({
                         onToggle={() => toggleInnerAccordion("bump")}
                         value={controls.bump}
                         onChange={(v) => updateControl("bump", v)}
-                        mapType="bumpMap"
-                        currentMap={controls.maps?.bumpMap}
+                        mapType="displacementMap"
+                        currentMap={controls.maps?.displacementMap}
                         onUpload={onMapUpload}
-                        description="Adds additional surface depth by simulating height variations on the material."
+                        description="Physically displaces the vertices of the model to create real surface depth and topology."
                     />
                     <MapAccordion 
                         title="A/O Map"

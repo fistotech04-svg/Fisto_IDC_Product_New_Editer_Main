@@ -776,7 +776,7 @@ const Layer = ({
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => {
                     const newName = e.target.value;
-                    setCurrentBook(prev => ({ ...prev, flipbookName: newName }));
+                    setCurrentBook(prev => ({ ...(prev || {}), flipbookName: newName }));
                     checkDuplicate(newName);
                   }}
                   onBlur={() => {

@@ -2,6 +2,7 @@ import React from "react";
 import { Icon } from "@iconify/react";
 
 const SidebarItem = ({
+  id,
   icon,
   label,
   isOpen,
@@ -13,10 +14,11 @@ const SidebarItem = ({
   return (
     <div className="flex flex-col px-[0.75vw] py-[0.25vw]">
       <button
+        id={id}
         onClick={onClick}
         className={`w-full flex items-center justify-between p-[0.75vw] rounded-[0.75vw] transition-all duration-300 ${
           isActive 
-            ? 'bg-[#3E4491] text-white shadow-md' 
+            ? 'bg-[#3E4491] text-white shadow-md active-sidebar-item' 
             : 'bg-white text-gray-700 hover:bg-gray-50'
         }`}
       >
@@ -41,10 +43,10 @@ const SidebarItem = ({
       
       <div 
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          isOpen ? 'max-h-[31.25vw] opacity-100 mt-[0.25vw] mb-[0.5vw]' : 'max-h-0 opacity-0'
+          isOpen ? 'max-h-[20.25vw] opacity-100 mt-[0.25vw] ' : 'max-h-0 opacity-0'
         }`}
       >
-        <div className="pt-[0.25vw]">
+        <div className="pt-[0vw]">
           {children}
         </div>
       </div>

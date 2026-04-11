@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ShapeProperties from './ShapeProperties';
@@ -12,9 +12,33 @@ const RightSidebar = ({
   pages,
   updatePageBackground,
   selectedLayerId,
-  updateElementAttribute
+  updateElementAttribute,
+  onPreview,
+  activePreviewDevice: activePreviewDeviceProp,
+  setActivePreviewDevice: setActivePreviewDeviceProp
 }) => {
   const fileInputRef = useRef(null);
+  const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
+
+  // Sync with prop if provided, otherwise use local/localStorage
+  useEffect(() => {
+    if (activePreviewDeviceProp) setActivePreviewDevice(activePreviewDeviceProp);
+  }, [activePreviewDeviceProp]);
+
+  const handleDeviceChange = (device) => {
+    setActivePreviewDevice(device);
+    localStorage.setItem('previewDevice', device);
+    window.dispatchEvent(new CustomEvent('previewDeviceChange', { detail: device }));
+    setActivePreviewDeviceProp?.(device);
+  };
+
+  useEffect(() => {
+    const handleGlobalDeviceChange = (e) => {
+      setActivePreviewDevice(e.detail);
+    };
+    window.addEventListener('previewDeviceChange', handleGlobalDeviceChange);
+    return () => window.removeEventListener('previewDeviceChange', handleGlobalDeviceChange);
+  }, []);
 
   const presetColors = [
     '#ffffff', '#f3f4f6', '#e5e7eb', '#d1d5db', '#9ca3af', '#4b5563', '#1f2937', '#000000',
@@ -226,8 +250,8 @@ const RightSidebar = ({
       style={{ width: '24vw' }}
     >
       {/* ================= Display Controls (Header Section) ================= */}
-      <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8vh' }}>
-         {/* Preview & Double Page Toggle Row (Center aligned in 8vh) */}
+      <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8.5vh' }}>
+         {/* Preview & Double Page Toggle Row */}
          <div className="flex items-center justify-between">
             <div className="flex items-center gap-[0.6vw]">
                 <div 
@@ -239,10 +263,15 @@ const RightSidebar = ({
                 <span className="text-gray-700 font-medium text-[0.8vw]">Double Page</span>
             </div>
 
-            <button className="bg-[#5145F6] text-white flex items-center gap-[0.3vw] px-[0.6vw] py-[0.2vw] rounded-[0.4vw] shadow-sm hover:bg-[#4338CA] transition-all text-[0.75vw] font-medium">
-               <Icon icon="ic:baseline-preview" width="0.9vw" height="0.9vw" />
-               <span className="">Preview</span>
-            </button>
+            <div className="flex items-center gap-[0.4vw]">
+               <button 
+                  onClick={onPreview}
+                  className="bg-[#5145F6] text-white flex items-center gap-[0.3vw] px-[0.6vw] py-[0.2vw] rounded-[0.4vw] shadow-sm hover:bg-[#4338CA] transition-all text-[0.75vw] font-medium"
+               >
+                  <Icon icon="ic:baseline-preview" width="0.9vw" height="0.9vw" />
+                  <span>Preview</span>
+               </button>
+            </div>
          </div>
       </div>
 
@@ -459,19 +488,57 @@ const RightSidebar = ({
               </div>
               <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1.5vh]">
                 <div className="text-[0.7vw] text-gray-400 font-medium italic">Configure interactive behaviors for the selected element.</div>
-                <div className="grid grid-cols-2 gap-[0.8vw]">
-                  {[
-                    { label: 'Link', icon: 'lucide:link' },
-                    { label: 'Popup', icon: 'lucide:external-link' },
-                    { label: 'Tooltip', icon: 'lucide:message-square' },
-                    { label: 'Audio', icon: 'lucide:volume-2' }
-                  ].map(type => (
-                    <div key={type.label} className="p-[0.8vw] bg-gray-50/50 rounded-[0.6vw] border border-gray-100 hover:border-indigo-500 hover:bg-indigo-50/30 cursor-pointer transition-all flex flex-col items-center gap-[0.5vh] group/type">
-                      <Icon icon={type.icon} width="1.2vw" className="text-gray-400 group-hover/type:text-indigo-600 transition-colors" />
-                      <span className="text-[0.7vw] font-bold text-gray-600 group-hover/type:text-indigo-700">{type.label}</span>
+                
+                {!selectedLayerId ? (
+                   <div className="p-[1vw] text-center text-[0.75vw] text-gray-400 font-medium bg-gray-50 rounded-[0.6vw] border border-dashed">
+                      Select an element to add interactions
+                   </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-[0.8vw]">
+                      {[
+                        { id: 'link', label: 'Link', icon: 'lucide:link' },
+                        { id: 'popup', label: 'Popup', icon: 'lucide:external-link' }
+                      ].map(type => {
+                        const isSelected = selectedElementProps?.['data-interaction'] === type.id;
+                        return (
+                          <div 
+                            key={type.id} 
+                            onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction', isSelected ? 'none' : type.id)}
+                            className={`p-[0.8vw] rounded-[0.6vw] border cursor-pointer transition-all flex flex-col items-center gap-[0.5vh] group/type ${isSelected ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'bg-gray-50/50 border-gray-100 hover:border-indigo-300 hover:bg-white'}`}
+                          >
+                            <Icon icon={type.icon} width="1.2vw" className={`${isSelected ? 'text-indigo-600' : 'text-gray-400 group-hover/type:text-indigo-400'}`} />
+                            <span className={`text-[0.7vw] font-bold ${isSelected ? 'text-indigo-700' : 'text-gray-600 group-hover/type:text-indigo-600'}`}>{type.label}</span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+
+                    {selectedElementProps?.['data-interaction'] && selectedElementProps['data-interaction'] !== 'none' && (
+                      <div className="mt-[1vw] space-y-[0.8vw] animate-in slide-in-from-top-2 duration-300">
+                         <div className="flex flex-col gap-[0.5vh]">
+                            <span className="text-[0.65vw] font-bold text-gray-500 uppercase tracking-tight">
+                               {selectedElementProps['data-interaction'] === 'link' ? 'URL / Address' : 'Message Content'}
+                            </span>
+                            <div className="relative">
+                               <input 
+                                  type="text"
+                                  placeholder={selectedElementProps['data-interaction'] === 'link' ? 'https://google.com' : 'Enter message...'}
+                                  value={selectedElementProps['data-interaction-value'] || ''}
+                                  onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value)}
+                                  className="w-full bg-gray-50 border border-gray-200 rounded-[0.5vw] px-[0.8vw] py-[0.6vw] text-[0.8vw] font-medium outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner"
+                               />
+                               <Icon 
+                                  icon={selectedElementProps['data-interaction'] === 'link' ? 'lucide:globe' : 'lucide:message-square'} 
+                                  className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-300"
+                                  width="1vw"
+                               />
+                            </div>
+                         </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
 
@@ -480,14 +547,15 @@ const RightSidebar = ({
                 <span className="text-[0.75vw] font-bold text-gray-400 whitespace-nowrap tracking-widest uppercase">Triggers</span>
                 <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
               </div>
-              {['On Click', 'On Hover', 'On View'].map(trigger => (
-                <div key={trigger} className="flex items-center justify-between p-[0.8vw] bg-white border border-gray-100 rounded-[0.6vw] hover:shadow-sm cursor-pointer transition-all group">
-                  <span className="text-[0.8vw] font-medium text-gray-700">{trigger}</span>
-                  <div className="w-[1.4vw] h-[1.4vw] rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-indigo-50 transition-colors">
-                    <Icon icon="lucide:plus" width="0.8vw" className="text-gray-400 group-hover:text-indigo-600" />
+              {['On Click'].map(trigger => (
+                <div key={trigger} className="flex items-center justify-between p-[0.8vw] bg-white border border-indigo-500/20 rounded-[0.6vw] shadow-sm cursor-default">
+                  <span className="text-[0.8vw] font-bold text-indigo-700">{trigger}</span>
+                  <div className="w-[1.4vw] h-[1.4vw] rounded-full bg-indigo-50 flex items-center justify-center">
+                    <Icon icon="lucide:check" width="0.8vw" className="text-indigo-600" />
                   </div>
                 </div>
               ))}
+              <div className="text-[0.65vw] text-gray-400 text-center italic mt-[0.5vh]">More triggers coming soon</div>
             </div>
           </div>
         ) : (
@@ -500,46 +568,107 @@ const RightSidebar = ({
               </div>
               <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1.5vh]">
                 <div className="text-[0.7vw] text-gray-400 font-medium italic">Add motion presets to breathe life into your page.</div>
-                <div className="space-y-[1vh]">
-                  {[
-                    { label: 'Fade In', desc: 'Smooth opacity transition' },
-                    { label: 'Slide Up', desc: 'Entrance from bottom' },
-                    { label: 'Zoom In', desc: 'Scale from center' },
-                    { label: 'Bounce', desc: 'Playful entry effect' }
-                  ].map(anim => (
-                    <div key={anim.label} className="flex items-center justify-between p-[0.7vw] bg-gray-50/50 rounded-[0.6vw] border border-gray-100 hover:bg-white hover:shadow-md hover:border-purple-300 transition-all cursor-pointer group/anim">
-                      <div className="flex items-center gap-[0.8vw]">
-                        <div className="w-[1.8vw] h-[1.8vw] bg-white rounded-full flex items-center justify-center shadow-sm text-gray-400 group-hover/anim:text-purple-600 transition-colors">
-                          <Icon icon="mdi:motion-play-outline" width="1vw" />
+                
+                {!selectedLayerId ? (
+                   <div className="p-[1vw] text-center text-[0.75vw] text-gray-400 font-medium bg-gray-50 rounded-[0.6vw] border border-dashed">
+                      Select an element to add animations
+                   </div>
+                ) : (
+                  <div className="space-y-[1vh]">
+                    {[
+                      { id: 'fade-in', label: 'Fade In', desc: 'Smooth opacity transition' },
+                      { id: 'slide-up', label: 'Slide Up', desc: 'Entrance from bottom' },
+                      { id: 'zoom-in', label: 'Zoom In', desc: 'Scale from center' },
+                      { id: 'bounce-in', label: 'Bounce', desc: 'Playful entry effect' }
+                    ].map(anim => {
+                      const isSelected = selectedElementProps?.['data-animation-open-type'] === anim.id;
+                      return (
+                        <div 
+                          key={anim.id} 
+                          onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-type', isSelected ? 'none' : anim.id)}
+                          className={`flex items-center justify-between p-[0.7vw] rounded-[0.6vw] border transition-all cursor-pointer group/anim ${isSelected ? 'border-purple-500 bg-purple-50 shadow-sm' : 'bg-gray-50/50 border-gray-100 hover:bg-white hover:shadow-md hover:border-purple-300'}`}
+                        >
+                          <div className="flex items-center gap-[0.8vw]">
+                            <div className={`w-[1.8vw] h-[1.8vw] rounded-full flex items-center justify-center shadow-sm transition-colors ${isSelected ? 'bg-purple-600 text-white' : 'bg-white text-gray-400 group-hover/anim:text-purple-600'}`}>
+                              <Icon icon="mdi:motion-play-outline" width="1vw" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className={`text-[0.75vw] font-bold ${isSelected ? 'text-purple-900' : 'text-gray-700 group-hover/anim:text-purple-900'}`}>{anim.label}</span>
+                              <span className="text-[0.6vw] text-gray-400">{anim.desc}</span>
+                            </div>
+                          </div>
+                          {isSelected && <Icon icon="lucide:check" width="1vw" className="text-purple-600" />}
                         </div>
-                        <div className="flex flex-col">
-                          <span className="text-[0.75vw] font-bold text-gray-700 group-hover/anim:text-purple-900">{anim.label}</span>
-                          <span className="text-[0.6vw] text-gray-400">{anim.desc}</span>
-                        </div>
-                      </div>
-                      <Icon icon="lucide:chevron-right" width="0.8vw" className="text-gray-300 group-hover/anim:text-purple-400" />
-                    </div>
-                  ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-col gap-[1.5vh]">
-              <div className="flex items-center gap-[0.7vw]">
-                 <span className="text-[0.75vw] font-bold text-gray-400 tracking-widest uppercase">Presets Tuning</span>
-                 <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
-              </div>
-              <div className="grid grid-cols-2 gap-[1vw]">
-                 <div className="flex flex-col gap-[0.5vh]">
-                   <span className="text-[0.65vw] font-bold text-gray-500">Duration</span>
-                   <div className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700">0.5s</div>
-                 </div>
-                 <div className="flex flex-col gap-[0.5vh]">
-                   <span className="text-[0.65vw] font-bold text-gray-500">Delay</span>
-                   <div className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700">0s</div>
-                 </div>
-              </div>
-            </div>
+            {selectedLayerId && selectedElementProps?.['data-animation-open-type'] && selectedElementProps['data-animation-open-type'] !== 'none' && (
+               <div className="flex flex-col gap-[1.5vh] animate-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center gap-[0.7vw]">
+                     <span className="text-[0.75vw] font-bold text-gray-400 tracking-widest uppercase">Presets Tuning</span>
+                     <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-[1vw]">
+                     <div className="flex flex-col gap-[0.5vh]">
+                       <span className="text-[0.65vw] font-bold text-gray-500">Duration (s)</span>
+                       <input 
+                          type="number" 
+                          step="0.1" 
+                          min="0"
+                          value={selectedElementProps?.['data-animation-open-duration'] || 0.5}
+                          onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-duration', e.target.value)}
+                          className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none focus:bg-purple-50 focus:ring-1 focus:ring-purple-200"
+                       />
+                     </div>
+                     <div className="flex flex-col gap-[0.5vh]">
+                       <span className="text-[0.65vw] font-bold text-gray-500">Delay (s)</span>
+                       <input 
+                          type="number" 
+                          step="0.1" 
+                          min="0"
+                          value={selectedElementProps?.['data-animation-open-delay'] || 0}
+                          onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-delay', e.target.value)}
+                          className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none focus:bg-purple-50 focus:ring-1 focus:ring-purple-200"
+                       />
+                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-[1vw]">
+                     <div className="flex flex-col gap-[0.5vh]">
+                       <span className="text-[0.65vw] font-bold text-gray-500">Speed (x)</span>
+                       <input 
+                          type="number" 
+                          step="0.1" 
+                          min="0.1"
+                          max="5"
+                          value={selectedElementProps?.['data-animation-open-speed'] || 1}
+                          onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-speed', e.target.value)}
+                          className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none focus:bg-purple-50 focus:ring-1 focus:ring-purple-200"
+                       />
+                     </div>
+                     <div className="flex flex-col gap-[0.5vh] justify-end">
+                       <button 
+                          onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-every-visit', selectedElementProps?.['data-animation-open-every-visit'] === 'false' ? 'true' : 'false')}
+                          className={`flex items-center justify-between px-[0.6vw] py-[0.3vw] rounded-[0.4vw] border transition-all ${selectedElementProps?.['data-animation-open-every-visit'] !== 'false' ? 'bg-purple-100 border-purple-200 text-purple-700' : 'bg-gray-100 border-gray-200 text-gray-400'}`}
+                       >
+                          <span className="text-[0.65vw] font-bold">Every Visit</span>
+                          <Icon icon={selectedElementProps?.['data-animation-open-every-visit'] !== 'false' ? 'lucide:check-circle-2' : 'lucide:circle'} width="0.8vw" />
+                       </button>
+                     </div>
+                  </div>
+
+                  <div className="mt-[0.5vh] p-[0.8vw] bg-purple-50/50 border border-purple-100 rounded-[0.6vw]">
+                     <div className="flex items-center justify-between">
+                        <span className="text-[0.7vw] font-bold text-purple-700">Trigger</span>
+                        <span className="text-[0.7vw] font-medium text-purple-600 bg-white px-[0.4vw] py-[0.1vw] rounded shadow-sm">While Opening</span>
+                     </div>
+                  </div>
+               </div>
+            )}
           </div>
         )}
       </div>

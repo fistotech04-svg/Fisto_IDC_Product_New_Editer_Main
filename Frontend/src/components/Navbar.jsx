@@ -2,11 +2,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logo from '../assets/logo/Fisto_logo.png';
-import { User, Share2, Save, Download, Loader2 } from 'lucide-react';
+import { User, Share2, Save, Download, Loader2, Eye } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import ProfileModal from './ProfileModal';
 
 
-const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving }) => {
+const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
@@ -185,6 +186,17 @@ const Navbar = ({ onExport, onSave, hasUnsavedChanges, saveSuccessInfo, isAutoSa
                 </div>
               )}
           </div>
+
+          {/* Preview Button - Hidden on main Editor page */}
+          {!(location.pathname.startsWith('/editor') && !location.pathname.includes('threed_editor') && !location.pathname.includes('customized_editor')) && (
+            <button 
+              onClick={onPreview}
+              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0"
+              title="Preview Book"
+            >
+              <Icon icon="ic:baseline-preview" className="w-[1.25vw] h-[1.25vw]" />
+            </button>
+          )}
 
           {/* Export */}
           <button 

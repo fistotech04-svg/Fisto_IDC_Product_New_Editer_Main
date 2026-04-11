@@ -18,7 +18,13 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
     const fetchSettings = async () => {
       if (user.email && user.email !== 'No Email' && user.email !== 'guest@example.com') {
         try {
-          const response = await fetch(`/api/usersetting/get-settings?emailId=${user.email}`);
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+          const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${user.email}`);
+          
+          if (!response.ok) {
+            throw new Error(`Server responded with ${response.status}`);
+          }
+          
           const data = await response.json();
           if (data) {
             setStorage({
