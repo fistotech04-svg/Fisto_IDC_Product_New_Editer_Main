@@ -12,6 +12,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
   const groupRef = React.useRef(null);
   const [modelGroup, setModelGroup] = useState(null);
   const [syncedSelectionSignature, setSyncedSelectionSignature] = useState(null);
+  const activeTextureRef = React.useRef(selectedTexture);
+  activeTextureRef.current = selectedTexture;
 
 
   // Expose Helper Functionality
@@ -96,7 +98,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                        isMatch = true; 
                    }
                    
-                   if (isMatch) {
+                    if (isMatch) {
                         // Forcefully replace maps (clearing old ones if new one doesn't exist)
                         mat.map = newMaps.map || null;
                         mat.normalMap = newMaps.normalMap || null;
@@ -108,19 +110,26 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                         mat.bumpMap = newMaps.normalMap || null;
                         if (mat.bumpMap && !mat.bumpScale) mat.bumpScale = 1;
                        
-                       if (mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial) {
-                           mat.roughnessMap = newMaps.roughnessMap || null;
-                           mat.metalnessMap = newMaps.metalnessMap || null;
+                        // Clear any ongoing flash and reset emissive
+                        mat.userData.isFlashing = false;
+                        if (mat.emissive && typeof mat.emissive.set === 'function') {
+                            mat.emissive.set(0, 0, 0);
+                            mat.emissiveIntensity = 0;
+                        }
 
-                           // Reset factors to 1.0 for full map influence if maps are present
-                           if (newMaps.roughnessMap) mat.roughness = 1.0;
-                           if (newMaps.metalnessMap) mat.metalness = 1.0;
-                           
-                           // Reset color to white so diffuse map is not tinted
-                           // IMPORTANT: Only do this if a diffuse map was actually applied
-                           if (newMaps.map && mat.color && typeof mat.color.set === 'function') {
-                               mat.color.set(0xffffff);
-                           }
+                        if (mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial || mat.isMeshPhongMaterial) {
+                            mat.roughnessMap = newMaps.roughnessMap || null;
+                            mat.metalnessMap = newMaps.metalnessMap || null;
+
+                            // Reset factors to 1.0 for full map influence if maps are present
+                            if (newMaps.roughnessMap) mat.roughness = 1.0;
+                            if (newMaps.metalnessMap && mat.metalness !== undefined) mat.metalness = 1.0;
+                            
+                            // Reset color to white so diffuse map is not tinted
+                            // We do this for all common materials that support diffuse maps
+                            if (newMaps.map && mat.color && typeof mat.color.set === 'function') {
+                                mat.color.set(0xffffff);
+                            }
                         }
                         
                         // Save the full texture object for later identification
@@ -133,7 +142,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                         }
                         
                         mat.needsUpdate = true;
-                   }
+                    }
               };
 
               if (Array.isArray(child.material)) {
@@ -477,6 +486,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     // Force smooth shading and ensure both sides are visible
                     m.flatShading = false;
                     m.side = THREE.DoubleSide;
+                    // Reset emissive by default
+                    if (m.emissive) m.emissive.set(0, 0, 0);
+                    m.emissiveIntensity = 0;
+                    m.emissiveMap = null;
                     if (m.needsUpdate !== undefined) m.needsUpdate = true;
 
                     // Ensure original data is stored for visibility/UI logic
@@ -581,7 +594,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     if (!scene) return;
     
     const timeouts = [];
-
+    
     const targetName = selectedMaterial ? selectedMaterial.name : null;
     const targetParentGroup = selectedMaterial ? selectedMaterial.parentGroup : null;
     const isGroup = selectedMaterial ? selectedMaterial.isGroup : false;
@@ -595,9 +608,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     
     const isFullModelSelect = isScene || isThisModelGroup;
 
-    const FLASH_COLOR = new THREE.Color("#ff0000"); // Red
-    const FLASH_INTENSITY = 1.5;
-    const HIGHLIGHT_INTENSITY_LOW = 0.5;
+    const FLASH_COLOR = new THREE.Color("#ff0000"); // Red blink
+    const FLASH_INTENSITY = 2.5; // High intensity for "opacity" (glow)
+    const HIGHLIGHT_INTENSITY_LOW = 0; 
 
     const groupMaterials = (isGroup && selectedMaterial.materials) ? selectedMaterial.materials : [];
 
@@ -625,37 +638,63 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             }
             
             m.userData.isFlashing = true;
+
+            // Triple Blink Sequence
+            // 1st Blink: On (0ms)
             m.emissive.copy(FLASH_COLOR);
             m.emissiveIntensity = FLASH_INTENSITY; 
 
+            // 1st Blink: Off (100ms)
             timeouts.push(setTimeout(() => {
-                    if (selectedMaterial && selectedMaterial.name === targetName) m.emissiveIntensity = HIGHLIGHT_INTENSITY_LOW;
-            }, 150));
+                if (m.userData.isFlashing) m.emissiveIntensity = 0;
+            }, 100));
 
+            // 2nd Blink: On (200ms)
             timeouts.push(setTimeout(() => {
-                    if (selectedMaterial && selectedMaterial.name === targetName) m.emissiveIntensity = FLASH_INTENSITY;
+                if (m.userData.isFlashing) {
+                    if (m.emissive) m.emissive.copy(FLASH_COLOR);
+                    m.emissiveIntensity = FLASH_INTENSITY;
+                }
+            }, 200));
+
+            // 2nd Blink: Off (300ms)
+            timeouts.push(setTimeout(() => {
+                if (m.userData.isFlashing) m.emissiveIntensity = 0;
             }, 300));
 
-            const hasOriginal = m.userData.originalEmissive && typeof m.userData.originalEmissive.clone === 'function';
-            
+            // 3rd Blink: On (400ms)
             timeouts.push(setTimeout(() => {
-                    const hasOriginal = m.userData.originalEmissive && typeof m.userData.originalEmissive.clone === 'function';
-                    if (hasOriginal) {
-                        m.emissive.copy(m.userData.originalEmissive);
-                        m.emissiveIntensity = m.userData.originalIntensity;
-                    } else if (m.emissive) {
-                        if (typeof m.emissive.set === 'function') m.emissive.set(0, 0, 0); 
-                        else m.emissive.setRGB(0, 0, 0);
-                        m.emissiveIntensity = 0; 
+                if (m.userData.isFlashing) {
+                    if (m.emissive) m.emissive.copy(FLASH_COLOR);
+                    m.emissiveIntensity = FLASH_INTENSITY;
+                }
+            }, 400));
+
+            // 3rd Blink: Off & Final Reset (500ms)
+            timeouts.push(setTimeout(() => {
+                    if (m.emissive) {
+                        if (typeof m.emissive.set === 'function') m.emissive.set(1, 1, 1); 
+                        else m.emissive.setRGB(1, 1, 1);
                     }
+                    m.emissiveIntensity = 0; 
+                    
+                    // Sync back to UI
+                    if (onUpdateMaterialSettingRef.current) {
+                        onUpdateMaterialSettingRef.current('emissiveColor', '#ffffff', true);
+                        onUpdateMaterialSettingRef.current('emissiveIntensity', 0, true);
+                    }
+                    
                     m.userData.isFlashing = false;
-            }, 450));
+            }, 500)); 
 
         } else {
             // If another material is selected, instantly restore this one's original state if it was flashing
-            if (m.userData.isFlashing && m.userData.originalEmissive) {
-                m.emissive.copy(m.userData.originalEmissive);
-                m.emissiveIntensity = m.userData.originalIntensity;
+            if (m.userData.isFlashing) {
+                if (m.emissive) {
+                    if (typeof m.emissive.set === 'function') m.emissive.set(1, 1, 1);
+                    else m.emissive.setRGB(1, 1, 1);
+                }
+                m.emissiveIntensity = 0;
                 m.userData.isFlashing = false;
             }
         }
@@ -727,6 +766,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         const m = foundMat;
 
         const safeUpdate = (key, val) => {
+            // Do not sync emissive properties to UI while the material is flashing red/white
+            // to avoid overwriting user settings with temporary highlight colors.
+            if (m.userData.isFlashing && (key === 'emissiveColor' || key === 'emissiveIntensity')) return;
+            
             if (onUpdateMaterialSettingRef.current) {
                 onUpdateMaterialSettingRef.current(key, val, true); // true = sync from model
             }

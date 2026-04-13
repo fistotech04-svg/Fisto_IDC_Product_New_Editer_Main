@@ -21,10 +21,21 @@ import { STLExporter } from "three-stdlib";
 import CameraModal from "./Components/CameraModal";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
+import { useToast } from "../../components/CustomToast";
 
 
 export default function ThreedEditor() {
-  const { threedState, setThreedState } = useOutletContext();
+  const { 
+    threedState, 
+    setThreedState, 
+    setSaveHandler, 
+    setCanSave,
+    setHasUnsavedChanges, 
+    setIsSaving, 
+    triggerSaveSuccess 
+  } = useOutletContext();
+
+  const toast = useToast();
 
   const [models, setModels] = useState(threedState.models || (threedState.modelUrl ? [{
       id: "default",
@@ -76,7 +87,6 @@ export default function ThreedEditor() {
       if (selectedTexture) console.log("Texture Selected:", selectedTexture.name);
   }, [selectedTexture]);
 
-  const [showWarning, setShowWarning] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAddModelModal, setShowAddModelModal] = useState(false);
   const [showModelGalleryModal, setShowModelGalleryModal] = useState(false);
@@ -106,6 +116,7 @@ export default function ThreedEditor() {
 
   const { 
     state: historyState, 
+    past,
     set: pushHistory, 
     undo, 
     redo, 
@@ -169,52 +180,83 @@ export default function ThreedEditor() {
     const syncWithServerModels = async () => {
       try {
         const storedUser = localStorage.getItem('user');
-        if (!storedUser) return;
-        const user = JSON.parse(storedUser);
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        
-        const response = await axios.get(`${backendUrl}/api/3d-models/get-models`, {
-          params: { emailId: user.emailId }
-        });
-        const serverModels = response.data.models || [];
-        
-        // 1. Identify valid remote URLs
-        const validRemoteUrls = new Set(serverModels.map(m => m.url));
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-        // 2. Filter out stale remote models, but keep local blobs
-        const filteredNextModels = models.filter(m => {
-          if (!m.url) return false;
-          // Keep if it's a local blob
-          if (m.url.startsWith('blob:')) return true;
-          // Keep if it's a relative path starting with /uploads and exists on server
-          const relativeUrl = m.url.replace(backendUrl, '');
-          return validRemoteUrls.has(relativeUrl);
-        });
+          // 1. Sync Models
+        try {
+          const response = await axios.get(`${backendUrl}/api/3d-models/get-models`, {
+            params: { emailId: user.emailId }
+          });
+          const serverModels = response.data.models || [];
+          
+          // 1. Identify valid remote URLs
+          const validRemoteUrls = new Set(serverModels.map(m => m.url));
 
-        // 3. If everything was stale/empty, and we have server models, pick the first one
-        if (filteredNextModels.length === 0 && serverModels.length > 0) {
-          const firstModel = serverModels[0];
-          const fullUrl = `${backendUrl}${firstModel.url}`;
-          
-          const newModel = {
-            id: Date.now().toString(),
-            url: fullUrl,
-            file: null,
-            type: firstModel.type,
-            name: firstModel.name.replace(/\.[^/.]+$/, "")
-          };
-          
-          setModels([newModel]);
-          setModelUrl(fullUrl);
-          setModelType(newModel.type);
-          setModelName(newModel.name);
-          setIsSidebarCollapsed(false);
-        } else if (filteredNextModels.length !== models.length) {
-          // If we filtered out some stale models, update state
-          setModels(filteredNextModels);
+          // 2. Filter out stale remote models, but keep local blobs
+          const filteredNextModels = models.filter(m => {
+            if (!m.url) return false;
+            // Keep if it's a local blob
+            if (m.url.startsWith('blob:')) return true;
+            // Keep if it's a relative path starting with /uploads and exists on server
+            const relativeUrl = m.url.replace(backendUrl, '');
+            return validRemoteUrls.has(relativeUrl);
+          });
+
+          // 3. If everything was stale/empty, and we have server models, pick the first one
+          if (filteredNextModels.length === 0 && serverModels.length > 0) {
+            const firstModel = serverModels[0];
+            const fullUrl = `${backendUrl}${firstModel.url}`;
+            
+            const newModel = {
+              id: Date.now().toString(),
+              url: fullUrl,
+              file: null,
+              type: firstModel.type,
+              name: firstModel.name.replace(/\.[^/.]+$/, "")
+            };
+            
+            setModels([newModel]);
+            setModelUrl(fullUrl);
+            setModelType(newModel.type);
+            setModelName(newModel.name);
+            setIsSidebarCollapsed(false);
+          } else if (filteredNextModels.length !== models.length) {
+            // If we filtered out some stale models, update state
+            setModels(filteredNextModels);
+          }
+        } catch (error) {
+          console.error("Error syncing with server models:", error);
         }
-      } catch (error) {
-        console.error("Error syncing with server models:", error);
+
+        // 2. Restore Session from Backend
+        try {
+          const res = await axios.get(`${backendUrl}/api/3d-models/get-session?emailId=${user.emailId}`);
+          if (res.data && res.data.state) {
+            const savedState = res.data.state;
+            
+            // Re-hydrate state from backend
+            if (savedState.models) setModels(savedState.models);
+            if (savedState.materialSettings) setMaterialSettings(savedState.materialSettings);
+            if (savedState.transformValues) setTransformValues(savedState.transformValues);
+            if (savedState.modelName) setModelName(savedState.modelName);
+            
+            setThreedState(prev => ({ ...prev, ...savedState }));
+            
+            // Sync history to avoid immediate dirty state after cloud restore
+            lastSavedRef.current = {
+                historyIndex: past.length,
+                hasLocalFiles: false
+            };
+            }
+          } catch (e) {
+              // 404 is fine, just means no saved session yet
+              if (e.response?.status !== 404) console.error("Error restoring session:", e);
+          }
+        }
+      } catch (globalError) {
+        console.error("Global sync error:", globalError);
       } finally {
         setIsSyncing(false);
       }
@@ -224,6 +266,142 @@ export default function ThreedEditor() {
     // Only run on mount to validate initial state
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const lastSavedRef = useRef({
+    historyIndex: 0,
+    hasLocalFiles: false
+  });
+
+  useEffect(() => {
+    if (!setCanSave) return undefined;
+
+    setCanSave(models.length > 0);
+
+    return () => {
+      setCanSave(true);
+    };
+  }, [models.length, setCanSave]);
+
+  const handleSave = useCallback(async () => {
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+
+    try {
+      if (models.length === 0) {
+        return;
+      }
+
+      setIsSaving(true);
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) {
+        console.error("User not found in localStorage");
+        return;
+      }
+      
+      const user = JSON.parse(storedUser);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+      const nextModels = [...models];
+      let hasUploaded = false;
+
+      for (let i = 0; i < nextModels.length; i++) {
+        const m = nextModels[i];
+        if (m.file) {
+          const file = m.file;
+          const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+          const uploadId = Date.now().toString() + Math.random().toString(36).substring(7);
+          
+          let lastResponse = null;
+
+          // Upload chunks sequentially to avoid overwhelming the connection
+          for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+              const start = chunkIndex * CHUNK_SIZE;
+              const end = Math.min(start + CHUNK_SIZE, file.size);
+              const chunk = file.slice(start, end);
+              
+              const formData = new FormData();
+              // Append metadata BEFORE the file chunk to ensure multer sees them in req.body
+              formData.append('uploadId', uploadId);
+              formData.append('chunkIndex', chunkIndex);
+              formData.append('totalChunks', totalChunks);
+              formData.append('fileName', file.name);
+              formData.append('emailId', user.emailId);
+              formData.append('chunk', chunk);
+
+              // We use a separate endpoint for chunks
+              const res = await axios.post(`${backendUrl}/api/3d-models/upload-chunk`, formData, {
+                  headers: { 'Content-Type': 'multipart/form-data' }
+              });
+              lastResponse = res;
+          }
+
+          if (lastResponse && lastResponse.data && lastResponse.data.url) {
+            nextModels[i] = {
+              ...m,
+              url: `${backendUrl}${lastResponse.data.url}`,
+              file: null // Clear file object after successful upload
+            };
+            hasUploaded = true;
+          }
+        }
+      }
+
+      // Save Full State (Session) to Backend
+      const stateToSave = {
+          models: nextModels,
+          materialSettings,
+          transformValues,
+          modelName,
+          lastSaved: new Date().toISOString()
+      };
+      
+      await axios.post(`${backendUrl}/api/3d-models/save-session`, {
+          emailId: user.emailId,
+          state: stateToSave
+      });
+
+      if (hasUploaded) {
+        setModels(nextModels);
+      }
+      
+      // Update last saved reference to current state
+      lastSavedRef.current = {
+        historyIndex: past.length,
+        hasLocalFiles: false
+      };
+      setHasUnsavedChanges(false);
+      
+      if (triggerSaveSuccess) {
+        triggerSaveSuccess({
+          isManual: true,
+          name: modelName || "3D Model",
+          folder: "3D_Modals"
+        });
+      }
+    } catch (error) {
+      console.error("Error saving 3D models:", error);
+      const errorMessage = error.response?.data?.message || error.message || "An unexpected error occurred while saving your model.";
+      toast.error(errorMessage);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [models, modelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast]);
+
+  useEffect(() => {
+    if (setSaveHandler) {
+      setSaveHandler(() => handleSave);
+    }
+    return () => {
+      if (setSaveHandler) setSaveHandler(null);
+    };
+  }, [handleSave, setSaveHandler]);
+
+  // Track Unsaved Changes
+  useEffect(() => {
+      const hasLocalModels = models.some(m => m.file);
+      const historyChanged = past.length !== lastSavedRef.current.historyIndex;
+      
+      setHasUnsavedChanges(hasLocalModels || historyChanged);
+  }, [models, past.length, setHasUnsavedChanges]);
 
   const handleAddModel = (file) => {
       if (!file) return;
@@ -652,7 +830,7 @@ export default function ThreedEditor() {
     const validExtensions = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.step', '.stp'];
     
     if (!validExtensions.some(ext => name.endsWith(ext))) {
-        setShowWarning(true);
+        toast.error('Please upload a 3D model in one of the following formats: .glb, .gltf, .obj, .fbx, .stl, .step');
         return;
     }
     
@@ -698,6 +876,8 @@ export default function ThreedEditor() {
         color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         appliedTexture: null,
         maps: {},
+        emissiveIntensity: 0,
+        emissiveColor: '#ffffff',
         lightPosition: { x: 10, y: 10, z: 10 }
     };
     // Reset material settings for the new model
@@ -790,11 +970,17 @@ export default function ThreedEditor() {
     processFile(file);
   };
 
-  const handleClearModel = () => {
+  const handleClearModel = async () => {
     // Revoke URLs
     models.forEach(m => {
          if (m.url) URL.revokeObjectURL(m.url);
     });
+
+    const defaultTransform = {
+        position: { x: 0, y: 0, z: 0 },
+        rotation: { x: 0, y: 0, z: 0 },
+        scale: { x: 1, y: 1, z: 1 }
+    };
 
     setModels([]);
     setModelUrl(null);
@@ -814,12 +1000,6 @@ export default function ThreedEditor() {
         fileSize: "0 MB",
         dimensions: "0 X 0 X 0 unit"
     });
-    // Reset transform
-    const defaultTransform = {
-        position: { x: 0, y: 0, z: 0 },
-        rotation: { x: 0, y: 0, z: 0 },
-        scale: { x: 1, y: 1, z: 1 }
-    };
     setTransformValues(defaultTransform);
     setHiddenMaterials(new Set());
     setDeletedMaterials(new Set());
@@ -827,9 +1007,30 @@ export default function ThreedEditor() {
     // Reset History
     resetHistory({
         transformValues: defaultTransform,
-        materialSettings: materialSettings, 
+        materialSettings: {},
         modelName: ""
     });
+
+    // Also clear from server session to make it persistent across refreshes
+    try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            const user = JSON.parse(storedUser);
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            await axios.post(`${backendUrl}/api/3d-models/save-session`, {
+                emailId: user.emailId,
+                state: {
+                    models: [],
+                    materialSettings: {},
+                    transformValues: defaultTransform,
+                    modelName: "",
+                    lastSaved: new Date().toISOString()
+                }
+            });
+        }
+    } catch (err) {
+        console.error("Error clearing server session:", err);
+    }
   };
 
   const handleResetView = () => {
@@ -1019,27 +1220,7 @@ export default function ThreedEditor() {
     >
       <GlobalLoader manualLoading={manualLoading || isSyncing} />
       
-      {/* --- WARNING MODAL --- */}
-      {showWarning && (
-           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-               <div className="bg-white p-[1.5vw] rounded-[1vw] shadow-xl max-w-[20vw] w-full text-center">
-                   <div className="w-[3vw] h-[3vw] bg-red-100 rounded-full flex items-center justify-center mx-auto mb-[1vw]">
-                       <Icon icon="ph:warning-circle-bold" className="text-red-600 text-[1.5vw]" />
-                   </div>
-                   <h3 className="text-[1vw] font-bold text-gray-900 mb-[0.5vw]">Unsupported File Type</h3>
-                   <p className="text-[0.75vw] text-gray-600 mb-[1.5vw]">
-                       Please upload a 3D model in one of the following formats: <br/>
-                       <span className="font-mono text-[0.65vw] bg-gray-100 px-[0.25vw] py-[0.15vw] rounded">.glb, .gltf, .obj, .fbx, .stl, .step</span>
-                   </p>
-                   <button 
-                       onClick={() => setShowWarning(false)}
-                       className="w-full py-[0.65vw] bg-gray-900 text-white rounded-[0.75vw] font-medium hover:bg-gray-800 transition-colors text-[0.85vw]"
-                   >
-                       Got it
-                   </button>
-               </div>
-           </div>
-      )}
+
 
       {/* --- EXPORT MODAL --- */}
       {showExportModal && (

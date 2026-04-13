@@ -51,6 +51,8 @@ export default function useModalHistory(initialState) {
 
     return {
         state: currentState,
+        past: history.slice(0, index),
+        future: history.slice(index + 1),
         set: setState,
         update,
         undo,

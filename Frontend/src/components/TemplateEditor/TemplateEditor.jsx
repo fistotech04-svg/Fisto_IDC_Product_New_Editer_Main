@@ -2111,7 +2111,7 @@ const TemplateEditor = () => {
   if (isLoading) {
       return (
           <div className="flex-1 flex items-center justify-center bg-white h-[92vh]">
-              <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+              <div className="w-[2.1vw] h-[2.1vw] border-[0.3vw] border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
           </div>
       );
   }

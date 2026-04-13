@@ -68,6 +68,7 @@ const Editor = () => {
   const [saveHandler, setSaveHandler] = useState(null);
   const [previewHandler, setPreviewHandler] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [canSave, setCanSave] = useState(true);
   const [currentBook, setCurrentBook] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -216,6 +217,8 @@ const Editor = () => {
     setPreviewHandler,
     hasUnsavedChanges,
     setHasUnsavedChanges,
+    canSave,
+    setCanSave,
     triggerSaveSuccess: handleSaveSuccess,
     isAutoSaveEnabled,
     isSaving,
@@ -224,7 +227,7 @@ const Editor = () => {
     setThreedState,      // 3D State setter
     currentBook,
     setCurrentBook
-  }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, threedState, currentBook]);
+  }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, canSave, threedState, currentBook]);
 
   if (isRestoring) {
       return (
@@ -242,6 +245,7 @@ const Editor = () => {
         onSave={handleSave}
         onPreview={handlePreview}
         hasUnsavedChanges={hasUnsavedChanges}
+        canSave={canSave}
         saveSuccessInfo={saveSuccessInfo}
         isAutoSaveEnabled={isAutoSaveEnabled}
         onToggleAutoSave={toggleAutoSave}

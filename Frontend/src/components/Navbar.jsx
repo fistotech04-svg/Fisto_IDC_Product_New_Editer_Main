@@ -1,5 +1,5 @@
 // src/components/Navbar.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logo from '../assets/logo/Fisto_logo.png';
 import { User, Share2, Save, Download, Loader2, Eye } from 'lucide-react';
@@ -7,7 +7,7 @@ import { Icon } from '@iconify/react';
 import ProfileModal from './ProfileModal';
 
 
-const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving }) => {
+const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const location = useLocation();
@@ -67,6 +67,12 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInf
 
   // Check if we are in 3D Editor
   const isThreedEditor = location.pathname.includes('threed_editor');
+  const isSaveDisabled = !canSave || !hasUnsavedChanges;
+  const saveButtonTitle = !canSave
+    ? "Add a 3D model to enable saving"
+    : hasUnsavedChanges
+      ? "You have unsaved changes - Click to Save"
+      : "All changes saved";
 
   return (
     <>
@@ -148,13 +154,15 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInf
           <div className="relative">
               <button 
                 onClick={onSave}
-                disabled={!hasUnsavedChanges}
+                disabled={isSaveDisabled}
                 className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm
-                  ${hasUnsavedChanges 
+                  ${!canSave
+                      ? 'bg-gray-100 text-gray-400 ring-[0.06vw] ring-gray-200'
+                      : hasUnsavedChanges 
                       ? 'bg-[#FFFBEB] text-yellow-600 cursor-pointer hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
                       : 'bg-[#F2FDF8] text-green-600 cursor-default opacity-80 ring-[0.06vw] ring-green-300'
                   }`}
-                title={hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "All changes saved"}
+                title={saveButtonTitle}
               >
                 {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
               </button>
@@ -191,7 +199,7 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInf
           {!(location.pathname.startsWith('/editor') && !location.pathname.includes('threed_editor') && !location.pathname.includes('customized_editor')) && (
             <button 
               onClick={onPreview}
-              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0"
+              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.5vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0"
               title="Preview Book"
             >
               <Icon icon="ic:baseline-preview" className="w-[1.25vw] h-[1.25vw]" />

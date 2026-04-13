@@ -14,6 +14,8 @@ export const useToast = () => {
 const ToastItem = ({ id, message, type, onClose }) => {
   const [isVisible, setIsVisible] = useState(false);
 
+  const [isHovered, setIsHovered] = useState(false);
+
   const handleClose = useCallback(() => {
     setIsVisible(false); // Trigger exit animation (slide out)
     setTimeout(() => {
@@ -27,16 +29,22 @@ const ToastItem = ({ id, message, type, onClose }) => {
       setIsVisible(true);
     }, 10);
 
-    // Auto-close after 3 seconds
-    const closeTimer = setTimeout(() => {
-      handleClose();
-    }, 3000);
+    return () => clearTimeout(enterTimer);
+  }, []);
+
+  useEffect(() => {
+    // Auto-close after 3 seconds, but only if not hovered
+    let closeTimer;
+    if (!isHovered) {
+      closeTimer = setTimeout(() => {
+        handleClose();
+      }, 3000);
+    }
 
     return () => {
-      clearTimeout(enterTimer);
-      clearTimeout(closeTimer);
+      if (closeTimer) clearTimeout(closeTimer);
     };
-  }, [handleClose]);
+  }, [isHovered, handleClose]);
 
   const bgColors = {
     success: 'bg-green-50 border-green-200',
@@ -51,35 +59,38 @@ const ToastItem = ({ id, message, type, onClose }) => {
   };
 
   const icons = {
-    success: <CheckCircle className="w-5 h-5 text-green-500" />,
-    error: <AlertCircle className="w-5 h-5 text-red-500" />,
-    info: <Info className="w-5 h-5 text-blue-500" />,
+    success: <CheckCircle className="w-[1.25vw] h-[1.25vw] text-green-500" />,
+    error: <AlertCircle className="w-[1.25vw] h-[1.25vw] text-red-500" />,
+    info: <Info className="w-[1.25vw] h-[1.25vw] text-blue-500" />,
   };
 
   return (
     <div
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={`
-        flex items-center p-4 mb-3 rounded-lg border shadow-lg backdrop-blur-sm
+        flex items-center p-[1vw] mb-[0.75vw] rounded-[0.5vw] border shadow-lg backdrop-blur-sm
         transition-all duration-300 ease-in-out transform
+        cursor-default
         ${bgColors[type] || bgColors.info}
-        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
+        ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-[2vw] opacity-0'}
       `}
       role="alert"
     >
       <div className="flex-shrink-0">
         {icons[type] || icons.info}
       </div>
-      <div className={`ml-3 text-sm font-medium ${textColors[type] || textColors.info}`}>
+      <div className={`ml-[0.75vw] text-[0.85vw] font-medium ${textColors[type] || textColors.info}`}>
         {message}
       </div>
       <button
         type="button"
-        className={`ml-auto -mx-1.5 -my-1.5 rounded-lg focus:ring-2 p-1.5 inline-flex h-8 w-8 hover:bg-white/20 ${textColors[type]}`}
+        className={`ml-auto -mx-[0.4vw] -my-[0.4vw] rounded-[0.4vw] focus:ring-2 p-[0.4vw] inline-flex items-center justify-center cursor-pointer h-[2vw] w-[2vw] hover:bg-white/20 ${textColors[type]}`}
         onClick={handleClose}
         aria-label="Close"
       >
         <span className="sr-only">Close</span>
-        <X className="w-4 h-4" />
+        <X className="w-[1vw] h-[1vw]" />
       </button>
     </div>
   );
@@ -107,7 +118,7 @@ export const ToastProvider = ({ children }) => {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed top-4 right-4 z-50 flex flex-col w-full max-w-xs space-y-2 pointer-events-none overflow-hidden pr-2 py-2">
+      <div className="fixed top-[1vw] right-[1vw] z-[9999] flex flex-col w-full max-w-[20vw] space-y-[0.5vw] pointer-events-none overflow-hidden pr-[0.1vw] py-[0.1vw]">
         {/* Pointer events none on container, auto on items. Overflow hidden to prevent scrollbars during animation if needed */}
         <div className="pointer-events-auto">
             {toasts.map((toast) => (

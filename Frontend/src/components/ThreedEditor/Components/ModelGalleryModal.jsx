@@ -128,9 +128,9 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                 {/* Main Content Area */}
                 <div ref={containerRef} className="flex-1 overflow-y-auto px-[1.5vw] py-[1.2vw] custom-scrollbar relative">
                     {loading ? (
-                        <div className="flex flex-col items-center justify-center py-[10vw] gap-[1vw]">
-                            <div className="w-[3vw] h-[3vw] border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
-                            <p className="text-[1vw] text-gray-500 font-medium">Fetching Models...</p>
+                        <div className="flex flex-col items-center justify-center py-[10vw]">
+                            <div className="w-[2.1vw] h-[2.1vw] border-[0.3vw] border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+                            <p className="mt-4 text-[1vw] text-gray-500 font-medium">Fetching Models...</p>
                         </div>
                     ) : filteredModels.length > 0 ? (
                         <div className="grid grid-cols-5 gap-[1.2vw] pb-[2vw]">

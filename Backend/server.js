@@ -52,6 +52,18 @@ app.use("/api/3d-models", threedModelRoutes);
 
 const PORT = process.env.PORT || 5000;
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("Global Error:", err);
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ message: "File too large. Max limit is 500MB." });
+  }
+  res.status(err.status || 500).json({ 
+    message: err.message || "Internal Server Error",
+    error: process.env.NODE_ENV === 'development' ? err : {}
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
