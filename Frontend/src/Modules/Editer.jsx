@@ -126,7 +126,7 @@ const Editor = () => {
       materialSettings: {
         alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
-        color: '#000000', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+        color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         lightPosition: { x: 10, y: 10, z: 10 }
       },
       modelName: "",

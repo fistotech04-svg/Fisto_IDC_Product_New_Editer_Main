@@ -300,7 +300,7 @@ const CustomSlider = ({ label, value, onChange, unit = "%", min = 0, max = 100, 
           min={min}
           max={max}
           step={step}
-          value={value}
+          value={value ?? 0}
           onChange={(e) => onChange(Number(e.target.value))}
           className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
         />
@@ -335,7 +335,7 @@ const StackedSliderBox = ({ label, val, onChange, children, min = 0, max = 100, 
             min={min}
             max={max}
             step={step}
-            value={val}
+            value={val ?? 0}
             onChange={(e) => onChange(Number(e.target.value))}
             className="absolute inset-0 w-full opacity-0 cursor-pointer z-10"
           />
@@ -586,7 +586,7 @@ export default function Customized({
                                     <input 
                                         type="text"
                                         className="text-[0.68vw] text-gray-700 font-bold uppercase tracking-tight bg-transparent border-none outline-none w-[3.2vw] p-0 cursor-text"
-                                        value={controls.color || '#ffffff'}
+                                        value={controls?.color || '#ffffff'}
                                         onChange={(e) => updateControl('color', e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                         spellCheck="false"
@@ -675,7 +675,7 @@ export default function Customized({
                                     <input 
                                         type="text"
                                         className="text-[0.68vw] text-gray-700 font-bold uppercase tracking-tight bg-transparent border-none outline-none w-[3.2vw] p-0 cursor-text"
-                                        value={controls.emissiveColor || '#ffffff'}
+                                        value={controls?.emissiveColor || '#ffffff'}
                                         onChange={(e) => updateControl('emissiveColor', e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                         spellCheck="false"

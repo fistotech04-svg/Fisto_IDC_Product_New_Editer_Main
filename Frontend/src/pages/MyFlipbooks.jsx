@@ -967,7 +967,7 @@ export default function MyFlipbooks() {
 
                                         {/* Action Row */}
                                         <div className="flex items-center justify-between w-full mt-auto pt-[0.5vw]">
-                                            <button className="flex items-center gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-blue-600 transition-colors">
+                                            <button className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-blue-600 transition-colors">
                                                 <Eye size="0.9vw" /> View Book
                                             </button>
                                             <button 
@@ -979,7 +979,7 @@ export default function MyFlipbooks() {
                                                     }
                                                     const identifier = book.v_id || encodeURIComponent(book.realName);
                                                 }}
-                                                className="flex items-center gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-[#3f4bc0] transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-[#3f4bc0] transition-colors"
                                             >
                                                 <Wrench size="0.9vw" /> Customize
                                             </button>
@@ -994,17 +994,17 @@ export default function MyFlipbooks() {
                                                     const identifier = book.v_id || encodeURIComponent(book.realName);
                                                     navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`);
                                                 }}
-                                                className="flex items-center gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-blue-600 transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-blue-600 transition-colors"
                                             >
                                                 <PenTool size="0.9vw" /> Open in Editor
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
                                                 <BarChart2 size="0.9vw" /> Statistic
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
                                                 <Share2 size="0.9vw" /> Share
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
                                                 <Download size="0.9vw" /> Download
                                             </button>
 
@@ -1032,7 +1032,7 @@ export default function MyFlipbooks() {
                                                         setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
                                                     setActiveBookMenu(activeBookMenu === book.id ? null : book.id);
                                                 }}
-                                                className="flex items-center gap-[0.25vw] text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                                                className="flex items-center gap-[0.25vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
                                             >
                                                 <MoreVertical size="0.9vw" /> More
                                             </button>

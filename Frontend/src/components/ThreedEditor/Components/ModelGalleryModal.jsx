@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { Icon } from "@iconify/react";
 import { Canvas } from "@react-three/fiber";
-import { View, OrbitControls, Environment, PerspectiveCamera, Center, ContactShadows } from "@react-three/drei";
+import { View, OrbitControls, Environment, PerspectiveCamera, Html } from "@react-three/drei";
 import axios from "axios";
 import RenderModel from "./ModelLoaders";
 
@@ -51,41 +51,100 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
 
     const containerRef = useRef();
 
-    // Internal component for 3D thumbnail
+    // Internal component for 3D thumbnail with support for static images
     const ModelThumbnail = ({ model, isSelected }) => {
         const viewRef = useRef();
+        const [isInView, setIsInView] = useState(false);
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
         
-        return (
-            <div ref={viewRef} className="w-full h-full relative">
-                {/* 3D View Content */}
-                <View track={viewRef} className="w-full h-full">
-                    <PerspectiveCamera makeDefault position={[0, 1.2, 5]} fov={30} />
-                    <ambientLight intensity={1.5} />
-                    <pointLight position={[10, 10, 10]} intensity={1.5} />
-                    
-                    <Suspense fallback={null}>
-                        <Center bottom position={[0, 0, -1.5]}>
-                            <RenderModel
-                                type={model.type}
-                                url={`${backendUrl}${model.url}`}
-                                isSelectionDisabled={true}
-                                shouldClone={true}
-                            />
-                        </Center>
-                    </Suspense>
-                    
-                    <Environment preset="city" />
-                    <ContactShadows position={[0, -1.8, 0]} opacity={0.4} scale={10} blur={2} far={1} />
-                    
-                    <OrbitControls 
-                        enableZoom={false} 
-                        enablePan={false}
-                        target={[0, 0, 0]}
-                        autoRotate={isSelected}
-                        autoRotateSpeed={4}
+        // Support for static thumbnails if backend provides them
+        const thumbnailPath = model.thumbnail || model.image || model.preview;
+        const fullThumbnailUrl = thumbnailPath 
+            ? (thumbnailPath.startsWith('http') ? thumbnailPath : `${backendUrl}${thumbnailPath.startsWith('/') ? '' : '/'}${thumbnailPath}`)
+            : null;
+
+        const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
+        const fullUrl = `${backendUrl}${modelUrlPath}`;
+
+        useEffect(() => {
+            if (!viewRef.current || fullThumbnailUrl) return;
+            
+            // Use viewport as root (null) to avoid issues with containerRef availability
+            const observer = new IntersectionObserver(
+                ([entry]) => {
+                    if (entry.isIntersecting) {
+                        setIsInView(true);
+                        // Once it's in view, we can stop observing to keep it loaded
+                        observer.unobserve(entry.target);
+                    }
+                },
+                { threshold: 0.05 }
+            );
+            
+            observer.observe(viewRef.current);
+            return () => observer.disconnect();
+        }, [fullThumbnailUrl, model.url]);
+
+        if (fullThumbnailUrl) {
+            return (
+                <div className="w-full h-full relative group">
+                    <img 
+                        src={fullThumbnailUrl} 
+                        alt={model.name}
+                        className="w-full h-full object-contain p-[1vw] transition-transform duration-500 group-hover:scale-110"
+                        onError={(e) => {
+                            e.target.style.display = 'none';
+                            setIsInView(true);
+                        }}
                     />
-                </View>
+                </div>
+            );
+        }
+        
+        return (
+            <div ref={viewRef} className="w-full h-full relative group bg-gray-500">
+                {/* Only render 3D view if in viewport and no static thumbnail exists */}
+                {isInView ? (
+                    <View track={viewRef} className="w-full h-full">
+                        <Suspense fallback={
+                            <Html center className="pointer-events-none">
+                                <div className="flex flex-col items-center justify-center gap-[0.5vw]">
+                                    <div className="w-[1.4vw] h-[1.4vw] border-[0.2vw] border-white/30 border-t-white rounded-full animate-spin"></div>
+                                    <span className="text-[0.6vw] font-medium text-white/80">Loading...</span>
+                                </div>
+                            </Html>
+                        }>
+                            <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
+                            <ambientLight intensity={1.5} />
+                            <pointLight position={[10, 10, 10]} intensity={1.5} />
+                            <directionalLight position={[-5, 5, 5]} intensity={1} />
+                            
+                            <group position={[0, -0.6, 0]}>
+                                <RenderModel
+                                    type={model.type}
+                                    url={fullUrl}
+                                    isSelectionDisabled={true}
+                                    shouldClone={true}
+                                />
+                            </group>
+                            
+                            <Environment preset="city" />
+                            
+                            <OrbitControls 
+                                enableZoom={false} 
+                                enablePan={false}
+                                enableRotate={false}
+                                target={[0, 0, 0]}
+                                autoRotate={false}
+                                autoRotateSpeed={4}
+                            />
+                        </Suspense>
+                    </View>
+                ) : (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                         <Icon icon="ph:sketch-logo-thin" className="w-[2vw] h-[2vw] text-gray-400 opacity-30" />
+                    </div>
+                )}
             </div>
         );
     };
@@ -96,8 +155,8 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                 {/* Header Section */}
                 <div className="p-[1.5vw] pb-[1vw] flex items-start justify-between">
                     <div>
-                        <h2 className="text-[1.5vw] font-bold text-gray-800 tracking-tight">3D Model Gallery</h2>
-                        <p className="text-[0.85vw] text-gray-500 mt-[0.2vw] font-medium">Select a professional popup design to get start</p>
+                        <h2 className="text-[1.35vw] font-bold text-gray-800 tracking-tight">3D Model Gallery</h2>
+                        <p className="text-[0.75vw] text-gray-500 mt-[0.2vw] font-medium">Select a professional popup design to get start</p>
                     </div>
                     <div className="flex items-center gap-[0.75vw] pt-[0.25vw]">
                         {/* Search Bar */}
@@ -140,7 +199,7 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                                     onClick={() => setSelectedModel(model)}
                                     className={`group cursor-pointer flex flex-col gap-[0.5vw] transition-all`}
                                 >
-                                    <div className={`relative w-full aspect-square rounded-[0.7vw] bg-[#F9FAFB] flex items-center justify-center border-2 transition-all overflow-hidden ${
+                                    <div className={`relative w-full aspect-square rounded-[0.7vw] bg-gray-500 flex items-center justify-center border-2 transition-all overflow-hidden ${
                                         selectedModel?.name === model?.name
                                             ? 'border-indigo-500 shadow-md ring-1 ring-indigo-500/20' 
                                             : 'border-transparent hover:border-gray-200'
@@ -154,20 +213,18 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                                         </div>
 
                                         {/* Status / Type Badge */}
-                                        <div className="absolute top-[0.4vw] right-[0.4vw] px-[0.4vw] py-[0.1vw] bg-white/80 backdrop-blur-sm rounded-[0.3vw] shadow-xs border border-gray-100">
-                                            <span className="text-[0.55vw] font-black text-gray-600 uppercase tracking-tighter">{model.type}</span>
+                                        <div className="absolute top-[0.4vw] right-[0.4vw] px-[0.5vw] py-[0.2vw] bg-white/90 backdrop-blur-md rounded-[0.3vw] shadow-sm border border-gray-200 flex items-center justify-center">
+                                            <span className="text-[0.6vw] font-bold text-gray-700 uppercase tracking-wide leading-none">{model.type?.replace('.', '') || '3D'}</span>
                                         </div>
                                     </div>
-                                    <div className="px-[0.2vw]">
-                                        <p className="text-[0.8vw] font-bold text-gray-700 truncate group-hover:text-indigo-600 transition-colors">
+                                    <div className="px-[0.2vw] flex items-center justify-between gap-[0.5vw] mb-[0.2vw]">
+                                        <p 
+                                            className="text-[0.8vw] font-semibold text-gray-700 truncate group-hover:text-indigo-600 transition-colors flex-1 min-w-0"
+                                            title={model.name.replace(/\.[^/.]+$/, "")}
+                                        >
                                             {model.name.replace(/\.[^/.]+$/, "")}
                                         </p>
-                                        <div className="flex items-center justify-between mt-[0.1vw]">
-                                            <span className="text-[0.65vw] text-gray-400 font-medium">{model.size}</span>
-                                            <Icon icon="solar:check-circle-bold" className={`w-[0.9vw] h-[0.9vw] transition-all ${
-                                                selectedModel?.name === model?.name ? 'text-indigo-500 scale-100' : 'text-gray-100 scale-0'
-                                            }`} />
-                                        </div>
+                                        <span className="text-[0.65vw] text-gray-400 font-medium whitespace-nowrap shrink-0">{model.size}</span>
                                     </div>
                                 </div>
                             ))}
@@ -186,8 +243,16 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                 {/* Shared Canvas for View.Port */}
                 <Canvas 
                     eventSource={containerRef}
-                    className="pointer-events-none fixed inset-0 z-[110]"
-                    style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none' }}
+                    className="pointer-events-none"
+                    style={{ 
+                        position: 'fixed', 
+                        top: 0, 
+                        left: 0, 
+                        width: '100vw', 
+                        height: '100vh', 
+                        pointerEvents: 'none',
+                        zIndex: 120 // Higher than modal 
+                    }}
                 >
                     <View.Port />
                 </Canvas>

@@ -12,7 +12,7 @@ import AnimatedGizmo from "./Components/AnimatedGizmo";
 import { GlobalLoader } from "./Components/GlobalLoader";
 import RenderModel from "./Components/ModelLoaders";
 import useModalHistory from "./hooks/useModalHistory";
-import ExportModal from "./Components/ExportModal";
+import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
 import ModelGalleryModal from "./Components/ModelGalleryModal";
 import { GLTFExporter } from "three-stdlib";
@@ -53,10 +53,19 @@ export default function ThreedEditor() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(models.length === 0); // If model exists, don't collapse
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("");
   const [isSyncing, setIsSyncing] = useState(true);
 
   // Sync manual loading with useProgress active state
   const { active } = useProgress();
+  
+  // Clear manual loading if it hangs
+  useEffect(() => {
+    if (manualLoading && !active && !loadingText) {
+      const t = setTimeout(() => setManualLoading(false), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [active, manualLoading, loadingText]);
   React.useEffect(() => {
     if (active && manualLoading) {
         setManualLoading(false);
@@ -72,7 +81,10 @@ export default function ThreedEditor() {
   const controlsRef = React.useRef(null);
   const modelRef = React.useRef(null);
   const modelRefs = useRef(new Map());
-  const lastUpdateRef = React.useRef(0);
+  const glInstanceRef = useRef(null);
+  const cameraInstanceRef = useRef(null);
+  const originalTransformRef = useRef(null);
+  const lastUpdateRef = useRef(0);
 
   // Target Position State
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0 });
@@ -106,8 +118,18 @@ export default function ThreedEditor() {
 
   const [resetKey, setResetKey] = useState(0);
   
-  const [hiddenMaterials, setHiddenMaterials] = useState(new Set(threedState.hiddenMaterials || []));
-  const [deletedMaterials, setDeletedMaterials] = useState(new Set(threedState.deletedMaterials || []));
+  const getInitialSet = (val) => {
+    if (!val) return new Set();
+    try {
+        if (val instanceof Set) return new Set(val);
+        if (Array.isArray(val)) return new Set(val);
+        if (val && typeof val[Symbol.iterator] === 'function') return new Set(val);
+    } catch(e) {}
+    return new Set();
+  };
+
+  const [hiddenMaterials, setHiddenMaterials] = useState(getInitialSet(threedState.hiddenMaterials));
+  const [deletedMaterials, setDeletedMaterials] = useState(getInitialSet(threedState.deletedMaterials));
 
   // Screenshot State
   const [isScreenshotOpen, setIsScreenshotOpen] = useState(false);
@@ -158,24 +180,7 @@ export default function ThreedEditor() {
       };
   }, [models, transformValues, materialSettings, modelName, hiddenMaterials, deletedMaterials, modelMaterialLists, selectedMaterial, selectedTexture]);
 
-  // Sync State changes to Context (Debounced or on change)
-  useEffect(() => {
-      setThreedState(prev => ({
-          ...prev,
-          models, // Save models array
-          modelUrl, // Keep for backward compat
-          modelFile, 
-          modelType,
-          modelStats,
-          transformValues,
-          materialSettings,
-          materialList,
-          hiddenMaterials,
-          deletedMaterials
-      }));
-  }, [models, modelUrl, modelFile, modelType, modelStats, transformValues, materialSettings, modelName, materialList, hiddenMaterials, deletedMaterials, setThreedState]);
-
-  // --- Dynamic Model Loading & Validation ---
+  // --- History Management ---
   useEffect(() => {
     const syncWithServerModels = async () => {
       try {
@@ -234,11 +239,30 @@ export default function ThreedEditor() {
         try {
           const res = await axios.get(`${backendUrl}/api/3d-models/get-session?emailId=${user.emailId}`);
           if (res.data && res.data.state) {
+            // Sanitize state to remove stale blob URLs from previous sessions
             const savedState = res.data.state;
             
+            if (savedState.models) {
+                savedState.models = savedState.models.filter(m => m.url && !m.url.startsWith('blob:'));
+            }
+            if (savedState.materialSettings?.maps) {
+                Object.entries(savedState.materialSettings.maps).forEach(([k, v]) => {
+                    if (v && typeof v === 'string' && v.startsWith('blob:')) {
+                        savedState.materialSettings.maps[k] = null;
+                    }
+                });
+            }
+
             // Re-hydrate state from backend
             if (savedState.models) setModels(savedState.models);
-            if (savedState.materialSettings) setMaterialSettings(savedState.materialSettings);
+            if (savedState.materialSettings) {
+                setMaterialSettings(savedState.materialSettings);
+                // Restore selected texture state so GenericModel can re-apply it
+                if (savedState.materialSettings.appliedTexture) {
+                    setSelectedTexture(savedState.materialSettings.appliedTexture);
+                    setSelectedTextureId(savedState.materialSettings.appliedTexture.id);
+                }
+            }
             if (savedState.transformValues) setTransformValues(savedState.transformValues);
             if (savedState.modelName) setModelName(savedState.modelName);
             
@@ -303,6 +327,43 @@ export default function ThreedEditor() {
       const nextModels = [...models];
       let hasUploaded = false;
 
+      // 0. Upload Manual Texture Maps if they are Blobs
+      const nextMaterialSettings = { ...(materialSettings || {}) };
+      if (nextMaterialSettings && nextMaterialSettings.maps) {
+          const nextMaps = { ...nextMaterialSettings.maps };
+          let mapsChanged = false;
+
+          for (const [mapType, url] of Object.entries(nextMaps)) {
+              if (url && typeof url === 'string' && url.startsWith('blob:')) {
+                  try {
+                      // Extract true blob URL (remove fragments)
+                      const blobUrl = url.split('#')[0];
+                      const blobResponse = await fetch(blobUrl);
+                      const blob = await blobResponse.blob();
+                      
+                      const formData = new FormData();
+                      formData.append('emailId', user.emailId);
+                      formData.append('model', blob, `texture_${mapType}_${Date.now()}.png`); // Reusing upload-model endpoint
+                      
+                      const uploadRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, formData, {
+                          headers: { 'Content-Type': 'multipart/form-data' }
+                      });
+                      
+                      if (uploadRes.data && uploadRes.data.url) {
+                          nextMaps[mapType] = `${backendUrl}${uploadRes.data.url}`;
+                          mapsChanged = true;
+                      }
+                  } catch (e) {
+                      console.error(`Failed to upload texture map ${mapType}:`, e);
+                  }
+              }
+          }
+          if (mapsChanged) {
+              nextMaterialSettings.maps = nextMaps;
+              setMaterialSettings(nextMaterialSettings);
+          }
+      }
+
       for (let i = 0; i < nextModels.length; i++) {
         const m = nextModels[i];
         if (m.file) {
@@ -345,10 +406,60 @@ export default function ThreedEditor() {
         }
       }
 
+      // 1. Export Textured GLB and PNG for Gallery Thumbnail
+      let hasExported = false;
+      const gl = glInstanceRef.current;
+      const camera = cameraInstanceRef.current;
+      const modelGroup = sceneWrapperRef.current;
+      
+      if (gl && camera && modelGroup && nextModels.length > 0) {
+          try {
+              // A. Export GLB
+              const exporter = new GLTFExporter();
+              const glbBuffer = await new Promise((resolve, reject) => {
+                  exporter.parse(modelGroup, (result) => resolve(result), (err) => reject(err), { binary: true });
+              });
+              
+              // B. Capture Snapshot (PNG)
+              const screenshotUrl = gl.domElement.toDataURL('image/png');
+              const screenshotRes = await fetch(screenshotUrl);
+              const screenshotBlob = await screenshotRes.blob();
+              
+              const baseName = (modelName || nextModels[0].name || "Scene").replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
+              
+              // C. Upload GLB (The textured model)
+              const glbFormData = new FormData();
+              glbFormData.append('emailId', user.emailId);
+              glbFormData.append('model', new Blob([glbBuffer]), `${baseName}.glb`);
+              const glbRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, glbFormData);
+              
+              // D. Upload PNG (The Gallery Thumbnail)
+              const pngFormData = new FormData();
+              pngFormData.append('emailId', user.emailId);
+              pngFormData.append('model', screenshotBlob, `${baseName}.png`);
+              await axios.post(`${backendUrl}/api/3d-models/upload-model`, pngFormData);
+              
+              if (glbRes.data && glbRes.data.url) {
+                  // Update the first model reference to the new textured GLB
+                  nextModels[0] = {
+                      ...nextModels[0],
+                      url: `${backendUrl}${glbRes.data.url}`,
+                      name: `${baseName}.glb`,
+                      type: 'glb',
+                      file: null
+                  };
+                  hasExported = true;
+                  setModelName(`${baseName}.glb`);
+              }
+          } catch (e) {
+              console.error("Gallery sync failed:", e);
+          }
+      }
+
       // Save Full State (Session) to Backend
       const stateToSave = {
           models: nextModels,
-          materialSettings,
+          materialSettings: nextMaterialSettings, // Use potentially updated settings with server URLs
           transformValues,
           modelName,
           lastSaved: new Date().toISOString()
@@ -359,7 +470,7 @@ export default function ThreedEditor() {
           state: stateToSave
       });
 
-      if (hasUploaded) {
+      if (hasUploaded || hasExported) {
         setModels(nextModels);
       }
       
@@ -383,8 +494,10 @@ export default function ThreedEditor() {
       toast.error(errorMessage);
     } finally {
       setIsSaving(false);
+      setManualLoading(false);
+      setLoadingText("");
     }
-  }, [models, modelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast]);
+  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, past]);
 
   useEffect(() => {
     if (setSaveHandler) {
@@ -454,12 +567,50 @@ export default function ThreedEditor() {
       });
   }, [updateHistory]);
 
-  const handleExport = (format) => {
+  const handleExport = (settings) => {
+    const { exportScope, selectedMaterial, exportFormat, fileName } = typeof settings === 'object' ? settings : { exportFormat: settings };
+    const format = exportFormat?.toLowerCase();
     const scene = sceneWrapperRef.current;
     if (!scene || models.length === 0) return;
 
-    // Use current modelName state for export, fallback to model array or generic
-    const name = modelName || (models.length > 0 ? models[0].name : "Scene");
+    setLoadingText("Exporting selection...");
+    setManualLoading(true);
+
+    const name = fileName || modelName || (models.length > 0 ? models[0].name : "Scene");
+    const visibilityMap = new Map();
+    
+    // 1. Identify meshes to export based on material selection
+    if (exportScope === 'selection' && selectedMaterial) {
+        const selectedNames = new Set(
+            selectedMaterial.isGroup 
+                ? selectedMaterial.materials 
+                : [selectedMaterial.name]
+        );
+
+        scene.traverse((obj) => {
+            if (obj.isMesh && obj.material) {
+                visibilityMap.set(obj, obj.visible);
+                
+                const isSelected = selectedNames.has(obj.name) || 
+                                 (Array.isArray(obj.material) 
+                                    ? obj.material.some(m => selectedNames.has(m.name)) 
+                                    : selectedNames.has(obj.material.name));
+                
+                if (!isSelected) {
+                    obj.visible = false;
+                }
+            } else if (obj.isLight || obj.isHelper) {
+                visibilityMap.set(obj, obj.visible);
+                obj.visible = false;
+            }
+        });
+    }
+
+    const restoreVisibility = () => {
+        visibilityMap.forEach((visible, obj) => {
+            if (obj) obj.visible = visible;
+        });
+    };
 
     const download = (blob, filename) => {
         const link = document.createElement('a');
@@ -469,6 +620,11 @@ export default function ThreedEditor() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        
+        setTimeout(() => {
+            setManualLoading(false);
+            setLoadingText("");
+        }, 500);
     };
 
     const saveString = (text, filename) => {
@@ -481,24 +637,43 @@ export default function ThreedEditor() {
         download(blob, filename);
     };
 
-    if (format === 'glb') {
-        const exporter = new GLTFExporter();
-        exporter.parse(scene, (result) => {
-            if (result instanceof ArrayBuffer) {
-                saveArrayBuffer(result, `${name}.glb`);
-            } else {
-                const output = JSON.stringify(result, null, 2);
-                saveString(output, `${name}.gltf`);
-            }
-        }, (err) => console.error(err), { binary: true });
-    } else if (format === 'obj') {
-        const exporter = new OBJExporter();
-        const result = exporter.parse(scene);
-        saveString(result, `${name}.obj`);
-    } else if (format === 'stl') {
-        const exporter = new STLExporter();
-        const result = exporter.parse(scene);
-        saveString(result, `${name}.stl`);
+    try {
+        if (format === 'glb') {
+            const exporter = new GLTFExporter();
+            exporter.parse(scene, (result) => {
+                restoreVisibility();
+                if (result instanceof ArrayBuffer) {
+                    saveArrayBuffer(result, `${name}.glb`);
+                } else {
+                    const output = JSON.stringify(result, null, 2);
+                    saveString(output, `${name}.gltf`);
+                }
+            }, (err) => {
+                console.error(err);
+                restoreVisibility();
+                setManualLoading(false);
+                setLoadingText("");
+            }, { binary: true });
+        } else if (format === 'obj') {
+            const exporter = new OBJExporter();
+            const result = exporter.parse(scene);
+            restoreVisibility();
+            saveString(result, `${name}.obj`);
+        } else if (format === 'stl') {
+            const exporter = new STLExporter();
+            const result = exporter.parse(scene);
+            restoreVisibility();
+            saveString(result, `${name}.stl`);
+        } else {
+            restoreVisibility();
+            setManualLoading(false);
+            setLoadingText("");
+        }
+    } catch (error) {
+        console.error("Export error:", error);
+        restoreVisibility();
+        setManualLoading(false);
+        setLoadingText("");
     }
   };
 
@@ -646,17 +821,68 @@ export default function ThreedEditor() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleUndo, handleRedo, selectedMaterial, hiddenMaterials, handleToggleVisibility, handleDeleteMaterial, modelName]);
 
-  const handleRename = (newName) => {
-      setModelName(newName);
-      // We do NOT update the models array here anymore. 
-      // This keeps the "Folder Name" in the Material List as the original name
-      // while allowing the Top Bar and Export to use the new "modelName".
-      
-      pushHistory({
-          ...stateRef.current,
-          modelName: newName
+  const handleRename = useCallback(async (newName) => {
+    if (!newName || !newName.trim()) return;
+
+    const oldModelName = modelName;
+    setModelName(newName);
+
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (!storedUser) return;
+      const user = JSON.parse(storedUser);
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+      // 1. Identify which model to rename on the server
+      const nextModels = models.map(m => {
+        if (m.name === oldModelName || models.length === 1) {
+          return { ...m, name: newName };
+        }
+        return m;
       });
-  };
+      setModels(nextModels);
+
+      const nextState = {
+        ...stateRef.current,
+        modelName: newName,
+        models: nextModels
+      };
+
+      pushHistory(nextState);
+
+      // 2. Try to rename the actual file on server for real file sync
+      const renameIndex = nextModels.findIndex(m => m.name === newName);
+      if (renameIndex !== -1) {
+        const target = nextModels[renameIndex];
+        if (target.url && !target.url.startsWith('blob:')) {
+          const oldFileName = target.url.split('/').pop();
+          try {
+            const renameRes = await axios.post(`${backendUrl}/api/3d-models/rename-model`, {
+              emailId: user.emailId,
+              oldName: oldFileName,
+              newName: newName
+            });
+            if (renameRes.data && renameRes.data.url) {
+              nextModels[renameIndex].url = `${backendUrl}${renameRes.data.url}`;
+              nextState.models = [...nextModels];
+            }
+          } catch (e) {
+            console.error("Server-side file rename failed:", e);
+          }
+        }
+      }
+
+      // 3. Persist updated session state
+      await axios.post(`${backendUrl}/api/3d-models/save-session`, {
+        emailId: user.emailId,
+        state: nextState
+      });
+
+    } catch (error) {
+      console.error("Failed to update backend rename:", error);
+    }
+  }, [models, modelName, pushHistory]);
+
 
   const handleRenameMaterial = useCallback((oldName, newName, mName) => {
       // Find the model with this name
@@ -835,6 +1061,10 @@ export default function ThreedEditor() {
     }
     
     setManualLoading(true);
+    // Safety fallback to dismiss loader if useProgress fails to trigger
+    setTimeout(() => {
+        setManualLoading(false);
+    }, 10000);
 
     const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
     setModelStats({ fileSize: `${sizeInMB} MB` });
@@ -901,7 +1131,8 @@ export default function ThreedEditor() {
 
     setManualLoading(true);
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-    const fullUrl = `${backendUrl}${model.url}`;
+    const modelUrlPath = model.url.startsWith('/') ? model.url : `/${model.url}`;
+    const fullUrl = `${backendUrl}${modelUrlPath}`;
 
     // Clear existing models if we are 'replacing'
     if (models.length > 0) {
@@ -1067,7 +1298,6 @@ export default function ThreedEditor() {
     });
   };
 
-  const originalTransformRef = useRef(null);
 
   const [sceneResetTrigger, setSceneResetTrigger] = useState(0);
   const [uvUnwrapTrigger, setUvUnwrapTrigger] = useState(0);
@@ -1176,17 +1406,43 @@ export default function ThreedEditor() {
 
   const handleSelectMaterial = useCallback((val) => {
       setSelectedTexture(null);
-      setMaterialSettings(prev => ({
-          ...prev,
-          maps: {} // Clear command maps so they don't bleed to the new material
-      }));
-      if (typeof val === 'object') {
-          // Preserve full object (including isGroup, materials)
-          setSelectedMaterial({ ...val, uuid: val.uuid || null, ts: Date.now() });
-      } else {
-          setSelectedMaterial({ name: val, uuid: null, ts: Date.now() });
-      }
-  }, []);
+      
+      const getNames = (s) => {
+          if (!s) return [];
+          if (typeof s === 'string') return [s];
+          if (Array.isArray(s.materials)) return s.materials;
+          if (s.name) return [s.name];
+          return [];
+      };
+
+      // Ensure we have an object for the new selection
+      const target = typeof val === 'object' ? { ...val } : { name: val };
+      const isShift = !!target.isShift;
+
+      setSelectedMaterial(prev => {
+          if (isShift && prev) {
+              const prevNames = getNames(prev);
+              const nextNames = getNames(target);
+              
+              // Toggle logic: if the target is already fully in selection, we probably want to toggle it out 
+              // but for a start, let's just do additive. 
+              const combined = Array.from(new Set([...prevNames, ...nextNames]));
+              
+              return {
+                  name: "Multiple Selection",
+                  isGroup: true,
+                  materials: combined,
+                  ts: Date.now()
+              };
+          }
+          
+          // Single select
+          return { ...target, uuid: target.uuid || null, ts: Date.now() };
+      });
+
+      // Clear property specific maps on any selection change to prevent bleeding
+      setMaterialSettings(prev => ({ ...prev, maps: {} }));
+  }, []); // No more dependency on selectedMaterial state itself
 
   const handleTransformChange = useCallback((t) => {
       if (t.original) {
@@ -1218,15 +1474,25 @@ export default function ThreedEditor() {
         onDragOver={handleDragOver}
         onDrop={handleDrop}
     >
-      <GlobalLoader manualLoading={manualLoading || isSyncing} />
+      {!showModelGalleryModal && <GlobalLoader manualLoading={manualLoading || isSyncing} text={loadingText} />}
       
 
 
       {/* --- EXPORT MODAL --- */}
       {showExportModal && (
-          <ExportModal 
+          <Export3DModal 
               onClose={() => setShowExportModal(false)}
               onExport={handleExport}
+              models={models}
+              materialSettings={materialSettings}
+              transformValues={transformValues}
+              hiddenMaterials={hiddenMaterials}
+              deletedMaterials={deletedMaterials}
+              selectedTexture={selectedTexture}
+              selectedMaterial={selectedMaterial}
+              materialList={activeMaterialList}
+              modelName={modelName}
+              modelSize={modelStats.fileSize || "Unknown"}
           />
       )}
 
@@ -1325,7 +1591,7 @@ export default function ThreedEditor() {
 
           {/* 3D CANVAS */}
           <div className="flex-1 h-full w-full">
-            {!isSyncing && (
+{!isSyncing && (
             <Canvas
               camera={{ position: [0, 1, 5], fov: 45 }}
               shadows
@@ -1336,7 +1602,9 @@ export default function ThreedEditor() {
                 alpha: true,
                 logarithmicDepthBuffer: true
               }}
-              onCreated={({ gl }) => {
+              onCreated={({ gl, camera }) => {
+                glInstanceRef.current = gl;
+                cameraInstanceRef.current = camera;
                 gl.toneMapping = THREE.ACESFilmicToneMapping;
                 gl.outputColorSpace = THREE.SRGBColorSpace;
               }}
@@ -1416,15 +1684,11 @@ export default function ThreedEditor() {
 
               </Suspense>
 
-              {/* Blender-style Grid: Darker lines on dark background.
-                  Color 1 (Center): Transparent/Same as grid since we draw custom axes.
-                  Color 2 (Grid): #222222 or similar dark grey.
-              */}
-              {settings.grid && !isCapturing && <gridHelper args={[30, 30, 0x222222, 0x222222]} position={[0, -0.01, 0]} />}
+              {/* Blender-style Grid: Hide center black lines by matching background */}
+              {settings.grid && !isCapturing && <gridHelper args={[30, 30, 0x393939, 0x222222]} position={[0, 0, 0]} />}
 
-              {/* Custom Center Lines: Red for X-axis, Green for Z-axis (User requested Red & Green) */}
               {settings.grid && !isCapturing && (
-                <group position={[0, 0.01, 0]}>
+                <group position={[0, 0, 0]}>
                     {/* X Axis - Red */}
                     <line>
                         <bufferGeometry attach="geometry">
@@ -1438,7 +1702,7 @@ export default function ThreedEditor() {
                         <lineBasicMaterial attach="material" color="red" linewidth={2} />
                     </line>
 
-                    {/* Z Axis - Green (User asked for green center line) */}
+                    {/* Z Axis - Green */}
                     <line>
                         <bufferGeometry attach="geometry">
                              <bufferAttribute
@@ -1504,12 +1768,12 @@ export default function ThreedEditor() {
               )}
 
                <Environment
-                   files={materialSettings.maps?.envMap || null}
-                   preset={materialSettings.maps?.envMap ? null : (materialSettings.environment || 'city')}
+                   files={materialSettings?.maps?.envMap || null}
+                   preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'city')}
                    background={false}
                    blur={0.5}
-                   environmentIntensity={(materialSettings.reflection ?? 50) / 50}
-                   rotation={[0, (materialSettings.envRotation || 0) * (Math.PI / 180), 0]}
+                   environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                   rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
                />
             </Canvas>
             )}

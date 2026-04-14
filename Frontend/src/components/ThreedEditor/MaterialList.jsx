@@ -124,7 +124,7 @@ const MaterialItem = ({ text, selected, onClick, isVisible = true, onToggleVisib
     );
 };
 
-const MaterialGroup = ({ id, group, materials, selectedMaterial, onSelect, hiddenMaterials, onToggleVisibility, onDelete, onRename, onDeleteModel }) => {
+const MaterialGroup = ({ id, group, materials, selectedMaterial, onSelect, hiddenMaterials, onToggleVisibility, onDelete, onRename, onDeleteModel, checkIfSelected }) => {
     const [isOpen, setIsOpen] = useState(true);
 
     // Determine if this group is the active one
@@ -132,7 +132,7 @@ const MaterialGroup = ({ id, group, materials, selectedMaterial, onSelect, hidde
 
     const handleGroupClick = (e) => {
         e.stopPropagation();
-        onSelect({ name: group, isGroup: true, materials: materials, parentGroup: group });
+        onSelect({ name: group, isGroup: true, materials: materials, parentGroup: group, isShift: e.shiftKey });
         setIsOpen(!isOpen);
     };
 
@@ -193,8 +193,8 @@ const MaterialGroup = ({ id, group, materials, selectedMaterial, onSelect, hidde
                         <MaterialItem 
                             key={matIdx} 
                             text={mat} 
-                            selected={selectedMaterial === mat || (selectedMaterial && typeof selectedMaterial === 'object' && !selectedMaterial.isGroup && selectedMaterial.name === mat && selectedMaterial.parentGroup === group)} 
-                            onClick={() => onSelect({ name: mat, parentGroup: group })} 
+                            selected={checkIfSelected(mat, group)} 
+                            onClick={(e) => onSelect({ name: mat, parentGroup: group, isShift: e.shiftKey })} 
                             isVisible={!hiddenMaterials?.has(mat)}
                             onToggleVisibility={onToggleVisibility}
                             onDelete={onDelete}
@@ -220,12 +220,37 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
         if (onDeleteMaterial) onDeleteMaterial(matName);
     };
 
+    // Helper to check if a material is effectively selected (individual or part of group)
+    const checkIfSelected = (matName, parentG = null) => {
+        if (!selectedMaterial) return false;
+        
+        // Handling Multiple Selection Group
+        if (selectedMaterial.isGroup) {
+            // If checking a group itself
+            if (parentG === null) {
+                return selectedMaterial.name === matName;
+            }
+            // If checking an individual material
+            return selectedMaterial.materials.includes(matName);
+        }
+        
+        // Handling Single Selection
+        const selName = selectedMaterial.name || selectedMaterial;
+        const selParent = selectedMaterial.parentGroup;
+        
+        if (parentG) {
+             return selName === matName && selParent === parentG;
+        }
+        return selName === matName;
+    };
+
     // Auto-scroll to selected material
     React.useEffect(() => {
         if (!selectedMaterial) return;
         
         const matName = typeof selectedMaterial === 'object' ? selectedMaterial.name : selectedMaterial;
-        if (!matName || matName === (modelName || "Model")) return;
+        // Don't scroll to "Multiple Selection" or generic model nodes
+        if (!matName || matName === (modelName || "Model") || matName === "Multiple Selection") return;
 
         // Small timeout to ensure DOM is updated and dropdowns are expanded if necessary
         const timer = setTimeout(() => {
@@ -239,7 +264,7 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
     }, [selectedMaterial, modelName]);
 
     return (
-        <div className="relative z-40 flex flex-col w-[13.5vw]">
+        <div className="relative z-40 flex flex-col w-[13.5vw] select-none">
             {/* STATIC FLOATING HEADER */}
             <div 
                 onClick={() => setIsCollapsed(!isCollapsed)}
@@ -286,9 +311,9 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                     {/* Model Name Parent Item (Sticky) */}
                     <div className="sticky top-0 bg-white z-10 pt-[0.2vw] pb-[0.42vw]">
                         <div 
-                            onClick={() => onSelect({ name: (modelName || "Model"), parentGroup: (modelName || "Model") })}
+                            onClick={(e) => onSelect({ name: (modelName || "Model"), parentGroup: (modelName || "Model"), isShift: e.shiftKey })}
                             className={`py-[0.42vw] px-[0.62vw] flex items-center gap-[0.52vw] text-[0.7vw] font-semibold rounded-[0.42vw] cursor-pointer transition-all border border-transparent
-                                ${(selectedMaterial === (modelName || "Model") || (selectedMaterial && selectedMaterial.name === (modelName || "Model")))
+                                ${(checkIfSelected(modelName || "Model"))
                                     ? "bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm"
                                     : "bg-gray-50 text-gray-800 hover:bg-gray-100 border-gray-100/50"
                                 }`}
@@ -322,6 +347,7 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                                         onDelete={handleDelete}
                                         onRename={onRenameMaterial}
                                         onDeleteModel={onDeleteModel}
+                                        checkIfSelected={checkIfSelected}
                                     />
                                 );
                             } else {
@@ -330,8 +356,8 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                                     <MaterialItem 
                                         key={idx} 
                                         text={item} 
-                                        selected={selectedMaterial === item || (selectedMaterial && typeof selectedMaterial === 'object' && selectedMaterial.name === item && !selectedMaterial.isGroup && selectedMaterial.parentGroup === modelName)} 
-                                        onClick={() => onSelect({ name: item, parentGroup: modelName })} 
+                                        selected={checkIfSelected(item, modelName)} 
+                                        onClick={(e) => onSelect({ name: item, parentGroup: modelName, isShift: e.shiftKey })} 
                                         isVisible={!hiddenMaterials.has(item)}
                                         onToggleVisibility={handleToggleVisibility}
                                         onDelete={handleDelete}

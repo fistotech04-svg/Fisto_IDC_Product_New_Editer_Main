@@ -10,7 +10,7 @@ export const LoadingSpinner = ({ text = "Loading...", dark = false }) => (
 );
 
 // Global Loader Component
-export const GlobalLoader = ({ manualLoading }) => {
+export const GlobalLoader = ({ manualLoading, text }) => {
   const { active, progress } = useProgress();
   const show = active || manualLoading;
   
@@ -18,7 +18,10 @@ export const GlobalLoader = ({ manualLoading }) => {
 
   return (
     <div className="absolute inset-0 z-[100] pointer-events-auto">
-        <LoadingSpinner text={`Loading Model... ${Math.round(progress)}%`} dark={false} />
+        <LoadingSpinner 
+            text={text || `Loading Model... ${Math.round(progress)}%`} 
+            dark={false} 
+        />
     </div>
   );
 };

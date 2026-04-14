@@ -267,6 +267,63 @@ router.post("/save-session", async (req, res) => {
   }
 });
 
+// @route   POST /api/3d-models/rename-model
+// @desc    Rename a model file and its thumbnail in the user's gallery
+// @access  Public
+router.post("/rename-model", async (req, res) => {
+  try {
+    const { emailId, oldName, newName } = req.body;
+    if (!emailId || !oldName || !newName) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const userFolderPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals");
+
+    // oldName might be "Cube.glb"
+    const oldPath = path.join(userFolderPath, oldName);
+    if (!fs.existsSync(oldPath)) {
+      return res.status(404).json({ message: "File not found on server" });
+    }
+
+    const ext = path.extname(oldName);
+    // Sanitize new name and ensure it has correct extension
+    let cleanNewName = newName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    if (!cleanNewName.endsWith(ext.toLowerCase())) {
+        cleanNewName += ext;
+    }
+    
+    const newPath = path.join(userFolderPath, cleanNewName);
+
+    // Rename the main file
+    fs.renameSync(oldPath, newPath);
+
+    // Also try to rename associated thumbnail
+    const files = fs.readdirSync(userFolderPath);
+    const oldBase = path.basename(oldName, ext);
+    const newBase = path.basename(cleanNewName, ext);
+    
+    const thumbnail = files.find(f => {
+      const fExt = path.extname(f).toLowerCase();
+      return path.basename(f, fExt) === oldBase && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
+    });
+
+    if (thumbnail) {
+      const thumbExt = path.extname(thumbnail);
+      fs.renameSync(path.join(userFolderPath, thumbnail), path.join(userFolderPath, newBase + thumbExt));
+    }
+
+    res.status(200).json({
+      message: "Model renamed successfully",
+      newName: cleanNewName,
+      url: `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`
+    });
+  } catch (error) {
+    console.error("Rename Error:", error);
+    res.status(500).json({ message: "Server error during rename" });
+  }
+});
+
 // @route   GET /api/3d-models/get-session
 // @desc    Get the saved 3D editor state
 // @access  Public

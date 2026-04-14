@@ -1,6 +1,13 @@
 {
-  "models": [],
-  "materialSettings": {},
+  "models": [
+    {
+      "id": "1776172215625",
+      "url": "https://hcxqp38j-5000.inc1.devtunnels.ms/uploads/fistotech04_gmail_com/3D_Modals/aston_martin_valiant_2025.glb",
+      "file": null,
+      "type": "glb",
+      "name": "Aston_martin_valiant_2025"
+    }
+  ],
   "transformValues": {
     "position": {
       "x": 0,
@@ -18,6 +25,84 @@
       "z": 1
     }
   },
-  "modelName": "",
-  "lastSaved": "2026-04-13T12:40:06.757Z"
+  "materialSettings": {
+    "alpha": 100,
+    "metallic": 36,
+    "roughness": 53,
+    "normal": 100,
+    "bump": 100,
+    "scale": 100,
+    "scaleY": 100,
+    "rotation": 0,
+    "specular": 50,
+    "reflection": 50,
+    "shadow": 50,
+    "softness": 50,
+    "ao": 100,
+    "environment": "city",
+    "color": "#ffffff",
+    "useFactorColor": false,
+    "autoUnwrap": false,
+    "envRotation": 0,
+    "offset": {
+      "x": 0,
+      "y": 0
+    },
+    "appliedTexture": null,
+    "lightPosition": {
+      "x": 10,
+      "y": 10,
+      "z": 10
+    },
+    "colorIntensity": 100,
+    "emissiveIntensity": 0,
+    "emissiveColor": "#ffffff",
+    "maps": {}
+  },
+  "modelName": "Aston_martin_valiant_2025",
+  "hiddenMaterials": {},
+  "deletedMaterials": {},
+  "modelMaterialLists": {
+    "1776172215625": [
+      "AAMAstonMartin_Valiant_2025BadgeA_Material1",
+      "AAMAstonMartin_Valiant_2025Base_Material1",
+      "AAMAstonMartin_Valiant_2025Carbon1M_Material1",
+      "AAMAstonMartin_Valiant_2025Coloured_Material1",
+      "AAMAstonMartin_Valiant_2025EngineA_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha1A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha2A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha3A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha4A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha5A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha6A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha7A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha8A_Material1",
+      "AAMAstonMartin_Valiant_2025GrilleNoAlpha9A_Material1",
+      "AAMAstonMartin_Valiant_2025InteriorA_Material1",
+      "AAMAstonMartin_Valiant_2025InteriorTillingA_Material1",
+      "AAMAstonMartin_Valiant_2025LightA_Material1",
+      "AAMAstonMartin_Valiant_2025ManufacturerPlateA_Material1",
+      "AAMAstonMartin_Valiant_2025Paint_Material1",
+      "AAMAstonMartin_Valiant_2025TexturedA_Material1",
+      "AAMAstonMartin_Valiant_2025Window_Material1",
+      "AAMAstonMartin_Valiant_2025_CallipersCalliperA_Zone_Material1",
+      "AAMAstonMartin_Valiant_2025_CallipersCalliperBadgeA_Material1",
+      "AAMAstonMartin_Valiant_2025_Wheel1A_3D_3DWheel1A_Material1",
+      "INT_Color_1",
+      "emissAstonMartin_Valiant_2025InteriorA_Material1",
+      "emissAstonMartin_Valiant_2025LightEmissiveA_Material1",
+      "glass_light",
+      "int_Color_2",
+      "red_glass",
+      "swatch1"
+    ]
+  },
+  "selectedMaterial": {
+    "name": "2025_aston_martin_valiant",
+    "parentGroup": "2025_aston_martin_valiant",
+    "isShift": false,
+    "uuid": null,
+    "ts": 1776173159739
+  },
+  "selectedTexture": null
 }

@@ -347,6 +347,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
           }
       });
 
+      // Helper to extract URL from a Three.js Texture
+      const getTexUrl = (tex) => {
+          if (!tex || !tex.image) return "existing";
+          if (tex.image.src && (tex.image.src.startsWith('http') || tex.image.src.startsWith('blob:') || tex.image.src.startsWith('data:'))) {
+              return tex.image.src;
+          }
+          if (tex.image instanceof HTMLCanvasElement) return tex.image.toDataURL();
+          return "existing";
+      };
+
       if (foundMat && foundMat.userData && foundMat.userData.appliedTextureId) {
           if (typeof onTextureIdentified === 'function') onTextureIdentified(foundMat.userData.appliedTextureId);
       } else {
@@ -362,12 +372,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
           } else {
               // Extract current visual state for the UI checkmarks
               const nativeMaps = {};
-              if (foundMat.map) nativeMaps.map = "existing";
-              if (foundMat.normalMap) nativeMaps.normalMap = "existing";
-              if (foundMat.roughnessMap) nativeMaps.roughnessMap = "existing";
-              if (foundMat.metalnessMap) nativeMaps.metalnessMap = "existing";
-              if (foundMat.displacementMap) nativeMaps.displacementMap = "existing";
-              if (foundMat.aoMap) nativeMaps.aoMap = "existing";
+              const applied = foundMat.userData.appliedTexture;
+              const aMaps = applied?.maps || {};
+
+              if (foundMat.map) nativeMaps.map = getTexUrl(foundMat.map);
+              if (foundMat.normalMap) nativeMaps.normalMap = getTexUrl(foundMat.normalMap);
+              if (foundMat.roughnessMap) nativeMaps.roughnessMap = getTexUrl(foundMat.roughnessMap);
+              if (foundMat.metalnessMap) nativeMaps.metalnessMap = getTexUrl(foundMat.metalnessMap);
+              if (foundMat.displacementMap) nativeMaps.displacementMap = getTexUrl(foundMat.displacementMap);
+              if (foundMat.aoMap) nativeMaps.aoMap = getTexUrl(foundMat.aoMap);
 
               if (typeof onUpdateMaterialSetting === 'function') {
                   onUpdateMaterialSetting('maps', nativeMaps);
@@ -431,8 +444,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         const geom = child.geometry;
         if (geom) {
           const newGeom = child.geometry;
-          // Recalculate normals for smooth shading on original geometry (preserving UV seams)
-          newGeom.computeVertexNormals();
+          // Recalculate normals ONLY if they are missing
+          if (!newGeom.attributes.normal) {
+              newGeom.computeVertexNormals();
+          }
           // Compute tangents for smooth normal mapping if UVs exist and they don't already exist
           if (newGeom.attributes.uv && !newGeom.attributes.tangent) {
               try { newGeom.computeTangents(); } catch(e) {}
@@ -483,17 +498,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     processedMaterials.set(m.uuid, uniqueName);
                     usedNames.add(uniqueName);
 
-                    // Force smooth shading and ensure both sides are visible
-                    m.flatShading = false;
+                    // Ensure both sides are visible
                     m.side = THREE.DoubleSide;
-                    // Reset emissive by default
-                    if (m.emissive) m.emissive.set(0, 0, 0);
-                    m.emissiveIntensity = 0;
-                    m.emissiveMap = null;
-                    if (m.needsUpdate !== undefined) m.needsUpdate = true;
 
                     // Ensure original data is stored for visibility/UI logic
-                    if (!m.userData.originalColor) m.userData.originalColor = m.color.clone();
+                    if (!m.userData.originalColor) m.userData.originalColor = m.color?.clone();
                     if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
                     if (m.map) m.userData.originalMap = m.map;
                 }
@@ -783,6 +792,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
             safeUpdate('metallic', Math.round((m.metalness || 0) * 100));
             safeUpdate('roughness', Math.round((m.roughness || 0) * 100));
+        } else if (m.isMeshPhongMaterial) {
+            safeUpdate('metallic', Math.round((m.shininess || 0) / 100 * 100));
+            safeUpdate('roughness', 0);
         }
 
         if (m.opacity !== undefined) {
@@ -803,8 +815,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             safeUpdate('normal', Math.round(m.normalScale.x * 100));
         }
         
-        // Bump scale sync - ensure symmetry: Setting 100 -> mat.bumpScale 10 in Apply, mat.displacementScale 1 in Apply
-        // So sync back: mat.bumpScale / 10 * 100 OR mat.displacementScale * 100
+        // Bump/Disp scale sync
         if (m.displacementMap && m.displacementScale !== undefined) {
             safeUpdate('bump', Math.round(m.displacementScale * 100));
         } else if (m.bumpMap && m.bumpScale !== undefined) {
@@ -873,19 +884,31 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             
             materials.forEach(m => {
                 let isMatch = false;
-                if (!isFullModel) {
-                     isMatch = m.name === targetMatName;
-                } else {
-                     isMatch = true; 
+                if (selMat && !isFullModel) {
+                     if (selMat.isGroup && Array.isArray(selMat.materials)) {
+                         isMatch = selMat.materials.includes(m.name);
+                     } else {
+                         isMatch = m.name === targetMatName;
+                     }
+                } else if (isFullModel) {
+                     // In Full Model mode, we only apply overrides if they are explicitly enabled 
+                     // or if we are applying a gallery texture. 
+                     // This prevents broad clobbering of different materials on load.
+                     isMatch = materialSettings.useFactorColor || isGalleryTexture;
                 }
 
                 if (isMatch) {
                     // 1. Basic Material Factors
                     if (color && m.color && typeof m.color.set === 'function') {
-                        const intensity = (materialSettings.colorIntensity ?? 100) / 100;
-                        const finalColor = new THREE.Color(color);
-                        finalColor.multiplyScalar(intensity);
-                        m.color.copy(finalColor);
+                        // Only apply color override if it's NOT the default black or if useFactorColor is ON,
+                        // or if we are applying a gallery texture (which forces #ffffff)
+                        const isDefaultBlack = color === '#000000';
+                        if (!isDefaultBlack || materialSettings.useFactorColor || isGalleryTexture) {
+                            const intensity = (materialSettings.colorIntensity ?? 100) / 100;
+                            const finalColor = new THREE.Color(color);
+                            finalColor.multiplyScalar(intensity);
+                            m.color.copy(finalColor);
+                        }
                     }
 
                     if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
@@ -1306,7 +1329,12 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                                 }
                             }
                             if (mat && mat.name) {
-                                onSelectMaterial({ name: mat.name, uuid: e.object.uuid, parentGroup: modelName });
+                                onSelectMaterial({ 
+                                    name: mat.name, 
+                                    uuid: e.object.uuid, 
+                                    parentGroup: modelName,
+                                    isShift: e.shiftKey 
+                                });
                             }
                         }
                 }}
