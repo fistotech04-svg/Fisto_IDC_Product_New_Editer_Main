@@ -62,9 +62,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
      const textureManager = new THREE.LoadingManager();
      const loader = new THREE.TextureLoader(textureManager);
      
+     const resolveUrl = (url) => {
+        if (!url) return null;
+        if (typeof url !== 'string') return url;
+        if (url.startsWith('/uploads')) {
+            return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
+        }
+        return url;
+     };
+
      const loadMap = (url, isColor = false) => {
-          if (!url) return null;
-          return loader.load(url, (tex) => {
+          const resolved = resolveUrl(url);
+          if (!resolved || resolved === "existing") return null;
+          return loader.load(resolved, (tex) => {
               tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
               tex.flipY = false; 
               tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
@@ -74,12 +84,25 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
      }
 
      const newMaps = {};
-     if (selectedTexture.maps.map) newMaps.map = loadMap(selectedTexture.maps.map, true);
-     if (selectedTexture.maps.normalMap) newMaps.normalMap = loadMap(selectedTexture.maps.normalMap, false);
-     if (selectedTexture.maps.roughnessMap) newMaps.roughnessMap = loadMap(selectedTexture.maps.roughnessMap, false);
-     if (selectedTexture.maps.metalnessMap) newMaps.metalnessMap = loadMap(selectedTexture.maps.metalnessMap, false);
-     if (selectedTexture.maps.displacementMap) newMaps.displacementMap = loadMap(selectedTexture.maps.displacementMap, false);
-     if (selectedTexture.maps.aoMap) newMaps.aoMap = loadMap(selectedTexture.maps.aoMap, false);
+     const m = selectedTexture?.maps || {};
+     // Support both old keys (map, normalMap) and new keys (base, normal)
+     const baseImg = m.map || m.base;
+     const normalImg = m.normalMap || m.normal;
+     const roughnessImg = m.roughnessMap || m.roughness;
+     const metalnessImg = m.metalnessMap || m.metallic || m.metalness;
+     const displacementImg = m.displacementMap || m.displacement;
+     const aoImg = m.aoMap || m.ao;
+     const opacityImg = m.opacityMap || m.opacity;
+     const emissiveImg = m.emissiveMap || m.emissive;
+
+     if (baseImg) newMaps.map = loadMap(baseImg, true);
+     if (normalImg) newMaps.normalMap = loadMap(normalImg, false);
+     if (roughnessImg) newMaps.roughnessMap = loadMap(roughnessImg, false);
+     if (metalnessImg) newMaps.metalnessMap = loadMap(metalnessImg, false);
+     if (displacementImg) newMaps.displacementMap = loadMap(displacementImg, false);
+     if (aoImg) newMaps.aoMap = loadMap(aoImg, false);
+     if (opacityImg) newMaps.alphaMap = loadMap(opacityImg, false);
+     if (emissiveImg) newMaps.emissiveMap = loadMap(emissiveImg, true);
      
      const selMat = selectedMaterial; 
      const targetMatName = selMat ? selMat.name : null;
@@ -180,9 +203,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const textureManager = new THREE.LoadingManager();
     const loader = new THREE.TextureLoader(textureManager);
     
-    const loadMap = (url, isColor = false) => {
-         if (!url) return null;
-         return loader.load(url, (tex) => {
+    const resolveUrlLocal = (url) => {
+        if (!url) return null;
+        if (typeof url !== 'string') return url;
+        if (url.startsWith('/uploads')) {
+            return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
+        }
+        return url;
+    };
+
+    const loadMapManual = (url, isColor = false) => {
+         const resolved = resolveUrlLocal(url);
+         if (!resolved || resolved === "existing") return null;
+         return loader.load(resolved, (tex) => {
              tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
              tex.flipY = false; 
              tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
@@ -194,15 +227,24 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const newMapsList = materialSettings.maps;
     const loadedMaps = {};
     
-    // Only load maps that are actually present (Blob URLs)
-    if (newMapsList.map) loadedMaps.map = loadMap(newMapsList.map, true);
-    if (newMapsList.normalMap) loadedMaps.normalMap = loadMap(newMapsList.normalMap, false);
-    if (newMapsList.roughnessMap) loadedMaps.roughnessMap = loadMap(newMapsList.roughnessMap, false);
-    if (newMapsList.metalnessMap) loadedMaps.metalnessMap = loadMap(newMapsList.metalnessMap, false);
-    if (newMapsList.displacementMap) loadedMaps.displacementMap = loadMap(newMapsList.displacementMap, false);
-    if (newMapsList.aoMap) loadedMaps.aoMap = loadMap(newMapsList.aoMap, false);
-    if (newMapsList.alphaMap) loadedMaps.alphaMap = loadMap(newMapsList.alphaMap, false);
-    if (newMapsList.emissiveMap) loadedMaps.emissiveMap = loadMap(newMapsList.emissiveMap, true);
+    // Support both old keys and new keys
+    const baseImg = newMapsList.map || newMapsList.base;
+    const normalImg = newMapsList.normalMap || newMapsList.normal;
+    const roughnessImg = newMapsList.roughnessMap || newMapsList.roughness;
+    const metalnessImg = newMapsList.metalnessMap || newMapsList.metallic || newMapsList.metalness;
+    const displacementImg = newMapsList.displacementMap || newMapsList.displacement;
+    const aoImg = newMapsList.aoMap || newMapsList.ao;
+    const alphaImg = newMapsList.alphaMap || newMapsList.opacity;
+    const emissiveImg = newMapsList.emissiveMap || newMapsList.emissive;
+
+    if (baseImg) loadedMaps.map = loadMapManual(baseImg, true);
+    if (normalImg) loadedMaps.normalMap = loadMapManual(normalImg, false);
+    if (roughnessImg) loadedMaps.roughnessMap = loadMapManual(roughnessImg, false);
+    if (metalnessImg) loadedMaps.metalnessMap = loadMapManual(metalnessImg, false);
+    if (displacementImg) loadedMaps.displacementMap = loadMapManual(displacementImg, false);
+    if (aoImg) loadedMaps.aoMap = loadMapManual(aoImg, false);
+    if (alphaImg) loadedMaps.alphaMap = loadMapManual(alphaImg, false);
+    if (emissiveImg) loadedMaps.emissiveMap = loadMapManual(emissiveImg, true);
 
     scene.traverse((child) => {
          if (child.isMesh && child.material) {

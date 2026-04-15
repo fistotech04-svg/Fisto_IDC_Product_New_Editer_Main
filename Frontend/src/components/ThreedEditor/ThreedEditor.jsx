@@ -19,9 +19,11 @@ import { GLTFExporter } from "three-stdlib";
 import { OBJExporter } from "three-stdlib";
 import { STLExporter } from "three-stdlib";
 import CameraModal from "./Components/CameraModal";
+import AddMaterial from "./Components/AddMaterial";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
 import { useToast } from "../../components/CustomToast";
+import JSZip from "jszip";
 
 
 export default function ThreedEditor() {
@@ -102,6 +104,7 @@ export default function ThreedEditor() {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showAddModelModal, setShowAddModelModal] = useState(false);
   const [showModelGalleryModal, setShowModelGalleryModal] = useState(false);
+  const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
 
   // Right Panel & Sidebar State
   const [activeAccordion, setActiveAccordion] = useState("factor"); // "factor" | "position" | "lighting"
@@ -567,8 +570,15 @@ export default function ThreedEditor() {
       });
   }, [updateHistory]);
 
-  const handleExport = (settings) => {
-    const { exportScope, selectedMaterial, exportFormat, fileName } = typeof settings === 'object' ? settings : { exportFormat: settings };
+  const handleExport = async (settings) => {
+    const { 
+        exportScope, 
+        selectedMaterial, 
+        exportFormat, 
+        fileName, 
+        customMaterialNames 
+    } = typeof settings === 'object' ? settings : { exportFormat: settings };
+
     const format = exportFormat?.toLowerCase();
     const scene = sceneWrapperRef.current;
     if (!scene || models.length === 0) return;
@@ -578,33 +588,13 @@ export default function ThreedEditor() {
 
     const name = fileName || modelName || (models.length > 0 ? models[0].name : "Scene");
     const visibilityMap = new Map();
-    
-    // 1. Identify meshes to export based on material selection
-    if (exportScope === 'selection' && selectedMaterial) {
-        const selectedNames = new Set(
-            selectedMaterial.isGroup 
-                ? selectedMaterial.materials 
-                : [selectedMaterial.name]
-        );
 
-        scene.traverse((obj) => {
-            if (obj.isMesh && obj.material) {
-                visibilityMap.set(obj, obj.visible);
-                
-                const isSelected = selectedNames.has(obj.name) || 
-                                 (Array.isArray(obj.material) 
-                                    ? obj.material.some(m => selectedNames.has(m.name)) 
-                                    : selectedNames.has(obj.material.name));
-                
-                if (!isSelected) {
-                    obj.visible = false;
-                }
-            } else if (obj.isLight || obj.isHelper) {
-                visibilityMap.set(obj, obj.visible);
-                obj.visible = false;
-            }
-        });
-    }
+    // Store original visibility
+    scene.traverse((obj) => {
+        if (obj.isMesh || obj.isLight || obj.isHelper) {
+            visibilityMap.set(obj, obj.visible);
+        }
+    });
 
     const restoreVisibility = () => {
         visibilityMap.forEach((visible, obj) => {
@@ -612,65 +602,78 @@ export default function ThreedEditor() {
         });
     };
 
-    const download = (blob, filename) => {
-        const link = document.createElement('a');
-        link.style.display = 'none';
-        link.href = URL.createObjectURL(blob);
-        link.download = filename;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        setTimeout(() => {
-            setManualLoading(false);
-            setLoadingText("");
-        }, 500);
-    };
-
-    const saveString = (text, filename) => {
-        const blob = new Blob([text], { type: 'text/plain' });
-        download(blob, filename);
-    };
-
-    const saveArrayBuffer = (buffer, filename) => {
-        const blob = new Blob([buffer], { type: 'application/octet-stream' });
-        download(blob, filename);
+    const runExport = async (targetScene) => {
+        return new Promise((resolve, reject) => {
+            if (format === 'glb') {
+                const exporter = new GLTFExporter();
+                exporter.parse(targetScene, (result) => {
+                    if (result instanceof ArrayBuffer) {
+                        resolve(new Blob([result], { type: 'application/octet-stream' }));
+                    } else {
+                        const output = JSON.stringify(result, null, 2);
+                        resolve(new Blob([output], { type: 'text/plain' }));
+                    }
+                }, reject, { binary: true });
+            } else if (format === 'obj') {
+                const exporter = new OBJExporter();
+                const result = exporter.parse(targetScene);
+                resolve(new Blob([result], { type: 'text/plain' }));
+            } else if (format === 'stl') {
+                const exporter = new STLExporter();
+                const result = exporter.parse(targetScene);
+                resolve(new Blob([result], { type: 'application/octet-stream' }));
+            } else {
+                reject(new Error("Unsupported format"));
+            }
+        });
     };
 
     try {
-        if (format === 'glb') {
-            const exporter = new GLTFExporter();
-            exporter.parse(scene, (result) => {
-                restoreVisibility();
-                if (result instanceof ArrayBuffer) {
-                    saveArrayBuffer(result, `${name}.glb`);
-                } else {
-                    const output = JSON.stringify(result, null, 2);
-                    saveString(output, `${name}.gltf`);
-                }
-            }, (err) => {
-                console.error(err);
-                restoreVisibility();
-                setManualLoading(false);
-                setLoadingText("");
-            }, { binary: true });
-        } else if (format === 'obj') {
-            const exporter = new OBJExporter();
-            const result = exporter.parse(scene);
+        if (exportScope === 'selection' && selectedMaterial) {
+            const zip = new JSZip();
+            const names = selectedMaterial.isGroup ? selectedMaterial.materials : [selectedMaterial.name];
+            
+            for (const matName of names) {
+                const displayName = (customMaterialNames?.[matName] || matName).replace(/\s+/g, '_');
+                setLoadingText(`Packaging ${displayName}...`);
+                
+                // Isolate this material
+                scene.traverse((obj) => {
+                    if (obj.isMesh && obj.material) {
+                        const isSelected = obj.name === matName || 
+                                         (Array.isArray(obj.material) 
+                                            ? obj.material.some(m => m.name === matName) 
+                                            : obj.material.name === matName);
+                        obj.visible = isSelected;
+                    } else if (obj.isLight || obj.isHelper) {
+                        obj.visible = false;
+                    }
+                });
+
+                const blob = await runExport(scene);
+                zip.file(`${displayName}.${format}`, blob);
+            }
+
+            setLoadingText("Generating ZIP...");
+            const zipBlob = await zip.generateAsync({ type: "blob" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(zipBlob);
+            link.download = `${name.replace(/\s+/g, '_')}.zip`;
+            link.click();
+            
             restoreVisibility();
-            saveString(result, `${name}.obj`);
-        } else if (format === 'stl') {
-            const exporter = new STLExporter();
-            const result = exporter.parse(scene);
-            restoreVisibility();
-            saveString(result, `${name}.stl`);
         } else {
-            restoreVisibility();
-            setManualLoading(false);
-            setLoadingText("");
+            // Full Model Export (Single File)
+            const blob = await runExport(scene);
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${name.replace(/\s+/g, '_')}.${format}`;
+            link.click();
         }
     } catch (error) {
         console.error("Export error:", error);
+        toast.error("Export failed. Please try again.");
+    } finally {
         restoreVisibility();
         setManualLoading(false);
         setLoadingText("");
@@ -1566,6 +1569,7 @@ export default function ThreedEditor() {
               isOpen={isTextureOpen}
               setIsOpen={setIsTextureOpen}
               onSelectTexture={handleSelectTexture}
+              onAddMaterialClick={() => setShowAddMaterialModal(true)}
             />
           )}
 
@@ -1839,6 +1843,13 @@ export default function ThreedEditor() {
                   isOpen={showModelGalleryModal}
                   onClose={() => setShowModelGalleryModal(false)}
                   onSelectModel={handleSelectGalleryModel}
+              />
+          )}
+
+          {showAddMaterialModal && (
+              <AddMaterial 
+                  isOpen={showAddMaterialModal} 
+                  onClose={() => setShowAddMaterialModal(false)}
               />
           )}
     </div>

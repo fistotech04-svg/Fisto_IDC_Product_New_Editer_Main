@@ -8,6 +8,7 @@ import usersettingRoutes from "./routes/User_Details/usersetting.js";
 import authRoutes from "./routes/User_Details/login.js";
 import flipbookRoutes from "./routes/Flipbook/flipbook.js";
 import threedModelRoutes from "./routes/User_Details/threed_models.js";
+import textureRoutes from "./routes/Texture/texture.js";
 
 // Load env vars
 dotenv.config();
@@ -49,6 +50,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/flipbook", flipbookRoutes);
 app.use("/api/usersetting", usersettingRoutes);
 app.use("/api/3d-models", threedModelRoutes);
+app.use("/api/textures", textureRoutes);
 
 const PORT = process.env.PORT || 5000;
 

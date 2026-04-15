@@ -10,30 +10,44 @@ import initOCCT from "occt-import-js";
 import GenericModel from "./GenericModel";
 import { LoadingSpinner } from "./GlobalLoader";
 
+// URL Resolver Helper
+const resolveUrl = (url) => {
+    if (!url) return null;
+    if (typeof url !== 'string') return url;
+    if (url.startsWith('/uploads')) {
+        return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
+    }
+    return url;
+};
+
 // GLB Loader Component
 export const GLBModel = React.forwardRef(({ url, shouldClone, ...props }, ref) => {
-  const { scene } = useGLTF(url);
+  const resolvedUrl = resolveUrl(url);
+  const { scene } = useGLTF(resolvedUrl);
   const displayScene = useMemo(() => shouldClone ? scene.clone() : scene, [scene, shouldClone]);
   return <GenericModel ref={ref} scene={displayScene} {...props} />;
 });
 
 // OBJ Loader Component
 export const OBJModel = React.forwardRef(({ url, shouldClone, ...props }, ref) => {
-  const scene = useLoader(OBJLoader, url);
+  const resolvedUrl = resolveUrl(url);
+  const scene = useLoader(OBJLoader, resolvedUrl);
   const displayScene = useMemo(() => shouldClone ? scene.clone() : scene, [scene, shouldClone]);
   return <GenericModel ref={ref} scene={displayScene} {...props} />;
 });
 
 // FBX Loader Component
 export const FBXModel = React.forwardRef(({ url, shouldClone, ...props }, ref) => {
-  const scene = useLoader(FBXLoader, url);
+  const resolvedUrl = resolveUrl(url);
+  const scene = useLoader(FBXLoader, resolvedUrl);
   const displayScene = useMemo(() => shouldClone ? scene.clone() : scene, [scene, shouldClone]);
   return <GenericModel ref={ref} scene={displayScene} {...props} />;
 });
 
 // STL Loader Component
 export const STLModel = React.forwardRef(({ url, shouldClone, ...props }, ref) => {
-  const geom = useLoader(STLLoader, url);
+  const resolvedUrl = resolveUrl(url);
+  const geom = useLoader(STLLoader, resolvedUrl);
   
   const scene = useMemo(() => {
       const mat = new THREE.MeshStandardMaterial({ 

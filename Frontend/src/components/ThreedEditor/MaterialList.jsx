@@ -302,7 +302,7 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                 className={`absolute top-full left-0 w-full bg-white border border-gray-200 border-t-0 transition-all duration-500 ease-in-out flex flex-col pointer-events-auto ${isCollapsed ? "max-h-0 opacity-0 -translate-y-[0.42vw] scale-95 pointer-events-none rounded-[0.62vw] overflow-hidden" : "opacity-100 translate-y-0 scale-100 rounded-b-[0.62vw] rounded-t-none pb-[0.42vw]"
                     }`}
                 style={{
-                    maxHeight: isCollapsed ? "0" : (isTextureOpen ? "calc(92vh - 21.35vw)" : "calc(92vh - 14.06vw)")
+                    maxHeight: isCollapsed ? "0" : (isTextureOpen ? "calc(92vh - 23vw)" : "calc(92vh - 14.06vw)")
                 }}
             >
                 {/* MATERIALS LIST */}

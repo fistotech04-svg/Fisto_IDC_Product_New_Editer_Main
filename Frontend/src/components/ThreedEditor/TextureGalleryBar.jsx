@@ -1,35 +1,80 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
+import axios from "axios";
 import { textureData } from "../../data/textureData";
 
-export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId }) {
+export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick }) {
     const scrollRef = React.useRef(null);
     const [localSelected, setLocalSelected] = useState(null);
+    const [uploadedTextures, setUploadedTextures] = useState([]);
+    const [isLoading, setIsLoading] = useState(false);
+
     const [activeTab, setActiveTab] = useState("predefined"); // "predefined" | "uploaded"
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
     // Use data from centralized file
-    const textures = textureData;
+    const predefinedTextures = textureData;
+
+    const fetchUploadedTextures = useCallback(async () => {
+        const userStr = localStorage.getItem("user");
+        const user = userStr ? JSON.parse(userStr) : null;
+        if (!user?.emailId) return;
+
+        setIsLoading(true);
+        try {
+            const response = await axios.get(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/textures/get?email=${user.emailId}`);
+            if (response.data.textures) {
+                // Map backend format to UI format
+                const mapped = response.data.textures.map(t => ({
+                    id: t._id,
+                    name: t.materialName,
+                    category: t.materialCategory || "Custom",
+                    // Use preview if available, otherwise base map
+                    thumb: t.maps.preview || t.maps.base,
+                    // Store all maps for selection
+                    maps: t.maps,
+                    isUploaded: true
+                }));
+                setUploadedTextures(mapped);
+            }
+        } catch (error) {
+            console.error("Error fetching uploaded textures:", error);
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab === "uploaded") {
+            fetchUploadedTextures();
+        }
+    }, [activeTab, fetchUploadedTextures]);
+
+    // Re-fetch when AddMaterial modal closes (if we had a way to trigger it, but for now we poll or manual refresh)
+    // Actually, we can just fetch whenever activeTab becomes uploaded.
+
+    const currentTextures = activeTab === "predefined" ? predefinedTextures : uploadedTextures;
 
     const categories = useMemo(() => {
         const counts = {};
-        textures.forEach(t => {
+        currentTextures.forEach(t => {
             const cat = t.category || "General";
             counts[cat] = (counts[cat] || 0) + 1;
         });
-        return { All: textures.length, ...counts };
-    }, [textures]);
+        return { All: currentTextures.length, ...counts };
+    }, [currentTextures]);
 
     const filteredTextures = useMemo(() => {
-        if (selectedCategory === "All") return textures;
-        return textures.filter(t => (t.category || "General") === selectedCategory);
-    }, [textures, selectedCategory]);
+        if (selectedCategory === "All") return currentTextures;
+        return currentTextures.filter(t => (t.category || "General") === selectedCategory);
+    }, [currentTextures, selectedCategory]);
 
     const selectedTextureName = useMemo(() => {
-        const found = textures.find(t => t.id === selectedTextureId || (!selectedTextureId && localSelected === (t.id || t.name)));
+        const allTextures = [...predefinedTextures, ...uploadedTextures];
+        const found = allTextures.find(t => t.id === selectedTextureId || (!selectedTextureId && localSelected === (t.id || t.name)));
         return found ? found.name : "None";
-    }, [selectedTextureId, localSelected, textures]);
+    }, [selectedTextureId, localSelected, predefinedTextures, uploadedTextures]);
 
     const handleSelect = (tex) => {
         setLocalSelected(tex.id || tex.name);
@@ -142,11 +187,34 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                 </div>
 
                 {/* Gallery Scroll Area */}
-                <div className="flex-1 relative flex items-center px-[0.83vw]">
+                <div className="flex-1 relative flex items-center px-[1.2vw] gap-[1.5vw]">
+                    {/* NEW: Upload Box (Only for Uploaded Tab) - Placed outside scroll to sit on the left */}
+                    {activeTab === "uploaded" && (
+                        <div 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (onAddMaterialClick) onAddMaterialClick();
+                            }}
+                            className="flex flex-col items-center gap-[0.4vw] cursor-pointer group transition-all duration-300 ml-[0.2vw] shrink-0"
+                        >
+                            <div className="w-[7.5vw] h-[6vw] rounded-[0.8vw] border-[0.12vw] border-dashed border-gray-300 bg-gray-50 flex flex-col items-center justify-center relative overflow-hidden group-hover:border-[#5d5efc] transition-all shadow-sm">
+                                <div className="flex flex-col items-center gap-[0.4vw] z-10">
+                                    <Icon 
+                                        icon="heroicons:plus-20-solid" 
+                                        width="1.8vw" 
+                                        height="1.8vw" 
+                                        className="text-gray-400 group-hover:text-[#5d5efc] transition-all" 
+                                    />
+                                    <span className="text-[0.6vw] font-semibold text-gray-500 group-hover:text-gray-700">Click to Add Material</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Left Nav */}
                     <button 
                         onClick={scrollLeft}
-                        className="z-10 w-[1.67vw] h-[1.67vw] flex flex-shrink-0 items-center justify-center bg-white hover:bg-gray-50 border border-gray-200 rounded-full shadow-sm text-gray-600 transition-all -mr-[0.42vw] -translate-y-[0.62vw]"
+                        className="z-10 w-[1.67vw] h-[1.67vw] flex flex-shrink-0 items-center justify-center bg-white hover:bg-gray-50 border border-gray-200 rounded-full shadow-sm text-gray-600 transition-all -translate-y-[0.62vw] mr-[0.5vw]"
                     >
                         <Icon icon="heroicons:chevron-left-20-solid" width="1.04vw" height="1.04vw" />
                     </button>
@@ -156,9 +224,27 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                         ref={scrollRef}
                         className="flex-1 overflow-x-auto custom-scrollbar px-[0.83vw] h-full flex items-center"
                     >
-                        <div className="flex items-center gap-[1.2vw] min-w-max mx-auto px-[1.5vw] py-[1.2vw]">
+                        <div className="flex items-center gap-[1.2vw] min-w-max mx-auto px-[1vw] py-[1.2vw]">
+                            {filteredTextures.length === 0 && (
+                                <div className="flex items-center justify-center py-[2vw]">
+                                    <span className="text-[0.75vw] text-gray-400/80 font-semibold tracking-wide flex items-center gap-[0.5vw]">
+                                        <Icon icon="heroicons:information-circle-20-solid" width="1vw" />
+                                        No Materials Found
+                                    </span>
+                                </div>
+                            )}
+
                             {filteredTextures.map((tex, idx) => {
                                 const isActive = selectedTextureId === tex.id || (!selectedTextureId && localSelected === (tex.id || tex.name));
+                                
+                                // Resolve the image source
+                                let imageSrc = tex.thumb || tex.preview;
+                                if (imageSrc?.startsWith('/uploads')) {
+                                    imageSrc = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${imageSrc}`;
+                                } else if (imageSrc?.startsWith('Texture/')) {
+                                    // Handle predefined paths if they start with Texture/ but aren't URLs
+                                }
+
                                 return (
                                     <div 
                                         key={idx} 
@@ -177,7 +263,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                             }`}
                                         >
                                             <img 
-                                                src={tex.preview} 
+                                                src={imageSrc} 
                                                 alt={tex.name} 
                                                 className={`w-full h-full object-cover p-[0.1vw] transition-transform duration-500 ${!isActive ? "group-hover:scale-95" : ""}`}
                                                 loading="lazy"
@@ -203,7 +289,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                     {/* Right Nav */}
                     <button 
                         onClick={scrollRight}
-                        className="z-10 w-[1.67vw] h-[1.67vw] flex flex-shrink-0 items-center justify-center bg-white hover:bg-gray-50 border border-gray-200 rounded-full shadow-sm text-gray-600 transition-all -ml-[0.42vw] -translate-y-[0.62vw]"
+                        className="z-10 w-[1.67vw] h-[1.67vw] flex flex-shrink-0 items-center justify-center bg-white hover:bg-gray-50 border border-gray-200 rounded-full shadow-sm text-gray-600 transition-all ml-[0.5vw] -translate-y-[0.62vw]"
                     >
                         <Icon icon="heroicons:chevron-right-20-solid" width="1.04vw" height="1.04vw" />
                     </button>
