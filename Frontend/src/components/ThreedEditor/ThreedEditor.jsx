@@ -15,6 +15,7 @@ import useModalHistory from "./hooks/useModalHistory";
 import Export3DModal from "./Components/Export3DModal";
 import AddModelModal from "./Components/AddModelModal";
 import ModelGalleryModal from "./Components/ModelGalleryModal";
+import AlertModal from "../AlertModal";
 import { GLTFExporter } from "three-stdlib";
 import { OBJExporter } from "three-stdlib";
 import { STLExporter } from "three-stdlib";
@@ -138,6 +139,7 @@ export default function ThreedEditor() {
   const [isScreenshotOpen, setIsScreenshotOpen] = useState(false);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [formatErrorModal, setFormatErrorModal] = useState({ isOpen: false, message: '' });
 
   const { 
     state: historyState, 
@@ -1055,13 +1057,16 @@ export default function ThreedEditor() {
   const processFile = (file) => {
     if (!file) return;
 
-    const name = file.name.toLowerCase();
+   const name = file.name.toLowerCase();
     const validExtensions = ['.glb', '.gltf', '.obj', '.fbx', '.stl', '.step', '.stp'];
     
     if (!validExtensions.some(ext => name.endsWith(ext))) {
-        toast.error('Please upload a 3D model in one of the following formats: .glb, .gltf, .obj, .fbx, .stl, .step');
+        setFormatErrorModal({
+            isOpen: true,
+            message: `The file format ".${name.split('.').pop()}" is not supported. Please upload one of the following: .GLB, .GLTF, .OBJ, .FBX, .STL, .STEP`
+        });
         return;
-    }
+    } 
     
     setManualLoading(true);
     // Safety fallback to dismiss loader if useProgress fails to trigger
@@ -1384,14 +1389,49 @@ export default function ThreedEditor() {
            };
 
            if (isReset) {
-               next.maps = { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null };
+               next.maps = { 
+                   map: null, 
+                   normalMap: null, 
+                   roughnessMap: null, 
+                   metalnessMap: null, 
+                   displacementMap: null, 
+                   aoMap: null,
+                   emissiveMap: null,
+                   alphaMap: null
+               };
            } else {
-               next.maps = { ...(prev.maps || {}), ...textureData.maps };
+               // Resolve URLs and Map Keys for Uploaded Textures
+               let finalMaps = { ...(textureData.maps || {}) };
+               
+               if (textureData.isUploaded) {
+                   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                   const keyMapping = {
+                       base: 'map',
+                       metallic: 'metalnessMap',
+                       roughness: 'roughnessMap',
+                       normal: 'normalMap',
+                       ao: 'aoMap',
+                       displacement: 'displacementMap',
+                       opacity: 'alphaMap',
+                       emissive: 'emissiveMap'
+                   };
+
+                   const mapped = {};
+                   Object.entries(finalMaps).forEach(([key, url]) => {
+                       if (!url) return;
+                       const targetKey = keyMapping[key] || key;
+                       const fullUrl = (typeof url === 'string' && url.startsWith('/uploads')) ? `${backendUrl}${url}` : url;
+                       mapped[targetKey] = fullUrl;
+                   });
+                   finalMaps = mapped;
+               }
+
+               next.maps = { ...(prev.maps || {}), ...finalMaps };
                // Set factors to 100% when applying a full texture set
                next.metallic = 100;
                next.roughness = 100;
                next.normal = 100;
-               next.bump = 10;
+               next.bump = textureData.isUploaded ? 0 : 0; // Standardize bump for uploads
                next.ao = 100;
                next.color = '#ffffff';
                next.useFactorColor = true;
@@ -1852,6 +1892,15 @@ export default function ThreedEditor() {
                   onClose={() => setShowAddMaterialModal(false)}
               />
           )}
+
+          <AlertModal
+              isOpen={formatErrorModal.isOpen}
+              onClose={() => setFormatErrorModal({ isOpen: false, message: '' })}
+              type="error"
+              title="Invalid Model Format"
+              message={formatErrorModal.message}
+              confirmText="Got it"
+          />
     </div>
   );
 }

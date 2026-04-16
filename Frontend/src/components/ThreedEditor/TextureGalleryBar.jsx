@@ -2,6 +2,8 @@ import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { Icon } from "@iconify/react";
 import axios from "axios";
 import { textureData } from "../../data/textureData";
+import AddMaterial from "./Components/AddMaterial";
+import AlertModal from "../AlertModal";
 
 export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick }) {
     const scrollRef = React.useRef(null);
@@ -12,6 +14,13 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     const [activeTab, setActiveTab] = useState("predefined"); // "predefined" | "uploaded"
     const [selectedCategory, setSelectedCategory] = useState("All");
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [menuOpenId, setMenuOpenId] = useState(null);
+    const [showMoveTo, setShowMoveTo] = useState(false);
+    const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
+    const [editingTexture, setEditingTexture] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({ isOpen: false, texture: null });
 
     // Use data from centralized file
     const predefinedTextures = textureData;
@@ -76,6 +85,68 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
         return found ? found.name : "None";
     }, [selectedTextureId, localSelected, predefinedTextures, uploadedTextures]);
 
+    // Handle clicks outside to close menus
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            // If the menu is open, and we click something that isn't the toggle or the menu itself
+            if (menuOpenId && !e.target.closest('.menu-toggle-btn') && !e.target.closest('.context-menu-container')) {
+                setMenuOpenId(null);
+                setShowMoveTo(false);
+            }
+        };
+        window.addEventListener("mousedown", handleClickOutside);
+        return () => window.removeEventListener("mousedown", handleClickOutside);
+    }, [menuOpenId]);
+
+    const handleEdit = (tex) => {
+        setEditingTexture(tex);
+        setIsEditModalOpen(true);
+        setMenuOpenId(null);
+    };
+
+    const handleDelete = (tex) => {
+        setAlertConfig({
+            isOpen: true,
+            texture: tex
+        });
+        setMenuOpenId(null);
+    };
+
+    const confirmDelete = async () => {
+        const tex = alertConfig.texture;
+        if (!tex) return;
+        
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const response = await axios.delete(`${backendUrl}/api/textures/delete/${tex.id}`);
+            
+            if (response.status === 200) {
+                fetchUploadedTextures();
+                setAlertConfig({ isOpen: false, texture: null });
+            }
+        } catch (error) {
+            console.error("Error deleting texture:", error);
+            setAlertConfig({ isOpen: false, texture: null });
+        }
+    };
+
+    const handleMoveTo = async (tex, newCategory) => {
+        try {
+            const userStr = localStorage.getItem("user");
+            const user = userStr ? JSON.parse(userStr) : null;
+            if (!user?.emailId) return;
+
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            await axios.put(`${backendUrl}/api/textures/update/${tex.id}`, {
+                email: user.emailId,
+                materialCategory: newCategory
+            });
+            fetchUploadedTextures();
+        } catch (error) {
+            console.error("Error moving texture:", error);
+        }
+    };
+
     const handleSelect = (tex) => {
         setLocalSelected(tex.id || tex.name);
         if (onSelectTexture) {
@@ -96,7 +167,8 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     };
 
     return (
-        <div 
+        <>
+            <div 
             className={`absolute left-1/2 -translate-x-1/2 z-20 transition-all duration-500 ease-in-out bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden
             ${isOpen ? "bottom-0 w-[97%] h-[12.5vw] rounded-t-[1vw]" : "bottom-0 w-[97%] h-[3.13vw] rounded-t-[0.83vw] cursor-pointer hover:bg-gray-50"}
             `}
@@ -248,7 +320,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                 return (
                                     <div 
                                         key={idx} 
-                                        className="flex flex-col items-center gap-[0.4vw] cursor-pointer group transition-all duration-300"
+                                        className="flex flex-col items-center gap-[0.4vw] cursor-pointer group transition-all duration-300 relative"
                                         style={{ width: "4.5vw" }} // Fixed container width to prevent layout shift
                                         onClick={(e) => {
                                             e.stopPropagation();
@@ -270,6 +342,25 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                             />
                                             {/* Subtle Inner Glow */}
                                             <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+
+                                            {/* Three Dot Button (Only for Uploaded) */}
+                                            {activeTab === "uploaded" && (
+                                                <div 
+                                                    className="absolute top-[0.3vw] right-[0.3vw] w-[1vw] h-[1vw] bg-white rounded-[0.75vw] flex items-center justify-center opacity-0 group-hover:opacity-100 shadow-lg hover:scale-110 active:scale-95 transition-all z-30 pointer-events-auto menu-toggle-btn"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        setMenuPosition({ 
+                                                            x: rect.left, 
+                                                            y: rect.top 
+                                                        });
+                                                        setMenuOpenId(menuOpenId === tex.id ? null : tex.id);
+                                                        setShowMoveTo(false);
+                                                    }}
+                                                >
+                                                    <Icon icon="heroicons:ellipsis-vertical-20-solid" className="text-gray-500" width="0.9vw" />
+                                                </div>
+                                            )}
                                         </div>
                                         
                                         <span
@@ -295,6 +386,109 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                     </button>
                 </div>
             </div>
-        </div>
+
+            </div>
+
+            {/* ADD/EDIT MATERIAL MODAL */}
+            {isEditModalOpen && (
+                <AddMaterial
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    editData={editingTexture}
+                    onUpdateSuccess={fetchUploadedTextures}
+                />
+            )}
+
+            <AlertModal
+                isOpen={alertConfig.isOpen}
+                onClose={() => setAlertConfig({ isOpen: false, texture: null })}
+                onConfirm={confirmDelete}
+                type="error"
+                title="Delete Material"
+                message={`Are you sure you want to delete "${alertConfig.texture?.name}"? This action cannot be undone.`}
+                showCancel={true}
+                confirmText="Delete"
+                cancelText="Keep"
+            />
+
+            {/* SHARED OPTIONS MENU (Reduced size) */}
+            {menuOpenId && (
+                <div 
+                    className="fixed z-[99999] bg-white rounded-[0.85vw] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.11vw] border-gray-400 py-[0.5vw] px-[0.3vw] min-w-[10vw] context-menu-container animate-in fade-in zoom-in duration-200"
+                    style={{ 
+                        top: (menuPosition.y - 120) + 'px', 
+                        left: (menuPosition.x + 20) + 'px' 
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {(() => {
+                        const tex = uploadedTextures.find(t => String(t.id) === String(menuOpenId));
+                        if (!tex) return null;
+                        
+                        return (
+                            <div className="flex flex-col gap-[0.1vw]">
+                                <button 
+                                    onClick={() => { handleEdit(tex); setMenuOpenId(null); }}
+                                    className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-gray-100 cursor-pointer rounded-[0.6vw] text-gray-700 transition-colors group/item"
+                                >
+                                    <Icon icon="mdi:edit-outline" className="w-[1.1vw] h-[1.1vw] text-gray-500" />
+                                    <span className="text-[0.7vw] font-medium text-gray-600">Edit Material</span>
+                                </button>
+                                
+                                <div 
+                                    className="relative"
+                                    onMouseEnter={() => setShowMoveTo(true)}
+                                    onMouseLeave={() => setShowMoveTo(false)}
+                                >
+                                    <button 
+                                        className={`w-full flex items-center justify-between gap-[0.6vw] px-[0.8vw] py-[0.5vw] rounded-[0.6vw] transition-colors group/item ${showMoveTo ? 'bg-gray-100' : 'hover:bg-gray-100 cursor-pointer'}`}
+                                    >
+                                        <div className="flex items-center gap-[0.6vw]">
+                                            <Icon icon="solar:login-3-linear" className="w-[1.1vw] h-[1.1vw] text-gray-500" />
+                                            <span className="text-[0.7vw] font-medium text-gray-600">Move to</span>
+                                        </div>
+                                    </button>
+
+                                    {/* Category Submenu - Added gap and transparent bridge for stable hover */}
+                                    {showMoveTo && (
+                                        <div 
+                                            className="absolute left-full top-[-1vw] ml-[0.75vw] bg-white rounded-[0.85vw] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[0.11vw] border-gray-400 py-[0.5vw] px-[0.3vw] min-w-[10vw] max-h-[14vw] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-left-2 duration-200 z-50 pointer-events-auto"
+                                        >
+                                            {/* Transparent bridge to prevent closure when moving mouse across the gap */}
+                                            <div className="absolute top-0 right-full w-[0.8vw] h-full" />
+                                            
+                                            <div className="flex flex-col gap-[0.1vw]">
+                                                {Object.keys(categories).filter(c => c !== "All").map(cat => {
+                                                    const isCurrent = cat === tex.category;
+                                                    return (
+                                                        <button 
+                                                            key={cat}
+                                                            disabled={isCurrent}
+                                                            onClick={() => { handleMoveTo(tex, cat); setMenuOpenId(null); }}
+                                                            className={`w-full text-left px-[0.8vw] py-[0.5vw] rounded-[0.6vw] transition-colors text-[0.7vw] font-medium capitalize 
+                                                                ${isCurrent ? "opacity-40 cursor-not-allowed bg-gray-50 text-gray-400" : "hover:bg-gray-100 cursor-pointer text-gray-600"}`}
+                                                        >
+                                                            {cat} {isCurrent && "(Current)"}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <button 
+                                    onClick={() => { handleDelete(tex); setMenuOpenId(null); }}
+                                    className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-red-100 cursor-pointer rounded-[0.6vw] text-red-500 transition-colors"
+                                >
+                                    <Icon icon="solar:trash-bin-trash-linear" className="w-[1.1vw] h-[1.1vw]" />
+                                    <span className="text-[0.7vw] font-medium">Delete Material</span>
+                                </button>
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
+        </>
     );
 }

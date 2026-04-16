@@ -89,3 +89,69 @@ export const getUserTextures = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+export const updateTexture = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { materialName, materialCategory, maps } = req.body;
+
+    const texture = await Texture.findById(id);
+    if (!texture) return res.status(404).json({ message: "Texture not found" });
+
+    if (materialName) texture.materialName = materialName;
+    if (materialCategory) texture.materialCategory = materialCategory;
+    if (maps) {
+        // If maps are updated, remove the OLD files from the backend if possible
+        for (const key in maps) {
+            const oldValue = texture.maps[key];
+            const newValue = maps[key];
+            
+            // Only delete if the URL has changed, it exists, and it's an internal path
+            if (oldValue && oldValue !== newValue && oldValue.startsWith('/uploads')) {
+                try {
+                    const filePath = path.join(__dirname, "../..", oldValue);
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                } catch (e) {
+                    console.warn(`Could not delete old map file ${oldValue}:`, e);
+                }
+            }
+            
+            texture.maps[key] = newValue;
+        }
+    }
+
+    await texture.save();
+    res.status(200).json({ message: "Texture updated successfully", texture });
+  } catch (error) {
+    console.error("Error updating texture:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteTexture = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const texture = await Texture.findById(id);
+    if (!texture) return res.status(404).json({ message: "Texture not found" });
+
+    // Try to delete physical folder if possible
+    try {
+        const sanitizedEmail = texture.userEmail.replace(/[@.]/g, "_");
+        const sanitizedMaterialName = texture.materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const targetDir = path.join(__dirname, "../../uploads", sanitizedEmail, "Texture", sanitizedMaterialName);
+        if (fs.existsSync(targetDir)) {
+            fs.rmSync(targetDir, { recursive: true, force: true });
+        }
+    } catch (e) {
+        console.warn("Could not delete physical files:", e);
+    }
+
+    await Texture.findByIdAndDelete(id);
+    res.status(200).json({ message: "Texture deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting texture:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};

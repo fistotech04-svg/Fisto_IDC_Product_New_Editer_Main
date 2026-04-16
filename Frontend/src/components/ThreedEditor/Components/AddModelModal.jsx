@@ -1,16 +1,30 @@
 import React, { useState } from 'react';
 import { Icon } from '@iconify/react';
+import AlertModal from '../../AlertModal';
 
 export default function AddModelModal({ isOpen, onClose, onAdd }) {
     const [isDragging, setIsDragging] = useState(false);
+    const [errorModal, setErrorModal] = useState({ isOpen: false, message: '' });
+
+
+    const validExtensions = ['step', 'stp', 'obj', 'fbx', 'glb', 'gltf', 'stl'];
 
     if (!isOpen) return null;
 
     const handleFile = (file) => {
-        if (file) {
-            onAdd(file);
-            onClose();
+        if (!file) return;
+
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!validExtensions.includes(ext)) {
+            setErrorModal({
+                isOpen: true,
+                message: `The file format ".${ext}" is not supported. Please upload one of the following: ${validExtensions.join(', ').toUpperCase()}`
+            });
+            return;
         }
+
+        onAdd(file);
+        onClose();
     };
 
     return (
@@ -39,10 +53,11 @@ export default function AddModelModal({ isOpen, onClose, onAdd }) {
 
                 {/* Upload Area */}
                 <div 
-                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                    onDragLeave={() => setIsDragging(false)}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); }}
                     onDrop={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         setIsDragging(false);
                         const file = e.dataTransfer.files[0];
                         handleFile(file);
@@ -69,9 +84,18 @@ export default function AddModelModal({ isOpen, onClose, onAdd }) {
                     </div>
 
                     <div className="text-[0.6vw] text-gray-400 font-medium tracking-wide">
-                        Supported File : <span className="uppercase text-gray-500 font-semibold">step, obj, fbx, glb, gltf</span>
+                        Supported File : <span className="uppercase text-gray-500 font-semibold">{validExtensions.join(', ')}</span>
                     </div>
                 </div>
+
+                <AlertModal
+                    isOpen={errorModal.isOpen}
+                    onClose={() => setErrorModal({ isOpen: false, message: '' })}
+                    type="error"
+                    title="Invalid File Format"
+                    message={errorModal.message}
+                    confirmText="Got it"
+                />
 
             </div>
         </div>

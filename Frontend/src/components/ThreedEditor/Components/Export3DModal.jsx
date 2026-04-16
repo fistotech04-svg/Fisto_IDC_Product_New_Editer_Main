@@ -1,8 +1,77 @@
 import React, { useState, Suspense, useRef, useMemo, useEffect } from 'react';
 import { X, Check, ZoomIn, ZoomOut, Edit3, Download, ChevronDown, Layers, Box, Info } from 'lucide-react';
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Environment, PerspectiveCamera, ContactShadows, Html, Center } from "@react-three/drei";
+import { View, OrbitControls, Environment, PerspectiveCamera, ContactShadows, Html, Center } from "@react-three/drei";
 import RenderModel from "./ModelLoaders";
+import { GlobalLoader } from "./GlobalLoader";
+const ModelThumbnail = React.memo(({ 
+    materialName, 
+    models, 
+    materialSettings, 
+    selectedTexture, 
+    materialList, 
+    containerRef 
+}) => {
+    const viewRef = useRef();
+    
+    // Calculate hidden materials for this specific thumbnail
+    const thumbnailHiddenMaterials = useMemo(() => {
+        const allMaterials = new Set();
+        const list = Array.isArray(materialList) ? materialList : [];
+        list.forEach(item => {
+            if (typeof item === 'string') {
+                allMaterials.add(item);
+            } else if (item && item.materials) {
+                item.materials.forEach(m => allMaterials.add(m));
+            }
+        });
+
+        const selectionHidden = new Set();
+        allMaterials.forEach(m => {
+            if (m !== materialName) {
+                selectionHidden.add(m);
+            }
+        });
+        
+        return selectionHidden;
+    }, [materialName, materialList]);
+
+    return (
+      <div ref={viewRef} className="w-full h-full relative group bg-gray-500 flex items-center justify-center overflow-hidden rounded-[0.3vw] shadow-inner">
+          <View track={viewRef} className="w-full h-full">
+              <Suspense fallback={
+                  <Html center>
+                      <div className="flex flex-col items-center gap-[0.5vw]">
+                          <div className="w-[1.2vw] h-[1.2vw] border-[0.15vw] border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+                      </div>
+                  </Html>
+              }>
+                  <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
+                  <ambientLight intensity={1.5} />
+                  <pointLight position={[10, 10, 10]} intensity={1.5} />
+                  <directionalLight position={[-5, 5, 5]} intensity={1} />
+                  
+                  <group position={[0, 0, 0]}>
+                      {models.map((model) => (
+                          <RenderModel
+                              key={model.id}
+                              type={model.type}
+                              url={model.url}
+                              isSelectionDisabled={true}
+                              shouldClone={true}
+                              materialSettings={materialSettings}
+                              hiddenMaterials={thumbnailHiddenMaterials}
+                              selectedTexture={selectedTexture}
+                          />
+                      ))}
+                  </group>
+                  
+                  <Environment preset="city" />
+              </Suspense>
+          </View>
+      </div>
+    );
+});
 
 export default function Export3DModal({ 
   onClose, 
@@ -35,14 +104,17 @@ export default function Export3DModal({
   const [quality, setQuality] = useState('Medium');
   const [exportFormat, setExportFormat] = useState('OBJ');
   const [fileName, setFileName] = useState(modelName);
-  const [zoomLevel, setZoomLevel] = useState(75);
+  const [zoomLevel, setZoomLevel] = useState(50);
   const [customMaterialNames, setCustomMaterialNames] = useState({});
   const [editingMaterial, setEditingMaterial] = useState(null);
   const settingsContainerRef = useRef(null);
+  const mainViewRef = useRef(null);
+  const modalRef = useRef(null);
   const [showTopShadow, setShowTopShadow] = useState(false);
   const [showBottomShadow, setShowBottomShadow] = useState(false);
   const [showLeftTopShadow, setShowLeftTopShadow] = useState(false);
   const [showLeftBottomShadow, setShowLeftBottomShadow] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
 
   const handleScroll = (ref, setTop, setBottom) => {
       if (!ref.current) return;
@@ -75,15 +147,17 @@ export default function Export3DModal({
     
     if (exportScope === 'selection' && selectedMaterial) {
         const allMaterials = new Set();
-        materialList.forEach(group => {
-            if (group.materials) {
-                group.materials.forEach(m => allMaterials.add(m));
+        (materialList || []).forEach(item => {
+            if (typeof item === 'string') {
+                allMaterials.add(item);
+            } else if (item && item.materials) {
+                (item.materials || []).forEach(m => allMaterials.add(m));
             }
         });
 
         const selectedNames = new Set(
             selectedMaterial.isGroup 
-                ? selectedMaterial.materials 
+                ? (selectedMaterial.materials || []) 
                 : [selectedMaterial.name]
         );
 
@@ -100,114 +174,28 @@ export default function Export3DModal({
     return baseHidden;
   }, [exportScope, selectedMaterial, hiddenMaterials, deletedMaterials, materialList]);
   
-  const ModelThumbnail = ({ materialName }) => {
-    const viewRef = useRef();
-    const [isInView, setIsInView] = useState(false);
-    
-    useEffect(() => {
-        if (!viewRef.current) return;
-        
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setIsInView(true);
-                    observer.unobserve(entry.target);
-                }
-            },
-            { threshold: 0.05 }
-        );
-        
-        observer.observe(viewRef.current);
-        return () => observer.disconnect();
-    }, []);
-
-    // Calculate hidden materials for this specific thumbnail
-    const thumbnailHiddenMaterials = useMemo(() => {
-        const allMaterials = new Set();
-        materialList.forEach(group => {
-            if (group.materials) {
-                group.materials.forEach(m => allMaterials.add(m));
-            }
-        });
-
-        const selectionHidden = new Set();
-        allMaterials.forEach(m => {
-            if (m !== materialName) {
-                selectionHidden.add(m);
-            }
-        });
-        
-        return selectionHidden;
-    }, [materialName]);
-
-    return (
-      <div ref={viewRef} className="w-full h-full relative group bg-gray-500 flex items-center justify-center overflow-hidden rounded-[0.3vw]">
-          {isInView ? (
-              <Canvas 
-                  className="w-full h-full"
-                  shadows
-                  camera={{ position: [0, 0, 5], fov: 30 }}
-                  gl={{ antialias: true }}
-              >
-                  <Suspense fallback={
-                      <Html center>
-                          <div className="w-[1vw] h-[1vw] border-[0.15vw] border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-                      </Html>
-                  }>
-                      <ambientLight intensity={1.5} />
-                      <pointLight position={[10, 10, 10]} intensity={1.5} />
-                      <directionalLight position={[-5, 5, 5]} intensity={1} />
-                      
-                      <Center>
-                          <group>
-                              {models.map((model) => (
-                                  <RenderModel
-                                      key={model.id}
-                                      type={model.type}
-                                      url={model.url}
-                                      isSelectionDisabled={true}
-                                      shouldClone={true}
-                                      transformValues={transformValues}
-                                      materialSettings={materialSettings}
-                                      hiddenMaterials={thumbnailHiddenMaterials}
-                                      selectedTexture={selectedTexture}
-                                  />
-                              ))}
-                          </group>
-                      </Center>
-                      
-                      <Environment preset="city" />
-                      
-                      <OrbitControls 
-                          enableZoom={false} 
-                          enablePan={false}
-                          enableRotate={false}
-                          target={[0, 0, 0]}
-                      />
-                  </Suspense>
-              </Canvas>
-          ) : (
-              <Box size="2vw" className="text-gray-200" />
-          )}
-      </div>
-    );
-  };
-
   useEffect(() => {
-    // Initial check for shadows
+    // Check shadows and initialization delay
     const timer = setTimeout(() => {
         handleScroll(containerRef, setShowLeftTopShadow, setShowLeftBottomShadow);
         handleScroll(settingsContainerRef, setShowTopShadow, setShowBottomShadow);
-    }, 500);
-    return () => clearTimeout(timer);
+        setIsInitializing(false);
+    }, 1200);
+
+    return () => {
+        clearTimeout(timer);
+    };
   }, [selectedMaterial, exportScope]);
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[0.1vw] animate-in fade-in zoom-in duration-200">
+    <div ref={modalRef} className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 backdrop-blur-[0.1vw] animate-in fade-in zoom-in duration-200">
       <div className="bg-white rounded-[0.75vw] shadow-2xl w-[70vw] h-[42vw] flex flex-col overflow-hidden relative border border-gray-100">
         
-        {/* Header */}
-        <div className="px-[2vw] pt-[2vw] pb-[1vw] flex items-start justify-between bg-white w-full">
+        {/* Global Loading Overlay */}
+        <GlobalLoader manualLoading={isInitializing} text="Preparing 3D Export ..." />
+
+        {/* Header - Masking Layer */}
+        <div className="px-[2vw] pt-[2vw] pb-[1vw] flex items-start justify-between bg-white w-full relative z-[30]">
             <div className="flex flex-col flex-1 pr-[2vw]">
                 <div className="flex items-center gap-[1vw]">
                     <h2 className="text-[1.35vw] font-bold text-gray-900 tracking-tight">Export 3D Model</h2>
@@ -227,12 +215,12 @@ export default function Export3DModal({
         </div>
 
         {/* Content Body */}
-        <div className="flex flex-row px-[2vw] pb-[1vw] pt-[1vw] gap-[1.5vw] items-stretch bg-white flex-1 min-h-0">
+        <div className="flex flex-row px-[2vw] pb-[1vw] pt-[1vw] gap-[1.5vw] items-stretch bg-white flex-1 min-h-0 relative z-[10]">
             
             {/* Left Column (Conditional UI) */}
             {exportScope === 'selection' ? (
                 /* Material Grid UI */
-                <div className="w-[45%] bg-[#f8f9fa] rounded-[1vw] relative flex flex-col border border-gray-100 overflow-hidden h-full">
+                <div className="w-[calc(44.5%-0.75vw)] bg-[#f8f9fa] rounded-[1vw] relative flex flex-col border border-gray-100 overflow-hidden h-full">
                     {/* Top Shadow Indicator */}
                     <div className={`absolute top-0 left-0 right-0 h-[2vw] bg-gradient-to-b from-black/10 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showLeftTopShadow ? 'opacity-100' : 'opacity-0'}`} />
                     
@@ -242,10 +230,17 @@ export default function Export3DModal({
                         className="w-full h-full overflow-y-auto custom-scrollbar p-[1.2vw] pr-[0.8vw]"
                     >
                         <div className="grid grid-cols-2 gap-x-[1.2vw] gap-y-[1.5vw]">
-                            {(selectedMaterial.isGroup ? selectedMaterial.materials : [selectedMaterial.name]).map((name, idx) => (
+                            {(selectedMaterial?.isGroup ? (selectedMaterial.materials || []) : [selectedMaterial?.name || "Material"]).map((name, idx) => (
                                 <div key={idx} className="flex flex-col gap-[0.6vw]">
                                     <div className="aspect-square bg-white rounded-[0.6vw] shadow-sm flex items-center justify-center overflow-hidden border border-gray-200/50">
-                                         <ModelThumbnail materialName={name} />
+                                         <ModelThumbnail 
+                                            materialName={name} 
+                                            models={models}
+                                            materialSettings={materialSettings}
+                                            selectedTexture={selectedTexture}
+                                            materialList={materialList}
+                                            containerRef={containerRef}
+                                         />
                                     </div>
                                     <div className="flex items-center justify-between px-[0.2vw] gap-[0.5vw]">
                                         {editingMaterial === name ? (
@@ -289,8 +284,8 @@ export default function Export3DModal({
                 </div>
             ) : (
                 /* Original Full View UI (Canvas) */
-                <div className="w-[45%] bg-[#f8f9fa] rounded-[1vw] p-[1.2vw] relative flex flex-col border border-gray-100 overflow-hidden h-full">
-                    <div className="bg-gray-500 flex-1 rounded-[0.8vw] flex items-center justify-center relative overflow-hidden group border border-gray-100/50 h-full">
+                <div className="w-[calc(44.5%-0.75vw)] bg-[#f8f9fa] rounded-[1vw] p-[1.2vw] relative flex flex-col border border-gray-100 overflow-hidden h-full">
+                    <div ref={mainViewRef} className="bg-gray-500 flex-1 rounded-[0.8vw] flex items-center justify-center relative overflow-hidden group border border-gray-100/50 h-full">
                         {models.length > 0 ? (
                              <div 
                                  className="w-full h-full cursor-grab active:cursor-grabbing"
@@ -308,7 +303,7 @@ export default function Export3DModal({
                                          <p className="text-[0.85vw] font-medium text-gray-400">Loading 3D Model...</p>
                                      </div>
                                  }>
-                                     <Canvas>
+                                     <View track={mainViewRef} className="w-full h-full">
                                          <PerspectiveCamera makeDefault position={[0, 0.8, 4.5]} fov={40} zoom={zoomLevel / 45} />
                                          <ambientLight intensity={1.5} />
                                          <pointLight position={[10, 10, 10]} intensity={1.5} />
@@ -336,7 +331,7 @@ export default function Export3DModal({
                                              maxPolarAngle={Math.PI / 2}
                                              makeDefault
                                          />
-                                     </Canvas>
+                                     </View>
                                  </Suspense>
                              </div>
                         ) : (
@@ -354,8 +349,9 @@ export default function Export3DModal({
                 </div>
             )}
 
-            {/* Right Column (Settings) with Scroll Shadows */}
-            <div className="w-[55%] relative flex flex-col h-full bg-gray-100 rounded-[1vw] border border-gray-100/80 overflow-hidden">
+
+            {/* Right Column (Settings) - Masking Layer */}
+            <div className="w-[calc(55.5%-0.75vw)] relative flex flex-col h-full bg-gray-100 rounded-[1vw] border border-gray-100/80 overflow-hidden z-[30]">
                 {/* Top Shadow Indicator */}
                 <div className={`absolute top-0 left-0 right-0 h-[2vw] bg-gradient-to-b from-black/10 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showTopShadow ? 'opacity-100' : 'opacity-0'}`} />
                 
@@ -410,13 +406,12 @@ export default function Export3DModal({
                                         </>
                                     )}
                                 </div>
-                            </div>
                         </div>
                     </div>
 
                     {/* Texture Inclusion */}
                     <div>
-                        <div className="flex items-center gap-[1vw] mb-[1vw]">
+                        <div className="flex items-center gap-[1vw] mt-[1vw] mb-[1vw]">
                             <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Texture Inclusion</h3>
                             <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
                         </div>
@@ -462,7 +457,7 @@ export default function Export3DModal({
 
                     {/* Texture Quality / Resolution */}
                     <div className="pb-[1vw]">
-                        <div className="flex items-center gap-[1vw] mb-[0.5vw]">
+                        <div className="flex items-center gap-[1vw] mt-[1vw] mb-[0.5vw]">
                             <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Texture Quality / Resolution</h3>
                             <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
                         </div>
@@ -519,10 +514,13 @@ export default function Export3DModal({
             {/* Bottom Shadow Indicator */}
             <div className={`absolute bottom-0 left-0 right-0 h-[2vw] bg-gradient-to-t from-black/10 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showBottomShadow ? 'opacity-100' : 'opacity-0'}`} />
         </div>
+
+
+        </div>
     </div>
 
-    {/* Footer Area */}
-        <div className="px-[2vw] pb-[2vw] pt-[1vw] flex items-end justify-between shrink-0 bg-white">
+    {/* Footer Area - Masking Layer */}
+        <div className="px-[2vw] pb-[2vw] pt-[1vw] flex items-end justify-between shrink-0 bg-white relative z-[30]">
             {/* Unified Filename and Size Info */}
             <div className="flex flex-col gap-[0.5vw] w-[45%]">
                 {exportScope === 'selection' && (
@@ -567,7 +565,17 @@ export default function Export3DModal({
             </div>
         </div>
 
-
+        {/* Global Unified Canvas for View.Port tracking - Optimized with masking strategy */}
+        <div className="absolute inset-0 pointer-events-none z-[15] overflow-hidden rounded-[0.75vw]">
+            <Canvas 
+                eventSource={modalRef}
+                shadows
+                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+            >
+                <View.Port />
+            </Canvas>
+        </div>
       </div>
     </div>
   );

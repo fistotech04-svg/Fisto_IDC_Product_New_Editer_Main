@@ -5,6 +5,107 @@ import { View, OrbitControls, Environment, PerspectiveCamera, Html } from "@reac
 import axios from "axios";
 import RenderModel from "./ModelLoaders";
 
+// Internal component for 3D thumbnail with support for static images
+const ModelThumbnail = React.memo(({ model }) => {
+    const viewRef = useRef();
+    const [isInView, setIsInView] = useState(false);
+    const [isFullyLoaded, setIsFullyLoaded] = useState(false);
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    
+    // Support for static thumbnails if backend provides them
+    const thumbnailPath = model.thumbnail || model.image || model.preview;
+    const fullThumbnailUrl = thumbnailPath 
+        ? (thumbnailPath.startsWith('http') ? thumbnailPath : `${backendUrl}${thumbnailPath.startsWith('/') ? '' : '/'}${thumbnailPath}`)
+        : null;
+
+    const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
+    const fullUrl = `${backendUrl}${modelUrlPath}`;
+
+    useEffect(() => {
+        if (!viewRef.current || fullThumbnailUrl) return;
+        
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsInView(true);
+                    observer.unobserve(entry.target);
+                }
+            },
+            { threshold: 0.1 }
+        );
+        
+        observer.observe(viewRef.current);
+        return () => observer.disconnect();
+    }, [fullThumbnailUrl, fullUrl]);
+
+    if (fullThumbnailUrl) {
+        return (
+            <div className="w-full h-full relative group">
+                <img 
+                    src={fullThumbnailUrl} 
+                    alt={model.name}
+                    className="w-full h-full object-contain p-[1vw] transition-transform duration-500 group-hover:scale-110"
+                    onLoad={() => setIsFullyLoaded(true)}
+                    onError={(e) => {
+                        e.target.style.display = 'none';
+                        setIsInView(true);
+                    }}
+                />
+                {!isFullyLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-500/10">
+                        <div className="w-[1vw] h-[1vw] border-[0.15vw] border-gray-200 border-t-indigo-500 rounded-full animate-spin" />
+                    </div>
+                )}
+            </div>
+        );
+    }
+    
+    return (
+        <div ref={viewRef} className="w-full h-full relative group bg-gray-500">
+            {isInView ? (
+                <View track={viewRef} className="w-full h-full">
+                    <Suspense fallback={
+                        <Html center className="pointer-events-none">
+                            <div className="flex flex-col items-center justify-center gap-[0.5vw]">
+                                <div className="w-[1.4vw] h-[1.4vw] border-[0.2vw] border-white/30 border-t-white rounded-full animate-spin"></div>
+                                <span className="text-[0.6vw] font-medium text-white/80">Loading...</span>
+                            </div>
+                        </Html>
+                    }>
+                        <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
+                        <ambientLight intensity={1.5} />
+                        <pointLight position={[10, 10, 10]} intensity={1.5} />
+                        <directionalLight position={[-5, 5, 5]} intensity={1} />
+                        
+                        <group position={[0, -0.6, 0]}>
+                            <RenderModel
+                                type={model.type}
+                                url={fullUrl}
+                                isSelectionDisabled={true}
+                                shouldClone={true}
+                            />
+                        </group>
+                        
+                        <Environment preset="city" />
+                        
+                        <OrbitControls 
+                            enableZoom={false} 
+                            enablePan={false}
+                            enableRotate={false}
+                            target={[0, 0, 0]}
+                            autoRotate={false}
+                        />
+                    </Suspense>
+                </View>
+            ) : (
+                <div className="absolute inset-0 flex items-center justify-center">
+                     <Icon icon="ph:sketch-logo-thin" className="w-[2vw] h-[2vw] text-gray-400 opacity-30" />
+                </div>
+            )}
+        </div>
+    );
+});
+
 export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
     const [models, setModels] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -50,104 +151,6 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
     };
 
     const containerRef = useRef();
-
-    // Internal component for 3D thumbnail with support for static images
-    const ModelThumbnail = ({ model, isSelected }) => {
-        const viewRef = useRef();
-        const [isInView, setIsInView] = useState(false);
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        
-        // Support for static thumbnails if backend provides them
-        const thumbnailPath = model.thumbnail || model.image || model.preview;
-        const fullThumbnailUrl = thumbnailPath 
-            ? (thumbnailPath.startsWith('http') ? thumbnailPath : `${backendUrl}${thumbnailPath.startsWith('/') ? '' : '/'}${thumbnailPath}`)
-            : null;
-
-        const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
-        const fullUrl = `${backendUrl}${modelUrlPath}`;
-
-        useEffect(() => {
-            if (!viewRef.current || fullThumbnailUrl) return;
-            
-            // Use viewport as root (null) to avoid issues with containerRef availability
-            const observer = new IntersectionObserver(
-                ([entry]) => {
-                    if (entry.isIntersecting) {
-                        setIsInView(true);
-                        // Once it's in view, we can stop observing to keep it loaded
-                        observer.unobserve(entry.target);
-                    }
-                },
-                { threshold: 0.05 }
-            );
-            
-            observer.observe(viewRef.current);
-            return () => observer.disconnect();
-        }, [fullThumbnailUrl, model.url]);
-
-        if (fullThumbnailUrl) {
-            return (
-                <div className="w-full h-full relative group">
-                    <img 
-                        src={fullThumbnailUrl} 
-                        alt={model.name}
-                        className="w-full h-full object-contain p-[1vw] transition-transform duration-500 group-hover:scale-110"
-                        onError={(e) => {
-                            e.target.style.display = 'none';
-                            setIsInView(true);
-                        }}
-                    />
-                </div>
-            );
-        }
-        
-        return (
-            <div ref={viewRef} className="w-full h-full relative group bg-gray-500">
-                {/* Only render 3D view if in viewport and no static thumbnail exists */}
-                {isInView ? (
-                    <View track={viewRef} className="w-full h-full">
-                        <Suspense fallback={
-                            <Html center className="pointer-events-none">
-                                <div className="flex flex-col items-center justify-center gap-[0.5vw]">
-                                    <div className="w-[1.4vw] h-[1.4vw] border-[0.2vw] border-white/30 border-t-white rounded-full animate-spin"></div>
-                                    <span className="text-[0.6vw] font-medium text-white/80">Loading...</span>
-                                </div>
-                            </Html>
-                        }>
-                            <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
-                            <ambientLight intensity={1.5} />
-                            <pointLight position={[10, 10, 10]} intensity={1.5} />
-                            <directionalLight position={[-5, 5, 5]} intensity={1} />
-                            
-                            <group position={[0, -0.6, 0]}>
-                                <RenderModel
-                                    type={model.type}
-                                    url={fullUrl}
-                                    isSelectionDisabled={true}
-                                    shouldClone={true}
-                                />
-                            </group>
-                            
-                            <Environment preset="city" />
-                            
-                            <OrbitControls 
-                                enableZoom={false} 
-                                enablePan={false}
-                                enableRotate={false}
-                                target={[0, 0, 0]}
-                                autoRotate={false}
-                                autoRotateSpeed={4}
-                            />
-                        </Suspense>
-                    </View>
-                ) : (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                         <Icon icon="ph:sketch-logo-thin" className="w-[2vw] h-[2vw] text-gray-400 opacity-30" />
-                    </div>
-                )}
-            </div>
-        );
-    };
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-300">
@@ -208,7 +211,6 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                                         <div className="w-full h-full">
                                             <ModelThumbnail 
                                                 model={model} 
-                                                isSelected={selectedModel?.name === model?.name} 
                                             />
                                         </div>
 

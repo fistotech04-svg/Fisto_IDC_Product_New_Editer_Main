@@ -503,9 +503,24 @@ export default function Customized({
   const [pickerPos, setPickerPos] = useState({ top: 0, right: 0 });
 
   const currentGalleryTexture = useMemo(() => {
-      if (!selectedTextureId) return null;
-      return textureData.find(t => t.id === selectedTextureId);
-  }, [selectedTextureId]);
+    if (!selectedTextureId) return null;
+    const predefined = textureData.find((t) => t.id === selectedTextureId);
+    if (predefined) return predefined;
+
+    // Support Uploaded Textures: Fallback to current selection if ID matches
+    const applied = controls.appliedTexture;
+    if (applied && (applied.id === selectedTextureId || applied._id === selectedTextureId)) {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+      return {
+        ...applied,
+        // Resolve preview if it's a relative path
+        preview: typeof applied.thumb === "string" && applied.thumb.startsWith("/uploads")
+          ? `${backendUrl}${applied.thumb}`
+          : applied.preview || applied.thumb,
+      };
+    }
+    return null;
+  }, [selectedTextureId, controls.appliedTexture]);
 
   const handleColorClick = (e, type = 'color') => {
       e.stopPropagation();

@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { addTexture, getUserTextures } from "../../controllers/Texture/textureController.js";
+import { addTexture, getUserTextures, updateTexture, deleteTexture } from "../../controllers/Texture/textureController.js";
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -30,8 +30,10 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    // Prefix with fieldname to avoid name collisions if multiple maps have same filename
-    const uniqueName = `${file.fieldname}_${file.originalname}`;
+    const { materialName } = req.body;
+    const sanitizedMaterialName = materialName ? materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'texture';
+    const ext = path.extname(file.originalname);
+    const uniqueName = `${sanitizedMaterialName}_${file.fieldname}${ext}`;
     cb(null, uniqueName);
   }
 });
@@ -100,8 +102,9 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
-      // Ensure unique filename per field
-      const uniqueFileName = `${fieldName}_${fileName}`;
+      // Ensure filename follows materialname_mapname.extension format
+      const ext = path.extname(fileName);
+      const uniqueFileName = `${sanitizedMaterialName}_${fieldName}${ext}`;
       const finalPath = path.join(targetDir, uniqueFileName);
       const writeStream = fs.createWriteStream(finalPath);
 
@@ -143,5 +146,11 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
 
 // @route   GET /api/textures/get
 router.get("/get", getUserTextures);
+
+// @route   PUT /api/textures/update/:id
+router.put("/update/:id", updateTexture);
+
+// @route   DELETE /api/textures/delete/:id
+router.delete("/delete/:id", deleteTexture);
 
 export default router;
