@@ -18,6 +18,9 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
   const [lastCustomizedPath, setLastCustomizedPath] = useState(() => {
     return localStorage.getItem('lastCustomizedPath') || '/editor/customized_editor';
   });
+  const [lastThreedPath, setLastThreedPath] = useState(() => {
+    return localStorage.getItem('lastThreedPath') || '/editor/threed_editor';
+  });
 
   useEffect(() => {
     if (location.pathname.startsWith('/editor') && !location.pathname.includes('threed_editor') && !location.pathname.includes('customized_editor')) {
@@ -27,6 +30,10 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
     if (location.pathname.includes('customized_editor')) {
       setLastCustomizedPath(location.pathname);
       localStorage.setItem('lastCustomizedPath', location.pathname);
+    }
+    if (location.pathname.includes('threed_editor')) {
+      setLastThreedPath(location.pathname);
+      localStorage.setItem('lastThreedPath', location.pathname);
     }
   }, [location]);
 
@@ -123,7 +130,7 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
             Editor
           </Link>
           <Link
-            to="/editor/threed_editor"
+            to={lastThreedPath}
             className={isActive('/editor/threed_editor') ? activeLinkStyle : baseLinkStyle}
           >
             3D Editor

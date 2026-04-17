@@ -120,7 +120,7 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) =>
             {/* Menu Button */}
             <div 
                 ref={buttonRef}
-                className="absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] bg-white/95 backdrop-blur-sm rounded-[0.4vw] border border-gray-300 flex items-center justify-center text-gray-500 shadow-sm hover:text-[#5d5efc] hover:bg-white transition-all z-20"
+                className={`absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] bg-white/95 backdrop-blur-sm rounded-[0.4vw] border border-gray-300 flex items-center justify-center text-gray-500 shadow-sm hover:text-[#5d5efc] hover:bg-white transition-all z-20 ${showMenu ? 'opacity-100' : 'opacity-0 group-hover/upload:opacity-100'}`}
                 onClick={(e) => {
                     e.stopPropagation();
                     const rect = e.currentTarget.getBoundingClientRect();

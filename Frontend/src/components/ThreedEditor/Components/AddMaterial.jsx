@@ -213,8 +213,15 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
         try {
           const response = await axios.get(`${backendUrl}/api/textures/get?email=${user.emailId}`);
           if (response.data.textures) {
-            const cats = [...new Set(response.data.textures.map(t => t.materialCategory || "Custom"))];
-            setExistingCategories(cats.filter(c => c !== "All"));
+            // Extract unique names from materialCategory (could be object or string)
+            const catNames = response.data.textures.map(t => {
+                if (typeof t.materialCategory === 'object' && t.materialCategory?.name) {
+                    return t.materialCategory.name;
+                }
+                return t.materialCategory || "Custom";
+            });
+            const uniqueCats = [...new Set(catNames)];
+            setExistingCategories(uniqueCats.filter(c => c !== "All" && typeof c === 'string'));
           }
         } catch (error) {
           console.error("Error fetching categories:", error);
@@ -584,7 +591,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
                         {isCategoryDropdownOpen && existingCategories.length > 0 && (
                             <div className="absolute top-full left-0 right-0 mt-[0.4vw] bg-white border border-gray-100 rounded-[0.7vw] shadow-[0_10px_30px_rgba(0,0,0,0.1)] z-50 max-h-[12vw] overflow-y-auto custom-scrollbar flex flex-col py-[0.4vw] animate-in fade-in slide-in-from-top-2 duration-200">
                                 {existingCategories
-                                    .filter(c => c.toLowerCase().includes(category.toLowerCase()))
+                                    .filter(c => typeof c === 'string' && c.toLowerCase().includes(category.toLowerCase()))
                                     .map((cat, idx) => (
                                         <button 
                                             key={idx}
@@ -598,7 +605,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
                                         </button>
                                     ))
                                 }
-                                {existingCategories.filter(c => c.toLowerCase().includes(category.toLowerCase())).length === 0 && (
+                                {existingCategories.filter(c => typeof c === 'string' && c.toLowerCase().includes(category.toLowerCase())).length === 0 && (
                                     <div className="px-[1vw] py-[0.6vw] text-[0.7vw] text-gray-400 italic">
                                         Type to create new: "{category}"
                                     </div>

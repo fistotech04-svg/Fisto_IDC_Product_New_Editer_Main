@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { addTexture, getUserTextures, updateTexture, deleteTexture } from "../../controllers/Texture/textureController.js";
+import { getCategories, addCategory, deleteCategory, renameCategory, clearTexturesInCategory } from "../../controllers/Texture/textureCategoryController.js";
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -21,7 +22,8 @@ const storage = multer.diskStorage({
     const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
     const sanitizedMaterialName = materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
-    const uploadPath = path.join(__dirname, "../../Texture", sanitizedEmail, sanitizedMaterialName);
+    // Standardize to same root path as controller/chunks
+    const uploadPath = path.join(__dirname, "../../uploads", sanitizedEmail, "Texture", sanitizedMaterialName);
 
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
@@ -152,5 +154,21 @@ router.put("/update/:id", updateTexture);
 
 // @route   DELETE /api/textures/delete/:id
 router.delete("/delete/:id", deleteTexture);
+
+// --- Category Routes ---
+// @route   GET /api/textures/categories/get
+router.get("/categories/get", getCategories);
+
+// @route   POST /api/textures/categories/add
+router.post("/categories/add", addCategory);
+
+// @route   PUT /api/textures/categories/rename/:id
+router.put("/categories/rename/:id", renameCategory);
+
+// @route   POST /api/textures/categories/clear/:id
+router.post("/categories/clear/:id", clearTexturesInCategory);
+
+// @route   DELETE /api/textures/categories/delete/:id
+router.delete("/categories/delete/:id", deleteCategory);
 
 export default router;

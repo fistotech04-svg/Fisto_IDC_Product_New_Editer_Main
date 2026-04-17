@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { CheckCircle, AlertCircle, XCircle, Info, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, XCircle, Info } from 'lucide-react';
 
 const AlertModal = ({ 
   isOpen, 
@@ -25,70 +25,60 @@ const AlertModal = ({
 
   if (!isOpen) return null;
 
-  const bgColors = {
-    success: 'bg-green-50',
-    error: 'bg-red-50',
-    warning: 'bg-yellow-50',
-    info: 'bg-blue-50'
-  };
-
-  const iconColors = {
-    success: 'text-green-500',
-    error: 'text-red-500',
-    warning: 'text-yellow-500',
-    info: 'text-blue-500'
-  };
-
-  const buttonColors = {
-    success: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
-    error: 'bg-red-600 hover:bg-red-700 focus:ring-red-500',
-    warning: 'bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500',
-    info: 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
-  };
-
   const Icons = {
-    success: CheckCircle,
-    error: XCircle,
-    warning: AlertCircle,
-    info: Info
+    success: <CheckCircle className="text-white fill-green-500" size="1.2vw" />,
+    error: <XCircle className="text-white fill-[#e53e3e]" size="1.2vw" />,
+    warning: <AlertCircle className="text-white fill-yellow-500" size="1.2vw" />,
+    info: <Info className="text-white fill-blue-500" size="1.2vw" />
   };
 
-  const IconComponent = Icons[type] || Info;
+  const circleBg = {
+    success: 'bg-green-100',
+    error: 'bg-red-100',
+    warning: 'bg-yellow-100',
+    info: 'bg-blue-100'
+  };
+
+  const confirmBtnBg = {
+    success: 'bg-green-600 hover:bg-green-700',
+    error: 'bg-red-600 hover:bg-red-700',
+    warning: 'bg-yellow-600 hover:bg-yellow-700',
+    info: 'bg-blue-600 hover:bg-blue-700'
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-[1vw] bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-[1vw] bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
       <div 
-        className="bg-white rounded-[1vw] shadow-xl w-full max-w-[20vw] overflow-hidden transform scale-100 animate-in zoom-in-95 duration-200"
+        className="bg-white rounded-[1.2vw] shadow-[0_8px_32px_rgba(0,0,0,0.12)] w-full max-w-[21vw] overflow-hidden transform scale-100 animate-in zoom-in-95 duration-200"
         role="alertdialog"
         aria-modal="true"
       >
-        <div className="p-[1.5vw]">
-          <div className="flex items-start">
-            <div className={`flex-shrink-0 p-[0.5vw] rounded-full ${bgColors[type] || bgColors.info}`}>
-              <IconComponent size="1.5vw" className={iconColors[type] || iconColors.info} />
+        <div className="px-[1.5vw] pt-[1.5vw] pb-[1.8vw]">
+          {/* Header Row */}
+          <div className="flex items-center gap-[0.6vw]">
+            <div className={`flex-shrink-0 w-[2vw] h-[2vw] flex items-center justify-center rounded-full ${circleBg[type] || circleBg.error}`}>
+              {Icons[type] || Icons.error}
             </div>
-            <div className="ml-[1vw] flex-1">
-              <h3 className="text-[1vw] font-semibold text-gray-900">
-                {title || type.charAt(0).toUpperCase() + type.slice(1)}
-              </h3>
-              <p className="mt-[0.2vw] text-[0.75vw] text-gray-600">
-                {message}
-              </p>
-            </div>
-            <button 
-              onClick={onClose}
-              className="ml-[1vw] text-gray-400 hover:text-gray-500 transition-colors"
-            >
-              <X size="1.2vw" />
-            </button>
+            <h3 className="text-[1vw] font-medium text-gray-900 leading-none">
+              {title}
+            </h3>
+            <div className="h-[0.15vw] flex-1 bg-gray-300 mt-[0.3vw]" />
+          </div>
+
+          {/* Body */}
+          <div className="mt-[1.5vw] px-[0.3vw]">
+            <p className="text-[0.78vw] text-gray-400 font-normal leading-[1.6] tracking-tight text-center whitespace-pre-wrap">
+              {message}
+            </p>
           </div>
         </div>
         
-        <div className="bg-gray-50 px-[1.5vw] py-[1vw] flex justify-end gap-[0.8vw]">
+        {/* Footer */}
+        <div className="bg-[#f0f0f0] px-[1.3vw] py-[0.85vw] flex gap-[0.8vw]">
           {showCancel && (
             <button
               onClick={onClose}
-              className="px-[1vw] py-[0.5vw] text-[0.75vw] font-medium text-gray-700 bg-white border border-gray-300 rounded-[0.5vw] hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all"
+              className="flex-1 py-[0.6vw] text-[0.8vw] cursor-pointer font-medium text-gray-600 bg-white rounded-[0.55vw] hover:bg-gray-50 focus:outline-none transition-all active:scale-95 border border-transparent outline-none"
             >
               {cancelText}
             </button>
@@ -98,7 +88,7 @@ const AlertModal = ({
               if (onConfirm) onConfirm();
               else onClose();
             }}
-            className={`px-[1vw] py-[0.5vw] text-[0.75vw] font-medium text-white rounded-[0.5vw] shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all ${buttonColors[type] || buttonColors.info}`}
+            className={`flex-1 py-[0.6vw] text-[0.8vw] cursor-pointer font-medium text-white rounded-[0.55vw] shadow-sm focus:outline-none transition-all active:scale-95 outline-none ${confirmBtnBg[type] || confirmBtnBg.error}`}
           >
             {confirmText}
           </button>

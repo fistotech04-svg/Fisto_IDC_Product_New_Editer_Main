@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
+import ThreedModel from "../../models/ThreedModel.js";
 
 const router = express.Router();
 
@@ -70,7 +71,7 @@ const uploadChunk = multer({ storage: chunkStorage });
 // @desc    Upload a 3D model to the user's 3D_Modals folder
 // @access  Public
 router.post("/upload-model", (req, res) => {
-  upload.single("model")(req, res, (err) => {
+  upload.single("model")(req, res, async (err) => {
     if (err instanceof multer.MulterError) {
       console.error("Multer Error:", err);
       return res.status(413).json({ message: `Upload error: ${err.message}` });
@@ -91,13 +92,26 @@ router.post("/upload-model", (req, res) => {
 
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
       const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+      const type = path.extname(req.file.filename).slice(1);
+      const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
+
+      // Save to Database
+      const newModel = new ThreedModel({
+        userEmail: emailId,
+        name: req.file.filename,
+        url: relativeUrl,
+        type: type,
+        size: sizeStr
+      });
+      await newModel.save();
 
       res.status(200).json({
         message: "Model uploaded successfully",
         url: relativeUrl,
         name: req.file.filename,
-        type: path.extname(req.file.filename).slice(1),
-        size: (req.file.size / (1024 * 1024)).toFixed(2) + " MB",
+        type: type,
+        size: sizeStr,
+        modelId: newModel.modelId
       });
     } catch (error) {
       console.error("Error processing 3D model:", error);
@@ -160,10 +174,42 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
         } catch (e) {
           console.error("Error cleaning up temp dir:", e);
         }
-        res.status(200).json({
-          message: "Model uploaded and merged successfully",
-          url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
-          name: fileName,
+
+        const stats = fs.statSync(finalPath);
+        const type = path.extname(fileName).slice(1);
+        const sizeStr = (stats.size / (1024 * 1024)).toFixed(2) + " MB";
+
+        // Save to Database
+        const saveToDb = async () => {
+             const existing = await ThreedModel.findOne({ userEmail: emailId, name: fileName });
+             if (!existing) {
+                 const newModel = new ThreedModel({
+                     userEmail: emailId,
+                     name: fileName,
+                     url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
+                     type: type,
+                     size: sizeStr
+                 });
+                 await newModel.save();
+                 return newModel;
+             }
+             return existing;
+        };
+
+        saveToDb().then(model => {
+            res.status(200).json({
+                message: "Model uploaded and merged successfully",
+                url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
+                name: fileName,
+                modelId: model.modelId
+            });
+        }).catch(err => {
+            console.error("DB Save Error:", err);
+            res.status(200).json({
+                message: "Model merged but DB save failed",
+                url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
+                name: fileName
+            });
         });
       });
 
@@ -183,7 +229,7 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
 // @route   GET /api/3d-models/get-models
 // @desc    Get all 3D models from the user's 3D_Modals folder
 // @access  Public
-router.get("/get-models", (req, res) => {
+router.get("/get-models", async (req, res) => {
   try {
     const { emailId } = req.query;
     if (!emailId) {
@@ -192,49 +238,57 @@ router.get("/get-models", (req, res) => {
 
     // Sanitize email for folder name (matches auth.js logic)
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const userFolderPath = path.join(
-      __dirname,
-      "../../uploads",
+    const userFolderPath = path.resolve(
+      process.cwd(),
+      "uploads",
       sanitizedEmail,
       "3D_Modals",
     );
 
-    if (!fs.existsSync(userFolderPath)) {
-      // Create the folder if it doesn't exist to avoid future errors, though it should be created on signup
-      fs.mkdirSync(userFolderPath, { recursive: true });
+    // 1. Get models from Database
+    let dbModels = await ThreedModel.find({ userEmail: emailId }).sort({ createdAt: -1 });
+
+    // 2. Sync logic: If DB is empty or missing files that exist on disk, import them
+    const files = fs.readdirSync(userFolderPath);
+    const validFiles = files.filter(f => [".glb", ".gltf", ".obj", ".stl"].includes(path.extname(f).toLowerCase()));
+
+    if (dbModels.length < validFiles.length) {
+        console.log("Syncing disk files to database for:", emailId);
+        for (const file of validFiles) {
+            const alreadyInDb = dbModels.find(m => m.name === file);
+            if (!alreadyInDb) {
+                const stats = fs.statSync(path.join(userFolderPath, file));
+                const baseName = path.basename(file, path.extname(file));
+                const thumbnail = files.find(f => {
+                    const fExt = path.extname(f).toLowerCase();
+                    return path.basename(f, fExt) === baseName && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
+                });
+
+                const newModel = new ThreedModel({
+                    userEmail: emailId,
+                    name: file,
+                    url: `/uploads/${sanitizedEmail}/3D_Modals/${file}`,
+                    thumbnailUrl: thumbnail ? `/uploads/${sanitizedEmail}/3D_Modals/${thumbnail}` : null,
+                    size: (stats.size / (1024 * 1024)).toFixed(2) + " MB",
+                    type: path.extname(file).slice(1)
+                });
+                await newModel.save();
+            }
+        }
+        // Re-query after sync
+        dbModels = await ThreedModel.find({ userEmail: emailId }).sort({ createdAt: -1 });
     }
 
-    const files = fs.readdirSync(userFolderPath);
-    const models = files
-      .filter((file) => {
-        const ext = path.extname(file).toLowerCase();
-        return [".glb", ".gltf", ".obj", ".stl"].includes(ext);
-      })
-      .map((file) => {
-        const stats = fs.statSync(path.join(userFolderPath, file));
-        const baseName = path.basename(file, path.extname(file));
-
-        // Find potential thumbnails
-        const thumbnail = files.find((f) => {
-          const fExt = path.extname(f).toLowerCase();
-          const fBaseName = path.basename(f, fExt);
-          return (
-            fBaseName === baseName &&
-            [".png", ".jpg", ".jpeg", ".webp"].includes(fExt)
-          );
-        });
-
-        return {
-          name: file,
-          url: `/uploads/${sanitizedEmail}/3D_Modals/${file}`,
-          thumbnailUrl: thumbnail
-            ? `/uploads/${sanitizedEmail}/3D_Modals/${thumbnail}`
-            : null,
-          size: (stats.size / (1024 * 1024)).toFixed(2) + " MB",
-          type: path.extname(file).slice(1),
-          uploadedAt: stats.mtime,
-        };
-      });
+    // 3. Map to consistent UI format
+    const models = dbModels.map(m => ({
+        modelId: m.modelId,
+        name: m.name,
+        url: m.url,
+        thumbnailUrl: m.thumbnailUrl,
+        size: m.size,
+        type: m.type,
+        uploadedAt: m.createdAt
+    }));
 
     res.json({ models });
   } catch (error) {
@@ -298,11 +352,12 @@ router.post("/rename-model", async (req, res) => {
     // Rename the main file
     fs.renameSync(oldPath, newPath);
 
-    // Also try to rename associated thumbnail
+    // Rename associated thumbnail
     const files = fs.readdirSync(userFolderPath);
     const oldBase = path.basename(oldName, ext);
     const newBase = path.basename(cleanNewName, ext);
     
+    let newThumbUrl = null;
     const thumbnail = files.find(f => {
       const fExt = path.extname(f).toLowerCase();
       return path.basename(f, fExt) === oldBase && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
@@ -310,13 +365,22 @@ router.post("/rename-model", async (req, res) => {
 
     if (thumbnail) {
       const thumbExt = path.extname(thumbnail);
-      fs.renameSync(path.join(userFolderPath, thumbnail), path.join(userFolderPath, newBase + thumbExt));
+      const newThumbPath = path.join(userFolderPath, newBase + thumbExt);
+      fs.renameSync(path.join(userFolderPath, thumbnail), newThumbPath);
+      newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase + thumbExt}`;
     }
+
+    // Update Database
+    const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
+    await ThreedModel.findOneAndUpdate(
+        { userEmail: emailId, name: oldName },
+        { name: cleanNewName, url: relativeUrl, thumbnailUrl: newThumbUrl }
+    );
 
     res.status(200).json({
       message: "Model renamed successfully",
       newName: cleanNewName,
-      url: `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`
+      url: relativeUrl
     });
   } catch (error) {
     console.error("Rename Error:", error);
@@ -343,6 +407,94 @@ router.get("/get-session", async (req, res) => {
     }
   } catch (error) {
     console.error("Error fetching 3D session:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   DELETE /api/3d-models/delete-model/:emailId/:modelId
+// @desc    Delete a model record and its physical files
+// @access  Public
+router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
+  try {
+    const { emailId, modelId } = req.params;
+    console.log("-----------------------------------------");
+    console.log(`Delete request for email: ${emailId}, modelId: ${modelId}`);
+
+    // 1. Find the model in DB first (added security: must match email)
+    const model = await ThreedModel.findOne({ modelId, userEmail: emailId });
+    if (!model) {
+      console.log("Model record not found in DB:", modelId);
+      return res.status(404).json({ message: "Model record not found" });
+    }
+
+    const { userEmail, name: fileName } = model;
+    const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
+    
+    // 2. Resolve folder path
+    const pathsToTry = [
+        path.resolve(process.cwd(), "uploads", sanitizedEmail, "3D_Modals"),
+        path.resolve(__dirname, "../../uploads", sanitizedEmail, "3D_Modals")
+    ];
+
+    let userFolderPath = null;
+    for (const p of pathsToTry) {
+        if (fs.existsSync(p)) {
+            userFolderPath = p;
+            break;
+        }
+    }
+
+    if (!userFolderPath) {
+        console.error("User folder not found. Checked:", pathsToTry);
+        return res.status(404).json({ message: "Storage folder not found on server" });
+    }
+
+    // 3. Delete Physical Files
+    const filePath = path.join(userFolderPath, fileName);
+    if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log("Deleted model file:", filePath);
+    }
+
+    // Try to delete thumbnail
+    const files = fs.readdirSync(userFolderPath);
+    const ext = path.extname(fileName);
+    const baseName = path.basename(fileName, ext);
+    const thumbnail = files.find(f => {
+      const fExt = path.extname(f).toLowerCase();
+      return path.basename(f, fExt) === baseName && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
+    });
+
+    if (thumbnail) {
+      const thumbPath = path.join(userFolderPath, thumbnail);
+      fs.unlinkSync(thumbPath);
+      console.log("Deleted associated thumbnail:", thumbPath);
+    }
+
+    // 4. Delete Database Record
+    await ThreedModel.deleteOne({ modelId });
+    console.log("Deleted DB record for modelId:", modelId);
+
+    res.status(200).json({ message: "Model deleted successfully from DB and Disk" });
+  } catch (error) {
+    console.error("Delete Error:", error);
+    res.status(500).json({ message: "Server error during deletion" });
+  }
+});
+
+// @route   GET /api/3d-models/get-model/:modelId
+// @desc    Get a single 3D model's metadata by ID
+// @access  Public
+router.get("/get-model/:modelId", async (req, res) => {
+  try {
+    const { modelId } = req.params;
+    const model = await ThreedModel.findOne({ modelId });
+    if (!model) {
+      return res.status(404).json({ message: "Model not found" });
+    }
+    res.json(model);
+  } catch (error) {
+    console.error("Error fetching model by ID:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

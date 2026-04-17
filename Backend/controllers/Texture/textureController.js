@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import Texture from "../../models/Texture.js";
+import TextureCategory from "../../models/TextureCategory.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,10 +59,30 @@ export const addTexture = async (req, res) => {
         if (!mappedUrls[m]) return res.status(400).json({ message: `Required map '${m}' is missing` });
     }
 
+    // Resolve materialCategory (Name or Nanoid) to Nanoid
+    let categoryId = materialCategory;
+    if (typeof materialCategory === 'string') {
+        // Try to find if it's already a valid category ID
+        const existingById = await TextureCategory.findById(materialCategory);
+        if (!existingById) {
+            // Assume it's a name, find or create it
+            const cat = await TextureCategory.findOneAndUpdate(
+                { userEmail, name: materialCategory },
+                { userEmail, name: materialCategory },
+                { upsert: true, new: true, setDefaultsOnInsert: true }
+            );
+            categoryId = cat._id;
+        } else {
+            categoryId = existingById._id;
+        }
+    } else if (typeof materialCategory === 'object' && materialCategory?._id) {
+        categoryId = materialCategory._id;
+    }
+
     const newTexture = new Texture({
       userEmail,
       materialName,
-      materialCategory,
+      materialCategory: categoryId,
       maps: mappedUrls
     });
 
@@ -82,7 +103,9 @@ export const getUserTextures = async (req, res) => {
     const { email } = req.query;
     if (!email) return res.status(400).json({ message: "User email required" });
 
-    const textures = await Texture.find({ userEmail: email }).sort({ createdAt: -1 });
+    const textures = await Texture.find({ userEmail: email })
+      .populate('materialCategory')
+      .sort({ createdAt: -1 });
     res.status(200).json({ textures });
   } catch (error) {
     console.error("Error fetching textures:", error);
@@ -99,7 +122,25 @@ export const updateTexture = async (req, res) => {
     if (!texture) return res.status(404).json({ message: "Texture not found" });
 
     if (materialName) texture.materialName = materialName;
-    if (materialCategory) texture.materialCategory = materialCategory;
+    if (materialCategory) {
+        let categoryId = materialCategory;
+        if (typeof materialCategory === 'string') {
+            const existingById = await TextureCategory.findById(materialCategory);
+            if (!existingById) {
+                const cat = await TextureCategory.findOneAndUpdate(
+                    { userEmail: texture.userEmail, name: materialCategory },
+                    { userEmail: texture.userEmail, name: materialCategory },
+                    { upsert: true, new: true, setDefaultsOnInsert: true }
+                );
+                categoryId = cat._id;
+            } else {
+                categoryId = existingById._id;
+            }
+        } else if (typeof materialCategory === 'object' && materialCategory?._id) {
+            categoryId = materialCategory._id;
+        }
+        texture.materialCategory = categoryId;
+    }
     if (maps) {
         // If maps are updated, remove the OLD files from the backend if possible
         for (const key in maps) {

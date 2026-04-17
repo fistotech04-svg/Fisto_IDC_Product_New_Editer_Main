@@ -5,7 +5,7 @@ import { GizmoHelper, GizmoViewport } from "@react-three/drei";
 export default function AnimatedGizmo({ isTextureOpen, activeTab }) {
   const getTarget = () => {
     if (activeTab === "custom") return [80, 80]; // Closer to corner when gallery is gone
-    return isTextureOpen ? [140, 280] : [100, 150];
+    return isTextureOpen ? [120, 255] : [65, 110];
   };
 
   const [margin, setMargin] = useState(getTarget());
@@ -39,7 +39,8 @@ export default function AnimatedGizmo({ isTextureOpen, activeTab }) {
       margin={margin}
     >
       <GizmoViewport
-        axisColors={["#ff3653", "#8adb00", "#2c8fff"]}
+        axisColors={["#ff3653", "#2c8fff", "#8adb00"]}
+        labels={["X", "Z", "Y"]}
         labelColor="white"
       />
     </GizmoHelper>

@@ -12,6 +12,7 @@ const textureSchema = new mongoose.Schema({
   },
   materialCategory: {
     type: String,
+    ref: "TextureCategory",
     required: true
   },
   maps: {

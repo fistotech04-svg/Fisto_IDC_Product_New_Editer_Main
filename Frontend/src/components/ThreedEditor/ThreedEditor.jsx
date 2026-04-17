@@ -1,4 +1,5 @@
 import React, { useState, Suspense, useEffect, useCallback, useRef, useMemo } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import * as THREE from "three";
 import { Icon } from "@iconify/react";
 import { Canvas, useFrame } from "@react-three/fiber";
@@ -28,6 +29,9 @@ import JSZip from "jszip";
 
 
 export default function ThreedEditor() {
+  const { modelId: urlModelId } = useParams();
+  const navigate = useNavigate();
+
   const { 
     threedState, 
     setThreedState, 
@@ -186,113 +190,78 @@ export default function ThreedEditor() {
   }, [models, transformValues, materialSettings, modelName, hiddenMaterials, deletedMaterials, modelMaterialLists, selectedMaterial, selectedTexture]);
 
   // --- History Management ---
+  // --- Initialization & Server Sync ---
   useEffect(() => {
-    const syncWithServerModels = async () => {
+    const initializeEditor = async () => {
+      setIsSyncing(true);
       try {
         const storedUser = localStorage.getItem('user');
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        if (!storedUser) return;
+        const user = JSON.parse(storedUser);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-          // 1. Sync Models
-        try {
-          const response = await axios.get(`${backendUrl}/api/3d-models/get-models`, {
-            params: { emailId: user.emailId }
-          });
-          const serverModels = response.data.models || [];
-          
-          // 1. Identify valid remote URLs
-          const validRemoteUrls = new Set(serverModels.map(m => m.url));
-
-          // 2. Filter out stale remote models, but keep local blobs
-          const filteredNextModels = models.filter(m => {
-            if (!m.url) return false;
-            // Keep if it's a local blob
-            if (m.url.startsWith('blob:')) return true;
-            // Keep if it's a relative path starting with /uploads and exists on server
-            const relativeUrl = m.url.replace(backendUrl, '');
-            return validRemoteUrls.has(relativeUrl);
-          });
-
-          // 3. If everything was stale/empty, and we have server models, pick the first one
-          if (filteredNextModels.length === 0 && serverModels.length > 0) {
-            const firstModel = serverModels[0];
-            const fullUrl = `${backendUrl}${firstModel.url}`;
-            
-            const newModel = {
-              id: Date.now().toString(),
-              url: fullUrl,
-              file: null,
-              type: firstModel.type,
-              name: firstModel.name.replace(/\.[^/.]+$/, "")
-            };
-            
-            setModels([newModel]);
-            setModelUrl(fullUrl);
-            setModelType(newModel.type);
-            setModelName(newModel.name);
-            setIsSidebarCollapsed(false);
-          } else if (filteredNextModels.length !== models.length) {
-            // If we filtered out some stale models, update state
-            setModels(filteredNextModels);
-          }
-        } catch (error) {
-          console.error("Error syncing with server models:", error);
-        }
-
-        // 2. Restore Session from Backend
-        try {
-          const res = await axios.get(`${backendUrl}/api/3d-models/get-session?emailId=${user.emailId}`);
-          if (res.data && res.data.state) {
-            // Sanitize state to remove stale blob URLs from previous sessions
-            const savedState = res.data.state;
-            
-            if (savedState.models) {
-                savedState.models = savedState.models.filter(m => m.url && !m.url.startsWith('blob:'));
+        // 1. If we have a specific ID in the URL, load THAT model
+        if (urlModelId) {
+          console.log("Loading specific model from URL ID:", urlModelId);
+          try {
+            const res = await axios.get(`${backendUrl}/api/3d-models/get-model/${urlModelId}`);
+            if (res.data) {
+              const modelData = res.data;
+              const fullUrl = `${backendUrl}${modelData.url}`;
+              const newModel = {
+                id: Date.now().toString(),
+                modelId: modelData.modelId,
+                url: fullUrl,
+                file: null,
+                type: modelData.type,
+                name: modelData.name.replace(/\.[^/.]+$/, "")
+              };
+              setModels([newModel]);
+              setModelUrl(fullUrl);
+              setModelType(newModel.type);
+              setModelName(newModel.name);
+              setIsSidebarCollapsed(false);
+              setModelStats({ fileSize: modelData.size || "0 MB" });
+              return; // End here for ID-based load
             }
-            if (savedState.materialSettings?.maps) {
-                Object.entries(savedState.materialSettings.maps).forEach(([k, v]) => {
-                    if (v && typeof v === 'string' && v.startsWith('blob:')) {
-                        savedState.materialSettings.maps[k] = null;
-                    }
-                });
-            }
-
-            // Re-hydrate state from backend
-            if (savedState.models) setModels(savedState.models);
-            if (savedState.materialSettings) {
-                setMaterialSettings(savedState.materialSettings);
-                // Restore selected texture state so GenericModel can re-apply it
-                if (savedState.materialSettings.appliedTexture) {
-                    setSelectedTexture(savedState.materialSettings.appliedTexture);
-                    setSelectedTextureId(savedState.materialSettings.appliedTexture.id);
-                }
-            }
-            if (savedState.transformValues) setTransformValues(savedState.transformValues);
-            if (savedState.modelName) setModelName(savedState.modelName);
-            
-            setThreedState(prev => ({ ...prev, ...savedState }));
-            
-            // Sync history to avoid immediate dirty state after cloud restore
-            lastSavedRef.current = {
-                historyIndex: past.length,
-                hasLocalFiles: false
-            };
-            }
-          } catch (e) {
-              // 404 is fine, just means no saved session yet
-              if (e.response?.status !== 404) console.error("Error restoring session:", e);
+          } catch (err) {
+            console.error("Specified model not found, redirecting...", err);
+            navigate("/editor/threed_editor");
           }
         }
+
+        // 2. If NO ID in URL, we ALWAYS ensure an empty base as requested by the user.
+        // This overrides any previous session state in this session.
+        setModels([]);
+        setModelUrl(null);
+        setModelName("");
+        setIsSidebarCollapsed(true);
+        setSelectedMaterial(null);
+        setHiddenMaterials(new Set());
+        setDeletedMaterials(new Set());
+        
+        // Also update the global context state to ensure it doesn't "re-appear"
+        setThreedState(prev => ({
+            ...prev,
+            models: [],
+            modelUrl: null,
+            modelName: "",
+            materialSettings: {
+                alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
+                specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+                color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+                lightPosition: { x: 10, y: 10, z: 10 }
+            }
+        }));
+
       } catch (globalError) {
-        console.error("Global sync error:", globalError);
+        console.error("Global initialize error:", globalError);
       } finally {
         setIsSyncing(false);
       }
     };
 
-    syncWithServerModels();
-    // Only run on mount to validate initial state
+    initializeEditor();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -373,6 +342,10 @@ export default function ThreedEditor() {
         const m = nextModels[i];
         if (m.file) {
           const file = m.file;
+          const ext = file.name.split('.').pop().toLowerCase();
+          // Use current name from state (which might have been renamed) instead of original file name
+          const finalFileName = m.name.toLowerCase().endsWith(`.${ext}`) ? m.name : `${m.name}.${ext}`;
+          
           const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
           const uploadId = Date.now().toString() + Math.random().toString(36).substring(7);
           
@@ -389,7 +362,7 @@ export default function ThreedEditor() {
               formData.append('uploadId', uploadId);
               formData.append('chunkIndex', chunkIndex);
               formData.append('totalChunks', totalChunks);
-              formData.append('fileName', file.name);
+              formData.append('fileName', finalFileName);
               formData.append('emailId', user.emailId);
               formData.append('chunk', chunk);
 
@@ -404,7 +377,8 @@ export default function ThreedEditor() {
             nextModels[i] = {
               ...m,
               url: `${backendUrl}${lastResponse.data.url}`,
-              file: null // Clear file object after successful upload
+              file: null, // Clear file object after successful upload
+              modelId: lastResponse.data.modelId || m.modelId
             };
             hasUploaded = true;
           }
@@ -445,16 +419,18 @@ export default function ThreedEditor() {
               await axios.post(`${backendUrl}/api/3d-models/upload-model`, pngFormData);
               
               if (glbRes.data && glbRes.data.url) {
-                  // Update the first model reference to the new textured GLB
+                  // Keep UI name clean, but update underlying record info
                   nextModels[0] = {
                       ...nextModels[0],
                       url: `${backendUrl}${glbRes.data.url}`,
                       name: `${baseName}.glb`,
                       type: 'glb',
-                      file: null
+                      file: null,
+                      modelId: glbRes.data.modelId // Update with newly returned ID
                   };
                   hasExported = true;
-                  setModelName(`${baseName}.glb`);
+                  setModelName(baseName); // Keep extension-less for toolbar
+                  setModelUrl(`${backendUrl}${glbRes.data.url}`);
               }
           } catch (e) {
               console.error("Gallery sync failed:", e);
@@ -493,6 +469,15 @@ export default function ThreedEditor() {
           folder: "3D_Modals"
         });
       }
+
+      // If we just got a modelId from the first save, update URL
+      const finalModelId = nextModels[0]?.modelId;
+      console.log("HandleSave Navigation Check:", { finalModelId, urlModelId });
+      
+      if (finalModelId && (!urlModelId || urlModelId === "")) {
+          console.log("Navigating to new model URL:", finalModelId);
+          navigate(`/editor/threed_editor/${finalModelId}`, { replace: true });
+      }
     } catch (error) {
       console.error("Error saving 3D models:", error);
       const errorMessage = error.response?.data?.message || error.message || "An unexpected error occurred while saving your model.";
@@ -502,7 +487,7 @@ export default function ThreedEditor() {
       setManualLoading(false);
       setLoadingText("");
     }
-  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, past]);
+  }, [models, modelName, setModelName, setIsSaving, setHasUnsavedChanges, triggerSaveSuccess, toast, materialSettings, transformValues, past, urlModelId, navigate]);
 
   useEffect(() => {
     if (setSaveHandler) {
@@ -868,7 +853,14 @@ export default function ThreedEditor() {
               newName: newName
             });
             if (renameRes.data && renameRes.data.url) {
-              nextModels[renameIndex].url = `${backendUrl}${renameRes.data.url}`;
+              const updatedUrl = `${backendUrl}${renameRes.data.url}`;
+              nextModels[renameIndex].url = updatedUrl;
+              
+              // Update state correctly
+              setModels([...nextModels]);
+              if (renameIndex === 0) setModelUrl(updatedUrl);
+              
+              // IMPORTANT: Update nextState before using it below
               nextState.models = [...nextModels];
             }
           } catch (e) {
@@ -883,10 +875,13 @@ export default function ThreedEditor() {
         state: nextState
       });
 
+      // Update history with the final resolved state
+      pushHistory(nextState);
+
     } catch (error) {
       console.error("Failed to update backend rename:", error);
     }
-  }, [models, modelName, pushHistory]);
+  }, [models, modelName, pushHistory, setModelUrl]);
 
 
   const handleRenameMaterial = useCallback((oldName, newName, mName) => {
@@ -1193,6 +1188,11 @@ export default function ThreedEditor() {
     });
 
     setIsSidebarCollapsed(false);
+    
+    // Update URL to the new model ID
+    if (model.modelId) {
+        navigate(`/editor/threed_editor/${model.modelId}`);
+    }
   };
 
 
@@ -1232,6 +1232,10 @@ export default function ThreedEditor() {
     setModelName("");
     setSelectedTexture(null);
     setIsSidebarCollapsed(true);
+    
+    // Clear URL ID
+    navigate("/editor/threed_editor");
+
     setModelStats({
         vertexCount: "0",
         polygonCount: "0",
@@ -1243,6 +1247,20 @@ export default function ThreedEditor() {
     setHiddenMaterials(new Set());
     setDeletedMaterials(new Set());
     
+    // Reset Context State
+    setThreedState(prev => ({
+        ...prev,
+        models: [],
+        modelUrl: null,
+        modelName: "",
+        materialSettings: {
+            alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
+            specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+            color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+            lightPosition: { x: 10, y: 10, z: 10 }
+        }
+    }));
+
     // Reset History
     resetHistory({
         transformValues: defaultTransform,

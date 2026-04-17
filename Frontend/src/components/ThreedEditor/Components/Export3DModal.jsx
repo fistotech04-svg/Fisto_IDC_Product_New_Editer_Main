@@ -195,7 +195,7 @@ export default function Export3DModal({
         <GlobalLoader manualLoading={isInitializing} text="Preparing 3D Export ..." />
 
         {/* Header - Masking Layer */}
-        <div className="px-[2vw] pt-[2vw] pb-[1vw] flex items-start justify-between bg-white w-full relative z-[30]">
+        <div className="px-[2vw] pt-[2vw] pb-[2vw] flex items-start justify-between bg-white w-full relative z-[30]">
             <div className="flex flex-col flex-1 pr-[2vw]">
                 <div className="flex items-center gap-[1vw]">
                     <h2 className="text-[1.35vw] font-bold text-gray-900 tracking-tight">Export 3D Model</h2>
@@ -215,15 +215,21 @@ export default function Export3DModal({
         </div>
 
         {/* Content Body */}
-        <div className="flex flex-row px-[2vw] pb-[1vw] pt-[1vw] gap-[1.5vw] items-stretch bg-white flex-1 min-h-0 relative z-[10]">
+        <div className="flex flex-row px-[2vw] pb-0 pt-0 gap-[1.5vw] items-stretch bg-white flex-1 min-h-0 relative z-[10]">
             
             {/* Left Column (Conditional UI) */}
             {exportScope === 'selection' ? (
                 /* Material Grid UI */
-                <div className="w-[calc(44.5%-0.75vw)] bg-[#f8f9fa] rounded-[1vw] relative flex flex-col border border-gray-100 overflow-hidden h-full">
-                    {/* Top Shadow Indicator */}
-                    <div className={`absolute top-0 left-0 right-0 h-[2vw] bg-gradient-to-b from-black/10 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showLeftTopShadow ? 'opacity-100' : 'opacity-0'}`} />
+                <div className="w-[calc(44.5%-0.75vw)] bg-[#f8f9fa] rounded-[1vw] relative flex flex-col border border-gray-100 overflow-hidden h-full isolate">
+                    {/* Top Opaque Mask - Ensures models clip before the header starts */}
+                    <div className="absolute -top-[1vw] left-0 right-0 h-[1vw] bg-white z-[29]" />
                     
+                    {/* Bottom Opaque Mask - Ensures models clip before the footer starts */}
+                    <div className="absolute -bottom-[1vw] left-0 right-0 h-[1vw] bg-white z-[29]" />
+
+                    {/* Top Shadow Indicator */}
+                    <div className={`absolute top-0 left-0 right-0 h-[3vw] bg-gradient-to-b from-black/10 to-transparent z-[25] pointer-events-none transition-opacity duration-300 ${showLeftTopShadow ? 'opacity-100' : 'opacity-0'}`} />
+                                        
                     <div 
                         ref={containerRef} 
                         onScroll={() => handleScroll(containerRef, setShowLeftTopShadow, setShowLeftBottomShadow)}
@@ -232,7 +238,7 @@ export default function Export3DModal({
                         <div className="grid grid-cols-2 gap-x-[1.2vw] gap-y-[1.5vw]">
                             {(selectedMaterial?.isGroup ? (selectedMaterial.materials || []) : [selectedMaterial?.name || "Material"]).map((name, idx) => (
                                 <div key={idx} className="flex flex-col gap-[0.6vw]">
-                                    <div className="aspect-square bg-white rounded-[0.6vw] shadow-sm flex items-center justify-center overflow-hidden border border-gray-200/50">
+                                    <div className="aspect-square bg-white rounded-[0.6vw] shadow-sm flex items-center justify-center overflow-hidden border border-gray-200/50 relative">
                                          <ModelThumbnail 
                                             materialName={name} 
                                             models={models}
@@ -241,6 +247,8 @@ export default function Export3DModal({
                                             materialList={materialList}
                                             containerRef={containerRef}
                                          />
+                                         {/* Local Item Border Overlay - Ensures model is clipped by rounded corners */}
+                                         <div className="absolute inset-0 border border-gray-200/50 rounded-[0.6vw] pointer-events-none z-[16]" />
                                     </div>
                                     <div className="flex items-center justify-between px-[0.2vw] gap-[0.5vw]">
                                         {editingMaterial === name ? (
@@ -280,7 +288,7 @@ export default function Export3DModal({
                     </div>
 
                     {/* Bottom Shadow Indicator */}
-                    <div className={`absolute bottom-0 left-0 right-0 h-[2vw] bg-gradient-to-t from-black/10 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showLeftBottomShadow ? 'opacity-100' : 'opacity-0'}`} />
+                    <div className={`absolute bottom-0 left-0 right-0 h-[3vw] bg-gradient-to-t from-black/10 to-transparent z-[25] pointer-events-none transition-opacity duration-300 ${showLeftBottomShadow ? 'opacity-100' : 'opacity-0'}`} />
                 </div>
             ) : (
                 /* Original Full View UI (Canvas) */
@@ -520,7 +528,7 @@ export default function Export3DModal({
     </div>
 
     {/* Footer Area - Masking Layer */}
-        <div className="px-[2vw] pb-[2vw] pt-[1vw] flex items-end justify-between shrink-0 bg-white relative z-[30]">
+        <div className="px-[2vw] pb-[2vw] pt-[2vw] flex items-end justify-between shrink-0 bg-white relative z-[30]">
             {/* Unified Filename and Size Info */}
             <div className="flex flex-col gap-[0.5vw] w-[45%]">
                 {exportScope === 'selection' && (

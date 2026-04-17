@@ -26,6 +26,7 @@ function App() {
           <Route path="/editor" element={<Editor />}>
             <Route index element={<MainEditor />} />
             <Route path="threed_editor" element={<ThreedEditor />} />
+            <Route path="threed_editor/:modelId" element={<ThreedEditor />} />
             <Route path="customized_editor" element={<CustomizedEditor />} />
             <Route path="customized_editor/:folder/:v_id" element={<CustomizedEditor />} />
             <Route path=":folder/:v_id" element={<MainEditor />} />

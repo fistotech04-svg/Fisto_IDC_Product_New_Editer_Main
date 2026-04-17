@@ -20,7 +20,13 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
 
     const [editingTexture, setEditingTexture] = useState(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [alertConfig, setAlertConfig] = useState({ isOpen: false, texture: null });
+    const [alertConfig, setAlertConfig] = useState({ isOpen: false, type: 'texture', data: null }); // type: 'texture' | 'category' | 'clear'
+
+    const [fetchedCategories, setFetchedCategories] = useState([]);
+    const [categoryMenuOpenId, setCategoryMenuOpenId] = useState(null);
+    const [categoryMenuPosition, setCategoryMenuPosition] = useState({ x: 0, y: 0 });
+    const [renamingCategoryId, setRenamingCategoryId] = useState(null);
+    const [renameValue, setRenameValue] = useState("");
 
     // Use data from centralized file
     const predefinedTextures = textureData;
@@ -38,7 +44,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                 const mapped = response.data.textures.map(t => ({
                     id: t._id,
                     name: t.materialName,
-                    category: t.materialCategory || "Custom",
+                    category: typeof t.materialCategory === 'object' ? t.materialCategory?.name : (t.materialCategory || "Custom"),
                     // Use preview if available, otherwise base map
                     thumb: t.maps.preview || t.maps.base,
                     // Store all maps for selection
@@ -54,11 +60,28 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
         }
     }, []);
 
+    const fetchCategories = useCallback(async () => {
+        const userStr = localStorage.getItem("user");
+        const user = userStr ? JSON.parse(userStr) : null;
+        if (!user?.emailId) return;
+
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${user.emailId}`);
+            if (response.data.categories) {
+                setFetchedCategories(response.data.categories);
+            }
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+        }
+    }, []);
+
     useEffect(() => {
         if (activeTab === "uploaded") {
             fetchUploadedTextures();
+            fetchCategories();
         }
-    }, [activeTab, fetchUploadedTextures]);
+    }, [activeTab, fetchUploadedTextures, fetchCategories]);
 
     // Re-fetch when AddMaterial modal closes (if we had a way to trigger it, but for now we poll or manual refresh)
     // Actually, we can just fetch whenever activeTab becomes uploaded.
@@ -67,12 +90,23 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
 
     const categories = useMemo(() => {
         const counts = {};
+        // Use active textures to count
         currentTextures.forEach(t => {
             const cat = t.category || "General";
             counts[cat] = (counts[cat] || 0) + 1;
         });
-        return { All: currentTextures.length, ...counts };
-    }, [currentTextures]);
+
+        // Collect all unique category names we have in database + current textures
+        const allCategoryNames = new Set(fetchedCategories.map(c => c.name));
+        Object.keys(counts).forEach(name => allCategoryNames.add(name));
+        
+        const finalObj = { All: currentTextures.length };
+        Array.from(allCategoryNames).sort().forEach(name => {
+            finalObj[name] = counts[name] || 0;
+        });
+
+        return finalObj;
+    }, [currentTextures, fetchedCategories]);
 
     const filteredTextures = useMemo(() => {
         if (selectedCategory === "All") return currentTextures;
@@ -88,15 +122,25 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     // Handle clicks outside to close menus
     useEffect(() => {
         const handleClickOutside = (e) => {
-            // If the menu is open, and we click something that isn't the toggle or the menu itself
+            // Three-dot menu closure (textures)
             if (menuOpenId && !e.target.closest('.menu-toggle-btn') && !e.target.closest('.context-menu-container')) {
                 setMenuOpenId(null);
                 setShowMoveTo(false);
             }
+
+            // Close category dropdown if clicking outside
+            if (isDropdownOpen && !e.target.closest('.category-dropdown-container') && !e.target.closest('.category-menu-container')) {
+                setIsDropdownOpen(false);
+            }
+
+            // Close category context menu if clicking outside
+            if (categoryMenuOpenId && !e.target.closest('.category-menu-toggle') && !e.target.closest('.category-menu-container')) {
+                setCategoryMenuOpenId(null);
+            }
         };
         window.addEventListener("mousedown", handleClickOutside);
         return () => window.removeEventListener("mousedown", handleClickOutside);
-    }, [menuOpenId]);
+    }, [menuOpenId, isDropdownOpen, categoryMenuOpenId]);
 
     const handleEdit = (tex) => {
         setEditingTexture(tex);
@@ -107,26 +151,72 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     const handleDelete = (tex) => {
         setAlertConfig({
             isOpen: true,
-            texture: tex
+            type: 'texture',
+            data: tex
         });
         setMenuOpenId(null);
     };
 
-    const confirmDelete = async () => {
-        const tex = alertConfig.texture;
-        if (!tex) return;
+    const confirmAction = async () => {
+        const { type, data } = alertConfig;
+        if (!data) return;
         
         try {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-            const response = await axios.delete(`${backendUrl}/api/textures/delete/${tex.id}`);
             
-            if (response.status === 200) {
-                fetchUploadedTextures();
-                setAlertConfig({ isOpen: false, texture: null });
+            if (type === 'texture') {
+                const response = await axios.delete(`${backendUrl}/api/textures/delete/${data.id}`);
+                if (response.status === 200) {
+                    fetchUploadedTextures();
+                }
+            } else if (type === 'category') {
+                const response = await axios.delete(`${backendUrl}/api/textures/categories/delete/${data.id}`);
+                if (response.status === 200) {
+                    fetchUploadedTextures();
+                    fetchCategories();
+                    setSelectedCategory("All");
+                }
+            } else if (type === 'clear') {
+                const response = await axios.post(`${backendUrl}/api/textures/categories/clear/${data.id}`);
+                if (response.status === 200) {
+                    fetchUploadedTextures();
+                }
             }
+            
+            setAlertConfig({ isOpen: false, type: 'texture', data: null });
         } catch (error) {
-            console.error("Error deleting texture:", error);
-            setAlertConfig({ isOpen: false, texture: null });
+            console.error(`Error performing ${type} action:`, error);
+            setAlertConfig({ isOpen: false, type: 'texture', data: null });
+        }
+    };
+
+    const handleCategoryAction = (id, type) => {
+        const cat = fetchedCategories.find(c => c._id === id);
+        if (!cat) return;
+
+        if (type === 'rename') {
+            setRenamingCategoryId(id);
+            setRenameValue(cat.name);
+            setCategoryMenuOpenId(null);
+        } else if (type === 'clear') {
+            setAlertConfig({ isOpen: true, type: 'clear', data: { id, name: cat.name } });
+            setCategoryMenuOpenId(null);
+        } else if (type === 'delete') {
+            setAlertConfig({ isOpen: true, type: 'category', data: { id, name: cat.name } });
+            setCategoryMenuOpenId(null);
+        }
+    };
+
+    const submitRename = async () => {
+        if (!renameValue.trim() || !renamingCategoryId) return;
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            await axios.put(`${backendUrl}/api/textures/categories/rename/${renamingCategoryId}`, { name: renameValue });
+            fetchCategories();
+            fetchUploadedTextures();
+            setRenamingCategoryId(null);
+        } catch (error) {
+            console.error("Error renaming category:", error);
         }
     };
 
@@ -214,14 +304,18 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                             <span className="text-[0.7vw] font-semibold text-gray-800">Material Category :</span>
                             <div 
                                 onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
-                                className="relative px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 flex items-center justify-between min-w-[8vw] cursor-pointer hover:bg-gray-100 transition-colors"
+                                className="relative px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 flex items-center justify-between min-w-[8vw] cursor-pointer hover:bg-gray-100 transition-colors category-dropdown-container"
                             >
                                 <span className="text-[0.7vw] font-semibold text-gray-800 capitalize">{selectedCategory} ({categories[selectedCategory]})</span>
                                 <Icon icon="heroicons:chevron-down-20-solid" width="0.8vw" className={`text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180 text-black" : ""}`} />
                                 
                                 {/* Dropdown Menu */}
                                 <div className={`absolute top-full left-0 mt-[0.3vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-xl transition-all z-40 min-w-full overflow-hidden ${isDropdownOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible translate-y-2"}`}>
-                                    {Object.entries(categories).map(([cat, count]) => (
+                                {Object.entries(categories).map(([cat, count]) => {
+                                    const isSelected = cat === selectedCategory;
+                                    const catData = fetchedCategories.find(c => c.name === cat);
+                                    
+                                    return (
                                         <div 
                                             key={cat}
                                             onClick={(e) => {
@@ -229,11 +323,46 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                                 setSelectedCategory(cat);
                                                 setIsDropdownOpen(false);
                                             }}                                            
-                                            className="px-[0.8vw] py-[0.5vw] text-[0.65vw] font-semibold text-gray-600 hover:bg-[#5d5efc] hover:text-white transition-colors cursor-pointer"
+                                            className={`px-[0.8vw] py-[0.5vw] text-[0.65vw] font-semibold transition-colors cursor-pointer flex items-center justify-between group/cat-item ${
+                                                isSelected 
+                                                    ? "bg-[#5d5efc] text-white" 
+                                                    : "text-gray-600 hover:bg-gray-100"
+                                            }`}
                                         >
-                                            {cat} ({count})
+                                            {renamingCategoryId === catData?._id ? (
+                                                <div className="flex items-center gap-[0.3vw] flex-1" onClick={(e) => e.stopPropagation()}>
+                                                    <input 
+                                                        autoFocus
+                                                        className="bg-white text-black px-[0.4vw] py-[0.1vw] rounded-[0.2vw] w-full"
+                                                        value={renameValue}
+                                                        onChange={(e) => setRenameValue(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') submitRename();
+                                                            if (e.key === 'Escape') setRenamingCategoryId(null);
+                                                        }}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <span>{cat} ({count})</span>
+                                            )}
+                                            
+                                            {/* Three-dot menu for category (Only for user categories, skip "All") */}
+                                            {cat !== "All" && activeTab === "uploaded" && catData && !renamingCategoryId && (
+                                                <button 
+                                                    className={`w-[1.1vw] h-[1.1vw] rounded-[0.3vw] flex items-center justify-center category-menu-toggle transition-all ${isSelected ? "text-white hover:bg-white/20" : "text-gray-400 opacity-0 group-hover/cat-item:opacity-100 hover:bg-gray-200"}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const rect = e.currentTarget.getBoundingClientRect();
+                                                        setCategoryMenuPosition({ x: rect.left, y: rect.top });
+                                                        setCategoryMenuOpenId(categoryMenuOpenId === catData._id ? null : catData._id);
+                                                    }}
+                                                >
+                                                    <Icon icon="heroicons:ellipsis-vertical-20-solid" width="0.8vw" />
+                                                </button>
+                                            )}
                                         </div>
-                                    ))}
+                                    );
+                                })}
                                 </div>
                             </div>
                         </div>
@@ -401,15 +530,59 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
 
             <AlertModal
                 isOpen={alertConfig.isOpen}
-                onClose={() => setAlertConfig({ isOpen: false, texture: null })}
-                onConfirm={confirmDelete}
+                onClose={() => setAlertConfig({ isOpen: false, type: 'texture', data: null })}
+                onConfirm={confirmAction}
                 type="error"
-                title="Delete Material"
-                message={`Are you sure you want to delete "${alertConfig.texture?.name}"? This action cannot be undone.`}
+                title={alertConfig.type === 'texture' ? "Delete Material" : alertConfig.type === 'clear' ? "Clear Category" : "Delete Category"}
+                message={
+                    alertConfig.type === 'texture' 
+                    ? `Are you sure you want to delete "${alertConfig.data?.name}"? This action cannot be undone.` 
+                    : alertConfig.type === 'clear' 
+                    ? `Remove all textures from category "${alertConfig.data?.name}"? This action cannot be undone.` 
+                    : `Delete category "${alertConfig.data?.name}" and all its textures? This action cannot be undone.`
+                }
                 showCancel={true}
-                confirmText="Delete"
-                cancelText="Keep"
+                confirmText={alertConfig.type === 'texture' ? "Delete" : alertConfig.type === 'clear' ? "Clear" : "Delete All"}
+                cancelText="Cancel"
             />
+
+            {/* CATEGORY CONTEXT MENU */}
+            {categoryMenuOpenId && (
+                <div 
+                    className="fixed z-[99999] bg-white rounded-[0.85vw] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.11vw] border-gray-400 py-[0.5vw] px-[0.3vw] min-w-[10vw] category-menu-container animate-in fade-in zoom-in duration-200"
+                    style={{ 
+                        top: (categoryMenuPosition.y - 120) + 'px', 
+                        left: (categoryMenuPosition.x + 30) + 'px' 
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="flex flex-col gap-[0.1vw]">
+                        <button 
+                            onClick={() => handleCategoryAction(categoryMenuOpenId, 'rename')}
+                            className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-gray-100 cursor-pointer rounded-[0.6vw] text-gray-700 transition-colors group/item"
+                        >
+                            <Icon icon="mdi:edit-outline" className="w-[1.1vw] h-[1.1vw] text-gray-500" />
+                            <span className="text-[0.7vw] font-medium text-gray-600">Rename</span>
+                        </button>
+                        
+                        <button 
+                            onClick={() => handleCategoryAction(categoryMenuOpenId, 'clear')}
+                            className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-gray-100 cursor-pointer rounded-[0.6vw] text-gray-700 transition-colors group/item"
+                        >
+                            <Icon icon="mdi:block" className="w-[1.1vw] h-[1.1vw] text-gray-500 rotate-90" />
+                            <span className="text-[0.7vw] font-medium text-gray-600">Clear All</span>
+                        </button>
+
+                        <button 
+                            onClick={() => handleCategoryAction(categoryMenuOpenId, 'delete')}
+                            className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-red-100 cursor-pointer rounded-[0.6vw] text-red-500 transition-colors"
+                        >
+                            <Icon icon="solar:trash-bin-trash-linear" className="w-[1.1vw] h-[1.1vw]" />
+                            <span className="text-[0.7vw] font-medium">Delete Category</span>
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* SHARED OPTIONS MENU (Reduced size) */}
             {menuOpenId && (

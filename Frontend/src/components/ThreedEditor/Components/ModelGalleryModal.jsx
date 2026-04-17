@@ -4,6 +4,8 @@ import { Canvas } from "@react-three/fiber";
 import { View, OrbitControls, Environment, PerspectiveCamera, Html } from "@react-three/drei";
 import axios from "axios";
 import RenderModel from "./ModelLoaders";
+import AlertModal from "../../AlertModal";
+import { useToast } from "../../../components/CustomToast";
 
 // Internal component for 3D thumbnail with support for static images
 const ModelThumbnail = React.memo(({ model }) => {
@@ -111,6 +113,14 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedModel, setSelectedModel] = useState(null);
+    const toast = useToast();
+    
+    // Context menu states
+    const [menuOpenId, setMenuOpenId] = useState(null);
+    const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+
+    // Alert states
+    const [alertConfig, setAlertConfig] = useState({ isOpen: false, data: null });
 
     useEffect(() => {
         if (isOpen) {
@@ -149,6 +159,56 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
             onClose();
         }
     };
+
+    const handleDeleteModel = async (model) => {
+        const userStr = localStorage.getItem('user');
+        if (!userStr || !model) {
+            console.warn("Cannot delete: User session or model data missing");
+            return;
+        }
+        const user = JSON.parse(userStr);
+        
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const email = encodeURIComponent(user.emailId);
+            const deleteUrl = `${backendUrl}/api/3d-models/delete-model/${email}/${model.modelId}`;
+            
+            console.log("Attempting to delete model:", model.name);
+            console.log(`Target User: ${user.emailId}, ID: ${model.modelId}`);
+            console.log(`Action URL: ${deleteUrl}`);
+
+            const response = await axios.delete(deleteUrl);
+            
+            console.log("Delete response:", response.data);
+            toast.success("Model deleted from gallery and database");
+            
+            // Refresh local list
+            fetchModels();
+            if (selectedModel?.name === model.name) setSelectedModel(null);
+            
+        } catch (error) {
+            console.error("Delete operation failed!");
+            console.error("Context:", { 
+                email: user.emailId,
+                modelId: model.modelId,
+                status: error.response?.status,
+                data: error.response?.data 
+            });
+            toast.error("Failed to delete model from database");
+        } finally {
+            setAlertConfig({ isOpen: false, data: null });
+        }
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuOpenId && !e.target.closest('.context-menu-body')) {
+                setMenuOpenId(null);
+            }
+        };
+        window.addEventListener('mousedown', handleClickOutside);
+        return () => window.removeEventListener('mousedown', handleClickOutside);
+    }, [menuOpenId]);
 
     const containerRef = useRef();
 
@@ -215,9 +275,25 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                                         </div>
 
                                         {/* Status / Type Badge */}
-                                        <div className="absolute top-[0.4vw] right-[0.4vw] px-[0.5vw] py-[0.2vw] bg-white/90 backdrop-blur-md rounded-[0.3vw] shadow-sm border border-gray-200 flex items-center justify-center">
+                                        <div 
+                                            className="absolute top-[0.4vw] left-[0.4vw] px-[0.5vw] py-[0.2vw] bg-white/95 backdrop-blur-md rounded-[0.3vw] shadow-sm border border-gray-200 flex items-center justify-center"
+                                            style={{ zIndex: 130 }}
+                                        >
                                             <span className="text-[0.6vw] font-bold text-gray-700 uppercase tracking-wide leading-none">{model.type?.replace('.', '') || '3D'}</span>
                                         </div>
+
+                                        {/* Three Dots Button - Only on Hover */}
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const rect = e.currentTarget.getBoundingClientRect();
+                                                setMenuPosition({ x: rect.left, y: rect.top });
+                                                setMenuOpenId(model.name);
+                                            }}
+                                            className={`absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-all z-[140] shadow-md opacity-0 group-hover:opacity-100 ${menuOpenId === model.name ? 'opacity-100' : ''}`}
+                                        >
+                                            <Icon icon="heroicons:ellipsis-vertical-20-solid" width="1vw" />
+                                        </button>
                                     </div>
                                     <div className="px-[0.2vw] flex items-center justify-between gap-[0.5vw] mb-[0.2vw]">
                                         <p 
@@ -296,6 +372,43 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                     }
                 `}</style>
             </div>
+
+            {/* CONTEXT MENU - Absolute within the fixed overlay */}
+            {menuOpenId && (
+                <div 
+                    className="fixed z-[99999] bg-white rounded-[0.85vw] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.11vw] border-gray-400 py-[0.3vw] px-[0.3vw] min-w-[8vw] animate-in fade-in zoom-in duration-200 context-menu-body"
+                    style={{ 
+                        top: (menuPosition.y - 0) + 'px', 
+                        left: (menuPosition.x + 30) + 'px' 
+                    }}
+                >
+                    <button 
+                        onClick={() => {
+                            const modelToDelete = models.find(m => m.name === menuOpenId);
+                            if (modelToDelete) {
+                                setAlertConfig({ isOpen: true, data: modelToDelete });
+                            }
+                            setMenuOpenId(null);
+                        }}
+                        className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-red-50 cursor-pointer rounded-[0.6vw] text-red-500 transition-colors group/item"
+                    >
+                        <Icon icon="solar:trash-bin-trash-linear" className="w-[1.1vw] h-[1.1vw]" />
+                        <span className="text-[0.7vw] font-medium">Delete</span>
+                    </button>
+                </div>
+            )}
+
+            {/* ALERT MODAL */}
+            <AlertModal 
+                isOpen={alertConfig.isOpen}
+                onClose={() => setAlertConfig({ isOpen: false, data: null })}
+                onConfirm={() => handleDeleteModel(alertConfig.data)}
+                type="error"
+                title="Delete Model"
+                message={`Are you sure you want to delete "${alertConfig.data?.name?.replace(/\.[^/.]+$/, "")}" from your gallery? This action cannot be undone.`}
+                showCancel={true}
+                confirmText="Delete"
+            />
         </div>
     );
 }
