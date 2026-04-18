@@ -270,7 +270,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
             >
                 <span className="text-[0.8vw] font-semibold text-gray-700">Click to View Texture Gallery</span>
                 <button 
-                    className="absolute right-[0.62vw] top-1/2 -translate-y-1/2 w-[1.88vw] h-[1.88vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.42vw] shadow-sm text-gray-600 hover:text-gray-900"
+                    className="absolute right-[0.62vw] top-1/2 -translate-y-1/2 w-[1.88vw] h-[1.88vw] cursor-pointer flex items-center justify-center bg-white border border-gray-200 rounded-[0.42vw] shadow-sm text-gray-600 hover:text-gray-900"
                 >
                     <Icon icon="heroicons:chevron-up-20-solid" width="1.04vw" height="1.04vw" />
                 </button>
@@ -380,7 +380,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                 e.stopPropagation();
                                 setIsOpen(false);
                             }}
-                            className="w-[1.67vw] h-[1.67vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.42vw] hover:bg-gray-50 text-gray-600 transition-all shadow-sm"
+                            className="w-[1.67vw] h-[1.67vw] cursor-pointer flex items-center justify-center bg-white border border-gray-200 rounded-[0.42vw] hover:bg-gray-50 text-gray-600 transition-all shadow-sm"
                         >
                             <Icon icon="heroicons:chevron-down-20-solid" width="0.94vw" height="0.94vw" />
                         </button>

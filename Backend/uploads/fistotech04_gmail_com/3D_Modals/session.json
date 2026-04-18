@@ -1,65 +1,23 @@
 {
-  "models": [
-    {
-      "id": "1776430330358",
-      "url": "https://hcxqp38j-5000.inc1.devtunnels.ms/uploads/fistotech04_gmail_com/3D_Modals/Car.glb",
-      "file": null,
-      "type": "glb",
-      "name": "Car",
-      "modelId": "ggBoJQdrs9MZBoIMWLh0"
-    }
-  ],
-  "materialSettings": {
-    "alpha": 100,
-    "metallic": 36,
-    "roughness": 53,
-    "normal": 100,
-    "bump": 100,
-    "scale": 100,
-    "scaleY": 100,
-    "rotation": 0,
-    "specular": 50,
-    "reflection": 50,
-    "shadow": 50,
-    "softness": 50,
-    "ao": 100,
-    "environment": "city",
-    "color": "#ffffff",
-    "useFactorColor": false,
-    "autoUnwrap": false,
-    "envRotation": 0,
-    "offset": {
-      "x": 0,
-      "y": 0
-    },
-    "appliedTexture": null,
-    "maps": {},
-    "emissiveIntensity": 100,
-    "emissiveColor": "#000000",
-    "lightPosition": {
-      "x": 10,
-      "y": 10,
-      "z": 10
-    },
-    "colorIntensity": 100
-  },
+  "models": [],
+  "materialSettings": {},
   "transformValues": {
     "position": {
-      "x": 4.364219665527344,
-      "y": 0.4539525508880615,
-      "z": -6.222509860992432
+      "x": 0,
+      "y": 0,
+      "z": 0
     },
     "rotation": {
       "x": 0,
-      "y": 0.9315748741255934,
+      "y": 0,
       "z": 0
     },
     "scale": {
-      "x": 0.0008442903636023402,
-      "y": 0.000838144333101809,
-      "z": 0.0008442903636023402
+      "x": 1,
+      "y": 1,
+      "z": 1
     }
   },
-  "modelName": "Car",
-  "lastSaved": "2026-04-17T12:53:51.101Z"
+  "modelName": "",
+  "lastSaved": "2026-04-18T08:50:22.979Z"
 }

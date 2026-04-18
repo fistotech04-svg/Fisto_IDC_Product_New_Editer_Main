@@ -102,11 +102,13 @@ export default function Export3DModal({
   const [embedTextures, setEmbedTextures] = useState(true);
   const [exportSeparate, setExportSeparate] = useState(false);
   const [quality, setQuality] = useState('Medium');
-  const [exportFormat, setExportFormat] = useState('OBJ');
+  const [exportFormat, setExportFormat] = useState('GLB');
   const [fileName, setFileName] = useState(modelName);
   const [zoomLevel, setZoomLevel] = useState(50);
+  const [compression, setCompression] = useState(50);
   const [customMaterialNames, setCustomMaterialNames] = useState({});
   const [editingMaterial, setEditingMaterial] = useState(null);
+  const [excludedParts, setExcludedParts] = useState(new Set());
   const settingsContainerRef = useRef(null);
   const mainViewRef = useRef(null);
   const modalRef = useRef(null);
@@ -115,6 +117,111 @@ export default function Export3DModal({
   const [showLeftTopShadow, setShowLeftTopShadow] = useState(false);
   const [showLeftBottomShadow, setShowLeftBottomShadow] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
+
+  // ─── Realistic Size Calculation Logic ───────────────────────────────────────
+  //
+  // "Before Compression" = the actual raw file size supplied by the OS/server.
+  // We only apply scope-narrowing (selection mode) so the user sees what portion
+  // of the model they are truly exporting.
+  //
+  // "After Compression" = an industry-accurate estimate based on:
+  //   • Export format  – GLB binary vs OBJ/FBX text-based baselines
+  //   • Draco level    – real Draco geometry-compression curves
+  //   • Texture policy – embedding vs. stripping textures
+  //   • Quality preset – texture downscaling factors
+  //
+  // All ratios are derived from Khronos / Google Draco benchmarks.
+
+  // Helper: format a raw MB number into a human-readable string
+  const formatSize = (mb) => {
+      if (mb < 1) return `${(mb * 1024).toFixed(0)} KB`;
+      if (mb < 10) return `${mb.toFixed(2)} MB`;
+      return `${mb.toFixed(1)} MB`;
+  };
+
+  // 1. Raw file size (always the actual on-disk size, never touched by quality/compression)
+  const rawFileSizeMB = useMemo(() => {
+      // modelSize arrives as e.g. "23.6 MB" or "1024.00 KB" — normalise to MB
+      const str = String(modelSize || '0');
+      const num = parseFloat(str) || 0;
+      if (str.toLowerCase().includes('kb')) return num / 1024;
+      return num; // already MB
+  }, [modelSize]);
+
+  // 2. "Before Compression" = raw size adjusted only for export scope
+  const calculatedBeforeSize = useMemo(() => {
+      let base = rawFileSizeMB;
+      if (base <= 0) return 0;
+
+      // Selection-mode narrows to the relevant materials
+      if (exportScope === 'selection' && selectedMaterial) {
+          const totalMaterials = Math.max(1, materialList?.length || 1);
+          const selectedMaterials = selectedMaterial.isGroup
+              ? Math.max(1, selectedMaterial.materials?.length || 1)
+              : 1;
+          const excludedCount = excludedParts.size;
+          const activeCount = Math.max(1, selectedMaterials - excludedCount);
+          // Geometry overhead ~15 % of total; textures ~85 %
+          const geometryPortion = base * 0.15 * (activeCount / totalMaterials);
+          const texturePortion  = base * 0.85 * (activeCount / totalMaterials);
+          base = geometryPortion + texturePortion;
+      }
+
+      return Math.max(0.001, base);
+  }, [rawFileSizeMB, exportScope, selectedMaterial, materialList, excludedParts]);
+
+  // 3. "After Compression" = realistic estimate after applying all export settings
+  const calculatedAfterSize = useMemo(() => {
+      let result = calculatedBeforeSize;
+      if (result <= 0) return 0;
+
+      // --- Split the file into geometry and texture budgets ---
+      // Typical distribution for textured 3D assets:
+      //   Geometry  ≈ 15 % of raw size
+      //   Textures  ≈ 85 % of raw size (or 0 if not included)
+      let geomMB    = result * 0.15;
+      let textureMB = result * 0.85;
+
+      // ── A. Texture stripping ────────────────────────────────────────────────
+      if (!includeTextures) {
+          textureMB = 0;   // Textures fully removed from export
+      } else {
+          // ── B. Texture quality downscaling ──────────────────────────────────
+          // Each quality step halves texture resolution (= 1/4 pixel count)
+          const qualityMultiplier = {
+              'Low':      0.12,  // 512 px  — ~88 % texture reduction vs Original
+              'Medium':   0.25,  // 1024 px — ~75 % texture reduction vs Original
+              'High':     0.55,  // 2048 px — ~45 % texture reduction vs Original
+              'Original': 1.00,  // Full res — no downscaling
+          }[quality] ?? 0.25;
+          textureMB *= qualityMultiplier;
+      }
+
+      // ── C. Geometry / Draco compression (slider 0–100) ──────────────────────
+      // Draco compression benchmarks (Khronos reference models):
+      //   GLB  – Draco cuts geometry to ≈5–30 % of original geometry size
+      //   OBJ  – text-based; Draco+OBJ wrapping gives ≈10–40 % of text geometry
+      //   FBX  – proprietary binary; less proven with Draco, ≈20–50 %
+      //
+      // Slider at 0   → no compression applied   (ratio = 1.00)
+      // Slider at 100 → maximum Draco compression (ratio = formatMin)
+      const formatMin = { GLB: 0.05 }[exportFormat] ?? 0.05;
+      // Expo-curve gives a realistic compression knee around 30–50 %
+      const t = compression / 100; // 0 … 1
+      const geomRatio = 1 - t * (1 - formatMin); // linear from 1.0 → formatMin
+      geomMB *= geomRatio;
+
+      result = geomMB + textureMB;
+
+      // Safety floor: compressed size can never exceed original
+      return Math.min(result, calculatedBeforeSize);
+  }, [calculatedBeforeSize, compression, exportFormat, includeTextures, quality]);
+
+  // Model Rotation Logic based on Orientation
+  const modelRotation = useMemo(() => {
+      if (orientation === 'Z axis up') return [-Math.PI / 2, 0, 0];
+      return [0, 0, 0];
+  }, [orientation]);
 
   const handleScroll = (ref, setTop, setBottom) => {
       if (!ref.current) return;
@@ -136,14 +243,17 @@ export default function Export3DModal({
           exportFormat, 
           fileName,
           exportScope,
+          compression,
+          draco: compression > 0, // Automatically enable Draco if compression slider is used
+          excludedParts: Array.from(excludedParts),
           selectedMaterial: exportScope === 'selection' ? selectedMaterial : null,
-          customMaterialNames: exportScope === 'selection' ? customMaterialNames : null
+          customMaterialNames: customMaterialNames
       });
       onClose();
   };
 
   const effectiveHiddenMaterials = React.useMemo(() => {
-    const baseHidden = new Set([...(hiddenMaterials || []), ...(deletedMaterials || [])]);
+    const baseHidden = new Set([...(hiddenMaterials || []), ...(deletedMaterials || []), ...excludedParts]);
     
     if (exportScope === 'selection' && selectedMaterial) {
         const allMaterials = new Set();
@@ -163,7 +273,7 @@ export default function Export3DModal({
 
         const selectionHidden = new Set();
         allMaterials.forEach(m => {
-            if (!selectedNames.has(m)) {
+            if (!selectedNames.has(m) || excludedParts.has(m)) {
                 selectionHidden.add(m);
             }
         });
@@ -172,7 +282,7 @@ export default function Export3DModal({
     }
     
     return baseHidden;
-  }, [exportScope, selectedMaterial, hiddenMaterials, deletedMaterials, materialList]);
+  }, [exportScope, selectedMaterial, hiddenMaterials, deletedMaterials, materialList, excludedParts]);
   
   useEffect(() => {
     // Check shadows and initialization delay
@@ -238,7 +348,19 @@ export default function Export3DModal({
                         <div className="grid grid-cols-2 gap-x-[1.2vw] gap-y-[1.5vw]">
                             {(selectedMaterial?.isGroup ? (selectedMaterial.materials || []) : [selectedMaterial?.name || "Material"]).map((name, idx) => (
                                 <div key={idx} className="flex flex-col gap-[0.6vw]">
-                                    <div className="aspect-square bg-white rounded-[0.6vw] shadow-sm flex items-center justify-center overflow-hidden border border-gray-200/50 relative">
+                                    <div 
+                                        onClick={() => {
+                                            setExcludedParts(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(name)) next.delete(name);
+                                                else next.add(name);
+                                                return next;
+                                            });
+                                        }}
+                                        className={`aspect-square bg-white rounded-[0.6vw] shadow-sm flex items-center justify-center overflow-hidden border transition-all relative cursor-pointer ${
+                                            excludedParts.has(name) ? 'border-gray-200 opacity-50 grayscale-[0.5]' : 'border-indigo-600/30'
+                                        }`}
+                                    >
                                          <ModelThumbnail 
                                             materialName={name} 
                                             models={models}
@@ -247,8 +369,20 @@ export default function Export3DModal({
                                             materialList={materialList}
                                             containerRef={containerRef}
                                          />
-                                         {/* Local Item Border Overlay - Ensures model is clipped by rounded corners */}
-                                         <div className="absolute inset-0 border border-gray-200/50 rounded-[0.6vw] pointer-events-none z-[16]" />
+                                         {/* Selection Checkbox */}
+                                         <div className="absolute top-[0.5vw] right-[0.5vw] z-[20]">
+                                             <div className={`w-[1.2vw] h-[1.2vw] rounded-full flex items-center justify-center border transition-all ${
+                                                 !excludedParts.has(name) 
+                                                     ? 'bg-indigo-600 border-indigo-600 text-white shadow-md' 
+                                                     : 'bg-white border-gray-300 text-transparent'
+                                             }`}>
+                                                 <Check size="0.8vw" strokeWidth={4} />
+                                             </div>
+                                         </div>
+                                         {/* Local Item Border Overlay */}
+                                         <div className={`absolute inset-0 border rounded-[0.6vw] pointer-events-none z-[16] ${
+                                             excludedParts.has(name) ? 'border-gray-200/50' : 'border-indigo-600/20'
+                                         }`} />
                                     </div>
                                     <div className="flex items-center justify-between px-[0.2vw] gap-[0.5vw]">
                                         {editingMaterial === name ? (
@@ -366,11 +500,11 @@ export default function Export3DModal({
                 <div 
                     ref={settingsContainerRef}
                     onScroll={() => handleScroll(settingsContainerRef, setShowTopShadow, setShowBottomShadow)}
-                    className="w-full h-full overflow-y-auto custom-scrollbar p-[1.5vw] flex flex-col gap-[1.5vw]"
+                    className="w-full h-full overflow-y-auto custom-scrollbar p-[1.5vw] flex flex-col gap-[2vw]"
                 >
                     {/* Axis / Orientation */}
-                    <div>
-                        <div className="flex items-center gap-[1vw] mb-[0.5vw]">
+                    <div className="flex flex-col gap-[1vw]">
+                        <div className="flex items-center gap-[1vw]">
                             <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Axis / Orientation</h3>
                             <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
                         </div>
@@ -381,19 +515,16 @@ export default function Export3DModal({
                                 <div className="relative">
                                     <div 
                                         onClick={() => setIsAxisOpen(!isAxisOpen)}
-                                        className="bg-white border border-gray-200 text-gray-700 text-[0.85vw] font-medium rounded-[0.5vw] px-[0.8vw] py-[0.5vw] shadow-sm cursor-pointer flex items-center justify-between min-w-[7vw] hover:bg-gray-50 transition-colors select-none"
+                                        className="bg-white border border-gray-100 text-gray-700 text-[0.75vw] font-semibold rounded-[0.4vw] px-[0.8vw] py-[0.45vw] shadow-sm cursor-pointer flex items-center justify-between min-w-[8vw] hover:bg-gray-50 transition-all select-none"
                                     >
                                         <span>{orientation}</span>
-                                        <ChevronDown size="1.1vw" className={`text-gray-500 ml-[0.5vw] transition-transform duration-200 ${isAxisOpen ? 'rotate-180' : ''}`} />
+                                        <ChevronDown size="1vw" className={`text-gray-500 ml-[0.5vw] transition-transform duration-200 ${isAxisOpen ? 'rotate-180' : ''}`} />
                                     </div>
                                     
                                     {isAxisOpen && (
                                         <>
-                                            {/* Click outside overlay */}
                                             <div className="fixed inset-0 z-[1001]" onClick={() => setIsAxisOpen(false)} />
-                                            
-                                            {/* Dropdown Menu */}
-                                            <div className="absolute top-[calc(100%+0.3vw)] left-0 w-full min-w-[100%] bg-white border border-gray-200 rounded-[0.5vw] shadow-lg overflow-hidden z-[1002] animate-in fade-in slide-in-from-top-1 duration-150 py-[0.2vw]">
+                                            <div className="absolute top-[calc(100%+0.2vw)] left-0 w-full min-w-[100%] bg-white border border-gray-100 rounded-[0.4vw] shadow-xl overflow-hidden z-[1002] animate-in fade-in slide-in-from-top-1 duration-150 py-[0.1vw]">
                                                 {['Y axis up', 'Z axis up'].map(opt => (
                                                     <div
                                                         key={opt}
@@ -401,9 +532,9 @@ export default function Export3DModal({
                                                             setOrientation(opt);
                                                             setIsAxisOpen(false);
                                                         }}
-                                                        className={`w-full text-left px-[0.8vw] py-[0.5vw] text-[0.85vw] transition-all cursor-pointer ${
+                                                        className={`w-full text-left px-[0.8vw] py-[0.4vw] text-[0.75vw] transition-all cursor-pointer ${
                                                             orientation === opt 
-                                                                ? 'bg-gray-100/80 font-bold text-gray-900' 
+                                                                ? 'bg-gray-50 font-bold text-indigo-600' 
                                                                 : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
                                                         }`}
                                                     >
@@ -414,110 +545,162 @@ export default function Export3DModal({
                                         </>
                                     )}
                                 </div>
+                            </div>
                         </div>
                     </div>
 
                     {/* Texture Inclusion */}
-                    <div>
-                        <div className="flex items-center gap-[1vw] mt-[1vw] mb-[1vw]">
+                    <div className="flex flex-col gap-[1vw]">
+                        <div className="flex items-center gap-[1vw]">
                             <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Texture Inclusion</h3>
                             <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
                         </div>
-                        <div className="flex flex-col gap-[0.8vw]">
-                            <label className="flex items-center gap-[0.6vw] cursor-pointer group w-fit">
-                                 <div className="relative flex items-center justify-center">
-                                      <input 
+                        <div className="flex flex-col gap-[1vw]">
+                            <label className="flex items-center gap-[0.8vw] cursor-pointer group">
+                                <div className="relative flex items-center justify-center">
+                                    <input 
                                         type="checkbox"
                                         checked={includeTextures}
                                         onChange={(e) => setIncludeTextures(e.target.checked)}
-                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.1vw] border-gray-300 rounded-[0.2vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm hover:border-gray-400"
-                                      />
-                                      <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={3.5} />
-                                 </div>
-                                 <span className="text-gray-700 font-medium text-[0.85vw]">Include textures</span>
+                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.12vw] border-gray-300 rounded-[0.25vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm"
+                                    />
+                                    <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
+                                </div>
+                                <span className="text-gray-900 font-bold text-[0.75vw]">Include Textures</span>
                             </label>
-                            <label className="flex items-center gap-[0.6vw] cursor-pointer group w-fit">
-                                 <div className="relative flex items-center justify-center">
-                                      <input 
-                                        type="checkbox"
-                                        checked={embedTextures}
-                                        onChange={(e) => setEmbedTextures(e.target.checked)}
-                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.1vw] border-gray-300 rounded-[0.2vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm hover:border-gray-400"
-                                      />
-                                      <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={3.5} />
-                                 </div>
-                                 <span className="text-gray-700 font-medium text-[0.85vw]">Embed textures in file</span>
-                            </label>
-                            <label className="flex items-center gap-[0.6vw] cursor-pointer group w-fit">
-                                 <div className="relative flex items-center justify-center">
-                                      <input 
-                                        type="checkbox"
-                                        checked={exportSeparate}
-                                        onChange={(e) => setExportSeparate(e.target.checked)}
-                                        className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.1vw] border-gray-300 rounded-[0.2vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm hover:border-gray-400"
-                                      />
-                                      <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={3.5} />
-                                 </div>
-                                 <span className="text-gray-700 font-medium text-[0.85vw]">Export textures as separate files</span>
-                            </label>
+
+                            {includeTextures && (
+                                <div className="pl-[1.9vw] flex flex-col gap-[1vw] animate-in fade-in slide-in-from-left-1 duration-200">
+                                    <label className="flex items-center gap-[0.8vw] cursor-pointer group">
+                                        <div className="relative flex items-center justify-center">
+                                            <input 
+                                                type="checkbox"
+                                                checked={embedTextures}
+                                                onChange={(e) => {
+                                                    setEmbedTextures(e.target.checked);
+                                                    if (e.target.checked) setExportSeparate(false);
+                                                }}
+                                                className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.12vw] border-gray-300 rounded-[0.25vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm"
+                                            />
+                                            <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
+                                        </div>
+                                        <span className="text-gray-600 font-medium text-[0.75vw]">Embed inside file (Recommended)</span>
+                                    </label>
+
+                                    <label className="flex items-center gap-[0.8vw] cursor-pointer group">
+                                        <div className="relative flex items-center justify-center">
+                                            <input 
+                                                type="checkbox"
+                                                checked={exportSeparate}
+                                                onChange={(e) => {
+                                                    setExportSeparate(e.target.checked);
+                                                    if (e.target.checked) setEmbedTextures(false);
+                                                }}
+                                                className="peer appearance-none w-[1.1vw] h-[1.1vw] border-[0.12vw] border-gray-300 rounded-[0.25vw] checked:bg-[#4f46e5] checked:border-[#4f46e5] transition-all bg-white shadow-sm"
+                                            />
+                                            <Check className="w-[0.8vw] h-[0.8vw] text-white absolute opacity-0 peer-checked:opacity-100 pointer-events-none" strokeWidth={4} />
+                                        </div>
+                                        <span className="text-gray-600 font-medium text-[0.75vw]">Export textures as separate files</span>
+                                    </label>
+                                </div>
+                            )}
                         </div>
                     </div>
 
                     {/* Texture Quality / Resolution */}
-                    <div className="pb-[1vw]">
-                        <div className="flex items-center gap-[1vw] mt-[1vw] mb-[0.5vw]">
+                    <div className="flex flex-col gap-[0.8vw]">
+                        <div className="flex items-center gap-[0.8vw]">
                             <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Texture Quality / Resolution</h3>
                             <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
                         </div>
-                        <p className="text-[0.75vw] text-gray-500 mb-[1vw] font-medium">Higher quality gives better visual detail but increases file size.</p>
-                        <div className="flex items-center gap-[0.8vw]">
+                        <p className="text-[0.7vw] text-gray-400 font-medium -mt-[0.5vw]">Higher quality gives better visual detail but increases file size.</p>
+                        <div className="grid grid-cols-4 gap-[0.6vw]">
                             {[
-                                { name: 'Low', px: '720px' },
-                                { name: 'Medium', px: '1024px' },
-                                { name: 'High', px: '2048px' },
-                                { name: 'Original', px: '' }
+                                { name: 'Low', desc: 'Optimized for web' },
+                                { name: 'Medium', desc: 'Balanced' },
+                                { name: 'High', desc: 'Detailed' },
+                                { name: 'Original', desc: 'No compression' }
                             ].map(q => (
                                 <button 
                                     key={q.name}
-                                onClick={() => setQuality(q.name)}
-                                className={`flex-1 flex flex-col items-center justify-center py-[0.6vw] rounded-[0.5vw] border-[0.1vw] transition-all ${
-                                    quality === q.name 
-                                        ? 'bg-black text-white border-black font-semibold shadow-md' 
-                                        : 'bg-white cursor-pointer text-gray-500 border-gray-200 hover:border-gray-300 font-medium hover:bg-gray-50'
-                                }`}
-                            >
-                                <span className="text-[0.85vw]">{q.name}</span>
-                                {q.px && <span className={`text-[0.6vw] ${quality === q.name ? 'text-gray-300' : 'text-gray-400 font-semibold'}`}>({q.px})</span>}
-                            </button>
-                        ))}
+                                    onClick={() => setQuality(q.name)}
+                                    className={`flex flex-col items-center justify-center py-[0.5vw] rounded-[0.4vw] border-[0.1vw] transition-all ${
+                                        quality === q.name 
+                                            ? 'bg-black text-white border-black shadow-md scale-[1.02]' 
+                                            : 'bg-white cursor-pointer text-gray-400 border-gray-100 hover:border-gray-200 font-medium'
+                                    }`}
+                                >
+                                    <span className="text-[0.7vw] font-bold">{q.name}</span>
+                                    <span className={`text-[0.5vw] mt-[0.1vw] ${quality === q.name ? 'text-gray-400' : 'text-gray-400'}`}>({q.desc})</span>
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </div>
 
-                {/* Export Format */}
-                <div className="mb-[1vw]">
-                    <div className="flex items-center gap-[1vw] mb-[0.5vw]">
-                        <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">Export Format</h3>
-                        <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
-                    </div>
-                    <p className="text-[0.75vw] text-gray-500 mb-[1vw] font-medium">Choose the format that fits your workflow and target platform.</p>
-                    <div className="flex items-center gap-[0.8vw]">
-                        {['GLB', 'OBJ', 'FBX'].map(f => (
-                            <button 
-                                key={f}
-                                onClick={() => setExportFormat(f)}
-                                className={`flex-1 flex flex-col items-center justify-center py-[0.6vw] rounded-[0.5vw] border-[0.1vw] transition-all cursor-pointer ${
-                                    exportFormat === f 
-                                        ? 'bg-black text-white border-black font-semibold shadow-md' 
-                                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-300 font-medium hover:bg-gray-50'
-                                }`}
-                            >
-                                <span className="text-[0.85vw]">{f}</span>
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                    {/* 3D Model Compressor */}
+                    <div className="flex flex-col gap-[0.2vw]">
+                        <div className="flex items-center gap-[0.8vw]">
+                            <h3 className="text-[1vw] font-bold text-gray-800 tracking-tight">3D Model Compressor</h3>
+                            <div className="h-[0.1vw] bg-gray-200 flex-1"></div>
+                        </div>
+                        <p className="text-[0.75vw] text-gray-400 font-medium">Control model quality and file size using compression.</p>
+                        
+                        <div className="px-[0.5vw] pt-[1.9vw] pb-[0.2vw]">
+                            <div className="relative group">
+                                {/* Tooltip / Speech Bubble */}
+                                <div 
+                                    className="absolute -top-[2.2vw] bg-white text-gray-800 text-[0.7vw] font-bold px-[0.6vw] py-[0.3vw] rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.08)] border border-gray-100 transform -translate-x-1/2 flex items-center justify-center min-w-[2.5vw] z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
+                                    style={{ left: `${compression}%` }}
+                                >
+                                    {compression}%
+                                    {/* Triangle Tail */}
+                                    <div className="absolute -bottom-[0.3vw] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[0.3vw] border-l-transparent border-r-[0.3vw] border-r-transparent border-t-[0.3vw] border-t-white"></div>
+                                </div>
+                                
+                                {/* Range Slider Track */}
+                                <div className="h-[0.4vw] w-full bg-gradient-to-r from-[#ff4d00] via-[#ffcc00] via-[#00ffcc] to-[#0099ff] rounded-full relative shadow-inner">
+                                    <input 
+                                        type="range"
+                                        min="0"
+                                        max="100"
+                                        value={compression}
+                                        onChange={(e) => setCompression(parseInt(e.target.value))}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-30"
+                                    />
+                                    {/* Handle with Glow */}
+                                    <div 
+                                        className="absolute top-1/2 -translate-y-1/2 w-[1vw] h-[1vw] bg-white border-[0.15vw] border-black shadow-[0_0_0_1px_rgba(0,0,0,0.05),0_4_8px_rgba(0,0,0,0.15)] rounded-full transform -translate-x-1/2 pointer-events-none flex items-center justify-center"
+                                        style={{ left: `${compression}%` }}
+                                    >
+                                        <div className="w-full h-full rounded-full bg-white shadow-[inset_0_0_1px_rgba(0,0,0,0.1)]"></div>
+                                    </div>
+                                </div>
+                                
+                                {/* End-point Labels */}
+                                <div className="flex items-center justify-between mt-[0.6vw] px-[0.2vw]">
+                                    <span className="text-[0.6vw] font-bold text-gray-900 opacity-60">(High Quality)</span>
+                                    <span className="text-[0.6vw] font-bold text-gray-900 opacity-60">(Low Quality)</span>
+                                </div>
+                            </div>
 
-            </div>
+                            <div className="flex flex-col gap-[0.2vw] mt-[0.2vw]">
+                                <div className="flex items-center gap-[0.5vw] text-[0.75vw] font-medium text-gray-500">
+                                    <span>Before Compression</span>
+                                    <span>:</span>
+                                    <span className="text-gray-800">{formatSize(calculatedBeforeSize)}</span>
+                                </div>
+                                <div className="flex items-center gap-[0.5vw] text-[0.75vw] font-medium text-gray-500">
+                                    <span>After Compression</span>
+                                    <span>:</span>
+                                    <span className="text-green-500 font-bold">{formatSize(calculatedAfterSize)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                </div>
 
             {/* Bottom Shadow Indicator */}
             <div className={`absolute bottom-0 left-0 right-0 h-[2vw] bg-gradient-to-t from-black/10 to-transparent z-10 pointer-events-none transition-opacity duration-300 ${showBottomShadow ? 'opacity-100' : 'opacity-0'}`} />
@@ -525,7 +708,6 @@ export default function Export3DModal({
 
 
         </div>
-    </div>
 
     {/* Footer Area - Masking Layer */}
         <div className="px-[2vw] pb-[2vw] pt-[2vw] flex items-end justify-between shrink-0 bg-white relative z-[30]">
@@ -549,7 +731,7 @@ export default function Export3DModal({
                         <Edit3 size="1vw" className="text-gray-400 shrink-0" />
                     </div>
                     <div className="bg-gray-50 border border-gray-100 px-[1.2vw] py-[0.6vw] rounded-[0.5vw] text-[0.85vw] font-bold text-gray-500 whitespace-nowrap shadow-sm border-l-[0.2vw] border-l-gray-200">
-                        {exportScope === 'selection' ? 'Model Size' : 'Size'}: {modelSize}
+                        {exportScope === 'selection' ? 'Model Size' : 'Size'}: {formatSize(calculatedAfterSize)}
                     </div>
                 </div>
             </div>

@@ -18,8 +18,9 @@ import AddModelModal from "./Components/AddModelModal";
 import ModelGalleryModal from "./Components/ModelGalleryModal";
 import AlertModal from "../AlertModal";
 import { GLTFExporter } from "three-stdlib";
-import { OBJExporter } from "three-stdlib";
+// import { OBJExporter } from "three-stdlib";
 import { STLExporter } from "three-stdlib";
+import { MeshoptEncoder } from "meshoptimizer";
 import CameraModal from "./Components/CameraModal";
 import AddMaterial from "./Components/AddMaterial";
 import { useOutletContext } from "react-router-dom";
@@ -557,111 +558,174 @@ export default function ThreedEditor() {
       });
   }, [updateHistory]);
 
-  const handleExport = async (settings) => {
-    const { 
-        exportScope, 
-        selectedMaterial, 
-        exportFormat, 
-        fileName, 
-        customMaterialNames 
-    } = typeof settings === 'object' ? settings : { exportFormat: settings };
+  // Two-Step Compression Export
+  // Step 1: Three.js GLTFExporter -> raw GLB ArrayBuffer (captures all editor material changes)
+  // Step 2: gltf-transform (dedup+prune+reorder/Meshopt) post-process -> real geometry compression
+  // Quality: Low=512px | Medium=1024px | High=2048px | Original=4096px (canvas downscale)
+  // Compression slider > 0 + GLB format -> Step 2 Meshopt applied
 
-    const format = exportFormat?.toLowerCase();
-    const scene = sceneWrapperRef.current;
+  const handleExport = async (exportSettings) => {
+    const {
+        exportScope,
+        selectedMaterial,
+        exportFormat,
+        fileName,
+        customMaterialNames,
+        compression     = 0,
+        includeTextures = true,
+        embedTextures   = true,
+        quality         = 'Medium',
+    } = typeof exportSettings === 'object' ? exportSettings : { exportFormat: exportSettings };
+
+    const format = exportFormat?.toLowerCase() || 'glb';
+    const scene  = sceneWrapperRef.current;
     if (!scene || models.length === 0) return;
 
-    setLoadingText("Exporting selection...");
+    setLoadingText("Preparing export...");
     setManualLoading(true);
 
-    const name = fileName || modelName || (models.length > 0 ? models[0].name : "Scene");
-    const visibilityMap = new Map();
+    const name       = fileName || modelName || (models.length > 0 ? models[0].name : "Scene");
+    const isGLB      = format === 'glb' || format === 'gltf';
+    const useMeshopt = isGLB && compression > 0;
+    const qualityTextureSize = { Low: 512, Medium: 1024, High: 2048, Original: 4096 }[quality] ?? 1024;
 
-    // Store original visibility
+    const TEX_KEYS         = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','alphaMap','bumpMap'];
+    const originalTextures = new Map();
+    const visibilityMap    = new Map();
+
     scene.traverse((obj) => {
-        if (obj.isMesh || obj.isLight || obj.isHelper) {
-            visibilityMap.set(obj, obj.visible);
+        if (obj.isMesh || obj.isLight || obj.isHelper) visibilityMap.set(obj, obj.visible);
+        if (obj.isMesh && obj.material) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((mat) => {
+                if (!originalTextures.has(mat)) {
+                    const snap = {};
+                    TEX_KEYS.forEach(k => { snap[k] = mat[k]; });
+                    originalTextures.set(mat, snap);
+                }
+            });
         }
     });
 
-    const restoreVisibility = () => {
-        visibilityMap.forEach((visible, obj) => {
-            if (obj) obj.visible = visible;
+    const restoreAll = () => {
+        visibilityMap.forEach((v, obj) => { if (obj) obj.visible = v; });
+        originalTextures.forEach((snap, mat) => {
+            TEX_KEYS.forEach(k => { mat[k] = snap[k]; });
+            mat.needsUpdate = true;
         });
     };
 
-    const runExport = async (targetScene) => {
-        return new Promise((resolve, reject) => {
-            if (format === 'glb') {
-                const exporter = new GLTFExporter();
-                exporter.parse(targetScene, (result) => {
-                    if (result instanceof ArrayBuffer) {
-                        resolve(new Blob([result], { type: 'application/octet-stream' }));
-                    } else {
-                        const output = JSON.stringify(result, null, 2);
-                        resolve(new Blob([output], { type: 'text/plain' }));
-                    }
-                }, reject, { binary: true });
-            } else if (format === 'obj') {
-                const exporter = new OBJExporter();
-                const result = exporter.parse(targetScene);
-                resolve(new Blob([result], { type: 'text/plain' }));
-            } else if (format === 'stl') {
-                const exporter = new STLExporter();
-                const result = exporter.parse(targetScene);
-                resolve(new Blob([result], { type: 'application/octet-stream' }));
-            } else {
-                reject(new Error("Unsupported format"));
-            }
+    const downscaleTexture = (tex, maxPx) => {
+        if (!tex || !tex.image) return tex;
+        const img = tex.image;
+        const srcW = img.naturalWidth || img.width || maxPx;
+        const srcH = img.naturalHeight || img.height || maxPx;
+        if (srcW <= maxPx && srcH <= maxPx) return tex;
+        const ratio = Math.min(maxPx / srcW, maxPx / srcH);
+        const cv = document.createElement('canvas');
+        cv.width  = Math.max(1, Math.floor(srcW * ratio));
+        cv.height = Math.max(1, Math.floor(srcH * ratio));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        const t = tex.clone(); t.image = cv; t.needsUpdate = true;
+        return t;
+    };
+
+    const applyTexturePolicy = () => {
+        originalTextures.forEach((_snap, mat) => {
+            TEX_KEYS.forEach(k => {
+                if (!includeTextures)                        mat[k] = null;
+                else if (quality !== 'Original' && mat[k])  mat[k] = downscaleTexture(mat[k], qualityTextureSize);
+            });
+            mat.needsUpdate = true;
         });
+    };
+
+    // STEP 1: Three.js scene -> raw GLB ArrayBuffer
+    const exportSceneToGLBBuffer = (targetScene) => new Promise((resolve, reject) => {
+        new GLTFExporter().parse(
+            targetScene,
+            (result) => resolve(result instanceof ArrayBuffer ? result : new TextEncoder().encode(JSON.stringify(result)).buffer),
+            reject,
+            { binary: true, forceIndices: true, maxTextureSize: qualityTextureSize, embedImages: embedTextures, includeCustomExtensions: false }
+        );
+    });
+
+    // STEP 2: gltf-transform Meshopt post-process
+    const applyMeshoptToBuffer = async (glbBuffer) => {
+        setLoadingText("Applying Meshopt compression...");
+        try {
+            const { WebIO }                 = await import('@gltf-transform/core');
+            const { EXTMeshoptCompression } = await import('@gltf-transform/extensions');
+            const { dedup, prune, reorder } = await import('@gltf-transform/functions');
+            await MeshoptEncoder.ready;
+            const io  = new WebIO().registerExtensions([EXTMeshoptCompression]);
+            const doc = await io.readBinary(new Uint8Array(glbBuffer));
+            await doc.transform(dedup(), prune(), reorder({ encoder: MeshoptEncoder }));
+            return (await io.writeBinary(doc)).buffer;
+        } catch (err) {
+            console.error("Meshopt compression failed - using uncompressed GLB:", err);
+            return glbBuffer;
+        }
+    };
+
+    const exportNonGLBBlob = (targetScene) => {
+        // if (format === 'obj') return new Blob([new OBJExporter().parse(targetScene)], { type: 'text/plain' });
+        if (format === 'stl') return new Blob([new STLExporter().parse(targetScene)], { type: 'application/octet-stream' });
+        throw new Error("Unsupported format: " + format);
+    };
+
+    const triggerDownload = (data, dlName) => {
+        const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/octet-stream' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob); a.download = dlName; a.click();
     };
 
     try {
+        applyTexturePolicy();
+
         if (exportScope === 'selection' && selectedMaterial) {
-            const zip = new JSZip();
+            const zip   = new JSZip();
             const names = selectedMaterial.isGroup ? selectedMaterial.materials : [selectedMaterial.name];
-            
+
             for (const matName of names) {
-                const displayName = (customMaterialNames?.[matName] || matName).replace(/\s+/g, '_');
-                setLoadingText(`Packaging ${displayName}...`);
-                
-                // Isolate this material
+                const displayName = (customMaterialNames && customMaterialNames[matName] ? customMaterialNames[matName] : matName).replace(/\s+/g, '_');
+                setLoadingText("Exporting " + displayName + "...");
                 scene.traverse((obj) => {
                     if (obj.isMesh && obj.material) {
-                        const isSelected = obj.name === matName || 
-                                         (Array.isArray(obj.material) 
-                                            ? obj.material.some(m => m.name === matName) 
-                                            : obj.material.name === matName);
-                        obj.visible = isSelected;
-                    } else if (obj.isLight || obj.isHelper) {
-                        obj.visible = false;
-                    }
+                        const hit = obj.name === matName || (Array.isArray(obj.material) ? obj.material.some(m => m.name === matName) : obj.material.name === matName);
+                        obj.visible = hit;
+                    } else if (obj.isLight || obj.isHelper) obj.visible = false;
                 });
-
-                const blob = await runExport(scene);
-                zip.file(`${displayName}.${format}`, blob);
+                if (isGLB) {
+                    let buf = await exportSceneToGLBBuffer(scene);
+                    if (useMeshopt) buf = await applyMeshoptToBuffer(buf);
+                    zip.file(displayName + "." + format, new Uint8Array(buf));
+                } else {
+                    zip.file(displayName + "." + format, exportNonGLBBlob(scene));
+                }
             }
 
             setLoadingText("Generating ZIP...");
-            const zipBlob = await zip.generateAsync({ type: "blob" });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(zipBlob);
-            link.download = `${name.replace(/\s+/g, '_')}.zip`;
-            link.click();
-            
-            restoreVisibility();
+            const level = Math.min(9, Math.max(1, Math.ceil(compression / 11)));
+            const zipBlob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: level } });
+            triggerDownload(zipBlob, name.replace(/\s+/g, '_') + ".zip");
+
         } else {
-            // Full Model Export (Single File)
-            const blob = await runExport(scene);
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `${name.replace(/\s+/g, '_')}.${format}`;
-            link.click();
+            if (isGLB) {
+                setLoadingText("Exporting scene...");
+                let buf = await exportSceneToGLBBuffer(scene);
+                if (useMeshopt) buf = await applyMeshoptToBuffer(buf);
+                triggerDownload(buf, name.replace(/\s+/g, '_') + "." + format);
+            } else {
+                setLoadingText("Exporting model...");
+                triggerDownload(exportNonGLBBlob(scene), name.replace(/\s+/g, '_') + "." + format);
+            }
         }
     } catch (error) {
         console.error("Export error:", error);
         toast.error("Export failed. Please try again.");
     } finally {
-        restoreVisibility();
+        restoreAll();
         setManualLoading(false);
         setLoadingText("");
     }
