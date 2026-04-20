@@ -12,14 +12,16 @@ export default function DashboardNavbar() {
   const navLinks = [
     { name: 'Home', path: '/home' },
     { name: 'My Flipbooks', path: '/my-flipbooks' },
+    { name: 'Explore', path: '#' },
+    { name: 'Features', path: '#' },
+    { name: 'About Us', path: '#' },
     { name: 'Help', path: '#' },
-    { name: 'Contact Us', path: '#' },
-    { name: 'Settings', path: '/settings' },
+    // { name: 'Settings', path: '/settings' },
   ];
 
   return (
     <>
-    <nav className="w-full bg-white px-[1.5vw] flex items-center justify-between z-50 fixed top-0 left-0 border-b border-gray-200 shadow-sm" style={{ height: '8vh' }}>
+    <nav className="w-full bg-white px-[1.5vw] flex items-center justify-between z-50 border-b border-gray-200 shadow-sm" style={{ height: '8vh' }}>
       {/* Logo */}
       <div className="flex-shrink-0">
         <Link to="/home">

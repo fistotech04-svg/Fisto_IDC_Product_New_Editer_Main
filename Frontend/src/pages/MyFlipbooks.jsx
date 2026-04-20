@@ -664,7 +664,7 @@ export default function MyFlipbooks() {
   const isAllSelected = filteredBooks.length > 0 && selectedBooks.length === filteredBooks.length;
 
   return (
-    <div className="flex bg-[#eef0f8] min-h-screen pt-[8vh]">
+    <div className="flex bg-[#eef0f8] h-screen">
       {/* Sidebar */}
       <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20">
         
