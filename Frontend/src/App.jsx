@@ -7,6 +7,7 @@ import Signup from './pages/Signup';
 import Home from './pages/Home';
 import MyFlipbooks from './pages/MyFlipbooks';
 import Settings from './pages/Settings';
+import About from './pages/About';
 import Editor from './Modules/Editer';
 import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
@@ -38,6 +39,7 @@ function App() {
             <Route path="/home" element={<Home />} />
             <Route path="/my-flipbooks" element={<MyFlipbooks />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/about" element={<About />} />
           </Route>
         </Routes>
       </Router>

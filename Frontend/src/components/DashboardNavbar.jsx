@@ -14,7 +14,7 @@ export default function DashboardNavbar() {
     { name: 'My Flipbooks', path: '/my-flipbooks' },
     { name: 'Explore', path: '#' },
     { name: 'Features', path: '#' },
-    { name: 'About Us', path: '#' },
+    { name: 'About Us', path: '/about' },
     { name: 'Help', path: '#' },
     // { name: 'Settings', path: '/settings' },
   ];

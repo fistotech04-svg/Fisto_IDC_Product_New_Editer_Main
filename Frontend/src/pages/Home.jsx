@@ -241,10 +241,10 @@ export default function Home() {
                     opacity: useTransform(editorsScrollProgress, [0, 0.2, 0.4], [1, 1, 0]),
                     x: useTransform(editorsScrollProgress, [0, 0.4], [0, -50])
                 }}
-                className="absolute left-[3vw] top-[10%] z-30 max-w-[70vw] space-y-[1.5vw]"
+                className="absolute left-[3vw] top-[15%] z-30 max-w-[70vw] space-y-[1.5vw]"
             >
                 <h2 className="text-[3vw] font-bold text-white leading-tight">
-                    Create Your Flipbook With <span className="text-blue-400">3 Powerful</span> Editor
+                    Create Your Flipbook With 3 Powerful Editor
                 </h2>
                 <p className="text-[1.1vw] text-slate-400 font-light">
                     Choose how you want to design, edit, and experience your content.
@@ -323,7 +323,8 @@ export default function Home() {
                     style={{
                         scale: useTransform(editorsScrollProgress, [0, 0.3], [1, 1.2]),
                         opacity: useTransform(editorsScrollProgress, [0.5, 0.6], [1, 0]),
-                        x: useTransform(editorsScrollProgress, [0, 0.4], ["15vw", "0vw"]),
+                        x: useTransform(editorsScrollProgress, [0, 0.4], ["25vw", "10vw"]),
+                        y: useTransform(editorsScrollProgress, [0, 0.4], ["5vw", "8vw"]),
                     }}
                     className="relative w-[26vw] h-[18vw] perspective-3000"
                 >
