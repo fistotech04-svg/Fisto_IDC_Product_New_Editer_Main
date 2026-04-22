@@ -52,14 +52,14 @@ export default function DashboardNavbar() {
       {/* Right Actions */}
       <div className="flex items-center gap-[1vw]">
          {/* Notification */}
-         <button className="w-[2.5vw] h-[2.5vw] flex items-center justify-center rounded-[0.75vw] bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all duration-200 group">
+         <button className="w-[2.5vw] h-[2.5vw] cursor-pointer flex items-center justify-center rounded-[0.75vw] bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all duration-200 group">
             <Bell size="1.2vw" className="text-gray-600 group-hover:text-gray-900 transition-colors" />
          </button>
 
          {/* Profile */}
          <button 
            onClick={() => setIsProfileModalOpen(true)}
-           className="w-[2.5vw] h-[2.5vw] flex items-center justify-center rounded-[0.75vw] bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all duration-200 group"
+           className="w-[2.5vw] h-[2.5vw] cursor-pointer flex items-center justify-center rounded-[0.75vw] bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all duration-200 group"
          >
              <User size="1.2vw" className="text-gray-800 group-hover:text-black transition-colors" strokeWidth={2.5} />
          </button>

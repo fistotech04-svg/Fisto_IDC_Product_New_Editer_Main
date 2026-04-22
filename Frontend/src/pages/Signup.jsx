@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Check, X, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { useGoogleLogin } from '@react-oauth/google';
+
 import { useToast } from '../components/CustomToast';
 import FistoLogo from '../assets/logo/Fisto_logo.png'; 
 import SignupBg from '../assets/logo/signup.png';
@@ -45,6 +47,41 @@ export default function Signup() {
     }
   };
 
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsLoading(true);
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        
+        // Fetch user info from Google using access token
+        const userInfo = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+        });
+        
+        // Send info to our backend
+        const res = await axios.post(`${backendUrl}/api/auth/google-login`, {
+          isAccessToken: true,
+          email: userInfo.data.email,
+          name: userInfo.data.name,
+          picture: userInfo.data.picture,
+          sub: userInfo.data.sub
+        });
+
+        if (res.data.user) {
+          localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
+          toast.success('Signed up with Google successfully!');
+          navigate('/home');
+        }
+      } catch (err) {
+        console.error('Google Auth Error:', err);
+        toast.error('Google Authentication failed');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: () => toast.error('Google Login Failed')
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
@@ -53,23 +90,17 @@ export default function Signup() {
     }
     setIsLoading(true);
     try {
-      // Backend expects emailId, frontend has email
       const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
       const res = await axios.post(`${backendUrl}/api/auth/signup`, {
         emailId: formData.email,
         password: formData.password
       });
-      console.log('Signup success:', res.data);
       
-      // Store user data in localStorage
       if (res.data.user) {
         localStorage.setItem('user', JSON.stringify({
-          emailId: res.data.user.emailId,
-          userFolder: res.data.user.userFolder,
-          createdAt: res.data.user.createdAt,
+          ...res.data.user,
           isLoggedIn: true
         }));
-        console.log('User data stored in localStorage');
       }
       
       toast.success('Signup successful!');
@@ -84,7 +115,6 @@ export default function Signup() {
 
   return (
     <div className="h-screen w-full flex relative overflow-hidden bg-white">
-      
       {/* Background Image */}
       <div className="absolute inset-0 z-0">
         <img 
@@ -96,10 +126,8 @@ export default function Signup() {
 
       {/* Content Container */}
       <div className="flex w-full h-full z-10 relative">
-        
-        {/* Left Section: Logo & Image Placeholder */}
+        {/* Left Section: Logo */}
         <div className="hidden lg:flex w-[50%] flex-col p-[3vw] relative">
-          {/* Logo */}
           <div className="mb-auto">
              <img src={FistoLogo} alt="FIST_O" className="w-[9vw] object-contain brightness-0 invert" />
           </div>
@@ -108,9 +136,7 @@ export default function Signup() {
         {/* Right Section: Signup Form */}
         <div className="w-full lg:w-[50%] flex items-center justify-center p-[1.5vw] lg:p-[3vw]">
           <div className="w-full max-w-[28vw] space-y-[1vw] bg-transparent">
-            
             <div className="text-center">
-               {/* Mobile Logo */}
                <div className="lg:hidden flex justify-center mb-[1vw]">
                  <img src={FistoLogo} alt="FIST-O" className="h-[2.5vw] w-auto" />
                </div>
@@ -118,7 +144,6 @@ export default function Signup() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-[1.25vw]">
-              
               {/* Email */}
               <div className="space-y-[0.5vw]">
                 <label className="text-[0.875vw] font-bold ml-[0.25vw] text-black" htmlFor="email">Email Id</label>
@@ -126,7 +151,7 @@ export default function Signup() {
                   type="email"
                   id="email"
                   name="email"
-                  className="block w-full px-[1.25vw] py-[0.75vw] rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all border border-indigo-200 shadow-lg shadow-indigo-100 text-[1vw]"
+                  className="block w-full px-[1.25vw] py-[0.75vw] font-medium rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all border border-indigo-200 shadow-lg shadow-indigo-100 text-[1vw]"
                   placeholder="Enter your Email ID"
                   value={formData.email}
                   onChange={handleChange}
@@ -142,7 +167,7 @@ export default function Signup() {
                     type={showPassword ? "text" : "password"}
                     id="password"
                     name="password"
-                    className="block w-full px-[1.25vw] py-[0.75vw] pr-[3vw] rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all border border-indigo-200 shadow-lg shadow-indigo-100 text-[1vw]"
+                    className="block w-full px-[1.25vw] py-[0.75vw] pr-[3vw] font-medium rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all border border-indigo-200 shadow-lg shadow-indigo-100 text-[1vw]"
                     placeholder="Create your Password"
                     value={formData.password}
                     onChange={handleChange}
@@ -170,7 +195,7 @@ export default function Signup() {
                     type={showConfirmPassword ? "text" : "password"}
                     id="confirmPassword"
                     name="confirmPassword"
-                    className="block w-full px-[1.25vw] py-[0.75vw] pr-[3vw] rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all border border-indigo-200 shadow-lg shadow-indigo-100 text-[1vw]"
+                    className="block w-full px-[1.25vw] py-[0.75vw] pr-[3vw] font-medium rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all border border-indigo-200 shadow-lg shadow-indigo-100 text-[1vw]"
                     placeholder="Re - Enter your Password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
@@ -221,7 +246,6 @@ export default function Signup() {
               </div>
 
               {/* Submit Button */}
-
               <button
                 type="submit"
                 disabled={
@@ -232,7 +256,7 @@ export default function Signup() {
                   formData.password !== formData.confirmPassword ||
                   !Object.values(passwordCriteria).every(Boolean)
                 }
-                className="w-full py-[0.875vw] px-[1vw] cursor-pointer rounded-full bg-[#4c5add] hover:bg-[#3f4bc0] text-white font-semibold text-[1.125vw] shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] focus:outline-none text-center block disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:bg-[#4c5add] disabled:shadow-none"
+                className="w-full py-[0.875vw] px-[1vw] cursor-pointer rounded-full bg-[#4c5add] hover:bg-[#3f4bc0] text-white font-semibold text-[1.125vw] shadow-lg shadow-indigo-200 transition-all transform hover:scale-[1.02] focus:outline-none text-center block disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="flex items-center justify-center gap-[0.5vw]">
@@ -261,10 +285,10 @@ export default function Signup() {
                 <div className="flex-1 border-t border-1 border-[#373d8b]"></div>
               </div>
 
-
-              {/* Google Login */}
+              {/* Google Signup */}
               <button 
                 type="button"
+                onClick={() => handleGoogleLogin()}
                 className="w-full flex cursor-pointer items-center justify-center px-[1vw] py-[0.875vw] rounded-full bg-white text-gray-900 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-all shadow-lg shadow-gray-200 border border-gray-100 text-[1vw]"
               >
                  <svg className="w-[1.25vw] h-[1.25vw] mr-[0.75vw]" viewBox="0 0 24 24">
@@ -273,9 +297,8 @@ export default function Signup() {
                     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
                  </svg>
-                 Sign-In with Google
+                 Sign-Up with Google
               </button>
-
             </form>
           </div>
         </div>

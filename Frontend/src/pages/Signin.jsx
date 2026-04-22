@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { useGoogleLogin } from '@react-oauth/google';
+
 import { useToast } from '../components/CustomToast';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
 import FistoLogo from '../assets/logo/Fisto_logo.png'; 
@@ -22,20 +24,71 @@ export default function Signin() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleForgotPasswordClick = (e) => {
+  const handleForgotPasswordClick = async (e) => {
     e.preventDefault();
     if (!formData.emailId) {
       toast.error("Please enter your Email ID first");
       return;
     }
-    // Simple email validation regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.emailId)) {
       toast.error("Please enter a valid Email ID");
       return;
     }
-    setIsForgotModalOpen(true);
+
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const res = await axios.post(`${backendUrl}/api/auth/check-user`, {
+        emailId: formData.emailId
+      });
+      
+      if (res.data.exists) {
+        setIsForgotModalOpen(true);
+      }
+    } catch (err) {
+      if (err.response?.status === 404) {
+        toast.error("This email is not registered");
+      } else {
+        console.error("Error checking user:", err);
+        toast.error("Something went wrong. Please try again.");
+      }
+    }
   };
+
+  const handleGoogleLogin = useGoogleLogin({
+    onSuccess: async (tokenResponse) => {
+      setIsLoading(true);
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        
+        // Fetch user info from Google using access token
+        const userInfo = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${tokenResponse.access_token}` }
+        });
+        
+        // Send info to our backend
+        const res = await axios.post(`${backendUrl}/api/auth/google-login`, {
+          isAccessToken: true,
+          email: userInfo.data.email,
+          name: userInfo.data.name,
+          picture: userInfo.data.picture,
+          sub: userInfo.data.sub
+        });
+
+        if (res.data.user) {
+          localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
+          toast.success('Login successful with Google!');
+          navigate('/home');
+        }
+      } catch (err) {
+        console.error('Google Auth Error:', err);
+        toast.error('Google Authentication failed');
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: () => toast.error('Google Login Failed')
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,9 +99,7 @@ export default function Signin() {
         emailId: formData.emailId,
         password: formData.password
       });
-      console.log('Login success:', res.data);
       
-      // Store user data in localStorage
       if (res.data.user) {
         localStorage.setItem('user', JSON.stringify({
           ...res.data.user,
@@ -68,7 +119,6 @@ export default function Signin() {
 
   return (
     <div className="min-h-screen w-full flex relative overflow-hidden bg-white"> 
-      
       <ForgotPasswordModal 
         isOpen={isForgotModalOpen} 
         onClose={() => setIsForgotModalOpen(false)} 
@@ -86,28 +136,20 @@ export default function Signin() {
 
       {/* Content Container */}
       <div className="flex w-full h-full z-10 relative">
-        
-        {/* Left Section: Logo & Image Placeholder */}
+        {/* Left Section: Logo */}
         <div className="hidden lg:flex w-[50%] flex-col p-[3vw] relative">
-          {/* Logo */}
           <div className="mb-auto">
              <img src={FistoLogo} alt="FIST_O" className="w-[9vw] object-contain" />
           </div>
-          
-          {/* Main Image Placeholder (User will place image here) */}
           <div className="flex-1 flex items-center justify-center">
-             <div className="w-[25vw] h-[32.5vw] relative flex items-center justify-center">
-                
-             </div>
+             <div className="w-[25vw] h-[32.5vw] relative flex items-center justify-center"></div>
           </div>
         </div>
 
         {/* Right Section: Login Form */}
         <div className="w-full lg:w-[50%] flex items-center justify-center p-[4vw] lg:p-[4vw]">
           <div className="w-full max-w-[28vw] space-y-[2vw] text-white">
-            
             <div className="text-center">
-               {/* Mobile Logo */}
                <div className="lg:hidden flex justify-center mb-[1.5vw]">
                  <img src={FistoLogo} alt="FIST-O" className="h-[2.5vw] w-auto brightness-0 invert" />
                </div>
@@ -115,15 +157,13 @@ export default function Signin() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-[1.5vw]">
-              
-              {/* Email ID */}
               <div className="space-y-[0.5vw]">
                 <label className="text-[1vw] font-medium ml-[0.25vw]" htmlFor="emailId">Email Id</label>
                 <input
                   type="email"
                   id="emailId"
                   name="emailId"
-                  className="block w-full px-[1.25vw] py-[0.75vw] rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-[1vw]"
+                  className="block w-full px-[1.25vw] py-[0.75vw] font-medium rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-[1vw]"
                   placeholder="Enter your Email ID"
                   value={formData.emailId}
                   onChange={handleChange}
@@ -131,7 +171,6 @@ export default function Signin() {
                 />
               </div>
 
-              {/* Password */}
               <div className="space-y-[0.5vw]">
                 <label className="text-[1vw] font-medium ml-[0.25vw]" htmlFor="password">Password</label>
                 <div className="relative">
@@ -139,7 +178,7 @@ export default function Signin() {
                     type={showPassword ? "text" : "password"}
                     id="password"
                     name="password"
-                    className="block w-full px-[1.25vw] py-[0.75vw] pr-[3vw] rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-[1vw]"
+                    className="block w-full px-[1.25vw] py-[0.75vw] pr-[3vw] font-medium rounded-full bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all text-[1vw]"
                     placeholder="Enter your Password"
                     value={formData.password}
                     onChange={handleChange}
@@ -169,7 +208,6 @@ export default function Signin() {
                 </div>
               </div>
 
-              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoading}
@@ -185,7 +223,6 @@ export default function Signin() {
                 )}
               </button>
               
-              {/* Create Account Link */}
               <div className="text-center mt-[1vw]">
                  <p className="text-[0.875vw] text-gray-300">
                     Create Account ?{' '}
@@ -195,7 +232,6 @@ export default function Signin() {
                  </p>
               </div>
 
-              {/* Divider */}
               <div className="flex items-center my-[2vw]">
                 <div className="flex-1 border-t border-1 border-white"></div>
                 <span className="px-[0.75vw] text-gray-300 text-[0.875vw] font-semibold">or</span>
@@ -205,6 +241,7 @@ export default function Signin() {
               {/* Google Login */}
               <button 
                 type="button"
+                onClick={() => handleGoogleLogin()}
                 className="w-full flex cursor-pointer items-center justify-center px-[1vw] py-[0.875vw] rounded-full bg-white text-gray-700 font-medium hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-200 transition-all transform hover:scale-[1.02] text-[1vw]"
               >
                  <svg className="w-[1.25vw] h-[1.25vw] mr-[0.75vw]" viewBox="0 0 24 24">
@@ -215,7 +252,6 @@ export default function Signin() {
                  </svg>
                  Sign-In with Google
               </button>
-
             </form>
           </div>
         </div>
