@@ -221,6 +221,7 @@ export default function ThreedEditor() {
               setModelUrl(fullUrl);
               setModelType(newModel.type);
               setModelName(newModel.name);
+              setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
               setIsSidebarCollapsed(false);
               setModelStats({ fileSize: modelData.size || "0 MB" });
               return; // End here for ID-based load
@@ -575,23 +576,41 @@ export default function ThreedEditor() {
         includeTextures = true,
         embedTextures   = true,
         quality         = 'Medium',
+        orientation     = 'Y axis up',
+        exportSeparate  = false,
     } = typeof exportSettings === 'object' ? exportSettings : { exportFormat: exportSettings };
 
     const format = exportFormat?.toLowerCase() || 'glb';
-    const scene  = sceneWrapperRef.current;
-    if (!scene || models.length === 0) return;
-
-    setLoadingText("Preparing export...");
+    if (!sceneWrapperRef.current || models.length === 0) return;
     setManualLoading(true);
 
+    setLoadingText("Preparing export...");
     const name       = fileName || modelName || (models.length > 0 ? models[0].name : "Scene");
     const isGLB      = format === 'glb' || format === 'gltf';
     const useMeshopt = isGLB && compression > 0;
     const qualityTextureSize = { Low: 512, Medium: 1024, High: 2048, Original: 4096 }[quality] ?? 1024;
 
-    const TEX_KEYS         = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','alphaMap','bumpMap'];
+    const TEX_KEYS         = ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap','alphaMap','bumpMap','displacementMap'];
     const originalTextures = new Map();
     const visibilityMap    = new Map();
+
+    // 1. Prepare scene clone for processing to avoid touching live scene
+    const scene = sceneWrapperRef.current.clone(true);
+    
+    // Ensure all materials are also cloned (shallow clone by default in Three.js)
+    scene.traverse((obj) => {
+        if (obj.isMesh && obj.material) {
+            obj.material = Array.isArray(obj.material) ? obj.material.map(m => m.clone()) : obj.material.clone();
+        }
+    });
+
+    const isZUp = orientation === 'Z axis up';
+    
+    // Apply Orientation transformation to clone
+    if (isZUp) {
+        scene.rotation.x = -Math.PI / 2;
+        scene.updateMatrixWorld(true);
+    }
 
     scene.traverse((obj) => {
         if (obj.isMesh || obj.isLight || obj.isHelper) visibilityMap.set(obj, obj.visible);
@@ -608,6 +627,10 @@ export default function ThreedEditor() {
     });
 
     const restoreAll = () => {
+        if (isZUp) {
+            scene.rotation.x = 0;
+            scene.updateMatrixWorld(true);
+        }
         visibilityMap.forEach((v, obj) => { if (obj) obj.visible = v; });
         originalTextures.forEach((snap, mat) => {
             TEX_KEYS.forEach(k => { mat[k] = snap[k]; });
@@ -625,8 +648,22 @@ export default function ThreedEditor() {
         const cv = document.createElement('canvas');
         cv.width  = Math.max(1, Math.floor(srcW * ratio));
         cv.height = Math.max(1, Math.floor(srcH * ratio));
-        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-        const t = tex.clone(); t.image = cv; t.needsUpdate = true;
+        const ctx = cv.getContext('2d', { alpha: true });
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, cv.width, cv.height);
+        
+        const t = new THREE.Texture(cv);
+        t.colorSpace = tex.colorSpace;
+        t.wrapS = tex.wrapS;
+        t.wrapT = tex.wrapT;
+        t.repeat.copy(tex.repeat);
+        t.offset.copy(tex.offset);
+        t.rotation = tex.rotation;
+        t.center.copy(tex.center);
+        t.anisotropy = tex.anisotropy;
+        t.flipY = tex.flipY;
+        t.needsUpdate = true;
         return t;
     };
 
@@ -1036,6 +1073,17 @@ export default function ThreedEditor() {
       const next = { ...prev, [key]: val };
       
       if (!fromSync) {
+          // If a material-specific property is changed, enable the override flag
+          // so that the changes apply in "Full Model" mode.
+          const materialKeys = [
+              'color', 'metallic', 'roughness', 'alpha', 'emissiveIntensity', 
+              'emissiveColor', 'normal', 'bump', 'scale', 'rotation', 'offset', 
+              'colorIntensity', 'reflection', 'ao', 'specular', 'softness'
+          ];
+          if (materialKeys.includes(key)) {
+              next.useFactorColor = true;
+          }
+
           pushHistoryThrottled({
               ...stateRef.current,
               materialSettings: next
@@ -1163,7 +1211,7 @@ export default function ThreedEditor() {
     
     setModelMaterialLists({});
     setModelStatsMap({});
-    setSelectedMaterial(null);
+    setSelectedMaterial({ name: nextModelName, parentGroup: nextModelName });
     setHiddenMaterials(new Set());
     setDeletedMaterials(new Set());
     
@@ -1187,6 +1235,7 @@ export default function ThreedEditor() {
         materialSettings: nextMaterialSettings,
         hiddenMaterials: [],
         deletedMaterials: [],
+        selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
         modelMaterialLists: {}
     });
 
@@ -1227,7 +1276,7 @@ export default function ThreedEditor() {
     
     setModelMaterialLists({});
     setModelStatsMap({});
-    setSelectedMaterial(null);
+    setSelectedMaterial({ name: nextModelName, parentGroup: nextModelName });
     setHiddenMaterials(new Set());
     setDeletedMaterials(new Set());
     setModelStats({ fileSize: model.size || "0 MB" });
@@ -1248,6 +1297,7 @@ export default function ThreedEditor() {
         materialSettings: nextMaterialSettings,
         hiddenMaterials: [],
         deletedMaterials: [],
+        selectedMaterial: { name: nextModelName, parentGroup: nextModelName },
         modelMaterialLists: {}
     });
 
@@ -1459,6 +1509,7 @@ export default function ThreedEditor() {
 
    const handleSelectTexture = useCallback((textureData) => {
        const isReset = !textureData || !textureData.id;
+       const isNone = textureData?.id === 'none';
        const newTexture = isReset ? null : { ...textureData, ts: Date.now() };
        
        setSelectedTextureId(isReset ? null : textureData.id);
@@ -1470,7 +1521,7 @@ export default function ThreedEditor() {
                appliedTexture: newTexture
            };
 
-           if (isReset) {
+           if (isReset || isNone) {
                next.maps = { 
                    map: null, 
                    normalMap: null, 
@@ -1738,21 +1789,41 @@ export default function ThreedEditor() {
               {/* Only show background color if NOT capturing for a clean model-only shot */}
               {!isCapturing && <color attach="background" args={[settings.backgroundColor]} />}
 
-              <ambientLight intensity={1.2} />
+              <ambientLight intensity={(materialSettings.shadow ?? 50) / 40} />
               <spotLight
-                position={[5, 10, 5]}
+                position={[
+                    materialSettings.lightPosition?.x ?? 5, 
+                    materialSettings.lightPosition?.y ?? 10, 
+                    materialSettings.lightPosition?.z ?? 5
+                ]}
                 angle={0.15}
                 penumbra={1}
-                intensity={2}
+                intensity={(materialSettings.reflection ?? 50) / 25} 
                 castShadow
-                shadow-bias={-0.005} // Increased bias to prevent triangle acne/banding
+                shadow-bias={-0.001}
+                shadow-normalBias={0.08}
+                shadow-radius={(materialSettings.softness ?? 50) / 12} // Map 0-100 to 0-8 radius
                 shadow-mapSize={[2048, 2048]}
+                shadow-camera-near={1}
+                shadow-camera-far={25}
               />
               <directionalLight
-                position={[-5, 5, -5]}
-                intensity={1}
+                position={[
+                    -(materialSettings.lightPosition?.x ?? 5), 
+                    materialSettings.lightPosition?.y ?? 5, 
+                    -(materialSettings.lightPosition?.z ?? 5)
+                ]}
+                intensity={(materialSettings.reflection ?? 50) / 50}
                 castShadow
-                shadow-bias={-0.005}
+                shadow-bias={-0.001}
+                shadow-normalBias={0.08}
+                shadow-radius={(materialSettings.softness ?? 50) / 12}
+                shadow-camera-left={-10}
+                shadow-camera-right={10}
+                shadow-camera-top={10}
+                shadow-camera-bottom={-10}
+                shadow-camera-near={1}
+                shadow-camera-far={25}
               />
 
               <Suspense fallback={null}>
@@ -1844,7 +1915,7 @@ export default function ThreedEditor() {
               )}
 
               {settings.base && !isCapturing && (
-                 <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.015, 0]} receiveShadow>
+                 <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]} receiveShadow>
                     <planeGeometry args={[30, 30]} />
                     <meshStandardMaterial color={settings.baseColor} />
                  </mesh>
@@ -1883,7 +1954,7 @@ export default function ThreedEditor() {
 
               {models.length > 0 && (
                   <ContactShadows
-                      position={[0, -0.01, 0]}
+                      position={[0, -0.005, 0]}
                       opacity={(materialSettings.shadow ?? 50) / 100}
                       scale={50}
                       blur={2}

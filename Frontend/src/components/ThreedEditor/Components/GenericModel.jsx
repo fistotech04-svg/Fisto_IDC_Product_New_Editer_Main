@@ -347,47 +347,50 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
   useEffect(() => {
       if (!scene || !onTextureIdentified) return;
 
-      if (!selectedMaterial || (modelName && selectedMaterial.name === modelName) || selectedMaterial.name === "Scene") {
-          onTextureIdentified(null);
-          return;
-      }
-      
-      const targetParentGroup = selectedMaterial.parentGroup;
-      if (targetParentGroup && targetParentGroup !== modelName && targetParentGroup !== "Scene") {
-          onTextureIdentified(null);
-          return;
-      }
-      if (selectedMaterial.isGroup && selectedMaterial.name !== modelName && selectedMaterial.name !== "Scene") {
-          onTextureIdentified(null);
-          return;
-      }
-
-      const targetMatName = selectedMaterial.name;
+      const isFullModel = !selectedMaterial || (modelName && selectedMaterial.name === modelName) || selectedMaterial.name === "Scene";
+      const targetMatName = isFullModel ? null : selectedMaterial.name;
       
       let foundMat = null;
 
-      // Find the material to check its userData
-      scene.traverse((child) => {
-          if (foundMat) return;
-          if (child.isMesh && child.material) {
-              const check = (m) => {
-                  if (foundMat) return;
-                  
-                  let match = false;
-                  match = m.name === targetMatName;
-                  
-                  if (match) {
-                      foundMat = m;
-                  }
-              };
-
-              if (Array.isArray(child.material)) {
-                  child.material.forEach(check);
-              } else {
-                  check(child.material);
-              }
+      if (!isFullModel) {
+          const targetParentGroup = selectedMaterial.parentGroup;
+          if (targetParentGroup && targetParentGroup !== modelName && targetParentGroup !== "Scene") {
+              onTextureIdentified(null);
+              return;
           }
-      });
+          if (selectedMaterial.isGroup && selectedMaterial.name !== modelName && selectedMaterial.name !== "Scene") {
+              onTextureIdentified(null);
+              return;
+          }
+      }
+      
+      if (isFullModel) {
+          // If full model is selected, we just need to find the first material to identify the style
+          scene.traverse((child) => {
+              if (foundMat) return;
+              if (child.isMesh && child.material) {
+                  foundMat = Array.isArray(child.material) ? child.material[0] : child.material;
+              }
+          });
+      } else {
+          // Find the specific material
+          scene.traverse((child) => {
+              if (foundMat) return;
+              if (child.isMesh && child.material) {
+                  const check = (m) => {
+                      if (foundMat) return;
+                      if (m.name === targetMatName) {
+                          foundMat = m;
+                      }
+                  };
+                  if (Array.isArray(child.material)) {
+                      child.material.forEach(check);
+                  } else {
+                      check(child.material);
+                  }
+              }
+          });
+      }
 
       // Helper to extract URL from a Three.js Texture
       const getTexUrl = (tex) => {
@@ -463,7 +466,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
     const centeredX = -center.x * targetScale;
     const centeredZ = -center.z * targetScale;
-    const bottomY = -box.min.y * targetScale; // Align bottom of model to y=0
+    const bottomY = -box.min.y * targetScale; // Align bottom of model to y=0 with a small gap
      
     setPosition([centeredX, bottomY, centeredZ]);
 
@@ -490,16 +493,18 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
           if (!newGeom.attributes.normal) {
               newGeom.computeVertexNormals();
           }
-          // Compute tangents for smooth normal mapping if UVs exist and they don't already exist
-          if (newGeom.attributes.uv && !newGeom.attributes.tangent) {
-              try { newGeom.computeTangents(); } catch(e) {}
-          }
-          if (newGeom.attributes.normal) newGeom.attributes.normal.needsUpdate = true;
 
           // AUTO-UNWRAP: If model has no UVs, apply default Box Mapping immediately
           if (!newGeom.attributes.uv) {
               applyBoxUV(child);
           }
+
+          // Compute tangents for smooth normal mapping if UVs exist and they don't already exist
+          if (newGeom.attributes.uv && !newGeom.attributes.tangent && newGeom.computeTangents) {
+              try { newGeom.computeTangents(); } catch(e) { console.warn("Tangents skip:", e.message); }
+          }
+
+          if (newGeom.attributes.normal) newGeom.attributes.normal.needsUpdate = true;
 
           vertCount += newGeom.attributes.position.count;
           if (newGeom.index) {
@@ -942,15 +947,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                 if (isMatch) {
                     // 1. Basic Material Factors
                     if (color && m.color && typeof m.color.set === 'function') {
-                        // Only apply color override if it's NOT the default black or if useFactorColor is ON,
-                        // or if we are applying a gallery texture (which forces #ffffff)
-                        const isDefaultBlack = color === '#000000';
-                        if (!isDefaultBlack || materialSettings.useFactorColor || isGalleryTexture) {
-                            const intensity = (materialSettings.colorIntensity ?? 100) / 100;
-                            const finalColor = new THREE.Color(color);
-                            finalColor.multiplyScalar(intensity);
-                            m.color.copy(finalColor);
-                        }
+                        const intensity = (materialSettings.colorIntensity ?? 100) / 100;
+                        const finalColor = new THREE.Color(color);
+                        finalColor.multiplyScalar(intensity);
+                        m.color.copy(finalColor);
                     }
 
                     if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
@@ -958,16 +958,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                         m.roughness = roughness;
                         
                         // Reflection & AO
-                        const reflection = (materialSettings.reflection ?? 50) / 50; 
+                        const reflection = Math.max(0, Math.min(1, (materialSettings.reflection ?? 50) / 100)); 
                         const aoIntensity = (materialSettings.ao ?? 100) / 100;
                         m.envMapIntensity = reflection;
                         if (m.aoMap) m.aoMapIntensity = aoIntensity;
 
                         // Physical Material specific refinements
                         if (m.isMeshPhysicalMaterial) {
-                            const spec = (materialSettings.specular ?? 50) / 100;
+                            const spec = Math.max(0, Math.min(1, (materialSettings.specular ?? 50) / 100));
                             if (m.specularIntensity !== undefined) m.specularIntensity = spec;
-                            if (m.clearcoat !== undefined) m.clearcoat = (materialSettings.softness ?? 50) / 100;
+                            if (m.clearcoat !== undefined) m.clearcoat = Math.max(0, Math.min(1, (materialSettings.softness ?? 50) / 100));
                         }
                     }
 
@@ -993,9 +993,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     // 3. Texture Removal Check
                     const configTextureId = materialSettings.appliedTexture?.id || null;
                     const matTextureId = m.userData.appliedTextureId || null;
-
-                    if (matTextureId && !configTextureId) {
-                         // Texture was stripped from state (e.g. Undo), so strip from material
+                    const isNone = configTextureId === 'none';
+                    if (matTextureId && (!configTextureId || isNone)) {
+                         // Texture was stripped from state (e.g. Undo) or 'None' selected, so strip from material
                          m.map = null;
                          m.normalMap = null;
                          m.roughnessMap = null;
@@ -1006,11 +1006,52 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                          delete m.userData.appliedTexture;
                          delete m.userData.appliedTextureId;
 
-                         if (m.userData.originalMap) {
-                             m.map = m.userData.originalMap;
-                         }
-                         m.needsUpdate = true;
-                    }
+                          if (m.userData.originalMap) {
+                              m.map = m.userData.originalMap;
+                          }
+                          m.userData.appliedTextureId = null;
+                          m.needsUpdate = true;
+                     }
+
+                     // 4. Force Sync Maps from State if they exist
+                     // This ensures that if the state has map URLs, the material uses them, 
+                     // even if the one-shot 'selectedTexture' effect has already cleared.
+                     if (materialSettings.maps && !isNone) {
+                         const stateMaps = materialSettings.maps;
+                         const loader = new THREE.TextureLoader();
+                         
+                         const syncMap = (mapProp, stateUrl, isColor = false) => {
+                             if (stateUrl && (!m[mapProp] || m[mapProp].userData?.url !== stateUrl)) {
+                                 loader.load(stateUrl, (tex) => {
+                                     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                                     tex.flipY = false;
+                                     tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                                     tex.userData.url = stateUrl;
+                                     
+                                     // Apply transforms immediately to avoid async sync lag
+                                     if (tex.repeat) tex.repeat.set(texScaleX, texScaleY);
+                                     if (tex.offset) tex.offset.set(texOffsetX, texOffsetY);
+                                     if (tex.rotation !== undefined) tex.rotation = texRotation;
+                                     tex.center.set(0.5, 0.5);
+                                     
+                                     m[mapProp] = tex;
+                                     m.needsUpdate = true;
+                                 });
+                             } else if (!stateUrl && m[mapProp] && !m.userData.originalMap) {
+                                 // Only clear if no state URL and it's not the original map
+                                 // (Actually, if stateUrl is null, we probably want it null)
+                                 // But avoid clobbering during initial load.
+                             }
+                         };
+
+                         if (stateMaps.map) syncMap('map', stateMaps.map, true);
+                         if (stateMaps.normalMap) syncMap('normalMap', stateMaps.normalMap);
+                         if (stateMaps.roughnessMap) syncMap('roughnessMap', stateMaps.roughnessMap);
+                         if (stateMaps.metalnessMap) syncMap('metalnessMap', stateMaps.metalnessMap);
+                         if (stateMaps.aoMap) syncMap('aoMap', stateMaps.aoMap);
+                         if (stateMaps.alphaMap) syncMap('alphaMap', stateMaps.alphaMap);
+                         if (stateMaps.emissiveMap) syncMap('emissiveMap', stateMaps.emissiveMap, true);
+                     }
 
                     // 4. Texture Transformations
                     // Only apply to gallery textures OR specific selection (manual uploads)
@@ -1282,8 +1323,9 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
       geometry.setAttribute('uv', uvAttribute);
       geometry.attributes.uv.needsUpdate = true;
       
-      if (geometry.hasAttribute('tangent') && geometry.computeTangents) {
-           geometry.computeTangents();
+      // Re-compute tangents if normal mapping is expected
+      if (geometry.computeTangents && geometry.attributes.normal && geometry.attributes.uv) {
+           try { geometry.computeTangents(); } catch(e) {}
       }
   };
 

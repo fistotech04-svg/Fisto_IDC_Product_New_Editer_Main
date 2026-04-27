@@ -150,7 +150,8 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
     if (!isOpen) return null;
 
     const filteredModels = models.filter(m => 
-        m.name.toLowerCase().includes(searchQuery.toLowerCase())
+        m.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
+        (m.type?.toLowerCase() === 'glb' || m.url?.toLowerCase().endsWith('.glb'))
     );
 
     const handleReplaceClick = () => {

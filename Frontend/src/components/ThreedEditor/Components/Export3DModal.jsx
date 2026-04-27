@@ -47,9 +47,9 @@ const ModelThumbnail = React.memo(({
                   </Html>
               }>
                   <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
-                  <ambientLight intensity={1.5} />
-                  <pointLight position={[10, 10, 10]} intensity={1.5} />
-                  <directionalLight position={[-5, 5, 5]} intensity={1} />
+                  <ambientLight intensity={0.5} />
+                  <pointLight position={[10, 10, 10]} intensity={0.8} />
+                  <directionalLight position={[-5, 5, 5]} intensity={0.6} />
                   
                   <group position={[0, 0, 0]}>
                       {models.map((model) => (
@@ -66,7 +66,7 @@ const ModelThumbnail = React.memo(({
                       ))}
                   </group>
                   
-                  <Environment preset="city" />
+                  <Environment preset="studio" />
               </Suspense>
           </View>
       </div>
@@ -447,9 +447,9 @@ export default function Export3DModal({
                                  }>
                                      <View track={mainViewRef} className="w-full h-full">
                                          <PerspectiveCamera makeDefault position={[0, 0.8, 4.5]} fov={40} zoom={zoomLevel / 45} />
-                                         <ambientLight intensity={1.5} />
-                                         <pointLight position={[10, 10, 10]} intensity={1.5} />
-                                         <directionalLight position={[-5, 5, 5]} intensity={1} />
+                                         <ambientLight intensity={0.5} />
+                                         <pointLight position={[10, 10, 10]} intensity={0.8} />
+                                         <directionalLight position={[-5, 5, 5]} intensity={0.6} />
                                          <group position={[0, -0.6, 0]}>
                                              {models.map((model) => (
                                                  <RenderModel
@@ -465,7 +465,7 @@ export default function Export3DModal({
                                                  />
                                              ))}
                                          </group>
-                                         <Environment preset="city" />
+                                         <Environment preset="studio" />
                                          <OrbitControls 
                                              enableZoom={false} 
                                              enablePan={false}

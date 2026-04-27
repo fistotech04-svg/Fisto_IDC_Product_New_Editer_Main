@@ -3,6 +3,13 @@ const TEXTURE_BASE_URL = `${BACKEND_URL}/textures`;
 
 export const textureData = [
   {
+    id: "none",
+    name: "None",
+    category: "All",
+    preview: null,
+    maps: {},
+  },
+  {
     id: "metal_gold_paint",
     name: "Metal Gold Paint",
     category: "metal",

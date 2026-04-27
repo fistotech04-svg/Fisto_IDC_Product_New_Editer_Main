@@ -1,6 +1,6 @@
 import React, { Suspense, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, ContactShadows } from "@react-three/drei";
+import { OrbitControls, Environment, ContactShadows, PerspectiveCamera, Center } from "@react-three/drei";
 import { Icon } from "@iconify/react";
 import * as THREE from "three";
 import { jsPDF } from "jspdf";
@@ -49,11 +49,27 @@ export default function CameraModal({
     const [isSavingToGallery, setIsSavingToGallery] = useState(false);
 
     const canvasRef = useRef();
+    const zoomWrapperRef = useRef(null);
     const glRef    = useRef(null);
     const sceneRef = useRef(null);
     const camRef   = useRef(null);
 
     if (!isOpen) return null;
+
+    // Sync scroll wheel with zoom state
+    React.useEffect(() => {
+        const wrapper = zoomWrapperRef.current;
+        if (!wrapper) return;
+
+        const handleWheel = (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -5 : 5;
+            setZoom(prev => Math.min(300, Math.max(10, prev + delta)));
+        };
+
+        wrapper.addEventListener('wheel', handleWheel, { passive: false });
+        return () => wrapper.removeEventListener('wheel', handleWheel);
+    }, []);
 
     const handleTakeShot = () => {
         setIsCapturing(true);
@@ -565,91 +581,92 @@ export default function CameraModal({
                                             : 'auto'
                                     }}
                                 >
+                                <div 
+                                    ref={zoomWrapperRef}
+                                    className="w-full h-full relative"
+                                >
+                                    <Suspense fallback={
+                                            <div className="flex flex-col items-center justify-center h-full gap-[1vw]">
+                                                <div className="w-[3vw] h-[3vw] border-[0.3vw] border-gray-200 border-t-[#5d5efc] rounded-full animate-spin"></div>
+                                                <span className="text-[0.9vw] font-bold text-gray-400">Preparing Viewport...</span>
+                                            </div>
+                                        }>
+                                            <Canvas
+                                                ref={canvasRef}
+                                                className="camera-modal-canvas"
+                                                shadows
+                                                gl={{ 
+                                                    preserveDrawingBuffer: true,
+                                                    antialias: true,
+                                                    toneMapping: THREE.ACESFilmicToneMapping,
+                                                    outputColorSpace: THREE.SRGBColorSpace
+                                                }}
+                                                onCreated={({ gl, scene, camera }) => {
+                                                    glRef.current = gl;
+                                                    sceneRef.current = scene;
+                                                    camRef.current = camera;
+                                                }}
+                                            >
+                                                <PerspectiveCamera makeDefault position={[0, 1.5, 4]} fov={45} />
+                                                <ambientLight intensity={1.5} />
+                                                <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} intensity={2} castShadow />
+                                                <pointLight position={[-10, -10, -10]} intensity={1} />
+                                                
+                                                <Center>
+                                                    <group>
+                                                        {models.map((model) => (
+                                                            <RenderModel
+                                                                key={model.id}
+                                                                type={model.type}
+                                                                url={model.url}
+                                                                wireframe={false}
+                                                                modelName={model.name}
+                                                                transformMode={null} 
+                                                                transformValues={transformValues}
+                                                                materialSettings={materialSettings}
+                                                                hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
+                                                                selectedMaterial={selectedMaterial}
+                                                                selectedTexture={selectedTexture}
+                                                                isSelectionDisabled={true}
+                                                                shouldClone={true}
+                                                            />
+                                                        ))}
+                                                    </group>
+                                                </Center>
 
-                                    {/* Masking effect for outer area (handled via parent ring/shadow if needed, but here we'll use a cleaner approach) */}
-                                    <Suspense fallback={null}>
-                                        <Canvas
-                                            shadows
-                                            gl={{ preserveDrawingBuffer: true, antialias: true, alpha: true, logarithmicDepthBuffer: true }}
-                                            camera={{ position: [0, 1, 5], fov: 40 }}
-                                            onCreated={({ gl, scene, camera }) => {
-                                                glRef.current    = gl;
-                                                sceneRef.current = scene;
-                                                camRef.current   = camera;
-                                                gl.toneMapping = THREE.ACESFilmicToneMapping;
-                                                gl.outputColorSpace = THREE.SRGBColorSpace;
-                                            }}
-                                        >
-                                        
-                                        <ambientLight intensity={1.2} />
-                                        <spotLight 
-                                            position={[5, 10, 5]} 
-                                            angle={0.15} 
-                                            penumbra={1} 
-                                            intensity={2} 
-                                            castShadow 
-                                            shadow-bias={-0.005}
-                                            shadow-mapSize={[2048, 2048]}
-                                        />
-                                        <directionalLight 
-                                            position={[-5, 5, -5]} 
-                                            intensity={1} 
-                                            castShadow 
-                                            shadow-bias={-0.005}
-                                        />
-                                        
-                                        <group>
-                                            {models.map((model) => (
-                                                <RenderModel
-                                                    key={model.id}
-                                                    type={model.type}
-                                                    url={model.url}
-                                                    wireframe={false}
-                                                    modelName={model.name}
-                                                    transformMode={null} 
-                                                    transformValues={transformValues}
-                                                    materialSettings={materialSettings}
-                                                    hiddenMaterials={new Set([...hiddenMaterials, ...deletedMaterials])}
-                                                    selectedMaterial={selectedMaterial}
-                                                    selectedTexture={selectedTexture}
-                                                    isSelectionDisabled={true}
-                                                    shouldClone={true}
+                                                {bgColor !== 'transparent' && (
+                                                    <ContactShadows position={[0, -0.01, 0]} opacity={(materialSettings.shadow ?? 50) / 100} scale={50} blur={2} far={5} />
+                                                )}
+                                                <Environment 
+                                                    files={materialSettings.maps?.envMap || null}
+                                                    preset={materialSettings.maps?.envMap ? null : (materialSettings.environment || 'city')} 
+                                                    environmentIntensity={(materialSettings.reflection ?? 50) / 50}
+                                                    rotation={[0, (materialSettings.envRotation || 0) * (Math.PI / 180), 0]}
                                                 />
-                                            ))}
-                                        </group>
+                                                <OrbitControls makeDefault enableDamping={true} dampingFactor={0.1} enableZoom={false} target={[0, 0, 0]} />
+                                                <ZoomManager zoom={zoom} />
+                                            </Canvas>
+                                        </Suspense>
 
-                                        {bgColor !== 'transparent' && (
-                                            <ContactShadows position={[0, -0.01, 0]} opacity={(materialSettings.shadow ?? 50) / 100} scale={50} blur={2} far={5} />
-                                        )}
-                                        <Environment 
-                                            files={materialSettings.maps?.envMap || null}
-                                            preset={materialSettings.maps?.envMap ? null : (materialSettings.environment || 'city')} 
-                                            environmentIntensity={(materialSettings.reflection ?? 50) / 50}
-                                            rotation={[0, (materialSettings.envRotation || 0) * (Math.PI / 180), 0]}
-                                        />
-                                        <OrbitControls enableDamping={true} dampingFactor={0.05} />
-                                        <ZoomManager zoom={zoom} />
-                                    </Canvas>
-                                </Suspense>
-                                </div>
-
-                                {/* Zoom Controls Overlay */}
-                                <div className="absolute bottom-[1vw] right-[1vw] bg-white/90 backdrop-blur-md rounded-[0.8vw] shadow-lg border border-gray-100 flex items-center p-[0.3vw] gap-[0.3vw] z-30">
-                                    <button 
-                                        onClick={() => setZoom(prev => Math.max(10, prev - 5))}
-                                        className="p-[0.4vw] hover:bg-gray-100 rounded-[0.5vw] text-gray-500 transition-colors cursor-pointer"
-                                    >
-                                        <Icon icon="heroicons:minus" width="1vw" strokeWidth={3} />
-                                    </button>
-                                    <div className="flex items-center gap-[0.3vw] px-[0.4vw] border-l border-gray-100">
-                                        <span className="text-[0.7vw] font-semibold text-gray-700 w-[2.2vw] text-center">{zoom}%</span>
+                                        {/* Zoom Controls Overlay */}
+                                        <div className="absolute bottom-[1vw] right-[1vw] bg-white/90 backdrop-blur-md rounded-[0.8vw] shadow-lg border border-gray-100 flex items-center p-[0.3vw] gap-[0.3vw] z-30">
+                                            <button 
+                                                onClick={() => setZoom(prev => Math.max(10, prev - 5))}
+                                                className="p-[0.4vw] hover:bg-gray-100 rounded-[0.5vw] text-gray-500 transition-colors cursor-pointer"
+                                            >
+                                                <Icon icon="heroicons:minus" width="1vw" strokeWidth={3} />
+                                            </button>
+                                            <div className="flex items-center gap-[0.3vw] px-[0.4vw] border-l border-gray-100">
+                                                <span className="text-[0.7vw] font-semibold text-gray-700 w-[2.2vw] text-center">{zoom}%</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => setZoom(prev => Math.min(300, prev + 5))}
+                                                className="p-[0.4vw] hover:bg-gray-100 rounded-[0.5vw] text-gray-500 transition-colors cursor-pointer"
+                                            >
+                                                <Icon icon="heroicons:plus" width="1vw" strokeWidth={3} />
+                                            </button>
+                                        </div>
                                     </div>
-                                    <button 
-                                        onClick={() => setZoom(prev => Math.min(300, prev + 5))}
-                                        className="p-[0.4vw] hover:bg-gray-100 rounded-[0.5vw] text-gray-500 transition-colors cursor-pointer"
-                                    >
-                                        <Icon icon="heroicons:plus" width="1vw" strokeWidth={3} />
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -694,6 +711,7 @@ export default function CameraModal({
                                         setBgColor('custom');
                                         setShowColorPicker(!showColorPicker);
                                     }}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                 >
                                     Custom :
                                 </span>
@@ -705,6 +723,7 @@ export default function CameraModal({
                                             setBgColor('custom');
                                             setShowColorPicker(!showColorPicker);
                                         }}
+                                        onMouseDown={(e) => e.stopPropagation()}
                                     />
                                     <div className="flex-1 flex items-center h-[2.5vw] gap-[0.6vw] border border-gray-200 rounded-[0.6vw] px-[0.8vw] bg-gray-50/50 focus-within:bg-white focus-within:border-[#5d5efc] transition-all">
                                         <input 

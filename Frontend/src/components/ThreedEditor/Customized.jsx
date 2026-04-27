@@ -60,11 +60,12 @@ const SectionHeader = ({ label, showLine = true }) => (
   </div>
 );
 
-const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) => {
+const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disabled = false }) => {
   const fileInputRef = React.useRef(null);
   const [isDragging, setIsDragging] = React.useState(false);
 
   const handleFileChange = (e) => {
+    if (disabled) return;
     const file = e.target.files[0];
     if (file && onUpload) {
       onUpload(mapType, file);
@@ -87,6 +88,7 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) =>
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
+    if (disabled) return;
     const file = e.dataTransfer.files[0];
     if (file && onUpload) {
       onUpload(mapType, file);
@@ -112,24 +114,28 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) =>
   if (overlay) {
     return (
         <div 
-            className="absolute inset-0 cursor-pointer group/upload"
-            onClick={() => fileInputRef.current.click()}
+            className={`absolute inset-0 group/upload ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}
+            onClick={() => !disabled && fileInputRef.current.click()}
+            onDragOver={disabled ? null : handleDragOver}
+            onDragLeave={disabled ? null : handleDragLeave}
+            onDrop={disabled ? null : handleDrop}
         >
-            <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} />
+            <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} disabled={disabled} />
             
             {/* Menu Button */}
-            <div 
-                ref={buttonRef}
-                className={`absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] bg-white/95 backdrop-blur-sm rounded-[0.4vw] border border-gray-300 flex items-center justify-center text-gray-500 shadow-sm hover:text-[#5d5efc] hover:bg-white transition-all z-20 ${showMenu ? 'opacity-100' : 'opacity-0 group-hover/upload:opacity-100'}`}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setMenuPos({ top: rect.bottom + 5, left: rect.left - 40 });
-                    setShowMenu(!showMenu);
-                }}
-            >
-                <Icon icon="heroicons:ellipsis-vertical-20-solid" width="1vw" />
-            </div>
+                <div 
+                    ref={buttonRef}
+                    className={`absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] bg-white/95 backdrop-blur-sm rounded-[0.4vw] border border-gray-300 flex items-center justify-center text-gray-500 shadow-sm hover:text-[#5d5efc] hover:bg-white transition-all z-20 ${showMenu ? 'opacity-100' : 'opacity-0 group-hover/upload:opacity-100'} ${disabled ? 'pointer-events-none' : ''}`}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (disabled) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setMenuPos({ top: rect.bottom + 5, left: rect.left - 40 });
+                        setShowMenu(!showMenu);
+                    }}
+                >
+                    <Icon icon="heroicons:ellipsis-vertical-20-solid" width="1vw" />
+                </div>
 
             {/* Dropdown Menu Portaled */}
             {showMenu && createPortal(
@@ -171,15 +177,15 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) =>
 
   return (
     <div 
-      className={`w-[2.25vw] h-[2.25vw] rounded-[0.25vw] border overflow-hidden shrink-0 cursor-pointer transition-all flex items-center justify-center relative group
-        ${isDragging ? "border-[#5d5efc] bg-indigo-50 scale-110 shadow-sm" : "border-gray-200 bg-gray-50 text-gray-400 hover:border-[#5d5efc]"}
+      className={`w-[2.25vw] h-[2.25vw] rounded-[0.25vw] border overflow-hidden shrink-0 transition-all flex items-center justify-center relative group
+        ${disabled ? "border-gray-200 bg-gray-100 text-gray-300 cursor-not-allowed opacity-60" : isDragging ? "border-[#5d5efc] bg-indigo-50 scale-110 shadow-sm" : "border-gray-200 bg-gray-50 text-gray-400 hover:border-[#5d5efc] cursor-pointer"}
       `}
-      onClick={() => fileInputRef.current.click()}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onClick={() => !disabled && fileInputRef.current.click()}
+      onDragOver={disabled ? null : handleDragOver}
+      onDragLeave={disabled ? null : handleDragLeave}
+      onDrop={disabled ? null : handleDrop}
     >
-      <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} />
+      <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} disabled={disabled} />
       {currentMap ? (
         <div className="w-full h-full bg-indigo-50 flex items-center justify-center text-[#5d5efc] relative">
            <Icon icon="heroicons:check-circle" width="1.25vw" />
@@ -206,7 +212,19 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false }) =>
   );
 };
 
-const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, description, isOpen, onToggle, isIntensityDisabled = false, extra }) => {
+const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, description, isOpen, onToggle, isIntensityDisabled = false, extra, disabled = false }) => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+    
+    const resolveMapUrl = (url) => {
+        if (!url) return null;
+        if (typeof url !== 'string') return url;
+        // If it's already a full URL or a blob, return as is
+        if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
+        // Otherwise, prefix with backend URL if it starts with /
+        if (url.startsWith('/')) return `${backendUrl}${url}`;
+        return url;
+    };
+
     return (
       <div className={`border border-gray-300 rounded-[0.5vw] mb-[0.65vw] bg-white transition-all duration-200 ${isOpen ? 'shadow-sm' : 'hover:bg-gray-50/50'}`}>
         <div 
@@ -234,13 +252,13 @@ const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, d
                 )}
                 
                 <div className="flex gap-[0.65vw] items-start">
-                    <div className="w-[7vw] h-[7vw] bg-white rounded-[0.5vw] shrink-0 overflow-hidden relative group border border-gray-300 shadow-inner cursor-pointer hover:border-[#5d5efc] transition-colors">
+                    <div className={`w-[7vw] h-[7vw] rounded-[0.5vw] shrink-0 overflow-hidden relative group border border-gray-300 shadow-inner transition-colors ${disabled ? 'bg-black cursor-not-allowed' : 'bg-white cursor-pointer hover:border-[#5d5efc]'}`}>
                         {currentMap ? (
-                            <img src={currentMap} className="w-full h-full object-cover" alt={title} />
+                            <img src={resolveMapUrl(currentMap)} className="w-full h-full object-cover" alt={title} />
                         ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center text-gray-300">
-                                <Icon icon="glyphs:image-duo" width="5.5vw" />
-                                <span className="text-[0.7vw] text-gray-400 font-semibold -mt-[0.5vw]">No Image Found</span>
+                            <div className={`w-full h-full flex flex-col items-center justify-center gap-[0.4vw] ${disabled ? 'text-white/40' : 'text-gray-300'}`}>
+                                <Icon icon={disabled ? "mdi:block" : "glyphs:image-duo"} width={disabled ? "2.5vw" : "5.5vw"} />
+                                {!disabled && <span className="text-[0.7vw] text-gray-400 font-semibold -mt-[0.5vw]">No Image Found</span>}
                             </div>
                         )}
                         <MapUploadControl 
@@ -248,6 +266,7 @@ const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, d
                             currentMap={currentMap} 
                             onUpload={onUpload} 
                             overlay={true}
+                            disabled={disabled}
                         />
                     </div>
                     <div className="flex-1 space-y-[1vw]">
@@ -501,6 +520,8 @@ export default function Customized({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [activeColorType, setActiveColorType] = useState('color');
   const [pickerPos, setPickerPos] = useState({ top: 0, right: 0 });
+  const lightPadRef = useRef(null);
+  const [isDraggingLight, setIsDraggingLight] = useState(false);
 
   const currentGalleryTexture = useMemo(() => {
     if (!selectedTextureId) return null;
@@ -544,12 +565,72 @@ export default function Customized({
     setOpenInnerAccordion(openInnerAccordion === name ? null : name);
   };
 
+  const handleLightPadInteraction = (e) => {
+      if (!lightPadRef.current) return;
+      
+      const rect = lightPadRef.current.getBoundingClientRect();
+      const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+      
+      const offsetX = clientX - rect.left;
+      const offsetY = clientY - rect.top;
+      
+      // Calculate percentages (0 to 100)
+      const perX = (offsetX / rect.width) * 100;
+      const perY = (offsetY / rect.height) * 100;
+      
+      // Map back to -25 to +25 range (since it uses * 2 to fill 100% space)
+      const newX = (perX - 50) / 2;
+      const newY = (50 - perY) / 2;
+      
+      updateControl('lightPosition', { 
+          ...(controls.lightPosition || { x: 10, y: 10, z: 10 }), 
+          x: Math.round(newX), 
+          y: Math.round(newY) 
+      });
+  };
+
+  const handleLightWheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -1 : 1;
+      updateControl('lightPosition', {
+          ...(controls.lightPosition || { x: 10, y: 10, z: 10 }),
+          z: Math.round((controls.lightPosition?.z || 10) + delta)
+      });
+  };
+
+  // Drag listener
+  useEffect(() => {
+      if (!isDraggingLight) return;
+      
+      const handleMove = (e) => {
+          handleLightPadInteraction(e);
+      };
+      
+      const handleUp = () => {
+          setIsDraggingLight(false);
+      };
+      
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleUp);
+      window.addEventListener('touchmove', handleMove);
+      window.addEventListener('touchend', handleUp);
+      
+      return () => {
+          window.removeEventListener('mousemove', handleMove);
+          window.removeEventListener('mouseup', handleUp);
+          window.removeEventListener('touchmove', handleMove);
+          window.removeEventListener('touchend', handleUp);
+      };
+  }, [isDraggingLight]);
+
   // Helper to format values safely
   const fmt = (val) => (val !== undefined && val !== null) ? Number(val).toFixed(2) : "0.00";
   const fmtDeg = (rad) => (rad !== undefined && rad !== null) ? Math.round(rad * (180 / Math.PI)) : "0";
+  const isNoneSelected = selectedTextureId === 'none';
 
   return (
-    <div className="flex flex-col gap-[0.25vw] pb-[2.5vw]">
+    <div className={`flex flex-col gap-[0.25vw] pb-[2.5vw] ${isDraggingLight ? 'select-none' : ''}`}>
       <Accordion
         title="Material Properties"
         icon="icon-park-outline:texture-two"
@@ -587,16 +668,19 @@ export default function Customized({
                         currentMap={controls.maps?.map || currentGalleryTexture?.preview}
                         onUpload={onMapUpload}
                         description="Defines the main color and surface appearance of the material."
+                        disabled={isNoneSelected}
                         extra={
                             <div className="flex items-center gap-[0.5vw]">
                                 <div 
                                     className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 shadow-sm cursor-pointer hover:scale-105 transition-transform shrink-0"
                                     style={{ backgroundColor: controls.color || '#000000' }}
                                     onClick={(e) => handleColorClick(e, 'color')}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                 />
                                 <div 
                                     className="flex-1 flex items-center justify-between border border-gray-300 rounded-[0.4vw] px-[0.5vw] py-[0.4vw] bg-white cursor-pointer hover:border-[#5d5efc] transition-colors shadow-xs"
                                     onClick={(e) => handleColorClick(e, 'color')}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                 >
                                     <input 
                                         type="text"
@@ -621,6 +705,7 @@ export default function Customized({
                         currentMap={controls.maps?.normalMap}
                         onUpload={onMapUpload}
                         description="Adds surface details like bumps and grooves without changing the model geometry."
+                        disabled={isNoneSelected}
                     />
                     <MapAccordion 
                         title="Metallic Map"
@@ -632,6 +717,7 @@ export default function Customized({
                         currentMap={controls.maps?.metalnessMap}
                         onUpload={onMapUpload}
                         description={"Determines which parts of the material behave like metal.\nWhite areas appear metallic, black areas remain non-metal."}
+                        disabled={isNoneSelected}
                     />
                     <MapAccordion 
                         title="Roughness Map"
@@ -643,6 +729,7 @@ export default function Customized({
                         currentMap={controls.maps?.roughnessMap}
                         onUpload={onMapUpload}
                         description={"Controls how rough or smooth the material surface appears.\n\nLower values create a shiny surface."}
+                        disabled={isNoneSelected}
                     />
                     <MapAccordion 
                         title="Height/Bump Map"
@@ -654,6 +741,7 @@ export default function Customized({
                         currentMap={controls.maps?.displacementMap}
                         onUpload={onMapUpload}
                         description="Physically displaces the vertices of the model to create real surface depth and topology."
+                        disabled={isNoneSelected}
                     />
                     <MapAccordion 
                         title="A/O Map"
@@ -665,6 +753,7 @@ export default function Customized({
                         currentMap={controls.maps?.aoMap}
                         onUpload={onMapUpload}
                         description="Enhances shadows in small crevices and corners to add depth and realism to the material."
+                        disabled={isNoneSelected}
                     />
                     <MapAccordion 
                         title="Emissive Map"
@@ -676,16 +765,19 @@ export default function Customized({
                         currentMap={controls.maps?.emissiveMap}
                         onUpload={onMapUpload}
                         description="Adds glowing areas to the material."
+                        disabled={isNoneSelected}
                         extra={
                             <div className="flex items-center gap-[0.5vw]">
                                 <div 
                                     className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 shadow-sm cursor-pointer hover:scale-105 transition-transform shrink-0"
                                     style={{ backgroundColor: controls.emissiveColor || '#ffffff' }}
                                     onClick={(e) => handleColorClick(e, 'emissiveColor')}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                 />
                                 <div 
                                     className="flex-1 flex items-center justify-between border border-gray-300 rounded-[0.4vw] px-[0.5vw] py-[0.4vw] bg-white cursor-pointer hover:border-[#5d5efc] transition-colors shadow-xs"
                                     onClick={(e) => handleColorClick(e, 'emissiveColor')}
+                                    onMouseDown={(e) => e.stopPropagation()}
                                 >
                                     <input 
                                         type="text"
@@ -857,18 +949,30 @@ export default function Customized({
         </div>
       </Accordion>
 
-      {/* --- LIGHTNING CONTROLS --- */}
+      {/* --- LIGHTING CONTROLS --- */}
       <Accordion
-        title="Lightning Controls"
+        title="Lighting Controls"
         icon="ix:light-dark"
-        isOpen={activePanel === "lightning"}
-        onToggle={() => handlePanelToggle("lightning")}
+        isOpen={activePanel === "lighting"}
+        onToggle={() => handlePanelToggle("lighting")}
       >
         {/* Visual Preview Box */}
-        <div className="relative bg-[#f8fafc] h-[9.375vw] rounded-[0.5vw] border border-gray-100 mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden group">
+        <div 
+            ref={lightPadRef}
+            onMouseDown={(e) => {
+                setIsDraggingLight(true);
+                handleLightPadInteraction(e);
+            }}
+            onTouchStart={(e) => {
+                setIsDraggingLight(true);
+                handleLightPadInteraction(e);
+            }}
+            onWheel={handleLightWheel}
+            className={`relative bg-[#f8fafc] h-[9.375vw] rounded-[0.5vw] border border-gray-100 mb-[1.5vw] flex flex-col items-center justify-center shadow-inner overflow-hidden group ${isDraggingLight ? 'cursor-grabbing' : 'cursor-crosshair'}`}
+        >
             {/* Dynamic Sun Position based on lightPosition */}
             <div 
-                className="absolute text-amber-400 drop-shadow-sm transition-all duration-300"
+                className={`absolute text-amber-400 drop-shadow-sm pointer-events-none ${isDraggingLight ? '' : 'transition-all duration-300'}`}
                 style={{
                   left: `${50 + (controls.lightPosition?.x || 10) * 2}%`,
                   top: `${50 - (controls.lightPosition?.y || 10) * 2}%`,
@@ -979,17 +1083,6 @@ export default function Customized({
                         value={controls.softness}
                         onChange={(v) => updateControl("softness", v)}
                     />
-                    <StackedSliderBox
-                        label="AO"
-                        val={controls.ao}
-                        onChange={(v) => updateControl("ao", v)}
-                    >
-                        <MapUploadControl 
-                            mapType="aoMap" 
-                            currentMap={controls.maps?.aoMap} 
-                            onUpload={onMapUpload} 
-                        />
-                    </StackedSliderBox>
                 </div>
             </div>
         </div>

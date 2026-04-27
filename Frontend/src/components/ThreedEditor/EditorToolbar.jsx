@@ -101,11 +101,13 @@ export default function EditorToolbar({
                                         className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-200 shadow-sm cursor-pointer hover:border-gray-300 transition-colors"
                                         style={{ backgroundColor: settings.baseColor || '#000000' }}
                                         onClick={handleBasePickerToggle}
+                                        onMouseDown={(e) => e.stopPropagation()}
                                     ></div>
                                     
                                     <div 
                                         className="flex-1 flex items-center justify-between border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] bg-white hover:border-gray-300 transition-colors shadow-sm cursor-pointer"
                                         onClick={handleBasePickerToggle}
+                                        onMouseDown={(e) => e.stopPropagation()}
                                     >
                                         <span className="text-[0.6vw] text-gray-600 font-medium tracking-wide font-mono uppercase">{settings.baseColor || '#000000'}</span>
                                         <span className="text-[0.6vw] text-gray-400 font-medium">100%</span>

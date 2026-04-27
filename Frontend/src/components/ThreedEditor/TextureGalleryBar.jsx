@@ -463,12 +463,18 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                                 : "w-[4.17vw] h-[4.17vw] rounded-[0.8vw] border-none group-hover:scale-110 z-0"
                                             }`}
                                         >
-                                            <img 
-                                                src={imageSrc} 
-                                                alt={tex.name} 
-                                                className={`w-full h-full object-cover p-[0.1vw] transition-transform duration-500 ${!isActive ? "group-hover:scale-95" : ""}`}
-                                                loading="lazy"
-                                            />
+                                            {tex.id === 'none' ? (
+                                                <div className="w-full h-full flex items-center justify-center bg-black text-white/40">
+                                                    <Icon icon="mdi:block" width="2.5vw" height="2.5vw" />
+                                                </div>
+                                            ) : (
+                                                <img 
+                                                    src={imageSrc} 
+                                                    alt={tex.name} 
+                                                    className={`w-full h-full object-cover p-[0.1vw] transition-transform duration-500 ${!isActive ? "group-hover:scale-95" : ""}`}
+                                                    loading="lazy"
+                                                />
+                                            )}
                                             {/* Subtle Inner Glow */}
                                             <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
 

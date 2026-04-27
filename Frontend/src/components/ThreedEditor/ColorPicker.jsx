@@ -58,6 +58,19 @@ const hsvToHex = ({ h, s, v }) => {
 
 export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClose, className, style, ...props }) {
   const [hsv, setHsv] = useState(() => hexToHsv(color));
+  const pickerRef = useRef(null);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        if (onClose) onClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onClose]);
 
   useEffect(() => {
     setHsv(hexToHsv(color));
@@ -119,6 +132,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
 
   return (
     <div 
+        ref={pickerRef}
         className={`z-50 w-[15vw] bg-white rounded-[1vw] shadow-[0_0.5vw_2vw_-0.25vw_rgba(0,0,0,0.15)] border border-gray-100 p-[1vw] animate-in fade-in zoom-in-95 duration-200 select-none font-sans ${className || ""}`}
         style={style}
         {...props}
