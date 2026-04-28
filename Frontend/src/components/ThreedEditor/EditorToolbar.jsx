@@ -173,9 +173,9 @@ export default function EditorToolbar({
                 />
                 <ToolbarButton 
                     icon="heroicons:cog-6-tooth" 
-                    enabled={hasModel} 
+                    enabled
                     active={showSettings}
-                    onClick={() => hasModel && setShowSettings(!showSettings)}
+                    onClick={() => setShowSettings(!showSettings)}
                 />
             </div>
 

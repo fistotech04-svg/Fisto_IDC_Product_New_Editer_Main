@@ -96,47 +96,51 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
       const tempDir = path.join(__dirname, "../../temp_uploads/textures", uploadId);
       const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
       const sanitizedMaterialName = materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      
-      // New path: uploads/{user}/Texture/{materialName}
       const targetDir = path.join(__dirname, "../../uploads", sanitizedEmail, "Texture", sanitizedMaterialName);
 
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
-      // Ensure filename follows materialname_mapname.extension format
       const ext = path.extname(fileName);
       const uniqueFileName = `${sanitizedMaterialName}_${fieldName}${ext}`;
       const finalPath = path.join(targetDir, uniqueFileName);
-      const writeStream = fs.createWriteStream(finalPath);
 
-      for (let i = 0; i < total; i++) {
-        const chunkPath = path.join(tempDir, `chunk_${i}`);
-        let retry = 0;
-        while(!fs.existsSync(chunkPath) && retry < 10) {
-            await new Promise(r => setTimeout(r, 100));
-            retry++;
-        }
+      try {
+          // Reset file if it exists
+          if (fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
 
-        if (fs.existsSync(chunkPath)) {
-            const data = fs.readFileSync(chunkPath);
-            writeStream.write(data);
-            fs.unlinkSync(chunkPath);
-        }
-      }
-      writeStream.end();
+          for (let i = 0; i < total; i++) {
+              const chunkPath = path.join(tempDir, `chunk_${i}`);
+              
+              // Wait for chunk to be available on disk (in case of network/OS lag)
+              let retry = 0;
+              while (!fs.existsSync(chunkPath) && retry < 30) {
+                  await new Promise(r => setTimeout(r, 100));
+                  retry++;
+              }
 
-      writeStream.on("finish", () => {
-        try {
+              if (fs.existsSync(chunkPath)) {
+                  const chunkData = fs.readFileSync(chunkPath);
+                  fs.appendFileSync(finalPath, chunkData);
+                  fs.unlinkSync(chunkPath);
+              } else {
+                  throw new Error(`Chunk ${i} not found after retries`);
+              }
+          }
+
+          // Cleanup temp dir
           if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-        } catch (e) {}
-        
-        res.status(200).json({
-          message: "Chunk merged successfully",
-          url: `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`,
-          fieldName
-        });
-      });
+          
+          res.status(200).json({
+              message: "Chunk merged successfully",
+              url: `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`,
+              fieldName
+          });
+      } catch (err) {
+          console.error("Merging Error:", err);
+          res.status(500).json({ message: "Error during chunk merging" });
+      }
     } else {
       res.status(200).json({ message: `Chunk ${curIndex} accepted` });
     }

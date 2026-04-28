@@ -17,7 +17,7 @@ const MaterialItem = ({ text, selected, onClick, isVisible = true, onToggleVisib
             const rect = btnRef.current.getBoundingClientRect();
             setMenuPos({
                 top: rect.top + rect.height / 2,
-                left: rect.right + 35
+                left: rect.right + 25
             });
         }
         setIsMenuOpen(!isMenuOpen);
@@ -98,23 +98,25 @@ const MaterialItem = ({ text, selected, onClick, isVisible = true, onToggleVisib
                             <div className="fixed inset-0 z-[990]" onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); }}></div>
                             <div 
                                 style={{ top: menuPos.top, left: menuPos.left, transform: 'translateY(-50%)' }}
-                                className="fixed bg-white border border-gray-100 shadow-[0_0.2vw_1vw_rgba(0,0,0,0.15)] rounded-[0.4vw] py-[0.4vw] px-[0.8vw] z-[999]"
+                                className="fixed z-[99999] bg-white rounded-[0.85vw] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.11vw] border-gray-400 py-[0.5vw] px-[0.3vw] min-w-[10vw] animate-in fade-in zoom-in duration-200"
                             >
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); setIsEditing(true); }}
-                                    className="w-full text-gray-700 hover:text-gray-900 flex items-center justify-start gap-[0.4vw] transition-colors whitespace-nowrap outline-none mb-[0.4vw]"
-                                >
-                                    <Icon icon="ph:pencil-simple" width="0.9vw" height="0.9vw" />
-                                    <span className="text-[0.75vw] font-medium leading-none">Rename</span>
-                                </button>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); onDelete && onDelete(text); }}
-                                    className="w-full text-red-500 hover:text-red-600 flex items-center justify-start gap-[0.4vw] transition-colors whitespace-nowrap outline-none font-semibold"
-                                >
-                                    <Icon icon="ph:trash" width="0.9vw" height="0.9vw" />
-                                    <span className="text-[0.75vw] font-medium leading-none">Delete</span>
-                                </button>
-                            </div>
+                                <div className="flex flex-col gap-[0.1vw]">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); setIsEditing(true); }}
+                                            className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-gray-100 cursor-pointer rounded-[0.6vw] text-gray-700 transition-colors group/item"
+                                        >
+                                            <Icon icon="mdi:edit-outline" className="w-[1.1vw] h-[1.1vw] text-gray-500" />
+                                            <span className="text-[0.7vw] font-medium text-gray-600">Rename</span>
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setIsMenuOpen(false); onDelete && onDelete(text); }}
+                                            className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-red-100 cursor-pointer rounded-[0.6vw] text-red-500 transition-colors"
+                                        >
+                                            <Icon icon="solar:trash-bin-trash-linear" className="w-[1.1vw] h-[1.1vw]" />
+                                            <span className="text-[0.7vw] font-medium">Delete</span>
+                                        </button>
+                                     </div>
+                                 </div>
                         </>,
                         document.body
                     )}
@@ -187,7 +189,7 @@ const MaterialGroup = ({ id, group, materials, selectedMaterial, onSelect, hidde
                 </div>
             </div>
             
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[52vw] opacity-100" : "max-h-0 opacity-0"}`}>
+            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[200vw] opacity-100" : "max-h-0 opacity-0"}`}>
                 <div className="pl-[0.42vw] space-y-[0.1vw] border-l-[0.1vw] border-gray-100/80 ml-[0.52vw] my-[0.21vw]">
                     {materials.map((mat, matIdx) => (
                         <MaterialItem 
@@ -210,6 +212,8 @@ const MaterialGroup = ({ id, group, materials, selectedMaterial, onSelect, hidde
 // --- Main Component ---
 
 export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpen, materials = [], selectedMaterial, onSelect, modelName, onToggleVisibility, onDeleteMaterial, onRenameMaterial, onDeleteModel, hiddenMaterials = new Set() }) {
+
+    const [searchTerm, setSearchTerm] = useState("");
 
     const handleToggleVisibility = (matName) => {
         const isCurrentlyHidden = hiddenMaterials.has(matName);
@@ -263,6 +267,26 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
         return () => clearTimeout(timer);
     }, [selectedMaterial, modelName]);
 
+    // Filtering logic
+    const filteredMaterials = materials.map(item => {
+        if (typeof item === 'object' && item.group) {
+            const matchesGroup = item.group.toLowerCase().includes(searchTerm.toLowerCase());
+            const filteredGroupMats = item.materials.filter(m => 
+                m.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            
+            if (matchesGroup || filteredGroupMats.length > 0) {
+                return {
+                    ...item,
+                    materials: matchesGroup ? item.materials : filteredGroupMats
+                };
+            }
+            return null;
+        } else {
+            return (typeof item === 'string' && item.toLowerCase().includes(searchTerm.toLowerCase())) ? item : null;
+        }
+    }).filter(Boolean);
+
     return (
         <div className="relative z-40 flex flex-col w-[13.5vw] select-none">
             {/* STATIC FLOATING HEADER */}
@@ -305,33 +329,63 @@ export default function MaterialList({ isCollapsed, setIsCollapsed, isTextureOpe
                     maxHeight: isCollapsed ? "0" : (isTextureOpen ? "calc(92vh - 23vw)" : "calc(92vh - 14.06vw)")
                 }}
             >
+                {/* SEARCH BAR */}
+                {!isCollapsed && (
+                    <div className="px-[0.62vw] pt-[0.42vw] pb-[0.21vw]">
+                        <div className="relative group">
+                            <div className="absolute left-[0.62vw] top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                                <Icon icon="heroicons:magnifying-glass-20-solid" width="0.85vw" height="0.85vw" />
+                            </div>
+                            <input 
+                                type="text"
+                                placeholder="Search materials..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-[2vw] pr-[2vw] py-[0.42vw] bg-gray-50 border border-gray-100 rounded-[0.52vw] text-[0.7vw] font-semibold text-gray-700 placeholder:text-gray-400 outline-none focus:bg-white focus:border-indigo-200 focus:ring-[0.15vw] focus:ring-indigo-50 transition-all"
+                            />
+                            {searchTerm && (
+                                <button 
+                                    onClick={() => setSearchTerm("")}
+                                    className="absolute right-[0.62vw] top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                >
+                                    <Icon icon="heroicons:x-mark-20-solid" width="0.85vw" height="0.85vw" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* MATERIALS LIST */}
                 {/* MATERIALS SCROLL LIST */}
-                <div className="flex-1 overflow-y-auto space-y-[0.21vw] custom-scrollbar px-[0.42vw] pb-[0.2vw] mt-[0.62vw]">
+                <div className="flex-1 overflow-y-auto space-y-[0.21vw] custom-scrollbar px-[0.42vw] pb-[0.2vw] mt-[0.21vw]">
                     {/* Model Name Parent Item (Sticky) */}
-                    <div className="sticky top-0 bg-white z-10 pt-[0.2vw] pb-[0.42vw]">
-                        <div 
-                            onClick={(e) => onSelect({ name: (modelName || "Model"), parentGroup: (modelName || "Model"), isShift: e.shiftKey })}
-                            className={`py-[0.42vw] px-[0.62vw] flex items-center gap-[0.52vw] text-[0.7vw] font-semibold rounded-[0.42vw] cursor-pointer transition-all border border-transparent
-                                ${(checkIfSelected(modelName || "Model"))
-                                    ? "bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm"
-                                    : "bg-gray-50 text-gray-800 hover:bg-gray-100 border-gray-100/50"
-                                }`}
-                        >
-                             <Icon icon="ph:cube-duotone" width="1vw" height="1vw" className={`shrink-0 ${(selectedMaterial === (modelName || "Model") || (selectedMaterial && selectedMaterial.name === (modelName || "Model"))) ? "text-indigo-500" : "text-gray-400"}`} />
-                             <span className="truncate flex-1 min-w-0">{modelName === "Scene" ? "Entire Scene" : (modelName || "Entire Model")}</span>
-                             {(selectedMaterial === (modelName || "Model") || (selectedMaterial && selectedMaterial.name === (modelName || "Model"))) && <Icon icon="heroicons:check-circle-20-solid" width="0.73vw" height="0.73vw" className="text-indigo-500 shrink-0" />}
+                    {(!searchTerm || (modelName || "Model").toLowerCase().includes(searchTerm.toLowerCase())) && (
+                        <div className="sticky top-0 bg-white z-10 pt-[0.2vw] pb-[0.42vw]">
+                            <div 
+                                onClick={(e) => onSelect({ name: (modelName || "Model"), parentGroup: (modelName || "Model"), isShift: e.shiftKey })}
+                                className={`py-[0.42vw] px-[0.62vw] flex items-center gap-[0.52vw] text-[0.7vw] font-semibold rounded-[0.42vw] cursor-pointer transition-all border border-transparent
+                                    ${(checkIfSelected(modelName || "Model"))
+                                        ? "bg-indigo-50 text-indigo-700 border-indigo-100 shadow-sm"
+                                        : "bg-gray-50 text-gray-800 hover:bg-gray-100 border-gray-100/50"
+                                    }`}
+                            >
+                                <Icon icon="ph:cube-duotone" width="1vw" height="1vw" className={`shrink-0 ${(selectedMaterial === (modelName || "Model") || (selectedMaterial && selectedMaterial.name === (modelName || "Model"))) ? "text-indigo-500" : "text-gray-400"}`} />
+                                <span className="truncate flex-1 min-w-0">{modelName === "Scene" ? "Entire Scene" : (modelName || "Entire Model")}</span>
+                                {(selectedMaterial === (modelName || "Model") || (selectedMaterial && selectedMaterial.name === (modelName || "Model"))) && <Icon icon="heroicons:check-circle-20-solid" width="0.73vw" height="0.73vw" className="text-indigo-500 shrink-0" />}
+                            </div>
+                            <div className="h-[0.05vw] bg-gray-100 mx-[0.2vw] mt-[0.42vw]"></div>
                         </div>
-                        <div className="h-[0.05vw] bg-gray-100 mx-[0.2vw] mt-[0.42vw]"></div>
-                    </div>
+                    )}
 
                     {/* Material Items */}
                     <div className="space-y-[0.1vw]">
-                        {materials.length === 0 && (
-                             <div className="text-center py-[0.83vw] text-[0.62vw] text-gray-400 italic">No materials found</div>
+                        {filteredMaterials.length === 0 && (
+                             <div className="text-center py-[1vw] text-[0.65vw] text-gray-400 font-medium italic">
+                                {searchTerm ? `No matches for "${searchTerm}"` : "No materials found"}
+                             </div>
                         )}
 
-                        {materials.map((item, idx) => {
+                        {filteredMaterials.map((item, idx) => {
                             // Check if it's a group
                             if (typeof item === 'object' && item.group) {
                                 return (

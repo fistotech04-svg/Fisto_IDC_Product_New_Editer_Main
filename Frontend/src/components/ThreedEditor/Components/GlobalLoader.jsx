@@ -12,9 +12,21 @@ export const LoadingSpinner = ({ text = "Loading...", dark = false }) => (
 // Global Loader Component
 export const GlobalLoader = ({ manualLoading, text }) => {
   const { active, progress } = useProgress();
+  const [shouldShow, setShouldShow] = React.useState(false);
   const show = active || manualLoading;
   
-  if (!show) return null;
+  React.useEffect(() => {
+    let timer;
+    if (show) {
+        // Only show if loading takes longer than 300ms to prevent flickering
+        timer = setTimeout(() => setShouldShow(true), 300);
+    } else {
+        setShouldShow(false);
+    }
+    return () => clearTimeout(timer);
+  }, [show]);
+
+  if (!shouldShow) return null;
 
   return (
     <div className="absolute inset-0 z-[100] pointer-events-auto">

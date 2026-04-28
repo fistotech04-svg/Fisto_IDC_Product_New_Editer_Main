@@ -5,7 +5,7 @@ import { textureData } from "../../data/textureData";
 import AddMaterial from "./Components/AddMaterial";
 import AlertModal from "../AlertModal";
 
-export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick }) {
+export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick, refreshTrigger }) {
     const scrollRef = React.useRef(null);
     const [localSelected, setLocalSelected] = useState(null);
     const [uploadedTextures, setUploadedTextures] = useState([]);
@@ -77,11 +77,11 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     }, []);
 
     useEffect(() => {
-        if (activeTab === "uploaded") {
+        if (activeTab === "uploaded" || refreshTrigger) {
             fetchUploadedTextures();
             fetchCategories();
         }
-    }, [activeTab, fetchUploadedTextures, fetchCategories]);
+    }, [activeTab, fetchUploadedTextures, fetchCategories, refreshTrigger]);
 
     // Re-fetch when AddMaterial modal closes (if we had a way to trigger it, but for now we poll or manual refresh)
     // Actually, we can just fetch whenever activeTab becomes uploaded.
@@ -96,21 +96,34 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
             counts[cat] = (counts[cat] || 0) + 1;
         });
 
-        // Collect all unique category names we have in database + current textures
-        const allCategoryNames = new Set(fetchedCategories.map(c => c.name));
+        // Collect unique category names
+        // Only include fetched categories from backend if we are in the 'uploaded' tab
+        const allCategoryNames = new Set();
+        if (activeTab === "uploaded") {
+            fetchedCategories.forEach(c => allCategoryNames.add(c.name));
+        }
+        
         Object.keys(counts).forEach(name => allCategoryNames.add(name));
         
-        const finalObj = { All: currentTextures.length };
+        const realTextureCount = currentTextures.filter(t => t.id !== "none").length;
+        const finalObj = { All: realTextureCount };
         Array.from(allCategoryNames).sort().forEach(name => {
-            finalObj[name] = counts[name] || 0;
+            if (name !== "All") {
+                finalObj[name] = counts[name] || 0;
+            }
         });
 
         return finalObj;
-    }, [currentTextures, fetchedCategories]);
+    }, [currentTextures, fetchedCategories, activeTab]);
+
+    // Reset category selection when switching tabs to avoid showing "No Materials Found"
+    useEffect(() => {
+        setSelectedCategory("All");
+    }, [activeTab]);
 
     const filteredTextures = useMemo(() => {
         if (selectedCategory === "All") return currentTextures;
-        return currentTextures.filter(t => (t.category || "General") === selectedCategory);
+        return currentTextures.filter(t => t.id === "none" || (t.category || "General") === selectedCategory);
     }, [currentTextures, selectedCategory]);
 
     const selectedTextureName = useMemo(() => {
@@ -259,7 +272,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     return (
         <>
             <div 
-            className={`absolute left-1/2 -translate-x-1/2 z-20 transition-all duration-500 ease-in-out bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden
+            className={`absolute left-1/2 -translate-x-1/2 z-20 transition-all duration-500 ease-in-out bg-white shadow-[0_10px_40px_rgba(0,0,0,0.15)] border border-gray-100 ${isDropdownOpen ? "overflow-visible" : "overflow-hidden"}
             ${isOpen ? "bottom-0 w-[97%] h-[12.5vw] rounded-t-[1vw]" : "bottom-0 w-[97%] h-[3.13vw] rounded-t-[0.83vw] cursor-pointer hover:bg-gray-50"}
             `}
             onClick={(e) => !isOpen && setIsOpen(true)}
@@ -310,7 +323,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                 <Icon icon="heroicons:chevron-down-20-solid" width="0.8vw" className={`text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180 text-black" : ""}`} />
                                 
                                 {/* Dropdown Menu */}
-                                <div className={`absolute top-full left-0 mt-[0.3vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-xl transition-all z-40 min-w-full overflow-hidden ${isDropdownOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible translate-y-2"}`}>
+                                <div className={`absolute bottom-full left-0 mb-[0.3vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-xl transition-all z-40 min-w-full max-h-[7.5vw] overflow-y-auto custom-scrollbar ${isDropdownOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible translate-y-2"}`}>
                                 {Object.entries(categories).map(([cat, count]) => {
                                     const isSelected = cat === selectedCategory;
                                     const catData = fetchedCategories.find(c => c.name === cat);

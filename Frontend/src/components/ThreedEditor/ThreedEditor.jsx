@@ -62,7 +62,7 @@ export default function ThreedEditor() {
   const [isTextureOpen, setIsTextureOpen] = useState(false);
   const [manualLoading, setManualLoading] = useState(false);
   const [loadingText, setLoadingText] = useState("");
-  const [isSyncing, setIsSyncing] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Sync manual loading with useProgress active state
   const { active } = useProgress();
@@ -97,6 +97,7 @@ export default function ThreedEditor() {
   // Target Position State
   const [targetPosition, setTargetPosition] = useState({ x: 0, y: 0, z: 0 });
   const [modelMaterialLists, setModelMaterialLists] = useState({});
+  const [modelMaterialDataMap, setModelMaterialDataMap] = useState({});
   const sceneWrapperRef = useRef(null);
   const [materialList, setMaterialList] = useState(threedState.materialList || []);
   const [selectedMaterial, setSelectedMaterial] = useState(null);
@@ -111,6 +112,7 @@ export default function ThreedEditor() {
   const [showAddModelModal, setShowAddModelModal] = useState(false);
   const [showModelGalleryModal, setShowModelGalleryModal] = useState(false);
   const [showAddMaterialModal, setShowAddMaterialModal] = useState(false);
+  const [materialRefreshKey, setMaterialRefreshKey] = useState(0);
 
   // Right Panel & Sidebar State
   const [activeAccordion, setActiveAccordion] = useState("factor"); // "factor" | "position" | "lighting"
@@ -547,16 +549,19 @@ export default function ThreedEditor() {
       setModelStatsMap(prev => ({ ...prev, [modelId]: stats }));
   }, []);
 
-  const handleSetMaterialList = useCallback((modelId, list) => {
+  const handleSetMaterialList = useCallback((modelId, list, dataMap) => {
       setModelMaterialLists(prev => {
           const next = { ...prev, [modelId]: list };
-          // Update the current history entry so that UNDOing back to this point has the materials
           updateHistory({
               ...stateRef.current,
               modelMaterialLists: next
           });
           return next;
       });
+
+      if (dataMap) {
+          setModelMaterialDataMap(prev => ({ ...prev, [modelId]: dataMap }));
+      }
   }, [updateHistory]);
 
   // Two-Step Compression Export
@@ -1407,9 +1412,10 @@ export default function ThreedEditor() {
   const handleResetView = () => {
     if (controlsRef.current) {
         controlsRef.current.reset();
-        // Reset state manually as well to be sure, though controls reset handles target
         setTargetPosition({ x: 0, y: 0, z: 0 });
     }
+    // Trigger scene-wide reset for model parts
+    setSceneResetTrigger(prev => prev + 1);
   };
 
   const handleManualTransformChange = (type, axis, value) => {
@@ -1488,11 +1494,10 @@ export default function ThreedEditor() {
      });
   };
 
-  // Visual Settings State
   const [settings, setSettings] = useState({
     backgroundColor: "#393939", // Blender default dark grey
     baseColor: "#2c2c2c",
-    base: false, // Blender doesn't have a solid floor plane by default
+    base: true, // Blender doesn't have a solid floor plane by default
     grid: true,
     wireframe: false,
   });
@@ -1595,13 +1600,11 @@ export default function ThreedEditor() {
       const target = typeof val === 'object' ? { ...val } : { name: val };
       const isShift = !!target.isShift;
 
+      // Single select
       setSelectedMaterial(prev => {
           if (isShift && prev) {
               const prevNames = getNames(prev);
               const nextNames = getNames(target);
-              
-              // Toggle logic: if the target is already fully in selection, we probably want to toggle it out 
-              // but for a start, let's just do additive. 
               const combined = Array.from(new Set([...prevNames, ...nextNames]));
               
               return {
@@ -1612,13 +1615,39 @@ export default function ThreedEditor() {
               };
           }
           
-          // Single select
           return { ...target, uuid: target.uuid || null, ts: Date.now() };
       });
 
-      // Clear property specific maps on any selection change to prevent bleeding
-      setMaterialSettings(prev => ({ ...prev, maps: {} }));
-  }, []); // No more dependency on selectedMaterial state itself
+      // Clear property specific maps first to prevent bleeding, then check for defaults
+      setMaterialSettings(prev => {
+          const next = { ...prev, maps: {} };
+          
+          // If it's a single material selection, try to fetch default textures/properties from the model
+          if (!isShift && target.name && target.name !== modelName && target.name !== "Scene") {
+              // Find which model this material belongs to
+              let defaultData = null;
+              for (const modelId in modelMaterialDataMap) {
+                  if (modelMaterialDataMap[modelId][target.name]) {
+                      defaultData = modelMaterialDataMap[modelId][target.name];
+                      break;
+                  }
+              }
+
+              if (defaultData) {
+                  return {
+                      ...next,
+                      color: defaultData.color || next.color,
+                      metallic: defaultData.metallic !== undefined ? defaultData.metallic : next.metallic,
+                      roughness: defaultData.roughness !== undefined ? defaultData.roughness : next.roughness,
+                      alpha: defaultData.opacity !== undefined ? defaultData.opacity : next.alpha,
+                      maps: defaultData.maps || {}
+                  };
+              }
+          }
+          
+          return next;
+      });
+  }, [modelName, modelMaterialDataMap]);
 
   const handleTransformChange = useCallback((t) => {
       if (t.original) {
@@ -1743,6 +1772,7 @@ export default function ThreedEditor() {
               setIsOpen={setIsTextureOpen}
               onSelectTexture={handleSelectTexture}
               onAddMaterialClick={() => setShowAddMaterialModal(true)}
+              refreshTrigger={materialRefreshKey}
             />
           )}
 
@@ -1771,7 +1801,7 @@ export default function ThreedEditor() {
 {!isSyncing && (
             <Canvas
               camera={{ position: [0, 1, 5], fov: 45 }}
-              shadows
+              
               dpr={[1, 2]}
               gl={{
                 preserveDrawingBuffer: true,
@@ -1779,6 +1809,7 @@ export default function ThreedEditor() {
                 alpha: true,
                 logarithmicDepthBuffer: true
               }}
+              shadows={{ type: THREE.PCFSoftShadowMap }}
               onCreated={({ gl, camera }) => {
                 glInstanceRef.current = gl;
                 cameraInstanceRef.current = camera;
@@ -1796,34 +1827,35 @@ export default function ThreedEditor() {
                     materialSettings.lightPosition?.y ?? 10, 
                     materialSettings.lightPosition?.z ?? 5
                 ]}
-                angle={0.15}
+                angle={0.25}
                 penumbra={1}
-                intensity={(materialSettings.reflection ?? 50) / 25} 
+                intensity={(materialSettings.reflection ?? 50) / 20} 
                 castShadow
-                shadow-bias={-0.001}
-                shadow-normalBias={0.08}
-                shadow-radius={(materialSettings.softness ?? 50) / 12} // Map 0-100 to 0-8 radius
-                shadow-mapSize={[2048, 2048]}
-                shadow-camera-near={1}
-                shadow-camera-far={25}
+                shadow-bias={-0.00005}
+                shadow-normalBias={0.04}
+                shadow-radius={(materialSettings.softness ?? 50) / 8} 
+                shadow-mapSize={[4096, 4096]}
+                shadow-camera-near={0.1}
+                shadow-camera-far={40}
               />
               <directionalLight
                 position={[
                     -(materialSettings.lightPosition?.x ?? 5), 
-                    materialSettings.lightPosition?.y ?? 5, 
+                    materialSettings.lightPosition?.y ?? 8, 
                     -(materialSettings.lightPosition?.z ?? 5)
                 ]}
-                intensity={(materialSettings.reflection ?? 50) / 50}
+                intensity={(materialSettings.reflection ?? 50) / 40}
                 castShadow
-                shadow-bias={-0.001}
-                shadow-normalBias={0.08}
-                shadow-radius={(materialSettings.softness ?? 50) / 12}
-                shadow-camera-left={-10}
-                shadow-camera-right={10}
-                shadow-camera-top={10}
-                shadow-camera-bottom={-10}
-                shadow-camera-near={1}
-                shadow-camera-far={25}
+                shadow-bias={-0.00005}
+                shadow-normalBias={0.04}
+                shadow-radius={(materialSettings.softness ?? 50) / 8}
+                shadow-mapSize={[4096, 4096]}
+                shadow-camera-left={-7}
+                shadow-camera-right={7}
+                shadow-camera-top={7}
+                shadow-camera-bottom={-7}
+                shadow-camera-near={0.1}
+                shadow-camera-far={40}
               />
 
               <Suspense fallback={null}>
@@ -1957,9 +1989,9 @@ export default function ThreedEditor() {
                       position={[0, -0.005, 0]}
                       opacity={(materialSettings.shadow ?? 50) / 100}
                       scale={50}
-                      blur={2}
+                      blur={2.5}
                       far={5}
-                      resolution={512}
+                      resolution={1024}
                       color="#000000"
                   />
               )}
@@ -2043,6 +2075,7 @@ export default function ThreedEditor() {
               <AddMaterial 
                   isOpen={showAddMaterialModal} 
                   onClose={() => setShowAddMaterialModal(false)}
+                  onUpdateSuccess={() => setMaterialRefreshKey(prev => prev + 1)}
               />
           )}
 

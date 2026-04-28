@@ -211,15 +211,9 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
         if (!user?.emailId) return;
 
         try {
-          const response = await axios.get(`${backendUrl}/api/textures/get?email=${user.emailId}`);
-          if (response.data.textures) {
-            // Extract unique names from materialCategory (could be object or string)
-            const catNames = response.data.textures.map(t => {
-                if (typeof t.materialCategory === 'object' && t.materialCategory?.name) {
-                    return t.materialCategory.name;
-                }
-                return t.materialCategory || "Custom";
-            });
+          const response = await axios.get(`${backendUrl}/api/textures/categories/get?email=${user.emailId}`);
+          if (response.data.categories) {
+            const catNames = response.data.categories.map(c => c.name);
             const uniqueCats = [...new Set(catNames)];
             setExistingCategories(uniqueCats.filter(c => c !== "All" && typeof c === 'string'));
           }
@@ -264,9 +258,9 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
   };
 
   const uploadFileInChunks = async (file, id, email, material, field) => {
-    const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB
+    const CHUNK_SIZE = 5 * 1024 * 1024; // Increased to 5MB for better performance
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-    const uploadId = `${id}_${Date.now()}`;
+    const uploadId = `${id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     let finalUrl = null;
 
     for (let i = 0; i < totalChunks; i++) {
@@ -284,9 +278,12 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
         formData.append("fieldName", field);
         formData.append("chunk", chunk);
 
-        const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}/api/textures/upload-chunk`, formData);
+        const response = await axios.post(`${backendUrl}/api/textures/upload-chunk`, formData);
         
         if (i === totalChunks - 1) {
+            if (!response.data.url) {
+                throw new Error(`Server did not return a URL for field ${field}`);
+            }
             finalUrl = response.data.url;
         }
     }
@@ -334,10 +331,21 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
         const newlyUploadedMaps = {};
         const mapKeysToUpload = Object.keys(mapFiles).filter(key => mapFiles[key]);
         
-        // Sequential chunked upload for all provided files
-        for (const key of mapKeysToUpload) {
-            newlyUploadedMaps[key] = await uploadFileInChunks(mapFiles[key], key, email, materialName, key);
-        }
+        // Parallelized upload for all provided files to maximize bandwidth usage
+        const uploadPromises = mapKeysToUpload.map(async (key) => {
+            try {
+                const url = await uploadFileInChunks(mapFiles[key], key, email, materialName, key);
+                return { key, url };
+            } catch (err) {
+                console.error(`Failed to upload ${key}:`, err);
+                throw err; // Re-throw to be caught by the outer catch
+            }
+        });
+
+        const results = await Promise.all(uploadPromises);
+        results.forEach(res => {
+            newlyUploadedMaps[res.key] = res.url;
+        });
 
         const finalMaps = editData 
             ? { ...editData.maps, ...newlyUploadedMaps }

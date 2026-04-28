@@ -59,6 +59,14 @@ const SectionHeader = ({ label, showLine = true }) => (
     {showLine && <div className="h-[0.05vw] bg-gray-100 w-full flex-1"></div>}
   </div>
 );
+const backendUrlGlobal = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+const resolveMapUrl = (url) => {
+    if (!url) return null;
+    if (typeof url !== 'string') return url;
+    if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
+    if (url.startsWith('/')) return `${backendUrlGlobal}${url}`;
+    return url;
+};
 
 const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disabled = false }) => {
   const fileInputRef = React.useRef(null);
@@ -187,15 +195,27 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disa
     >
       <input type="file" ref={fileInputRef} hidden accept=".hdr,.exr,image/*" onChange={handleFileChange} disabled={disabled} />
       {currentMap ? (
-        <div className="w-full h-full bg-indigo-50 flex items-center justify-center text-[#5d5efc] relative">
-           <Icon icon="heroicons:check-circle" width="1.25vw" />
+        <div className="w-full h-full relative group/thumb">
+           <img 
+              src={resolveMapUrl ? resolveMapUrl(currentMap) : (typeof currentMap === 'string' ? currentMap : '')} 
+              alt="Texture Preview"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                  // Fallback if image fails to load
+                  e.target.style.display = 'none';
+                  e.target.nextSibling.style.display = 'flex';
+              }}
+           />
+           <div className="hidden absolute inset-0 bg-indigo-50 items-center justify-center text-[#5d5efc]">
+               <Icon icon="heroicons:check-circle" width="1.25vw" />
+           </div>
            {/* Clear Button on Hover */}
            <div 
              onClick={(e) => {
                e.stopPropagation();
                if (onUpload) onUpload(mapType, null);
              }}
-             className="absolute inset-0 bg-red-500/80 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+             className="absolute inset-0 bg-red-500/80 text-white opacity-0 group-hover/thumb:opacity-100 flex items-center justify-center transition-opacity z-10"
            >
               <Icon icon="heroicons:x-mark" width="1.25vw" />
            </div>
@@ -213,20 +233,52 @@ const MapUploadControl = ({ mapType, currentMap, onUpload, overlay = false, disa
 };
 
 const MapAccordion = ({ title, value, onChange, mapType, currentMap, onUpload, description, isOpen, onToggle, isIntensityDisabled = false, extra, disabled = false }) => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-    
-    const resolveMapUrl = (url) => {
-        if (!url) return null;
-        if (typeof url !== 'string') return url;
-        // If it's already a full URL or a blob, return as is
-        if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-        // Otherwise, prefix with backend URL if it starts with /
-        if (url.startsWith('/')) return `${backendUrl}${url}`;
-        return url;
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleDragOver = (e) => {
+        if (disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e) => {
+        if (disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/') && onUpload) {
+            onUpload(mapType, file);
+        }
     };
 
     return (
-      <div className={`border border-gray-300 rounded-[0.5vw] mb-[0.65vw] bg-white transition-all duration-200 ${isOpen ? 'shadow-sm' : 'hover:bg-gray-50/50'}`}>
+      <div 
+        className={`border rounded-[0.5vw] mb-[0.65vw] bg-white transition-all duration-200 relative
+            ${isDragging ? 'border-[#5d5efc] bg-indigo-50/30 scale-[1.02] z-10 shadow-lg' : 'border-gray-300'}
+            ${isOpen ? 'shadow-sm' : 'hover:bg-gray-50/50'}
+        `}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {isDragging && (
+            <div className="absolute inset-0 border-[0.15vw] border-dashed border-[#5d5efc] rounded-[0.5vw] pointer-events-none flex items-center justify-center bg-indigo-50/50 backdrop-blur-[1px] z-20">
+                <div className="flex flex-col items-center gap-[0.5vw] animate-bounce">
+                    <Icon icon="heroicons:arrow-up-tray" className="text-[#5d5efc] w-[1.5vw] h-[1.5vw]" />
+                    <span className="text-[0.7vw] font-bold text-[#5d5efc] uppercase tracking-wider">Drop to upload {title}</span>
+                </div>
+            </div>
+        )}
+
         <div 
           className={`flex items-center justify-between px-[0.65vw] py-[0.75vw] cursor-pointer group select-none ${isOpen ? 'border-b border-gray-200' : ''}`}
           onClick={onToggle}
@@ -390,15 +442,15 @@ const NumberStepper = ({ label, value, axisLabel, compact, onChange, step = 1 })
       } ${compact ? "gap-[0.25vw]" : "gap-[0.5vw] mb-[0.75vw]"}`}
     >
       {label && (
-        <div className={`font-medium text-gray-600 ${compact ? "text-[0.65vw] w-[6vw]" : "text-[0.68vw] w-[6vw]"}`}>
+        <div className={`font-medium text-gray-600 ${compact ? "text-[0.65vw] w-[4vw]" : "text-[0.68vw] w-[6vw]"}`}>
            {label} :
         </div>
       )}
 
-      <div className={`flex items-center ${compact ? "gap-[0.25vw]" : "gap-[0.5vw]"}`}>
+      <div className={`flex items-center ${compact ? "gap-[0.2vw]" : "gap-[0.5vw]"}`}>
         {axisLabel && (
-          <span className={`${compact ? "text-[0.65vw] w-[0.75vw]" : "text-[0.58vw]"} text-gray-500 uppercase text-center font-bold`}>
-            {axisLabel}:
+          <span className={`${compact ? "text-[0.6vw] w-[0.8vw]" : "text-[0.58vw] w-[1vw]"} text-gray-400 uppercase text-center font-black tracking-tighter`}>
+            {axisLabel}
           </span>
         )}
         <button 
@@ -413,8 +465,8 @@ const NumberStepper = ({ label, value, axisLabel, compact, onChange, step = 1 })
         </button>
         <div
           className={`${
-            compact ? "px-[0.4vw] py-[0.15vw] min-w-[1.65vw] text-[0.6vw] rounded" : "px-[0.75vw] py-[0.4vw] min-w-[2.3vw] text-[0.65vw] rounded-[0.35vw]"
-          } border border-gray-200 text-gray-700 font-semibold text-center bg-white shadow-sm hover:border-[#5d5efc] transition-colors`}
+            compact ? "w-[2.8vw] py-[0.15vw] text-[0.6vw] rounded-[0.25vw]" : "w-[3.5vw] py-[0.4vw] text-[0.65vw] rounded-[0.35vw]"
+          } border border-gray-200 text-gray-700 font-bold text-center bg-white shadow-xs hover:border-[#5d5efc] transition-colors tabular-nums overflow-hidden`}
         >
           {value}
         </div>

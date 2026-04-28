@@ -15,6 +15,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
   const activeTextureRef = React.useRef(selectedTexture);
   activeTextureRef.current = selectedTexture;
 
+  // Multi-mesh transform support for shared materials
+  const relatedMeshesRef = React.useRef([]);
+  const followerOffsetsRef = React.useRef(new Map()); // Map<UUID, Matrix4 (relative to leader)>
+  const isSyncingRef = React.useRef(false);
+
 
   // Expose Helper Functionality
   React.useImperativeHandle(ref, () => ({
@@ -466,9 +471,15 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
     const centeredX = -center.x * targetScale;
     const centeredZ = -center.z * targetScale;
-    const bottomY = -box.min.y * targetScale; // Align bottom of model to y=0 with a small gap
+    const bottomY = -box.min.y * targetScale; 
      
     setPosition([centeredX, bottomY, centeredZ]);
+    
+    // Persistent storage of normalization baseline on the scene object itself
+    scene.userData.normalization = {
+        position: [centeredX, bottomY, centeredZ],
+        scale: targetScale
+    };
 
     // Stats & Material Naming
     let vertCount = 0;
@@ -500,8 +511,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
           }
 
           // Compute tangents for smooth normal mapping if UVs exist and they don't already exist
-          if (newGeom.attributes.uv && !newGeom.attributes.tangent && newGeom.computeTangents) {
-              try { newGeom.computeTangents(); } catch(e) { console.warn("Tangents skip:", e.message); }
+          if (newGeom?.attributes?.uv && !newGeom?.attributes?.tangent && newGeom?.computeTangents) {
+              try { newGeom?.computeTangents(); } catch(e) { console.warn("Tangents skip:", e?.message); }
           }
 
           if (newGeom.attributes.normal) newGeom.attributes.normal.needsUpdate = true;
@@ -605,8 +616,41 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         }
     }
     
+    // Extract deep material data for property panel initialization
+    const materialDataMap = {};
+    scene.traverse((child) => {
+        if (child.isMesh && child.material) {
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            mats.forEach(m => {
+                if (m.name && !materialDataMap[m.name]) {
+                    const extractTexture = (tex) => {
+                        if (!tex) return null;
+                        if (tex.image && tex.image.src) return tex.image.src;
+                        return null;
+                    };
+
+                    materialDataMap[m.name] = {
+                        color: '#' + m.color.getHexString(),
+                        metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
+                        roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
+                        opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
+                        maps: {
+                            map: extractTexture(m.map),
+                            normalMap: extractTexture(m.normalMap),
+                            roughnessMap: extractTexture(m.roughnessMap),
+                            metalnessMap: extractTexture(m.metalnessMap),
+                            emissiveMap: extractTexture(m.emissiveMap),
+                            aoMap: extractTexture(m.aoMap),
+                            bumpMap: extractTexture(m.bumpMap)
+                        }
+                    };
+                }
+            });
+        }
+    });
+    
     if (structuredList.length === 0) {
-         if (typeof setMaterialList === 'function') setMaterialList(Array.from(ungroupedMats).sort());
+         if (typeof setMaterialList === 'function') setMaterialList(Array.from(ungroupedMats).sort(), materialDataMap);
     } else {
          if (ungroupedMats.size > 0 && !structuredList.find(x => x.group === "Ungrouped")) {
              structuredList.push({
@@ -614,7 +658,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                  materials: Array.from(ungroupedMats).sort()
              });
          }
-         if (typeof setMaterialList === 'function') setMaterialList(structuredList);
+         if (typeof setMaterialList === 'function') setMaterialList(structuredList, materialDataMap);
     }
 
 
@@ -1013,45 +1057,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                           m.needsUpdate = true;
                      }
 
-                     // 4. Force Sync Maps from State if they exist
-                     // This ensures that if the state has map URLs, the material uses them, 
-                     // even if the one-shot 'selectedTexture' effect has already cleared.
-                     if (materialSettings.maps && !isNone) {
-                         const stateMaps = materialSettings.maps;
-                         const loader = new THREE.TextureLoader();
-                         
-                         const syncMap = (mapProp, stateUrl, isColor = false) => {
-                             if (stateUrl && (!m[mapProp] || m[mapProp].userData?.url !== stateUrl)) {
-                                 loader.load(stateUrl, (tex) => {
-                                     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-                                     tex.flipY = false;
-                                     tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
-                                     tex.userData.url = stateUrl;
-                                     
-                                     // Apply transforms immediately to avoid async sync lag
-                                     if (tex.repeat) tex.repeat.set(texScaleX, texScaleY);
-                                     if (tex.offset) tex.offset.set(texOffsetX, texOffsetY);
-                                     if (tex.rotation !== undefined) tex.rotation = texRotation;
-                                     tex.center.set(0.5, 0.5);
-                                     
-                                     m[mapProp] = tex;
-                                     m.needsUpdate = true;
-                                 });
-                             } else if (!stateUrl && m[mapProp] && !m.userData.originalMap) {
-                                 // Only clear if no state URL and it's not the original map
-                                 // (Actually, if stateUrl is null, we probably want it null)
-                                 // But avoid clobbering during initial load.
-                             }
-                         };
-
-                         if (stateMaps.map) syncMap('map', stateMaps.map, true);
-                         if (stateMaps.normalMap) syncMap('normalMap', stateMaps.normalMap);
-                         if (stateMaps.roughnessMap) syncMap('roughnessMap', stateMaps.roughnessMap);
-                         if (stateMaps.metalnessMap) syncMap('metalnessMap', stateMaps.metalnessMap);
-                         if (stateMaps.aoMap) syncMap('aoMap', stateMaps.aoMap);
-                         if (stateMaps.alphaMap) syncMap('alphaMap', stateMaps.alphaMap);
-                         if (stateMaps.emissiveMap) syncMap('emissiveMap', stateMaps.emissiveMap, true);
-                     }
+                     // 4. Texture Transformations (Syncing logic moved to dedicated effect)
 
                     // 4. Texture Transformations
                     // Only apply to gallery textures OR specific selection (manual uploads)
@@ -1082,6 +1088,64 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         }
     });
   }, [scene, materialSettings, modelName, selectedMaterial, resetKey, syncedSelectionSignature]);
+
+  // C. Sync Map URLs from State (Independent from high-frequency slider interaction)
+  useEffect(() => {
+    if (!scene || !materialSettings?.maps) return;
+
+    const targetMatName = selectedMaterial ? selectedMaterial.name : (modelName || "Scene");
+    const isFullModel = !selectedMaterial || targetMatName === modelName || targetMatName === "Scene";
+    const stateMaps = materialSettings.maps;
+    const isNone = materialSettings.appliedTexture?.id === 'none';
+
+    if (isNone) return;
+
+    const loader = new THREE.TextureLoader();
+    const texScaleX = (materialSettings.scale ?? 100) / 100;
+    const texScaleY = (materialSettings.scaleY ?? materialSettings.scale ?? 100) / 100;
+
+    scene.traverse((child) => {
+        if (child.isMesh && child.material) {
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach(m => {
+                let isMatch = false;
+                if (selectedMaterial && !isFullModel) {
+                     if (selectedMaterial.isGroup && Array.isArray(selectedMaterial.materials)) {
+                         isMatch = selectedMaterial.materials.includes(m.name);
+                     } else {
+                         isMatch = m.name === targetMatName;
+                     }
+                } else if (isFullModel) {
+                     isMatch = materialSettings.useFactorColor || !!materialSettings.appliedTexture;
+                }
+
+                if (isMatch) {
+                    const syncMap = (mapProp, stateUrl, isColor = false) => {
+                        if (stateUrl && (!m[mapProp] || m[mapProp].userData?.url !== stateUrl)) {
+                            loader.load(stateUrl, (tex) => {
+                                tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+                                tex.flipY = false;
+                                tex.colorSpace = isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+                                tex.userData.url = stateUrl;
+                                tex.repeat.set(texScaleX, texScaleY);
+                                m[mapProp] = tex;
+                                m.needsUpdate = true;
+                            });
+                        }
+                    };
+
+                    if (stateMaps.map) syncMap('map', stateMaps.map, true);
+                    if (stateMaps.normalMap) syncMap('normalMap', stateMaps.normalMap);
+                    if (stateMaps.roughnessMap) syncMap('roughnessMap', stateMaps.roughnessMap);
+                    if (stateMaps.metalnessMap) syncMap('metalnessMap', stateMaps.metalnessMap);
+                    if (stateMaps.aoMap) syncMap('aoMap', stateMaps.aoMap);
+                    if (stateMaps.displacementMap) syncMap('displacementMap', stateMaps.displacementMap);
+                    if (stateMaps.emissiveMap) syncMap('emissiveMap', stateMaps.emissiveMap, true);
+                }
+            });
+        }
+    });
+  }, [scene, materialSettings?.maps, selectedMaterial, modelName]);
 
   // C. Handle overall visibility
   useEffect(() => {
@@ -1126,11 +1190,58 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
           transformValues.scale.y, 
           transformValues.scale.z
       );
+
+      // Multi-mesh Sync: If this is a material-based selection, sync followers
+      if (relatedMeshesRef.current.length > 1 && !isSyncingRef.current) {
+          isSyncingRef.current = true;
+          try {
+              transformTarget.updateMatrixWorld(true);
+              const leaderWorldMatrix = transformTarget.matrixWorld;
+
+              relatedMeshesRef.current.forEach(follower => {
+                  if (follower === transformTarget) return;
+                  
+                  const relativeMatrix = followerOffsetsRef.current.get(follower.uuid);
+                  if (relativeMatrix) {
+                      // follower.matrixWorld = leader.matrixWorld * relativeMatrix
+                      const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldMatrix, relativeMatrix);
+                      
+                      // Apply to follower (maintaining its own parentage)
+                      const parentInverse = new THREE.Matrix4().copy(follower.parent.matrixWorld).invert();
+                      const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentInverse, newWorldMatrix);
+                      
+                      newLocalMatrix.decompose(follower.position, follower.quaternion, follower.scale);
+                      follower.updateMatrix();
+                  }
+              });
+          } finally {
+              isSyncingRef.current = false;
+          }
+      }
       
   }, [transformTarget, 
       transformValues?.position?.x, transformValues?.position?.y, transformValues?.position?.z, 
       transformValues?.rotation?.x, transformValues?.rotation?.y, transformValues?.rotation?.z,
       transformValues?.scale?.x, transformValues?.scale?.y, transformValues?.scale?.z]);
+  
+
+  // 3.5 Capture Initial Transforms (runs once per scene load)
+  useEffect(() => {
+    if (!scene) return;
+    
+    const capture = (obj) => {
+        if (!obj.userData.originalTransform) {
+            obj.userData.originalTransform = {
+                position: obj.position.clone(),
+                rotation: obj.rotation.clone(),
+                scale: obj.scale.clone()
+            };
+        }
+    };
+
+    capture(scene);
+    scene.traverse(capture);
+  }, [scene]);
 
   useEffect(() => {
     if (!scene) return;
@@ -1140,13 +1251,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const targetParentGroup = selectedMaterial ? selectedMaterial.parentGroup : null;
     const isGroup = selectedMaterial ? selectedMaterial.isGroup : false;
     
-    if (targetParentGroup && targetParentGroup !== modelName) {
-        setTransformTarget(null);
-        return;
-    }
-    if (isGroup && targetName !== modelName && targetName !== "Scene") {
-        setTransformTarget(null);
-        return;
+    // 4. Determine Transform Target
+    if (targetParentGroup && targetParentGroup !== modelName && targetParentGroup !== "Scene") {
+        // If the selection belongs to a different model entirely, we ignore it.
+        // We check if targetParentGroup matches ANY of our internal group names.
+        // This is a safety check to avoid multiple models fighting for the same gizmo.
     }
 
     if (!targetName || targetName === "Scene") {
@@ -1161,37 +1270,99 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             
             // Ensure UI stays in sync with Full Model transform
             if (typeof onTransformChange === 'function') {
-                 if (!modelGroup.userData.originalTransform) {
-                       modelGroup.userData.originalTransform = {
-                            position: modelGroup.position.clone(),
-                            rotation: modelGroup.rotation.clone(),
-                            scale: modelGroup.scale.clone()
-                       };
-                 }
                  onTransformChange({
                     position: modelGroup.position,
                     rotation: modelGroup.rotation,
                     scale: modelGroup.scale,
-                    original: modelGroup.userData.originalTransform
+                    original: modelGroup.userData.originalTransform || {
+                        position: modelGroup.position.clone(),
+                        rotation: modelGroup.rotation.clone(),
+                        scale: modelGroup.scale.clone()
+                    }
                 });
             }
         }
         return;
     }
 
-    // Priority 0: Group Selection
-    if (selectedMaterial?.isGroup) {
-        let groupObj = null;
+    // Priority 0: Group Selection (Handle both physical Scene groups and UI-only Material groups)
+    if (isGroup) {
+        // A: Check for physical group in scene
+        let physicalGroup = null;
         scene.traverse((child) => {
-            if (groupObj) return;
+            if (physicalGroup) return;
             if (child.isGroup && child.name === targetName) {
-                groupObj = child;
+                physicalGroup = child;
             }
         });
         
-        if (groupObj) {
-            setTransformTarget(groupObj);
+        if (physicalGroup) {
+            setTransformTarget(physicalGroup);
+            if (typeof onTransformChange === 'function') {
+                onTransformChange({
+                    position: physicalGroup.position,
+                    rotation: physicalGroup.rotation,
+                    scale: physicalGroup.scale,
+                    original: physicalGroup.userData.originalTransform || {
+                        position: physicalGroup.position.clone(),
+                        rotation: physicalGroup.rotation.clone(),
+                        scale: physicalGroup.scale.clone()
+                    }
+                });
+            }
             return; 
+        }
+
+        // B: Check for UI-only group (e.g., Multiple Selection or Material Folder)
+        const groupMats = selectedMaterial.materials || [];
+        if (groupMats.length > 0) {
+            const allMatches = [];
+            scene.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    const m = child.material;
+                    const mats = Array.isArray(m) ? m : [m];
+                    if (mats.some(mat => groupMats.includes(mat.name))) {
+                        allMatches.push(child);
+                    }
+                }
+            });
+
+            if (allMatches.length > 0) {
+                const leader = allMatches[0];
+                setTransformTarget(leader);
+                relatedMeshesRef.current = allMatches;
+
+                // Pre-calculate relative world matrices for all followers
+                if (allMatches.length > 1) {
+                    leader.updateMatrixWorld(true);
+                    const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
+                    
+                    const offsets = new Map();
+                    allMatches.forEach(mesh => {
+                        if (mesh === leader) return;
+                        mesh.updateMatrixWorld(true);
+                        const relativeMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
+                        offsets.set(mesh.uuid, relativeMatrix);
+                    });
+                    followerOffsetsRef.current = offsets;
+                } else {
+                    followerOffsetsRef.current = new Map();
+                }
+
+                if (typeof onTransformChange === 'function') {
+                    onTransformChange({
+                        position: leader.position,
+                        rotation: leader.rotation,
+                        scale: leader.scale,
+                        original: leader.userData.originalTransform || {
+                            position: leader.position.clone(),
+                            rotation: leader.rotation.clone(),
+                            scale: leader.scale.clone()
+                        }
+                    });
+                }
+                return;
+            }
         }
     }
 
@@ -1223,28 +1394,62 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
         });
     }
 
-    // We use the mesh as-is for the target without shifting its geometry to avoid jumping issues.
+    // --- Multi-Mesh Identification ---
+    // If we found a mesh, also find all other meshes that share the same material
+    const allMatches = [];
+    if (foundMesh && !isGroup && targetName !== modelName) {
+        scene.traverse((child) => {
+            if (child.isMesh && child.material) {
+                const m = child.material;
+                let hasMatch = false;
+                if (Array.isArray(m)) {
+                    hasMatch = m.some(mat => mat.name === targetName);
+                } else {
+                    hasMatch = m.name === targetName;
+                }
+                if (hasMatch) allMatches.push(child);
+            }
+        });
+    }
+    relatedMeshesRef.current = allMatches;
 
-    setTransformTarget(foundMesh || modelGroup);
+    // Pre-calculate relative world matrices for all followers
+    if (allMatches.length > 1) {
+        const leader = foundMesh;
+        leader.updateMatrixWorld(true);
+        const leaderWorldInverse = new THREE.Matrix4().copy(leader.matrixWorld).invert();
+        
+        const offsets = new Map();
+        allMatches.forEach(mesh => {
+            if (mesh === leader) return;
+            mesh.updateMatrixWorld(true);
+            // relative = leaderInverse * meshWorld
+            const relative = new THREE.Matrix4().multiplyMatrices(leaderWorldInverse, mesh.matrixWorld);
+            offsets.set(mesh.uuid, relative);
+        });
+        followerOffsetsRef.current = offsets;
+    } else {
+        followerOffsetsRef.current.clear();
+    }
+
+    // Set the target to the found mesh. 
+    // IMPORTANT: DO NOT fallback to modelGroup here. If a material was selected but no mesh was found,
+    // we should select nothing for transformation (null), rather than the whole object.
+    setTransformTarget(foundMesh);
     
     // Update transform values initially
     if (typeof onTransformChange === 'function') {
-        const target = foundMesh || modelGroup;
+        const target = foundMesh;
         if (target) {
-             // Store original transform if not present (for both ModelGroup and Meshes)
-             if (!target.userData.originalTransform) {
-                   target.userData.originalTransform = {
-                        position: target.position.clone(),
-                        rotation: target.rotation.clone(),
-                        scale: target.scale.clone()
-                   };
-             }
-             
              onTransformChange({
                 position: target.position,
                 rotation: target.rotation,
                 scale: target.scale,
-                original: target.userData.originalTransform
+                original: target.userData.originalTransform || {
+                    position: target.position.clone(),
+                    rotation: target.rotation.clone(),
+                    scale: target.scale.clone()
+                }
             });
         }
     }
@@ -1253,26 +1458,49 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
   // 5. Scene-Wide Reset Effect
   useEffect(() => {
     if (sceneResetTrigger > 0 && scene) {
-        // Reset all individual meshes that have been moved
+        // Reset the root scene object
+        if (scene.userData.originalTransform) {
+            const orig = scene.userData.originalTransform;
+            scene.position.copy(orig.position);
+            scene.rotation.copy(orig.rotation);
+            scene.scale.copy(orig.scale);
+            scene.updateMatrix();
+        }
+
+        // Reset all individual objects that have been moved
         scene.traverse((child) => {
              if (child.userData && child.userData.originalTransform) {
                  const original = child.userData.originalTransform;
                  child.position.copy(original.position);
                  child.rotation.copy(original.rotation);
                  child.scale.copy(original.scale);
+                 child.updateMatrix();
+                 child.updateMatrixWorld(true);
              }
         });
 
         // Reset the main model group wrapper if it was moved
-        if (modelGroup && modelGroup.userData && modelGroup.userData.originalTransform) {
-             const original = modelGroup.userData.originalTransform;
-             modelGroup.position.copy(original.position);
-             modelGroup.rotation.copy(original.rotation);
-             modelGroup.scale.copy(original.scale);
+        if (modelGroup) {
+             // Reset its transform
+             if (modelGroup.userData.originalTransform) {
+                 const original = modelGroup.userData.originalTransform;
+                 modelGroup.position.copy(original.position);
+                 modelGroup.rotation.copy(original.rotation);
+                 modelGroup.scale.copy(original.scale);
+                 modelGroup.updateMatrix();
+             } else {
+                 modelGroup.position.set(0,0,0);
+                 modelGroup.rotation.set(0,0,0);
+                 modelGroup.scale.set(1,1,1);
+             }
+             modelGroup.updateMatrixWorld(true);
         }
-        
-        // Force update of TransformControls if active
-        // Logic handled by parent re-render mostly, but if using internal ref, useful
+
+        // Reset the normalization states to exact captured values
+        if (scene.userData.normalization) {
+            setPosition(scene.userData.normalization.position);
+            setScale(scene.userData.normalization.scale);
+        }
     }
   }, [sceneResetTrigger, scene, modelGroup]);
 
@@ -1386,6 +1614,35 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                  space="local" 
                  onChange={() => {
                      if (typeof onTransformChange === 'function' && transformTarget) {
+                         // Multi-mesh sync during active transform
+                         if (relatedMeshesRef.current.length > 1 && !isSyncingRef.current) {
+                             isSyncingRef.current = true;
+                             try {
+                                 transformTarget.updateMatrixWorld(true);
+                                 const leaderWorldMatrix = transformTarget.matrixWorld;
+
+                                 relatedMeshesRef.current.forEach(follower => {
+                                     if (follower === transformTarget) return;
+                                     
+                                     const relativeMatrix = followerOffsetsRef.current.get(follower.uuid);
+                                     if (relativeMatrix) {
+                                         // follower.matrixWorld = leader.matrixWorld * relativeMatrix
+                                         const newWorldMatrix = new THREE.Matrix4().multiplyMatrices(leaderWorldMatrix, relativeMatrix);
+                                         
+                                         // Apply to follower (maintaining its own parentage)
+                                         // We need to invert the follower's parent's world matrix to get the local matrix
+                                         const parentInverse = new THREE.Matrix4().copy(follower.parent.matrixWorld).invert();
+                                         const newLocalMatrix = new THREE.Matrix4().multiplyMatrices(parentInverse, newWorldMatrix);
+                                         
+                                         newLocalMatrix.decompose(follower.position, follower.quaternion, follower.scale);
+                                         follower.updateMatrix();
+                                     }
+                                 });
+                             } finally {
+                                 isSyncingRef.current = false;
+                             }
+                         }
+
                          onTransformChange({
                              position: transformTarget.position,
                              rotation: transformTarget.rotation,
@@ -1403,26 +1660,27 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                 position={position} 
                 onClick={(e) => {
                     e.stopPropagation();
-                        if (!isSelectionDisabled && typeof onSelectMaterial === 'function' && e.object.material) {
-                            let mat = e.object.material;
-                            if (Array.isArray(mat)) {
-                                if (e.face && e.face.materialIndex !== undefined) {
-                                     mat = mat[e.face.materialIndex];
-                                } else {
-                                     mat = mat[0];
-                                }
-                            }
-                            if (mat && mat.name) {
-                                onSelectMaterial({ 
-                                    name: mat.name, 
-                                    uuid: e.object.uuid, 
-                                    parentGroup: modelName,
-                                    isShift: e.shiftKey 
-                                });
+                    // Identify the specific mesh and material clicked
+                    const mesh = e.object;
+                    if (mesh && mesh.isMesh && mesh.material) {
+                        let mat = mesh.material;
+                        if (Array.isArray(mat)) {
+                            if (e.face && e.face.materialIndex !== undefined) {
+                                mat = mat[e.face.materialIndex];
+                            } else {
+                                mat = mat[0];
                             }
                         }
+                        if (mat && mat.name && typeof onSelectMaterial === 'function') {
+                            onSelectMaterial({ 
+                                name: mat.name, 
+                                uuid: mesh.uuid, 
+                                parentGroup: modelName,
+                                isShift: e.shiftKey 
+                            });
+                        }
+                    }
                 }}
-
             />
         </group>
     </>
