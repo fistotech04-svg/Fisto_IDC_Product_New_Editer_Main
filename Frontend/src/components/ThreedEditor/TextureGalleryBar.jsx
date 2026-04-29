@@ -27,6 +27,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     const [categoryMenuPosition, setCategoryMenuPosition] = useState({ x: 0, y: 0 });
     const [renamingCategoryId, setRenamingCategoryId] = useState(null);
     const [renameValue, setRenameValue] = useState("");
+    const [pendingTexture, setPendingTexture] = useState(null);
 
     // Use data from centralized file
     const predefinedTextures = textureData;
@@ -251,10 +252,33 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
     };
 
     const handleSelect = (tex) => {
+        // If clicking 'none' (remove texture), just apply it immediately
+        if (tex.id === 'none') {
+            applyTexture(tex);
+            return;
+        }
+
+        // If no texture is currently applied, apply it immediately
+        if (!selectedTextureId || selectedTextureId === 'none') {
+            applyTexture(tex);
+            return;
+        }
+
+        // If clicking the SAME texture that is already applied, do nothing or just re-apply
+        if (selectedTextureId === tex.id) {
+            return;
+        }
+
+        // A texture is already applied and a DIFFERENT one is selected - show confirmation
+        setPendingTexture(tex);
+    };
+
+    const applyTexture = (tex) => {
         setLocalSelected(tex.id || tex.name);
         if (onSelectTexture) {
             onSelectTexture(tex);
         }
+        setPendingTexture(null);
     };
 
     const scrollLeft = () => {
@@ -319,7 +343,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                                 onClick={(e) => { e.stopPropagation(); setIsDropdownOpen(!isDropdownOpen); }}
                                 className="relative px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 flex items-center justify-between min-w-[8vw] cursor-pointer hover:bg-gray-100 transition-colors category-dropdown-container"
                             >
-                                <span className="text-[0.7vw] font-semibold text-gray-800 capitalize">{selectedCategory} ({categories[selectedCategory]})</span>
+                                <span className="text-[0.7vw] font-semibold text-gray-800 capitalize">{selectedCategory} ({categories[selectedCategory] || 0})</span>
                                 <Icon icon="heroicons:chevron-down-20-solid" width="0.8vw" className={`text-gray-500 transition-transform ${isDropdownOpen ? "rotate-180 text-black" : ""}`} />
                                 
                                 {/* Dropdown Menu */}
@@ -381,11 +405,36 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                         </div>
                     </div>
 
-                    {/* Selected Info & Close */}
-                    <div className="flex items-center gap-[1vw]">
-                        <div className="flex items-center gap-[0.7vw] bg-[#f3f4f6] rounded-[0.5vw] px-[0.8vw] py-[0.4vw] border border-gray-100">
+                    {/* Selected Info & Close (Right) */}
+                    <div className="flex items-center gap-[1.5vw]">
+                        {/* Confirmation Buttons (Moved Here) */}
+                        {pendingTexture && (
+                            <div className="flex items-center gap-[0.6vw] animate-in fade-in slide-in-from-right-2 duration-300">
+                                <span className="text-[0.7vw] font-semibold text-gray-800">Replace Texture :</span>
+                                <div className="flex items-center gap-[0.4vw]">
+                                    <button
+                                        onClick={() => applyTexture(pendingTexture)}
+                                        className="w-[1.8vw] h-[1.8vw] bg-[#34a853] text-white rounded-[0.4vw] flex items-center justify-center hover:bg-[#2d9147] transition-all shadow-sm cursor-pointer"
+                                    >
+                                        <Icon icon="heroicons:check-20-solid" width="1.1vw" height="1.1vw" />
+                                    </button>
+                                    <button
+                                        onClick={() => setPendingTexture(null)}
+                                        className="w-[1.8vw] h-[1.8vw] bg-[#f3f4f6] text-gray-400 rounded-[0.4vw] flex items-center justify-center hover:bg-gray-200 transition-all shadow-sm cursor-pointer"
+                                    >
+                                        <Icon icon="heroicons:x-mark-20-solid" width="1.1vw" height="1.1vw" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex items-center gap-[0.8vw]">
                             <span className="text-[0.7vw] font-semibold text-gray-800">Selected Texture :</span>
-                            <span className="text-[0.7vw] font-semibold text-black">{selectedTextureName}</span>
+                            <div className="px-[0.8vw] py-[0.4vw] bg-[#f3f4f6] rounded-[0.5vw] border border-gray-100 min-w-[7vw] flex items-center justify-center">
+                                <span className="text-[0.7vw] font-semibold text-black">
+                                    {pendingTexture ? pendingTexture.name : selectedTextureName}
+                                </span>
+                            </div>
                         </div>
                         {/* Close Button */}
                         <button

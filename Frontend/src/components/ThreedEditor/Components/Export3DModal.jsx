@@ -1,5 +1,6 @@
 import React, { useState, Suspense, useRef, useMemo, useEffect } from 'react';
 import { X, Check, ZoomIn, ZoomOut, Edit3, Download, ChevronDown, Layers, Box, Info } from 'lucide-react';
+import * as THREE from 'three';
 import { Canvas } from "@react-three/fiber";
 import { View, OrbitControls, Environment, PerspectiveCamera, ContactShadows, Html, Center } from "@react-three/drei";
 import RenderModel from "./ModelLoaders";
@@ -37,7 +38,7 @@ const ModelThumbnail = React.memo(({
     }, [materialName, materialList]);
 
     return (
-      <div ref={viewRef} className="w-full h-full relative group bg-gray-500 flex items-center justify-center overflow-hidden rounded-[0.3vw] shadow-inner">
+      <div ref={viewRef} className="w-full h-full relative group bg-[#393939] flex items-center justify-center overflow-hidden rounded-[0.3vw] shadow-inner">
           <View track={viewRef} className="w-full h-full">
               <Suspense fallback={
                   <Html center>
@@ -46,10 +47,44 @@ const ModelThumbnail = React.memo(({
                       </div>
                   </Html>
               }>
-                  <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
-                  <ambientLight intensity={0.5} />
-                  <pointLight position={[10, 10, 10]} intensity={0.8} />
-                  <directionalLight position={[-5, 5, 5]} intensity={0.6} />
+                  <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={45} />
+                  <ambientLight intensity={(materialSettings.shadow ?? 50) / 40} />
+                  <spotLight
+                    position={[
+                        materialSettings.lightPosition?.x ?? 5, 
+                        materialSettings.lightPosition?.y ?? 10, 
+                        materialSettings.lightPosition?.z ?? 5
+                    ]}
+                    angle={0.25}
+                    penumbra={1}
+                    intensity={(materialSettings.reflection ?? 50) / 20} 
+                    castShadow
+                    shadow-bias={-0.0001}
+                    shadow-normalBias={0.04}
+                    shadow-radius={(materialSettings.softness ?? 50) / 8} 
+                    shadow-mapSize={[1024, 1024]}
+                    shadow-camera-near={0.1}
+                    shadow-camera-far={40}
+                  />
+                  <directionalLight
+                    position={[
+                        -(materialSettings.lightPosition?.x ?? 5), 
+                        materialSettings.lightPosition?.y ?? 8, 
+                        -(materialSettings.lightPosition?.z ?? 5)
+                    ]}
+                    intensity={(materialSettings.reflection ?? 50) / 40}
+                    castShadow
+                    shadow-bias={-0.0001}
+                    shadow-normalBias={0.04}
+                    shadow-radius={(materialSettings.softness ?? 50) / 8}
+                    shadow-mapSize={[1024, 1024]}
+                    shadow-camera-left={-7}
+                    shadow-camera-right={7}
+                    shadow-camera-top={7}
+                    shadow-camera-bottom={-7}
+                    shadow-camera-near={0.1}
+                    shadow-camera-far={40}
+                  />
                   
                   <group position={[0, 0, 0]}>
                       {models.map((model) => (
@@ -66,7 +101,24 @@ const ModelThumbnail = React.memo(({
                       ))}
                   </group>
                   
-                  <Environment preset="studio" />
+                  <ContactShadows
+                      position={[0, -0.005, 0]}
+                      opacity={(materialSettings.shadow ?? 50) / 100}
+                      scale={50}
+                      blur={2.5}
+                      far={5}
+                      resolution={512}
+                      color="#000000"
+                  />
+
+                  <Environment
+                      files={materialSettings?.maps?.envMap || null}
+                      preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'city')}
+                      background={false}
+                      blur={0.5}
+                      environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                      rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
+                  />
               </Suspense>
           </View>
       </div>
@@ -427,7 +479,7 @@ export default function Export3DModal({
             ) : (
                 /* Original Full View UI (Canvas) */
                 <div className="w-[calc(44.5%-0.75vw)] bg-[#f8f9fa] rounded-[1vw] p-[1.2vw] relative flex flex-col border border-gray-100 overflow-hidden h-full">
-                    <div ref={mainViewRef} className="bg-gray-500 flex-1 rounded-[0.8vw] flex items-center justify-center relative overflow-hidden group border border-gray-100/50 h-full">
+                    <div ref={mainViewRef} className="bg-[#393939] flex-1 rounded-[0.8vw] flex items-center justify-center relative overflow-hidden group border border-gray-100/50 h-full">
                         {models.length > 0 ? (
                              <div 
                                  className="w-full h-full cursor-grab active:cursor-grabbing"
@@ -446,10 +498,44 @@ export default function Export3DModal({
                                      </div>
                                  }>
                                      <View track={mainViewRef} className="w-full h-full">
-                                         <PerspectiveCamera makeDefault position={[0, 0.8, 4.5]} fov={40} zoom={zoomLevel / 45} />
-                                         <ambientLight intensity={0.5} />
-                                         <pointLight position={[10, 10, 10]} intensity={0.8} />
-                                         <directionalLight position={[-5, 5, 5]} intensity={0.6} />
+                                         <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={45} zoom={zoomLevel / 45} />
+                                         <ambientLight intensity={(materialSettings.shadow ?? 50) / 40} />
+                                         <spotLight
+                                            position={[
+                                                materialSettings.lightPosition?.x ?? 5, 
+                                                materialSettings.lightPosition?.y ?? 10, 
+                                                materialSettings.lightPosition?.z ?? 5
+                                            ]}
+                                            angle={0.25}
+                                            penumbra={1}
+                                            intensity={(materialSettings.reflection ?? 50) / 20} 
+                                            castShadow
+                                            shadow-bias={-0.0001}
+                                            shadow-normalBias={0.04}
+                                            shadow-radius={(materialSettings.softness ?? 50) / 8} 
+                                            shadow-mapSize={[4096, 4096]}
+                                            shadow-camera-near={0.1}
+                                            shadow-camera-far={40}
+                                         />
+                                         <directionalLight
+                                            position={[
+                                                -(materialSettings.lightPosition?.x ?? 5), 
+                                                materialSettings.lightPosition?.y ?? 8, 
+                                                -(materialSettings.lightPosition?.z ?? 5)
+                                            ]}
+                                            intensity={(materialSettings.reflection ?? 50) / 40}
+                                            castShadow
+                                            shadow-bias={-0.0001}
+                                            shadow-normalBias={0.04}
+                                            shadow-radius={(materialSettings.softness ?? 50) / 8}
+                                            shadow-mapSize={[4096, 4096]}
+                                            shadow-camera-left={-7}
+                                            shadow-camera-right={7}
+                                            shadow-camera-top={7}
+                                            shadow-camera-bottom={-7}
+                                            shadow-camera-near={0.1}
+                                            shadow-camera-far={40}
+                                         />
                                          <group position={[0, -0.6, 0]}>
                                              {models.map((model) => (
                                                  <RenderModel
@@ -465,7 +551,23 @@ export default function Export3DModal({
                                                  />
                                              ))}
                                          </group>
-                                         <Environment preset="studio" />
+                                         <ContactShadows
+                                             position={[0, -0.005, 0]}
+                                             opacity={(materialSettings.shadow ?? 50) / 100}
+                                             scale={50}
+                                             blur={2.5}
+                                             far={5}
+                                             resolution={1024}
+                                             color="#000000"
+                                         />
+                                         <Environment
+                                             files={materialSettings?.maps?.envMap || null}
+                                             preset={materialSettings?.maps?.envMap ? null : (materialSettings?.environment || 'city')}
+                                             background={false}
+                                             blur={0.5}
+                                             environmentIntensity={(materialSettings?.reflection ?? 50) / 50}
+                                             rotation={[0, (materialSettings?.envRotation || 0) * (Math.PI / 180), 0]}
+                                         />
                                          <OrbitControls 
                                              enableZoom={false} 
                                              enablePan={false}
@@ -759,8 +861,17 @@ export default function Export3DModal({
         <div className="absolute inset-0 pointer-events-none z-[15] overflow-hidden rounded-[0.75vw]">
             <Canvas 
                 eventSource={modalRef}
-                shadows
-                gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
+                shadows={{ type: THREE.PCFSoftShadowMap }}
+                gl={{ 
+                    antialias: true, 
+                    alpha: true, 
+                    powerPreference: "high-performance",
+                    logarithmicDepthBuffer: true
+                }}
+                onCreated={({ gl }) => {
+                    gl.toneMapping = THREE.ACESFilmicToneMapping;
+                    gl.outputColorSpace = THREE.SRGBColorSpace;
+                }}
                 style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
             >
                 <View.Port />

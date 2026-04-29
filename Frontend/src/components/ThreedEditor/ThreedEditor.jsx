@@ -602,10 +602,20 @@ export default function ThreedEditor() {
     // 1. Prepare scene clone for processing to avoid touching live scene
     const scene = sceneWrapperRef.current.clone(true);
     
-    // Ensure all materials are also cloned (shallow clone by default in Three.js)
+    // Ensure materials are only cloned once (shared materials stay shared)
+    const clonedMaterials = new Map();
     scene.traverse((obj) => {
         if (obj.isMesh && obj.material) {
-            obj.material = Array.isArray(obj.material) ? obj.material.map(m => m.clone()) : obj.material.clone();
+            if (Array.isArray(obj.material)) {
+                obj.material = obj.material.map(m => {
+                    if (!clonedMaterials.has(m)) clonedMaterials.set(m, m.clone());
+                    return clonedMaterials.get(m);
+                });
+            } else {
+                const m = obj.material;
+                if (!clonedMaterials.has(m)) clonedMaterials.set(m, m.clone());
+                obj.material = clonedMaterials.get(m);
+            }
         }
     });
 
@@ -622,6 +632,16 @@ export default function ThreedEditor() {
         if (obj.isMesh && obj.material) {
             const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
             mats.forEach((mat) => {
+                // Sanitization for Export: Fix depth sorting and transparency glitches
+                // If opacity is very high, force OPAQUE mode to prevent sorting artifacts in external viewers
+                if ((mat.opacity >= 0.99) && !mat.alphaMap) {
+                    mat.transparent = false;
+                }
+                
+                // Ensure depth writing and alpha testing are enabled to prevent see-through glitches
+                mat.depthWrite = true;
+                mat.alphaTest = 0.1;
+
                 if (!originalTextures.has(mat)) {
                     const snap = {};
                     TEX_KEYS.forEach(k => { snap[k] = mat[k]; });
@@ -768,6 +788,24 @@ export default function ThreedEditor() {
         toast.error("Export failed. Please try again.");
     } finally {
         restoreAll();
+        
+        // Memory Cleanup: Dispose of the cloned scene resources to prevent browser crashes (STATUS_ACCESS_VIOLATION)
+        scene.traverse((obj) => {
+            if (obj.geometry) obj.geometry.dispose();
+            if (obj.material) {
+                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                mats.forEach(m => {
+                    // Dispose textures (including those created during downscaling)
+                    TEX_KEYS.forEach(k => { 
+                        if (m[k] && m[k].isTexture && m[k].image instanceof HTMLCanvasElement) {
+                            m[k].dispose(); 
+                        }
+                    });
+                    m.dispose();
+                });
+            }
+        });
+
         setManualLoading(false);
         setLoadingText("");
     }
@@ -840,12 +878,18 @@ export default function ThreedEditor() {
       next.add(matName);
       setDeletedMaterials(next);
 
+      // Automatically select full model after deletion without blink
+      if (modelName) {
+          setSelectedMaterial({ name: modelName, parentGroup: modelName, noBlink: true });
+      }
+
       pushHistory({
           ...stateRef.current,
           deletedMaterials: Array.from(next),
-          materialSettings: materialSettings
+          materialSettings: materialSettings,
+          selectedMaterial: modelName ? { name: modelName, parentGroup: modelName, noBlink: true } : null
       });
-  }, [deletedMaterials, materialSettings, pushHistory]);
+  }, [deletedMaterials, materialSettings, pushHistory, modelName]);
 
   const handleUndo = useCallback(() => {
       const prevState = undo();
@@ -900,14 +944,28 @@ export default function ThreedEditor() {
           handleToggleVisibility(matName, isCurrentlyHidden);
         }
       } else if (e.key.toLowerCase() === 'd') {
-        if (selectedMaterial && selectedMaterial.name && !selectedMaterial.isGroup) {
-          // Identify if it's a full model or just a material. 
-          // If it's a material, delete it.
-          const matName = selectedMaterial.name;
-          if (matName !== modelName && matName !== "Scene") {
+        if (selectedMaterial && selectedMaterial.name) {
+          if (selectedMaterial.isGroup) {
+              // Delete multiple materials
               e.preventDefault();
-              handleDeleteMaterial(matName);
-              setSelectedMaterial(null);
+              if (selectedMaterial.materials) {
+                  selectedMaterial.materials.forEach(m => handleDeleteMaterial(m));
+              }
+              // Selection is handled by the last handleDeleteMaterial call or we can do it explicitly here
+              if (modelName) setSelectedMaterial({ name: modelName, parentGroup: modelName });
+          } else {
+              const matName = selectedMaterial.name;
+              if (matName === modelName) {
+                  // Delete entire model
+                  e.preventDefault();
+                  handleDeleteModel(matName);
+                  setSelectedMaterial(null);
+              } else if (matName !== "Scene") {
+                  // Delete single material
+                  e.preventDefault();
+                  handleDeleteMaterial(matName);
+                  // Selection update is handled inside handleDeleteMaterial
+              }
           }
         }
       }
@@ -1649,6 +1707,16 @@ export default function ThreedEditor() {
       });
   }, [modelName, modelMaterialDataMap]);
 
+  // Reset the override flag when selection changes.
+  // This prevents the settings from one material (or a freshly synced baseline)
+  // from being pushed back to the model before the user has actually touched a slider.
+  useEffect(() => {
+    setMaterialSettings(prev => ({
+        ...prev,
+        useFactorColor: false
+    }));
+  }, [selectedMaterial]);
+
   const handleTransformChange = useCallback((t) => {
       if (t.original) {
           originalTransformRef.current = t.original;
@@ -1771,6 +1839,7 @@ export default function ThreedEditor() {
               isOpen={isTextureOpen}
               setIsOpen={setIsTextureOpen}
               onSelectTexture={handleSelectTexture}
+              selectedTextureId={selectedTextureId}
               onAddMaterialClick={() => setShowAddMaterialModal(true)}
               refreshTrigger={materialRefreshKey}
             />

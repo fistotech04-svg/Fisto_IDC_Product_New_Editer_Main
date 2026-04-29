@@ -717,7 +717,7 @@ export default function Customized({
                         value={controls.colorIntensity || 100}
                         onChange={(v) => updateControl("colorIntensity", v)}
                         mapType="map"
-                        currentMap={controls.maps?.map || currentGalleryTexture?.preview}
+                        currentMap={controls.maps?.map || currentGalleryTexture?.maps?.map || currentGalleryTexture?.preview}
                         onUpload={onMapUpload}
                         description="Defines the main color and surface appearance of the material."
                         disabled={isNoneSelected}
