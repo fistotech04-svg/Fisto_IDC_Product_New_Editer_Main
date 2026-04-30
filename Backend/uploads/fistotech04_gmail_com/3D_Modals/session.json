@@ -1,6 +1,54 @@
 {
-  "models": [],
-  "materialSettings": {},
+  "models": [
+    {
+      "id": "1777540529735",
+      "url": "https://hcxqp38j-5000.inc1.devtunnels.ms/uploads/fistotech04_gmail_com/3D_Modals/toy_rocketship.glb",
+      "file": null,
+      "type": "glb",
+      "name": "toy_rocketship",
+      "modelId": "B68EIW2NZnypavzeOzsf"
+    }
+  ],
+  "materialSettings": {
+    "alpha": 79,
+    "metallic": 100,
+    "roughness": 100,
+    "normal": 100,
+    "bump": 100,
+    "scale": 100,
+    "scaleY": 100,
+    "rotation": 0,
+    "specular": 50,
+    "reflection": 50,
+    "shadow": 50,
+    "softness": 50,
+    "ao": 100,
+    "environment": "city",
+    "color": "#ffffff",
+    "useFactorColor": false,
+    "autoUnwrap": false,
+    "envRotation": 0,
+    "offset": {
+      "x": 0,
+      "y": 0
+    },
+    "appliedTexture": null,
+    "maps": {
+      "map": "existing",
+      "normalMap": "existing",
+      "roughnessMap": "existing",
+      "metalnessMap": "existing",
+      "aoMap": "existing"
+    },
+    "emissiveIntensity": 0,
+    "emissiveColor": "#ffffff",
+    "lightPosition": {
+      "x": 10,
+      "y": 10,
+      "z": 10
+    },
+    "colorIntensity": 100
+  },
   "transformValues": {
     "position": {
       "x": 0,
@@ -18,6 +66,6 @@
       "z": 1
     }
   },
-  "modelName": "",
-  "lastSaved": "2026-04-29T12:38:25.260Z"
+  "modelName": "toy_rocketship",
+  "lastSaved": "2026-04-30T09:21:01.133Z"
 }

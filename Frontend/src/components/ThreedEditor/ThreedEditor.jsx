@@ -159,11 +159,15 @@ export default function ThreedEditor() {
     resetHistory,
     update: updateHistory
   } = useModalHistory({
+      models: models,
+      transformValues: transformValues,
+      materialSettings: materialSettings,
+      modelName: modelName,
       hiddenMaterials: Array.from(hiddenMaterials),
       deletedMaterials: Array.from(deletedMaterials),
-      modelMaterialLists,
-      selectedMaterial,
-      selectedTexture
+      modelMaterialLists: modelMaterialLists,
+      selectedMaterial: selectedMaterial,
+      selectedTexture: selectedTexture
   });
 
   const stateRef = useRef({ 
@@ -633,14 +637,10 @@ export default function ThreedEditor() {
             const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
             mats.forEach((mat) => {
                 // Sanitization for Export: Fix depth sorting and transparency glitches
-                // If opacity is very high, force OPAQUE mode to prevent sorting artifacts in external viewers
-                if ((mat.opacity >= 0.99) && !mat.alphaMap) {
-                    mat.transparent = false;
-                }
-                
-                // Ensure depth writing and alpha testing are enabled to prevent see-through glitches
-                mat.depthWrite = true;
-                mat.alphaTest = 0.1;
+                const isTrans = (mat.opacity < 0.99) || !!mat.alphaMap;
+                mat.transparent = isTrans;
+                mat.depthWrite = !isTrans;
+                mat.alphaTest = 0;
 
                 if (!originalTextures.has(mat)) {
                     const snap = {};
@@ -1438,11 +1438,22 @@ export default function ThreedEditor() {
         }
     }));
 
-    // Reset History
-    resetHistory({
+    // Make clearing undoable
+    pushHistory({
+        ...stateRef.current,
+        models: [],
+        modelName: "",
         transformValues: defaultTransform,
-        materialSettings: {},
-        modelName: ""
+        materialSettings: {
+            alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
+            specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
+            color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
+            lightPosition: { x: 10, y: 10, z: 10 }
+        },
+        hiddenMaterials: [],
+        deletedMaterials: [],
+        selectedMaterial: null,
+        selectedTexture: null
     });
 
     // Also clear from server session to make it persistent across refreshes
@@ -1474,6 +1485,11 @@ export default function ThreedEditor() {
     }
     // Trigger scene-wide reset for model parts
     setSceneResetTrigger(prev => prev + 1);
+
+    pushHistory({
+        ...stateRef.current,
+        targetPosition: { x: 0, y: 0, z: 0 }
+    });
   };
 
   const handleManualTransformChange = (type, axis, value) => {
@@ -1658,12 +1674,33 @@ export default function ThreedEditor() {
       const target = typeof val === 'object' ? { ...val } : { name: val };
       const isShift = !!target.isShift;
 
-      // Single select
+      // Optimization: If clicking the same material and not holding shift, ignore to prevent re-renders/stutter
+      if (!isShift && selectedMaterial && !selectedMaterial.isGroup && selectedMaterial.name === target.name) {
+          return;
+      }
+
+      // Multi-selection with toggle behavior
       setSelectedMaterial(prev => {
+          const prevNames = getNames(prev);
+          const nextNames = getNames(target);
+          
           if (isShift && prev) {
-              const prevNames = getNames(prev);
-              const nextNames = getNames(target);
-              const combined = Array.from(new Set([...prevNames, ...nextNames]));
+              // If shift is held, toggle the clicked material in/out of the selection
+              const allPresent = nextNames.every(name => prevNames.includes(name));
+              
+              let combined;
+              if (allPresent) {
+                  // REMOVE: If clicking a material that is already part of the selection, remove it
+                  combined = prevNames.filter(name => !nextNames.includes(name));
+              } else {
+                  // ADD: Otherwise add it
+                  combined = Array.from(new Set([...prevNames, ...nextNames]));
+              }
+
+              if (combined.length === 0) return null;
+              if (combined.length === 1) {
+                  return { name: combined[0], ts: Date.now() };
+              }
               
               return {
                   name: "Multiple Selection",
@@ -1672,6 +1709,7 @@ export default function ThreedEditor() {
                   ts: Date.now()
               };
           }
+          
           
           return { ...target, uuid: target.uuid || null, ts: Date.now() };
       });
@@ -1705,7 +1743,14 @@ export default function ThreedEditor() {
           
           return next;
       });
-  }, [modelName, modelMaterialDataMap]);
+
+      // Selection changes should be undoable
+      pushHistory({
+          ...stateRef.current,
+          selectedMaterial: target,
+          selectedTexture: null
+      });
+  }, [modelName, modelMaterialDataMap, pushHistory, selectedMaterial]);
 
   // Reset the override flag when selection changes.
   // This prevents the settings from one material (or a freshly synced baseline)
@@ -2098,19 +2143,22 @@ export default function ThreedEditor() {
                   setMaterialSettings(prev => {
                       const next = {
                           ...prev,
-                          alpha: 100,
-                          metallic: 0,
-                          roughness: 50,
-                          normal: 100,
-                          bump: 100,
-                          scale: 100,
-                          scaleY: 100,
-                          rotation: 0,
-                          offset: { x: 0, y: 0 },
-                          color: '#ffffff',
-                          useFactorColor: false,
-                          maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null }
-                      };
+                           alpha: 100,
+                           metallic: 0,
+                           roughness: 0.5,
+                           normal: 100,
+                           bump: 50,
+                           ao: 100,
+                           scale: 100,
+                           rotation: 0,
+                           offset: { x: 0, y: 0 },
+                           color: '#ffffff',
+                           colorIntensity: 100,
+                           emissiveColor: '#000000',
+                           emissiveIntensity: 0,
+                           maps: { map: null, normalMap: null, roughnessMap: null, metalnessMap: null, bumpMap: null, aoMap: null, alphaMap: null },
+                           appliedTexture: null
+                       };
                       pushHistory({ ...stateRef.current, materialSettings: next });
                       return next;
                   });

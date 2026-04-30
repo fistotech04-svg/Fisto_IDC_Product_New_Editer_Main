@@ -844,6 +844,18 @@ export default function Customized({
                             </div>
                         }
                     />
+                    <MapAccordion 
+                        title="Opacity Map"
+                        isOpen={openInnerAccordion === "opacity"}
+                        onToggle={() => toggleInnerAccordion("opacity")}
+                        value={controls.alpha || 100}
+                        onChange={(v) => updateControl("alpha", v)}
+                        mapType="alphaMap"
+                        currentMap={controls.maps?.alphaMap}
+                        onUpload={onMapUpload}
+                        description={"Controls the visibility of the material using a texture.\nWhite areas are opaque, black areas are fully transparent."}
+                        disabled={isNoneSelected}
+                    />
                 </div>
             </div>
 

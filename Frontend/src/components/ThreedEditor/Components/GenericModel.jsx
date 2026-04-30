@@ -112,21 +112,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
      const baseImg = m.map || m.base;
      const normalImg = m.normalMap || m.normal;
      const roughnessImg = m.roughnessMap || m.roughness;
-     const metalnessImg = m.metalnessMap || m.metallic || m.metalness;
-     const displacementImg = m.displacementMap || m.displacement;
+     const metallicImg = m.metalnessMap || m.metallic || m.metalness;
      const aoImg = m.aoMap || m.ao;
-     const opacityImg = m.opacityMap || m.opacity;
-     const emissiveImg = m.emissiveMap || m.emissive;
+     const displacementImg = m.displacementMap || m.displacement;
+     const alphaImg = m.alphaMap || m.opacity;
 
      if (baseImg) newMaps.map = loadMap(baseImg, true);
      if (normalImg) newMaps.normalMap = loadMap(normalImg, false);
      if (roughnessImg) newMaps.roughnessMap = loadMap(roughnessImg, false);
-     if (metalnessImg) newMaps.metalnessMap = loadMap(metalnessImg, false);
-     if (displacementImg) newMaps.displacementMap = loadMap(displacementImg, false);
+     if (metallicImg) newMaps.metalnessMap = loadMap(metallicImg, false);
      if (aoImg) newMaps.aoMap = loadMap(aoImg, false);
-     if (opacityImg) newMaps.alphaMap = loadMap(opacityImg, false);
-     if (emissiveImg) newMaps.emissiveMap = loadMap(emissiveImg, true);
-     
+     if (displacementImg) newMaps.displacementMap = loadMap(displacementImg, false);
+     if (alphaImg) newMaps.alphaMap = loadMap(alphaImg, false);
+
      const selMat = selectedMaterial; 
      const targetMatName = selMat ? selMat.name : null;
 
@@ -141,17 +139,24 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                    if (processedMaterials.has(mat.uuid)) return;
                    processedMaterials.add(mat.uuid);
                    
-                    // Forcefully replace maps (clearing old ones if new one doesn't exist)
-                    mat.map = newMaps.map || null;
-                    mat.normalMap = newMaps.normalMap || null;
-                    mat.aoMap = newMaps.aoMap || null;
-                    mat.displacementMap = newMaps.displacementMap || null;
-                    if (mat.displacementMap && mat.displacementScale === undefined) mat.displacementScale = 0.01; 
+                    // Surgical replacement: Only replace maps that are provided by the new texture.
+                    // This prevents clobbering existing maps (like an original diffuse map) when applying a partial gallery texture.
+                    if (newMaps.map) mat.map = newMaps.map;
+                    if (newMaps.normalMap) {
+                        mat.normalMap = newMaps.normalMap;
+                        mat.bumpMap = newMaps.normalMap; // Use normal map as bump fallback
+                        if (!mat.bumpScale) mat.bumpScale = 1;
+                    }
+                    if (newMaps.aoMap) mat.aoMap = newMaps.aoMap;
+                    if (newMaps.displacementMap) {
+                        mat.displacementMap = newMaps.displacementMap;
+                        if (mat.displacementScale === undefined) mat.displacementScale = 0.01;
+                    }
+                    if (newMaps.alphaMap) {
+                        mat.alphaMap = newMaps.alphaMap;
+                        mat.transparent = true;
+                    }
                     
-                    // Use normal map as bump map if no bump map is provided to allow bump scale adjustment
-                    mat.bumpMap = newMaps.normalMap || null;
-                    if (mat.bumpMap && !mat.bumpScale) mat.bumpScale = 1;
-                   
                     // Clear any ongoing flash and reset emissive
                     mat.userData.isFlashing = false;
                     if (mat.emissive && typeof mat.emissive.set === 'function') {
@@ -160,14 +165,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     }
 
                     if (mat.isMeshStandardMaterial || mat.isMeshPhysicalMaterial || mat.isMeshPhongMaterial) {
-                        mat.roughnessMap = newMaps.roughnessMap || null;
-                        mat.metalnessMap = newMaps.metalnessMap || null;
-
-                        // Reset factors to 1.0 for full map influence if maps are present
-                        if (newMaps.roughnessMap) mat.roughness = 1.0;
-                        if (newMaps.metalnessMap && mat.metalness !== undefined) mat.metalness = 1.0;
+                        if (newMaps.roughnessMap) {
+                            mat.roughnessMap = newMaps.roughnessMap;
+                            mat.roughness = 1.0; // Reset factor for full map influence
+                        }
+                        if (newMaps.metalnessMap) {
+                            mat.metalnessMap = newMaps.metalnessMap;
+                            if (mat.metalness !== undefined) mat.metalness = 1.0;
+                        }
                         
-                        // Reset color to white so diffuse map is not tinted
+                        // Reset color to white if a base map is being applied so it's not tinted
                         if (newMaps.map && mat.color && typeof mat.color.set === 'function') {
                             mat.color.set(0xffffff);
                         }
@@ -601,6 +608,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     if (!m.userData.originalColor) m.userData.originalColor = m.color?.clone();
                     if (m.userData.originalOpacity === undefined) m.userData.originalOpacity = m.opacity;
                     if (m.map) m.userData.originalMap = m.map;
+                    if (m.normalMap) m.userData.originalNormalMap = m.normalMap;
+                    if (m.alphaMap) m.userData.originalAlphaMap = m.alphaMap;
                 }
 
                 // Add to Group or Ungrouped
@@ -1059,13 +1068,16 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                                           m.name?.toLowerCase().includes('window') || 
                                           (m.userData.originalOpacity !== undefined && m.userData.originalOpacity < 0.95);
 
-                    if (!isFullModel || !isLikelyGlass || alpha < 0.999) {
-                        m.transparent = alpha < 0.999 || !!m.alphaMap;
-                        m.opacity = alpha;
-                    }
+                    // Final transparency & depth logic
+                    const isTransparent = alpha < 0.999 || !!m.alphaMap;
+                    m.transparent = isTransparent;
+                    m.opacity = alpha;
                     
-                    m.depthWrite = true;
-                    m.alphaTest = 0.1; // Magic value to fix sorting glitches during rotation
+                    // Critical: depthWrite MUST be false for semi-transparent materials 
+                    // to prevent objects behind them from being discarded.
+                    m.depthWrite = !isTransparent;
+                    m.alphaTest = 0; 
+                    m.needsUpdate = true;
                     
                     if (m.emissive && typeof m.emissive.set === 'function') {
                         m.emissive.set(emissiveColor);
@@ -1084,9 +1096,10 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     }
 
                     // 3. Texture Removal Check
-                    const configTextureId = materialSettings.appliedTexture?.id || null;
+                    const configTextureId = materialSettings.appliedTexture?.id || materialSettings.appliedTexture?._id || null;
                     const matTextureId = m.userData.appliedTextureId || null;
                     const isNone = configTextureId === 'none';
+
                     if (matTextureId && (!configTextureId || isNone)) {
                          // Texture was stripped from state (e.g. Undo) or 'None' selected, so strip from material
                          m.map = null;
@@ -1096,17 +1109,19 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                          m.aoMap = null;
                          m.displacementMap = null;
                          m.bumpMap = null;
-                         delete m.userData.appliedTexture;
-                         delete m.userData.appliedTextureId;
+                         m.alphaMap = null;
+                         
+                         // Restore original maps if they existed
+                         if (m.userData.originalMap) m.map = m.userData.originalMap;
+                         if (m.userData.originalNormalMap) m.normalMap = m.userData.originalNormalMap;
+                         if (m.userData.originalAlphaMap) m.alphaMap = m.userData.originalAlphaMap;
+                         
+                         m.userData.appliedTexture = null;
+                         m.userData.appliedTextureId = null;
+                         m.needsUpdate = true;
+                    }
 
-                          if (m.userData.originalMap) {
-                              m.map = m.userData.originalMap;
-                          }
-                          m.userData.appliedTextureId = null;
-                          m.needsUpdate = true;
-                     }
-
-                     // 4. Texture Transformations (Syncing logic moved to dedicated effect)
+                    // 4. Texture Transformations (Syncing logic moved to dedicated effect)
 
                     // 4. Texture Transformations
                     // Only apply if the current mesh matches the selection scope (isMatch).
@@ -1124,8 +1139,12 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                     }
 
                     // Restore original map if it exists and no custom texture is applied
-                    if (!m.userData.appliedTextureId && m.userData.originalMap && !m.map) {
+                    if (!m.userData.appliedTextureId && !m.map && m.userData.originalMap) {
                         m.map = m.userData.originalMap;
+                        m.needsUpdate = true;
+                    }
+                    if (!m.userData.appliedTextureId && !m.alphaMap && m.userData.originalAlphaMap) {
+                        m.alphaMap = m.userData.originalAlphaMap;
                         m.needsUpdate = true;
                     }
                     
@@ -1703,8 +1722,11 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                  object={transformTarget} 
                  mode={transformMode} 
                  size={0.8} 
-                 space="local" 
-                 onChange={() => {
+                  space="local" 
+                  onPointerDown={(e) => {
+                      e.stopPropagation();
+                  }}
+                  onChange={() => {
                      if (typeof onTransformChange === 'function' && transformTarget) {
                          // Multi-mesh sync during active transform
                          if (relatedMeshesRef.current.length > 1 && !isSyncingRef.current) {
@@ -1749,8 +1771,32 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             ref={setModelGroup}
             onPointerDown={(e) => {
                 e.stopPropagation();
-                // Identify the specific mesh and material clicked
+                
+                // Identify the specific mesh hit
                 const mesh = e.object;
+                
+
+                // Selection Guard: Ignore selection if the user is clicking on the transformation handles.
+                const intersections = e.intersections;
+                if (intersections && intersections.length > 0) {
+                    const closest = intersections[0].object;
+                    let isClosestPartOfModel = false;
+                    let currClosest = closest;
+                    while (currClosest) {
+                        if (currClosest === scene) {
+                            isClosestPartOfModel = true;
+                            break;
+                        }
+                        currClosest = currClosest.parent;
+                    }
+                    if (!isClosestPartOfModel) return;
+                }
+
+                // Lock selection while transform tools are active to prevent accidental jumping
+                if (transformMode && selectedMaterial) {
+                    return;
+                }
+
                 if (mesh && mesh.isMesh && mesh.material) {
                     let mat = mesh.material;
                     if (Array.isArray(mat)) {
