@@ -61,7 +61,7 @@ const SectionHeader = ({ label, showLine = true }) => (
 );
 const backendUrlGlobal = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 const resolveMapUrl = (url) => {
-    if (!url) return null;
+    if (!url || url === 'existing') return null;
     if (typeof url !== 'string') return url;
     if (url.startsWith('http') || url.startsWith('blob:') || url.startsWith('data:')) return url;
     if (url.startsWith('/')) return `${backendUrlGlobal}${url}`;
@@ -881,7 +881,7 @@ export default function Customized({
                         label="Scale"
                         value={controls.scale}
                         onChange={(v) => updateControl("scale", v)}
-                        min={-100}
+                        min={0}
                         max={100}
                         unit="%"
                     />

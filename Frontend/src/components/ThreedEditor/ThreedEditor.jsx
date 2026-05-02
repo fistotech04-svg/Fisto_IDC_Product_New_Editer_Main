@@ -255,7 +255,7 @@ export default function ThreedEditor() {
             modelUrl: null,
             modelName: "",
             materialSettings: {
-                alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
+                alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 4, rotation: 0,
                 specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
                 color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
                 lightPosition: { x: 10, y: 10, z: 10 }
@@ -342,6 +342,12 @@ export default function ThreedEditor() {
           }
           if (mapsChanged) {
               nextMaterialSettings.maps = nextMaps;
+              if (nextMaterialSettings.appliedTexture) {
+                  nextMaterialSettings.appliedTexture = {
+                      ...nextMaterialSettings.appliedTexture,
+                      maps: { ...(nextMaterialSettings.appliedTexture.maps || {}), ...nextMaps }
+                  };
+              }
               setMaterialSettings(nextMaterialSettings);
           }
       }
@@ -417,6 +423,9 @@ export default function ThreedEditor() {
               // C. Upload GLB (The textured model)
               const glbFormData = new FormData();
               glbFormData.append('emailId', user.emailId);
+              if (nextModels[0]?.modelId) {
+                  glbFormData.append('modelId', nextModels[0].modelId);
+              }
               glbFormData.append('model', new Blob([glbBuffer]), `${baseName}.glb`);
               const glbRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, glbFormData);
               
@@ -444,20 +453,6 @@ export default function ThreedEditor() {
               console.error("Gallery sync failed:", e);
           }
       }
-
-      // Save Full State (Session) to Backend
-      const stateToSave = {
-          models: nextModels,
-          materialSettings: nextMaterialSettings, // Use potentially updated settings with server URLs
-          transformValues,
-          modelName,
-          lastSaved: new Date().toISOString()
-      };
-      
-      await axios.post(`${backendUrl}/api/3d-models/save-session`, {
-          emailId: user.emailId,
-          state: stateToSave
-      });
 
       if (hasUploaded || hasExported) {
         setModels(nextModels);
@@ -1646,6 +1641,7 @@ export default function ThreedEditor() {
                next.bump = textureData.isUploaded ? 0 : 0; // Standardize bump for uploads
                next.ao = 100;
                next.color = '#ffffff';
+               next.scale = 4;
                next.useFactorColor = true;
            }
 
@@ -1736,6 +1732,7 @@ export default function ThreedEditor() {
                       metallic: defaultData.metallic !== undefined ? defaultData.metallic : next.metallic,
                       roughness: defaultData.roughness !== undefined ? defaultData.roughness : next.roughness,
                       alpha: defaultData.opacity !== undefined ? defaultData.opacity : next.alpha,
+                      scale: defaultData.scale !== undefined ? defaultData.scale : next.scale,
                       maps: defaultData.maps || {}
                   };
               }

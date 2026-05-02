@@ -1,21 +1,20 @@
 {
   "models": [
     {
-      "id": "1777540529735",
+      "id": "1777707131432",
       "url": "https://hcxqp38j-5000.inc1.devtunnels.ms/uploads/fistotech04_gmail_com/3D_Modals/toy_rocketship.glb",
       "file": null,
       "type": "glb",
-      "name": "toy_rocketship",
-      "modelId": "B68EIW2NZnypavzeOzsf"
+      "name": "toy_rocketship"
     }
   ],
   "materialSettings": {
-    "alpha": 79,
+    "alpha": 100,
     "metallic": 100,
     "roughness": 100,
     "normal": 100,
-    "bump": 100,
-    "scale": 100,
+    "bump": 0,
+    "scale": 4,
     "scaleY": 100,
     "rotation": 0,
     "specular": 50,
@@ -25,27 +24,41 @@
     "ao": 100,
     "environment": "city",
     "color": "#ffffff",
-    "useFactorColor": false,
+    "useFactorColor": true,
     "autoUnwrap": false,
     "envRotation": 0,
     "offset": {
       "x": 0,
       "y": 0
     },
-    "appliedTexture": null,
-    "maps": {
-      "map": "existing",
-      "normalMap": "existing",
-      "roughnessMap": "existing",
-      "metalnessMap": "existing",
-      "aoMap": "existing"
+    "appliedTexture": {
+      "id": "red_plaid",
+      "name": "Red Plaid",
+      "category": "cloth",
+      "preview": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_preview.jpg",
+      "maps": {
+        "map": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_albedo.png",
+        "normalMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_normal-ogl.png",
+        "roughnessMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_roughness.png",
+        "metalnessMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_metallic.png",
+        "aoMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_ao.png"
+      },
+      "ts": 1777707446445
     },
-    "emissiveIntensity": 0,
-    "emissiveColor": "#ffffff",
     "lightPosition": {
       "x": 10,
       "y": 10,
       "z": 10
+    },
+    "maps": {
+      "map": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_albedo.png",
+      "normalMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_normal-ogl.png",
+      "roughnessMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_roughness.png",
+      "metalnessMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_metallic.png",
+      "aoMap": "https://hcxqp38j-5000.inc1.devtunnels.ms/textures/Cloth/red-plaid/red-plaid_ao.png",
+      "displacementMap": null,
+      "alphaMap": null,
+      "emissiveMap": null
     },
     "colorIntensity": 100
   },
@@ -67,5 +80,5 @@
     }
   },
   "modelName": "toy_rocketship",
-  "lastSaved": "2026-04-30T09:21:01.133Z"
+  "lastSaved": "2026-05-02T07:38:03.681Z"
 }

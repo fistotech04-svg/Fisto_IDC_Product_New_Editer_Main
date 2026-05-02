@@ -11,6 +11,39 @@ import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUti
 const globalTextureCache = new Map();
 const privateTextureManager = new THREE.LoadingManager();
 const sharedTextureLoader = new THREE.TextureLoader(privateTextureManager);
+sharedTextureLoader.setCrossOrigin('anonymous');
+
+// Helper to extract a usable image URL/DataURL from a Three.js texture
+const getTextureSource = (tex) => {
+    if (!tex || !tex.image) return null;
+    const img = tex.image;
+    
+    // 1. If it's a standard Image/HTMLImageElement with a valid src
+    if (img.src && (img.src.startsWith('http') || img.src.startsWith('blob:') || img.src.startsWith('data:'))) {
+        return img.src;
+    }
+    
+    // 2. If it's a Canvas element
+    if (img instanceof HTMLCanvasElement) {
+        try { return img.toDataURL(); } catch (e) { return null; }
+    }
+
+    // 3. Fallback: Draw to a temporary canvas to extract the data
+    try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width || img.naturalWidth || 256;
+        canvas.height = img.height || img.naturalHeight || 256;
+        
+        if (canvas.width === 0 || canvas.height === 0) return null;
+        
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        return canvas.toDataURL();
+    } catch (e) {
+        console.warn("Failed to extract texture data URL:", e);
+        return null;
+    }
+};
 
 const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelStats, setMaterialList, selectedMaterial, onSelectMaterial, modelName, transformMode, materialSettings, hiddenMaterials, onTransformChange, onTransformEnd, transformValues, selectedTexture, onTextureApplied, onTextureIdentified, onUpdateMaterialSetting, resetKey, sceneResetTrigger, uvUnwrapTrigger, isSelectionDisabled }, ref) => {
   const [position, setPosition] = useState([0, 0, 0]);
@@ -432,12 +465,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
       // Helper to extract URL from a Three.js Texture
       const getTexUrl = (tex) => {
-          if (!tex || !tex.image) return "existing";
-          if (tex.image.src && (tex.image.src.startsWith('http') || tex.image.src.startsWith('blob:') || tex.image.src.startsWith('data:'))) {
-              return tex.image.src;
-          }
-          if (tex.image instanceof HTMLCanvasElement) return tex.image.toDataURL();
-          return "existing";
+          return getTextureSource(tex) || "existing";
       };
 
       if (foundMat && foundMat.userData && foundMat.userData.appliedTextureId) {
@@ -467,6 +495,12 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
               if (typeof onUpdateMaterialSetting === 'function') {
                   onUpdateMaterialSetting('maps', nativeMaps);
+                  
+                  // Sync existing scale back to UI
+                  if (foundMat.map && foundMat.map.repeat) {
+                      const detectedScale = Math.round(100 / (foundMat.map.repeat.x || 1));
+                      onUpdateMaterialSetting('scale', detectedScale);
+                  }
               }
           }
       } else {
@@ -673,9 +707,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
             mats.forEach(m => {
                 if (m.name && !materialDataMap[m.name]) {
                     const extractTexture = (tex) => {
-                        if (!tex) return null;
-                        if (tex.image && tex.image.src) return tex.image.src;
-                        return null;
+                        return getTextureSource(tex);
                     };
 
                     materialDataMap[m.name] = {
@@ -683,6 +715,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
                         metallic: m.metalness !== undefined ? m.metalness * 100 : 0,
                         roughness: m.roughness !== undefined ? m.roughness * 100 : 50,
                         opacity: m.opacity !== undefined ? m.opacity * 100 : 100,
+                        scale: (m.map && m.map.repeat) ? Math.round(100 / (m.map.repeat.x || 1)) : 100,
                         maps: {
                             map: extractTexture(m.map),
                             normalMap: extractTexture(m.normalMap),
@@ -1005,8 +1038,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const emissiveColor = materialSettings.emissiveColor || '#000000';
     const emissiveIntensity = (materialSettings.emissiveIntensity ?? 0) / 100;
     
-    const texScaleX = (materialSettings.scale ?? 100) / 100;
-    const texScaleY = (materialSettings.scaleY ?? materialSettings.scale ?? 100) / 100;
+    const texScaleX = 100 / (materialSettings.scale || 0.01);
+    const texScaleY = 100 / (materialSettings.scale || 0.01);
     const texRotation = (materialSettings.rotation ?? 0) * (Math.PI / 180);
     const texOffsetX = (materialSettings.offset?.x ?? 0) / 100;
     const texOffsetY = (materialSettings.offset?.y ?? 0) / 100;
@@ -1170,8 +1203,8 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
 
     if (isNone) return;
 
-    const texScaleX = (materialSettings.scale ?? 100) / 100;
-    const texScaleY = (materialSettings.scaleY ?? materialSettings.scale ?? 100) / 100;
+    const texScaleX = 100 / (materialSettings.scale || 0.01);
+    const texScaleY = 100 / (materialSettings.scale || 0.01);
 
     const applyToMeshes = (meshes) => {
         meshes.forEach(child => {

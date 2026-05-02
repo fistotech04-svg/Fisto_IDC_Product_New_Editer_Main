@@ -124,7 +124,7 @@ const Editor = () => {
         scale: { x: 1, y: 1, z: 1 }
       },
       materialSettings: {
-        alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 100, scaleY: 100, rotation: 0,
+        alpha: 100, metallic: 0, roughness: 50, normal: 100, bump: 100, scale: 4, rotation: 0,
         specular: 50, reflection: 50, shadow: 50, softness: 50, ao: 100, environment: 'city',
         color: '#ffffff', useFactorColor: false, autoUnwrap: false, envRotation: 0, offset: { x: 0, y: 0 },
         lightPosition: { x: 10, y: 10, z: 10 }

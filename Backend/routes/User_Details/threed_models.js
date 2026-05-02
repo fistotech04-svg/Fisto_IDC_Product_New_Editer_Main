@@ -81,7 +81,7 @@ router.post("/upload-model", (req, res) => {
     }
 
     try {
-      const { emailId } = req.body;
+      const { emailId, modelId } = req.body;
       if (!emailId) {
         return res.status(400).json({ message: "Email ID is required" });
       }
@@ -95,23 +95,43 @@ router.post("/upload-model", (req, res) => {
       const type = path.extname(req.file.filename).slice(1);
       const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
 
-      // Save to Database
-      const newModel = new ThreedModel({
-        userEmail: emailId,
-        name: req.file.filename,
-        url: relativeUrl,
-        type: type,
-        size: sizeStr
-      });
-      await newModel.save();
+      let model;
+      if (modelId) {
+          model = await ThreedModel.findOne({ modelId, userEmail: emailId });
+          if (model) {
+              // Delete old file if name changed (optional, but good for cleanup)
+              if (model.name !== req.file.filename) {
+                  const oldPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals", model.name);
+                  if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+              }
+              
+              model.name = req.file.filename;
+              model.url = relativeUrl;
+              model.type = type;
+              model.size = sizeStr;
+              await model.save();
+          }
+      }
+
+      if (!model) {
+          // Save as new model if no modelId or model not found
+          model = new ThreedModel({
+            userEmail: emailId,
+            name: req.file.filename,
+            url: relativeUrl,
+            type: type,
+            size: sizeStr
+          });
+          await model.save();
+      }
 
       res.status(200).json({
-        message: "Model uploaded successfully",
+        message: modelId ? "Model updated successfully" : "Model uploaded successfully",
         url: relativeUrl,
         name: req.file.filename,
         type: type,
         size: sizeStr,
-        modelId: newModel.modelId
+        modelId: model.modelId
       });
     } catch (error) {
       console.error("Error processing 3D model:", error);

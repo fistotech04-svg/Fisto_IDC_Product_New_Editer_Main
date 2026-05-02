@@ -664,7 +664,7 @@ export default function MyFlipbooks() {
   const isAllSelected = filteredBooks.length > 0 && selectedBooks.length === filteredBooks.length;
 
   return (
-    <div className="flex bg-[#eef0f8] h-screen">
+    <div className="flex bg-[#eef0f8] h-full">
       {/* Sidebar */}
       <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20">
         
@@ -826,14 +826,14 @@ export default function MyFlipbooks() {
 
       {/* Main Content */}
       <main 
-        className="flex-1 ml-[18vw] p-[2vw] relative overflow-hidden bg-cover bg-center"
+        className="flex-1 ml-[18vw] p-[2vw] relative overflow-hidden bg-cover bg-center flex flex-col"
         style={{ backgroundImage: `url(${DashboardBg})` }}
       >
            
            <h1 className="text-[2vw] font-semibold text-[#00000] mb-[2vw] relative z-10">My Flipbooks</h1>
 
            {/* Blue Container Card */}
-           <div className="w-full h-[calc(92vh-140px)] bg-[#343b854d] rounded-[1.5vw] p-[1.5vw] shadow-2xl relative flex flex-col">
+           <div className="w-full flex-1 min-h-0 bg-[#343b854d] rounded-[1.5vw] p-[1.5vw] shadow-2xl relative flex flex-col">
                 <div className="flex items-center justify-between mb-[1.5vw] z-10">
                     <h2 className="text-[1.5vw] font-semibold text-[#343868]">Recent - Flipbooks</h2>
                     
