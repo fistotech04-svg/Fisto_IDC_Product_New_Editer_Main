@@ -133,6 +133,7 @@ const Editor = () => {
       materialList: [],
   });
 
+  const [activeDevice, setActiveDevice] = useState('Desktop');
   const [isRestoring, setIsRestoring] = useState(true);
 
   // Restore State from IndexedDB on Mount
@@ -226,8 +227,10 @@ const Editor = () => {
     threedState,        // 3D State getter
     setThreedState,      // 3D State setter
     currentBook,
-    setCurrentBook
-  }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, canSave, threedState, currentBook]);
+    setCurrentBook,
+    activeDevice,
+    setActiveDevice
+  }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, canSave, threedState, currentBook, activeDevice]);
 
   if (isRestoring) {
       return (
@@ -251,6 +254,8 @@ const Editor = () => {
         onToggleAutoSave={toggleAutoSave}
         currentBook={currentBook}
         isSaving={isSaving}
+        activeDevice={activeDevice}
+        setActiveDevice={setActiveDevice}
       />
       <div className="flex-1 overflow-hidden">
         <Outlet context={contextValue} />

@@ -24,12 +24,11 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 <head>
 <style>
   html, body {
-    margin:0; padding:0; overflow:hidden; background:transparent; width:100%; height:100%;
+    margin:0; padding:0; overflow:hidden; background:#fff; width:100%; height:100%;
     backface-visibility: hidden !important;
     -webkit-backface-visibility: hidden !important;
   }
   * { box-sizing: border-box; }
-  svg { width: 100% !important; height: 100% !important; display: block !important; }
 </style>
 </head>
 <body>${rawHtml || ''}</body>
@@ -47,13 +46,6 @@ const loadScript = (src) =>
     });
 
 /* ─────────────────────────────── component ─────────────────────────────── */
-
-const getSvgBackground = (html) => {
-    if (!html) return 'transparent';
-    const match = html.match(/data-name="Overlay"[^>]*fill="([^"]+)"/);
-    if (match && match[1]) return match[1];
-    return '#ffffff';
-};
 
 const FlipBookEngine = forwardRef(function FlipBookEngine(
     {
@@ -78,6 +70,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         activeLayout,
         flipStyle,
         textureStyle,
+        singlePage = false,
     },
     ref
 ) {
@@ -128,14 +121,26 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 data-density={isHardPage ? 'hard' : 'soft'}
                 className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'}`}
                 style={{ 
-                    backgroundColor: page.isPad ? 'transparent' : getSvgBackground(page.html || page.content),
+                    backgroundColor: page.isPad ? 'transparent' : '#fff',
                 }}
+                onMouseDown={(e) => {
+                    startX = e.clientX;
+                    startY = e.clientY;
+                }}
+                onMouseUp={(e) => {
+                    const diffX = Math.abs(e.clientX - startX);
+                    const diffY = Math.abs(e.clientY - startY);
+                    if (diffX < 10 && diffY < 10) {
+                        e.stopPropagation();
+                    }
+                }}
+                onClick={(e) => e.stopPropagation()}
             >
                 {!page.isPad && (
                     <>
                         <iframe
                             title={`Page ${i + 1}`}
-                            srcDoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
+                            srcdoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
                             style={{ border: 'none', width: 'calc(100% / 0.67)', height: 'calc(100% / 0.67)', transform: 'scale(0.67)', transformOrigin: 'top left', pointerEvents: 'none', borderRadius: 'inherit' }}
                         />
                         {textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor) && (
@@ -158,17 +163,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         let alive = true;
         (async () => {
             try {
-                if (!window.jQuery) {
-                    await loadScript('/lib/jquery.min.js');
-                    // Force global availability for legacy plugins
-                    window.jQuery = window.jQuery || window.$;
-                    if (window.jQuery) window.$ = window.jQuery;
-                }
-                
-                if (!window.jQuery?.fn?.turn) {
-                    await loadScript('/lib/turn.min.js');
-                }
-                
+                if (!window.jQuery)            await loadScript('/lib/jquery.min.js');
+                if (!window.jQuery?.fn?.turn)  await loadScript('/lib/turn.min.js');
                 if (alive) setReady(true);
             } catch (err) {
                 console.error('[FlipBookEngine] Script load failed:', err);
@@ -229,17 +225,14 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
             // In turn.js, the "hard" class creates a rigid, non-curling fold. 
             // We use both 'hard' and 'cover' for maximum compatibility with custom patches.
-            const bgColor = getSvgBackground(page.html || page.content);
-
             if (isPageHard) {
                 pageDiv.className = 'hard cover fbe-page';
                 pageDiv.setAttribute('data-density', 'hard');
-                pageDiv.style.backgroundColor = bgColor !== 'transparent' ? bgColor : '#ffffff';
+                pageDiv.style.backgroundColor = '#ffffff';
                 pageDiv.style.borderRadius = i % 2 === 0 ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             } else {
                 pageDiv.className = 'fbe-page fbe-page--soft';
-                pageDiv.style.backgroundColor = bgColor !== 'transparent' ? bgColor : '#ffffff';
                 pageDiv.style.borderRadius = i % 2 === 0 ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             }
@@ -250,22 +243,12 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 // Add backface visibility hidden to inner to prevent shearing during 3D flip
                 inner.style.webkitBackfaceVisibility = 'hidden';
                 inner.style.backfaceVisibility = 'hidden';
-                inner.style.position = 'relative';
 
-                const svgContent = page.html || page.content || '';
-                
-                // For turn.js we use a pure DOM wrapper to prevent iframe clone restarting and ghosting
-                const contentDiv = document.createElement('div');
-                contentDiv.innerHTML = svgContent;
-                contentDiv.style.cssText = 'position:absolute;top:0;left:0;border:none;width:calc(100% / 0.67);height:calc(100% / 0.67);transform:scale(0.67);transform-origin:top left;pointer-events:none;z-index:1;background:transparent;';
-                
-                // Ensure SVG fits perfectly
-                const svgNode = contentDiv.querySelector('svg');
-                if (svgNode) {
-                    svgNode.style.cssText = 'width: 100% !important; height: 100% !important; display: block !important;';
-                }
-                
-                inner.appendChild(contentDiv);
+                const iframe = document.createElement('iframe');
+                iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
+                // Render scaled to fill exactly
+                iframe.style.cssText = 'border:none;width:calc(100% / 0.67);height:calc(100% / 0.67);transform:scale(0.67);transform-origin:top left;pointer-events:none;';
+                inner.appendChild(iframe);
 
                 // Add texture overlay
                 if (textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor)) {
@@ -283,6 +266,33 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 }
 
                 pageDiv.appendChild(inner);
+
+                // Distinguish between a click and a drag to block single-click flipping
+                let startX = 0;
+                let startY = 0;
+
+                pageDiv.addEventListener('mousedown', (e) => {
+                    startX = e.clientX;
+                    startY = e.clientY;
+                }, true);
+
+                pageDiv.addEventListener('mouseup', (e) => {
+                    const diffX = Math.abs(e.clientX - startX);
+                    const diffY = Math.abs(e.clientY - startY);
+                    
+                    // If the mouse hasn't moved significant distance (more than 10px), it's a click.
+                    // We stop propagation to prevent the flipbook engine from seeing this as a flip trigger.
+                    if (diffX < 10 && diffY < 10) {
+                        e.stopPropagation();
+                        e.stopImmediatePropagation();
+                    }
+                }, true);
+
+                // Also block the 'click' event itself just in case
+                pageDiv.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                }, true);
             } else {
                 // Invisible pad page
                 pageDiv.style.cssText = 'opacity:0;pointer-events:none;background:transparent;';
@@ -297,9 +307,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         const initPage = Math.max(1, currentPage + 1);
 
         $book.turn({
-            width        : width * 2,
+            width        : singlePage ? width : width * 2,
             height,
-            display      : 'double',
+            display      : singlePage ? 'single' : 'double',
             duration     : flipTime,
             acceleration : flipStyle === 'Smooth Flip' || flipStyle === '3D Flip',
             gradients    : true,
@@ -328,7 +338,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         };
     // onFlip intentionally excluded — it's captured in the closure correctly
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, pages, width, height, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle, startPage]);
+    }, [ready, pages, width, height, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle]);
 
     /* ── Imperative API (exposed via ref) ── */
     const flipNextFn = useCallback(() => {
@@ -349,10 +359,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
     const flipToPageFn = useCallback((idx) => {
         if (showingTurnJs && bookEl.current && window.jQuery) {
-            const $book = window.jQuery(bookEl.current);
-            if ($book.data('turn')) {
-                $book.turn('page', idx + 1);
-            }
+            window.jQuery(bookEl.current).turn('page', idx + 1);
         } else if (reactFlipRef.current) {
             reactFlipRef.current.pageFlip().turnToPage(idx);
         }
@@ -410,7 +417,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         <div
             className={`fbe-wrapper ${className}`}
             style={{
-                width: width * 2, height, position: 'relative',
+                width: singlePage ? width : width * 2, height, position: 'relative',
                 background: 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 ...style,
@@ -426,7 +433,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             {/* ── TURN.JS ENGINE — centering wrapper ── */}
             <div
                 style={{
-                    width     : width * 2,
+                    width     : singlePage ? width : width * 2,
                     height,
                     position  : 'relative',
                     transition: bookTransition,
@@ -440,7 +447,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     ref={bookEl}
                     className="fbe-book"
                     style={{
-                        width     : width * 2,
+                        width     : singlePage ? width : width * 2,
                         height,
                         position  : 'relative',
                         background: 'transparent',
@@ -469,7 +476,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         startPage={Number(activeLayout) === 1 ? currentPage : startPage}
                         showCover={true}
                         autoCenter={false}
-                        clickEventForward={true}
+                        clickEventForward={false} // Disable flipping on single click
                         style={{ background: 'transparent' }}
                         onFlip={(e) => {
                             const logical = e.data;
@@ -485,8 +492,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             {/* Page styles */}
             {cornerEnable && (
                 <style>{`
-                    .fbe-page { background: transparent; overflow: hidden; margin: 0; padding: 0; -webkit-transform: translate3d(0,0,0); box-shadow: none !important; border: none !important; outline: none !important; }
-                    .fbe-inner { width: 100%; height: 100%; overflow: hidden; background: transparent; margin: 0; padding: 0; box-shadow: none !important; border: none !important; }
+                    .fbe-page { background: #fff; overflow: hidden; margin: 0; padding: 0; -webkit-transform: translate3d(0,0,0); box-shadow: none !important; border: none !important; outline: none !important; }
+                    .fbe-inner { width: 100%; height: 100%; overflow: hidden; background: #fff; margin: 0; padding: 0; box-shadow: none !important; border: none !important; }
                     .turn-page { box-shadow: none !important; border: none !important; outline: none !important; }
                     
                     /* React-pageflip specific classes */

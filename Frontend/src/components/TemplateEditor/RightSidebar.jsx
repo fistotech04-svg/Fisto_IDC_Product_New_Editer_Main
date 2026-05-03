@@ -2,11 +2,19 @@ import React, { useState, useRef, useEffect } from 'react';
 import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ShapeProperties from './ShapeProperties';
+import ImageEditor from './ImageEditor';
+import TextEditor from './TextEditor';
+import IconGallery from './icons';
+import VideoEditor from './VideoEditor';
+import GifEditor from './Gif';
+import AnimationPanel from './AnimationPanel';
+
 
 const RightSidebar = ({ 
   isDoublePage, 
   setIsDoublePage, 
   activeMainTool,
+  setActiveMainTool,
   activeTopTool,
   activePageIndex,
   pages,
@@ -63,18 +71,39 @@ const RightSidebar = ({
         return;
     }
 
+    const isVideo = file.type.startsWith('video/');
+    const isGif = file.type === 'image/gif';
+    const isSvg = file.type === 'image/svg+xml';
+
+    if (isVideo) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const videoUrl = event.target.result;
+        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+          detail: { videoUrl, pageIndex: activePageIndex, file }
+        }));
+      };
+      reader.readAsDataURL(file);
+      e.target.value = ''; // Reset input
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = async (event) => {
       const dataUrl = event.target.result;
-      
-      // Compress/Downscale before sending
-      const compressedUrl = await compressImage(dataUrl);
+
+      let finalUrl = dataUrl;
+      // Skip compression for GIFs and SVGs to preserve animation/vector quality
+      if (!isGif && !isSvg) {
+        finalUrl = await compressImage(dataUrl);
+      }
 
       // Dispatch event to MainEditor
       window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
-        detail: {
+        detail: { 
+          dataUrl: finalUrl, 
           pageIndex: activePageIndex,
-          dataUrl: compressedUrl
+          dataType: isGif ? 'gif' : (isSvg ? 'svg' : 'image')
         }
       }));
     };
@@ -233,10 +262,61 @@ const RightSidebar = ({
 
         // Extract all custom attributes (gradients, etc.)
         Array.from(el.attributes).forEach(attr => {
-          if (attr.name.startsWith('fill-') || attr.name.startsWith('stroke-') || attr.name.startsWith('data-')) {
+          if (attr.name.startsWith('fill-') || attr.name.startsWith('stroke-') || attr.name.startsWith('data-') || attr.name === 'href' || attr.name.includes('href')) {
             props[attr.name] = attr.value;
           }
         });
+
+        // Add a flag for image detection
+        const dataType = el.getAttribute('data-type');
+        const dataName = el.getAttribute('data-name');
+        const fillValue = el.getAttribute('fill') || '';
+        
+        // Detect if it's a shape filled with a pattern containing an image
+        let isPatternImage = false;
+        if (fillValue.startsWith('url(#')) {
+            const patternId = fillValue.match(/url\(#([^)]+)\)/)?.[1];
+            if (patternId) {
+                // Try finding the pattern in the document
+                const pattern = doc.getElementById(patternId) || doc.querySelector(`pattern[id="${patternId}"], [id="${patternId}"]`);
+                if (pattern) {
+                    // Templates often use <use xlink:href="#imageId"> inside <pattern>
+                    const hasUse = pattern.querySelector('use') !== null;
+                    const hasImage = pattern.querySelector('image, img') !== null;
+                    if (hasImage || hasUse) {
+                        isPatternImage = true;
+                    }
+                }
+            }
+        }
+        
+        // Check if it's an image or a group containing an image (very common in templates)
+        const hasImageChild = el.querySelector('image, img') !== null;
+        const lowerTagName = props.tagName.toLowerCase();
+        const lowerId = selectedLayerId?.toLowerCase() || '';
+        const lowerDataName = dataName?.toLowerCase() || '';
+        const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || '';
+        const isGifFile = src.toLowerCase().endsWith('.gif') || dataType === 'gif';
+
+        const isImage = (lowerTagName.includes('image') || 
+                        lowerTagName === 'img' || 
+                        dataType === 'image' ||
+                        lowerDataName.includes('image') ||
+                        lowerId.includes('image') || 
+                        !!(el.getAttribute('href') || el.getAttribute('xlink:href')) ||
+                        (lowerTagName === 'g' && hasImageChild) ||
+                        isPatternImage) && !isGifFile;
+
+        const isVideo = lowerTagName === 'video' || lowerTagName === 'iframe' || dataType === 'video' || lowerDataName.includes('video') || lowerId.includes('video') || (lowerTagName === 'foreignobject' && el.querySelector('video, iframe'));
+        const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif');
+        const isText = (lowerTagName === 'text' || lowerTagName === 'tspan' || (lowerTagName === 'foreignobject' && !isVideo)) || dataType === 'text' || lowerDataName.includes('text') || lowerId.includes('text');
+        const isIcon = dataType === 'icon' || lowerDataName.includes('icon') || lowerId.includes('icon') || lowerTagName.includes('lucide') || el.classList.contains('lucide') || el.classList.contains('iconify');
+
+        props.isImage = isImage;
+        props.isText = isText;
+        props.isVideo = isVideo;
+        props.isGif = isGif;
+        props.isIcon = isIcon;
 
         return props;
       }
@@ -249,6 +329,20 @@ const RightSidebar = ({
       className="bg-white border-l border-[#EEEEEE] flex flex-col overflow-hidden select-none flex-shrink-0 h-[92vh]"
       style={{ width: '24vw' }}
     >
+      {activeMainTool === 'grid' && (
+        <IconGallery 
+          isOpen={true}
+          onClose={() => setActiveMainTool('select')} 
+          onSelect={(icon) => {
+            window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
+              detail: {
+                pageIndex: activePageIndex,
+                icon: icon
+              }
+            }));
+          }}
+        />
+      )}
       {/* ================= Display Controls (Header Section) ================= */}
       <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8.5vh' }}>
          {/* Preview & Double Page Toggle Row */}
@@ -390,7 +484,13 @@ const RightSidebar = ({
                   onClick={handleUploadClick}
                   className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
                 >
-                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*,video/*,audio/*,.gif,.svg" 
+                    onChange={handleFileChange} 
+                  />
                   <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
                     Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
                   </div>
@@ -406,14 +506,155 @@ const RightSidebar = ({
             </div>
           ) : (
             <div className="flex-1 flex flex-col p-[1.5vw] overflow-y-auto no-scrollbar gap-[1.5vw]">
-              {selectedElementProps ? (
+              {(selectedElementProps || activeMainTool === 'grid') ? (
                 <div className="flex flex-col gap-[1.5vw]">
-                  <ShapeProperties 
-                    selectedElementProps={selectedElementProps}
-                    activePageIndex={activePageIndex}
-                    selectedLayerId={selectedLayerId}
-                    updateElementAttribute={updateElementAttribute}
-                  />
+                  {selectedElementProps?.isImage ? (
+                    <ImageEditor 
+                      selectedElement={(() => {
+                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                        return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                      })()}
+                      selectedLayerId={selectedLayerId}
+                      activePageIndex={activePageIndex}
+                      onUpdate={(newHtml) => {
+                        if (typeof newHtml === 'string') {
+                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                        } else {
+                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                            const el = document.getElementById(selectedLayerId);
+                            let node = el;
+                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                            return node;
+                          })();
+                          if (svgRoot) {
+                            const serializer = new XMLSerializer();
+                            const html = serializer.serializeToString(svgRoot);
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                          } else {
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                          }
+                        }
+                      }}
+                      pages={pages}
+                      currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
+                      folderName="My Flipbooks"
+                      flipbookName="Untitled"
+                    />
+                  ) : selectedElementProps?.isText ? (
+                    <TextEditor
+                      selectedElement={(() => {
+                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                        const el = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                        if (!el) return null;
+                        const tag = el.tagName?.toLowerCase();
+                        // foreignObject wraps the actual HTML text container — drill into it
+                        if (tag === 'foreignobject') {
+                          return el.querySelector('[contenteditable], div, p, span') || el;
+                        }
+                        return el;
+                      })()}
+                      onUpdate={(newHtml) => {
+                        if (typeof newHtml === 'string') {
+                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                        } else {
+                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                            const el = document.getElementById(selectedLayerId);
+                            let node = el;
+                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                            return node;
+                          })();
+                          if (svgRoot) {
+                            const serializer = new XMLSerializer();
+                            const html = serializer.serializeToString(svgRoot);
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                          } else {
+                            updateElementAttribute(activePageIndex);
+                          }
+                        }
+                      }}
+                      pages={pages}
+                      activePageIndex={activePageIndex}
+                    />
+                  ) : selectedElementProps?.isVideo ? (
+                    <VideoEditor
+                      selectedElement={(() => {
+                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                        return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                      })()}
+                      selectedLayerId={selectedLayerId}
+                      activePageIndex={activePageIndex}
+                      onUpdate={(newHtml) => {
+                        if (typeof newHtml === 'string') {
+                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                        } else {
+                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                            const el = document.getElementById(selectedLayerId);
+                            let node = el;
+                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                            return node;
+                          })();
+                          if (svgRoot) {
+                            const serializer = new XMLSerializer();
+                            const html = serializer.serializeToString(svgRoot);
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                          } else {
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                          }
+                        }
+                      }}
+                      pages={pages}
+                      currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
+                      folderName="My Flipbooks"
+                      flipbookName="Untitled"
+                    />
+                  ) : selectedElementProps?.isGif ? (
+                    <GifEditor
+                      selectedElement={(() => {
+                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                        return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                      })()}
+                      selectedLayerId={selectedLayerId}
+                      onUpdate={(newHtml) => {
+                        if (typeof newHtml === 'string') {
+                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                        } else {
+                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                            const el = document.getElementById(selectedLayerId);
+                            let node = el;
+                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                            return node;
+                          })();
+                          if (svgRoot) {
+                            const serializer = new XMLSerializer();
+                            const html = serializer.serializeToString(svgRoot);
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                          } else {
+                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                          }
+                        }
+                      }}
+                      pages={pages}
+                      activePageIndex={activePageIndex}
+                    />
+                  ) : (
+                    <ShapeProperties 
+                       selectedElementProps={selectedElementProps || { 
+                         fill: '#6366F1', 
+                         opacity: '1', 
+                         stroke: 'none', 
+                         strokeWidth: '0', 
+                         tagName: 'g',
+                         isIcon: true 
+                       }}
+                       activePageIndex={activePageIndex}
+                       selectedLayerId={selectedLayerId}
+                       updateElementAttribute={updateElementAttribute}
+                     />
+                  )}
                 </div>
               ) : (
                 /* Page Properties (Default View) */

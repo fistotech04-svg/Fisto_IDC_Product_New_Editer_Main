@@ -1,15 +1,19 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AddBookmarkPopup from '../../AddBookmarkPopup';
-import AddNotesPopup from '../../AddNotesPopup';
-import NotesViewerPopup from '../../NotesViewerPopup';
-import ViewBookmarkPopup from '../../ViewBookmarkPopup';
-import ProfilePopup from '../../ProfilePopup';
-import Sound from '../../Sound';
-import Export from '../../Export';
-import FlipbookSharePopup from '../../FlipbookSharePopup';
-import TableOfContentsPopup from '../../TableOfContentsPopup';
+
+const Grid1Layout = lazy(() => import('../../Layouts/Grid1Layout'));
+
+import ProfilePopup from '../../popups/ProfilePopup';
+import Sound from '../../popups/Sound';
+import Export from '../../popups/Export';
+import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
+import TableOfContentsPopup from '../../popups/TableOfContentsPopup';
+import AddNotesPopup from '../../popups/AddNotesPopup';
+import AddBookmarkPopup from '../../popups/AddBookmarkPopup';
+import ViewBookmarkPopup from '../../popups/ViewBookmarkPopup';
+import NotesViewerPopup from '../../popups/NotesViewerPopup';
+
 
 const getLayoutColor = (id, defaultColor) => {
     return `var(--${id}, ${defaultColor})`;
@@ -75,74 +79,79 @@ const MenuBtn = ({ icon, label, onClick }) => (
     </button>
 );
 
-const MobileLayout1 = ({
-    children,
-    settings,
-    bookName,
-    activeLayout,
-    searchQuery,
-    setSearchQuery,
-    handleQuickSearch,
-    logoSettings,
-    onPageClick,
-    currentPage,
-    pages = [],
-    bookRef,
-    showBookmarkMenu,
-    setShowBookmarkMenu,
-    showMoreMenu,
-    setShowMoreMenu,
-    showThumbnailBar,
-    setShowThumbnailBar,
-    showTOC,
-    setShowTOC,
-    setShowAddNotesPopup,
-    showAddNotesPopup,
-    onAddNote,
-    setShowAddBookmarkPopup,
-    showAddBookmarkPopup,
-    onAddBookmark,
-    bookmarkSettings,
-    setShowNotesViewer,
-    showNotesViewer,
-    notes,
-    setShowViewBookmarkPopup,
-    showViewBookmarkPopup,
-    bookmarks,
-    onDeleteBookmark,
-    onUpdateBookmark,
-    setShowProfilePopup,
-    showProfilePopup,
-    profileSettings,
-    isAutoFlipping,
-    setIsPlaying,
-    handleFullScreen,
-    handleShare,
-    handleDownload,
-    showSoundPopup,
-    setShowSoundPopup,
-    otherSetupSettings,
-    onUpdateOtherSetup,
-    isMuted,
-    setIsMuted,
-    isFlipMuted,
-    setIsFlipMuted,
-    flipTrigger,
-    showExportPopup,
-    setShowExportPopup,
-    showSharePopup,
-    setShowSharePopup,
-    isLandscape,
-    offset = 0,
-    showNotesMenu,
-    setShowNotesMenu
-}) => {
+const MobileLayout1 = (props) => {
+    const {
+        children,
+        settings,
+        bookName,
+        activeLayout,
+        currentZoom,
+        setCurrentZoom,
+        handleZoomIn,
+        handleZoomOut,
+        searchQuery,
+        setSearchQuery,
+        handleQuickSearch,
+        logoSettings,
+        onPageClick,
+        currentPage,
+        pages = [],
+        bookRef,
+        showBookmarkMenu,
+        setShowBookmarkMenu,
+        showMoreMenu,
+        setShowMoreMenu,
+        showThumbnailBar,
+        setShowThumbnailBar,
+        showTOC,
+        setShowTOC,
+        setShowAddNotesPopup,
+        showAddNotesPopup,
+        onAddNote,
+        setShowAddBookmarkPopup,
+        showAddBookmarkPopup,
+        onAddBookmark,
+        bookmarkSettings,
+        setShowNotesViewer,
+        showNotesViewer,
+        notes,
+        setShowViewBookmarkPopup,
+        showViewBookmarkPopup,
+        bookmarks,
+        onDeleteBookmark,
+        onUpdateBookmark,
+        setShowProfilePopup,
+        showProfilePopup,
+        profileSettings,
+        isAutoFlipping,
+        setIsPlaying,
+        handleFullScreen,
+        handleShare,
+        handleDownload,
+        showSoundPopup,
+        setShowSoundPopup,
+        otherSetupSettings,
+        onUpdateOtherSetup,
+        isMuted,
+        setIsMuted,
+        isFlipMuted,
+        setIsFlipMuted,
+        flipTrigger,
+        showExportPopup,
+        setShowExportPopup,
+        showSharePopup,
+        setShowSharePopup,
+        isLandscape,
+        offset = 0,
+        showNotesMenu,
+        setShowNotesMenu,
+        tocSettings
+    } = props;
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const scrollRef = useRef(null);
     const progressRef = useRef(null);
-    const [currentZoom, setCurrentZoom] = useState(0.6);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
     const [isOverflowing, setIsOverflowing] = useState(false);
@@ -151,13 +160,6 @@ const MobileLayout1 = ({
     const [showLocalBookmarkMenu, setShowLocalBookmarkMenu] = useState(false);
     const [showDotMenu, setShowDotMenu] = useState(false);
     const dotBtnRef = useRef(null);
-
-    const handleZoomIn = () => {
-        setCurrentZoom(prev => Math.min(prev + 0.1, 2));
-    };
-    const handleZoomOut = () => {
-        setCurrentZoom(prev => Math.max(prev - 0.1, 0.4));
-    };
 
     const spreads = useMemo(() => {
         const result = [];
@@ -221,6 +223,26 @@ const MobileLayout1 = ({
 
     const progressPercentage = pages.length > 1 ? (currentPage / (pages.length - 1)) * 100 : 0;
 
+    const togglePopup = (type) => {
+        if (type === 'notes') {
+            setShowLocalNotesMenu(prev => !prev);
+            setShowLocalBookmarkMenu(false);
+            setShowDotMenu(false);
+        } else if (type === 'bookmarks') {
+            setShowLocalBookmarkMenu(prev => !prev);
+            setShowLocalNotesMenu(false);
+            setShowDotMenu(false);
+        } else if (type === 'dots') {
+            setShowDotMenu(prev => !prev);
+            setShowLocalNotesMenu(false);
+            setShowLocalBookmarkMenu(false);
+        } else {
+            setShowLocalNotesMenu(false);
+            setShowLocalBookmarkMenu(false);
+            setShowDotMenu(false);
+        }
+    };
+
     const handleProgressClick = (e) => {
         if (!progressRef.current || pages.length <= 1) return;
         const rect = progressRef.current.getBoundingClientRect();
@@ -241,25 +263,31 @@ const MobileLayout1 = ({
             '--toolbar-search-text': activeLayout?.toolbarSearchText || '#575C9C',
             '--toolbar-search-placeholder': activeLayout?.toolbarSearchPlaceholder || '#575C9C',
             '--toolbar-search-icon': activeLayout?.toolbarSearchIcon || '#575C9C',
-            '--page-bg': activeLayout?.pageBg || '#BDC3D9',
-            '--progress-bar-bg': activeLayout?.progressBarBg || '#FFFFFF',
-            '--progress-bar-fill': activeLayout?.progressBarFill || '#575C9C',
+            '--page-bg': activeLayout?.pageBg || '#DADBE8', // Matches screenshot
+            '--progress-bar-bg': activeLayout?.progressBarBg || 'rgba(255,255,255,0.2)',
+            '--progress-bar-fill': activeLayout?.progressBarFill || '#FFFFFF',
             '--play-button-bg': activeLayout?.playButtonBg || '#FFFFFF',
             '--play-button-icon': activeLayout?.playButtonIcon || '#575C9C',
             '--play-button-border': activeLayout?.playButtonBorder || '#FFFFFF',
         };
     }, [activeLayout]);
 
+    // Use tocContent from props or settings
+    const tocContent = tocSettings?.content || settings?.toc?.content || [
+        { id: 'h1', title: 'Chapter 1', page: 1 },
+        { id: 'h2', title: 'Chapter 2', page: 5 }
+    ];
+
     const renderPopups = () => (
         <div className="absolute inset-0 pointer-events-none z-[2000]">
             <AnimatePresence>
-                {showThumbnailBar && (
+                {showThumbnailBar && !isLandscape && (
                     <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[100] bg-black/5" onClick={() => setShowThumbnailBar(false)} />
-                        <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="absolute bottom-10 left-0 right-0 z-[110] px-1 pointer-events-auto">
-                            <div 
-                                className="rounded-xl overflow-hidden flex items-center h-[55px] relative px-0.5 shadow-[0_8px_20px_rgba(0,0,0,0.3)] border backdrop-blur-md" 
-                                style={{ 
+                        <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="absolute bottom-20 left-0 right-0 z-[110] px-1 pointer-events-auto">
+                            <div
+                                className="rounded-xl overflow-hidden flex items-center h-[55px] relative px-0.5 shadow-[0_8px_20px_rgba(0,0,0,0.3)] border backdrop-blur-md"
+                                style={{
                                     backgroundColor: getLayoutColorRgba('thumbnail-outer-v2', '87, 92, 156', '0.8'),
                                     borderColor: 'rgba(255,255,255,0.2)'
                                 }}
@@ -271,42 +299,28 @@ const MobileLayout1 = ({
                                         const isSelected = spread.indices.includes(currentPage);
                                         let boxWidth = 48;
                                         let boxHeight = 36;
-
                                         if (isOverflowing) {
                                             const visiblePos = visibleIndices.indexOf(idx);
                                             if (visiblePos !== -1) {
-                                                if (visiblePos === 0 || visiblePos === visibleIndices.length - 1) {
-                                                    boxWidth = 32;
-                                                    boxHeight = 24;
-                                                } else if (visiblePos === 1 || (visiblePos === visibleIndices.length - 2 && visibleIndices.length > 2)) {
-                                                    boxWidth = 40;
-                                                    boxHeight = 30;
-                                                }
+                                                if (visiblePos === 0 || visiblePos === visibleIndices.length - 1) { boxWidth = 32; boxHeight = 24; }
+                                                else if (visiblePos === 1 || (visiblePos === visibleIndices.length - 2 && visibleIndices.length > 2)) { boxWidth = 40; boxHeight = 30; }
                                             } else {
-                                                if (idx === 0 || idx === spreads.length - 1) {
-                                                    boxWidth = 32;
-                                                    boxHeight = 24;
-                                                } else if (idx === 1 || (idx === spreads.length - 2 && spreads.length > 2)) {
-                                                    boxWidth = 40;
-                                                    boxHeight = 30;
-                                                }
+                                                if (idx === 0 || idx === spreads.length - 1) { boxWidth = 32; boxHeight = 24; }
+                                                else if (idx === 1 || (idx === spreads.length - 2 && spreads.length > 2)) { boxWidth = 40; boxHeight = 30; }
                                             }
                                         }
-
                                         return (
-                                            <div 
-                                                key={idx} 
+                                            <div
+                                                key={idx}
                                                 data-index={idx}
-                                                className={`thumbnail-item shrink-0 flex flex-col items-center gap-1 p-1 rounded-md transition-all duration-300 ${isSelected ? 'active-thumbnail ring-1 ring-white/30' : ''}`} 
-                                                style={{
-                                                    backgroundColor: isSelected ? getLayoutColor('thumbnail-inner-v2', '#BCBEE1') : getLayoutColor('thumbnail-outer-v2', '#575C9C')
-                                                }}
+                                                className={`thumbnail-item shrink-0 flex flex-col items-center gap-1 p-1 rounded-md transition-all duration-300 ${isSelected ? 'active-thumbnail ring-1 ring-white/30' : ''}`}
+                                                style={{ backgroundColor: isSelected ? getLayoutColor('thumbnail-inner-v2', '#BCBEE1') : getLayoutColor('thumbnail-outer-v2', '#575C9C') }}
                                                 onClick={() => onPageClick(spread.indices[0])}
                                             >
                                                 <div className="bg-white rounded-[2px] overflow-hidden shadow-sm flex gap-[0.5px] transition-all duration-300" style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}>
                                                     {spread.pages.map((page, pIdx) => (<div key={pIdx} className="flex-1 h-full overflow-hidden transition-all duration-300"><PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={isSelected ? 0.09 : 0.07} /></div>))}
                                                 </div>
-                                                <span className="text-[7.5px] font-bold text-white/90 truncate w-10 text-center transition-all duration-300">{spread.label}</span>
+                                                <span className="text-[7.5px] font-bold text-white/90 truncate w-10 text-center">{spread.label}</span>
                                             </div>
                                         );
                                     })}
@@ -318,355 +332,202 @@ const MobileLayout1 = ({
                 )}
                 {showMoreMenu && !isLandscape && (
                     <>
-                        <motion.div 
-                            initial={{ opacity: 0 }} 
-                            animate={{ opacity: 1 }} 
-                            exit={{ opacity: 0 }} 
-                            className="absolute inset-0 z-[150] bg-transparent pointer-events-auto" 
-                            onClick={() => { setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} 
-                        />
-                        <motion.div 
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }} 
-                            animate={{ opacity: 1, scale: 1, y: 0 }} 
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }} 
-                            className="absolute top-[4.5rem] right-6 w-[170px] rounded-xl shadow-2xl z-[160] overflow-hidden border border-white/10 bg-[#575c9c]/90 backdrop-blur-md pointer-events-auto"
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[150] bg-transparent pointer-events-auto" onClick={() => { setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} />
+                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="absolute top-[9.8rem] right-6 w-[170px] rounded-xl shadow-2xl z-[160] overflow-hidden border border-white/10 bg-[#575c9c]/90 backdrop-blur-md pointer-events-auto">
+                            <div className="flex flex-col p-1.5 gap-1">
+                                <MenuBtn icon="mdi:table-of-contents" label="Table of Contents" onClick={() => { setShowTOC(true); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="ep:menu" label="Thumbnails" onClick={() => { setShowThumbnailBar(prev => !prev); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="material-symbols-light:add-notes" label="Add Notes" onClick={() => { setShowLocalNotesMenu(prev => !prev); setShowLocalBookmarkMenu(false); }} />
+                                <MenuBtn icon="mingcute:bookmark-fill" label="Bookmarks" onClick={() => { setShowLocalBookmarkMenu(prev => !prev); setShowLocalNotesMenu(false); }} />
+                                <MenuBtn icon="solar:user-bold" label="Profile" onClick={() => { setShowProfilePopup(true); setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} />
+                                <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); }} />
+                                <div className="h-[1px] bg-white/10 my-1 mx-2" />
+                                <MenuBtn icon="mage:share-fill" label="Share" onClick={() => { handleShare(); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="meteor-icons:download" label="Download" onClick={() => { handleDownload(); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="lucide:fullscreen" label="Fullscreen View" onClick={() => { handleFullScreen(); setShowMoreMenu(false); }} />
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+
+                {showLocalNotesMenu && !isLandscape && (
+                    <>
+                        <div className="absolute inset-0 z-[165] bg-transparent pointer-events-auto" onClick={() => setShowLocalNotesMenu(false)} />
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 bg-[#575c9c]/95 backdrop-blur-md pointer-events-auto"
+                            style={{ top: '12.8rem', right: '130px', width: '140px' }}
                         >
                             <div className="flex flex-col p-1.5 gap-1">
-                                <MenuBtn icon="lucide:list" label="Table of Contents" onClick={() => { setShowTOC(true); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:layout-grid" label="Thumbnails" onClick={() => { setShowThumbnailBar(prev => !prev); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:file-text-plus" label="Add Notes" onClick={() => { setShowLocalNotesMenu(prev => !prev); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:bookmark" label="Bookmarks" onClick={() => { setShowLocalBookmarkMenu(prev => !prev); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:user" label="Profile" onClick={() => { setShowProfilePopup(true); setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} />
-                                <MenuBtn icon="lucide:music" label="BG Music" onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); }} />
-                                <div className="h-[1px] bg-white/10 my-1 mx-2" />
-                                <MenuBtn icon="lucide:share-2" label="Share" onClick={() => { handleShare(); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:download" label="Download" onClick={() => { handleDownload(); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:maximize" label="Fullscreen View" onClick={() => { handleFullScreen(); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="material-symbols-light:add-notes" label="Add Notes" onClick={() => { setShowAddNotesPopup(true); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="lucide:eye" label="View Notes" onClick={() => { setShowNotesViewer(true); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
                             </div>
                         </motion.div>
                     </>
                 )}
-                {showDotMenu && isLandscape && (
+                {showLocalBookmarkMenu && !isLandscape && (
                     <>
+                        <div className="absolute inset-0 z-[165] bg-transparent pointer-events-auto" onClick={() => setShowLocalBookmarkMenu(false)} />
                         <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-[150] bg-transparent pointer-events-auto"
-                            onClick={() => setShowDotMenu(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: 6 }}
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: 6 }}
-                            transition={{ duration: 0.15, ease: 'easeOut' }}
-                            className="absolute z-[160] pointer-events-auto"
-                            style={{
-                                bottom: '34px',
-                                right: '78px',
-                            }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 bg-[#575c9c]/95 backdrop-blur-md pointer-events-auto"
+                            style={{ top: '15.8rem', right: '130px', width: '140px' }}
                         >
-                            <div
-                                className="rounded-xl overflow-hidden border border-white/15 shadow-[0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-md"
-                                style={{ backgroundColor: 'rgba(87, 92, 156, 0.95)' }}
-                            >
-                                <div className="flex flex-col py-1.5 px-0.5">
-                                    <MenuBtn
-                                        icon="material-symbols:photo-library-rounded"
-                                        label="Gallery"
-                                        onClick={() => { setShowThumbnailBar(prev => !prev); setShowDotMenu(false); }}
-                                    />
-                                    <MenuBtn
-                                        icon="lucide:user"
-                                        label="Profile"
-                                        onClick={() => { setShowProfilePopup(true); setShowDotMenu(false); }}
-                                    />
-                                </div>
+                            <div className="flex flex-col p-1.5 gap-1">
+                                <MenuBtn icon="mingcute:bookmark-fill" label="Add Bookmark" onClick={() => { setShowAddBookmarkPopup(true); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="mdi:eye-outline" label="View Bookmark" onClick={() => { setShowViewBookmarkPopup(true); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
                             </div>
                         </motion.div>
                     </>
                 )}
-                {showTOC && (
-                    <TableOfContentsPopup 
+                {showTOC && !isLandscape && (
+                    <TableOfContentsPopup
                         onClose={() => setShowTOC(false)}
-                        settings={settings.tocSettings || settings.toc}
-                        activeLayout={activeLayout || 1}
-                        isMobile={true}
-                        isLandscape={isLandscape}
-                        onNavigate={(pageIndex) => {
-                            onPageClick(pageIndex);
+                        onNavigate={(pageIdx) => {
+                            onPageClick(pageIdx);
                             setShowTOC(false);
                         }}
+                        settings={tocSettings || settings?.toc}
+                        isMobile={true}
+                        isLandscape={false}
+                        activeLayout={1}
+                        layoutColors={activeLayout?.colors}
+                    />
+                )}
+
+                {showAddNotesPopup && !isLandscape && (
+                    <AddNotesPopup
+                        onClose={() => setShowAddNotesPopup(false)}
+                        onAddNote={onAddNote}
+                        currentPageIndex={currentPage}
+                        totalPages={pages.length}
+                        isMobile={true}
+                        isLandscape={false}
+                        activeLayout={activeLayout}
+                    />
+                )}
+
+                {showNotesViewer && !isLandscape && (
+                    <NotesViewerPopup
+                        onClose={() => setShowNotesViewer(false)}
+                        notes={notes}
+                        onPageClick={onPageClick}
+                        isMobile={true}
+                    />
+                )}
+
+                {showAddBookmarkPopup && !isLandscape && (
+                    <AddBookmarkPopup
+                        onClose={() => setShowAddBookmarkPopup(false)}
+                        onAddBookmark={onAddBookmark}
+                        currentPageIndex={currentPage}
+                        totalPages={pages.length}
+                        bookmarkSettings={bookmarkSettings}
+                        activeLayout={activeLayout}
+                        isMobile={true}
+                    />
+                )}
+
+                {showViewBookmarkPopup && !isLandscape && (
+                    <ViewBookmarkPopup
+                        onClose={() => setShowViewBookmarkPopup(false)}
+                        bookmarks={bookmarks}
+                        onDelete={onDeleteBookmark}
+                        onUpdate={onUpdateBookmark}
+                        onNavigate={onPageClick}
+                        isMobile={true}
+                    />
+                )}
+
+                {showProfilePopup && !isLandscape && (
+                    <ProfilePopup
+                        onClose={() => setShowProfilePopup(false)}
+                        profileSettings={profileSettings}
+                        activeLayout={1}
+                        isMobile={true}
+                        isLandscape={false}
+                    />
+                )}
+
+                {showSoundPopup && !isLandscape && (
+                    <Sound
+                        isOpen={showSoundPopup}
+                        onClose={() => setShowSoundPopup(false)}
+                        activeLayout={1}
+                        isMobile={true}
+                        isLandscape={false}
+                        isMuted={isMuted}
+                        setIsMuted={setIsMuted}
+                        isFlipMuted={isFlipMuted}
+                        setIsFlipMuted={setIsFlipMuted}
+                        otherSetupSettings={otherSetupSettings}
+                        onUpdateOtherSetup={onUpdateOtherSetup}
+                        settings={settings}
+                        flipTrigger={flipTrigger}
+                    />
+                )}
+
+                {showExportPopup && !isLandscape && (
+                    <Export
+                        isOpen={showExportPopup}
+                        onClose={() => setShowExportPopup(false)}
+                        isMobile={true}
+                        hideButton={true}
+                        pages={pages}
+                        bookName={bookName}
+                        currentPage={currentPage}
+                    />
+                )}
+
+                {showSharePopup && !isLandscape && (
+                    <FlipbookSharePopup
+                        onClose={() => setShowSharePopup(false)}
+                        isMobile={true}
                     />
                 )}
             </AnimatePresence>
-            {showLocalNotesMenu && (
-                <>
-                    <div className="absolute inset-0 z-[165] bg-transparent pointer-events-auto" onClick={() => setShowLocalNotesMenu(false)} />
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                        className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 pointer-events-auto"
-                        style={{
-                            ...(isLandscape ? { bottom: '30px', right: '108px' } : { top: '6.5rem', right: '8.5rem' }),
-                            width: '130px',
-                            backgroundColor: 'rgba(87, 92, 156, 0.95)',
-                            backdropFilter: 'blur(12px)'
-                        }}
-                    >
-                        <div className="flex flex-col p-1.5 gap-1">
-                            <MenuBtn icon="material-symbols:note-add-rounded" label="Add Notes" onClick={() => { setShowAddNotesPopup(true); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
-                            <MenuBtn icon="lucide:eye" label="View Notes" onClick={() => { setShowNotesViewer(true); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
-                        </div>
-                    </motion.div>
-                </>
-            )}
-            {showLocalBookmarkMenu && (
-                <>
-                    <div className="absolute inset-0 z-[165] bg-transparent pointer-events-auto" onClick={() => setShowLocalBookmarkMenu(false)} />
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                        className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 pointer-events-auto"
-                        style={{
-                            ...(isLandscape ? { bottom: '30px', right: '108px' } : { top: '8rem', right: '8.5rem' }),
-                            width: '130px',
-                            backgroundColor: 'rgba(87, 92, 156, 0.95)',
-                            backdropFilter: 'blur(12px)'
-                        }}
-                    >
-                        <div className="flex flex-col p-1.5 gap-1">
-                            <MenuBtn icon="mdi:bookmark-plus-outline" label="Add Bookmark" onClick={() => { setShowAddBookmarkPopup(true); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
-                            <MenuBtn icon="mdi:eye-outline" label="View Bookmark" onClick={() => { setShowViewBookmarkPopup(true); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
-                        </div>
-                    </motion.div>
-                </>
-            )}
-            {showAddBookmarkPopup && (
-                <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <AddBookmarkPopup onClose={() => setShowAddBookmarkPopup(false)} currentPageIndex={currentPage} totalPages={pages.length} onAddBookmark={onAddBookmark} isSidebarOpen={false} bookmarkSettings={bookmarkSettings} isMobile={true} activeLayout={1} isLandscape={isLandscape} isSpread={isSpread} />
-                </div>
-            )}
-            {showAddNotesPopup && (
-                <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <AddNotesPopup onClose={() => setShowAddNotesPopup(false)} currentPageIndex={currentPage} totalPages={pages.length} onAddNote={onAddNote} isSidebarOpen={false} isMobile={true} activeLayout={1} />
-                </div>
-            )}
-            {showNotesViewer && (
-                <NotesViewerPopup onClose={() => setShowNotesViewer(false)} notes={notes} isSidebarOpen={false} isMobile={true} />
-            )}
-            {showViewBookmarkPopup && (
-                <ViewBookmarkPopup onClose={() => setShowViewBookmarkPopup(false)} bookmarks={bookmarks?.filter(b => b.layoutId === 1)} onDelete={onDeleteBookmark} onUpdate={onUpdateBookmark} onNavigate={(pageIndex) => { onPageClick(pageIndex); setShowViewBookmarkPopup(false); }} activeLayout={1} isMobile={true} isLandscape={isLandscape} />
-            )}
-            {showProfilePopup && (
-                <ProfilePopup onClose={() => setShowProfilePopup(false)} profileSettings={profileSettings} activeLayout={1} isMobile={true} />
-            )}
-            <Sound isOpen={showSoundPopup} onClose={() => setShowSoundPopup(false)} activeLayout={1} otherSetupSettings={otherSetupSettings} onUpdateOtherSetup={onUpdateOtherSetup} isMuted={isMuted} setIsMuted={setIsMuted} isFlipMuted={isFlipMuted} setIsFlipMuted={setIsFlipMuted} flipTrigger={flipTrigger} settings={settings} isMobile={true} />
-            {showExportPopup && (
-                <div className="absolute inset-0 z-[4000] flex items-center justify-center p-4 pointer-events-auto">
-                    <div className="absolute inset-0 bg-transparent" onClick={() => setShowExportPopup(false)} />
-                    <div className="relative z-[4001] w-full max-w-[380px]">
-                        <Export 
-                            isOpen={true} 
-                            hideButton={true} 
-                            onClose={() => setShowExportPopup(false)} 
-                            pages={pages} 
-                            bookName={bookName} 
-                            currentPage={currentPage}
-                            isMobile={true} 
-                            isLandscape={isLandscape}
-                        />
-                    </div>
-                </div>
-            )}
-            {showSharePopup && (
-                <div className="absolute inset-0 z-[4000] flex items-center justify-center p-4 pointer-events-auto">
-                    <div className="absolute inset-0 bg-transparent" onClick={() => setShowSharePopup(false)} />
-                    <div className="relative z-[4001] w-full max-w-[380px]">
-                        <FlipbookSharePopup onClose={() => setShowSharePopup(false)} bookName={bookName} url={window.location.href} isMobile={true} isLandscape={isLandscape} />
-                    </div>
-                </div>
-            )}
         </div>
     );
 
-    if (isLandscape) {
-        return (
-            <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#DADBE8] pt-[14px] pb-3" style={{ ...layoutVariables }}>
-                {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent" onClick={() => setShowSuggestions(false)} />}
-                <header className="z-50 px-14 h-6 flex items-center justify-between shadow-md border-b border-white/10 shrink-0 relative" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '11, 15, 78', '1') }}>
-                    <div className={`flex-1 max-w-[150px] relative ${showSuggestions && recommendations.length > 0 ? 'z-20' : ''}`}>
-                        <div className="bg-white/10 rounded px-1.5 py-0.5 flex items-center gap-1 backdrop-blur-sm border border-white/10">
-                            <Icon icon="lucide:search" className="text-white/60 w-2.5 h-2.5" />
-                            <input 
-                                type="text" 
-                                placeholder="Quick Search..." 
-                                className="bg-transparent text-white placeholder-white/40 text-[7px] outline-none w-full font-medium" 
-                                value={localSearchQuery} 
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setLocalSearchQuery(val);
-                                    setShowSuggestions(true);
-                                    if (val.length >= 1) {
-                                        const results = [];
-                                        const lowerQuery = val.toLowerCase();
-                                        pages.forEach((page, index) => {
-                                            const text = (page.html || page.content || '').replace(/<[^>]*>/g, ' ');
-                                            const words = text.split(/\s+/);
-                                            const pageMatches = new Set();
-                                            words.forEach(word => {
-                                                const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '');
-                                                if (cleanWord.length > 2 && cleanWord.toLowerCase().startsWith(lowerQuery)) {
-                                                    pageMatches.add(cleanWord);
-                                                }
-                                            });
-                                            pageMatches.forEach(word => {
-                                                results.push({ word, pageNumber: index + 1 });
-                                            });
-                                        });
-                                        setRecommendations(results.slice(0, 6));
-                                    } else {
-                                        setRecommendations([]);
-                                    }
-                                }} 
-                                onFocus={() => { if (recommendations.length > 0) setShowSuggestions(true); }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        setSearchQuery(localSearchQuery);
-                                        handleQuickSearch(localSearchQuery);
-                                        setRecommendations([]);
-                                        setShowSuggestions(false);
-                                    }
-                                }}
-                            />
-                        </div>
-
-                        {/* Recommendations Dropdown */}
-                        <AnimatePresence>
-                            {showSuggestions && recommendations.length > 0 && (
-                                <motion.div 
-                                    initial={{ opacity: 0, y: -5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -5 }}
-                                    className="absolute top-full left-0 mt-1 w-[180px] bg-[#575C9C]/80 backdrop-blur-md rounded-lg shadow-2xl border border-white/10 z-[100] overflow-hidden"
-                                >
-                                    <div className="flex flex-col py-1">
-                                        {recommendations.map((rec, idx) => (
-                                            <button 
-                                                key={idx}
-                                                className="flex items-center justify-between px-3 py-1.5 hover:bg-white/10 transition-colors text-white"
-                                                onClick={() => {
-                                                    onPageClick(rec.pageNumber - 1);
-                                                    setRecommendations([]);
-                                                    setShowSuggestions(false);
-                                                    setLocalSearchQuery(rec.word);
-                                                }}
-                                            >
-                                                <span className="text-[9px] font-medium">{rec.word}</span>
-                                                <span className="text-[8px] opacity-60 font-bold">{rec.pageNumber.toString().padStart(2, '0')}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                    <div className="absolute left-1/2 -translate-x-1/2 text-center pointer-events-none w-full max-w-[30%]">
-                        <span className="text-white text-[8px] font-bold opacity-90 truncate block">{bookName}</span>
-                    </div>
-                    <div className="flex-1 flex justify-end" />
-                </header>
-                <div className="flex-1 flex items-center justify-center relative px-14 overflow-hidden" onClick={() => setShowThumbnailBar(false)}>
-                    <div className="absolute left-16 top-1/2 -translate-y-1/2 z-40">
-                        <button onClick={(e) => { e.stopPropagation(); if (bookRef?.current?.pageFlip()) bookRef.current.pageFlip().flipPrev(); }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-md p-1.5 text-white active:scale-90 transition-all border border-white/10 shadow-sm"><Icon icon="lucide:chevron-left" className="w-4 h-4" /></button>
-                    </div>
-                    <div className="absolute right-16 top-1/2 -translate-y-1/2 z-40">
-                        <button onClick={(e) => { e.stopPropagation(); if (bookRef?.current?.pageFlip()) bookRef.current.pageFlip().flipNext(); }} className="bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-md p-1.5 text-white active:scale-90 transition-all border border-white/10 shadow-sm"><Icon icon="lucide:chevron-right" className="w-4 h-4" /></button>
-                    </div>
-                    <div className="transition-transform duration-500 ease-out flex items-center justify-center w-full h-full" style={{ transform: `translateX(${offset * 0.45 * currentZoom}px) scale(${currentZoom * 0.45})` }}>
-                        <div className="relative flex items-center justify-center w-full h-full" style={{ transformOrigin: 'center center' }}>{children}</div>
-                    </div>
-                </div>
-                <footer className="h-7 px-10 flex items-center justify-between shadow-2xl border-t border-white/10 z-[60] shrink-0 font-sans" style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}>
-                    {/* Left Group */}
-                    <div className="flex items-center gap-1 min-w-max">
-                        <button onClick={() => { setShowTOC(true); setShowThumbnailBar(false); }} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:list-bold" className="w-[11px] h-[11px]" /></button>
-                        <button onClick={() => setShowThumbnailBar(prev => !prev)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:squares-four-fill" className="w-[11px] h-[11px]" /></button>
-                    </div>
-
-                    {/* Playback Controls */}
-                    <div className="flex items-center gap-1.5 ml-2">
-                        <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:skip-back" className="w-[10px] h-[10px]" /></button>
-                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-[14px] h-[14px]" /></button>
-                        <button onClick={() => onPageClick(pages.length - 1)} className="text-white hover:scale-110 active:scale-90 transition-transform"><Icon icon="ph:skip-forward" className="w-[10px] h-[10px]" /></button>
-                    </div>
-
-                    {/* Progress Bar (flex-grow with max-w) */}
-                    <div className="flex-1 mx-4 flex items-center max-w-[12vw]">
-                        <div ref={progressRef} className="h-[1.5px] w-full bg-white/20 rounded-full cursor-pointer relative" onClick={handleProgressClick}>
-                            <div className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300" style={{ width: `${progressPercentage}%` }} />
-                        </div>
-                    </div>
-
-                    {/* Tools Group */}
-                    <div className="flex items-center gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); setShowLocalNotesMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="material-symbols-light:add-notes" className="w-[14px] h-[14px]" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); setShowLocalBookmarkMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:bookmark-simple-fill" className="w-[12px] h-[12px]" /></button>
-                        <button onClick={() => setShowSoundPopup(true)} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="solar:music-notes-bold" className="w-[12px] h-[12px]" /></button>
-                        <button ref={dotBtnRef} onClick={(e) => { e.stopPropagation(); setShowDotMenu(prev => !prev); }} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:dots-three-bold" className="w-[14px] h-[14px]" /></button>
-                    </div>
-
-                    {/* Divider */}
-                    <div className="w-[1px] h-[10px] bg-white/10 mx-1.5" />
-
-                    {/* Zoom & Actions Group */}
-                    <div className="flex items-center gap-1.5">
-                        <div className="flex items-center gap-1">
-                            <button onClick={handleZoomOut} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:magnifying-glass-minus" className="w-[10px] h-[10px]" /></button>
-                            <div className="w-6 h-[1.5px] bg-white/20 rounded-full relative overflow-hidden">
-                                <div className="absolute top-0 left-0 h-full bg-white" style={{ width: `${((currentZoom - 0.4) / (2 - 0.4)) * 100}%` }} />
-                            </div>
-                            <button onClick={handleZoomIn} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="ph:magnifying-glass-plus" className="w-[10px] h-[10px]" /></button>
-                        </div>
-                        <button onClick={handleShare} className="text-white/90 hover:text-white active:scale-90 transition-all ml-0.5"><Icon icon="mage:share-fill" className="w-[10px] h-[10px]" /></button>
-                        <button onClick={handleDownload} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="meteor-icons:download" className="w-[10px] h-[10px]" /></button>
-                        <button onClick={handleFullScreen} className="text-white/90 hover:text-white active:scale-90 transition-all"><Icon icon="lucide:fullscreen" className="w-[10px] h-[10px]" /></button>
-                    </div>
-                </footer>
-
-
-                {renderPopups()}
-            </div>
-        );
-    }
-
+    // PORTRAIT RETURN
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables }}>
-            {/* Top Area - Notch Spacer (Increased height) */}
-            <div className="h-10 w-full shrink-0" style={{ backgroundColor: '#0B0F4E' }} />
+        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#DADBE8]" style={{ ...layoutVariables }}>
+            {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
+            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
 
-            {/* Combined Header - Blue Background (Removed FIST-O logo) */}
-            <header className="z-50 px-5 pt-4 pb-3 flex flex-col gap-4 bg-[#575C9C] shadow-md border-b border-white/5 relative">
-                {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent" onClick={() => setShowSuggestions(false)} />}
-                <div className="flex items-center justify-between px-1">
-                    <span className="text-white text-[13px] font-semibold opacity-90 truncate w-full">{bookName}</span>
+            {/* Search Area */}
+            <div className="bg-[#575C9C] flex flex-col z-50 pt-0">
+                {/* Row 1: Book Name & Logo */}
+                <div className="flex items-center justify-between px-6 pt-4 pb-1">
+                    <span className="text-white text-[14px] font-medium opacity-90 truncate flex-1">{bookName || "Name of the book"}</span>
+                    {settings?.brandingProfile?.logo && logoSettings?.src && (
+                        <img
+                            src={logoSettings.src}
+                            alt="Logo"
+                            className="h-4 w-auto transition-all mix-blend-screen"
+                            style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                        />
+                    )}
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className={`flex-1 bg-[#D7D8E8] rounded-lg px-3.5 py-1.5 flex items-center gap-2.5 shadow-inner relative ${showSuggestions && recommendations.length > 0 ? 'z-20' : ''}`}>
-                        <Icon icon="lucide:search" className="text-[#575C9C] w-4 h-4 opacity-70" />
-                        <input 
-                            type="text" 
-                            placeholder="Quick Search.." 
-                            className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/60 text-[12px] outline-none w-full font-semibold" 
-                            value={localSearchQuery} 
+                {/* Row 2: Search Bar and Menu */}
+                <div className="px-5 pb-2.5 flex items-center gap-4">
+                    <div className="flex-1 bg-[#DADBE8] rounded-full h-7 px-4 flex items-center gap-2 relative">
+                        <Icon icon="ph:magnifying-glass" className="text-[#575C9C] w-4.5 h-4.5" />
+                        <input
+                            type="text"
+                            placeholder="Quick Search.."
+                            className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/50 text-[11px] outline-none w-full font-bold"
+                            value={localSearchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
                                 setLocalSearchQuery(val);
-                                setShowSuggestions(true);
                                 if (val.length >= 1) {
+                                    setShowSuggestions(true);
                                     const results = [];
                                     const lowerQuery = val.toLowerCase();
                                     pages.forEach((page, index) => {
@@ -685,34 +546,26 @@ const MobileLayout1 = ({
                                     });
                                     setRecommendations(results.slice(0, 6));
                                 } else {
-                                    setRecommendations([]);
-                                }
-                            }}
-                            onFocus={() => { if (recommendations.length > 0) setShowSuggestions(true); }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    setSearchQuery(localSearchQuery);
-                                    handleQuickSearch(localSearchQuery);
-                                    setRecommendations([]);
                                     setShowSuggestions(false);
+                                    setRecommendations([]);
                                 }
                             }}
                         />
 
-                        {/* Portrait Recommendations Dropdown */}
+                        {/* Recommendations Dropdown */}
                         <AnimatePresence>
                             {showSuggestions && recommendations.length > 0 && (
-                                <motion.div 
+                                <motion.div
                                     initial={{ opacity: 0, y: -5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     exit={{ opacity: 0, y: -5 }}
-                                    className="absolute top-full left-0 right-0 mt-1 bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-100 z-[100] overflow-hidden"
+                                    className="absolute top-[calc(100%+8px)] left-0 right-0 bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-100 z-[100] overflow-hidden"
                                 >
                                     <div className="flex flex-col py-1.5">
                                         {recommendations.map((rec, idx) => (
-                                            <button 
+                                            <button
                                                 key={idx}
-                                                className="flex items-center justify-between px-4 py-2 hover:bg-[#575C9C]/5 transition-colors text-[#575C9C]"
+                                                className="flex items-center justify-between px-4 py-2.5 hover:bg-[#575C9C]/5 transition-colors text-[#575C9C]"
                                                 onClick={() => {
                                                     onPageClick(rec.pageNumber - 1);
                                                     setRecommendations([]);
@@ -720,8 +573,8 @@ const MobileLayout1 = ({
                                                     setLocalSearchQuery(rec.word);
                                                 }}
                                             >
-                                                <span className="text-[13px] font-semibold">{rec.word}</span>
-                                                <span className="text-[11px] opacity-60 font-bold">{rec.pageNumber.toString().padStart(2, '0')}</span>
+                                                <span className="text-[12px] font-semibold">{rec.word}</span>
+                                                <span className="text-[10px] opacity-60 font-bold">{rec.pageNumber.toString().padStart(2, '0')}</span>
                                             </button>
                                         ))}
                                     </div>
@@ -729,76 +582,103 @@ const MobileLayout1 = ({
                             )}
                         </AnimatePresence>
                     </div>
-                    <button onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }} className="text-white active:scale-90 transition-transform">
-                        <Icon icon="ph:list-bold" className="w-[1.6rem] h-[1.6rem]" />
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }}
+                        className="text-white active:scale-90 transition-transform"
+                    >
+                        <Icon icon="ph:list" className="w-7 h-7" />
                     </button>
                 </div>
-            </header>
+            </div>
 
-            {/* Main Area */}
-            <div className="flex-1 relative overflow-hidden flex flex-col bg-[#BDC3D9]">
-                {/* Zoom Control Bar */}
-                <div className="absolute top-4 right-4 flex items-center gap-1.5 bg-[#D7D8E8]/90 backdrop-blur-md rounded-md px-2 py-1 z-30 shadow-md border border-white/40">
-                    <button 
-                        onClick={() => setCurrentZoom(prev => Math.max(0.3, prev - 0.1))} 
-                        className="text-[#575C9C] hover:scale-110 active:scale-90 transition-all p-0.5"
-                    >
-                        <Icon icon="lucide:minus" className="w-3 h-3" />
-                    </button>
-                    <span className="text-[#575C9C] font-bold text-[9px] min-w-[28px] text-center">{Math.round(currentZoom * 100)}%</span>
-                    <button 
-                        onClick={() => setCurrentZoom(prev => Math.min(2, prev + 0.1))} 
-                        className="text-[#575C9C] hover:scale-110 active:scale-90 transition-all p-0.5"
-                    >
-                        <Icon icon="lucide:plus" className="w-3 h-3" />
-                    </button>
-                    <div className="w-[1px] h-2.5 bg-[#575C9C]/20 mx-0.5" />
-                    <button 
-                        onClick={() => setCurrentZoom(0.6)} 
-                        className="bg-white px-1.5 py-0.5 rounded border border-[#575C9C]/20 text-[#575C9C] text-[8px] font-bold hover:bg-[#575C9C] hover:text-white transition-colors"
-                    >
-                        Reset
-                    </button>
-                </div>
 
-                {/* Flipbook Content */}
-                <div className="flex-1 flex items-center justify-center p-6 relative overflow-hidden">
-                    <div className="transition-transform duration-500 ease-out" style={{ transform: `scale(${currentZoom * 0.9})`, transformOrigin: 'center center' }}>
-                        <div className="relative">
+
+            {/* Main Content Area */}
+            <div className="flex-1 relative flex flex-col overflow-hidden">
+
+                {/* Main Content Area */}
+                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: '#BDC3D9' }}>
+                    {/* Zoom/Reset Box */}
+                    <div className="absolute top-2.5 right-2.5 z-[70] flex items-center gap-2 px-2 py-1.5 rounded-lg backdrop-blur-md border border-white/10"
+                        style={{ backgroundColor: 'rgba(87, 92, 156, 0.45)' }}>
+                        <button
+                            onClick={() => handleZoomOut?.()}
+                            className="text-white/90 hover:text-white active:scale-90 transition-all flex items-center justify-center"
+                        >
+                            <Icon icon="material-symbols-light:zoom-out" className="w-[18px] h-[18px]" />
+                        </button>
+                        <span className="text-white text-[10px] font-bold min-w-[24px] text-center">
+                            {Math.round((currentZoom || 0.85) * 100)}%
+                        </span>
+                        <button
+                            onClick={() => handleZoomIn?.()}
+                            className="text-white/90 hover:text-white active:scale-90 transition-all flex items-center justify-center"
+                        >
+                            <Icon icon="material-symbols-light:zoom-in" className="w-[18px] h-[18px]" />
+                        </button>
+                        <button
+                            onClick={() => setCurrentZoom?.(0.85)}
+                            className="bg-white text-[#575C9C] text-[10px] font-extrabold px-2.5 py-0.5 rounded-[4px] active:scale-95 transition-all ml-0.5"
+                        >
+                            Reset
+                        </button>
+                    </div>
+
+                    {/* Navigation Arrows inside the main container */}
+                    <button
+                        className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
+                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                    >
+                        <Icon icon="ph:caret-left-light" strokeWidth="4" className="w-8 h-8 opacity-70" />
+                    </button>
+
+                    <button
+                        className="absolute right-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
+                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                    >
+                        <Icon icon="ph:caret-right-light" strokeWidth="4" className="w-8 h-8 opacity-70" />
+                    </button>
+
+                    {/* Flipbook Canvas - Scaled down for better mobile fit */}
+                    <div className="flex-1 flex items-center justify-center px-10 relative overflow-hidden">
+                        <div className="relative transition-transform duration-300" style={{ transform: 'scale(0.8)', transformOrigin: 'center center' }}>
                             {children}
                         </div>
                     </div>
                 </div>
 
-
             </div>
 
             {/* Footer Navigation */}
-            <footer className="z-[100] bg-[#575C9C] flex flex-col pt-3 pb-5 relative">
-                <div className="flex items-center justify-center gap-8 text-white">
+            <footer className="z-[60] bg-[#575C9C] flex flex-col pt-2 pb-6 relative shadow-[0_-5px_20px_rgba(0,0,0,0.15)]">
+                <div className="flex items-center justify-center gap-6 text-white mb-1.5">
                     <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform">
-                        <Icon icon="ph:skip-back-bold" className="w-[1rem] h-[1rem]" />
+                        <Icon icon="ph:skip-back-bold" className="w-4 h-4" />
                     </button>
                     <button onClick={() => onPageClick(Math.max(0, currentPage - 1))} className="active:scale-90 transition-transform">
-                        <Icon icon="ph:caret-left-bold" className="w-[0.85rem] h-[0.85rem]" />
+                        <Icon icon="ph:caret-left-bold" className="w-4 h-4" />
                     </button>
-                    <button onClick={() => setIsPlaying(!isAutoFlipping)} className="active:scale-90 transition-transform mx-2">
-                        <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-[1rem] h-[1rem]" />
+                    <button
+                        onClick={() => setIsPlaying(!isAutoFlipping)}
+                        className="active:scale-90 transition-all"
+                    >
+                        <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-6 h-6" />
                     </button>
                     <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="active:scale-90 transition-transform">
-                        <Icon icon="ph:caret-right-bold" className="w-[0.85rem] h-[0.85rem]" />
+                        <Icon icon="ph:caret-right-bold" className="w-4 h-4" />
                     </button>
                     <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform">
-                        <Icon icon="ph:skip-forward-bold" className="w-[1rem] h-[1rem]" />
+                        <Icon icon="ph:skip-forward-bold" className="w-4 h-4" />
                     </button>
                 </div>
 
-                {/* Progress Bar Slider */}
-                <div className="absolute bottom-1.5 left-0 right-0 px-8">
-                    <div ref={progressRef} className="h-[2px] w-full bg-white/20 rounded-full cursor-pointer relative" onClick={handleProgressClick}>
-                        <div 
-                            className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300" 
-                            style={{ width: `${Math.max(1, progressPercentage)}%` }} 
+                <div className="px-6">
+                    <div ref={progressRef} className="h-[3px] w-full bg-white/20 rounded-full cursor-pointer relative overflow-hidden" onClick={handleProgressClick}>
+                        <div
+                            className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300"
+                            style={{ width: `${Math.max(1, progressPercentage)}%` }}
                         />
                     </div>
                 </div>

@@ -1,5 +1,10 @@
 // Utility functions for the template editor
 
+export const getCleanHTML = (html) => {
+  return html || '';
+};
+
+
 // Reset properties to default values
 export const resetProperties = (setProperties) => {
   setProperties({

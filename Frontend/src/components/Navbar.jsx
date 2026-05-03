@@ -1,15 +1,16 @@
 // src/components/Navbar.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import logo from '../assets/logo/Fisto_logo.png';
-import { User, Share2, Save, Download, Loader2, Eye } from 'lucide-react';
+import { User, Share2, Save, Download, Loader2, Eye, ChevronDown, Monitor, Tablet, Smartphone } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ProfileModal from './ProfileModal';
 
 
-const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving }) => {
+const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const location = useLocation();
   // Determine active editor path with persistence
   const [lastEditorPath, setLastEditorPath] = useState(() => {
@@ -17,9 +18,6 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
   });
   const [lastCustomizedPath, setLastCustomizedPath] = useState(() => {
     return localStorage.getItem('lastCustomizedPath') || '/editor/customized_editor';
-  });
-  const [lastThreedPath, setLastThreedPath] = useState(() => {
-    return localStorage.getItem('lastThreedPath') || '/editor/threed_editor';
   });
 
   useEffect(() => {
@@ -30,10 +28,6 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
     if (location.pathname.includes('customized_editor')) {
       setLastCustomizedPath(location.pathname);
       localStorage.setItem('lastCustomizedPath', location.pathname);
-    }
-    if (location.pathname.includes('threed_editor')) {
-      setLastThreedPath(location.pathname);
-      localStorage.setItem('lastThreedPath', location.pathname);
     }
   }, [location]);
 
@@ -47,6 +41,35 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
     if (path === '/editor/threed_editor') return location.pathname.includes('threed_editor');
     if (path === '/editor/customized_editor') return location.pathname.includes('customized_editor');
     return location.pathname === path;
+  };
+
+  // Construct dynamic paths based on current book context
+  const getCustomizePath = () => {
+    // If already in customize, keep current path (includes page)
+    if (location.pathname.includes('customized_editor')) return location.pathname;
+    
+    const folder = currentBook?.folder || currentBook?.folderName;
+    const v_id = currentBook?.v_id;
+    
+    if (folder && v_id) {
+      return `/editor/customized_editor/${encodeURIComponent(Array.isArray(folder) ? folder[0] : folder)}/${v_id}`;
+    }
+    return lastCustomizedPath;
+  };
+
+  const getEditorPath = () => {
+    // If already in editor, keep current path
+    if (location.pathname.startsWith('/editor') && !location.pathname.includes('customized_editor') && !location.pathname.includes('threed_editor')) {
+      return location.pathname;
+    }
+
+    const folder = currentBook?.folder || currentBook?.folderName;
+    const v_id = currentBook?.v_id;
+    
+    if (folder && v_id) {
+      return `/editor/${encodeURIComponent(Array.isArray(folder) ? folder[0] : folder)}/${v_id}`;
+    }
+    return lastEditorPath;
   };
 
   // Common styles
@@ -74,12 +97,6 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
 
   // Check if we are in 3D Editor
   const isThreedEditor = location.pathname.includes('threed_editor');
-  const isSaveDisabled = !canSave || !hasUnsavedChanges;
-  const saveButtonTitle = !canSave
-    ? "Add a 3D model to enable saving"
-    : hasUnsavedChanges
-      ? "You have unsaved changes - Click to Save"
-      : "All changes saved";
 
   return (
     <>
@@ -118,19 +135,19 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
             My Flipbook
           </Link>
           <Link
-            to={lastCustomizedPath}
+            to={getCustomizePath()}
             className={isActive('/editor/customized_editor') ? activeLinkStyle : baseLinkStyle}
           >
             Customize
           </Link>
           <Link
-            to={lastEditorPath}
+            to={getEditorPath()}
             className={isActive('/editor') ? activeLinkStyle : baseLinkStyle}
           >
             Editor
           </Link>
           <Link
-            to={lastThreedPath}
+            to="/editor/threed_editor"
             className={isActive('/editor/threed_editor') ? activeLinkStyle : baseLinkStyle}
           >
             3D Editor
@@ -139,6 +156,65 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
 
         {/* Right Section - Actions */}
         <div className="flex items-center gap-[0.8vw] min-w-[15vw] justify-end relative">
+          {/* Device Switcher (Customized Editor only) */}
+          {location.pathname.includes('customized_editor') && activeDevice && setActiveDevice && (
+            <div className="relative">
+              <button
+                onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)}
+                className="flex items-center gap-[0.4vw] p-[0.6vw] px-[0.8vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
+                title="Switch Device Preview"
+              >
+                {activeDevice === 'Desktop' && <Monitor size="1.2vw" />}
+                {activeDevice === 'Tablet' && <Tablet size="1.2vw" />}
+                {activeDevice === 'Mobile' && <Smartphone size="1.2vw" />}
+                <span className="font-medium text-[0.85vw]">{activeDevice}</span>
+                <ChevronDown size="1vw" />
+              </button>
+              
+              {isDeviceMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsDeviceMenuOpen(false)} />
+                  <div className="absolute right-[-1.5vw] top-full mt-[1vw] bg-gray-50 border border-gray-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] rounded-[0.8vw] p-[0.5vw] w-[11vw] z-50 flex flex-col gap-[0.5vw]">
+                    {/* Top Row: Mobile & Tablet */}
+                    <div className="flex gap-[0.5vw] w-full">
+                      <button
+                        onClick={() => {
+                          setActiveDevice('Mobile');
+                          setIsDeviceMenuOpen(false);
+                        }}
+                        className={`flex-1 flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Mobile' ? 'border-indigo-500 text-indigo-600 shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
+                      >
+                        <Smartphone strokeWidth={1.5} className="w-[1.4vw] h-[1.4vw] mb-[0.3vw]" />
+                        <span className="text-[0.75vw] font-medium">Mobile</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveDevice('Tablet');
+                          setIsDeviceMenuOpen(false);
+                        }}
+                        className={`flex-1 flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Tablet' ? 'border-indigo-500 text-indigo-600 shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
+                      >
+                        <Tablet strokeWidth={1.5} className="w-[1.4vw] h-[1.4vw] mb-[0.3vw]" />
+                        <span className="text-[0.75vw] font-medium">Tablet</span>
+                      </button>
+                    </div>
+                    {/* Bottom Row: Desktop */}
+                    <button
+                      onClick={() => {
+                        setActiveDevice('Desktop');
+                        setIsDeviceMenuOpen(false);
+                      }}
+                      className={`w-full flex flex-col items-center justify-center py-[0.8vw] rounded-[0.5vw] bg-white transition-all border ${activeDevice === 'Desktop' ? 'border-indigo-500 text-indigo-600 shadow-sm' : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:shadow-sm'}`}
+                    >
+                      <Monitor strokeWidth={1.5} className="w-[1.4vw] h-[1.4vw] mb-[0.3vw]" />
+                      <span className="text-[0.75vw] font-medium">Desktop</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Profile */}
           <button 
             onClick={() => setIsProfileOpen(true)}
@@ -161,15 +237,13 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
           <div className="relative">
               <button 
                 onClick={onSave}
-                disabled={isSaveDisabled}
+                disabled={!hasUnsavedChanges}
                 className={`p-[0.6vw] rounded-[0.5vw] transition-all relative shadow-sm
-                  ${!canSave
-                      ? 'bg-gray-100 text-gray-400 ring-[0.06vw] ring-gray-200'
-                      : hasUnsavedChanges 
+                  ${hasUnsavedChanges 
                       ? 'bg-[#FFFBEB] text-yellow-600 cursor-pointer hover:bg-yellow-100 ring-[0.06vw] ring-yellow-300' 
                       : 'bg-[#F2FDF8] text-green-600 cursor-default opacity-80 ring-[0.06vw] ring-green-300'
                   }`}
-                title={saveButtonTitle}
+                title={hasUnsavedChanges ? "You have unsaved changes - Click to Save" : "All changes saved"}
               >
                 {isSaving ? <Loader2 size="1.2vw" className="animate-spin" /> : <Save size="1.2vw" />}
               </button>
@@ -206,7 +280,7 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, canSave = true
           {!(location.pathname.startsWith('/editor') && !location.pathname.includes('threed_editor') && !location.pathname.includes('customized_editor')) && (
             <button 
               onClick={onPreview}
-              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.5vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0"
+              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0"
               title="Preview Book"
             >
               <Icon icon="ic:baseline-preview" className="w-[1.25vw] h-[1.25vw]" />

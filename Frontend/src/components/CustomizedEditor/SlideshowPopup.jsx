@@ -40,7 +40,7 @@ const GalleryPopup = ({ onClose, settings }) => {
             const speed = (settings.speed || 2) * 1000;
             const updateInterval = 50; // Update every 50ms for smoothness
             const step = 100 / (speed / updateInterval);
-            
+
             progressIntervalRef.current = setInterval(() => {
                 setProgress(prev => {
                     if (prev >= 100) {
@@ -63,29 +63,29 @@ const GalleryPopup = ({ onClose, settings }) => {
     return (
         <div className="absolute inset-0 z-[100] bg-black/40 backdrop-blur-md flex items-center justify-center p-[2vw] animate-in fade-in duration-300" onClick={onClose}>
             {/* Close Button */}
-            <button 
+            <button
                 onClick={onClose}
                 className="absolute top-[2vw] right-[2vw] w-[3vw] h-[3vw] flex items-center justify-center bg-white/10 hover:bg-white/20 text-white rounded-full transition-all z-[110] backdrop-blur-md border border-white/20"
             >
                 <X size="1.5vw" />
             </button>
 
-            <div 
+            <div
                 className="relative w-full max-w-[90vw] flex flex-col items-center gap-[3vw]"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Main Carousel Container */}
                 <div className="relative w-full flex items-center justify-center h-[55vh] overflow-visible">
-                    
+
                     {/* Navigation Arrows */}
-                    <button 
+                    <button
                         onClick={handlePrev}
                         className="absolute left-[1vw] z-50 p-[1vw] text-white/40 hover:text-white transition-all bg-black/10 hover:bg-black/20 rounded-full backdrop-blur-sm"
                     >
                         <ChevronLeft size="2.5vw" strokeWidth={1.5} />
                     </button>
-                    
-                    <button 
+
+                    <button
                         onClick={handleNext}
                         className="absolute right-[1vw] z-50 p-[1vw] text-white/40 hover:text-white transition-all bg-black/10 hover:bg-black/20 rounded-full backdrop-blur-sm"
                     >
@@ -98,7 +98,7 @@ const GalleryPopup = ({ onClose, settings }) => {
                             const isCurrent = index === currentIndex;
                             const isPrev = index === (currentIndex - 1 + images.length) % images.length;
                             const isNext = index === (currentIndex + 1) % images.length;
-                            
+
                             const isVisible = isCurrent || (images.length > 1 && (isPrev || isNext));
                             if (!isVisible) return null;
 
@@ -124,12 +124,12 @@ const GalleryPopup = ({ onClose, settings }) => {
                             }
 
                             return (
-                                <div 
+                                <div
                                     key={index}
                                     className="absolute transition-all duration-700 ease-[cubic-bezier(0.4, 0, 0.2, 1)] cursor-pointer select-none"
-                                    style={{ 
-                                        transform: transformStyle, 
-                                        opacity, 
+                                    style={{
+                                        transform: transformStyle,
+                                        opacity,
                                         zIndex,
                                         width: '45vw',
                                         height: '50vh',
@@ -139,9 +139,9 @@ const GalleryPopup = ({ onClose, settings }) => {
                                     onClick={() => !isCurrent && setCurrentIndex(index)}
                                 >
                                     <div className={`w-full h-full rounded-[2vw] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-[1px] border-white/10`}>
-                                        <img 
-                                            src={img.url} 
-                                            alt="" 
+                                        <img
+                                            src={img.url}
+                                            alt=""
                                             className="w-full h-full object-cover"
                                             style={{ objectFit }}
                                             draggable={false}
@@ -153,19 +153,19 @@ const GalleryPopup = ({ onClose, settings }) => {
                     </div>
                 </div>
 
-                    {images.length > 1 && (
-                        <div className="flex items-center gap-[0.5vw]">
-                            {images.map((_, index) => (
-                                <div 
-                                    key={index}
-                                    className={`w-[0.5vw] h-[0.5vw] rounded-full transition-all duration-300 ${index === currentIndex ? 'bg-indigo-500 scale-125' : 'bg-white/20'}`}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </div>
+                {images.length > 1 && (
+                    <div className="flex items-center gap-[0.5vw]">
+                        {images.map((_, index) => (
+                            <div
+                                key={index}
+                                className={`w-[0.5vw] h-[0.5vw] rounded-full transition-all duration-300 ${index === currentIndex ? 'bg-indigo-500 scale-125' : 'bg-white/20'}`}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
-       
+        </div>
+
     );
 };
 

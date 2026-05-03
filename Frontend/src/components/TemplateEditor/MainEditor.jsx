@@ -147,6 +147,23 @@ const svgGlobalStyles = `
     transition: all 0.1s ease;
   }
 
+  /* Video & Iframe Scaling Fixes */
+  foreignObject video, 
+  foreignObject iframe {
+    width: 100% !important;
+    height: 100% !important;
+    display: block !important;
+    border: none !important;
+    outline: none !important;
+  }
+
+  .hide-controls::-webkit-media-controls {
+    display: none !important;
+  }
+  .hide-controls {
+    pointer-events: none !important;
+  }
+
   /* Global Resize Cursor Lock */
   body.resizing-active, 
   body.resizing-active * {
@@ -175,6 +192,7 @@ const MainEditor = ({
   clearPage,
   deletePage,
   onOpenTemplateModal,
+  onAddFile,
   selectedLayerId,
   setSelectedLayerId,
   updatePageHtml,
@@ -306,6 +324,379 @@ const MainEditor = ({
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, [activeTopTool]);
+
+  // ── Global Slideshow Runner ───────────────────────────────────────────────
+  // Ensures all slideshows on the template slide automatically even when not selected.
+  // This logic runs independently for every element with [data-is-slideshow="true"].
+  useEffect(() => {
+    const globalSlideshowInterval = setInterval(() => {
+      const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
+      slideshows.forEach(el => {
+        // Skip if manual control/overlay is active or if user is hovering (prevents conflicts)
+        if (el.getAttribute('data-slideshow-manual') === 'true' || 
+            el.getAttribute('data-is-hovering') === 'true' || 
+            el.matches(':hover')) return;
+        
+        try {
+          const dataStr = el.getAttribute('data-slideshow');
+          if (!dataStr) return;
+          const data = JSON.parse(dataStr);
+          const settings = data.settings || {};
+          
+          // Only auto-slide if enabled in settings
+          if (!settings.autoPlay && !settings.autoSlide) return;
+          
+          const images = data.images || [];
+          if (images.length <= 1) return;
+          
+          const speed = (settings.speed || 3) * 1000;
+          const now = Date.now();
+          const lastTime = parseInt(el.getAttribute('data-last-slide-time') || '0');
+          
+          if (now - lastTime >= speed) {
+            let currentIndex = parseInt(el.getAttribute('data-active-index') || '0');
+            let nextIndex = (currentIndex + 1) % images.length;
+            
+            // If not infinite and reached end, stop
+            if (nextIndex === 0 && settings.infiniteLoop === false && currentIndex !== 0) return;
+
+            // Update DOM attributes
+            el.setAttribute('data-active-index', nextIndex.toString());
+            el.setAttribute('data-last-slide-time', now.toString());
+            
+            // ── Resolve the actual <image>/<img>, including SVG pattern fills ──
+            const _findImgInPattern = (node) => {
+              const fill = node.getAttribute?.('fill') || '';
+              if (fill?.startsWith('url(#')) {
+                const patternId = fill.match(/url\(#([^)]+)\)/)?.[1];
+                if (patternId) {
+                  const ownerSvg = node.closest('svg');
+                  const pattern = ownerSvg?.querySelector(`[id="${patternId}"]`);
+                  if (pattern) {
+                    const img = pattern.querySelector('image');
+                    if (img) return img;
+                    const useEl = pattern.querySelector('use');
+                    if (useEl) {
+                      const refId = (useEl.getAttribute('href') || useEl.getAttribute('xlink:href'))?.replace('#', '');
+                      if (refId) return ownerSvg?.querySelector(`[id="${refId}"]`) || null;
+                    }
+                  }
+                }
+              }
+              return null;
+            };
+
+            let imgEl = null;
+            const elTag = el.tagName?.toLowerCase();
+            if (elTag === 'image' || elTag === 'img') {
+              imgEl = el;
+            } else {
+              // 1. Pattern fill on the element itself
+              imgEl = _findImgInPattern(el);
+              // 2. Direct child <image>/<img>
+              if (!imgEl) imgEl = el.querySelector('image') || el.querySelector('img');
+              // 3. Pattern fills on children
+              if (!imgEl) {
+                const childrenWithPatterns = el.querySelectorAll('[fill^="url(#"]');
+                for (const child of Array.from(childrenWithPatterns)) {
+                  const t = _findImgInPattern(child);
+                  if (t) { imgEl = t; break; }
+                }
+              }
+              // 4. Fallback to element itself
+              if (!imgEl) imgEl = el;
+            }
+
+            const url = images[nextIndex]?.url;
+            if (url && imgEl) {
+              const imgTag = imgEl.tagName?.toLowerCase();
+              if (imgTag === 'image') {
+                imgEl.setAttribute('href', url);
+                try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch(e) {}
+              } else if (imgTag === 'img') {
+                imgEl.src = url;
+              } else {
+                imgEl.style.backgroundImage = `url("${url}")`;
+              }
+            }
+          }
+        } catch (e) {
+          // Silent catch for parse errors during rapid edits
+        }
+      });
+
+      // ── Safety: clear stale data-slideshow-manual flags ──
+      // If an overlay element is marked manual but no active editor overlay div exists,
+      // the flag was left behind when the properties panel closed unexpectedly. Clear it.
+      if (!document.querySelector('.editor-ss-overlay')) {
+        document.querySelectorAll('[data-slideshow-manual="true"]').forEach(el => {
+          el.removeAttribute('data-slideshow-manual');
+        });
+      }
+    }, 1000); // Check every second
+    
+    return () => clearInterval(globalSlideshowInterval);
+  }, []);
+
+  // ── Global Slideshow Manual Click Handler ─────────────────────────────────
+  // Advances a slideshow to the next image on click (even when NOT selected).
+  // Uses mousedown+mouseup in capture phase to avoid being blocked by
+  // handleSvgClick's stopPropagation, and guards against drag-clicks.
+  useEffect(() => {
+    // Shared pattern-traversal helper (same logic as auto-runner above)
+    const findImgInPattern = (node) => {
+      const fill = node.getAttribute?.('fill') || '';
+      if (fill?.startsWith('url(#')) {
+        const patternId = fill.match(/url\(#([^)]+)\)/)?.[1];
+        if (patternId) {
+          const ownerSvg = node.closest('svg');
+          const pattern = ownerSvg?.querySelector(`[id="${patternId}"]`);
+          if (pattern) {
+            const img = pattern.querySelector('image');
+            if (img) return img;
+            const useEl = pattern.querySelector('use');
+            if (useEl) {
+              const refId = (useEl.getAttribute('href') || useEl.getAttribute('xlink:href'))?.replace('#', '');
+              if (refId) return ownerSvg?.querySelector(`[id="${refId}"]`) || null;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const resolveImgEl = (el) => {
+      const tag = el.tagName?.toLowerCase();
+      if (tag === 'image' || tag === 'img') return el;
+      let img = findImgInPattern(el);
+      if (!img) img = el.querySelector('image') || el.querySelector('img');
+      if (!img) {
+        const childrenWithPatterns = el.querySelectorAll('[fill^="url(#"]');
+        for (const child of Array.from(childrenWithPatterns)) {
+          const t = findImgInPattern(child);
+          if (t) { img = t; break; }
+        }
+      }
+      return img || el;
+    };
+
+    // Track mouse-down position to distinguish clicks from drags
+    let mdX = 0, mdY = 0;
+
+    const advanceSlideshow = (slideshowEl) => {
+      try {
+        const dataStr = slideshowEl.getAttribute('data-slideshow');
+        if (!dataStr) return;
+        const data = JSON.parse(dataStr);
+        const images = data.images || [];
+        if (images.length <= 1) return;
+
+        const settings = data.settings || {};
+        const infiniteLoop = settings.infiniteLoop !== false;
+
+        let currentIndex = parseInt(slideshowEl.getAttribute('data-active-index') || '0');
+        let nextIndex = currentIndex + 1;
+        if (nextIndex >= images.length) nextIndex = infiniteLoop ? 0 : images.length - 1;
+        if (nextIndex === currentIndex) return;
+
+        const url = images[nextIndex]?.url;
+        if (!url) return;
+
+        const imgEl = resolveImgEl(slideshowEl);
+        const imgTag = imgEl.tagName?.toLowerCase();
+        if (imgTag === 'image') {
+          imgEl.setAttribute('href', url);
+          try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch(err) {}
+        } else if (imgTag === 'img') {
+          imgEl.src = url;
+        } else {
+          imgEl.style.backgroundImage = `url("${url}")`;
+        }
+
+        slideshowEl.setAttribute('data-active-index', nextIndex.toString());
+        slideshowEl.setAttribute('data-last-slide-time', Date.now().toString());
+      } catch (err) {
+        // Silent catch
+      }
+    };
+
+    const handleMouseDown = (e) => {
+      mdX = e.clientX;
+      mdY = e.clientY;
+    };
+
+    const handleMouseUp = (e) => {
+      // Ignore if mouse moved too much (drag, not click)
+      if (Math.abs(e.clientX - mdX) > 5 || Math.abs(e.clientY - mdY) > 5) return;
+
+      // Walk up using parentNode (works for SVG elements, unlike parentElement)
+      let node = e.target;
+      let slideshowEl = null;
+      while (node && node.nodeType === 1) {
+        if (node.getAttribute?.('data-is-slideshow') === 'true') {
+          slideshowEl = node;
+          break;
+        }
+        node = node.parentNode;
+      }
+      if (!slideshowEl) return;
+
+      // Defer to the live-runner overlay when the element is selected
+      if (slideshowEl.getAttribute('data-slideshow-manual') === 'true') return;
+
+      advanceSlideshow(slideshowEl);
+    };
+
+    document.addEventListener('mousedown', handleMouseDown, true);
+    document.addEventListener('mouseup', handleMouseUp, true);
+    return () => {
+      document.removeEventListener('mousedown', handleMouseDown, true);
+      document.removeEventListener('mouseup', handleMouseUp, true);
+    };
+  }, []);
+
+  // Handle external asset insertion events
+  useEffect(() => {
+    const handleAddIcon = (e) => {
+      const { icon, pageIndex } = e.detail;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      const page = pages[targetPageIndex];
+      if (!page) return;
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html || '', 'image/svg+xml');
+      const svg = doc.querySelector('svg');
+      if (!svg) return;
+
+      // Calculate center
+      const svgW = parseFloat(svg.getAttribute('width') || '793');
+      const svgH = parseFloat(svg.getAttribute('height') || '1121');
+      const centerX = svgW / 2;
+      const centerY = svgH / 2;
+
+      // Unique ID
+      const newId = `icon-${Date.now()}`;
+      
+      // Create element
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.id = newId;
+      g.setAttribute('data-type', 'icon');
+      // Place centered (accounting for an assumed icon size of ~50x50 for better initial visual balance)
+      g.setAttribute('transform', `translate(${centerX - 25}, ${centerY - 25})`); 
+      g.setAttribute('fill', '#ffffff'); 
+      g.setAttribute('stroke', '#000000');
+      g.setAttribute('stroke-width', '2');
+      
+      
+      if (icon.Component) {
+          // If it's a lucide icon component, we can't easily render it to a string here 
+          // without react-dom/server or similar. 
+          // But I'll try to find a way to get its SVG path.
+          // For now, let's assume we use the data if available.
+          if (icon.html) g.innerHTML = icon.html;
+          else if (icon.d) {
+             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+             path.setAttribute('d', icon.d);
+             g.appendChild(path);
+          }
+      } else {
+         if (icon.html) g.innerHTML = icon.html;
+         else if (icon.d) {
+           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+           path.setAttribute('d', icon.d);
+           g.appendChild(path);
+         }
+      }
+
+      const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
+      targetContainer.appendChild(g);
+      
+      updatePageHtml(targetPageIndex, svg.outerHTML);
+      setSelectedLayerId(newId);
+    };
+
+    const handleUploadVideo = (e) => {
+      const { videoUrl, pageIndex, file } = e.detail;
+      const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
+      
+      // 1. Find the SVG of the target page in the actual DOM for accurate centering
+      const container = document.querySelector(`.page-svg-container[data-page-index="${targetPageIndex}"]`);
+      const svg = container?.querySelector('svg');
+      if (!svg) return;
+
+      const newId = `video-${Date.now()}`;
+      
+      // We use foreignObject to host the video element in SVG
+      const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+      fo.id = newId;
+      
+      const displayWidth = 150;
+      const displayHeight = 100;
+      
+      fo.setAttribute('width', displayWidth.toString());
+      fo.setAttribute('height', displayHeight.toString());
+      fo.setAttribute('data-type', 'video');
+      fo.setAttribute('data-name', 'Video');
+      if (file) fo.setAttribute('data-filename', file.name);
+
+      const video = document.createElement('video');
+      video.src = videoUrl;
+      video.setAttribute('width', '100%');
+      video.setAttribute('height', '100%');
+      video.setAttribute('controls', 'true');
+      video.style.objectFit = 'contain';
+      
+      fo.appendChild(video);
+
+      // 2. Append to root frame or page container and center it
+      const topFrames = getTopLevelFrames(svg);
+      const rootFrame = topFrames[0] || svg.querySelector('g') || svg;
+      
+      if (rootFrame) {
+          try {
+              let cx = 105, cy = 148.5; // Default A4 center
+              
+              try {
+                  const bbox = rootFrame.getBBox();
+                  if (bbox.width > 0 && bbox.height > 0) {
+                      cx = bbox.x + bbox.width / 2;
+                      cy = bbox.y + bbox.height / 2;
+                  }
+              } catch (e) {
+                  // Fallback to SVG center if BBox fails
+                  const svgW = parseFloat(svg.getAttribute('width') || '793');
+                  const svgH = parseFloat(svg.getAttribute('height') || '1121');
+                  cx = svgW / 2;
+                  cy = svgH / 2;
+              }
+              
+              fo.setAttribute('x', (cx - displayWidth / 2).toString());
+              fo.setAttribute('y', (cy - displayHeight / 2).toString());
+              
+              rootFrame.appendChild(fo);
+              
+              // 3. Synchronize changes
+              if (updatePageHtml) {
+                  saveModifiedPageHtml(targetPageIndex, svg);
+              }
+              
+              if (setSelectedLayerId) setSelectedLayerId(newId);
+              if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+              if (setActiveMainTool) setActiveMainTool('select');
+              
+          } catch (err) {
+              console.error("[MainEditor] Failed to insert video into SVG frame:", err);
+          }
+      }
+    };
+
+    window.addEventListener('add-icon-to-editor', handleAddIcon);
+    window.addEventListener('upload-video-to-editor', handleUploadVideo);
+    return () => {
+      window.removeEventListener('add-icon-to-editor', handleAddIcon);
+      window.removeEventListener('upload-video-to-editor', handleUploadVideo);
+    };
+  }, [activePageIndex, pages, updatePageHtml, setSelectedLayerId]);
 
   // ── Marquee Selection State ───────────────────────────────────────────────
   const [marquee, setMarquee] = useState(null); // { pageIndex }
@@ -869,7 +1260,7 @@ const MainEditor = ({
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
   const handleResetZoom = () => setZoom(90);
 
-  const insertImageIntoPage = (pageIdx, dataUrl) => {
+  const insertImageIntoPage = (pageIdx, dataUrl, dataType = 'image') => {
     // 1. Find the SVG of the target page
     const container = document.querySelector(`.page-svg-container[data-page-index="${pageIdx}"]`);
     const svg = container?.querySelector('svg');
@@ -885,7 +1276,7 @@ const MainEditor = ({
     // Set both for maximum cross-browser/renderer compatibility
     newImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
     newImg.setAttribute('href', dataUrl);
-    newImg.setAttribute('data-type', 'image');
+    newImg.setAttribute('data-type', dataType || 'image');
     newImg.setAttribute('data-name', 'Image'); // Ensure it shows up clearly in layers
     newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
     
@@ -957,8 +1348,8 @@ const MainEditor = ({
 
   useEffect(() => {
     const handleAddImageEvent = (e) => {
-      const { pageIndex, dataUrl } = e.detail;
-      insertImageIntoPage(pageIndex, dataUrl);
+      const { pageIndex, dataUrl, dataType } = e.detail;
+      insertImageIntoPage(pageIndex, dataUrl, dataType);
     };
     window.addEventListener('upload-image-to-editor', handleAddImageEvent);
     return () => window.removeEventListener('upload-image-to-editor', handleAddImageEvent);
@@ -1341,11 +1732,29 @@ const MainEditor = ({
   const getDraggableElement = (target, canvasRoot) => {
     let current = target;
 
+    // If clicking on a tspan, promote to parent text element first
+    if (current && current.tagName?.toLowerCase() === 'tspan') {
+      current = current.parentElement || current.parentNode;
+    }
+
     while (current && current !== canvasRoot && current.tagName) {
       const tagName = current.tagName.toLowerCase();
 
       if (tagName === 'svg') {
         return null;
+      }
+
+      // Auto-assign an id to id-less text elements from SVG templates so they
+      // become selectable. This matches how the type tool creates new text.
+      if (
+        (tagName === 'text') &&
+        !current.id &&
+        current.getAttribute('data-hidden') !== 'true' &&
+        current.getAttribute('data-locked') !== 'true' &&
+        current.getAttribute('data-name') !== 'Overlay'
+      ) {
+        current.id = `text-${Math.random().toString(36).substr(2, 9)}`;
+        return current;
       }
 
       if (
@@ -2876,12 +3285,12 @@ const MainEditor = ({
         div.style.textAlign = 'left';
       }
 
-      // Correctly load multi-line text from tspans
-      const tspans = target.querySelectorAll('tspan');
+      // Initialize content: Convert tspans to newlines if present, otherwise use textContent
+      const tspans = Array.from(target.querySelectorAll('tspan'));
       if (tspans.length > 0) {
-          div.innerText = Array.from(tspans).map(t => t.textContent).join('\n');
+          div.innerText = tspans.map(t => t.textContent).join('\n');
       } else {
-          div.textContent = target.textContent;
+          div.innerText = target.textContent;
       }
       fo.appendChild(div);
       
@@ -2968,11 +3377,22 @@ const MainEditor = ({
         target.innerHTML = '';
         const x = target.getAttribute('x') || '0';
         
+        // Read existing line height if set, fallback to 1.2
+        const computedStyle = window.getComputedStyle(target);
+        const lhStr = computedStyle.lineHeight;
+        let dy = 1.2;
+        
+        if (lhStr && lhStr !== 'normal') {
+            const lhPx = parseFloat(lhStr);
+            const fsPx = parseFloat(computedStyle.fontSize) || 24;
+            if (fsPx > 0) dy = lhPx / fsPx;
+        }
+
         lines.forEach((line, i) => {
           const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
           tspan.textContent = line || '\u00A0';
           tspan.setAttribute('x', x);
-          if (i > 0) tspan.setAttribute('dy', '1.2em');
+          if (i > 0) tspan.setAttribute('dy', `${dy.toFixed(2)}em`);
           target.appendChild(tspan);
         });
 
@@ -3268,6 +3688,10 @@ const MainEditor = ({
 
           if (target && target !== frameEl && frameEl.contains(target)) {
             setSingleSelection(target.id);
+            // Persist auto-assigned ids (e.g. template text with no id) immediately
+            if (target.tagName?.toLowerCase() === 'text') {
+              saveModifiedPageHtml(pageIdx, svg);
+            }
             return;
           }
 
@@ -3362,6 +3786,10 @@ const MainEditor = ({
           setCurrentFrameId(hitFrame.id);
           currentFrameIdRef.current = hitFrame.id;
           setSingleSelection(target.id);
+          // Persist auto-assigned ids (e.g. template text with no id) immediately
+          if (target.tagName?.toLowerCase() === 'text') {
+            saveModifiedPageHtml(pageIdx, svg);
+          }
           return;
       }
 
@@ -4088,7 +4516,7 @@ const MainEditor = ({
                         <MenuOption 
                           icon={<FilePlusIcon />} 
                           label="Add File" 
-                          onClick={() => setOpenMenuIndex(null)}
+                          onClick={() => { onAddFile && onAddFile(activePageIndex); setOpenMenuIndex(null); }}
                         />
                         <MenuOption 
                           icon={<DuplicateIcon />} 
@@ -4256,7 +4684,7 @@ const MainEditor = ({
                           <MenuOption 
                             icon={<FilePlusIcon />} 
                             label="Add File" 
-                            onClick={() => setOpenMenuIndex(null)}
+                            onClick={() => { onAddFile && onAddFile(displayIndex); setOpenMenuIndex(null); }}
                           />
                           <MenuOption 
                             icon={<DuplicateIcon />} 
@@ -4465,3 +4893,4 @@ const MenuOption = ({ icon, label, onClick, color = "text-gray-700", hoverColor 
 );
 
 export default MainEditor;
+ 

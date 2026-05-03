@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LAYOUT_DEFAULT_COLORS } from './Layout';
-import { useParams, useOutletContext } from 'react-router-dom';
+import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import PreviewArea from './PreviewArea';
@@ -57,7 +57,8 @@ const ensureDarkText = (hex) => {
 // Navbar removed
 
 const CustomizedEditor = () => {
-  const { folder, v_id } = useParams();
+  const { folder, v_id, page } = useParams();
+  const navigate = useNavigate();
   const { setExportHandler, setSaveHandler, setPreviewHandler, setHasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
   const [bookName, setBookName] = useState(() => currentBook?.flipbookName || 'Name of the Book');
   const [activeSubView, setActiveSubView] = useState(null);
@@ -70,6 +71,24 @@ const CustomizedEditor = () => {
   useEffect(() => {
     setIsPanelCollapsed(false);
   }, [activeSubView]);
+
+  // Handle initial page from URL
+  useEffect(() => {
+    if (page) {
+      const pageNum = parseInt(page);
+      if (!isNaN(pageNum)) {
+        setTargetPage(pageNum);
+      }
+    }
+  }, [page]);
+
+  // Update URL when page changes to maintain state on refresh
+  useEffect(() => {
+    if (folder && v_id) {
+      // Use replace: true to avoid cluttering history with every page turn
+      navigate(`/editor/customized_editor/${encodeURIComponent(folder)}/${v_id}/${targetPage}`, { replace: true });
+    }
+  }, [targetPage, folder, v_id, navigate]);
 
   // Sync with global flipbook name from context (Template Editor sync)
   useEffect(() => {
@@ -646,8 +665,8 @@ const CustomizedEditor = () => {
               content: p.html || p.content || ''
             })));
             if (data.pageName && !currentBook?.flipbookName) setBookName(data.pageName);
-            // Always start from the first page on initial load
-            setTargetPage(0);
+            // Start from the first page on initial load if no page specified in URL
+            if (!page) setTargetPage(0);
           }
         } catch (e) {
           console.error("CustomizedEditor: Failed to load autosave", e);

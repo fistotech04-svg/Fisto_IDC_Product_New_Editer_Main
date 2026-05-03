@@ -9,17 +9,16 @@ import Visibility from './Visibility';
 import Statistic from './Statistic';
 
 const SubNavItem = ({ label, icon, isActive, onClick }) => (
-  <button 
+  <button
     onClick={onClick}
-    className={`w-full flex items-center gap-[0.75vw] px-[1vw] py-[0.6vw] rounded-[0.6vw] transition-all text-[0.75vw] font-semibold text-left ${
-      isActive 
-        ? 'bg-[#DBDBEA] text-[#3E4491] active-sub-nav' 
-        : 'hover:bg-[#DBDBEA] text-[#3E4491]'
-    }`}
+    className={`w-full flex items-center gap-[0.75vw] px-[1vw] py-[0.6vw] rounded-[0.6vw] transition-all text-[0.75vw] font-semibold text-left ${isActive
+      ? 'bg-[#DBDBEA] text-[#3E4491] active-sub-nav'
+      : 'hover:bg-[#DBDBEA] text-[#3E4491]'
+      }`}
   >
-    <Icon 
-      icon={icon} 
-      className={`w-[1vw] h-[1vw] ${isActive ? 'text-[#3E4491]' : 'text-gray-700'}`} 
+    <Icon
+      icon={icon}
+      className={`w-[1vw] h-[1vw] ${isActive ? 'text-[#3E4491]' : 'text-gray-700'}`}
     />
     <span className={`flex-1 ${isActive ? 'text-[#3E4491]' : 'text-gray-600'}`}>{label}</span>
   </button>
@@ -60,9 +59,9 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   useEffect(() => {
     const updateTabPos = () => {
       if (isDragging || isManuallyPositioned.current || !sidebarRef.current) return;
-      
+
       let anchor = null;
-      
+
       // 1. Try to find the visible active sub-nav item
       const subNav = sidebarRef.current.querySelector('.active-sub-nav');
       if (subNav) {
@@ -72,17 +71,17 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           anchor = subNav;
         }
       }
-      
+
       // 2. Fallback: Find the parent section button (it now has a section-specific ID)
       if (!anchor && parentSection) {
         anchor = sidebarRef.current.querySelector(`#section-${parentSection}`);
       }
-      
+
       // 3. Last fallback: any active sidebar item
       if (!anchor) {
         anchor = sidebarRef.current.querySelector('.active-sidebar-item');
       }
-      
+
       if (anchor) {
         const rect = anchor.getBoundingClientRect();
         const parentRect = sidebarRef.current.getBoundingClientRect();
@@ -93,7 +92,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
 
     updateTabPos();
     const timer = setTimeout(updateTabPos, 300); // Wait for accordion transition
-    
+
     window.addEventListener('resize', updateTabPos);
     return () => {
       window.removeEventListener('resize', updateTabPos);
@@ -165,41 +164,40 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
 
 
   return (
-    <div 
+    <div
       ref={sidebarRef}
       className="w-[16.25vw] h-full bg-white border-r border-gray-100 flex flex-col relative z-30 overflow-visible"
     >
 
       {/* Draggable Tab Handle and Full-height Line — only visible when sub-panel is collapsed */}
       {activeSubView && activeTab && isPanelCollapsed && (
-          <div className="absolute left-full top-0 w-[3.5vw] h-full pointer-events-none z-50">
-            {/* The full-height vertical black line (0.25vw wide) */}
-            <div className="absolute left-[-1px] top-0 w-[0.25vw] h-full bg-black pointer-events-auto  shadow-[0.1vw_0_0.5vw_rgba(0,0,0,0.1)]" />
-            
-            {/* The Draggable icon itself - repositioned to overlap with the line */}
-            <div
-              onMouseDown={handleMouseDown}
-              className={`absolute flex items-stretch rounded-r-[0.8vw] cursor-pointer shadow-[0.2vw_0_1vw_rgba(0,0,0,0.2)] pointer-events-auto group ${
-                isDragging ? 'cursor-grabbing scale-100' : 'cursor-grab'
+        <div className="absolute left-full top-0 w-[3.5vw] h-full pointer-events-none z-50">
+          {/* The full-height vertical black line (0.25vw wide) */}
+          <div className="absolute left-[-1px] top-0 w-[0.25vw] h-full bg-black pointer-events-auto  shadow-[0.1vw_0_0.5vw_rgba(0,0,0,0.1)]" />
+
+          {/* The Draggable icon itself - repositioned to overlap with the line */}
+          <div
+            onMouseDown={handleMouseDown}
+            className={`absolute flex items-stretch rounded-r-[0.8vw] cursor-pointer shadow-[0.2vw_0_1vw_rgba(0,0,0,0.2)] pointer-events-auto group ${isDragging ? 'cursor-grabbing scale-100' : 'cursor-grab'
               }`}
-              style={{ 
-                top: `${tabTop}px`,
-                transition: isDragging ? 'none' : 'top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.1s ease'
-              }}
-            >
-              {/* Internal overflow-hidden container for icons/background */}
-              <div className="flex items-stretch rounded-r-[0.8vw] overflow-hidden min-h-[3vw] ">
-                {/* Connector strip to ensure no gap with the line */}
-                <div className="w-[0.25vw] h-full bg-black flex-shrink-0 " />
-                <div className="w-[3vw] h-[3vw] bg-black text-white flex items-center justify-center">
-                  <Icon
-                    icon={activeTab.icon}
-                    className="w-[1.5vw] h-[1.5vw]"
-                  />
-                </div>
+            style={{
+              top: `${tabTop}px`,
+              transition: isDragging ? 'none' : 'top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.1s ease'
+            }}
+          >
+            {/* Internal overflow-hidden container for icons/background */}
+            <div className="flex items-stretch rounded-r-[0.8vw] overflow-hidden min-h-[3.2vw] ">
+              {/* Connector strip to ensure no gap with the line */}
+              <div className="w-[0.25vw] h-full bg-black flex-shrink-0 " />
+              <div className="w-[3vw] h-[3vw] bg-black text-white flex items-center justify-center">
+                <Icon
+                  icon={activeTab.icon}
+                  className="w-[1.5vw] h-[1.5vw]"
+                />
               </div>
             </div>
           </div>
+        </div>
       )}
 
       {/* Book Title Section */}
@@ -214,16 +212,16 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           />
           <Icon icon="mdi:rename" className="w-[1.25vw] h-[1.25vw] text-gray-800 cursor-pointer" />
         </div>
-        
+
         <div className="flex justify-end mt-[1vh]">
-           <div className="bg-[#F3F4F6] px-[0.65vw] py-[0.1vw] rounded-[0.4vw]">
-             <span className="text-[0.8vw] font-medium text-gray-700">{pageCount || 0} Pages</span>
-           </div>
+          <div className="bg-[#F3F4F6] px-[0.65vw] py-[0.1vw] rounded-[0.4vw]">
+            <span className="text-[0.8vw] font-medium text-gray-700">{pageCount || 0} Pages</span>
+          </div>
         </div>
       </div>
 
       {/* Sidebar Navigation */}
-      <div className="flex-1 overflow-y-auto pt-[0.2vw] hide-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="flex-1 overflow-y-auto pt-[0.2vw] custom-scrollbar">
         <SidebarItem
           id="section-branding"
           icon="material-symbols:branding-watermark-outline"
@@ -233,18 +231,18 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           isActive={openSection ? openSection === 'branding' : parentSection === 'branding'}
         >
           <div className=" mb-[0.5vw] p-[0.25vw] rounded-[1vw] border-[0.125vw] border-[#DBDBEA] bg-white space-y-[0.25vw] shadow-sm">
-             <SubNavItem 
-              label="Logo" 
-              icon="lucide:gem" 
-              isActive={activeSubView === 'logo'} 
-              onClick={() => setActiveSubView('logo')} 
-             />
-             <SubNavItem 
-              label="Profile" 
-              icon="lucide:user" 
-              isActive={activeSubView === 'profile'} 
-              onClick={() => setActiveSubView('profile')} 
-             />
+            <SubNavItem
+              label="Logo"
+              icon="lucide:gem"
+              isActive={activeSubView === 'logo'}
+              onClick={() => setActiveSubView('logo')}
+            />
+            <SubNavItem
+              label="Profile"
+              icon="lucide:user"
+              isActive={activeSubView === 'profile'}
+              onClick={() => setActiveSubView('profile')}
+            />
           </div>
         </SidebarItem>
 
@@ -257,24 +255,24 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           isActive={openSection ? openSection === 'appearance' : parentSection === 'appearance'}
         >
           <div className="mb-[0.5vw] p-[0.25vw] rounded-[1vw] border-[0.125vw] border-[#DBDBEA] bg-white space-y-[0.25vw] shadow-sm">
-             <SubNavItem 
-              label="Background" 
-              icon="mdi:texture" 
-              isActive={activeSubView === 'background'} 
-              onClick={() => setActiveSubView('background')} 
-             />
-             <SubNavItem 
-              label="Layout" 
-              icon="lucide:layout-panel-left" 
-              isActive={activeSubView === 'layout'} 
-              onClick={() => setActiveSubView('layout')} 
-             />
-             <SubNavItem 
-              label="Book Appearance" 
-              icon="lucide:settings-2" 
-              isActive={activeSubView === 'bookappearance'} 
-              onClick={() => setActiveSubView('bookappearance')} 
-             />
+            <SubNavItem
+              label="Background"
+              icon="mdi:texture"
+              isActive={activeSubView === 'background'}
+              onClick={() => setActiveSubView('background')}
+            />
+            <SubNavItem
+              label="Layout"
+              icon="lucide:layout-panel-left"
+              isActive={activeSubView === 'layout'}
+              onClick={() => setActiveSubView('layout')}
+            />
+            <SubNavItem
+              label="Book Appearance"
+              icon="lucide:settings-2"
+              isActive={activeSubView === 'bookappearance'}
+              onClick={() => setActiveSubView('bookappearance')}
+            />
           </div>
         </SidebarItem>
 
@@ -320,11 +318,10 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
               { id: 'Password Protect', label: 'Password Protect' },
               { id: 'Invite only Access', label: 'Invite only Access' }
             ].map((option) => (
-              <label 
+              <label
                 key={option.id}
-                className={`flex items-center gap-[0.75vw] px-[1.25vw] py-[0.75vw] rounded-[0.75vw] cursor-pointer transition-all ${
-                  visibilitySettings.type === option.id ? 'bg-[#eeeffc]' : 'hover:bg-gray-50'
-                }`}
+                className={`flex items-center gap-[0.75vw] px-[1.25vw] py-[0.75vw] rounded-[0.75vw] cursor-pointer transition-all ${visibilitySettings.type === option.id ? 'bg-[#eeeffc]' : 'hover:bg-gray-50'
+                  }`}
                 onClick={(e) => {
                   e.preventDefault();
                   onUpdateVisibility({ ...visibilitySettings, type: option.id });
@@ -332,11 +329,11 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
                 }}
               >
                 <div className="relative flex items-center justify-center">
-                  <input 
-                    type="radio" 
+                  <input
+                    type="radio"
                     name="visibility-type"
                     checked={visibilitySettings.type === option.id}
-                    onChange={() => {}} // Handled by label click
+                    onChange={() => { }} // Handled by label click
                     className="peer appearance-none w-[1.1vw] h-[1.1vw] border-2 border-gray-400 rounded-full checked:border-indigo-600 transition-all bg-white"
                   />
                   <div className="absolute w-[0.55vw] h-[0.55vw] bg-indigo-600 rounded-full scale-0 peer-checked:scale-100 transition-transform" />

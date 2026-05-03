@@ -361,10 +361,9 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
 
     // ─────────────────────────────────────────────────────────────────────
     return (
-        <div className="relative flex flex-col w-full min-h-full pb-[5vw]">
-
+        <div className="relative flex flex-col w-full min-h-full pb-[5vw] overflow-x-hidden">
             {/* ── Top Tab Buttons ── */}
-            <div className="sticky top-0 z-[50] grid grid-cols-2 gap-[0.55vw] py-[0.5vw] mb-[1vw] bg-[#ffffff] -mx-[1vw] px-[1.1vw] pr-[2vw] pl-[2vw] border-b border-gray-50 ">
+            <div className="sticky top-0 z-[50] grid grid-cols-2 gap-[0.8vw] py-[0.8vw] mb-[1vw] bg-white px-[1vw] border-b border-gray-100">
                 {['Layouts', 'Layout Colors'].map((tab) => {
                     const isActive = activeTab === tab;
                     return (
@@ -392,7 +391,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
 
             {/* ── Layout Grid ── */}
             {activeTab === 'Layouts' && (
-            <div className="px-[1vw] pb-[1vw] grid grid-cols-2 gap-[0.5vw] relative z-[10]">
+            <div className="px-[1vw] pb-[1vw] grid grid-cols-2 gap-[0.8vw] relative z-[10]">
                 {layoutImages.map((img, index) => {
                     const layoutNum = index + 1;
                     const isActive = activeLayout === layoutNum;
@@ -404,12 +403,12 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                         <div
                             key={index}
                             onClick={() => { if (!colorPopup) handleLayoutClick(layoutNum); }}
-                            className={`flex flex-col gap-[0.3vw] p-[0.45vw] rounded-[0.8vw] transition-all duration-300 border-2 cursor-pointer ${isActive
+                            className={`flex flex-col gap-[0.4vw] p-[0.45vw] rounded-[0.8vw] transition-all duration-300 border-2 cursor-pointer ${isActive
                                 ? 'border-[#3E4491] bg-white shadow-[0_4px_12px_rgba(62,68,145,0.12)] scale-[1.02]'
                                 : 'border-transparent hover:bg-gray-50'
                                 } ${isSpotlighted ? 'relative z-[310] !bg-white' : ''}`}
                         >
-                            <div className="relative group rounded-[0.5vw] overflow-hidden transition-all bg-[#F8F9FA] aspect-[1.4/1]">
+                            <div className="relative group rounded-[0.6vw] overflow-hidden transition-all bg-[#F8F9FA] aspect-[1.4/1]">
                                 <img src={img} alt={layoutName} className="w-full h-full object-cover" />
                             </div>
 
@@ -511,9 +510,9 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 const renderColorSection = (title, primaryColor, secondaryColor, primaryDraftKey, secondaryDraftKey) => (
                     <div>
                         {/* Section header */}
-                        <div className="flex items-center gap-[0.5vw] pt-[0.5vw] mb-[0.6vw]">
-                            <span className="text-[0.9vw] font-semibold text-gray-800 whitespace-nowrap">{title}</span>
-                            <div className="flex-1 h-[1px] bg-gray-200" />
+                        <div className="flex items-center gap-[0.5vw] pt-[0.5vw] mb-[0.8vw]">
+                            <span className="text-[0.9vw] font-bold text-gray-800 whitespace-nowrap">{title}</span>
+                            <div className="h-[1px] bg-gray-100 flex-1"></div>
                         </div>
 
                         {/* Preset swatches: 8-col × 2 rows — clicking applies theme */}
@@ -604,7 +603,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
 
                 return (
                     <div
-                        className="flex flex-col px-[1.4vw] pb-[1.5vw] gap-[1vw] overflow-y-auto"
+                        className="flex flex-col px-[1vw] pb-[1.5vw] gap-[1.2vw] overflow-y-auto"
                         style={{ scrollbarWidth: 'none' }}
                     >
                         {renderColorSection('Toolbar Color', toolbarPrimary, toolbarSecondary, 'tp', 'ts')}

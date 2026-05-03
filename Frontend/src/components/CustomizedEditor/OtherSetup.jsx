@@ -659,7 +659,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
               <SectionHeader title="Background Sound" />
               <input type="file" ref={bgSoundInputRef} onChange={handleBgSoundUpload} accept=".mp3, .wav, .m4a" className="hidden" />
                 <div 
-                  className={`rounded-[1.25vw] p-[0.4vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 4 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}
+                  className={`rounded-[0.5vw] p-[0.8vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 4 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}
                   style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
                   onClick={() => bgSoundInputRef.current?.click()}
                 >

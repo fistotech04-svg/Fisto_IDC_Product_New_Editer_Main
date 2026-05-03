@@ -16,7 +16,7 @@ const MobileLayoutRenderer = ({ activeLayout = 1, ...props }) => {
         return <div className="text-white p-4">Layout not found</div>;
     }
 
-    return <ActiveLayoutComponent {...props} />;
+    return <ActiveLayoutComponent activeLayout={activeLayout} {...props} />;
 };
 
 export default MobileLayoutRenderer;

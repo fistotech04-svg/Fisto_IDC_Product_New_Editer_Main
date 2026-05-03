@@ -26,7 +26,6 @@ import FireEmbers from './FireEmbers';
 import Mist from './Mist';
 import Disco from './Disco';
 import Sparkles from './Sparkles';
-import FloatingContainer from './Floating Container';
 
 export default {
     FallingLeaves,
@@ -56,6 +55,5 @@ export default {
     FireEmbers,
     Mist,
     Disco,
-    Sparkles,
-    FloatingContainer
+    Sparkles
 };

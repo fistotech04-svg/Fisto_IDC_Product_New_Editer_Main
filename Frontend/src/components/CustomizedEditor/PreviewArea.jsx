@@ -4,29 +4,30 @@ import { motion, AnimatePresence } from 'framer-motion';
 import backgroundComponents from './Backgrounds'; // Import the background components
 import animationComponents from './Animations';
 import * as BookAppearanceHelpers from './bookAppearanceHelpers';
-import AddBookmarkPopup from './AddBookmarkPopup';
-import AddNotesPopup from './AddNotesPopup';
-import NotesViewerPopup from './NotesViewerPopup';
-import ViewBookmarkPopup from './ViewBookmarkPopup';
-import TableOfContentsPopup from './TableOfContentsPopup';
+import AddBookmarkPopup from './popups/AddBookmarkPopup';
+import AddNotesPopup from './popups/AddNotesPopup';
+import NotesViewerPopup from './popups/NotesViewerPopup';
+import ViewBookmarkPopup from './popups/ViewBookmarkPopup';
+import TableOfContentsPopup from './popups/TableOfContentsPopup';
 import MobileFrame from './MobileFrame';
-import FlipbookSharePopup from './FlipbookSharePopup';
-import ProfilePopup from './ProfilePopup';
-import Sound from './Sound';
-import Export from './Export';
+import MobileLayoutRenderer from './Mobile/MobileLayoutRenderer';
+import FlipbookSharePopup from './popups/FlipbookSharePopup';
+import ProfilePopup from './popups/ProfilePopup';
+import Sound from './popups/Sound';
+import Export from './popups/Export';
+import Grid1Layout from './Layouts/Grid1Layout';
 import Grid2Layout from './Layouts/Grid2Layout';
 import Grid3Layout from './Layouts/Grid3Layout';
 import Grid4Layout from './Layouts/Grid4Layout';
 import Grid5Layout from './Layouts/Grid5Layout';
-import Grid1Layout from './Layouts/Grid1Layout';
 import Grid6Layout from './Layouts/Grid6Layout';
 import Grid7Layout from './Layouts/Grid7Layout';
 import Grid8Layout from './Layouts/Grid8Layout';
 import Grid9Layout from './Layouts/Grid9Layout';
-import GalleryPopup from './GalleryPopup';
+import GalleryPopup from './popups/GalleryPopup';
 import { getBookmarkClipPath, getBookmarkBorderRadius } from './BookmarkStylesPopup';
 import FlipBookEngine from './FlipBookEngine';
-import LeadFormPopup from './LeadFormPopup';
+import LeadFormPopup from './popups/LeadFormPopup';
 
 
 const getSlideshowScript = () => `
@@ -39,47 +40,246 @@ const getSlideshowScript = () => `
           el.dataset.slideshowInitialized = 'true';
           try {
             const data = JSON.parse(el.dataset.slideshow);
-            const settings = data.settings;
-            const images = data.images;
-            if (!images || images.length <= 1) return;
-            let currentIndex = 0;
+            const settings = data.settings || {};
+            const images = data.images || [];
+            if (!images || images.length < 1) return;
+
+            let currentIndex = parseInt(el.getAttribute('data-active-index') || '0');
             let isAnimating = false;
-            // Ensure parent relative
-            if (el.parentElement && getComputedStyle(el.parentElement).position === 'static') {
-               el.parentElement.style.position = 'relative';
+            let autoTimer = null;
+
+            // --- Setup Container ---
+            const container = el.parentElement || el;
+            if (getComputedStyle(container).position === 'static') {
+              container.style.position = 'relative';
             }
-            const updateSlide = (newIndex) => {
-               if (newIndex === currentIndex || isAnimating) return;
-               const nextImg = images[newIndex];
-               const baseOpacity = el.style.opacity || '1';
-               currentIndex = newIndex;
-               isAnimating = true;
-               const finish = () => {
-                  el.src = nextImg.url;
-                  el.style.transition = '';
-                  el.style.transform = '';
-                  el.style.opacity = baseOpacity;
-                  isAnimating = false;
-               };
-               el.style.transition = 'opacity 0.4s ease-in-out';
-               el.style.opacity = '0.2';
-               setTimeout(() => {
-                  el.src = nextImg.url;
-                  el.style.opacity = baseOpacity;
-                  setTimeout(finish, 400); 
-               }, 400);
+            container.style.overflow = 'hidden';
+
+            // --- Helper: set image src (handles SVG <image> and <img>) ---
+            const setElSrc = (target, url) => {
+              const tag = target.tagName ? target.tagName.toLowerCase() : '';
+              if (tag === 'image') {
+                target.setAttribute('href', url);
+                target.setAttributeNS && target.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url);
+              } else if (tag === 'img') {
+                target.src = url;
+              } else {
+                // Try SVG image child first
+                const svgImg = target.querySelector('image');
+                if (svgImg) {
+                  svgImg.setAttribute('href', url);
+                  try { svgImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch(e){}
+                } else {
+                  const img = target.querySelector('img');
+                  if (img) img.src = url;
+                  else target.style.backgroundImage = 'url(' + url + ')';
+                }
+              }
             };
-            if (settings.autoPlay) {
-               const intervalMs = (settings.speed || 2) * 1000;
-               setInterval(() => {
-                  let next = currentIndex + 1;
-                  if (next >= images.length) {
-                     if (!settings.infiniteLoop) return;
-                     next = 0;
+
+            // Set initial image
+            if (images[currentIndex]) setElSrc(el, images[currentIndex].url);
+
+            // --- Transition Engine ---
+            const transitionEffect = (settings.transitionEffect || 'Linear').toLowerCase();
+            const duration = 400;
+
+            const applyTransition = (newIndex, dir) => {
+              if (isAnimating) return;
+              if (newIndex === currentIndex && images.length > 1) {
+                // allow same index only on init
+              }
+              const oldIndex = currentIndex;
+              const nextUrl = images[newIndex] ? images[newIndex].url : null;
+              if (!nextUrl) return;
+
+              isAnimating = true;
+              currentIndex = newIndex;
+
+              // Update dots
+              const dots = container.querySelectorAll('.ss-dot');
+              dots.forEach((d, i) => {
+                d.style.opacity = i === currentIndex ? '1' : '0.4';
+                d.style.transform = i === currentIndex ? 'scale(1.3)' : 'scale(1)';
+              });
+
+              const effect = transitionEffect;
+
+              if (effect === 'fade') {
+                el.style.transition = 'opacity ' + duration + 'ms ease-in-out';
+                el.style.opacity = '0';
+                setTimeout(() => {
+                  setElSrc(el, nextUrl);
+                  el.style.opacity = el.dataset.baseOpacity || '1';
+                  setTimeout(() => { el.style.transition = ''; isAnimating = false; }, duration);
+                }, duration);
+              } else if (effect === 'slide' || effect === 'push' || effect === 'linear') {
+                const slideDir = dir === 'next' ? -100 : 100;
+                el.style.transition = 'transform ' + duration + 'ms ease-in-out';
+                el.style.transform = 'translateX(' + slideDir + '%)';
+                setTimeout(() => {
+                  setElSrc(el, nextUrl);
+                  el.style.transition = 'none';
+                  el.style.transform = 'translateX(' + (-slideDir) + '%)';
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      el.style.transition = 'transform ' + duration + 'ms ease-in-out';
+                      el.style.transform = 'translateX(0)';
+                      setTimeout(() => { el.style.transition = ''; isAnimating = false; }, duration);
+                    });
+                  });
+                }, duration);
+              } else if (effect === 'flip') {
+                el.style.transition = 'transform ' + duration + 'ms ease-in-out';
+                el.style.transform = 'rotateY(90deg)';
+                setTimeout(() => {
+                  setElSrc(el, nextUrl);
+                  el.style.transform = 'rotateY(-90deg)';
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      el.style.transition = 'transform ' + duration + 'ms ease-in-out';
+                      el.style.transform = 'rotateY(0deg)';
+                      setTimeout(() => { el.style.transition = ''; isAnimating = false; }, duration);
+                    });
+                  });
+                }, duration);
+              } else if (effect === 'reveal') {
+                el.style.transition = 'clip-path ' + duration + 'ms ease-in-out';
+                el.style.clipPath = dir === 'next' ? 'inset(0 100% 0 0)' : 'inset(0 0 0 100%)';
+                setTimeout(() => {
+                  setElSrc(el, nextUrl);
+                  el.style.clipPath = dir === 'next' ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)';
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      el.style.transition = 'clip-path ' + duration + 'ms ease-in-out';
+                      el.style.clipPath = 'inset(0 0% 0 0%)';
+                      setTimeout(() => { el.style.transition = ''; el.style.clipPath = ''; isAnimating = false; }, duration);
+                    });
+                  });
+                }, duration);
+              } else {
+                // Default: instant swap
+                setElSrc(el, nextUrl);
+                isAnimating = false;
+              }
+            };
+
+            // Store base opacity
+            el.dataset.baseOpacity = el.style.opacity || '1';
+
+            // --- Navigation Arrows ---
+            const showArrows = settings.showArrows !== false && settings.showNav !== false;
+            const navColor = settings.navIconColor || '#000000';
+            const navStyle = settings.navStyle || 1;
+
+            // Arrow SVG paths based on style
+            const getArrowPath = (dir) => {
+              const d = dir === 'prev';
+              const styles = {
+                1: d ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6',
+                2: d ? 'M20 12H4M10 6l-6 6 6 6' : 'M4 12h16M14 6l6 6-6 6',
+                3: d ? 'M16 12H8m4-4l-4 4 4 4' : 'M8 12h8m-4-4l4 4-4 4',
+              };
+              return styles[navStyle] || styles[1];
+            };
+
+            if (showArrows && images.length > 1) {
+              ['prev','next'].forEach(type => {
+                const btn = document.createElement('button');
+                btn.className = 'ss-nav-btn ss-' + type;
+                btn.style.cssText = [
+                  'position:absolute',
+                  'top:50%',
+                  'transform:translateY(-50%)',
+                  type === 'prev' ? 'left:8px' : 'right:8px',
+                  'z-index:100',
+                  'background:rgba(255,255,255,0.85)',
+                  'border:none',
+                  'border-radius:50%',
+                  'width:32px',
+                  'height:32px',
+                  'display:flex',
+                  'align-items:center',
+                  'justify-content:center',
+                  'cursor:pointer',
+                  'box-shadow:0 2px 8px rgba(0,0,0,0.2)',
+                  'transition:background 0.2s,transform 0.2s',
+                  'padding:0'
+                ].join(';');
+                btn.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="' + navColor + '" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="' + getArrowPath(type) + '"/></svg>';
+                btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(255,255,255,1)');
+                btn.addEventListener('mouseleave', () => btn.style.background = 'rgba(255,255,255,0.85)');
+                btn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  resetTimer();
+                  if (type === 'prev') {
+                    let prev = currentIndex - 1;
+                    if (prev < 0) prev = settings.infiniteLoop !== false ? images.length - 1 : 0;
+                    applyTransition(prev, 'prev');
+                  } else {
+                    let next = currentIndex + 1;
+                    if (next >= images.length) next = settings.infiniteLoop !== false ? 0 : images.length - 1;
+                    applyTransition(next, 'next');
                   }
-                  updateSlide(next);
-               }, intervalMs);
-            } 
+                });
+                container.appendChild(btn);
+              });
+            }
+
+            // --- Pagination Dots ---
+            const showDots = settings.showDots !== false;
+            const dotColor = settings.dotColor || '#4F46E5';
+
+            if (showDots && images.length > 1) {
+              const dotsContainer = document.createElement('div');
+              dotsContainer.className = 'ss-dots-container';
+              dotsContainer.style.cssText = 'position:absolute;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:100;align-items:center;';
+              images.forEach((_, i) => {
+                const dot = document.createElement('div');
+                dot.className = 'ss-dot';
+                dot.style.cssText = [
+                  'width:8px',
+                  'height:8px',
+                  'border-radius:50%',
+                  'background:' + dotColor,
+                  'cursor:pointer',
+                  'transition:opacity 0.3s,transform 0.3s',
+                  'opacity:' + (i === currentIndex ? '1' : '0.4'),
+                  'transform:' + (i === currentIndex ? 'scale(1.3)' : 'scale(1)')
+                ].join(';');
+                dot.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  resetTimer();
+                  if (i !== currentIndex) {
+                    applyTransition(i, i > currentIndex ? 'next' : 'prev');
+                  }
+                });
+                dotsContainer.appendChild(dot);
+              });
+              container.appendChild(dotsContainer);
+            }
+
+            // --- Auto Play ---
+            const startTimer = () => {
+              if (!settings.autoSlide && !settings.autoPlay) return;
+              const ms = (settings.speed || 3) * 1000;
+              autoTimer = setInterval(() => {
+                let next = currentIndex + 1;
+                if (next >= images.length) {
+                  if (settings.infiniteLoop === false) { clearInterval(autoTimer); return; }
+                  next = 0;
+                }
+                applyTransition(next, 'next');
+              }, ms);
+            };
+
+            const resetTimer = () => {
+              if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+              startTimer();
+            };
+
+            startTimer();
+
           } catch(e) { console.error('Slideshow init error', e); }
         });
       };
@@ -309,7 +509,8 @@ const TurnJsBookRenderer = React.memo(({
     settings,
     setShowViewBookmarkPopup,
     buildPageDoc, // Accept custom builder
-    activeLayout
+    activeLayout,
+    singlePage = false,
 }) => {
     const turnOnFlip = useCallback((evt) => {
         const logicalIndex = typeof evt === 'object' && evt !== null ? evt.data : evt;
@@ -317,7 +518,7 @@ const TurnJsBookRenderer = React.memo(({
     }, [onFlip]);
 
     return (
-        <div className="relative" style={{ width: WIDTH * 2, height: HEIGHT }}>
+        <div className="relative" style={{ width: singlePage ? WIDTH : WIDTH * 2, height: HEIGHT }}>
             {shadowActive && (
                 <div
                     className="absolute transition-all duration-700 pointer-events-none"
@@ -354,6 +555,7 @@ const TurnJsBookRenderer = React.memo(({
                 cornerRadius={cornerRadius}
                 activeLayout={activeLayout}
                 textureStyle={textureStyle}
+                singlePage={singlePage}
             />
 
             <div
@@ -462,6 +664,28 @@ const PreviewArea = React.memo(({
     const isTablet = activeDevice === 'Tablet';
     const isMobile = activeDevice === 'Mobile';
 
+    const [isLandscape, setIsLandscape] = useState(activeDevice === 'Desktop' ? window.innerWidth > window.innerHeight : false);
+    
+    useEffect(() => {
+        if (activeDevice === 'Mobile' || activeDevice === 'Tablet') {
+            setIsLandscape(false);
+        } else {
+            setIsLandscape(window.innerWidth > window.innerHeight);
+        }
+    }, [activeDevice]);
+
+    useEffect(() => {
+        const handleResize = () => {
+            if (activeDevice === 'Desktop') {
+                setIsLandscape(window.innerWidth > window.innerHeight);
+            }
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, [activeDevice]);
+
+    const isMobileLandscape = isMobile && isLandscape;
+
 
     // Responsive scaling logic
     const [manualZoom, setManualZoom] = useState(zoom);
@@ -537,6 +761,7 @@ const PreviewArea = React.memo(({
     }, []);
     const [showBookmarkMenu, setShowBookmarkMenu] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showNotesMenu, setShowNotesMenu] = useState(false);
     const [isAutoFlipping, setIsAutoFlipping] = useState(false);
     const [countdown, setCountdown] = useState(null);
 
@@ -568,6 +793,7 @@ const PreviewArea = React.memo(({
     const [isMuted, setIsMuted] = useState(false);
     const [isFlipMuted, setIsFlipMuted] = useState(false);
     const [flipTrigger, setFlipTrigger] = useState(0);
+
 
 
     useEffect(() => {
@@ -637,24 +863,23 @@ const PreviewArea = React.memo(({
 
     const deviceStyles = {
         Desktop: { width: '100%', height: '100%', borderRadius: '0', border: 'none', background: 'transparent' },
-        Tablet: { 
-            width: 'auto', 
-            height: '100%', 
-            maxWidth: '100%', 
-            maxHeight: '100%', 
-            aspectRatio: '1091/869', 
-            borderRadius: '0', 
-            margin: 'auto', 
-            position: 'relative', 
-            backgroundImage: 'url("/src/assets/cover/Tab 1.svg")', 
-            backgroundSize: '95% 95%', 
-            backgroundRepeat: 'no-repeat', 
-            backgroundPosition: 'center', 
+        Tablet: {
+            width: 'auto',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            aspectRatio: '1091/869',
+            borderRadius: '0',
+            margin: 'auto',
+            position: 'relative',
+            backgroundImage: 'url("/src/assets/cover/Tab 1.svg")',
+            backgroundSize: '95% 95%',
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'center',
             backgroundColor: 'transparent',
             transformOrigin: 'center center',
             flexShrink: 0
         },
-        Mobile: { width: 'auto', height: '100%', maxWidth: 'min(100%, 446px)', maxHeight: '100%', aspectRatio: '446/883', borderRadius: '0', margin: 'auto', position: 'relative', backgroundImage: 'url("/src/assets/cover/mobiile 1.svg")', backgroundSize: '100% 100%', backgroundRepeat: 'no-repeat', backgroundPosition: 'center', backgroundColor: 'transparent', flexShrink: 0 },
     };
 
     const getScreenWrapperStyle = () => {
@@ -668,15 +893,7 @@ const PreviewArea = React.memo(({
             borderRadius: '12px',
             overflow: 'hidden'
         };
-        if (activeDevice === 'Mobile') return {
-            position: 'absolute',
-            top: '2.9%',
-            bottom: '5.14%',
-            left: '5.1%',
-            right: '9.1%',
-            borderRadius: '25px',
-            overflow: 'hidden'
-        };
+        return { width: '100%', height: '100%', position: 'relative' };
     };
 
 
@@ -700,6 +917,9 @@ const PreviewArea = React.memo(({
     const layout7Notes = useMemo(() => notes.filter(n => n.layoutId === 7), [notes]);
     const layout8Notes = useMemo(() => notes.filter(n => n.layoutId === 8), [notes]);
     const layout9Notes = useMemo(() => notes.filter(n => n.layoutId === 9), [notes]);
+
+    const currentBookmarks = useMemo(() => bookmarks.filter(b => b.layoutId === Number(activeLayout)), [bookmarks, activeLayout]);
+    const currentNotes = useMemo(() => notes.filter(n => n.layoutId === Number(activeLayout)), [notes, activeLayout]);
 
     const setIsPlaying = useCallback((val) => {
         setIsAutoFlipping(val);
@@ -774,6 +994,7 @@ const PreviewArea = React.memo(({
 
     const setShowBookmarkMenuMemo = useCallback((val) => setShowBookmarkMenu(val), []);
     const setShowMoreMenuMemo = useCallback((val) => setShowMoreMenu(val), []);
+    const setShowNotesMenuMemo = useCallback((val) => setShowNotesMenu(val), []);
 
 
     const setShowGalleryPopupMemo = useCallback((val) => setShowGalleryPopup(val), []);
@@ -872,7 +1093,7 @@ const PreviewArea = React.memo(({
             // Double tap detected
             const mz = settings.toolbar?.maximumZoom;
             const maxZoom = (mz && mz > 1.1) ? mz : 2;
-            
+
             setManualZoom(prev => {
                 // If current zoom is already at or near maximum, reset to 1
                 return (prev >= maxZoom - 0.1) ? 1 : maxZoom;
@@ -1227,7 +1448,9 @@ const PreviewArea = React.memo(({
                     isSidebarOpen={isSidebarOpen && activeLayout === 3}
                     isMobile={isMobile}
                     bookmarkSettings={settings.navigation?.bookmarkSettings?.[activeLayout] || settings.navigation?.bookmarkSettings}
+                    layoutColors={layoutColors?.[activeLayout]}
                 />
+
             )}
 
             {showAddNotesPopup && (
@@ -1238,7 +1461,12 @@ const PreviewArea = React.memo(({
                     onAddNote={onAddNote}
                     isSidebarOpen={isSidebarOpen && activeLayout === 3}
                     isMobile={isMobile}
+                    activeLayout={activeLayout}
+                    isLandscape={isLandscape}
+                    isMobileLandscape={isMobileLandscape}
+                    layoutColors={layoutColors?.[activeLayout]}
                 />
+
             )}
 
             {showNotesViewer && (
@@ -1248,7 +1476,12 @@ const PreviewArea = React.memo(({
                     isSidebarOpen={isSidebarOpen}
                     isTablet={isTablet}
                     isMobile={isMobile}
+                    isLandscape={isLandscape}
+                    isMobileLandscape={isMobileLandscape}
+                    layoutColors={layoutColors?.[activeLayout]}
+                    activeLayout={activeLayout}
                 />
+
             )}
 
             {showViewBookmarkPopup && (
@@ -1264,7 +1497,9 @@ const PreviewArea = React.memo(({
                     activeLayout={activeLayout}
                     isTablet={isTablet}
                     isMobile={isMobile}
+                    layoutColors={layoutColors?.[activeLayout]}
                 />
+
             )}
 
             {showProfilePopup && (
@@ -1274,6 +1509,8 @@ const PreviewArea = React.memo(({
                     activeLayout={activeLayout}
                     isTablet={isTablet}
                     isMobile={isMobile}
+                    isLandscape={isLandscape}
+                    isMobileLandscape={isMobileLandscape}
                 />
             )}
 
@@ -1328,24 +1565,113 @@ const PreviewArea = React.memo(({
                 isMobile={isMobile}
             />
 
-            {showGalleryPopup && (                <GalleryPopup
-                    onClose={() => setShowGalleryPopupMemo(false)}
-                    settings={otherSetupSettings?.gallery}
-                    popupSettings={menuBarSettings?.appearance?.popup}
-                    isTablet={isTablet}
-                    activeLayout={activeLayout}
-                />
+            {showGalleryPopup && (<GalleryPopup
+                onClose={() => setShowGalleryPopupMemo(false)}
+                settings={otherSetupSettings?.gallery}
+                popupSettings={menuBarSettings?.appearance?.popup}
+                isTablet={isTablet}
+                activeLayout={activeLayout}
+                isLandscape={isLandscape}
+                isMobileLandscape={isMobileLandscape}
+            />
 
             )}
             {/* Visual Countdown Overlay - Positioned after layouts to stay on top */}
             {countdown !== null && (
                 <div className="absolute inset-0 z-[1000] flex items-center justify-center pointer-events-none ">
-                    <span 
+                    <span
                         className="font-semibold text-[#E5E7EB] animate-pulse select-none drop-shadow-[0_1.2vw_1.2vw_rgba(0,0,0,0.5)]"
                         style={{ fontSize: isTablet ? '10vw' : '15vw' }}
                     >
                         {countdown}
                     </span>
+                </div>
+            )}
+        </>
+    );
+
+    const commonLayoutProps = {
+        settings,
+        bookName,
+        activeLayout,
+        hideHeader,
+        searchQuery,
+        setSearchQuery,
+        handleQuickSearch,
+        logoSettings,
+        logoObjectFit,
+        logoCropStyle,
+        onPageClick,
+        currentPage,
+        pages,
+        bookRef,
+        showBookmarkMenu,
+        setShowBookmarkMenu: setShowBookmarkMenuMemo,
+        showMoreMenu,
+        setShowMoreMenu: setShowMoreMenuMemo,
+        showThumbnailBar,
+        setShowThumbnailBar: setShowThumbnailBarMemo,
+        showTOC,
+        setShowTOC: setShowTOCMemo,
+        showNotesMenu,
+        setShowNotesMenu: setShowNotesMenuMemo,
+        showExportPopup,
+        setShowExportPopup,
+        showSharePopup,
+        setShowSharePopup,
+        showProfilePopup,
+        setShowProfilePopup,
+        setShowAddNotesPopup: setShowAddNotesPopupMemo,
+        setShowNotesViewer: setShowNotesViewerMemo,
+        setShowAddBookmarkPopup: setShowAddBookmarkPopupMemo,
+        setShowViewBookmarkPopup,
+        setShowGalleryPopup: setShowGalleryPopupMemo,
+        showSoundPopup,
+        setShowSoundPopup: setShowSoundPopupMemo,
+        isAutoFlipping,
+        setIsPlaying,
+        currentZoom,
+        handleZoomIn,
+        handleZoomOut,
+        handleFullScreen,
+        handleShare,
+        handleDownload,
+        offset,
+        backgroundSettings: layoutBackgroundSettings,
+        backgroundStyle: layoutBackgroundStyle,
+        isMuted,
+        onToggleAudio: handleToggleAudio,
+        isSidebarOpen,
+        isFullscreen,
+        isTablet,
+        isMobile,
+        isLandscape,
+        isMobileLandscape
+    };
+
+    const backgroundLayers = (
+        <>
+            <div className="absolute inset-0 z-0 pointer-events-none" style={backgroundStyle} />
+            {backgroundSettings?.style === 'Video' && backgroundSettings.image && (
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                    <video
+                        src={backgroundSettings.image}
+                        autoPlay
+                        loop
+                        muted
+                        playsInline
+                        className="absolute inset-0 w-full h-full object-cover"
+                    />
+                </div>
+            )}
+            {backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                    {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
+                </div>
+            )}
+            {backgroundSettings?.animation && backgroundSettings.animation !== 'None' && animationComponents[backgroundSettings.animation] && (
+                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                    {React.createElement(animationComponents[backgroundSettings.animation], { backgroundSettings, backgroundStyle })}
                 </div>
             )}
         </>
@@ -1368,600 +1694,618 @@ const PreviewArea = React.memo(({
             }}
         >
 
-            {/* Tablet Outer Background Layer */}
-            {activeDevice === 'Tablet' && (
-                <div 
-                    className="absolute inset-0 z-0 pointer-events-none" 
-                    style={{ ...backgroundStyle, opacity: 0.4 }} 
-                />
-            )}
-            {activeDevice === 'Tablet' && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
-                    {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
-                </div>
-            )}
+            {activeDevice === 'Mobile' ? (
+                <MobileFrame isLandscape={isLandscape}>
+                    <div ref={screenRef} className="w-full h-full relative overflow-hidden">
+                        {backgroundLayers}
 
-            {/* Mobile Outer Background Layer */}
-            {activeDevice === 'Mobile' && (
-                <div 
-                    className="absolute inset-0 z-0 pointer-events-none" 
-                    style={{ ...backgroundStyle, opacity: 0.4 }} 
-                />
-            )}
-            {activeDevice === 'Mobile' && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
-                    {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
-                </div>
-            )}
+                        <style>{`
+                            #preview-area-root .flipbook-magazine-wrapper {
+                                transition: transform ${flipTime}ms ease-in-out !important;
+                            }
+                        `}</style>
 
-            <div style={{ ...deviceStyles[activeDevice], zIndex: 10 }} className="relative">
-            {/* Floor shadow effect for Tablet/Mobile bottom (using the style of the SVG) */}
-            {(activeDevice === 'Tablet' || activeDevice === 'Mobile') && (
-                <svg
-                    viewBox="0 0 1000 100"
-                    preserveAspectRatio="none"
-                    className={`absolute left-1/2 -translate-x-1/2 z-[-1] pointer-events-none opacity-60 ${activeDevice === 'Tablet' ? '-bottom-[6%] w-[94%] h-[7%]' : '-bottom-[4%] w-[90%] h-[5%]'}`}
-                >
-                    <defs>
-                        <radialGradient id="tablet-floor-shadow" cx="50%" cy="50%" r="50%">
-                            <stop offset="0%" stopColor="rgba(0,0,0,0.7)" />
-                            <stop offset="40%" stopColor="rgba(0,0,0,0.4)" />
-                            <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-                        </radialGradient>
-                    </defs>
-                    <ellipse cx="500" cy="50" rx="490" ry="45" fill="url(#tablet-floor-shadow)" />
-                </svg>
-            )}
-            <div ref={screenRef} style={getScreenWrapperStyle()} className="relative">
+                        <MobileLayoutRenderer
+                            {...commonLayoutProps}
+                            bookmarks={currentBookmarks}
+                            notes={currentNotes}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={currentBookmarks}
+                                bookmarkSpacing={5.5}
+                                singlePage={true}
+                            />
+                        </MobileLayoutRenderer>
 
-            {/* Background Layer - Supports Solid, Gradient, and Image layers with their respective properties */}
-            <div className="absolute inset-0 z-0 pointer-events-none" style={backgroundStyle} />
+                        {renderSharedOverlays()}
 
-            {backgroundSettings?.style === 'Video' && backgroundSettings.image && (
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-                    <video 
-                        src={backgroundSettings.image} 
-                        autoPlay 
-                        loop 
-                        muted 
-                        playsInline 
-                        className="absolute inset-0 w-full h-full object-cover"
-                    />
-                </div>
-            )}
-
-            {backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-                    {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
-                </div>
-            )}
-
-            {/* Animation Overlay Layer */}
-            {backgroundSettings?.animation && backgroundSettings.animation !== 'None' && animationComponents[backgroundSettings.animation] && (
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-                    {React.createElement(animationComponents[backgroundSettings.animation], { backgroundSettings, backgroundStyle })}
-                </div>
-            )}
-
-            {/* Synchronize layout transition with flip time - Scoped to this container */}
-            <style>{`
-                #preview-area-root .flipbook-magazine-wrapper {
-                    transition: transform ${flipTime}ms ease-in-out !important;
-                }
-            `}</style>
-
-            {Number(activeLayout) === 2 ? (
-                <Grid2Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout2Bookmarks}
-                    notes={layout2Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    onAddBookmark={onAddBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={isMobile}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout2Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid2Layout>
-            ) : Number(activeLayout) === 3 ? (
-                <Grid3Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout3Bookmarks}
-                    notes={layout3Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    onAddBookmark={onAddBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout3Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid3Layout>
-            ) : Number(activeLayout) === 4 ? (
-                <Grid4Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout4Bookmarks}
-                    notes={layout4Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    profileSettings={profileSettings}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    isSidebarOpen={isSidebarOpen}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={activeDevice === 'Mobile'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout4Bookmarks}
-                        bookmarkSpacing={11}
-                    />
-                </Grid4Layout>
-            ) : Number(activeLayout) === 5 ? (
-                <Grid5Layout
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout5Bookmarks}
-                    notes={layout5Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={activeDevice === 'Mobile'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout5Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid5Layout>
-            ) : (Number(activeLayout) === 6) ? (
-                <Grid6Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout6Bookmarks}
-                    notes={layout6Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={activeDevice === 'Mobile'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout6Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid6Layout>
-            ) : (Number(activeLayout) === 7) ? (
-                <Grid7Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout7Bookmarks}
-                    notes={layout7Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={activeDevice === 'Mobile'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout7Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid7Layout>
-            ) : (Number(activeLayout) === 8) ? (
-                <Grid8Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout8Bookmarks}
-                    notes={layout8Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={activeDevice === 'Mobile'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                    layoutColors={settings?.layoutColors?.[8] ? {
-                        primary: settings.layoutColors[8].find(c => c.label === 'Icons color')?.hex || '#575C9C',
-                        secondary: settings.layoutColors[8].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
-                    } : {
-                        primary: '#575C9C',
-                        secondary: '#E3E4EF'
-                    }}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout8Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid8Layout>
-            ) : (Number(activeLayout) === 9) ? (
-                <Grid9Layout
-                    settings={settings}
-                    bookName={bookName}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    bookRef={bookRef}
-                    pages={pages}
-                    setIsPlaying={setIsPlaying}
-                    isAutoFlipping={isAutoFlipping}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    handleFullScreen={handleFullScreen}
-                    setShowProfilePopup={setShowProfilePopup}
-                    logoSettings={logoSettings}
-                    currentPage={currentPage}
-                    pagesCount={pages.length}
-                    currentZoom={currentZoom}
-                    setCurrentZoom={setCurrentZoom}
-                    onPageClick={onPageClick}
-                    bookmarks={layout9Bookmarks}
-                    notes={layout9Notes}
-                    onAddNote={onAddNote}
-                    onDeleteBookmark={onDeleteBookmark}
-                    onUpdateBookmark={onUpdateBookmark}
-                    profileSettings={profileSettings}
-                    isSidebarOpen={isSidebarOpen}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    offset={offset}
-                    isFullscreen={isFullscreen}
-                    isTablet={activeDevice === 'Tablet'}
-                    isMobile={activeDevice === 'Mobile'}
-                    activeLayout={activeLayout}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                    layoutColors={settings?.layoutColors?.[9] ? {
-                        primary: settings.layoutColors[9].find(c => c.label === 'Icons color')?.hex || '#575C9C',
-                        secondary: settings.layoutColors[9].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
-                    } : {
-                        primary: '#575C9C',
-                        secondary: '#E3E4EF'
-                    }}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout9Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid9Layout>
+                        {/* Lead Form Overlay */}
+                        {showLeadForm && (
+                            <LeadFormPopup
+                                leadFormSettings={leadFormSettings}
+                                isTablet={isTablet}
+                                onClose={() => setLeadFormSubmitted(true)}
+                            />
+                        )}
+                    </div>
+                </MobileFrame>
             ) : (
-                <Grid1Layout
-                    settings={settings}
-                    bookName={bookName}
-                    activeLayout={activeLayout}
-                    hideHeader={hideHeader}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    handleQuickSearch={handleQuickSearch}
-                    logoSettings={logoSettings}
-                    logoObjectFit={logoObjectFit}
-                    logoCropStyle={logoCropStyle}
-                    onPageClick={onPageClick}
-                    currentPage={currentPage}
-                    pages={pages}
-                    notes={layout1Notes}
-                    bookRef={bookRef}
-                    showBookmarkMenu={showBookmarkMenu}
-                    setShowBookmarkMenuMemo={setShowBookmarkMenuMemo}
-                    showMoreMenu={showMoreMenu}
-                    setShowMoreMenuMemo={setShowMoreMenuMemo}
-                    showThumbnailBar={showThumbnailBar}
-                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
-                    showTOC={showTOC}
-                    setShowTOCMemo={setShowTOCMemo}
-                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
-                    setShowNotesViewerMemo={setShowNotesViewerMemo}
-                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
-                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
-                    setShowProfilePopup={setShowProfilePopup}
-                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                    showSoundPopup={showSoundPopup}
-                    setShowSoundPopupMemo={setShowSoundPopupMemo}
-                    isAutoFlipping={isAutoFlipping}
-                    setIsPlaying={setIsPlaying}
-                    currentZoom={currentZoom}
-                    handleZoomIn={handleZoomIn}
-                    handleZoomOut={handleZoomOut}
-                    handleFullScreen={handleFullScreen}
-                    handleShare={handleShare}
-                    handleDownload={handleDownload}
-                    offset={offset}
-                    backgroundSettings={layoutBackgroundSettings}
-                    backgroundStyle={layoutBackgroundStyle}
-                    isMuted={isMuted}
-                    onToggleAudio={handleToggleAudio}
-                    isSidebarOpen={isSidebarOpen}
-                    isFullscreen={isFullscreen}
-                    isTablet={isTablet}
-                    isMobile={isMobile}
-                >
-                    <TurnJsBookRenderer
-                        {...bookRendererProps}
-                        bookmarks={layout1Bookmarks}
-                        bookmarkSpacing={5.5}
-                    />
-                </Grid1Layout>
-            )}
+                <>
+                    {/* Tablet Outer Background Layer */}
+                    {activeDevice === 'Tablet' && (
+                        <div
+                            className="absolute inset-0 z-0 pointer-events-none"
+                            style={{ ...backgroundStyle, opacity: 0.4 }}
+                        />
+                    )}
+                    {activeDevice === 'Tablet' && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
+                        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
+                            {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
+                        </div>
+                    )}
 
-            {renderSharedOverlays()}
+                    <div style={{ ...deviceStyles[activeDevice], zIndex: 10 }} className="relative">
+                        {/* Floor shadow effect for Tablet bottom (using the style of the SVG) */}
+                        {activeDevice === 'Tablet' && (
+                            <svg
+                                viewBox="0 0 1000 100"
+                                preserveAspectRatio="none"
+                                className="absolute left-1/2 -translate-x-1/2 z-[-1] pointer-events-none opacity-60 -bottom-[6%] w-[94%] h-[7%]"
+                            >
+                                <defs>
+                                    <radialGradient id="tablet-floor-shadow" cx="50%" cy="50%" r="50%">
+                                        <stop offset="0%" stopColor="rgba(0,0,0,0.7)" />
+                                        <stop offset="40%" stopColor="rgba(0,0,0,0.4)" />
+                                        <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+                                    </radialGradient>
+                                </defs>
+                                <ellipse cx="500" cy="50" rx="490" ry="45" fill="url(#tablet-floor-shadow)" />
+                            </svg>
+                        )}
+                        <div ref={screenRef} style={getScreenWrapperStyle()} className="relative">
 
-            {/* Lead Form Overlay */}
-            {showLeadForm && (
-                <LeadFormPopup
-                    leadFormSettings={leadFormSettings}
-                    isTablet={isTablet}
-                    onClose={() => setLeadFormSubmitted(true)}
-                />
-            )}
+                            {backgroundLayers}
+
+                            <style>{`
+                                #preview-area-root .flipbook-magazine-wrapper {
+                                    transition: transform ${flipTime}ms ease-in-out !important;
+                                }
+                            `}</style>
+
+                    {Number(activeLayout) === 2 ? (
+                        <Grid2Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout2Bookmarks}
+                            notes={layout2Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            onAddBookmark={onAddBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={isMobile}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout2Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid2Layout>
+                    ) : Number(activeLayout) === 3 ? (
+                        <Grid3Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout3Bookmarks}
+                            notes={layout3Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            onAddBookmark={onAddBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={isMobile}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout3Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid3Layout>
+                    ) : Number(activeLayout) === 4 ? (
+                        <Grid4Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout4Bookmarks}
+                            notes={layout4Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            profileSettings={profileSettings}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            isSidebarOpen={isSidebarOpen}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={activeDevice === 'Mobile'}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout4Bookmarks}
+                                bookmarkSpacing={11}
+                            />
+                        </Grid4Layout>
+                    ) : Number(activeLayout) === 5 ? (
+                        <Grid5Layout
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout5Bookmarks}
+                            notes={layout5Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={activeDevice === 'Mobile'}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout5Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid5Layout>
+                    ) : (Number(activeLayout) === 6) ? (
+                        <Grid6Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout6Bookmarks}
+                            notes={layout6Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={activeDevice === 'Mobile'}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout6Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid6Layout>
+                    ) : (Number(activeLayout) === 7) ? (
+                        <Grid7Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout7Bookmarks}
+                            notes={layout7Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={activeDevice === 'Mobile'}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout7Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid7Layout>
+                    ) : (Number(activeLayout) === 8) ? (
+                        <Grid8Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout8Bookmarks}
+                            notes={layout8Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={activeDevice === 'Mobile'}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                            layoutColors={settings?.layoutColors?.[8] ? {
+                                primary: settings.layoutColors[8].find(c => c.label === 'Icons color')?.hex || '#575C9C',
+                                secondary: settings.layoutColors[8].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
+                            } : {
+                                primary: '#575C9C',
+                                secondary: '#E3E4EF'
+                            }}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout8Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid8Layout>
+                    ) : (Number(activeLayout) === 9) ? (
+                        <Grid9Layout
+                            settings={settings}
+                            bookName={bookName}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            bookRef={bookRef}
+                            pages={pages}
+                            setIsPlaying={setIsPlaying}
+                            isAutoFlipping={isAutoFlipping}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            handleFullScreen={handleFullScreen}
+                            setShowProfilePopup={setShowProfilePopup}
+                            logoSettings={logoSettings}
+                            currentPage={currentPage}
+                            pagesCount={pages.length}
+                            currentZoom={currentZoom}
+                            setCurrentZoom={setCurrentZoom}
+                            onPageClick={onPageClick}
+                            bookmarks={layout9Bookmarks}
+                            notes={layout9Notes}
+                            onAddNote={onAddNote}
+                            onDeleteBookmark={onDeleteBookmark}
+                            onUpdateBookmark={onUpdateBookmark}
+                            profileSettings={profileSettings}
+                            isSidebarOpen={isSidebarOpen}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            offset={offset}
+                            isFullscreen={isFullscreen}
+                            isTablet={activeDevice === 'Tablet'}
+                            isMobile={activeDevice === 'Mobile'}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                            activeLayout={activeLayout}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                            layoutColors={settings?.layoutColors?.[9] ? {
+                                primary: settings.layoutColors[9].find(c => c.label === 'Icons color')?.hex || '#575C9C',
+                                secondary: settings.layoutColors[9].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
+                            } : {
+                                primary: '#575C9C',
+                                secondary: '#E3E4EF'
+                            }}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout9Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid9Layout>
+                    ) : (
+                        <Grid1Layout
+                            settings={settings}
+                            bookName={bookName}
+                            activeLayout={activeLayout}
+                            hideHeader={hideHeader}
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            handleQuickSearch={handleQuickSearch}
+                            logoSettings={logoSettings}
+                            logoObjectFit={logoObjectFit}
+                            logoCropStyle={logoCropStyle}
+                            onPageClick={onPageClick}
+                            currentPage={currentPage}
+                            pages={pages}
+                            notes={layout1Notes}
+                            bookRef={bookRef}
+                            showBookmarkMenu={showBookmarkMenu}
+                            setShowBookmarkMenuMemo={setShowBookmarkMenuMemo}
+                            showMoreMenu={showMoreMenu}
+                            setShowMoreMenuMemo={setShowMoreMenuMemo}
+                            showThumbnailBar={showThumbnailBar}
+                            setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                            showTOC={showTOC}
+                            setShowTOCMemo={setShowTOCMemo}
+                            setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                            setShowNotesViewerMemo={setShowNotesViewerMemo}
+                            setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                            setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                            setShowProfilePopup={setShowProfilePopup}
+                            setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                            showSoundPopup={showSoundPopup}
+                            setShowSoundPopupMemo={setShowSoundPopupMemo}
+                            isAutoFlipping={isAutoFlipping}
+                            setIsPlaying={setIsPlaying}
+                            currentZoom={currentZoom}
+                            handleZoomIn={handleZoomIn}
+                            handleZoomOut={handleZoomOut}
+                            handleFullScreen={handleFullScreen}
+                            handleShare={handleShare}
+                            handleDownload={handleDownload}
+                            offset={offset}
+                            backgroundSettings={layoutBackgroundSettings}
+                            backgroundStyle={layoutBackgroundStyle}
+                            isMuted={isMuted}
+                            onToggleAudio={handleToggleAudio}
+                            isSidebarOpen={isSidebarOpen}
+                            isFullscreen={isFullscreen}
+                            isTablet={isTablet}
+                            isMobile={isMobile}
+                            isLandscape={isLandscape}
+                            isMobileLandscape={isMobileLandscape}
+                        >
+                            <TurnJsBookRenderer
+                                {...bookRendererProps}
+                                bookmarks={layout1Bookmarks}
+                                bookmarkSpacing={5.5}
+                            />
+                        </Grid1Layout>
+                    )}
+
+                    {renderSharedOverlays()}
+
+                    {/* Lead Form Overlay */}
+                    {showLeadForm && (
+                        <LeadFormPopup
+                            leadFormSettings={leadFormSettings}
+                            isTablet={isTablet}
+                            onClose={() => setLeadFormSubmitted(true)}
+                        />
+                    )}
+                </div>
             </div>
-            </div>
-        </div>
-    );
+        </>
+    )}
+</div>
+);
 });
 
 export default PreviewArea;

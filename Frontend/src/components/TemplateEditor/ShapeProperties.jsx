@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { createPortal } from 'react-dom';
-import ColorPicker from './ColorPicker';
+import ColorPicker, { parseGradient } from './ColorPicker';
+import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { 
   ArrowLeftRight, Minus, ChevronLeft, ChevronRight, Link2, Link2Off, Trash2, Plus, Pipette, ChevronUp, ChevronDown, SlidersHorizontal, Palette, Eye, RotateCcw, X
 } from 'lucide-react';
@@ -247,6 +248,7 @@ const ShapeProperties = ({
   const [isStrokeTypeOpen, setIsStrokeTypeOpen] = useState(false);
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
+
   const [activeStopIndex, setActiveStopIndex] = useState(0);
   const [showStrokeSettings, setShowStrokeSettings] = useState(false);
   const [strokeSettingsPos, setStrokeSettingsPos] = useState({ top: 0, right: 0 });
@@ -266,8 +268,8 @@ const ShapeProperties = ({
     elements.forEach(el => {
       const fill = el.getAttribute('data-fill-color');
       const stroke = el.getAttribute('data-stroke-color');
-      if (fill && fill !== 'none' && fill !== '#') colors.add(fill.toUpperCase());
-      if (stroke && stroke !== 'none' && stroke !== '#') colors.add(stroke.toUpperCase());
+      if (fill && fill !== 'none' && fill !== '#' && !fill.includes('gradient')) colors.add(fill.toUpperCase());
+      if (stroke && stroke !== 'none' && stroke !== '#' && !stroke.includes('gradient')) colors.add(stroke.toUpperCase());
     });
     colors.add('#FFFFFF');
     colors.add('#000000');
@@ -1039,378 +1041,78 @@ const ShapeProperties = ({
         document.body
       )}
 
-      {/* PORTALED COLOR SELECTOR PANELS (EXACT TEXT EDITOR STYLE) */}
+      {/* UNIFIED COLOR PICKER PORTAL */}
       {activeColorPicker && createPortal(
-        <>
-          {/* COLOR FILL/STROKE CONTAINER (Selector) */}
-          {!activeColorPicker.includes('effect-') && (
-            <div 
-              id="main-color-selector"
-              className={`fixed z-[3000] w-[19.4vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col animate-in fade-in zoom-in-95 duration-200 ${(isTypeDropdownOpen || isStrokeTypeOpen) ? 'overflow-visible' : 'overflow-hidden'}`}
-              style={{ 
-                top: '50%',
-                right: '18.5vw', 
-                transform: 'translateY(-50%)'
-              }}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-[1vw] border-b border-gray-50 bg-white">
-                <div className="flex items-center gap-[0.5vw]">
-                  {!activeColorPicker?.includes('effect-') && (
-                    <>
-                      <div className="relative type-dropdown-container">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsTypeDropdownOpen(!isTypeDropdownOpen);
-                          }}
-                          className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] border border-gray-200 text-[0.75vw] font-bold text-gray-700 hover:bg-gray-50 transition-all bg-white shadow-sm min-w-[5.5vw] justify-between"
-                        >
-                          <span className="capitalize">{selectedElementProps[`${activeColorPicker}-type`] || 'solid'}</span>
-                          <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${isTypeDropdownOpen ? 'rotate-180' : ''}`} />
-                        </button>
-                        {isTypeDropdownOpen && (
-                          <div className="absolute top-[110%] left-0 w-[8vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[3100] py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
-                            {['solid', 'gradient'].map(type => (
-                              <button
-                                key={type}
-                                onClick={() => {
-                                  updateAttr(`${activeColorPicker}-type`, type);
-                                  if (type === 'gradient' && !selectedElementProps[`${activeColorPicker}-stops`]) {
-                                    updateAttr(`${activeColorPicker}-stops`, JSON.stringify(defaultStops));
-                                    updateAttr(`${activeColorPicker}-gradient-type`, 'linear');
-                                  }
-                                  setIsTypeDropdownOpen(false);
-                                }}
-                                className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                              >
-                                {type.charAt(0).toUpperCase() + type.slice(1)}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+        <div 
+          className="fixed z-[5000] animate-in fade-in zoom-in-95 duration-200"
+          style={{ 
+            top: activeColorPicker.includes('effect-') ? `${effectPopupPos.top}px` : '50%', 
+            right: activeColorPicker.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '20vw', 
+            transform: activeColorPicker.includes('effect-') ? 'none' : 'translateY(-50%)'
+          }}
+        >
+          <ColorPicker 
+            color={(() => {
+              if (activeColorPicker.includes('effect-')) {
+                return selectedElementProps[activeColorPicker] || '#000000';
+              }
+              const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
+              if (type === 'gradient') {
+                const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
+                const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
+                // Convert back to CSS string for the picker
+                return generateGradientString(
+                  gType.charAt(0).toUpperCase() + gType.slice(1),
+                  stops.map(s => ({ ...s, opacity: s.opacity * 100 })),
+                  0, // angle not stored separately in old model
+                  100 // radius not stored separately in old model
+                );
+              }
+              return selectedElementProps[activeColorPicker] || '#000000';
+            })()}
+            onChange={(newVal) => {
+              if (activeColorPicker.includes('effect-')) {
+                updateAttr(activeColorPicker, newVal);
+                return;
+              }
 
-                      {(selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient' && (
-                        <div className="relative type-dropdown-container">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setIsStrokeTypeOpen(!isStrokeTypeOpen);
-                            }}
-                            className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] rounded-[0.5vw] border border-gray-200 text-[0.75vw] font-bold text-gray-700 hover:bg-gray-50 transition-all bg-white shadow-sm min-w-[5.5vw] justify-between"
-                          >
-                            <span className="capitalize">{selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear'}</span>
-                            <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${isStrokeTypeOpen ? 'rotate-180' : ''}`} />
-                          </button>
-                          {isStrokeTypeOpen && (
-                            <div className="absolute top-[110%] left-0 w-[8vw] bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[3100] py-1 animate-in fade-in zoom-in-95 duration-100 overflow-hidden">
-                              {['linear', 'radial'].map(type => (
-                                <button
-                                  key={type}
-                                  onClick={() => {
-                                    updateAttr(`${activeColorPicker}-gradient-type`, type);
-                                    setIsStrokeTypeOpen(false);
-                                  }}
-                                  className="w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
-                                >
-                                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-[0.5vw]">
-                  <button 
-                    onClick={() => {
-                      if ((selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient') {
-                        updateAttr(`${activeColorPicker}-stops`, JSON.stringify(defaultStops));
-                      } else {
-                        updateAttr(activeColorPicker, '#000000');
-                      }
-                    }}
-                    className="p-[0.4vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-50 hover:text-indigo-600 transition-all"
-                    title="Reset Color"
-                  >
-                    <RotateCcw size="1vw" />
-                  </button>
-                  <button 
-                    onClick={() => {
-                      setActiveColorPicker(null);
-                      setShowDetailedPicker(false);
-                    }}
-                    className="p-[0.4vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-50 hover:text-gray-600 transition-all"
-                  >
-                    <X size="1.1vw" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-grow overflow-y-auto no-scrollbar max-h-[70vh]">
-                {(selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'solid' ? (
-                  <div className="p-[1vw] space-y-[1.5vw]">
-                    {/* Colors on this page */}
-                    <div className="space-y-[0.75vw]">
-                      <div className="flex items-center gap-[0.75vw]">
-                        <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Colors on this page</span>
-                        <div className="h-[1px] flex-grow bg-gray-100"></div>
-                      </div>
-                      <div className="grid grid-cols-6 gap-[0.5vw]">
-                        {colorsOnPage.map((c, i) => (
-                          <div
-                            key={i}
-                            style={{ backgroundColor: c }}
-                            onClick={() => {
-                              updateAttr(activeColorPicker, c);
-                              updateAttr(`${activeColorPicker}-type`, 'solid');
-                            }}
-                            className="w-full aspect-square rounded-[0.5vw] border border-gray-100 cursor-pointer transition-transform shadow-sm active:scale-95"
-                          ></div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Solid Colors */}
-                    <div className="space-y-[0.75vw]">
-                      <div className="flex items-center gap-[0.75vw]">
-                        <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Solid Colors</span>
-                        <div className="h-[1px] flex-grow bg-gray-100"></div>
-                      </div>
-                      <div className="grid grid-cols-6 gap-[0.5vw]">
-                        <div 
-                          onClick={() => {
-                            updateAttr(activeColorPicker, '#');
-                            updateAttr(`${activeColorPicker}-type`, 'solid');
-                          }}
-                          className="w-full aspect-square rounded-[0.75vw] border border-gray-200 cursor-pointer transition-transform shadow-sm active:scale-95 relative bg-white overflow-hidden"
-                          title="None"
-                        >
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
-                        </div>
-                        {[
-                          '#FFFFFF', '#000000', '#FF0000', '#FF9500', '#BF2121', '#FFFF00',
-                          '#ADFF2F', '#228B22', '#008080', '#40E0D0', '#00CED1', '#008B8B',
-                          '#ADD8E6', '#87CEEB', '#0000FF', '#000080', '#E6E6FA', '#FF00FF',
-                          '#A9A9A9', '#D3D3D3', '#F5F5F5', '#333333'
-                        ].map((c, i) => (
-                          <div
-                            key={i}
-                            style={{ backgroundColor: c }}
-                            onClick={() => {
-                              updateAttr(activeColorPicker, c);
-                              updateAttr(`${activeColorPicker}-type`, 'solid');
-                            }}
-                            className="w-full aspect-square rounded-[0.75vw] border border-gray-100 cursor-pointer transition-transform shadow-sm active:scale-95"
-                          ></div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  /* Gradient Content */
-                  <div className="p-[1vw] space-y-[1.5vw]">
-                    {/* Gradient Colors */}
-                    <div className="space-y-[0.75vw]">
-                      <div className="flex items-center gap-[0.75vw]">
-                        <span className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Gradient Colors</span>
-                        <div className="h-[1px] flex-grow bg-gray-100"></div>
-                      </div>
-                      <div className="grid grid-cols-6 gap-[0.5vw]">
-                        {[
-                          ['#ff5f6d', '#ffc371'], ['#6366f1', '#a855f7'], ['#2dd4bf', '#22d3ee'], 
-                          ['#84cc16', '#4ade80'], ['#fde047', '#fef08a'], ['#ec4899', '#f472b6'],
-                          ['#a5b4fc', '#e0e7ff'], ['#d946ef', '#f0abfc'], ['#06b6d4', '#67e8f9'],
-                          ['#9ca3af', '#d1d5db'], ['#a48d00', '#71aa13'], ['#db2777', '#f43f5e']
-                        ].map((colors, i) => (
-                          <div
-                            key={i}
-                            style={{ background: `linear-gradient(to bottom, ${colors[0]}, ${colors[1]})` }}
-                            className="w-full aspect-square rounded-[0.75vw] border border-gray-100 cursor-pointer transition-transform shadow-sm active:scale-95"
-                            onClick={() => {
-                              const newStops = [
-                                { color: colors[0], offset: 0, opacity: 1 },
-                                { color: colors[1], offset: 100, opacity: 1 }
-                              ];
-                              updateAttr(`${activeColorPicker}-stops`, JSON.stringify(newStops));
-                              updateAttr(`${activeColorPicker}-type`, 'gradient');
-                              updateAttr(`${activeColorPicker}-gradient-type`, 'linear');
-                            }}
-                          ></div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Customize Section */}
-                    <div className="space-y-[1.25vw]">
-                      <div className="flex items-center justify-between gap-[0.75vw]">
-                        <div className="flex items-center gap-[0.5vw] flex-grow">
-                          <span className="text-[0.8vw] font-bold text-gray-800">Customize</span>
-                          <div className="h-[1px] flex-grow bg-gray-100"></div>
-                        </div>
-                        <div className="flex items-center gap-[0.5vw]">
-                          <button 
-                            onClick={() => updateAttr(`${activeColorPicker}-stops`, JSON.stringify(defaultStops))} 
-                            className="w-[2vw] h-[2vw] rounded-[0.5vw] border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 shadow-sm transition-all"
-                          >
-                            <RotateCcw size="1vw" />
-                          </button>
-                          <button 
-                            onClick={() => reverseGradient(activeColorPicker)} 
-                            className="w-[2vw] h-[2vw] rounded-[0.5vw] border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-indigo-50 hover:text-indigo-600 shadow-sm transition-all"
-                          >
-                            <ArrowLeftRight size="1vw" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Interactive Gradient Bar with Flag Handles */}
-                      <div className="relative pt-[1.5vw] pb-[0.5vw]">
-                        <div className="absolute top-0 left-0 w-full h-[2vw] flex items-center pointer-events-none px-[0.25vw]">
-                          {JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops)).map((stop, idx) => (
-                            <div
-                              key={idx}
-                              className="absolute -translate-x-1/2 flex flex-col items-center group pointer-events-auto cursor-pointer"
-                              style={{ left: `${stop.offset}%` }}
-                              onClick={() => {
-                                setActiveStopIndex(idx);
-                                setShowDetailedPicker(true);
-                              }}
-                            >
-                              <div className="relative">
-                                <div className={`w-[1vw] h-[1.25vw] bg-white border rounded-[0.1vw] shadow-md flex items-center justify-center transition-colors ${activeStopIndex === idx ? 'border-indigo-600' : 'border-gray-200'}`}>
-                                   <div className="w-[0.75vw] h-[0.75vw] rounded-[0.1vw]" style={{ backgroundColor: stop.color }}></div>
-                                </div>
-                                <div className={`absolute top-full left-1/2 -translate-x-1/2 w-[0.1vw] h-[0.5vw] shadow-sm transition-colors ${activeStopIndex === idx ? 'bg-indigo-600' : 'bg-white'}`}></div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div
-                          className="w-full h-[1.5vw] rounded-[0.5vw] shadow-inner border border-gray-100 cursor-copy relative overflow-hidden"
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const offset = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                            const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
-                            const newStops = [...stops, { color: '#ffffff', offset, opacity: 1 }].sort((a,b) => a.offset - b.offset);
-                            updateAttr(`${activeColorPicker}-stops`, JSON.stringify(newStops));
-                            setActiveStopIndex(newStops.findIndex(s => s.offset === offset));
-                          }}
-                          style={{
-                            background: `linear-gradient(to right, ${JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops)).map(s => {
-                              return `${s.color} ${s.offset}%`;
-                            }).join(', ')})`
-                          }}
-                        ></div>
-                      </div>
-
-                      {/* Stop Detail Row List */}
-                      <div className="space-y-[0.5vw] max-h-[10vw] overflow-y-auto pr-[0.25vw] no-scrollbar">
-                        {JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops)).map((stop, idx) => (
-                          <div key={idx} className="flex items-center gap-[0.5vw] group">
-                            <div 
-                              onClick={() => {
-                                setActiveStopIndex(idx);
-                                setShowDetailedPicker(true);
-                              }}
-                              className={`flex-grow flex items-center gap-[0.75vw] px-[0.75vw] py-[0.5vw] bg-white border rounded-[0.5vw] shadow-sm transition-all cursor-pointer ${activeStopIndex === idx ? 'border-indigo-400 ring-1 ring-indigo-100' : 'border-gray-200 hover:border-indigo-300'}`}
-                            >
-                              <div
-                                className="w-[1.5vw] h-[1.5vw] shadow-sm border border-gray-100 flex-shrink-0"
-                                style={{ backgroundColor: stop.color }}
-                              ></div>
-                              <span className="text-[0.75vw] font-bold text-gray-700 flex-grow uppercase font-mono tracking-tight">{stop.color.toUpperCase()}</span>
-                              <span className="text-[0.6vw] font-bold text-gray-400 w-[2vw] text-right">{Math.round((stop.opacity || 1) * 100)}%</span>
-                            </div>
-                            <button
-                              onClick={() => {
-                                const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
-                                if (stops.length <= 2) return;
-                                const newStops = stops.filter((_, i) => i !== idx);
-                                updateAttr(`${activeColorPicker}-stops`, JSON.stringify(newStops));
-                                setActiveStopIndex(Math.max(0, idx - 1));
-                              }}
-                              disabled={JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops)).length <= 2}
-                              className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] border border-gray-100 flex items-center justify-center transition-all shadow-sm ${JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops)).length <= 2 ? 'text-gray-200 cursor-not-allowed bg-gray-50' : 'text-gray-400 hover:bg-red-50 hover:text-red-500'}`}
-                            >
-                              <Minus size="1vw" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer Toggle */}
-              <div className="mt-auto p-[0.75vw] border-t border-gray-100">
-                <button
-                  onClick={() => setShowDetailedPicker(!showDetailedPicker)}
-                  className={`flex items-center gap-[0.75vw] px-[1vw] py-[0.6vw] transition-all rounded-[0.75vw] w-full group ${showDetailedPicker ? 'bg-indigo-50 text-indigo-700' : 'hover:bg-gray-50 text-gray-600'}`}
-                >
-                  <div className="w-[2vw] h-[2vw] rounded-full shadow-md transition-transform" style={{ background: 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)' }}></div>
-                  <span className="text-[0.85vw] font-bold text-gray-600">Customize Colors</span>
-                </button>
-              </div>
-            </div>
-          )}
- 
-          {/* LEVEL 2: DEEPER CUSTOM COLOR PICKER */}
-          {showDetailedPicker && (
-             <div 
-               id="deep-color-picker"
-               className="fixed z-[3005] w-[15vw] animate-in fade-in zoom-in-95 duration-200 shadow-2xl rounded-[1vw] bg-white overflow-hidden"
-               style={{ 
-                 top: activeColorPicker?.includes('effect-') ? `${effectPopupPos.top}px` : '50%', 
-                 right: activeColorPicker?.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '3vw', 
-                 transform: activeColorPicker?.includes('effect-') ? 'none' : 'translateY(-50%)'
-               }}
-             >
-                <ColorPicker 
-                 color={
-                   (selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient'
-                   ? (JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops))[activeStopIndex]?.color || '#ffffff')
-                   : (selectedElementProps[activeColorPicker] || '#000000')
-                 }
-                 onChange={(newColor) => {
-                    if ((selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient') {
-                       const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
-                       if (stops[activeStopIndex]) {
-                         stops[activeStopIndex].color = newColor;
-                         updateAttr(`${activeColorPicker}-stops`, JSON.stringify(stops));
-                       }
-                    } else {
-                       updateAttr(activeColorPicker, newColor);
-                       updateAttr(`${activeColorPicker}-type`, 'solid');
-                    }
-                 }}
-                 opacity={
-                    (selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient'
-                    ? (JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops))[activeStopIndex]?.opacity * 100 || 100)
-                    : (activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100)
-                  }
-                 onOpacityChange={(newOpacity) => {
-                    if ((selectedElementProps[`${activeColorPicker}-type`] || 'solid') === 'gradient') {
-                        const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
-                        if (stops[activeStopIndex]) {
-                          stops[activeStopIndex].opacity = newOpacity / 100;
-                          updateAttr(`${activeColorPicker}-stops`, JSON.stringify(stops));
-                        }
-                     } else if (activeColorPicker === 'fill') {
-                        updateAttr('opacity', (newOpacity / 100).toString());
-                     }
-                  }}
-                 onClose={() => setShowDetailedPicker(false)}
-                 className={activeColorPicker?.includes('effect-') ? "hide-opacity-bar" : ""}
-               />
-             </div>
-          )}
-        </>,
+              if (newVal.includes('gradient')) {
+                const parsed = parseGradient(newVal);
+                if (parsed) {
+                  updateAttr(`${activeColorPicker}-type`, 'gradient');
+                  updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
+                  updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
+                    color: s.color,
+                    offset: s.offset,
+                    opacity: s.opacity / 100
+                  }))));
+                }
+              } else {
+                updateAttr(activeColorPicker, newVal);
+                updateAttr(`${activeColorPicker}-type`, 'solid');
+              }
+            }}
+            opacity={(() => {
+              if (activeColorPicker.includes('effect-')) {
+                const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
+                return selectedElementProps[`data-effect-${effectId}-opacity`] || 35;
+              }
+              return activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100;
+            })()}
+            onOpacityChange={(newOpacity) => {
+              if (activeColorPicker.includes('effect-')) {
+                const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
+                updateAttr(`data-effect-${effectId}-opacity`, newOpacity.toString());
+                return;
+              }
+              if (activeColorPicker === 'fill') {
+                updateAttr('opacity', (newOpacity / 100).toString());
+              }
+            }}
+            onClose={() => setActiveColorPicker(null)}
+            colorsOnPage={colorsOnPage}
+          />
+        </div>,
         document.body
       )}
 

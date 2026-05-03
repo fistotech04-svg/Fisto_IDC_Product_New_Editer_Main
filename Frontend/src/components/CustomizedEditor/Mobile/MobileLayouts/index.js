@@ -7,10 +7,16 @@
 import MobileLayout1 from './MobileLayout1';
 import MobileLayout2 from './MobileLayout2';
 import MobileLayout3 from './MobileLayout3';
-
+import MobileLayout4 from './MobileLayout4';
+import MobileLayout5 from './MobileLayout5';
+import MobileLayout6 from './MobileLayout6';
+import MobileLayout9 from './MobileLayout9';
 export const MOBILE_LAYOUT_REGISTRY = {
     1: MobileLayout1,
     2: MobileLayout2,
     3: MobileLayout3,
-    // Add layouts 4-9 as you build them...
+    4: MobileLayout4,
+    5: MobileLayout5,
+    6: MobileLayout6,
+    9: MobileLayout9,
 };

@@ -80,7 +80,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
     const handleColorChange = (layoutIdx, colorIdx, newHex) => {
         setColors(prev => {
             const updated = { ...prev };
-            
+
             // Ensure all 9 layouts are initialized
             for (let i = 1; i <= 9; i++) {
                 const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
@@ -141,7 +141,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
 
                         updated[i] = updated[i].map(c => {
                             if (popupPrimaryIds.includes(c.id)) return { ...c, hex: primaryHex };
-                            if (popupSecondaryIds.includes(c.id)) return { ...c, hex: secondaryHex };
+                            if (popupSecondaryIds.includes(c.id)) return { ...c, hex: isLightColor(primaryHex) ? ensureDarkText(secondaryHex) : secondaryHex };
                             return c;
                         });
                     }
@@ -159,7 +159,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
     const handleOpacityChange = (layoutIdx, colorIdx, newOpacity) => {
         setColors(prev => {
             const updated = { ...prev };
-            
+
             for (let i = 1; i <= 9; i++) {
                 const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
                 const current = updated[i] || [];
@@ -177,24 +177,27 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             const isPopupPrimary = ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'].includes(currentItem?.id);
             const isPopupSecondary = ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'].includes(currentItem?.id);
 
+            // Clamp opacity to 40-100 for popup primary backgrounds
+            const clampedOpacity = newOpacity; // Removed the 40% minimum clamp for popups
+
             if ((isToolbarPrimary || isToolbarSecondary || isPopupPrimary || isPopupSecondary) && (layoutIdx >= 1 && layoutIdx <= 9)) {
                 for (let i = 1; i <= 9; i++) {
                     if (isToolbarPrimary) {
                         const idsToSync = ['toolbar-bg', 'bottom-toolbar-bg', 'search-bg-v1', 'search-bg-v2', 'page-number-bg', 'reset-bg'];
-                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: newOp } : c);
+                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: clampedOpacity } : c);
                     } else if (isToolbarSecondary) {
                         const idsToSync = ['toolbar-text-main', 'toolbar-icon', 'search-text-v1', 'reset-text', 'page-number-text'];
-                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: newOp } : c);
+                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: clampedOpacity } : c);
                     } else if (isPopupPrimary) {
                         const idsToSync = ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'];
-                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: newOp } : c);
+                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: clampedOpacity } : c);
                     } else if (isPopupSecondary) {
                         const idsToSync = ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'];
-                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: newOp } : c);
+                        updated[i] = updated[i].map(c => idsToSync.includes(c.id) ? { ...c, opacity: clampedOpacity } : c);
                     }
                 }
             } else {
-                updated[layoutIdx] = updated[layoutIdx].map((c, i) => i === colorIdx ? { ...c, opacity: newOp } : c);
+                updated[layoutIdx] = updated[layoutIdx].map((c, i) => i === colorIdx ? { ...c, opacity: clampedOpacity } : c);
             }
 
             if (onUpdateLayoutColors) onUpdateLayoutColors(updated);
@@ -218,7 +221,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
     const handleFlip = (layoutIdx) => {
         setColors(prev => {
             const updated = { ...prev };
-            
+
             for (let i = 1; i <= 9; i++) {
                 const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
                 const current = updated[i] || [];
@@ -296,7 +299,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             // Apply theme presets instantly to ALL layouts based on global color rules
             for (let i = 1; i <= 9; i++) {
                 const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
-                
+
                 updated[i] = defaults.map(def => {
                     let newHex = def.hex;
                     const isFirstPreset = theme.primary.toUpperCase() === basePrimary;
@@ -319,7 +322,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                         const toolbarPrimaryIds = ['toolbar-bg', 'bottom-toolbar-bg', 'page-number-bg'];
                         const toolbarShadeIds = ['search-bg-v1', 'search-bg-v2', 'reset-bg'];
                         const toolbarContrastIds = ['toolbar-text-main', 'toolbar-icon', 'reset-text', 'page-number-text'];
-                        
+
                         if (toolbarPrimaryIds.includes(def.id)) { isTarget = true; isPrimary = true; }
                         else if (toolbarShadeIds.includes(def.id)) { isTarget = true; isShade = true; }
                         else if (toolbarContrastIds.includes(def.id)) { isTarget = true; isContrast = true; }
@@ -399,7 +402,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
             >
 
                 {/* ── Panel Header (Tabs) ── */}
-                <div className="flex gap-[0.9vw] p-[0.5vw] pb-[0.9vw] border-b border-gray-100">
+                <div className="flex gap-[0.8vw] p-[0.9vw] pb-[0.6vw] border-b border-gray-100">
                     {['Toolbar', 'Popups'].map(tab => {
                         const isActive = (tab === 'Toolbar' ? (selectedComp !== 'Table Of Content') : (selectedComp === 'Table Of Content'));
                         return (
@@ -419,21 +422,21 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
 
                 {/* ── Theme Presets Grid ── */}
                 {isAdvancedLayoutPopup && (
-                    <div className="px-[0.9vw] pt-[1vw] grid grid-cols-6 gap-[0.5vw] mb-[0.8vw]">
+                    <div className="px-[0.9vw] pt-[0.8vw] grid grid-cols-6 gap-[0.5vw] mb-[0.8vw]">
                         {[
                             { primary: LAYOUT_DEFAULT_COLORS[1][0].hex, secondary: LAYOUT_DEFAULT_COLORS[1][2].hex },
-                    { primary: '#B53671', secondary: '#FFFFFF' },
-                    { primary: '#96278B', secondary: '#FFFFFF' },
-                    { primary: '#542782', secondary: '#FFFFFF' },
-                    { primary: '#2C9949', secondary: '#FFFFFF' },
-                    { primary: '#000000', secondary: '#FFFFFF' },
-                    { primary: '#B3B77B', secondary: '#FEFFEB' },
-                    { primary: '#88BC75', secondary: '#E7F3DE' },
-                    { primary: '#B9887A', secondary: '#FFFFFF' },
-                    { primary: '#7193B0', secondary: '#E2F2FC' },
-                    { primary: '#94A3B8', secondary: '#FFFFFF' },
-                    { primary: '#555555', secondary: '#FFFFFF' },
-                ].map((preset, i) => (
+                            { primary: '#E0E2FB', secondary: '#8084B9' },
+                            { primary: '#E7F6FF', secondary: '#6991AB' },
+                            { primary: '#FEFFEB', secondary: '#B7C214' },
+                            { primary: '#E7F3DE', secondary: '#84AD36' },
+                            { primary: '#FFD9E8', secondary: '#AD6983' },
+                            { primary: '#ffdff8', secondary: '#B272A3' },
+                            { primary: '#FAE2FF', secondary: '#8A699D' },
+                            { primary: '#FFE6CB', secondary: '#B57B6C' },
+                            { primary: '#94A3B8', secondary: '#FFFFFF' },
+                            { primary: '#B9887A', secondary: '#FFFFFF' },
+                            { primary: '#555555', secondary: '#FFFFFF' },
+                        ].map((preset, i) => (
                             <button
                                 key={i}
                                 className="aspect-square rounded-[0.4vw] relative overflow-hidden shadow-sm hover:scale-125 transition-transform border border-[#888888]"
@@ -442,7 +445,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                                 <div className="absolute inset-0" style={{ backgroundColor: preset.primary }} />
                                 <svg
                                     viewBox="0 0 26 26"
-                                    className="absolute bottom-0 right-0 left-5 top-5 w-full h-full"
+                                    className="absolute bottom-0 right-0 w-full h-full"
                                     fill="none"
                                     xmlns="http://www.w3.org/2000/svg"
                                 >
@@ -458,7 +461,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 )}
 
                 {/* ── Customize Section Header ── */}
-                <div className="px-[0.9vw] flex items-center justify-between mb-[0.9vw]">
+                <div className="px-[0.9vw] flex items-center justify-between mb-[0.6vw]">
                     <h3 className="text-[0.9vw] font-bold text-gray-900">Customize Colors</h3>
                     <div className="flex items-center gap-[0.4vw]">
                         <button
@@ -479,7 +482,7 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                 </div>
 
                 {/* ── Custom Color Fields with Sync ── */}
-                <div className="px-[1.2vw] pb-[1vw] flex flex-col gap-[0.9vw]">
+                <div className="px-[1.2vw] pb-[1vw] flex flex-col gap-[0.8vw]">
                     {(() => {
                         const findColorIdx = (id) => currentColors.findIndex(c => c.id === id);
                         const isToc = selectedComp === 'Table Of Content';
@@ -493,8 +496,10 @@ const LayoutColorCustomizer = ({ colorPopup, setColorPopup, colors, setColors, o
                             if (idx === -1) return null;
                             const colorItem = currentColors[idx];
                             const defaultItem = LAYOUT_DEFAULT_COLORS[colorPopup.layoutIndex][idx];
+                            const popupPrimaryIds = ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'];
+                            const isPopupPrimary = popupPrimaryIds.includes(colorItem.id);
                             const referenceMax = (defaultItem.opacity || 100);
-                            const referenceMin = 0;
+                            const referenceMin = 0; // Treatment of minimum as 0% per user request
                             const percentage = Math.round(((colorItem.opacity - referenceMin) / (referenceMax - referenceMin)) * 100);
 
                             return (

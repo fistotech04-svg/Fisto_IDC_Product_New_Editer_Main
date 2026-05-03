@@ -343,5 +343,3 @@ const ColorPickerItem = ({ label, color, onChange }) => {
 export default LeadForm;
 
 
-
-
