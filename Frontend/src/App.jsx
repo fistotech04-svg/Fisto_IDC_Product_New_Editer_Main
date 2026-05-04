@@ -8,23 +8,31 @@ import Home from './pages/Home';
 import MyFlipbooks from './pages/MyFlipbooks';
 import Settings from './pages/Settings';
 import About from './pages/About';
+import Unauthorized from './pages/Unauthorized';
+import NotFound from './pages/NotFound';
 import Editor from './Modules/Editer';
 import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
 import { ToastProvider } from './components/CustomToast';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
     <ToastProvider>
       <Router>
         <Routes>
-          {/* Routes WITHOUT navbar */}
+          {/* Public Routes */}
           <Route path="/" element={<Signin />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
           
-          {/* Editor Layout */}
-          <Route path="/editor" element={<Editor />}>
+          {/* Protected Editor Layout */}
+          <Route path="/editor" element={
+            <ProtectedRoute>
+              <Editor />
+            </ProtectedRoute>
+          }>
             <Route index element={<MainEditor />} />
             <Route path="threed_editor" element={<ThreedEditor />} />
             <Route path="threed_editor/:modelId" element={<ThreedEditor />} />
@@ -35,13 +43,20 @@ function App() {
             <Route path=":id" element={<MainEditor />} />
           </Route>
 
-          {/* Routes WITH navbar */}
-          <Route element={<MainLayout />}>
+          {/* Protected Routes WITH navbar */}
+          <Route element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }>
             <Route path="/home" element={<Home />} />
             <Route path="/my-flipbooks" element={<MyFlipbooks />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/about" element={<About />} />
           </Route>
+
+          {/* Catch-all route for wrong URLs */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
     </ToastProvider>

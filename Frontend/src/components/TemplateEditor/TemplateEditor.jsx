@@ -2166,6 +2166,8 @@ const TemplateEditor = () => {
               }
           } catch (err) {
               console.error("Failed to fetch flipbook:", err);
+              // Redirect to 404 if flipbook not found or other fetch error
+              navigate('/not-found', { replace: true });
           }
       } 
       else if (location.state && location.state.pageCount) {

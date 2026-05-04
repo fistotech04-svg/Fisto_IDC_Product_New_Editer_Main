@@ -19,6 +19,7 @@ export default function MyFlipbooks() {
   const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
 
   const [activeFolder, setActiveFolder] = useState(() => localStorage.getItem('last_active_folder') || 'Recent Book');
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Persist Active Folder
   useEffect(() => {
@@ -753,8 +754,12 @@ export default function MyFlipbooks() {
 
 
 
-  // Filter books by active folder
-  const filteredBooks = books.filter(book => book.folder === activeFolder);
+  // Filter books by active folder and search query
+  const filteredBooks = books.filter(book => 
+    book.folder === activeFolder && 
+    (book.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+     book.realName.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
   const isAllSelected = filteredBooks.length > 0 && selectedBooks.length === filteredBooks.length;
 
   return (
@@ -976,6 +981,8 @@ export default function MyFlipbooks() {
                         <input 
                             type="text" 
                             placeholder="Search..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full pl-[2.5vw] pr-[1vw] py-[0.6vw] rounded-full border-none text-[0.875vw] focus:outline-none focus:ring-2 focus:ring-blue-300 text-[#343b85] bg-white shadow-lg"
                         />
                     </div>
@@ -1100,7 +1107,7 @@ export default function MyFlipbooks() {
                                             <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
                                                 <Share2 size="0.9vw" /> Share
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-green-700 transition-colors">
                                                 <Download size="0.9vw" /> Download
                                             </button>
 

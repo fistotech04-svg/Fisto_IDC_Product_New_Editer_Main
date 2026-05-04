@@ -233,8 +233,8 @@ export default function ThreedEditor() {
               return; // End here for ID-based load
             }
           } catch (err) {
-            console.error("Specified model not found, redirecting...", err);
-            navigate("/editor/threed_editor");
+            console.error("Specified model not found, redirecting to 404...", err);
+            navigate('/not-found', { replace: true });
           }
         }
 

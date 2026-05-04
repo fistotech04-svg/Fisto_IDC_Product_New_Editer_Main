@@ -745,7 +745,8 @@ const CustomizedEditor = () => {
             }
           }
         } catch (err) {
-          console.error("CustomizedEditor: Failed to fetch flipbook", err);
+          console.error("Specified model not found, redirecting to 404...", err);
+          navigate('/not-found', { replace: true });
         }
       }
       setIsLoading(false);

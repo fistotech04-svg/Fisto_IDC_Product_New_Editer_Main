@@ -2,8 +2,11 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useInView, useScroll, useTransform } from 'framer-motion';
+import axios from 'axios';
 import HTMLFlipBook from 'react-pageflip';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
+import AlertModal from '../components/AlertModal';
+import { convertPdfToImages } from '../utils/pdfUtils';
 import shelfImg from '../assets/Home/shelf.png';
 import Layer1 from '../assets/Home/Trees/Layer_1.png';
 import Layer2 from '../assets/Home/Trees/Layer_2.png';
@@ -21,6 +24,34 @@ import ctaBg from '../assets/Home/black.png';
 export default function Home() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const navigate = useNavigate();
+
+  // User Data
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const emailId = user?.emailId;
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(null);
+  const [alertState, setAlertState] = useState({
+      isOpen: false,
+      title: '',
+      message: '',
+      type: 'error',
+      showCancel: false,
+      onConfirm: null
+  });
+
+  const showAlert = (title, message, type = 'error') => {
+      setAlertState({
+          isOpen: true,
+          title,
+          message,
+          type,
+          showCancel: false,
+          onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
+      });
+  };
   const containerRef = useRef(null);
   const editorsContainerRef = useRef(null);
   const [scrollContainer, setScrollContainer] = useState(null);
@@ -96,16 +127,134 @@ export default function Home() {
     setIsCreateModalOpen(true);
   };
 
-  const handleUploadPDF = (files) => {
-    console.log("Upload PDF Clicked", files);
+  const handleUploadPDF = async (files) => {
+    if (!files || files.length === 0) return;
     setIsCreateModalOpen(false);
+    setIsLoading(true);
+    setProcessingProgress({ current: 0, total: 1, message: 'Processing PDF...' });
+
+    try {
+        const file = files[0];
+        const images = await convertPdfToImages(file, 2, 12);
+        
+        setProcessingProgress({ current: 0, total: images.length, message: 'Uploading pages...' });
+
+        const now = new Date();
+        const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const uniqueName = `PDF_Flipbook_${timeString}`;
+        const targetFolder = 'My Flipbooks';
+
+        const initialPages = images.map((_, i) => ({
+            pageName: `Page ${i + 1}`,
+            content: ''
+        }));
+
+        const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
+            emailId,
+            flipbookName: uniqueName,
+            pages: initialPages,
+            overwrite: true,
+            folderName: targetFolder
+        });
+
+        const v_id = createRes.data.v_id;
+
+        const uploadedAssets = [];
+        for (let i = 0; i < images.length; i++) {
+            setProcessingProgress({ current: i + 1, total: images.length, message: `Uploading page ${i + 1} of ${images.length}...` });
+            
+            const formData = new FormData();
+            formData.append('file', images[i].blob, `page-${i + 1}.png`);
+            formData.append('emailId', emailId);
+            formData.append('type', 'image');
+            formData.append('v_id', v_id);
+            formData.append('folderName', targetFolder);
+            formData.append('flipbookName', uniqueName);
+            formData.append('page_v_id', 'global');
+
+            const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            uploadedAssets.push(uploadRes.data.url);
+        }
+
+        const finalPages = images.map((img, i) => {
+            const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
+            const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
+            const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
+            const fullUrl = `${backendUrl}${uploadedAssets[i]}`;
+            
+            return {
+                pageName: `Page ${i + 1}`,
+                content: `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 297" width="100%" height="100%" style="overflow: visible">
+  <g id="${rootId}" data-name="Page ${i + 1}" data-type="frame">
+    <rect id="${overlayId}" x="0" y="0" width="210" height="297" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" />
+    <image id="${imageId}" x="0" y="0" width="210" height="297" href="${fullUrl}" preserveAspectRatio="none" data-name="PDF Background" />
+  </g>
+</svg>`
+            };
+        });
+
+        await axios.post(`${backendUrl}/api/flipbook/save`, {
+            emailId,
+            v_id,
+            flipbookName: uniqueName,
+            pages: finalPages,
+            overwrite: true,
+            folderName: targetFolder
+        });
+
+        navigate(`/editor/${encodeURIComponent(targetFolder)}/${v_id}`);
+
+    } catch (error) {
+        console.error("PDF conversion error:", error);
+        showAlert("Error", "Failed to process PDF. Please try again.");
+    } finally {
+        setIsLoading(false);
+        setProcessingProgress(null);
+    }
   };
 
-  const handleUseTemplate = (templateData) => {
-    console.log("Use Template Clicked", templateData);
+  const handleUseTemplate = async (templateData) => {
     setIsCreateModalOpen(false);
-    if (templateData) {
+    if (!templateData) return;
+
+    if (!emailId) {
         navigate('/editor', { state: templateData });
+        return;
+    }
+
+    setIsLoading(true);
+    try {
+        const pageCount = templateData.pageCount || 12;
+        const pages = Array.from({ length: pageCount }, (_, i) => ({
+             pageName: `Page ${i + 1}`,
+             content: '' 
+        }));
+
+        const now = new Date();
+        const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+        const uniqueName = `Flipbook_${timeString}`;
+        const targetFolder = 'My Flipbooks';
+
+        const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
+            emailId,
+            flipbookName: uniqueName,
+            pages: pages,
+            overwrite: true,
+            folderName: targetFolder
+        });
+
+        if (res.data && res.data.v_id) {
+            navigate(`/editor/${encodeURIComponent(targetFolder)}/${res.data.v_id}`, { state: templateData });
+        } else {
+            navigate('/editor', { state: templateData });
+        }
+    } catch (e) {
+        console.error("Creation failed", e);
+        navigate('/editor', { state: templateData });
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -373,6 +522,47 @@ export default function Home() {
           </filter>
         </defs>
       </svg>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+             <div className="flex flex-col items-center gap-[1vw] max-w-[20vw] w-full text-center">
+                 <div className="w-[3.5vw] h-[3.5vw] border-[0.3vw] border-white/30 border-t-white rounded-full animate-spin mb-[0.5vw]"></div>
+                 
+                 <div className="w-full">
+                    <p className="text-white font-bold text-[1.15vw] mb-[0.5vw] drop-shadow-sm">
+                        {processingProgress?.message || 'Processing...'}
+                    </p>
+                    
+                    {processingProgress && processingProgress.total > 1 && (
+                        <div className="w-full h-[0.4vw] bg-white/20 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-white transition-all duration-300 ease-out"
+                                style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
+                            ></div>
+                        </div>
+                    )}
+                    
+                    {processingProgress && processingProgress.total > 1 && (
+                        <p className="text-white/70 text-[0.75vw] mt-[0.4vw] font-medium">
+                            {processingProgress.current} of {processingProgress.total} pages
+                        </p>
+                    )}
+                 </div>
+             </div>
+        </div>
+      )}
+
+      {/* Generic Alert Modal */}
+      <AlertModal 
+        isOpen={alertState.isOpen}
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
+        showCancel={alertState.showCancel}
+        onConfirm={alertState.onConfirm}
+      />
     </div>
   );
 }
