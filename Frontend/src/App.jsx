@@ -15,11 +15,13 @@ import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
 import { ToastProvider } from './components/CustomToast';
+import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
     <ToastProvider>
+      <ModernToastProvider>
       <Router>
         <Routes>
           {/* Public Routes */}
@@ -37,10 +39,11 @@ function App() {
             <Route path="threed_editor" element={<ThreedEditor />} />
             <Route path="threed_editor/:modelId" element={<ThreedEditor />} />
             <Route path="customized_editor" element={<CustomizedEditor />} />
+            <Route path="customized_editor/:v_id" element={<CustomizedEditor />} />
             <Route path="customized_editor/:folder/:v_id" element={<CustomizedEditor />} />
             <Route path="customized_editor/:folder/:v_id/:page" element={<CustomizedEditor />} />
             <Route path=":folder/:v_id" element={<MainEditor />} />
-            <Route path=":id" element={<MainEditor />} />
+            <Route path=":v_id" element={<MainEditor />} />
           </Route>
 
           {/* Protected Routes WITH navbar */}
@@ -59,6 +62,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Router>
+      </ModernToastProvider>
     </ToastProvider>
   );
 }

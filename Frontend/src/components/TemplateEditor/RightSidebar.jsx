@@ -23,8 +23,13 @@ const RightSidebar = ({
   updateElementAttribute,
   onPreview,
   activePreviewDevice: activePreviewDeviceProp,
-  setActivePreviewDevice: setActivePreviewDeviceProp
+  setActivePreviewDevice: setActivePreviewDeviceProp,
+  flipbookDimensions = { width: 210, height: 297 }
 }) => {
+  const { width: baseWidth, height: baseHeight } = flipbookDimensions;
+  // Convert mm to pixels at 96 DPI for the input display if no element selected
+  const baseWidthPx = Math.round(baseWidth * 96 / 25.4);
+  const baseHeightPx = Math.round(baseHeight * 96 / 25.4);
   const fileInputRef = useRef(null);
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
 
@@ -398,7 +403,7 @@ const RightSidebar = ({
                      <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
                         <input 
                            className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
-                           value={selectedElementProps?.w || 793}
+                           value={selectedElementProps?.w || flipbookDimensions.width}
                            onChange={(e) => {
                              if (!selectedElementProps) return;
                              const tag = selectedElementProps.tagName;
@@ -442,7 +447,7 @@ const RightSidebar = ({
                      <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
                         <input 
                            className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
-                           value={selectedElementProps?.h || 1121}
+                           value={selectedElementProps?.h || flipbookDimensions.height}
                            onChange={(e) => {
                              if (!selectedElementProps) return;
                              const tag = selectedElementProps.tagName;
@@ -706,11 +711,11 @@ const RightSidebar = ({
                         <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
                           <div className="flex justify-between items-center text-[0.75vw]">
                             <span className="text-gray-500 font-medium">Format</span>
-                            <span className="text-gray-900 font-semibold">A4 Sheet</span>
+                            <span className="text-gray-900 font-semibold">Custom Sheet</span>
                           </div>
                           <div className="flex justify-between items-center text-[0.75vw]">
                             <span className="text-gray-500 font-medium">Dimensions</span>
-                            <span className="text-gray-900 font-semibold">210 x 297 mm</span>
+                            <span className="text-gray-900 font-semibold">{Math.round(baseWidth)} x {Math.round(baseHeight)} mm</span>
                           </div>
                         </div>
                       </div>

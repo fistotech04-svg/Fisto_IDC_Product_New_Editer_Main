@@ -53,7 +53,7 @@ const assetStorage = multer.diskStorage({
 const assetUpload = multer({
   storage: assetStorage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: 30 * 1024 * 1024, // 30MB limit
   },
   fileFilter: (req, file, cb) => {
     const { assetType } = req.body;
@@ -76,6 +76,30 @@ const assetUpload = multer({
       );
     }
   },
+});
+
+// @route   POST /api/flipbook/save/chunk
+// @desc    Upload a chunk of page content
+router.post("/save/chunk", async (req, res) => {
+  try {
+    const { uploadId, chunkIndex, totalChunks, chunkData } = req.body;
+    if (!uploadId || chunkIndex === undefined || !chunkData) {
+      return res.status(400).json({ message: "Missing chunk metadata" });
+    }
+
+    const tempDir = path.join(__dirname, "../../temp_uploads", uploadId);
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+
+    const chunkPath = path.join(tempDir, `chunk_${chunkIndex}`);
+    fs.writeFileSync(chunkPath, chunkData, "utf8");
+
+    res.status(200).json({ message: "Chunk uploaded", chunkIndex });
+  } catch (error) {
+    console.error("Error uploading chunk:", error);
+    res.status(500).json({ message: "Chunk upload failed" });
+  }
 });
 
 // @route   POST /api/flipbook/save
@@ -218,6 +242,26 @@ router.post("/save", async (req, res) => {
 
       if (content !== undefined && content !== null) {
         fs.writeFileSync(filePath, content, "utf8");
+      } else if (page.contentChunkId) {
+        // Reassemble from chunks
+        const tempDir = path.join(__dirname, "../../temp_uploads", page.contentChunkId);
+        if (fs.existsSync(tempDir)) {
+          const chunks = fs.readdirSync(tempDir).sort((a, b) => {
+            return parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]);
+          });
+          
+          const writeStream = fs.createWriteStream(filePath);
+          for (const chunkFile of chunks) {
+            const chunkContent = fs.readFileSync(path.join(tempDir, chunkFile));
+            writeStream.write(chunkContent);
+          }
+          writeStream.end();
+          
+          // Cleanup chunks after save (optional, but good practice)
+          setTimeout(() => {
+            try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
+          }, 5000);
+        }
       }
       savedPages.push(fileName);
       savedFileNames.add(fileName);
@@ -1763,7 +1807,12 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage: storage });
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB limit
+  },
+});
 
 router.post("/upload-asset", upload.single("file"), async (req, res) => {
   try {

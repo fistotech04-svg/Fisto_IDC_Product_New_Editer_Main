@@ -7,7 +7,7 @@ import DashboardBg from '../assets/images/myflipbook.png';
 
 import AlertModal from '../components/AlertModal';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
-import { convertPdfToImages, getPdfPageCount } from '../utils/pdfUtils';
+import { convertPdfToImages, getPdfPageCount, generatePdfPageSvg } from '../utils/pdfUtils';
 
 export default function MyFlipbooks() {
   const navigate = useNavigate();
@@ -107,26 +107,60 @@ export default function MyFlipbooks() {
     if (!files || files.length === 0) return;
     setIsCreateModalOpen(false);
     setIsLoading(true);
-    setProcessingProgress({ current: 0, total: 1, message: 'Processing PDF...' });
-
+    
     try {
-        const file = files[0]; // Process the first PDF for now
-        
-        // Process PDF (Limit to first 12 pages)
-        const images = await convertPdfToImages(file, 2, 12);
-        
-        setProcessingProgress({ current: 0, total: images.length, message: 'Uploading pages...' });
+        const MAX_TOTAL_PAGES = 12;
+        let allImages = [];
 
-        // 1. Create a placeholder flipbook to get a v_id
+        // 1. Extract images from all PDFs until we hit 12 pages
+        for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+            const file = files[fileIndex];
+            if (allImages.length >= MAX_TOTAL_PAGES) break;
+
+            const remainingPages = MAX_TOTAL_PAGES - allImages.length;
+            setProcessingProgress({ 
+                current: 0, 
+                total: 1, 
+                message: `Extracting pages from ${file.name}...` 
+            });
+            
+            // convertPdfToImages(file, scale, limit)
+            const images = await convertPdfToImages(file, 2, remainingPages);
+            allImages = [...allImages, ...images];
+        }
+
+        if (allImages.length > 0) {
+            const firstW = allImages[0].width;
+            const firstH = allImages[0].height;
+            const isUniform = allImages.every(img => 
+                Math.abs(img.width - firstW) < 1 && 
+                Math.abs(img.height - firstH) < 1
+            );
+            
+            if (!isUniform) {
+                showAlert("Uniformity Error", "Selected PDF pages have different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.");
+                return;
+            }
+            
+            var maxWidth = firstW;
+            var maxHeight = firstH;
+        } else {
+            showAlert("Error", "No pages could be extracted from the selected files.");
+            return;
+        }
+
+        // 2. Create the unified flipbook record
         const now = new Date();
         const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
         const uniqueName = `PDF_Flipbook_${timeString}`;
         const targetFolder = activeFolder === 'Recent Book' ? 'My Flipbooks' : activeFolder;
 
+        setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
+
         // Create empty pages structure first
-        const initialPages = images.map((_, i) => ({
+        const initialPages = allImages.map((_, i) => ({
             pageName: `Page ${i + 1}`,
-            content: ''
+            content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxWidth} ${maxHeight}" width="100%" height="100%"></svg>`
         }));
 
         const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
@@ -139,19 +173,23 @@ export default function MyFlipbooks() {
 
         const v_id = createRes.data.v_id;
 
-        // 2. Upload each page image as an asset
+        // 3. Upload all aggregated pages as assets
         const uploadedAssets = [];
-        for (let i = 0; i < images.length; i++) {
-            setProcessingProgress({ current: i + 1, total: images.length, message: `Uploading page ${i + 1} of ${images.length}...` });
+        for (let i = 0; i < allImages.length; i++) {
+            setProcessingProgress({ 
+                current: i + 1, 
+                total: allImages.length, 
+                message: `Uploading page ${i + 1} of ${allImages.length}...` 
+            });
             
             const formData = new FormData();
-            formData.append('file', images[i].blob, `page-${i + 1}.png`);
+            formData.append('file', allImages[i].blob, `page-${i + 1}.png`);
             formData.append('emailId', emailId);
             formData.append('type', 'image');
             formData.append('v_id', v_id);
             formData.append('folderName', targetFolder);
             formData.append('flipbookName', uniqueName);
-            formData.append('page_v_id', 'global'); // We'll link them manually in HTML
+            formData.append('page_v_id', 'global');
 
             const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
@@ -159,20 +197,10 @@ export default function MyFlipbooks() {
             uploadedAssets.push(uploadRes.data.url);
         }
 
-        // 3. Update the flipbook with the actual SVG content using these images
-        const finalPages = images.map((img, i) => {
-            const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
-            const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
-            const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
-            
+        // 4. Update the flipbook with final SVG content
+        const finalPages = allImages.map((img, i) => {
             const fullUrl = `${backendUrl}${uploadedAssets[i]}`;
-            
-            const html = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 297" width="100%" height="100%" style="overflow: visible">
-  <g id="${rootId}" data-name="Page ${i + 1}" data-type="frame">
-    <rect id="${overlayId}" x="0" y="0" width="210" height="297" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" />
-    <image id="${imageId}" x="0" y="0" width="210" height="297" href="${fullUrl}" preserveAspectRatio="none" data-name="PDF Background" />
-  </g>
-</svg>`;
+            const html = generatePdfPageSvg(fullUrl, `Page ${i + 1}`, maxWidth, maxHeight);
 
             return {
                 pageName: `Page ${i + 1}`,
@@ -189,7 +217,7 @@ export default function MyFlipbooks() {
             folderName: targetFolder
         });
 
-        // 4. Navigate to editor
+        // 5. Navigate to editor
         navigate(`/editor/${encodeURIComponent(targetFolder)}/${v_id}`);
 
     } catch (error) {
@@ -1350,6 +1378,7 @@ export default function MyFlipbooks() {
         showCancel={true}
         confirmText="Delete"
         cancelText="Cancel"
+        isLoading={isLoading}
       />
 
       {/* Book Delete Alert */}
@@ -1363,6 +1392,7 @@ export default function MyFlipbooks() {
         showCancel={true}
         confirmText="Delete"
         cancelText="Cancel"
+        isLoading={isLoading}
       />
 
       {/* Create Flipbook Modal */}
@@ -1412,6 +1442,7 @@ export default function MyFlipbooks() {
         message={alertState.message}
         showCancel={alertState.showCancel}
         onConfirm={alertState.onConfirm}
+        isLoading={isLoading}
       />
 
       {/* Conflict / Rename & Move Modal */}

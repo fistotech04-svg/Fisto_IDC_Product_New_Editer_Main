@@ -31,6 +31,35 @@ const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Helper to ensure user folders exist
+const ensureUserFolders = (sanitizedEmail) => {
+  const userFolderPath = path.join(__dirname, '../../uploads', sanitizedEmail);
+  try {
+    const uploadsDir = path.join(__dirname, '../../uploads');
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    if (!fs.existsSync(userFolderPath)) {
+      fs.mkdirSync(userFolderPath, { recursive: true });
+    }
+
+    const foldersToCreate = ['My_Flipbooks', 'Images', 'Videos', 'gifs', '3D_Modals', '3D_Screenshot'];
+    foldersToCreate.forEach(folder => {
+      const folderPath = path.join(userFolderPath, folder);
+      if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+    });
+
+    const publicBookPath = path.join(userFolderPath, 'My_Flipbooks', 'Recent Book');
+    if (!fs.existsSync(publicBookPath)) fs.mkdirSync(publicBookPath, { recursive: true });
+    
+    return true;
+  } catch (folderError) {
+    console.error('Error creating user folder:', folderError);
+    return false;
+  }
+};
+
 
 // @route   POST /api/auth/google-login
 // @desc    Login or Signup with Google
@@ -71,45 +100,20 @@ router.post('/google-login', async (req, res) => {
 
     // Check if user exists
     let user = await User.findOne({ emailId: email });
+    const sanitizedEmail = email.replace(/[@.]/g, '_');
 
     if (!user) {
       // Signup logic for new Google user
-      const sanitizedEmail = email.replace(/[@.]/g, '_');
-      
-      // Create new user with a dummy password since they use Google
       user = new User({
         emailId: email,
         password: `google_${googleId || Date.now()}`, // Dummy password
         userFolder: sanitizedEmail
       });
-
-      // Create user-specific folder for storing files
-      const userFolderPath = path.join(__dirname, '../../uploads', sanitizedEmail);
-      
-      try {
-        const uploadsDir = path.join(__dirname, '../../uploads');
-        if (!fs.existsSync(uploadsDir)) {
-          fs.mkdirSync(uploadsDir, { recursive: true });
-        }
-
-        if (!fs.existsSync(userFolderPath)) {
-          fs.mkdirSync(userFolderPath, { recursive: true });
-        }
-
-        const foldersToCreate = ['My_Flipbooks', 'Images', 'Videos', 'gifs', '3D_Modals', '3D_Screenshot'];
-        foldersToCreate.forEach(folder => {
-          const folderPath = path.join(userFolderPath, folder);
-          if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
-        });
-
-        const publicBookPath = path.join(userFolderPath, 'My_Flipbooks', 'Recent Book');
-        if (!fs.existsSync(publicBookPath)) fs.mkdirSync(publicBookPath, { recursive: true });
-      } catch (folderError) {
-        console.error('Error creating user folder:', folderError);
-      }
-
       await user.save();
     }
+
+    // Ensure folders exist for both new and returning Google users
+    ensureUserFolders(user.userFolder || sanitizedEmail);
 
     res.status(200).json({ 
       message: 'Google login successful', 
@@ -153,48 +157,7 @@ router.post('/signup', async (req, res) => {
     });
 
     // Create user-specific folder for storing files
-    const userFolderPath = path.join(__dirname, '../../uploads', sanitizedEmail);
-    
-    try {
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = path.join(__dirname, '../../uploads');
-      if (!fs.existsSync(uploadsDir)) {
-        fs.mkdirSync(uploadsDir, { recursive: true });
-      }
-
-      // Create user-specific folder
-      if (!fs.existsSync(userFolderPath)) {
-        fs.mkdirSync(userFolderPath, { recursive: true });
-        console.log(`Created folder for user: ${sanitizedEmail}`);
-      }
-
-      // Create Default Folders
-      const foldersToCreate = [
-          'My_Flipbooks',
-          'Images',
-          'Videos',
-          'gifs', 
-          '3D_Modals',
-          '3D_Screenshot'
-      ];
-
-      foldersToCreate.forEach(folder => {
-          const folderPath = path.join(userFolderPath, folder);
-          if (!fs.existsSync(folderPath)) {
-              fs.mkdirSync(folderPath, { recursive: true });
-          }
-      });
-
-      // Create "Recent Book" inside "My_Flipbooks"
-      const publicBookPath = path.join(userFolderPath, 'My_Flipbooks', 'Recent Book');
-      if (!fs.existsSync(publicBookPath)) {
-          fs.mkdirSync(publicBookPath, { recursive: true });
-          console.log(`Created structure for user: ${sanitizedEmail}`);
-      }
-    } catch (folderError) {
-      console.error('Error creating user folder:', folderError);
-      // Continue even if folder creation fails
-    }
+    ensureUserFolders(sanitizedEmail);
 
     // Save user to database
     await newUser.save();

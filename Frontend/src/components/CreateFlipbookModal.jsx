@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Upload, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import { useModernToast } from './ModernToast';
 
 const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
   const [view, setView] = useState('selection'); // 'selection' | 'upload' | 'template'
@@ -12,6 +13,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
   // Template View State
   const [selectedTemplateId, setSelectedTemplateId] = useState('corporate');
   const [pageCount, setPageCount] = useState(12);
+  const toast = useModernToast();
 
   const templates = [
     { id: 'corporate', label: 'A4', title: 'Corporate Brochure', dim: '(29.7 x 42 Cm)', width: 'w-[6vw]', height: 'h-[9vw]' },
@@ -63,14 +65,33 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
 
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files);
-    if (files.length > 0) {
-      const newFiles = files.map(file => ({
+    const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB Total
+    
+    // Calculate current total size
+    const currentTotalSize = uploadedFiles.reduce((sum, f) => sum + f.file.size, 0);
+    let newTotalSize = currentTotalSize;
+
+    const validFiles = [];
+    for (const file of files) {
+      if (newTotalSize + file.size > MAX_TOTAL_SIZE) {
+        toast.error(`Total size exceeds 20MB limit. Skipping ${file.name}`);
+        continue;
+      }
+      validFiles.push(file);
+      newTotalSize += file.size;
+    }
+
+    if (validFiles.length > 0) {
+      const newFiles = validFiles.map(file => ({
         file,
         id: Math.random().toString(36).substr(2, 9),
         progress: 0
       }));
       setUploadedFiles(prev => [...prev, ...newFiles]);
     }
+    
+    // Clear input so same file can be selected again
+    event.target.value = '';
   };
 
   const handleRemoveFile = (id) => {
@@ -247,7 +268,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
                     <div className="mt-[1.5vw] flex justify-center pb-[0.25vw]">
                         <button 
                             onClick={handleCreateFlipbook}
-                            className="px-[2vw] py-[0.6vw] bg-[#6366f1] text-white rounded-[0.75vw] font-bold text-[0.875vw] hover:bg-[#4f46e5] transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
+                            className="px-[2vw] py-[0.6vw] bg-[#6366f1] text-white rounded-[0.75vw] font-semibold cursor-pointer text-[0.875vw] hover:bg-[#4f46e5] transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
                         >
                             Create Flipbook
                         </button>

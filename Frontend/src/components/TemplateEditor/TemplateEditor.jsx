@@ -117,7 +117,8 @@ const TemplateEditor = () => {
           }
       });
 
-      const CHUNK_SIZE = 2; // Number of pages to send content for per request
+      const CHUNK_SIZE = 1; // Send 1 page at a time to stay under network limits for large content
+      let currentVId = v_id;
       let lastRes = null;
 
       if (modifiedPagesIndices.length === 0) {
@@ -130,7 +131,7 @@ const TemplateEditor = () => {
 
          const payload = {
             emailId: user?.emailId,
-            v_id: v_id,
+            v_id: currentVId,
             flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
             folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
             overwrite: true,
@@ -138,22 +139,52 @@ const TemplateEditor = () => {
          };
 
          lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+         if (lastRes.data && lastRes.data.v_id) {
+           currentVId = lastRes.data.v_id;
+         }
       } else {
          // Chunk the modified indices
          for (let skip = 0; skip < modifiedPagesIndices.length; skip += CHUNK_SIZE) {
             const currentChunkIndices = new Set(modifiedPagesIndices.slice(skip, skip + CHUNK_SIZE));
             
-            const payloadPages = pages.map((p, index) => {
+            const payloadPages = await Promise.all(pages.map(async (p, index) => {
+                const isModified = currentChunkIndices.has(index);
+                let content = isModified ? p.html : undefined;
+                let contentChunkId = undefined;
+
+                // CHUNKED UPLOAD LOGIC: If content is too large (> 2MB), upload in chunks
+                const CHUNK_THRESHOLD = 2 * 1024 * 1024; // 2MB
+                if (content && content.length > CHUNK_THRESHOLD) {
+                  const uploadId = `chunked-${Math.random().toString(36).substr(2, 9)}`;
+                  const CHUNK_DATA_SIZE = 1 * 1024 * 1024; // 1MB chunks
+                  const totalChunks = Math.ceil(content.length / CHUNK_DATA_SIZE);
+                  
+                  console.log(`[Save] Page ${index + 1} is large (${(content.length / 1024 / 1024).toFixed(2)} MB). Uploading in ${totalChunks} chunks...`);
+                  
+                  for (let i = 0; i < totalChunks; i++) {
+                    const chunk = content.substr(i * CHUNK_DATA_SIZE, CHUNK_DATA_SIZE);
+                    await axios.post(`${backendUrl}/api/flipbook/save/chunk`, {
+                      uploadId,
+                      chunkIndex: i,
+                      totalChunks,
+                      chunkData: chunk
+                    });
+                  }
+                  content = undefined;
+                  contentChunkId = uploadId;
+                }
+
                 return {
                     pageName: p.name || `Page ${index + 1}`,
-                    content: currentChunkIndices.has(index) ? p.html : undefined, 
+                    content, 
+                    contentChunkId,
                     v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
                 };
-            });
+            }));
 
             const payload = {
                emailId: user?.emailId,
-               v_id: v_id,
+               v_id: currentVId,
                flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
                folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
                overwrite: true,
@@ -164,6 +195,9 @@ const TemplateEditor = () => {
             console.log(`[Save] Chunk diffing: sending modified pages ${Array.from(currentChunkIndices).map(n => n + 1).join(', ')}. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
 
             lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+            if (lastRes.data && lastRes.data.v_id) {
+                currentVId = lastRes.data.v_id;
+            }
          }
       }
 
@@ -191,7 +225,9 @@ const TemplateEditor = () => {
       }
     } catch (err) {
       console.error("Failed to save flipbook:", err);
-      alert(err?.response?.status === 413 ? "Save failed: The template size is too large." : "Failed to save flipbook. Please try again.");
+      const errorMsg = err?.response?.data?.message || err?.message || "Internal server error";
+      const is413 = err?.response?.status === 413;
+      alert(is413 ? "Save failed: The content size is too large for the server." : `Failed to save flipbook: ${errorMsg}`);
     } finally {
       setIsSaving(false);
     }
@@ -249,14 +285,32 @@ const TemplateEditor = () => {
       });
     }
   }, [pages, activePageIndex, isLoading, currentBook, location.state]);
+  
+  // Helper to get flipbook dimensions from the first page
+  const getFlipbookDimensions = useCallback(() => {
+    if (pages.length > 0 && pages[0].html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(pages[0].html, 'image/svg+xml');
+      const viewBox = doc.documentElement.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/[\s,]+/);
+        if (parts.length === 4) {
+          return { width: parseFloat(parts[2]), height: parseFloat(parts[3]) };
+        }
+      }
+    }
+    return { width: 210, height: 297 }; // Default A4
+  }, [pages]);
 
   const createDefaultPageData = (name) => {
-    // ... rest of code same ...
+    const { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
     const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
     const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
-    const html = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 297" width="100%" height="100%" style="overflow: visible">
+    const html = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
   <g id="${rootId}" data-name="${name}" data-type="frame">
-\n    <rect id="${overlayId}" x="0" y="0" width="210" height="297" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" />\n  </g>\n</svg>`;
+    <rect id="${overlayId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" shape-rendering="crispEdges" />
+  </g>
+</svg>`;
 
     const layers = [
       {
@@ -554,8 +608,40 @@ const TemplateEditor = () => {
 
     try {
         const images = await convertPdfToImages(file, 2, 12);
-        const newPages = [];
+        if (!images || images.length === 0) return;
+
+        // 1. Check internal uniformity of the PDF
+        const firstW = images[0].width;
+        const firstH = images[0].height;
+        const isInternalUniform = images.every(img => 
+            Math.abs(img.width - firstW) < 1 && 
+            Math.abs(img.height - firstH) < 1
+        );
         
+        if (!isInternalUniform) {
+            alert("The PDF contains pages with different dimensions. All pages in a flipbook must be the same size.");
+            return;
+        }
+
+        // 2. Determine base dimensions and check compatibility
+        let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+        
+        const isDefaultBlank = pages.length === 0 || 
+                             (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"')));
+
+        if (!isDefaultBlank) {
+            // If the flipbook already has content, the PDF must match its size
+            if (Math.abs(firstW - baseWidth) > 1 || Math.abs(firstH - baseHeight) > 1) {
+                alert(`PDF dimensions (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) do not match the current flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm).`);
+                return;
+            }
+        } else {
+            // If starting from blank, adopt the PDF's size
+            baseWidth = firstW;
+            baseHeight = firstH;
+        }
+
+        const newPages = [];
         for (let i = 0; i < images.length; i++) {
             setPdfProcessing({ current: i + 1, total: images.length, message: `Uploading page ${i + 1} of ${images.length}...` });
             
@@ -574,7 +660,7 @@ const TemplateEditor = () => {
 
             const fullUrl = `${backendUrl}${res.data.url}`;
             const pageName = `PDF Page ${i + 1}`;
-            const html = generatePdfPageSvg(fullUrl, pageName);
+            const html = generatePdfPageSvg(fullUrl, pageName, baseWidth, baseHeight);
             
             // Parse layers for the new page
             const parser = new DOMParser();
@@ -593,6 +679,12 @@ const TemplateEditor = () => {
         setPages(prev => {
             const updated = [...prev];
             const insertIdx = pdfInsertIndexRef.current !== null ? pdfInsertIndexRef.current + 1 : updated.length;
+            
+            // If starting from a blank page, replace it with the PDF content
+            if (isDefaultBlank && updated.length === 1) {
+                return newPages;
+            }
+
             updated.splice(insertIdx, 0, ...newPages);
             return updated;
         });
@@ -1883,16 +1975,19 @@ const TemplateEditor = () => {
       // 3. Find the Root Folder (<g>) - prioritized by data-type="frame"
       const rootFolder = pageSvg.querySelector('g[data-type="frame"]') || pageSvg.querySelector('g');
       
-      // 4. Calculate Scale to Fit (Target: A4 210x297)
-      const targetW = 210;
-      const targetH = 297;
+      // 4. Calculate Scale to Fit (Target: Actual Flipbook Dimensions)
+      const { width: targetW, height: targetH } = getFlipbookDimensions();
       let templateWidth = parseFloat(templateSvg.getAttribute('width'));
       let templateHeight = parseFloat(templateSvg.getAttribute('height'));
       const viewBoxStr = templateSvg.getAttribute('viewBox');
+      let viewBoxX = 0;
+      let viewBoxY = 0;
       
       if (viewBoxStr) {
         const parts = viewBoxStr.trim().split(/[ ,]+/).map(parseFloat);
         if (parts.length === 4) {
+          viewBoxX = parts[0];
+          viewBoxY = parts[1];
           templateWidth = parts[2];
           templateHeight = parts[3];
         }
@@ -1966,7 +2061,8 @@ const TemplateEditor = () => {
           // This prevents elements from losing their masks or colors when the container is exploded.
           const attrsToInherit = [
             'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 
-            'opacity', 'visibility', 'filter', 'color'
+            'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
+            'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
           ];
           attrsToInherit.forEach(attr => {
             const val = mainGroup.getAttribute(attr);
@@ -2004,7 +2100,10 @@ const TemplateEditor = () => {
         const nextSiblingRef = overlayChild ? overlayChild.nextSibling : targetParent.firstChild;
 
         // Inherit visual attributes from the original template SVG
-        const svgAttrs = ['fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color'];
+        const svgAttrs = [
+          'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
+          'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
+        ];
         
         finalTemplateElements.forEach(child => {
           const imported = pageDoc.importNode(child, true);
@@ -2019,7 +2118,7 @@ const TemplateEditor = () => {
 
           // Apply scaling and translation to fit A4
           const currentTransform = imported.getAttribute('transform') || '';
-          const fittingTransform = `translate(${offsetX}, ${offsetY}) scale(${scale})`;
+          const fittingTransform = `translate(${offsetX}, ${offsetY}) scale(${scale}) translate(${-viewBoxX}, ${-viewBoxY})`;
           imported.setAttribute('transform', `${fittingTransform} ${currentTransform}`.trim());
           
           // Insert into target parent
@@ -2296,6 +2395,7 @@ const TemplateEditor = () => {
           }
         }}
         onSave={saveFlipbook}
+        flipbookDimensions={getFlipbookDimensions()}
       />
       <RightSidebar 
         isDoublePage={isDoublePage} 
@@ -2309,6 +2409,7 @@ const TemplateEditor = () => {
         selectedLayerId={selectedLayerId}
         updateElementAttribute={updateElementAttribute}
         onPreview={() => setShowPreview(true)}
+        flipbookDimensions={getFlipbookDimensions()}
       />
       
       {showTemplateModal && (

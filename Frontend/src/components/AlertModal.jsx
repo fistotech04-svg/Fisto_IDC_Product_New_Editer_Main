@@ -12,7 +12,8 @@ const AlertModal = ({
   confirmText = 'Okay',
   cancelText = 'Cancel',
   autoClose = false,
-  autoCloseDuration = 3000 
+  autoCloseDuration = 3000,
+  isLoading = false
 }) => {
   useEffect(() => {
     if (isOpen && autoClose && !showCancel) {
@@ -78,7 +79,8 @@ const AlertModal = ({
           {showCancel && (
             <button
               onClick={onClose}
-              className="flex-1 py-[0.6vw] text-[0.8vw] cursor-pointer font-medium text-gray-600 bg-white rounded-[0.55vw] hover:bg-gray-50 focus:outline-none transition-all active:scale-95 border border-transparent outline-none"
+              disabled={isLoading}
+              className={`flex-1 py-[0.6vw] text-[0.8vw] cursor-pointer font-medium text-gray-600 bg-white rounded-[0.55vw] hover:bg-gray-50 focus:outline-none transition-all active:scale-95 border border-transparent outline-none ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               {cancelText}
             </button>
@@ -88,9 +90,13 @@ const AlertModal = ({
               if (onConfirm) onConfirm();
               else onClose();
             }}
-            className={`flex-1 py-[0.6vw] text-[0.8vw] cursor-pointer font-medium text-white rounded-[0.55vw] shadow-sm focus:outline-none transition-all active:scale-95 outline-none ${confirmBtnBg[type] || confirmBtnBg.error}`}
+            disabled={isLoading}
+            className={`flex-1 py-[0.6vw] text-[0.8vw] cursor-pointer font-medium text-white rounded-[0.55vw] shadow-sm focus:outline-none transition-all active:scale-95 outline-none flex items-center justify-center gap-[0.5vw] ${confirmBtnBg[type] || confirmBtnBg.error} ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            {confirmText}
+            {isLoading && (
+              <div className="w-[0.8vw] h-[0.8vw] border-[0.1vw] border-white/30 border-t-white rounded-full animate-spin" />
+            )}
+            {isLoading ? (confirmText === 'Delete' ? 'Deleting...' : 'Loading...') : confirmText}
           </button>
         </div>
       </div>

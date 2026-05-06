@@ -10,6 +10,12 @@ export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onTog
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('last_active_folder');
+    
+    // Disable Google One Tap auto-selection for the next visit
+    if (window.google?.accounts?.id) {
+      window.google.accounts.id.disableAutoSelect();
+    }
+    
     navigate('/');
     onClose();
   };

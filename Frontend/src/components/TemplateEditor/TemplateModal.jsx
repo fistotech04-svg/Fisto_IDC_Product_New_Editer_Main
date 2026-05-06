@@ -1,6 +1,6 @@
 // TemplateModal.jsx - HTML Template Selection
 import React, { useState, useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Upload } from 'lucide-react';
 
 // Import SVG templates as URLs
 import TemplateSVG1 from "../../assets/Templates/Template_1.svg?url";
@@ -13,6 +13,8 @@ import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
 const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, loadTemplate }) => {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [customTemplates, setCustomTemplates] = useState([]);
+  const fileInputRef = React.useRef(null);
 
   // SVG Template data
   const templates = [
@@ -67,23 +69,57 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
   ];
 
   const categories = [
-    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio',
+    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio', 'Custom'
   ];
 
   // Filter templates
   const filteredTemplates = useMemo(() => {
-    return templates.filter(t => 
+    const allTemplates = [...templates, ...customTemplates];
+    return allTemplates.filter(t => 
       (activeTab === 'All' || t.category === activeTab) &&
       t.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, customTemplates]);
 
   // Load HTML template
   const handleLoadTemplate = async (template) => {
     if (template.type === 'svg') {
+      // Clear existing page content before applying a full-page template to prevent bloat
+      if (typeof clearCanvas === 'function') {
+        clearCanvas();
+      }
       await loadTemplate(template.src);
     }
     setShowTemplateModal(false);
+  };
+
+  // Handle Custom SVG Upload (Instant use, not stored)
+  const handleCustomUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg'))) {
+      // Warn user about very large SVGs that might cause save issues
+      if (file.size > 30 * 1024 * 1024) {
+        alert("This SVG is exceptionally large (over 30MB). It may cause performance issues or fail to save due to network limits. Please optimize it if possible.");
+      }
+      
+      const url = URL.createObjectURL(file);
+      const newTemplate = {
+        id: `custom-${Date.now()}`,
+        name: file.name.replace(/\.[^/.]+$/, ""),
+        category: 'Custom',
+        src: url,
+        type: 'svg',
+        description: 'User uploaded custom template'
+      };
+      
+      setCustomTemplates(prev => [newTemplate, ...prev]);
+      setActiveTab('Custom');
+      
+      // Reset input
+      e.target.value = '';
+    } else if (file) {
+      alert("Please upload a valid SVG file.");
+    }
   };
 
   // Helper Component for Template Card
@@ -163,14 +199,32 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
             <p className="text-[0.8vw] text-gray-500 mt-[0.2vw]">Select a professionally designed template to get started</p>
           </div>
           <div className="flex items-center gap-[1vw]">
-            <div className="relative group">
-              <Search size="1.1vw" className="absolute left-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search templates..."
-                className="pl-[2.5vw] pr-[1vw] py-[0.6vw] bg-gray-50 border-gray-200 rounded-[0.8vw] text-[0.8vw] w-[15vw] focus:outline-none focus:bg-white focus:ring-2 focus:ring-gray-200 focus:border-black transition-all"
+            <div className="flex items-center gap-[0.8vw]">
+              <div className="relative group">
+                <Search size="1.1vw" className="absolute left-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search templates..."
+                  className="pl-[2.5vw] pr-[1vw] py-[0.6vw] bg-gray-50 border-gray-200 rounded-[0.8vw] text-[0.8vw] w-[15vw] focus:outline-none focus:bg-white focus:ring-2 focus:ring-gray-200 focus:border-black transition-all"
+                />
+              </div>
+
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] bg-black text-white rounded-[0.8vw] text-[0.8vw] font-medium hover:bg-gray-800 transition-all shadow-md hover:shadow-gray-200"
+              >
+                <Upload size="1.1vw" />
+                <span>Upload SVG</span>
+              </button>
+              
+              <input 
+                type="file"
+                ref={fileInputRef}
+                onChange={handleCustomUpload}
+                accept=".svg"
+                className="hidden"
               />
             </div>
             <button
@@ -201,6 +255,24 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         {/* Template Grid */}
         <div className="flex-1 overflow-y-auto p-[2vw] bg-gray-50/50">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[2vw] pb-[2.5vw]">
+
+            {/* Upload Custom Template Card (Always visible in Custom tab or when searching in All) */}
+            {(activeTab === 'Custom' || (activeTab === 'All' && !searchQuery)) && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="group bg-white/50 rounded-[0.8vw] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 hover:border-black/30 hover:bg-white hover:shadow-lg aspect-[1/1.414]"
+              >
+                <div className="flex flex-col items-center gap-[1.2vw] p-[2vw]">
+                  <div className="w-[3.5vw] h-[3.5vw] bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-black group-hover:scale-110 transition-all duration-300">
+                    <Upload size="1.5vw" className="text-gray-400 group-hover:text-white" />
+                  </div>
+                  <div className="text-center">
+                    <h4 className="font-bold text-gray-900 text-[0.85vw]">Upload Custom</h4>
+                    <p className="text-[0.7vw] text-gray-500 mt-[0.4vw] leading-relaxed">Import your own SVG<br/>as a template</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Dynamic Template Cards */}
             {filteredTemplates.map((template) => (

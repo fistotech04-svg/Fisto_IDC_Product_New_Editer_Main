@@ -46,10 +46,13 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
       canvas.toBlob((b) => resolve(b), 'image/png');
     });
 
+    const baseViewport = page.getViewport({ scale: 1 });
+    // Convert points (1/72 inch) to millimeters
+    const ptToMm = 25.4 / 72;
     images.push({
       blob,
-      width: viewport.width,
-      height: viewport.height,
+      width: baseViewport.width * ptToMm,
+      height: baseViewport.height * ptToMm,
     });
   }
 
@@ -60,17 +63,24 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
  * Generates the SVG HTML for a PDF page image.
  * @param {string} fullImageUrl - The absolute URL of the uploaded image.
  * @param {string} pageName - The name of the page.
+ * @param {number} baseWidth - The base width of the canvas (default 210).
+ * @param {number} baseHeight - The base height of the canvas (default 297).
  * @returns {string} SVG HTML string.
  */
-export const generatePdfPageSvg = (fullImageUrl, pageName = "PDF Background") => {
+export const generatePdfPageSvg = (fullImageUrl, pageName = "PDF Background", baseWidth, baseHeight) => {
+  if (!baseWidth || !baseHeight) {
+    console.warn("generatePdfPageSvg called without dimensions, falling back to A4");
+    baseWidth = 210;
+    baseHeight = 297;
+  }
   const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
   const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
   const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
   
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 210 297" width="100%" height="100%" style="overflow: visible">
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
   <g id="${rootId}" data-name="${pageName}" data-type="frame">
-    <rect id="${overlayId}" x="0" y="0" width="210" height="297" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" />
-    <image id="${imageId}" x="0" y="0" width="210" height="297" href="${fullImageUrl}" preserveAspectRatio="none" data-name="PDF Background" />
+    <rect id="${overlayId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" shape-rendering="crispEdges" />
+    <image id="${imageId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" href="${fullImageUrl}" preserveAspectRatio="none" data-name="PDF Background" />
   </g>
 </svg>`;
 };

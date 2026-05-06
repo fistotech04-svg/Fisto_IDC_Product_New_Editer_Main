@@ -84,9 +84,13 @@ const CustomizedEditor = () => {
 
   // Update URL when page changes to maintain state on refresh
   useEffect(() => {
-    if (folder && v_id) {
-      // Use replace: true to avoid cluttering history with every page turn
-      navigate(`/editor/customized_editor/${encodeURIComponent(folder)}/${v_id}/${targetPage}`, { replace: true });
+    if (v_id) {
+      const folderPart = folder ? encodeURIComponent(folder) : null;
+      const newUrl = folderPart 
+        ? `/editor/customized_editor/${folderPart}/${v_id}/${targetPage}`
+        : `/editor/customized_editor/${v_id}/${targetPage}`;
+        
+      navigate(newUrl, { replace: true });
     }
   }, [targetPage, folder, v_id, navigate]);
 
@@ -745,8 +749,11 @@ const CustomizedEditor = () => {
             }
           }
         } catch (err) {
-          console.error("Specified model not found, redirecting to 404...", err);
-          navigate('/not-found', { replace: true });
+          console.error("CustomizedEditor: Fetch failed", err);
+          // Only redirect if it's a definitive 404 and we have no local data at all
+          if (err.response?.status === 404 && !autosave && pages.length === 0) {
+            navigate('/not-found', { replace: true });
+          }
         }
       }
       setIsLoading(false);

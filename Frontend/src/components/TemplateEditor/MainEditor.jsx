@@ -207,8 +207,11 @@ const MainEditor = ({
   activeMainTool,
   setActiveMainTool,
   activeTopTool,
-  setActiveTopTool
+  setActiveTopTool,
+  flipbookDimensions = null
 }) => {
+  const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
+  const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
 
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
@@ -654,7 +657,7 @@ const MainEditor = ({
       
       if (rootFrame) {
           try {
-              let cx = 105, cy = 148.5; // Default A4 center
+              let cx = baseWidth / 2, cy = baseHeight / 2;
               
               try {
                   const bbox = rootFrame.getBBox();
@@ -664,8 +667,8 @@ const MainEditor = ({
                   }
               } catch (e) {
                   // Fallback to SVG center if BBox fails
-                  const svgW = parseFloat(svg.getAttribute('width') || '793');
-                  const svgH = parseFloat(svg.getAttribute('height') || '1121');
+                  const svgW = parseFloat(svg.getAttribute('width') || baseWidth.toString());
+                  const svgH = parseFloat(svg.getAttribute('height') || baseHeight.toString());
                   cx = svgW / 2;
                   cy = svgH / 2;
               }
@@ -4460,8 +4463,8 @@ const MainEditor = ({
             style={{ 
               left: `calc(50% - ${
                 isCurrentlySpread
-                  ? '((78vh / 1.414) * 1.0)' 
-                  : '((78vh / 1.414) / 2)'
+                  ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)` 
+                  : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
               } * (${zoom / 100}) - 3vw)`,
               top: '50%',
               transform: 'translate(-50%, -50%)'
@@ -4556,7 +4559,7 @@ const MainEditor = ({
                   className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
                   style={{ 
                     height: '78vh', 
-                    aspectRatio: '1 / 1.414',
+                    aspectRatio: canvasAspectRatio,
                     minHeight: '400px',
                   }}
                 >
@@ -4613,7 +4616,7 @@ const MainEditor = ({
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                        <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">A4 sheet (210 x 297 mm)</span>
+                        <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">Base sheet ({baseWidth.toFixed(2)} x {baseHeight.toFixed(2)} mm)</span>
                         {displayIndex === activePageIndex && (
                           <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
                         )}
@@ -4724,7 +4727,7 @@ const MainEditor = ({
                   className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
                   style={{ 
                     height: '78vh', 
-                    aspectRatio: '1 / 1.414',
+                    aspectRatio: canvasAspectRatio,
                     minHeight: '400px',
                   }}
                 >
@@ -4783,7 +4786,7 @@ const MainEditor = ({
                       ) : (
                         <>
                           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                            <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">A4 sheet (210 x 297 mm)</span>
+                            <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">Base sheet ({Math.round(baseWidth)} x {Math.round(baseHeight)} mm)</span>
                             {displayIndex === activePageIndex && (
                               <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
                             )}
@@ -4821,8 +4824,8 @@ const MainEditor = ({
             style={{ 
               right: `calc(50% - ${
                 isCurrentlySpread
-                  ? '((78vh / 1.414) * 1.0)' 
-                  : '((78vh / 1.414) / 2)'
+                  ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)` 
+                  : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
               } * (${zoom / 100}) - 3vw)`,
               top: '50%',
               transform: 'translate(50%, -50%)'

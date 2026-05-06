@@ -1,7 +1,7 @@
 // useZoom.js - Custom hook for zoom management with Ctrl+Scroll support
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const useZoom = (initialZoom = 100, containerRef = null) => {
+const useZoom = (initialZoom = 100, containerRef = null, baseWidth = 210, baseHeight = 297) => {
   const [zoom, setZoom] = useState(initialZoom);
   const [autoZoom, setAutoZoom] = useState(true);
   const wheelTimeoutRef = useRef(null);
@@ -14,20 +14,20 @@ const useZoom = (initialZoom = 100, containerRef = null) => {
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
     
-    // A4 dimensions in pixels (595 x 842)
-    const A4_WIDTH = 595;
-    const A4_HEIGHT = 842;
+    // Convert mm to pixels at 96 DPI for target dimensions
+    const targetWidth = baseWidth * 96 / 25.4;
+    const targetHeight = baseHeight * 96 / 25.4;
     const PADDING = 80;
 
     const availableWidth = containerWidth - PADDING;
     const availableHeight = containerHeight - PADDING;
 
-    const scaleX = availableWidth / A4_WIDTH;
-    const scaleY = availableHeight / A4_HEIGHT;
+    const scaleX = availableWidth / targetWidth;
+    const scaleY = availableHeight / targetHeight;
 
     const optimalScale = Math.min(scaleX, scaleY, 1.25);
     return Math.round(Math.max(50, Math.min(125, optimalScale * 100)));
-  }, [containerRef]);
+  }, [containerRef, baseWidth, baseHeight]);
 
   // Zoom in
   const zoomIn = useCallback((step = 10) => {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import { useGoogleLogin } from '@react-oauth/google';
+import { useGoogleLogin, useGoogleOneTapLogin } from '@react-oauth/google';
 
 import { useToast } from '../components/CustomToast';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
@@ -88,6 +88,33 @@ export default function Signin() {
       }
     },
     onError: () => toast.error('Google Login Failed')
+  });
+
+  // Google One Tap Login for seamless experience
+  useGoogleOneTapLogin({
+    onSuccess: async (credentialResponse) => {
+      setIsLoading(true);
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        // One Tap provides an ID Token (credential)
+        const res = await axios.post(`${backendUrl}/api/auth/google-login`, {
+          token: credentialResponse.credential,
+          isAccessToken: false
+        });
+
+        if (res.data.user) {
+          localStorage.setItem('user', JSON.stringify({ ...res.data.user, isLoggedIn: true }));
+          toast.success('Welcome back!');
+          navigate('/home');
+        }
+      } catch (err) {
+        console.error('Google One Tap Error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    onError: () => console.log('One Tap Login Failed'),
+    auto_select: false, // Set to false to prevent automatic login after logout
   });
 
   const handleSubmit = async (e) => {

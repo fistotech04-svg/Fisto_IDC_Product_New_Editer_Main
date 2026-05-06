@@ -51,8 +51,11 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInf
     const folder = currentBook?.folder || currentBook?.folderName;
     const v_id = currentBook?.v_id;
     
-    if (folder && v_id) {
-      return `/editor/customized_editor/${encodeURIComponent(Array.isArray(folder) ? folder[0] : folder)}/${v_id}`;
+    if (v_id) {
+      if (folder) {
+        return `/editor/customized_editor/${encodeURIComponent(Array.isArray(folder) ? folder[0] : folder)}/${v_id}`;
+      }
+      return `/editor/customized_editor/${v_id}`;
     }
     return lastCustomizedPath;
   };
@@ -66,8 +69,11 @@ const Navbar = ({ onExport, onSave, onPreview, hasUnsavedChanges, saveSuccessInf
     const folder = currentBook?.folder || currentBook?.folderName;
     const v_id = currentBook?.v_id;
     
-    if (folder && v_id) {
-      return `/editor/${encodeURIComponent(Array.isArray(folder) ? folder[0] : folder)}/${v_id}`;
+    if (v_id) {
+      if (folder) {
+        return `/editor/${encodeURIComponent(Array.isArray(folder) ? folder[0] : folder)}/${v_id}`;
+      }
+      return `/editor/${v_id}`;
     }
     return lastEditorPath;
   };
