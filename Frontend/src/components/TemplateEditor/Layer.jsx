@@ -6,7 +6,7 @@ import {
   Ban, Trash2, FilePlus, GripVertical, 
   Folder, Type, Image as ImageIcon, Square, Circle, Triangle, Star, Minus, 
   ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock,
-  Scissors, Clipboard
+  Scissors, Clipboard, ArrowUpRight
 } from 'lucide-react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import axios from 'axios';
@@ -372,6 +372,7 @@ const Layer = ({
   const layerMenuRef = useRef(null);
   const [isVisible, setIsVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
+  const [activeTab, setActiveTab] = useState(pages.some(p => p.html && p.html.includes('data-name="PDF Background"')) ? 'pages' : 'layers');
   
   // Menu State
   const [activeMenuPageId, setActiveMenuPageId] = useState(null);
@@ -398,6 +399,7 @@ const Layer = ({
       message: '',
       type: 'error'
   });
+  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const nameInputRef = useRef(null);
 
   // Fetch all books for uniqueness validation
@@ -420,6 +422,7 @@ const Layer = ({
     fetchBooks();
   }, []);
 
+
   const checkDuplicate = (name) => {
     if (!name.trim()) return false;
     const isDup = allBooks.some(b => 
@@ -436,6 +439,13 @@ const Layer = ({
       setActivePageIndex(0);
     }
   }, [pages, activePageIndex]);
+
+  // Force activeTab to 'pages' if it's a PDF project and user somehow switches (though UI is hidden)
+  useEffect(() => {
+    if (isPdfProject && activeTab !== 'pages') {
+      setActiveTab('pages');
+    }
+  }, [isPdfProject, activeTab]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -797,16 +807,16 @@ const Layer = ({
                     if (e.key === 'Enter') {
                       if (isNameDuplicate) {
                          setAlertState({
-                             isOpen: true,
-                             title: 'Duplicate Name',
-                             message: 'Book name already exists. Please choose a different name.',
-                             type: 'error'
-                         });
-                         if (nameInputRef.current) nameInputRef.current.select();
-                      } else {
-                        e.target.blur();
-                        if (onSave) onSave(true);
-                      }
+                              isOpen: true,
+                              title: 'Duplicate Name',
+                              message: 'Book name already exists. Please choose a different name.',
+                              type: 'error'
+                          });
+                          if (nameInputRef.current) nameInputRef.current.select();
+                       } else {
+                         e.target.blur();
+                         if (onSave) onSave(true);
+                       }
                     }
                   }}
                   className={`w-full bg-transparent border-none outline-none text-[0.75vw] font-bold truncate ${
@@ -823,6 +833,31 @@ const Layer = ({
               </button>
             </div>
 
+            {/* Tabs (Hidden if PDF Project) */}
+            {!isPdfProject && (
+              <div className="flex bg-gray-100/50 p-[0.4vw] rounded-[0.8vw] mb-[2vh] gap-[0.4vw]">
+                <button
+                  onClick={() => setActiveTab('pages')}
+                  className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${
+                    activeTab === 'pages' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Pages
+                </button>
+                <button
+                  onClick={() => setActiveTab('layers')}
+                  className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${
+                    activeTab === 'layers' 
+                      ? 'bg-white text-gray-900 shadow-sm' 
+                      : 'text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Layers
+                </button>
+              </div>
+            )}
             <div className="h-[1px] bg-[#EEEEEE] mx-[-0.8vw] mb-[2vh]"></div>
 
             {/* Scrollable Area for Pages and Layers */}
@@ -830,182 +865,258 @@ const Layer = ({
               className="flex-1 overflow-y-auto pr-[0.2vw] space-y-[1.2vh] no-scrollbar pb-[2vh]"
               onClick={() => setActiveMenuPageId(null)}
             >
-              {pages.map((page, index) => {
-                const isExpanded = checkIsExpanded(index);
-                
-                return (
-                  <div 
-                    key={page.id} 
-                    className="flex flex-col relative" 
-                    id={`page-card-${page.id}`}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragLeave={handleDragLeave}
-                    onDragEnd={handleDragEnd}
-                    onDrop={(e) => handleDrop(e, index)}
-                  >
-                    {/* Rebuild Indicator (Top) */}
-                    {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex > index && (
-                      <div className="absolute -top-[0.4vh] left-0 right-0 h-[0.2vw] bg-indigo-500 rounded-full z-10" />
-                    )}
-
-                    <motion.div 
-                      layout="position"
-                      className={`flex flex-col rounded-[0.6vw] transition-all duration-300 relative group 
-                        ${draggedPageIndex === index ? 'opacity-40 scale-[0.98]' : ''} 
-                        ${isExpanded 
-                          ? 'bg-white border border-[#E5E7EB] shadow-sm' 
-                          : 'bg-[#E5E7EB] hover:bg-[#DADADA]'
-                      }`}
+              {activeTab === 'layers' ?
+                pages.map((page, index) => {
+                  const isExpanded = checkIsExpanded(index);
+                  
+                  return (
+                    <div 
+                      key={page.id} 
+                      className="flex flex-col relative" 
+                      id={`page-card-${page.id}`}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragLeave={handleDragLeave}
+                      onDragEnd={handleDragEnd}
+                      onDrop={(e) => handleDrop(e, index)}
                     >
-                      {/* Page Header (Collapsible) */}
-                      <div 
-                        draggable={!editingPageId}
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onClick={() => {
-                          if (editingPageId === page.id) return;
-                          if (isDoublePage) {
-                            if (index === 0) {
-                              setActivePageIndex(0);
-                            } else if (index === pages.length - 1) {
-                              setActivePageIndex(index);
-                            } else {
-                              // If even index (like 2), it could be the RIGHT half of a spread starting at index-1
-                              const potentialStart = index % 2 === 0 ? index - 1 : index;
-                              const isStartASpread = potentialStart > 0 && potentialStart + 1 < pages.length - 1;
-                              
-                              if (isStartASpread) {
-                                setActivePageIndex(potentialStart);
-                              } else {
-                                setActivePageIndex(index);
-                              }
-                            }
-                          } else {
-                            setActivePageIndex(index);
-                          }
-                        }}
-                        onContextMenu={(e) => handleMenuClick(e, page.id)}
-                        className="flex items-center py-[1.2vh] px-[1vw] relative group/pageitem"
-                      >
-                        {/* Grip Handle (Hover only) */}
-                        {!editingPageId && (
-                          <div className="absolute left-[0.2vw] overflow-hidden transition-all duration-300 w-0 group-hover/pageitem:w-[1.2vw] opacity-0 group-hover/pageitem:opacity-100 flex items-center justify-center pointer-events-none">
-                            <GripVertical size="1vw" className="text-gray-400" />
-                          </div>
-                        )}
+                      {/* Rebuild Indicator (Top) */}
+                      {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex > index && (
+                        <div className="absolute -top-[0.4vh] left-0 right-0 h-[0.2vw] bg-indigo-500 rounded-full z-10" />
+                      )}
 
-                        <div className={`flex-1 min-w-0 flex items-center transition-all duration-300 ${!editingPageId ? 'group-hover/pageitem:pl-[0.8vw]' : ''}`}>
-                          {editingPageId === page.id ? (
-                            <input 
-                              ref={renameInputRef}
-                              type="text"
-                              value={editingName}
-                              onChange={(e) => setEditingName(e.target.value)}
-                              onBlur={() => handleRenameSubmit(page.id)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleRenameSubmit(page.id);
-                                if (e.key === 'Escape') handleRenameCancel();
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              onFocus={(e) => e.target.select()}
-                              autoFocus
-                              className="w-full text-left text-[0.85vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
-                            />
-                          ) : (
-                            <span className={`text-[0.85vw] font-semibold truncate tracking-tight transition-colors duration-300 ${isExpanded ? 'text-[#111827]' : 'text-[#4B5563]'}`}>
-                              {page.name}
-                            </span>
+                      <motion.div 
+                        layout="position"
+                        className={`flex flex-col rounded-[0.6vw] transition-all duration-300 relative group 
+                          ${draggedPageIndex === index ? 'opacity-40 scale-[0.98]' : ''} 
+                          ${isExpanded 
+                            ? 'bg-white border border-[#E5E7EB] shadow-sm' 
+                            : 'bg-[#E5E7EB] hover:bg-[#DADADA]'
+                        }`}
+                      >
+                        {/* Page Header (Collapsible) */}
+                        <div 
+                          draggable={!editingPageId}
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onClick={() => {
+                            if (editingPageId === page.id) return;
+                            if (isDoublePage) {
+                              if (index === 0) {
+                                setActivePageIndex(0);
+                              } else if (index === pages.length - 1) {
+                                setActivePageIndex(index);
+                              } else {
+                                const potentialStart = index % 2 === 0 ? index - 1 : index;
+                                const isStartASpread = potentialStart > 0 && potentialStart + 1 < pages.length - 1;
+                                if (isStartASpread) {
+                                  setActivePageIndex(potentialStart);
+                                } else {
+                                  setActivePageIndex(index);
+                                }
+                              }
+                            } else {
+                              setActivePageIndex(index);
+                            }
+                          }}
+                          onContextMenu={(e) => handleMenuClick(e, page.id)}
+                          className="flex items-center py-[1.2vh] px-[1vw] relative group/pageitem"
+                        >
+                          {!editingPageId && (
+                            <div className="absolute left-[0.2vw] overflow-hidden transition-all duration-300 w-0 group-hover/pageitem:w-[1.2vw] opacity-0 group-hover/pageitem:opacity-100 flex items-center justify-center pointer-events-none">
+                              <GripVertical size="1vw" className="text-gray-400" />
+                            </div>
                           )}
+
+                          <div className={`flex-1 min-w-0 flex items-center transition-all duration-300 ${!editingPageId ? 'group-hover/pageitem:pl-[0.8vw]' : ''}`}>
+                            {editingPageId === page.id ? (
+                              <input 
+                                ref={renameInputRef}
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onBlur={() => handleRenameSubmit(page.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleRenameSubmit(page.id);
+                                  if (e.key === 'Escape') handleRenameCancel();
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.target.select()}
+                                autoFocus
+                                className="w-full text-left text-[0.85vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
+                              />
+                            ) : (
+                              <span className={`text-[0.85vw] font-semibold truncate tracking-tight transition-colors duration-300 ${isExpanded ? 'text-[#111827]' : 'text-[#4B5563]'}`}>
+                                {page.name}
+                              </span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-[0.4vw] flex-shrink-0">
+                            <Layers size="1.1vw" className={isExpanded ? 'text-[#6366F1]' : 'text-[#6B7280]'} strokeWidth={isExpanded ? 2.5 : 2} />
+                            {!editingPageId && (
+                              <button
+                                onClick={(e) => handleMenuClick(e, page.id)}
+                                className="p-[0.2vw] rounded-full transition-colors hover:bg-gray-200 flex items-center justify-center cursor-pointer"
+                              >
+                                <MoreVertical size="1.1vw" className="text-[#111827]" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {isExpanded && !editingPageId && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2, ease: 'easeInOut' }}
+                              className="overflow-hidden bg-white rounded-b-[0.6vw] border-t border-[#EEF2FF]"
+                            >
+                              <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
+                                {page.layers && page.layers.length > 0 ? (
+                                  [...page.layers].reverse().map((layer, idx) => (
+                                    <LayerItem 
+                                      key={layer.id || idx} 
+                                      layer={layer} 
+                                      depth={0} 
+                                      onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
+                                      onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
+                                      selectedLayerId={selectedLayerId}
+                                      setSelectedLayerId={setSelectedLayerId}
+                                      multiSelectedIds={multiSelectedIds}
+                                      setMultiSelectedIds={setMultiSelectedIds}
+                                      renameLayer={renameLayer}
+                                      pageIndex={index}
+                                      onLayerContextMenu={handleLayerContextMenu}
+                                      onReorderLayer={(sourceId, targetId) => reorderLayer(index, sourceId, targetId)}
+                                      currentFrameId={currentFrameId}
+                                      setCurrentFrameId={setCurrentFrameId}
+                                    />
+                                  ))
+                                ) : (
+                                  <div className="text-[0.7vw] text-gray-400 italic px-[0.8vw] py-[0.5vh]">
+                                    No layers found
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+
+                      {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex < index && (
+                        <div className="absolute -bottom-[0.4vh] left-0 right-0 h-[0.2vw] bg-indigo-500 rounded-full z-10" />
+                      )}
+                    </div>
+                  );
+                })
+              : (
+                <div className="flex flex-col gap-[2.5vh]">
+                  {pages.map((page, index) => {
+                    const viewBoxMatch = page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/);
+                    const aspectRatio = viewBoxMatch ? parseFloat(viewBoxMatch[1]) / parseFloat(viewBoxMatch[3]) : 1 / 1.414;
+                    
+                    // Optimization: If it's a PDF project, extract the background image URL and render it as an <img> tag
+                    // This is much faster than dangerouslySetInnerHTML for full SVGs
+                    const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]+data-name="PDF Background"/);
+                    const pdfImgUrl = pdfImgMatch ? pdfImgMatch[1] : null;
+
+                    return (
+                      <div 
+                        key={page.id} 
+                        className={`flex flex-col rounded-[1vw] overflow-hidden bg-white shadow-sm transition-all cursor-pointer relative border-[0.15vw] ${
+                          activePageIndex === index ? 'border-indigo-500' : 'border-gray-200'
+                        }`}
+                        id={`page-card-preview-${page.id}`}
+                        onClick={() => setActivePageIndex(index)}
+                      >
+                        {/* Page Header */}
+                        <div className={`flex items-center justify-between px-[1vw] py-[1vh] border-b transition-colors ${
+                          activePageIndex === index ? 'border-indigo-100 bg-[#EEF2FF]/50' : 'border-gray-100'
+                        }`}>
+                          <span className="text-[0.8vw] font-semibold text-gray-900">
+                            {page.name}
+                          </span>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); handleMenuClick(e, page.id); }}
+                            className="p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors"
+                          >
+                            <MoreVertical size="1vw" className="text-gray-500" />
+                          </button>
                         </div>
                         
-                        <div className="flex items-center gap-[0.4vw] flex-shrink-0">
-                          <Layers size="1.1vw" className={isExpanded ? 'text-[#6366F1]' : 'text-[#6B7280]'} strokeWidth={isExpanded ? 2.5 : 2} />
-                          {!editingPageId && (
-                            <button
-                              onClick={(e) => handleMenuClick(e, page.id)}
-                              className="p-[0.2vw] rounded-full transition-colors hover:bg-gray-200 flex items-center justify-center cursor-pointer"
-                            >
-                              <MoreVertical size="1.1vw" className="text-[#111827]" />
-                            </button>
-                          )}
+                        {/* Page Preview */}
+                        <div 
+                          className={`relative flex items-center justify-center p-[1vw] overflow-hidden transition-all ${
+                            activePageIndex === index ? 'bg-[#EEF2FF]' : 'bg-gray-50'
+                          }`}
+                          style={{ aspectRatio: `${aspectRatio}` }}
+                        >
+                          <div className="w-full h-full bg-white shadow-sm overflow-hidden origin-top flex items-center justify-center relative">
+                            {pdfImgUrl ? (
+                              <img 
+                                src={pdfImgUrl} 
+                                alt={page.name}
+                                className="w-full h-full object-contain pointer-events-none"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div 
+                                className="w-full h-full flex items-center justify-center"
+                                dangerouslySetInnerHTML={{ 
+                                  __html: page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"') 
+                                }}
+                              />
+                            )}
+                          </div>
                         </div>
                       </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                      {/* FIGMA STYLE NESTED LAYERS LIST */}
-                      <AnimatePresence>
-                        {isExpanded && !editingPageId && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2, ease: 'easeInOut' }}
-                            className="overflow-hidden bg-white rounded-b-[0.6vw] border-t border-[#EEF2FF]"
-                          >
-                            <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
-                              {page.layers && page.layers.length > 0 ? (
-                                [...page.layers].reverse().map((layer, idx) => (
-                                  <LayerItem 
-                                    key={layer.id || idx} 
-                                    layer={layer} 
-                                    depth={0} 
-                                    onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
-                                    onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
-                                    selectedLayerId={selectedLayerId}
-                                    setSelectedLayerId={setSelectedLayerId}
-                                    multiSelectedIds={multiSelectedIds}
-                                    setMultiSelectedIds={setMultiSelectedIds}
-                                    renameLayer={renameLayer}
-                                    pageIndex={index}
-                                    onLayerContextMenu={handleLayerContextMenu}
-                                    onReorderLayer={(sourceId, targetId) => reorderLayer(index, sourceId, targetId)}
-                                    currentFrameId={currentFrameId}
-                                    setCurrentFrameId={setCurrentFrameId}
-                                  />
-                                ))
-                              ) : (
-                                <div className="text-[0.7vw] text-gray-400 italic px-[0.8vw] py-[0.5vh]">
-                                  No layers found
-                                </div>
-                              )}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
-
-                    {/* Rebuild Indicator (Bottom) */}
-                    {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex < index && (
-                      <div className="absolute -bottom-[0.4vh] left-0 right-0 h-[0.2vw] bg-indigo-500 rounded-full z-10" />
-                    )}
-
-                    {/* Context Menu Dropdown (createPortal) */}
-                    {activeMenuPageId === page.id && createPortal(
-                      <AnimatePresence mode="wait">
-                        <motion.div 
-                          key={`page-menu-${page.id}`}
-                          ref={menuRef}
-                          initial={{ opacity: 0, scale: 0.95, y: -5 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: -5 }}
-                          transition={{ duration: 0.15, ease: "easeOut" }}
-                          style={(() => {
-                            const element = document.getElementById(`page-card-${page.id}`);
-                            if (!element) return { display: 'none' };
-                            const rect = element.getBoundingClientRect();
-                            return { 
-                              position: 'fixed', 
-                              left: `calc(${rect.right}px + 0.6vw)`, 
-                              top: `${Math.min(rect.top, window.innerHeight - 450)}px` 
-                            };
-                          })()}
-                          className="w-[12vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+              {/* Shared Page Context Menu */}
+              {activeMenuPageId && createPortal(
+                <AnimatePresence mode="wait">
+                  <motion.div 
+                    key={`page-menu-${activeMenuPageId}`}
+                    ref={menuRef}
+                    initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                    transition={{ duration: 0.15, ease: "easeOut" }}
+                    style={(() => {
+                      // Try both ID types (Layer view and Preview view)
+                      const element = document.getElementById(`page-card-${activeMenuPageId}`) || 
+                                      document.getElementById(`page-card-preview-${activeMenuPageId}`);
+                      if (!element) return { display: 'none' };
+                      const rect = element.getBoundingClientRect();
+                      return { 
+                        position: 'fixed', 
+                        left: `calc(${rect.right}px + 0.6vw)`, 
+                        top: `${Math.min(rect.top, window.innerHeight - 450)}px` 
+                      };
+                    })()}
+                    className="w-[12vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {(() => {
+                      const index = pages.findIndex(p => p.id === activeMenuPageId);
+                      const page = pages[index];
+                      if (!page) return null;
+                      return (
+                        <>
                           <div className="px-[0.5vw] py-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Settings <div className="h-px bg-gray-100 flex-1"></div></div>
-                          <button onClick={() => { insertPageAfter(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Plus size="0.9vw" /> Add Page</button>
+                          {!isPdfProject && (
+                            <button onClick={() => { insertPageAfter(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Plus size="0.9vw" /> Add Page</button>
+                          )}
                           <button onClick={() => { onAddFile && onAddFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FilePlus size="0.9vw" /> Add File</button>
                           <button onClick={() => { duplicatePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Copy size="0.9vw" /> Duplicate</button>
                           <button onClick={(e) => handleRenameStart(e, page)} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Edit2 size="0.9vw" /> Rename</button>
-                          <button onClick={() => { setActivePageIndex(index); onOpenTemplateModal(); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Layout size="0.9vw" /> Template</button>
+                          {!isPdfProject && (
+                            <button onClick={() => { setActivePageIndex(index); onOpenTemplateModal(); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Layout size="0.9vw" /> Template</button>
+                          )}
                           
                           <div className="px-[0.5vw] py-[0.2vw] mt-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Order <div className="h-px bg-gray-100 flex-1"></div></div>
                           <button onClick={() => { movePageUp(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUp size="0.9vw" /> Move Up</button>
@@ -1014,25 +1125,40 @@ const Layer = ({
                           <button onClick={() => { movePageToLast(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDownToLine size="0.9vw" /> Move to Last</button>
                           
                           <div className="h-px bg-gray-100 my-[0.2vw]"></div>
-                          <button onClick={() => { clearPage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Ban size="0.9vw" /> Clear</button>
+                          {!isPdfProject && (
+                            <button onClick={() => { clearPage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Ban size="0.9vw" /> Clear</button>
+                          )}
                           <button onClick={() => { deletePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"><Trash2 size="0.9vw" /> Delete</button>
-                        </motion.div>
-                      </AnimatePresence>,
-                      document.body
-                    )}
-                  </div>
-                );
-              })}
+                        </>
+                      );
+                    })()}
+                  </motion.div>
+                </AnimatePresence>,
+                document.body
+              )}
             </div>
 
-            {/* Footer Add Pages Button */}
-            <div className="pt-[1vh] bg-white">
+            {/* Footer Buttons */}
+            <div className="pt-[1vh] bg-white flex flex-col gap-[1vh] flex-shrink-0">
+              {!isPdfProject && (
+                <button 
+                  onClick={() => insertPageAfter(pages.length - 1)}
+                  className="w-full bg-white border border-gray-200 text-gray-900 py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-50 transition-all shadow-sm cursor-pointer"
+                >
+                  <FilePlus size="1.1vw" className="text-gray-400" />
+                  <span>Add Pages</span>
+                </button>
+              )}
+              
               <button 
-                onClick={() => insertPageAfter(pages.length - 1)}
-                className="w-full bg-[#000000] text-white py-[1.5vh] rounded-[0.6vw] text-[0.9vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-900 transition-colors shadow-sm cursor-pointer"
+                onClick={() => {
+                  // Logic for GO to Customize
+                  console.log("Navigating to Customize...");
+                }}
+                className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-xl cursor-pointer"
               >
-                <Plus size="1.2vw" strokeWidth={2.5} />
-                <span>Add Pages</span>
+                <ArrowUpRight size="1.2vw" className="rotate-0" />
+                <span>Go to Customize</span>
               </button>
             </div>
           </motion.div>

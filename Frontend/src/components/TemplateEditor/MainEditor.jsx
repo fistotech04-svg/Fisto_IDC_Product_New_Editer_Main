@@ -183,6 +183,7 @@ const CurveIcon = ({ width, height, className }) => (
 
 
 const MainEditor = ({ 
+  isPdfProject,
   isDoublePage, 
   pages = [], 
   activePageIndex, 
@@ -700,6 +701,46 @@ const MainEditor = ({
       window.removeEventListener('upload-video-to-editor', handleUploadVideo);
     };
   }, [activePageIndex, pages, updatePageHtml, setSelectedLayerId]);
+
+  // ── Pre-load all images for instant view ──────────────────────────────────
+  useEffect(() => {
+    if (!pages || pages.length === 0) return;
+
+    const loadedUrls = new Set();
+    pages.forEach(page => {
+      if (!page.html) return;
+      
+      // Extract data URLs, Blob URLs, and external URLs from href and src
+      const regex = /(?:src|href)="([^"]+)"/g;
+      let match;
+      while ((match = regex.exec(page.html)) !== null) {
+        const url = match[1];
+        if (url && !loadedUrls.has(url)) {
+          const img = new Image();
+          img.src = url;
+          // Force browser to decode the image into memory immediately
+          if (img.decode) {
+            img.decode().catch(() => {});
+          }
+          loadedUrls.add(url);
+        }
+      }
+      
+      // Also check for CSS background-images
+      const styleRegex = /url\(["']?([^"']+)["']?\)/g;
+      while ((match = styleRegex.exec(page.html)) !== null) {
+        const url = match[1];
+        if (url && !loadedUrls.has(url)) {
+          const img = new Image();
+          img.src = url;
+          if (img.decode) {
+            img.decode().catch(() => {});
+          }
+          loadedUrls.add(url);
+        }
+      }
+    });
+  }, [pages]);
 
   // ── Marquee Selection State ───────────────────────────────────────────────
   const [marquee, setMarquee] = useState(null); // { pageIndex }
@@ -3992,6 +4033,7 @@ const MainEditor = ({
 
   const isPageEmpty = !pages[activePageIndex]?.html;
 
+
   return (
     <div 
       className="bg-white flex-1 flex flex-col overflow-hidden h-[92vh]"
@@ -4011,6 +4053,7 @@ const MainEditor = ({
         onRotate={handleRotate}
         onFlipH={() => handleFlip('h')}
         onFlipV={() => handleFlip('v')}
+        hideTools={isPdfProject}
         hasSelection={(() => {
           const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
           if (ids.length === 0) return false;
@@ -4053,72 +4096,76 @@ const MainEditor = ({
       >
         
         {/* Top Group: Selection & Primary Tools - Independent Position */}
-        <div className="absolute right-[1.05vw] top-[1.9vh] z-50">
-          <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
-            {/* Black Edit Icon Button */}
-            <button 
-              onClick={() => setActiveTopTool('editor')}
-              className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh] ${activeTopTool === 'editor' ? 'bg-[#000000]' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
-            >
-              <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className={activeTopTool === 'editor' ? 'text-white' : ''} />
-            </button>
-            
-            {/* Hand / Pan Tool */}
-            <button 
-              onClick={() => setActiveTopTool('interaction')}
-              className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'interaction' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
-            >
-              <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" height="1.2vw" />
-            </button>
-            
-            {/* Star / Special Tool */}
-            <button 
-              onClick={() => setActiveTopTool('animation')}
-              className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'animation' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
-            >
-              <Icon icon="tdesign:animation-1" width="1.2vw" height="1.2vw" />
-            </button>
+        {!isPdfProject && (
+          <div className="absolute right-[1.05vw] top-[1.9vh] z-50">
+            <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
+              {/* Black Edit Icon Button */}
+              <button 
+                onClick={() => setActiveTopTool('editor')}
+                className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh] ${activeTopTool === 'editor' ? 'bg-[#000000]' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+              >
+                <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className={activeTopTool === 'editor' ? 'text-white' : ''} />
+              </button>
+              
+              {/* Hand / Pan Tool */}
+              <button 
+                onClick={() => setActiveTopTool('interaction')}
+                className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'interaction' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+              >
+                <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" height="1.2vw" />
+              </button>
+              
+              {/* Star / Special Tool */}
+              <button 
+                onClick={() => setActiveTopTool('animation')}
+                className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'animation' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
+              >
+                <Icon icon="tdesign:animation-1" width="1.2vw" height="1.2vw" />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Top-Left: Animated Lordicon Card - Vertical Column */}
-        <div className="absolute left-[0.8vw] top-[0.8vw] z-50">
-          <div className="bg-white rounded-[0.5vw] border border-gray-100/50 p-[0.3vw] shadow-sm flex flex-col items-center gap-[0.5vw]">
-            {/* Animated Hotspot Icon */}
-            <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
-              <lord-icon
-                src="https://cdn.lordicon.com/erxuunyq.json"
-                trigger="loop"
-                colors="primary:#E88F23"
-                style={{ width: '1.4vw', height: '1.4vw' }}
-              ></lord-icon>
-            </div>
+        {!isPdfProject && (
+          <div className="absolute left-[0.8vw] top-[0.8vw] z-50">
+            <div className="bg-white rounded-[0.5vw] border border-gray-100/50 p-[0.3vw] shadow-sm flex flex-col items-center gap-[0.5vw]">
+              {/* Animated Hotspot Icon */}
+              <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
+                <lord-icon
+                  src="https://cdn.lordicon.com/erxuunyq.json"
+                  trigger="loop"
+                  colors="primary:#E88F23"
+                  style={{ width: '1.4vw', height: '1.4vw' }}
+                ></lord-icon>
+              </div>
 
-            {/* Animated Notification/Follow Icon */}
-            <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
-              <lord-icon
-                src="https://cdn.lordicon.com/kwnsnjyg.json"
-                trigger="loop"
-                colors="primary:#00ACEE"
-                style={{ width: '1.4vw', height: '1.4vw' }}
-              ></lord-icon>
-            </div>
+              {/* Animated Notification/Follow Icon */}
+              <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
+                <lord-icon
+                  src="https://cdn.lordicon.com/kwnsnjyg.json"
+                  trigger="loop"
+                  colors="primary:#00ACEE"
+                  style={{ width: '1.4vw', height: '1.4vw' }}
+                ></lord-icon>
+              </div>
 
-            {/* Animated Third Icon */}
-            <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
-              <lord-icon
-                src="https://cdn.lordicon.com/shquqxad.json"
-                trigger="loop"
-                delay="2000"
-                colors="primary:#9381FF"
-                style={{ width: '1.4vw', height: '1.4vw' }}
-              ></lord-icon>
+              {/* Animated Third Icon */}
+              <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
+                <lord-icon
+                  src="https://cdn.lordicon.com/shquqxad.json"
+                  trigger="loop"
+                  delay="2000"
+                  colors="primary:#9381FF"
+                  style={{ width: '1.4vw', height: '1.4vw' }}
+                ></lord-icon>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Bottom Group: Creation & Widgets - Perfected Integrated Design */}
-        {activeTopTool === 'editor' && (
+        {/* Bottom Group: Creation & Widgets - HIDDEN for PDF projects */}
+        {!isPdfProject && activeTopTool === 'editor' && (
           <div className="absolute right-0 top-[20vh] z-50">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
               
@@ -4511,11 +4558,13 @@ const MainEditor = ({
                         className="absolute top-full mt-[0.5vw] left-0 w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <MenuOption 
-                          icon={<PlusIcon />} 
-                          label="Add Page" 
-                          onClick={() => { insertPageAfter(activePageIndex); setOpenMenuIndex(null); }}
-                        />
+                        {!isPdfProject && (
+                          <MenuOption 
+                            icon={<PlusIcon />} 
+                            label="Add Page" 
+                            onClick={() => { insertPageAfter(activePageIndex); setOpenMenuIndex(null); }}
+                          />
+                        )}
                         <MenuOption 
                           icon={<FilePlusIcon />} 
                           label="Add File" 
@@ -4526,6 +4575,7 @@ const MainEditor = ({
                           label="Duplicate" 
                           onClick={() => { duplicatePage(activePageIndex); setOpenMenuIndex(null); }}
                         />
+                        {!isPdfProject && (
                           <MenuOption 
                             icon={<TemplateIcon />} 
                             label="Template" 
@@ -4534,12 +4584,15 @@ const MainEditor = ({
                               setOpenMenuIndex(null);
                             }}
                           />
+                        )}
                         <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
-                        <MenuOption 
-                          icon={<ClearIcon />} 
-                          label="Clear" 
-                          onClick={() => { clearPage(activePageIndex); setOpenMenuIndex(null); }}
-                        />
+                        {!isPdfProject && (
+                          <MenuOption 
+                            icon={<ClearIcon />} 
+                            label="Clear" 
+                            onClick={() => { clearPage(activePageIndex); setOpenMenuIndex(null); }}
+                          />
+                        )}
                         <MenuOption 
                           icon={<DeleteIcon />} 
                           label="Delete" 
@@ -4679,11 +4732,13 @@ const MainEditor = ({
                           className="absolute top-full mt-[0.5vw] right-0 w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <MenuOption 
-                            icon={<PlusIcon />} 
-                            label="Add Page" 
-                            onClick={() => { insertPageAfter(displayIndex); setOpenMenuIndex(null); }}
-                          />
+                          {!isPdfProject && (
+                            <MenuOption 
+                              icon={<PlusIcon />} 
+                              label="Add Page" 
+                              onClick={() => { insertPageAfter(displayIndex); setOpenMenuIndex(null); }}
+                            />
+                          )}
                           <MenuOption 
                             icon={<FilePlusIcon />} 
                             label="Add File" 
@@ -4694,20 +4749,24 @@ const MainEditor = ({
                             label="Duplicate" 
                             onClick={() => { duplicatePage(displayIndex); setOpenMenuIndex(null); }}
                           />
-                          <MenuOption 
-                            icon={<TemplateIcon />} 
-                            label="Template" 
-                            onClick={() => {
-                              onOpenTemplateModal(displayIndex);
-                              setOpenMenuIndex(null);
-                            }}
-                          />
+                          {!isPdfProject && (
+                            <MenuOption 
+                              icon={<TemplateIcon />} 
+                              label="Template" 
+                              onClick={() => {
+                                onOpenTemplateModal(displayIndex);
+                                setOpenMenuIndex(null);
+                              }}
+                            />
+                          )}
                           <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
-                          <MenuOption 
-                            icon={<ClearIcon />} 
-                            label="Clear" 
-                            onClick={() => { clearPage(displayIndex); setOpenMenuIndex(null); }}
-                          />
+                          {!isPdfProject && (
+                            <MenuOption 
+                              icon={<ClearIcon />} 
+                              label="Clear" 
+                              onClick={() => { clearPage(displayIndex); setOpenMenuIndex(null); }}
+                            />
+                          )}
                           <MenuOption 
                             icon={<DeleteIcon />} 
                             label="Delete" 
@@ -4834,6 +4893,13 @@ const MainEditor = ({
             <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#D1D5DB] group-hover:text-[#4B5563] rotate-[90deg]" />
           </button>
         </div>
+      </div>
+
+      {/* Hidden container to pre-render all pages for instant switching */}
+      <div style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none', visibility: 'hidden', opacity: 0 }}>
+        {pages.map((p, i) => (
+          <div key={i} dangerouslySetInnerHTML={{ __html: p.html }} />
+        ))}
       </div>
     </div>
   );

@@ -15,7 +15,8 @@ const TopToolbar = ({
   onRotate,
   onFlipH,
   onFlipV,
-  hasSelection
+  hasSelection,
+  hideTools = false
 }) => {
   const [showRotationOptions, setShowRotationOptions] = useState(false);
   const rotationRef = useRef(null);
@@ -127,111 +128,115 @@ const TopToolbar = ({
       </div>
 
       {/* Center Section: Alignment Groups */}
-      <div className={`flex items-center gap-[1vw] ${!hasSelection ? 'opacity-30 pointer-events-none' : ''}`}>
-        {/* Group 1 */}
-        <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="mdi:format-align-top" width="1.1vw" className="text-[#374151]" />
+      {!hideTools && (
+        <div className={`flex items-center gap-[1vw] ${!hasSelection ? 'opacity-30 pointer-events-none' : ''}`}>
+          {/* Group 1 */}
+          <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="mdi:format-align-top" width="1.1vw" className="text-[#374151]" />
+            </div>
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="mdi:format-align-middle" width="1.1vw" className="text-[#374151]" />
+            </div>
+            <div className="p-[0.4vw] bg-white rounded-[0.4vw] cursor-pointer shadow-sm">
+              <Icon icon="mdi:format-align-bottom" width="1.1vw" className="text-[#374151]" />
+            </div>
           </div>
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="mdi:format-align-middle" width="1.1vw" className="text-[#374151]" />
-          </div>
-          <div className="p-[0.4vw] bg-white rounded-[0.4vw] cursor-pointer shadow-sm">
-            <Icon icon="mdi:format-align-bottom" width="1.1vw" className="text-[#374151]" />
-          </div>
-        </div>
 
-        {/* Group 2 */}
-        <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="line-md:arrow-align-left" width="1.1vw" className="text-[#374151]" />
+          {/* Group 2 */}
+          <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="line-md:arrow-align-left" width="1.1vw" className="text-[#374151]" />
+            </div>
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="line-md:arrow-align-center" width="1.1vw" className="text-[#374151]" />
+            </div>
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="line-md:arrow-align-right" width="1.1vw" className="text-[#374151]" />
+            </div>
           </div>
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="line-md:arrow-align-center" width="1.1vw" className="text-[#374151]" />
-          </div>
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="line-md:arrow-align-right" width="1.1vw" className="text-[#374151]" />
-          </div>
-        </div>
 
-        {/* Group 3 */}
-        <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="icon-park-outline:distribute-vertically" width="1.1vw" className="text-[#374151]" />
-          </div>
-          <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
-            <Icon icon="icon-park-outline:distribute-horizontally" width="1.1vw" className="text-[#374151]" />
+          {/* Group 3 */}
+          <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="icon-park-outline:distribute-vertically" width="1.1vw" className="text-[#374151]" />
+            </div>
+            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+              <Icon icon="icon-park-outline:distribute-horizontally" width="1.1vw" className="text-[#374151]" />
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Right Section: Zoom & Extra */}
       <div className="flex items-center gap-[1vw]">
-        <div className="relative" ref={rotationRef}>
-          <div 
-            onClick={hasSelection ? () => setShowRotationOptions(!showRotationOptions) : undefined}
-            className={`flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] transition-all ${
-              !hasSelection ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
-            } ${showRotationOptions ? 'ring-1 ring-gray-300 shadow-sm' : ''}`}
-          >
-            <div className={`p-[0.4vw] rounded-[0.4vw] transition-all ${
-              !hasSelection ? '' : 
-              showRotationOptions ? 'bg-white shadow-sm text-black' : 'hover:bg-white text-[#374151] hover:text-black'
-            }`}>
-              <Icon icon="icon-park-outline:rotate" width="1.1vw" height="1.1vw" />
-            </div>
-          </div>
-
-          {/* Rotation Options Dropdown */}
-          {showRotationOptions && hasSelection && (
+        {!hideTools && (
+          <div className="relative" ref={rotationRef}>
             <div 
-              onClick={(e) => e.stopPropagation()}
-              className="absolute right-0 top-[3.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.8vw] flex items-center gap-[0.8vw] shadow-lg z-[100] border border-gray-200/50"
+              onClick={hasSelection ? () => setShowRotationOptions(!showRotationOptions) : undefined}
+              className={`flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] transition-all ${
+                !hasSelection ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+              } ${showRotationOptions ? 'ring-1 ring-gray-300 shadow-sm' : ''}`}
             >
-              {/* Rotate Tool With Degree Input */}
-              <div className="flex items-center bg-white px-[0.6vw] py-[0.3vw] rounded-[0.6vw] gap-[0.3vw] shadow-sm border border-gray-100">
-                <div 
-                  onMouseDown={handleMouseDown}
-                  className="cursor-ew-resize flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors"
-                  title="Drag to rotate"
-                >
-                  <Icon icon="icon-park-outline:rotate" width="0.9vw" height="0.9vw" className="text-gray-500" />
-                </div>
-                <div className="flex items-center">
-                  <input 
-                    type="text"
-                    value={localRotation}
-                    onChange={handleRotationChange}
-                    onBlur={handleRotationBlur}
-                    onKeyDown={handleRotationKeyDown}
-                    className="w-[1.8vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
-                  />
-                  <span 
-                    className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw] select-none"
-                  >°</span>
-                </div>
-              </div>
-
-              {/* Flip Horizontal */}
-              <div 
-                onClick={(e) => { e.stopPropagation(); onFlipH && onFlipH(); }}
-                className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
-                title="Flip Horizontal"
-              >
-                <Icon icon="vaadin:flip-h" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
-              </div>
-
-              {/* Flip Vertical */}
-              <div 
-                onClick={(e) => { e.stopPropagation(); onFlipV && onFlipV(); }}
-                className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
-                title="Flip Vertical"
-              >
-                <Icon icon="vaadin:flip-v" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
+              <div className={`p-[0.4vw] rounded-[0.4vw] transition-all ${
+                !hasSelection ? '' : 
+                showRotationOptions ? 'bg-white shadow-sm text-black' : 'hover:bg-white text-[#374151] hover:text-black'
+              }`}>
+                <Icon icon="icon-park-outline:rotate" width="1.1vw" height="1.1vw" />
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Rotation Options Dropdown */}
+            {showRotationOptions && hasSelection && (
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 top-[3.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.8vw] flex items-center gap-[0.8vw] shadow-lg z-[100] border border-gray-200/50"
+              >
+                {/* Rotate Tool With Degree Input */}
+                <div className="flex items-center bg-white px-[0.6vw] py-[0.3vw] rounded-[0.6vw] gap-[0.3vw] shadow-sm border border-gray-100">
+                  <div 
+                    onMouseDown={handleMouseDown}
+                    className="cursor-ew-resize flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors"
+                    title="Drag to rotate"
+                  >
+                    <Icon icon="icon-park-outline:rotate" width="0.9vw" height="0.9vw" className="text-gray-500" />
+                  </div>
+                  <div className="flex items-center">
+                    <input 
+                      type="text"
+                      value={localRotation}
+                      onChange={handleRotationChange}
+                      onBlur={handleRotationBlur}
+                      onKeyDown={handleRotationKeyDown}
+                      className="w-[1.8vw] text-[0.8vw] font-bold text-gray-900 border-none outline-none bg-transparent text-right p-0"
+                    />
+                    <span 
+                      className="text-[0.6vw] font-bold text-gray-500 ml-[0.1vw] select-none"
+                    >°</span>
+                  </div>
+                </div>
+
+                {/* Flip Horizontal */}
+                <div 
+                  onClick={(e) => { e.stopPropagation(); onFlipH && onFlipH(); }}
+                  className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
+                  title="Flip Horizontal"
+                >
+                  <Icon icon="vaadin:flip-h" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
+                </div>
+
+                {/* Flip Vertical */}
+                <div 
+                  onClick={(e) => { e.stopPropagation(); onFlipV && onFlipV(); }}
+                  className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.6vw] cursor-pointer transition-all hover:shadow-sm group"
+                  title="Flip Vertical"
+                >
+                  <Icon icon="vaadin:flip-v" width="1.1vw" height="1.1vw" className="text-[#374151] group-hover:text-black" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] gap-[0.1vw]">
           {/* Zoom Out */}

@@ -9,6 +9,7 @@ import RightSidebar from './RightSidebar';
 import TemplateModal from './TemplateModal';
 import FlipbookPreview from './FlipbookPreview';
 import { convertPdfToImages, generatePdfPageSvg } from '../../utils/pdfUtils';
+import AlertModal from '../AlertModal';
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -93,6 +94,13 @@ const TemplateEditor = () => {
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const MAX_HISTORY = 50;
+
+  const [alertState, setAlertState] = useState({
+      isOpen: false,
+      title: '',
+      message: '',
+      type: 'error'
+  });
 
   const lastSavedHtmlsRef = useRef({});
 
@@ -619,7 +627,12 @@ const TemplateEditor = () => {
         );
         
         if (!isInternalUniform) {
-            alert("The PDF contains pages with different dimensions. All pages in a flipbook must be the same size.");
+            setAlertState({
+                isOpen: true,
+                title: 'Dimension Mismatch',
+                message: 'The PDF contains pages with different dimensions. All pages in a flipbook must be the same size.',
+                type: 'error'
+            });
             return;
         }
 
@@ -632,7 +645,12 @@ const TemplateEditor = () => {
         if (!isDefaultBlank) {
             // If the flipbook already has content, the PDF must match its size
             if (Math.abs(firstW - baseWidth) > 1 || Math.abs(firstH - baseHeight) > 1) {
-                alert(`PDF dimensions (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) do not match the current flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm).`);
+                setAlertState({
+                    isOpen: true,
+                    title: 'Dimension Mismatch',
+                    message: `PDF dimensions (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) do not match the current flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm).`,
+                    type: 'error'
+                });
                 return;
             }
         } else {
@@ -2262,6 +2280,31 @@ const TemplateEditor = () => {
                       flipbookName: prev?.flipbookName || res.data.meta.flipbookName 
                   }));
                   setHasUnsavedChanges(false);
+
+                  // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
+                  const imageUrls = [];
+                  mappedPages.forEach(p => {
+                      if (!p.html) return;
+                      const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
+                      let match;
+                      while ((match = imgRegex.exec(p.html)) !== null) {
+                          const url = match[1];
+                          if (url && !url.startsWith('data:')) imageUrls.push(url);
+                      }
+                  });
+
+                  const uniqueUrls = Array.from(new Set(imageUrls));
+                  if (uniqueUrls.length > 0) {
+                      console.log(`[Cache] Loading ${uniqueUrls.length} unique assets before initialization...`);
+                      await Promise.all(uniqueUrls.map(url => {
+                          return new Promise((resolve) => {
+                              const img = new Image();
+                              img.onload = resolve;
+                              img.onerror = resolve; // Continue even if one fails
+                              img.src = url;
+                          });
+                      }));
+                  }
               }
           } catch (err) {
               console.error("Failed to fetch flipbook:", err);
@@ -2312,6 +2355,28 @@ const TemplateEditor = () => {
     initializeEditor();
   }, [v_id, location.state]);
 
+  // Image Pre-caching for quicker view across the entire editor
+  useEffect(() => {
+    if (pages && pages.length > 0) {
+      const cachedUrls = new Set();
+      pages.forEach(page => {
+        if (!page.html) return;
+        
+        // Scan for SVG <image> hrefs and standard <img> src
+        const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
+        let match;
+        while ((match = imgRegex.exec(page.html)) !== null) {
+          const url = match[1];
+          if (url && !url.startsWith('data:') && !cachedUrls.has(url)) {
+            const img = new Image();
+            img.src = url;
+            cachedUrls.add(url);
+          }
+        }
+      });
+    }
+  }, [pages]);
+
   if (isLoading) {
       return (
           <div className="flex-1 flex items-center justify-center bg-white h-[92vh]">
@@ -2319,6 +2384,8 @@ const TemplateEditor = () => {
           </div>
       );
   }
+
+  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
 
   return (
     <div className="flex h-[92vh] w-full bg-white overflow-hidden">
@@ -2364,6 +2431,7 @@ const TemplateEditor = () => {
       />
 
       <MainEditor 
+        isPdfProject={isPdfProject}
         isDoublePage={isDoublePage} 
         pages={pages} 
         activePageIndex={activePageIndex} 
@@ -2472,6 +2540,14 @@ const TemplateEditor = () => {
           </div>
         </div>
       )}
+
+      <AlertModal
+          isOpen={alertState.isOpen}
+          title={alertState.title}
+          message={alertState.message}
+          type={alertState.type}
+          onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+      />
     </div>
   );
 };

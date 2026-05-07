@@ -26,12 +26,41 @@ const RightSidebar = ({
   setActivePreviewDevice: setActivePreviewDeviceProp,
   flipbookDimensions = { width: 210, height: 297 }
 }) => {
+  const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
   // Convert mm to pixels at 96 DPI for the input display if no element selected
   const baseWidthPx = Math.round(baseWidth * 96 / 25.4);
   const baseHeightPx = Math.round(baseHeight * 96 / 25.4);
   const fileInputRef = useRef(null);
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
+  const [dimensionUnit, setDimensionUnit] = useState('px');
+  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+  const unitRef = useRef(null);
+  const [expandedInteraction, setExpandedInteraction] = useState('call-click');
+  const [interactionTab, setInteractionTab] = useState('Call');
+  const [isInteractionMenuOpen, setIsInteractionMenuOpen] = useState(false);
+  const interactionMenuRef = useRef(null);
+
+  const convertValue = (mmValue) => {
+     const val = parseFloat(mmValue || 0);
+     if (dimensionUnit === 'px') return Math.round(val * 96 / 25.4);
+     if (dimensionUnit === 'cm') return (val / 10).toFixed(2);
+     return Math.round(val); // mm
+  };
+
+  // Close unit dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (unitRef.current && !unitRef.current.contains(e.target)) {
+        setIsUnitDropdownOpen(false);
+      }
+      if (interactionMenuRef.current && !interactionMenuRef.current.contains(e.target)) {
+        setIsInteractionMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Sync with prop if provided, otherwise use local/localStorage
   useEffect(() => {
@@ -257,11 +286,11 @@ const RightSidebar = ({
           opacity: el.getAttribute('opacity') || '1',
           fontSize: el.getAttribute('font-size') || '16',
           textAlign: el.getAttribute('text-anchor') || 'start',
-          w: Math.round(parseFloat(w)),
-          h: Math.round(parseFloat(h)),
-          x: Math.round(parseFloat(x)),
-          y: Math.round(parseFloat(y)),
-          r: Math.round(parseFloat(r)),
+          w: parseFloat(w),
+          h: parseFloat(h),
+          x: parseFloat(x),
+          y: parseFloat(y),
+          r: parseFloat(r),
           isGradient: fillStyle?.includes('url(#')
         };
 
@@ -303,6 +332,8 @@ const RightSidebar = ({
         const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || '';
         const isGifFile = src.toLowerCase().endsWith('.gif') || dataType === 'gif';
 
+        const isPdfBackground = lowerDataName.includes('pdf background') || lowerId.includes('background') || dataType === 'pdf-background';
+        
         const isImage = (lowerTagName.includes('image') || 
                         lowerTagName === 'img' || 
                         dataType === 'image' ||
@@ -310,7 +341,7 @@ const RightSidebar = ({
                         lowerId.includes('image') || 
                         !!(el.getAttribute('href') || el.getAttribute('xlink:href')) ||
                         (lowerTagName === 'g' && hasImageChild) ||
-                        isPatternImage) && !isGifFile;
+                        isPatternImage) && !isGifFile && !isPdfBackground;
 
         const isVideo = lowerTagName === 'video' || lowerTagName === 'iframe' || dataType === 'video' || lowerDataName.includes('video') || lowerId.includes('video') || (lowerTagName === 'foreignobject' && el.querySelector('video, iframe'));
         const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif');
@@ -322,6 +353,7 @@ const RightSidebar = ({
         props.isVideo = isVideo;
         props.isGif = isGif;
         props.isIcon = isIcon;
+        props.isPdfBackground = isPdfBackground;
 
         return props;
       }
@@ -351,23 +383,26 @@ const RightSidebar = ({
       {/* ================= Display Controls (Header Section) ================= */}
       <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8.5vh' }}>
          {/* Preview & Double Page Toggle Row */}
-         <div className="flex items-center justify-between">
-            <div className="flex items-center gap-[0.6vw]">
-                <div 
-                   onClick={() => setIsDoublePage(!isDoublePage)}
-                   className={`w-[2.6vw] h-[1.4vw] rounded-full relative cursor-pointer transition-colors duration-300 ${isDoublePage ? 'bg-[#5145F6]' : 'bg-gray-200'} border-[0.1vw] border-transparent scale-90`}
-                >
-                   <div className={`absolute top-[0.1vw] w-[1.1vw] h-[1.1vw] bg-white rounded-full transition-all duration-300 shadow-sm ${isDoublePage ? 'left-[1.3vw]' : 'left-[0.1vw]'}`}></div>
-                </div>
-                <span className="text-gray-700 font-medium text-[0.8vw]">Double Page</span>
-            </div>
-
+          <div className="flex items-center justify-between">
+            {!isPdfProject ? (
+              <div className="flex items-center gap-[0.6vw]">
+                  <div 
+                     onClick={() => setIsDoublePage(!isDoublePage)}
+                     className={`w-[2.6vw] h-[1.4vw] rounded-full relative cursor-pointer transition-colors duration-300 ${isDoublePage ? 'bg-[#5145F6]' : 'bg-gray-200'} border-[0.1vw] border-transparent scale-90`}
+                  >
+                     <div className={`absolute top-[0.1vw] w-[1.1vw] h-[1.1vw] bg-white rounded-full transition-all duration-300 shadow-sm ${isDoublePage ? 'left-[1.3vw]' : 'left-[0.1vw]'}`}></div>
+                  </div>
+                  <span className="text-gray-700 font-medium text-[0.8vw]">Double Page</span>
+              </div>
+            ) : (
+              <div /> // Spacer to keep Preview button on the right
+            )}
             <div className="flex items-center gap-[0.4vw]">
                <button 
                   onClick={onPreview}
-                  className="bg-[#5145F6] text-white flex items-center gap-[0.3vw] px-[0.6vw] py-[0.2vw] rounded-[0.4vw] shadow-sm hover:bg-[#4338CA] transition-all text-[0.75vw] font-medium"
+                  className="bg-[#5145F6] cursor-pointer text-white flex items-center gap-[0.5vw] px-[1vw] py-[0.4vw] rounded-[0.5vw] shadow-md hover:bg-[#4338CA] transition-all text-[0.9vw] font-semibold"
                >
-                  <Icon icon="ic:baseline-preview" width="0.9vw" height="0.9vw" />
+                  <Icon icon="ic:baseline-preview" width="1.1vw" height="1.1vw" />
                   <span>Preview</span>
                </button>
             </div>
@@ -379,98 +414,135 @@ const RightSidebar = ({
         <div className="bg-[#f6f6f6] px-[1.5vw] py-[0.8vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
             <div className="flex items-center gap-[0.4vw]">
-               <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Dimension</span>
-               <div className="h-px flex-grow bg-gray-200"></div>
-            </div>
+               <div className="relative" ref={unitRef}>
+                  <div 
+                     onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
+                     className="flex items-center gap-[0.3vw] cursor-pointer hover:bg-gray-200 px-[0.4vw] py-[0.2vw] rounded-[0.3vw] transition-colors"
+                  >
+                     <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Dimension in {dimensionUnit}</span>
+                     <Icon icon="lucide:chevron-down" className={`transition-transform duration-200 ${isUnitDropdownOpen ? 'rotate-180' : ''}`} width="0.8vw" />
+                  </div>
+                  
+                  {isUnitDropdownOpen && (
+                     <div className="absolute top-full left-0 mt-[0.2vw] bg-white border border-gray-100 shadow-xl rounded-[0.5vw] py-[0.3vw] z-50 w-[5vw]">
+                        {['px', 'mm', 'cm'].map(u => (
+                           <div 
+                              key={u}
+                              onClick={() => {
+                                 setDimensionUnit(u);
+                                 setIsUnitDropdownOpen(false);
+                               }}
+                               className={`px-[0.8vw] py-[0.4vw] text-[0.75vw] font-semibold cursor-pointer transition-colors ${dimensionUnit === u ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'}`}
+                            >
+                               {u}
+                            </div>
+                         ))}
+                      </div>
+                   )}
+                </div>
+                <div className="h-px flex-grow bg-gray-200"></div>
+             </div>
 
             <div className="flex items-center justify-center gap-[3vw]">
                {/* Width */}
-               <div className="flex items-center gap-[0.4vw]">
-                  <span className="text-[0.85vw] font-medium text-gray-700 whitespace-nowrap">W :</span>
-                  <div className="flex items-center gap-[0.1vw]">
-                     <ChevronLeft 
-                        size="0.85vw" 
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
-                        onClick={() => {
-                           if (!selectedElementProps) return;
-                           const tag = selectedElementProps.tagName;
-                           const attr = tag === 'circle' ? 'r' : 'width';
-                           const val = parseFloat(selectedElementProps.w || 0) - 1;
-                           const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
-                           updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
-                        }}
-                     />
-                     <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
-                        <input 
-                           className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
-                           value={selectedElementProps?.w || flipbookDimensions.width}
-                           onChange={(e) => {
-                             if (!selectedElementProps) return;
-                             const tag = selectedElementProps.tagName;
-                             const attr = tag === 'circle' ? 'r' : 'width';
-                             const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
-                             updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
-                           }}
-                        />
-                     </div>
-                     <ChevronRight 
-                        size="0.85vw" 
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                           if (!selectedElementProps) return;
-                           const tag = selectedElementProps.tagName;
-                           const attr = tag === 'circle' ? 'r' : 'width';
-                           const val = parseFloat(selectedElementProps.w || 0) + 1;
-                           const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
-                           updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
-                        }}
-                     />
-                  </div>
-               </div>
+                <div className="flex items-center gap-[0.4vw]">
+                   <span className="text-[0.85vw] font-medium text-gray-700 whitespace-nowrap">W :</span>
+                   <div className="flex items-center gap-[0.1vw]">
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
+                         <ChevronLeft 
+                            size="0.85vw" 
+                            className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
+                            onClick={() => {
+                               if (!selectedElementProps) return;
+                               const tag = selectedElementProps.tagName;
+                               const attr = tag === 'circle' ? 'r' : 'width';
+                               const val = parseFloat(selectedElementProps.w || 0) - 1;
+                               const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
+                               updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
+                            }}
+                         />
+                      )}
+                      <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
+                         <input 
+                            key={`w-${dimensionUnit}`}
+                            className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
+                            value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
+                            readOnly={!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))}
+                            onChange={(e) => {
+                               if (!selectedElementProps) return;
+                               const tag = selectedElementProps.tagName;
+                               const attr = tag === 'circle' ? 'r' : 'width';
+                               const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
+                               updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
+                            }}
+                         />
+                      </div>
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
+                         <ChevronRight 
+                            size="0.85vw" 
+                            className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                            onClick={() => {
+                               if (!selectedElementProps) return;
+                               const tag = selectedElementProps.tagName;
+                               const attr = tag === 'circle' ? 'r' : 'width';
+                               const val = parseFloat(selectedElementProps.w || 0) + 1;
+                               const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
+                               updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
+                            }}
+                         />
+                      )}
+                   </div>
+                </div>
 
                {/* Height */}
                <div className="flex items-center gap-[0.4vw]">
-                  <span className="text-[0.85vw] font-medium text-gray-700 whitespace-nowrap">H :</span>
-                  <div className="flex items-center gap-[0.1vw]">
-                     <ChevronLeft 
-                        size="0.85vw" 
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                           if (!selectedElementProps) return;
-                           const tag = selectedElementProps.tagName;
-                           const attr = tag === 'circle' ? 'r' : 'height';
-                           const val = parseFloat(selectedElementProps.h || 0) - 1;
-                           const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
-                           updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
-                        }}
-                     />
-                     <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
-                        <input 
-                           className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
-                           value={selectedElementProps?.h || flipbookDimensions.height}
-                           onChange={(e) => {
-                             if (!selectedElementProps) return;
-                             const tag = selectedElementProps.tagName;
-                             const attr = tag === 'circle' ? 'r' : 'height';
-                             const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
-                             updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
-                           }}
-                        />
-                     </div>
-                     <ChevronRight 
-                        size="0.85vw" 
-                        className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
-                        onClick={() => {
-                           if (!selectedElementProps) return;
-                           const tag = selectedElementProps.tagName;
-                           const attr = tag === 'circle' ? 'r' : 'height';
-                           const val = parseFloat(selectedElementProps.h || 0) + 1;
-                           const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
-                           updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
-                        }}
-                     />
-                  </div>
-               </div>
+                   <span className="text-[0.85vw] font-medium text-gray-700 whitespace-nowrap">H :</span>
+                   <div className="flex items-center gap-[0.1vw]">
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
+                         <ChevronLeft 
+                            size="0.85vw" 
+                            className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                            onClick={() => {
+                               if (!selectedElementProps) return;
+                               const tag = selectedElementProps.tagName;
+                               const attr = tag === 'circle' ? 'r' : 'height';
+                               const val = parseFloat(selectedElementProps.h || 0) - 1;
+                               const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
+                               updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
+                            }}
+                         />
+                      )}
+                      <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
+                         <input 
+                            key={`h-${dimensionUnit}`}
+                            className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
+                            value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
+                            readOnly={!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))}
+                            onChange={(e) => {
+                               if (!selectedElementProps) return;
+                               const tag = selectedElementProps.tagName;
+                               const attr = tag === 'circle' ? 'r' : 'height';
+                               const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
+                               updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
+                            }}
+                         />
+                      </div>
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
+                         <ChevronRight 
+                            size="0.85vw" 
+                            className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
+                            onClick={() => {
+                               if (!selectedElementProps) return;
+                               const tag = selectedElementProps.tagName;
+                               const attr = tag === 'circle' ? 'r' : 'height';
+                               const val = parseFloat(selectedElementProps.h || 0) + 1;
+                               const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
+                               updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
+                            }}
+                         />
+                      )}
+                   </div>
+                </div>
             </div>
           </div>
         </div>
@@ -510,218 +582,402 @@ const RightSidebar = ({
               </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col p-[1.5vw] overflow-y-auto no-scrollbar gap-[1.5vw]">
-              {(selectedElementProps || activeMainTool === 'grid') ? (
-                <div className="flex flex-col gap-[1.5vw]">
-                  {selectedElementProps?.isImage ? (
-                    <ImageEditor 
-                      selectedElement={(() => {
-                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                        return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
-                      })()}
-                      selectedLayerId={selectedLayerId}
-                      activePageIndex={activePageIndex}
-                      onUpdate={(newHtml) => {
-                        if (typeof newHtml === 'string') {
-                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
-                        } else {
-                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
-                            const el = document.getElementById(selectedLayerId);
-                            let node = el;
-                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
-                            return node;
-                          })();
-                          if (svgRoot) {
-                            const serializer = new XMLSerializer();
-                            const html = serializer.serializeToString(svgRoot);
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
-                          } else {
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
-                          }
-                        }
+            <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
+              {isPdfProject ? (
+                <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
+                  {/* Select Free Frame Section */}
+                  <div className="space-y-[1.2vw]">
+                    <div className="flex items-center gap-[0.4vw]">
+                      <span className="text-[0.9vw] font-bold text-gray-900 whitespace-nowrap">Select Free Frame</span>
+                      <div className="h-px flex-grow bg-gray-100"></div>
+                    </div>
+                    <div 
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent('add-free-frame', {
+                          detail: { pageIndex: activePageIndex }
+                        }));
                       }}
-                      pages={pages}
-                      currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                      folderName="My Flipbooks"
-                      flipbookName="Untitled"
-                    />
-                  ) : selectedElementProps?.isText ? (
-                    <TextEditor
-                      selectedElement={(() => {
-                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                        const el = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
-                        if (!el) return null;
-                        const tag = el.tagName?.toLowerCase();
-                        // foreignObject wraps the actual HTML text container — drill into it
-                        if (tag === 'foreignobject') {
-                          return el.querySelector('[contenteditable], div, p, span') || el;
-                        }
-                        return el;
-                      })()}
-                      onUpdate={(newHtml) => {
-                        if (typeof newHtml === 'string') {
-                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
-                        } else {
-                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
-                            const el = document.getElementById(selectedLayerId);
-                            let node = el;
-                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
-                            return node;
-                          })();
-                          if (svgRoot) {
-                            const serializer = new XMLSerializer();
-                            const html = serializer.serializeToString(svgRoot);
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
-                          } else {
-                            updateElementAttribute(activePageIndex);
-                          }
-                        }
-                      }}
-                      pages={pages}
-                      activePageIndex={activePageIndex}
-                    />
-                  ) : selectedElementProps?.isVideo ? (
-                    <VideoEditor
-                      selectedElement={(() => {
-                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                        return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
-                      })()}
-                      selectedLayerId={selectedLayerId}
-                      activePageIndex={activePageIndex}
-                      onUpdate={(newHtml) => {
-                        if (typeof newHtml === 'string') {
-                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
-                        } else {
-                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
-                            const el = document.getElementById(selectedLayerId);
-                            let node = el;
-                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
-                            return node;
-                          })();
-                          if (svgRoot) {
-                            const serializer = new XMLSerializer();
-                            const html = serializer.serializeToString(svgRoot);
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
-                          } else {
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
-                          }
-                        }
-                      }}
-                      pages={pages}
-                      currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                      folderName="My Flipbooks"
-                      flipbookName="Untitled"
-                    />
-                  ) : selectedElementProps?.isGif ? (
-                    <GifEditor
-                      selectedElement={(() => {
-                        const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                        return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
-                      })()}
-                      selectedLayerId={selectedLayerId}
-                      onUpdate={(newHtml) => {
-                        if (typeof newHtml === 'string') {
-                          updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
-                        } else {
-                          const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                          const svgRoot = pageContainer?.querySelector('svg') || (() => {
-                            const el = document.getElementById(selectedLayerId);
-                            let node = el;
-                            while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
-                            return node;
-                          })();
-                          if (svgRoot) {
-                            const serializer = new XMLSerializer();
-                            const html = serializer.serializeToString(svgRoot);
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
-                          } else {
-                            updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
-                          }
-                        }
-                      }}
-                      pages={pages}
-                      activePageIndex={activePageIndex}
-                    />
-                  ) : (
-                    <ShapeProperties 
-                       selectedElementProps={selectedElementProps || { 
-                         fill: '#6366F1', 
-                         opacity: '1', 
-                         stroke: 'none', 
-                         strokeWidth: '0', 
-                         tagName: 'g',
-                         isIcon: true 
-                       }}
-                       activePageIndex={activePageIndex}
-                       selectedLayerId={selectedLayerId}
-                       updateElementAttribute={updateElementAttribute}
-                     />
-                  )}
-                </div>
-              ) : (
-                /* Page Properties (Default View) */
-                (() => {
-                  const page = pages[activePageIndex];
-                  const parser = new DOMParser();
-                  const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
-                  const overlay = doc.querySelector('[data-name="Overlay"]');
-                  const currentBg = overlay?.getAttribute('fill') || '#ffffff';
+                      className="w-[18vw] mx-auto h-[6vw] border-[0.15vw] border-dashed border-gray-500 bg-[#E5E7EB]/40 flex flex-col items-center justify-center cursor-pointer hover:bg-[#E5E7EB]/60 transition-all group relative"
+                      style={{ borderDasharray: "10, 15" }}
+                    >
+                      {/* Perfect Corner markers - Top Left */}
+                      <div className="absolute -top-[0.3vw] -left-[0.3vw] w-[1vw] h-[1vw]">
+                        <div className="absolute top-0 left-0 w-full h-[0.3vw] bg-gray-600"></div>
+                        <div className="absolute top-0 left-0 w-[0.3vw] h-full bg-gray-600"></div>
+                      </div>
+                      {/* Perfect Corner markers - Top Right */}
+                      <div className="absolute -top-[0.3vw] -right-[0.3vw] w-[1vw] h-[1vw]">
+                        <div className="absolute top-0 right-0 w-full h-[0.3vw] bg-gray-600"></div>
+                        <div className="absolute top-0 right-0 w-[0.3vw] h-full bg-gray-600"></div>
+                      </div>
+                      {/* Perfect Corner markers - Bottom Left */}
+                      <div className="absolute -bottom-[0.3vw] -left-[0.3vw] w-[1vw] h-[1vw]">
+                        <div className="absolute bottom-0 left-0 w-full h-[0.3vw] bg-gray-600"></div>
+                        <div className="absolute bottom-0 left-0 w-[0.3vw] h-full bg-gray-600"></div>
+                      </div>
+                      {/* Perfect Corner markers - Bottom Right */}
+                      <div className="absolute -bottom-[0.3vw] -right-[0.3vw] w-[1vw] h-[1vw]">
+                        <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-gray-600"></div>
+                        <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-gray-600"></div>
+                      </div>
+                      
+                      <span className="text-[0.8vw] font-medium text-gray-600">Click To Add Free Frame</span>
+                    </div>
+                  </div>
 
-                  return (
-                    <div className="flex flex-col gap-[3vh]">
-                      <div className="flex flex-col gap-[1.5vh]">
-                        <div className="flex items-center gap-[0.75vw]">
-                          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
-                            Page Background
-                          </span>
-                          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                        </div>
+                  {/* Interactions in this Page Section */}
+                  <div className="space-y-[1.2vw] mt-[0.5vw]">
+                    <div className="flex items-center gap-[0.4vw]">
+                      <span className="text-[0.9vw] font-bold text-gray-900 whitespace-nowrap">Interactions in this Page</span>
+                      <div className="h-px flex-grow bg-gray-100"></div>
+                    </div>
+                    
+                    <div className="space-y-[0.8vw]">
+                      {/* Unified Interaction Panel */}
+                      <div className="border border-gray-200 rounded-[1vw] bg-white overflow-hidden shadow-sm">
+                        {/* Header with Custom Type Dropdown */}
+                        <div className="px-[1vw] py-[0.8vw] flex items-center justify-between border-b border-gray-50 overflow-visible">
+                          <div className="flex items-center gap-[1vw]">
+                            <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" className="text-gray-500" />
+                            <div className="relative" ref={interactionMenuRef}>
+                              <div 
+                                onClick={() => setIsInteractionMenuOpen(!isInteractionMenuOpen)}
+                                className="bg-[#F3F4F6] rounded-[0.5vw] px-[0.8vw] py-[0.35vw] flex items-center gap-[0.5vw] cursor-pointer hover:bg-[#E5E7EB] transition-colors"
+                              >
+                                <span className="text-[0.8vw] font-medium text-gray-700 capitalize">
+                                   {(() => {
+                                      const type = selectedElementProps?.['data-interaction'];
+                                      if (!type || type === 'none') return 'None';
+                                      if (type === 'link') return 'Open Link';
+                                      if (type === 'navigate') return 'Navigate';
+                                      return type;
+                                   })()}
+                                </span>
+                                <Icon icon="lucide:chevron-down" className={`text-gray-400 transition-transform ${isInteractionMenuOpen ? 'rotate-180' : ''}`} width="0.8vw" />
+                              </div>
 
-                        <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
-                          <div className="flex items-center justify-between mb-[1.5vh]">
-                            <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
-                            <div className="flex items-center gap-[0.5vw]">
-                              <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: currentBg }} />
-                              <span className="text-[0.7vw] font-mono text-gray-400">{currentBg.toUpperCase()}</span>
+                              {/* Custom Dropdown Menu - More Compact */}
+                              {isInteractionMenuOpen && (
+                                <div className="absolute top-full left-0 mt-[0.4vw] w-[9.5vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-lg z-[100] py-[0.3vw]">
+                                  {[
+                                    { value: 'none', label: 'None', icon: 'lucide:minus' },
+                                    { value: 'link', label: 'Open Link', icon: 'lucide:link-2' },
+                                    { value: 'navigate', label: 'Navigate to', icon: 'lucide:navigation' },
+                                    { value: 'call', label: 'Call', icon: 'lucide:phone' }
+                                  ].map((opt) => (
+                                    <div 
+                                      key={opt.value}
+                                      onClick={() => {
+                                        updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction', opt.value);
+                                        setIsInteractionMenuOpen(false);
+                                      }}
+                                      className="px-[0.8vw] py-[0.4vw] flex items-center gap-[0.6vw] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                    >
+                                      <Icon icon={opt.icon} width="0.85vw" className="text-gray-500 group-hover:text-gray-900" />
+                                      <span className="text-[0.75vw] font-medium text-gray-600 group-hover:text-gray-900">{opt.label}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           </div>
+                          <Icon icon="lucide:chevron-up" className="text-gray-900" width="1vw" />
+                        </div>
 
-                          <div className="grid grid-cols-8 gap-[0.4vw]">
-                            {presetColors.map((color) => (
-                              <button
-                                key={color}
-                                onClick={() => updatePageBackground(activePageIndex, color)}
-                                className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
-                                style={{ backgroundColor: color }}
-                                title={color}
-                              />
-                            ))}
+                        {/* Central Mapping Area */}
+                        <div className="px-[1vw] py-[1.5vw] flex items-center justify-between gap-[0.5vw]">
+                          <div className="bg-[#F3F4F6] rounded-[0.6vw] px-[0.8vw] py-[0.6vw] text-[0.85vw] font-medium text-gray-600 whitespace-nowrap">
+                             {selectedElementProps?.isPdfBackground ? 'Page Background' : (selectedElementProps?.dataName || selectedElementProps?.id || 'Image 23')}
+                          </div>
+                          
+                          <div className="flex-1 flex items-center justify-center px-[0.5vw]">
+                             <svg className="w-full h-[0.8vw]" viewBox="0 0 100 10" preserveAspectRatio="none">
+                               <line x1="0" y1="5" x2="95" y2="5" stroke="#111827" strokeWidth="1.5" strokeDasharray="4, 3" />
+                               <path d="M92 2 L97 5 L92 8" stroke="#111827" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                             </svg>
+                          </div>
+
+                          <div className="w-[3.5vw] h-[3.5vw] bg-[#F3F4F6] rounded-[0.6vw] flex items-center justify-center relative group flex-shrink-0">
+                            {selectedElementProps?.['data-interaction'] === 'none' ? (
+                               <span className="text-gray-400 text-[1.2vw] font-medium">?</span>
+                            ) : (
+                               <div className="w-full h-full p-[0.3vw] flex items-center justify-center">
+                                  {selectedElementProps?.['data-interaction'] === 'link' && (
+                                     <input 
+                                       type="text" 
+                                       className="w-full bg-transparent outline-none text-center text-[0.75vw] font-bold text-indigo-600 underline"
+                                       placeholder="URL"
+                                       value={selectedElementProps?.['data-interaction-value'] || ''}
+                                       onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value)}
+                                     />
+                                  )}
+                                  {selectedElementProps?.['data-interaction'] === 'navigate' && (
+                                     <select 
+                                       className="w-full bg-transparent outline-none text-center text-[1vw] font-bold text-indigo-600 appearance-none"
+                                       value={selectedElementProps?.['data-interaction-value'] || '1'}
+                                       onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value)}
+                                     >
+                                        {pages.map((_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
+                                     </select>
+                                  )}
+                                  {(selectedElementProps?.['data-interaction'] === 'call' || selectedElementProps?.['data-interaction'] === 'click') && (
+                                     <input 
+                                       type="text" 
+                                       className="w-full bg-transparent outline-none text-center text-[0.7vw] font-bold text-red-500 underline"
+                                       placeholder="+91..."
+                                       value={selectedElementProps?.['data-phone'] || ''}
+                                       onChange={(e) => {
+                                         updateElementAttribute(activePageIndex, selectedLayerId, 'data-phone', e.target.value);
+                                         updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value);
+                                       }}
+                                     />
+                                  )}
+                               </div>
+                            )}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="flex flex-col gap-[1.5vh]">
-                        <div className="flex items-center gap-[0.75vw]">
-                          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Document info</span>
-                          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
-                        </div>
-                        <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
-                          <div className="flex justify-between items-center text-[0.75vw]">
-                            <span className="text-gray-500 font-medium">Format</span>
-                            <span className="text-gray-900 font-semibold">Custom Sheet</span>
-                          </div>
-                          <div className="flex justify-between items-center text-[0.75vw]">
-                            <span className="text-gray-500 font-medium">Dimensions</span>
-                            <span className="text-gray-900 font-semibold">{Math.round(baseWidth)} x {Math.round(baseHeight)} mm</span>
-                          </div>
+                        {/* Footer */}
+                        <div className="px-[1vw] py-[0.8vw] border-t border-gray-50 flex items-center justify-between">
+                           <div className="flex items-center gap-[0.8vw]">
+                              <div 
+                                onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-highlight', selectedElementProps?.['data-highlight'] === 'true' ? 'false' : 'true')}
+                                className={`w-[1.2vw] h-[1.2vw] rounded-full flex items-center justify-center cursor-pointer transition-all border-2 ${selectedElementProps?.['data-highlight'] === 'true' ? 'border-[#5145F6]' : 'border-gray-300'}`}
+                              >
+                                 <div className={`w-[0.6vw] h-[0.6vw] rounded-full bg-[#5145F6] transition-opacity ${selectedElementProps?.['data-highlight'] === 'true' ? 'opacity-100' : 'opacity-0'}`} />
+                              </div>
+                              <span className="text-[0.85vw] font-medium text-gray-500">Highlight the Component</span>
+                           </div>
+                           <button 
+                             className="p-[0.2vw] hover:bg-red-50 rounded-[0.2vw] transition-colors"
+                             onClick={() => {
+                                updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction', 'none');
+                                updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', '');
+                                updateElementAttribute(activePageIndex, selectedLayerId, 'data-phone', '');
+                             }}
+                           >
+                             <Icon icon="lucide:trash-2" width="1vw" className="text-[#EF4444]" />
+                           </button>
                         </div>
                       </div>
                     </div>
-                  );
-                })()
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
+                  {(selectedElementProps || activeMainTool === 'grid') ? (
+                    <div className="flex flex-col gap-[1.5vw]">
+                      {selectedElementProps?.isImage ? (
+                        <ImageEditor 
+                          selectedElement={(() => {
+                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                            return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                          })()}
+                          selectedLayerId={selectedLayerId}
+                          activePageIndex={activePageIndex}
+                          onUpdate={(newHtml) => {
+                            if (typeof newHtml === 'string') {
+                              updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                            } else {
+                              const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                              const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                                const el = document.getElementById(selectedLayerId);
+                                let node = el;
+                                while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                                return node;
+                              })();
+                              if (svgRoot) {
+                                const serializer = new XMLSerializer();
+                                const html = serializer.serializeToString(svgRoot);
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                              } else {
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                              }
+                            }
+                          }}
+                          pages={pages}
+                          currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
+                          folderName="My Flipbooks"
+                          flipbookName="Untitled"
+                        />
+                      ) : selectedElementProps?.isText ? (
+                        <TextEditor
+                          selectedElement={(() => {
+                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                            const el = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                            if (!el) return null;
+                            const tag = el.tagName?.toLowerCase();
+                            // foreignObject wraps the actual HTML text container — drill into it
+                            if (tag === 'foreignobject') {
+                              return el.querySelector('[contenteditable], div, p, span') || el;
+                            }
+                            return el;
+                          })()}
+                          onUpdate={(newHtml) => {
+                            if (typeof newHtml === 'string') {
+                              updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                            } else {
+                              const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                              const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                                const el = document.getElementById(selectedLayerId);
+                                let node = el;
+                                while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                                return node;
+                              })();
+                              if (svgRoot) {
+                                const serializer = new XMLSerializer();
+                                const html = serializer.serializeToString(svgRoot);
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                              } else {
+                                updateElementAttribute(activePageIndex);
+                              }
+                            }
+                          }}
+                          pages={pages}
+                          activePageIndex={activePageIndex}
+                        />
+                      ) : selectedElementProps?.isVideo ? (
+                        <VideoEditor
+                          selectedElement={(() => {
+                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                            return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                          })()}
+                          selectedLayerId={selectedLayerId}
+                          activePageIndex={activePageIndex}
+                          onUpdate={(newHtml) => {
+                            if (typeof newHtml === 'string') {
+                              updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                            } else {
+                              const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                              const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                                const el = document.getElementById(selectedLayerId);
+                                let node = el;
+                                while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                                return node;
+                              })();
+                              if (svgRoot) {
+                                const serializer = new XMLSerializer();
+                                const html = serializer.serializeToString(svgRoot);
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                              } else {
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                              }
+                            }
+                          }}
+                          pages={pages}
+                          currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
+                          folderName="My Flipbooks"
+                          flipbookName="Untitled"
+                        />
+                      ) : selectedElementProps?.isGif ? (
+                        <GifEditor
+                          selectedElement={(() => {
+                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                            return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                          })()}
+                          selectedLayerId={selectedLayerId}
+                          onUpdate={(newHtml) => {
+                            if (typeof newHtml === 'string') {
+                              updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
+                            } else {
+                              const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+                              const svgRoot = pageContainer?.querySelector('svg') || (() => {
+                                const el = document.getElementById(selectedLayerId);
+                                let node = el;
+                                while (node && node.tagName?.toLowerCase() !== 'svg') node = node.parentElement;
+                                return node;
+                              })();
+                              if (svgRoot) {
+                                const serializer = new XMLSerializer();
+                                const html = serializer.serializeToString(svgRoot);
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', html);
+                              } else {
+                                updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', null);
+                              }
+                            }
+                          }}
+                          pages={pages}
+                          activePageIndex={activePageIndex}
+                        />
+                      ) : (
+                        <ShapeProperties 
+                           selectedElementProps={selectedElementProps || { 
+                             fill: '#6366F1', 
+                             opacity: '1', 
+                             stroke: 'none', 
+                             strokeWidth: '0', 
+                             tagName: 'g',
+                             isIcon: true 
+                           }}
+                           activePageIndex={activePageIndex}
+                           selectedLayerId={selectedLayerId}
+                           updateElementAttribute={updateElementAttribute}
+                         />
+                      )}
+                    </div>
+                  ) : (
+                    /* Page Properties (Default View) */
+                    (() => {
+                      const page = pages[activePageIndex];
+                      const parser = new DOMParser();
+                      const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
+                      const overlay = doc.querySelector('[data-name="Overlay"]');
+                      const currentBg = overlay?.getAttribute('fill') || '#ffffff';
+
+                      return (
+                        <div className="flex flex-col gap-[3vh]">
+                          <div className="flex flex-col gap-[1.5vh]">
+                            <div className="flex items-center gap-[0.75vw]">
+                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">
+                                Page Background
+                              </span>
+                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                            </div>
+
+                            <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
+                              <div className="flex items-center justify-between mb-[1.5vh]">
+                                <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
+                                <div className="flex items-center gap-[0.5vw]">
+                                  <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: currentBg }} />
+                                  <span className="text-[0.7vw] font-mono text-gray-400">{currentBg.toUpperCase()}</span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-8 gap-[0.4vw]">
+                                {presetColors.map((color) => (
+                                  <button
+                                    key={color}
+                                    onClick={() => updatePageBackground(activePageIndex, color)}
+                                    className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
+                                    style={{ backgroundColor: color }}
+                                    title={color}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-[1.5vh]">
+                            <div className="flex items-center gap-[0.75vw]">
+                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Document info</span>
+                              <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+                            </div>
+                            <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1vh]">
+                              <div className="flex justify-between items-center text-[0.75vw]">
+                                <span className="text-gray-500 font-medium">Format</span>
+                                <span className="text-gray-900 font-semibold">Custom Sheet</span>
+                              </div>
+                              <div className="flex justify-between items-center text-[0.75vw]">
+                                <span className="text-gray-500 font-medium">Dimensions</span>
+                                <span className="text-gray-900 font-semibold">{Math.round(baseWidth)} x {Math.round(baseHeight)} mm</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
               )}
             </div>
           )
