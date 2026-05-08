@@ -1016,20 +1016,32 @@ const Layer = ({
                     const viewBoxMatch = page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/);
                     const aspectRatio = viewBoxMatch ? parseFloat(viewBoxMatch[1]) / parseFloat(viewBoxMatch[3]) : 1 / 1.414;
                     
-                    // Optimization: If it's a PDF project, extract the background image URL and render it as an <img> tag
-                    // This is much faster than dangerouslySetInnerHTML for full SVGs
                     const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]+data-name="PDF Background"/);
                     const pdfImgUrl = pdfImgMatch ? pdfImgMatch[1] : null;
 
                     return (
                       <div 
                         key={page.id} 
-                        className={`flex flex-col rounded-[1vw] overflow-hidden bg-white shadow-sm transition-all cursor-pointer relative border-[0.15vw] ${
-                          activePageIndex === index ? 'border-indigo-500' : 'border-gray-200'
-                        }`}
-                        id={`page-card-preview-${page.id}`}
-                        onClick={() => setActivePageIndex(index)}
+                        className="flex flex-col relative"
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragLeave={handleDragLeave}
+                        onDragEnd={handleDragEnd}
+                        onDrop={(e) => handleDrop(e, index)}
                       >
+                        {/* Drag Indicator Top */}
+                        {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex > index && (
+                          <div className="absolute -top-[1.25vh] left-0 right-0 h-[0.25vw] bg-indigo-500 rounded-full z-20 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                        )}
+
+                        <div 
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          className={`flex flex-col rounded-[1vw] overflow-hidden bg-white shadow-sm transition-all cursor-pointer relative border-[0.15vw] ${
+                            activePageIndex === index ? 'border-indigo-500 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                          } ${draggedPageIndex === index ? 'opacity-40 grayscale-[0.5]' : ''}`}
+                          id={`page-card-preview-${page.id}`}
+                          onClick={() => setActivePageIndex(index)}
+                        >
                         {/* Page Header */}
                         <div className={`flex items-center justify-between px-[1vw] py-[1vh] border-b transition-colors ${
                           activePageIndex === index ? 'border-indigo-100 bg-[#EEF2FF]/50' : 'border-gray-100'
@@ -1070,6 +1082,12 @@ const Layer = ({
                             )}
                           </div>
                         </div>
+                      </div>
+
+                        {/* Drag Indicator Bottom */}
+                        {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex < index && (
+                          <div className="absolute -bottom-[1.25vh] left-0 right-0 h-[0.25vw] bg-indigo-500 rounded-full z-20 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                        )}
                       </div>
                     );
                   })}
@@ -1140,7 +1158,15 @@ const Layer = ({
 
             {/* Footer Buttons */}
             <div className="pt-[1vh] bg-white flex flex-col gap-[1vh] flex-shrink-0">
-              {!isPdfProject && (
+              {isPdfProject ? (
+                <button 
+                  onClick={() => onAddFile(pages.length - 1)}
+                  className="w-full bg-white border border-gray-200 text-gray-900 py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-50 transition-all shadow-sm cursor-pointer"
+                >
+                  <FilePlus size="1.1vw" className="text-gray-400" />
+                  <span>Add File</span>
+                </button>
+              ) : (
                 <button 
                   onClick={() => insertPageAfter(pages.length - 1)}
                   className="w-full bg-white border border-gray-200 text-gray-900 py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-50 transition-all shadow-sm cursor-pointer"

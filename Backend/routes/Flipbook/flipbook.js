@@ -14,6 +14,12 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Root folder name for all flipbook storage
+const FLIPBOOK_ROOT = "My_Flipbooks";
+
+// Helper to escape regex special characters
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 // Configure multer for asset uploads
 const assetStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -28,7 +34,7 @@ const assetStorage = multer.diskStorage({
     const assetDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
       folderName,
       flipbookName,
       "assets",
@@ -131,7 +137,7 @@ router.post("/save", async (req, res) => {
     const myFlipbooksDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
     );
 
     // Fetch existing doc to detect renames and determine correct physical path
@@ -205,6 +211,20 @@ router.post("/save", async (req, res) => {
           );
         }
       }
+
+      // PRE-PROCESS PAGES: Update URLs in the current request payload to reflect new name
+      // Use regex to match the path regardless of what the root folder (My_Flipbooks) is named
+      const escapedFolder = escapeRegex(physicalFolderName).replace(/ /g, "(?: |%20)");
+      const escapedOldName = escapeRegex(oldFlipbookName).replace(/ /g, "(?: |%20)");
+      const pathRegex = new RegExp(`/[^/]+/${escapedFolder}/${escapedOldName}/`, "g");
+      const replacementPath = `/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/`;
+
+      pages.forEach((p) => {
+        if (p.content) {
+          p.content = p.content.replace(pathRegex, replacementPath);
+        }
+      });
+      console.log(`Updated URLs in ${pages.length} pages in memory before write.`);
     }
 
     // Ensure My_Flipbooks and Target Folder exist
@@ -441,8 +461,8 @@ router.post("/save", async (req, res) => {
 
             // Reconstruct URL with new flipbook name
             // URL format: /uploads/{email}/My_Flipbooks/{folder}/{flipbook}/assets/{type}/{filename}
-            const emailPart = asset.url.split("/My_Flipbooks/")[0];
-            asset.url = `${emailPart}/My_Flipbooks/${asset.folderName}/${flipbookName}/assets/${asset.assetType}/${asset.fileName}`;
+            const emailPart = asset.url.split(`/${FLIPBOOK_ROOT}/`)[0];
+            asset.url = `${emailPart}/${FLIPBOOK_ROOT}/${asset.folderName}/${flipbookName}/assets/${asset.assetType}/${asset.fileName}`;
 
             await asset.save();
             console.log(`✓ Updated: ${asset.fileName}`);
@@ -456,6 +476,37 @@ router.post("/save", async (req, res) => {
         }
       } catch (err) {
         console.error("❌ Error updating assets after rename:", err);
+      }
+
+      // UPDATE HTML CONTENT: Update asset paths in .html files if flipbook was renamed
+      try {
+        console.log(`Updating HTML content for renamed flipbook in save...`);
+        if (fs.existsSync(flipbookDir)) {
+          const files = fs.readdirSync(flipbookDir);
+          const htmlFiles = files.filter((f) => f.endsWith(".html"));
+
+          // Use regex to match the path regardless of what the root folder (My_Flipbooks) is named
+          const escapedFolder = escapeRegex(physicalFolderName).replace(/ /g, "(?: |%20)");
+          const escapedOldName = escapeRegex(oldFlipbookName).replace(/ /g, "(?: |%20)");
+          const pathRegex = new RegExp(`/[^/]+/${escapedFolder}/${escapedOldName}/`, "g");
+          const replacementPath = `/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/`;
+
+          for (const file of htmlFiles) {
+            const filePath = path.join(flipbookDir, file);
+            let content = fs.readFileSync(filePath, "utf8");
+
+            if (pathRegex.test(content)) {
+              content = content.replace(pathRegex, replacementPath);
+              fs.writeFileSync(filePath, content, "utf8");
+              console.log(`Updated HTML content in save for: ${file}`);
+            }
+          }
+          console.log(
+            `✅ checked/updated ${htmlFiles.length} HTML file(s) in save`,
+          );
+        }
+      } catch (htmlErr) {
+        console.error("❌ Error updating HTML content in save:", htmlErr);
       }
     }
 
@@ -534,7 +585,7 @@ router.get("/list", async (req, res) => {
     const myFlipbooksDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
     );
 
     if (!fs.existsSync(myFlipbooksDir)) {
@@ -551,6 +602,29 @@ router.get("/list", async (req, res) => {
 
     // 0. Fetch all DB records for this user to map v_ids
     const userDbBooks = await Flipbook.find({ userEmail: emailId });
+
+    // Fetch all image assets for this user to use as thumbnails
+    // We only care about images for these specific flipbooks
+    const bookVIds = userDbBooks.map((b) => b.v_id).filter(Boolean);
+    const allAssets = await FlipbookAsset.find({
+      flipbook_v_id: { $in: bookVIds },
+      assetType: "image",
+    });
+
+    // Map to store the first image URL for each flipbook v_id
+    const firstImageAssetMap = new Map();
+    // Sort to ensure 'page-1.png' or similar comes first if possible
+    allAssets.sort((a, b) =>
+      a.fileName.localeCompare(b.fileName, undefined, {
+        numeric: true,
+        sensitivity: "base",
+      }),
+    );
+    allAssets.forEach((asset) => {
+      if (!firstImageAssetMap.has(asset.flipbook_v_id)) {
+        firstImageAssetMap.set(asset.flipbook_v_id, asset.url);
+      }
+    });
 
     // 1. FS Scan for Physical Books
     // 1. FS Scan for Physical Books
@@ -629,6 +703,22 @@ router.get("/list", async (req, res) => {
           }
         }
 
+        // FALLBACK PREVIEW: If no image asset, try to get the first page HTML content
+        let firstPageHtml = null;
+        if (!firstImageAssetMap.has(dbMatch?.v_id)) {
+           try {
+             const firstPage = dbMatch?.pages?.find(p => p.pageNumber === 1) || dbMatch?.pages?.[0];
+             if (firstPage) {
+               const firstPagePath = path.join(bookPath, firstPage.fileName);
+               if (fs.existsSync(firstPagePath)) {
+                 firstPageHtml = fs.readFileSync(firstPagePath, "utf8");
+               }
+             }
+           } catch (e) {
+             console.error("Error reading first page for preview:", e);
+           }
+        }
+
         books.push({
           id: `${folder}_${bookDir.name}`,
           v_id: dbMatch ? dbMatch.v_id : null, // ID from DB
@@ -641,7 +731,8 @@ router.get("/list", async (req, res) => {
             : "",
           views: 0,
           size: formatSize(sizeBytes),
-          image: null,
+          image: dbMatch ? firstImageAssetMap.get(dbMatch.v_id) || null : null,
+          firstPageHtml: firstPageHtml, // Fallback preview
           mtime: stats.mtime,
         });
       }
@@ -669,6 +760,30 @@ router.get("/list", async (req, res) => {
         (b) => b.realName === doc.flipbookName && b.folder === realFolder,
       );
 
+      // If not in the physical scan list, try to fetch its preview
+      let previewHtml = matchingPhysicalBook?.firstPageHtml || null;
+      if (!previewHtml && !firstImageAssetMap.has(doc.v_id)) {
+        try {
+          const firstPage =
+            doc.pages?.find((p) => p.pageNumber === 1) || doc.pages?.[0];
+          if (firstPage) {
+            const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+            const uploadsDir = path.join(__dirname, "../../uploads");
+            const bookPath = path.join(
+              uploadsDir,
+              sanitizedEmail,
+              FLIPBOOK_ROOT,
+              realFolder || "My Flipbooks",
+              doc.flipbookName,
+            );
+            const firstPagePath = path.join(bookPath, firstPage.fileName);
+            if (fs.existsSync(firstPagePath)) {
+              previewHtml = fs.readFileSync(firstPagePath, "utf8");
+            }
+          }
+        } catch (e) {}
+      }
+
       return {
         id: `Recent_${doc.flipbookName}`,
         realName: doc.flipbookName,
@@ -679,7 +794,9 @@ router.get("/list", async (req, res) => {
         created: matchingPhysicalBook ? matchingPhysicalBook.created : "", // Reuse if found
         views: 0,
         size: matchingPhysicalBook ? matchingPhysicalBook.size : "0 B",
-        image: null,
+        image: firstImageAssetMap.get(doc.v_id) || null,
+        firstPageHtml: previewHtml,
+        mtime: doc.lastUpdated || doc.createdAt,
       };
     });
 
@@ -708,7 +825,7 @@ router.get("/folders", (req, res) => {
     const myFlipbooksDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
     );
 
     if (!fs.existsSync(myFlipbooksDir)) {
@@ -745,7 +862,7 @@ router.post("/folder/create", (req, res) => {
     const targetDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
       safeFolderName,
     );
 
@@ -791,7 +908,7 @@ router.post("/folder/rename", async (req, res) => {
     const myFlipbooksDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
     );
 
     const oldPath = path.join(myFlipbooksDir, oldName);
@@ -875,7 +992,7 @@ router.post("/folder/rename", async (req, res) => {
 
           // Reconstruct URL safely
           // URL format: .../My_Flipbooks/{folder}/{book}/...
-          const parts = asset.url.split("/My_Flipbooks/");
+          const parts = asset.url.split(`/${FLIPBOOK_ROOT}/`);
           if (parts.length === 2) {
             const remainingPath = parts[1]; // {folder}/{book}/...
             const pathParts = remainingPath.split("/");
@@ -883,7 +1000,7 @@ router.post("/folder/rename", async (req, res) => {
             // Verify the first part matches oldName before replacing
             if (pathParts[0] === oldName) {
               pathParts[0] = safeNewName;
-              asset.url = `${parts[0]}/My_Flipbooks/${pathParts.join("/")}`;
+              asset.url = `${parts[0]}/${FLIPBOOK_ROOT}/${pathParts.join("/")}`;
               await asset.save();
             }
           }
@@ -892,6 +1009,46 @@ router.post("/folder/rename", async (req, res) => {
       }
     } catch (assetErr) {
       console.error("❌ Error updating assets after folder rename:", assetErr);
+    }
+
+    // UPDATE HTML CONTENT: Update asset paths in .html files for ALL flipbooks in this folder
+    try {
+      console.log(
+        `Updating HTML content for flipbooks in renamed folder: "${oldName}" → "${safeNewName}"`,
+      );
+      if (fs.existsSync(newPath)) {
+        // newPath is the renamed folder containing multiple flipbook directories
+        const flipbookDirs = fs
+          .readdirSync(newPath, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name);
+
+        for (const bookDirName of flipbookDirs) {
+          const bookPath = path.join(newPath, bookDirName);
+          const files = fs.readdirSync(bookPath);
+          const htmlFiles = files.filter((f) => f.endsWith(".html"));
+
+          for (const file of htmlFiles) {
+            const filePath = path.join(bookPath, file);
+            let content = fs.readFileSync(filePath, "utf8");
+
+            // Use regex for robust replacement
+            const escapedOldFolder = escapeRegex(oldName).replace(/ /g, "(?: |%20)");
+            const escapedBookDir = escapeRegex(bookDirName).replace(/ /g, "(?: |%20)");
+            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedOldFolder}/${escapedBookDir}/`, "g");
+            const replacementPath = `/${FLIPBOOK_ROOT}/${safeNewName}/${bookDirName}/`;
+
+            if (pathRegex.test(content)) {
+              content = content.replace(pathRegex, replacementPath);
+              fs.writeFileSync(filePath, content, "utf8");
+              console.log(`Updated HTML content for: ${bookDirName}/${file}`);
+            }
+          }
+        }
+        console.log(`✅ Checked/updated HTML content for ${flipbookDirs.length} flipbook(s)`);
+      }
+    } catch (htmlErr) {
+      console.error("❌ Error updating HTML content after folder rename:", htmlErr);
     }
 
     res.json({ message: "Renamed successfully", newName: safeNewName });
@@ -913,7 +1070,7 @@ router.post("/folder/duplicate", async (req, res) => {
     const myFlipbooksDir = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
     );
 
     const sourcePath = path.join(myFlipbooksDir, folderName);
@@ -939,14 +1096,64 @@ router.post("/folder/duplicate", async (req, res) => {
       folderName: folderName,
     });
     if (sourceDocs.length > 0) {
-      const newDocs = sourceDocs.map((doc) => ({
-        userEmail: doc.userEmail,
-        folderName: copyName,
-        flipbookName: doc.flipbookName, // Same book name, different folder
-        pages: doc.pages,
-        lastUpdated: new Date(),
-      }));
-      await Flipbook.insertMany(newDocs);
+      for (const doc of sourceDocs) {
+        const newVId = nanoid(10);
+        // Create new Flipbook doc
+        await Flipbook.create({
+          userEmail: doc.userEmail,
+          folderName: [copyName],
+          flipbookName: doc.flipbookName,
+          pages: doc.pages,
+          v_id: newVId,
+          lastUpdated: new Date(),
+        });
+
+        // Duplicate asset records for this book
+        const sourceAssets = await FlipbookAsset.find({ flipbook_v_id: doc.v_id });
+        if (sourceAssets.length > 0) {
+          const newAssets = sourceAssets.map(asset => {
+            const assetObj = asset.toObject();
+            delete assetObj._id;
+            assetObj.flipbook_v_id = newVId;
+            assetObj.folderName = copyName;
+            assetObj.file_v_id = nanoid(); // Each asset needs unique ID
+            
+            // Update URL to point to new folder
+            const parts = assetObj.url.split(`/${FLIPBOOK_ROOT}/`);
+            if (parts.length === 2) {
+              const remainingPath = parts[1]; 
+              const pathParts = remainingPath.split("/");
+              if (pathParts[0] === folderName) {
+                pathParts[0] = copyName;
+                assetObj.url = `${parts[0]}/${FLIPBOOK_ROOT}/${pathParts.join("/")}`;
+              }
+            }
+            return assetObj;
+          });
+          await FlipbookAsset.insertMany(newAssets);
+        }
+
+        // Update HTML content for this duplicated book
+        const bookPath = path.join(targetPath, doc.flipbookName);
+        if (fs.existsSync(bookPath)) {
+          const files = fs.readdirSync(bookPath);
+          const htmlFiles = files.filter(f => f.endsWith(".html"));
+          for (const file of htmlFiles) {
+            const filePath = path.join(bookPath, file);
+            let content = fs.readFileSync(filePath, "utf8");
+            
+            const escapedFolder = escapeRegex(folderName).replace(/ /g, "(?: |%20)");
+            const escapedBookName = escapeRegex(doc.flipbookName).replace(/ /g, "(?: |%20)");
+            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedFolder}/${escapedBookName}/`, "g");
+            const replacementPath = `/${FLIPBOOK_ROOT}/${copyName}/${doc.flipbookName}/`;
+
+            if (pathRegex.test(content)) {
+              content = content.replace(pathRegex, replacementPath);
+              fs.writeFileSync(filePath, content, "utf8");
+            }
+          }
+        }
+      }
     }
 
     res.json({ message: "Duplicated successfully", newFolderName: copyName });
@@ -968,7 +1175,7 @@ router.post("/duplicate", async (req, res) => {
     const folderPath = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
       folderName,
     );
     const sourcePath = path.join(folderPath, bookName);
@@ -1029,15 +1236,6 @@ router.post("/duplicate", async (req, res) => {
               assetIdMap.set(asset.file_v_id, newFileVId);
             }
 
-            // Determine new page v_id
-            let newPageVId = "global";
-            if (asset.page_v_id && asset.page_v_id !== "global") {
-              // We construct the map lazily later, so we might need to pre-fill pageIdMap?
-              // Actually pageIdMap is filled in step 3. But we need it for assets here?
-              // In previous code, pageIdMap was filled *before* assets.
-              // Let's swap the order or pre-fill pageIdMap.
-            }
-
             // Rename Physical File in Target Directory
             const oldAssetPath = path.join(
               targetPath,
@@ -1069,9 +1267,12 @@ router.post("/duplicate", async (req, res) => {
               : asset.fileName;
 
             // Construct new URL
-            const sourceString = `/My_Flipbooks/${folderName}/${bookName}/`;
-            const targetString = `/My_Flipbooks/${folderName}/${copyName}/`;
-            let newUrl = asset.url.split(sourceString).join(targetString);
+            const escapedFolder = escapeRegex(folderName).replace(/ /g, "(?: |%20)");
+            const escapedBookName = escapeRegex(bookName).replace(/ /g, "(?: |%20)");
+            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedFolder}/${escapedBookName}/`, "g");
+            const replacementPath = `/${FLIPBOOK_ROOT}/${folderName}/${copyName}/`;
+            
+            let newUrl = asset.url.replace(pathRegex, replacementPath);
 
             if (assetFilenameMap.has(asset.fileName)) {
               const urlParts = newUrl.split("/");
@@ -1092,9 +1293,6 @@ router.post("/duplicate", async (req, res) => {
               _original_page_v_id: asset.page_v_id, // Temp store for later mapping
             });
           }
-
-          // We insert later to fix page_v_ids
-          // But we need the map for HTML updates now.
 
           // 3. Pre-Calculate Page IDs
           sourceDoc.pages.forEach((p) => {
@@ -1132,9 +1330,12 @@ router.post("/duplicate", async (req, res) => {
             let content = fs.readFileSync(pageFilePath, "utf8");
 
             // A. Update Folder Path in URLs (Essential for all links)
-            const sourceString = `/My_Flipbooks/${folderName}/${bookName}/`;
-            const targetString = `/My_Flipbooks/${folderName}/${copyName}/`;
-            content = content.split(sourceString).join(targetString);
+            const escapedFolder = escapeRegex(folderName).replace(/ /g, "(?: |%20)");
+            const escapedBookName = escapeRegex(bookName).replace(/ /g, "(?: |%20)");
+            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedFolder}/${escapedBookName}/`, "g");
+            const replacementPath = `/${FLIPBOOK_ROOT}/${folderName}/${copyName}/`;
+            
+            content = content.replace(pathRegex, replacementPath);
 
             // B. Update Asset Filenames (If renamed)
             assetFilenameMap.forEach((newF, oldF) => {
@@ -1243,7 +1444,7 @@ router.get("/get", async (req, res) => {
     const bookPath = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
       effectiveFolderName,
       effectiveBookName,
     );
@@ -1264,19 +1465,21 @@ router.get("/get", async (req, res) => {
       // Sort by pageNumber to ensure correct order
       dbBook.pages.sort((a, b) => a.pageNumber - b.pageNumber);
 
-      pages = dbBook.pages
-        .map((p) => {
-          const filePath = path.join(bookPath, p.fileName);
-          if (fs.existsSync(filePath)) {
-            return {
-              name: p.name,
-              html: fs.readFileSync(filePath, "utf8"),
-              v_id: p.v_id, // Include page v_id for asset tracking
-            };
-          }
+      const pagePromises = dbBook.pages.map(async (p) => {
+        const filePath = path.join(bookPath, p.fileName);
+        try {
+          // Use async reading for better performance
+          const content = await fs.promises.readFile(filePath, "utf8");
+          return {
+            name: p.name,
+            html: content,
+            v_id: p.v_id,
+          };
+        } catch (e) {
           return null;
-        })
-        .filter(Boolean);
+        }
+      });
+      pages = (await Promise.all(pagePromises)).filter(Boolean);
     }
 
     // 2. Fallback: Scan files if DB has no pages or document not found
@@ -1286,13 +1489,14 @@ router.get("/get", async (req, res) => {
         a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
       );
 
-      pages = files.map((file) => {
-        const content = fs.readFileSync(path.join(bookPath, file), "utf8");
+      const pagePromises = files.map(async (file) => {
+        const content = await fs.promises.readFile(path.join(bookPath, file), "utf8");
         return {
           name: file.replace(".html", ""),
           html: content,
         };
       });
+      pages = await Promise.all(pagePromises);
 
       // AUTO-HEAL: If pages found on disk but no DB record, create one to ensure v_id
       if (!dbBook && pages.length > 0) {
@@ -1421,7 +1625,7 @@ router.post("/rename", async (req, res) => {
     const folderPath = path.join(
       uploadsDir,
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
       effectiveFolderName,
     );
     const oldBookPath = path.join(folderPath, oldName);
@@ -1490,8 +1694,8 @@ router.post("/rename", async (req, res) => {
             asset.flipbookName = safeNewName;
 
             // Reconstruct URL with new flipbook name
-            const emailPart = asset.url.split("/My_Flipbooks/")[0];
-            asset.url = `${emailPart}/My_Flipbooks/${asset.folderName}/${safeNewName}/assets/${asset.assetType}/${asset.fileName}`;
+            const emailPart = asset.url.split(`/${FLIPBOOK_ROOT}/`)[0];
+            asset.url = `${emailPart}/${FLIPBOOK_ROOT}/${asset.folderName}/${safeNewName}/assets/${asset.assetType}/${asset.fileName}`;
 
             await asset.save();
           }
@@ -1515,14 +1719,15 @@ router.post("/rename", async (req, res) => {
           const filePath = path.join(newBookPath, file);
           let content = fs.readFileSync(filePath, "utf8");
 
-          // URL path segment to replace
-          // Note: We use split/join for global replacement without regex issues
-          const searchString = `/My_Flipbooks/${effectiveFolderName}/${oldName}/`;
-          const replaceString = `/My_Flipbooks/${effectiveFolderName}/${safeNewName}/`;
+          // Use regex for robust replacement
+          const escapedFolderName = escapeRegex(effectiveFolderName).replace(/ /g, "(?: |%20)");
+          const escapedOldName = escapeRegex(oldName).replace(/ /g, "(?: |%20)");
+          const pathRegex = new RegExp(`/[^/]+/${escapedFolderName}/${escapedOldName}/`, "g");
+          const replacementPath = `/${FLIPBOOK_ROOT}/${effectiveFolderName}/${safeNewName}/`;
 
-          if (content.includes(searchString)) {
-            const newContent = content.split(searchString).join(replaceString);
-            fs.writeFileSync(filePath, newContent, "utf8");
+          if (pathRegex.test(content)) {
+            content = content.replace(pathRegex, replacementPath);
+            fs.writeFileSync(filePath, content, "utf8");
             console.log(`Updated HTML content for: ${file}`);
           }
         }
@@ -1548,7 +1753,7 @@ router.post("/move", async (req, res) => {
       __dirname,
       "../../uploads",
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
     );
 
     // Resolve Real Source Folder
@@ -1649,8 +1854,8 @@ router.post("/move", async (req, res) => {
               asset.folderName = targetFolder;
 
               // Reconstruct URL with new folder name
-              const emailPart = asset.url.split("/My_Flipbooks/")[0];
-              asset.url = `${emailPart}/My_Flipbooks/${targetFolder}/${asset.flipbookName}/assets/${asset.assetType}/${asset.fileName}`;
+              const emailPart = asset.url.split(`/${FLIPBOOK_ROOT}/`)[0];
+              asset.url = `${emailPart}/${FLIPBOOK_ROOT}/${targetFolder}/${asset.flipbookName}/assets/${asset.assetType}/${asset.fileName}`;
 
               await asset.save();
             }
@@ -1675,14 +1880,15 @@ router.post("/move", async (req, res) => {
           const filePath = path.join(newPath, file);
           let content = fs.readFileSync(filePath, "utf8");
 
-          // URL path segment to replace
-          // Note: We use split/join for global replacement without regex issues
-          const searchString = `/My_Flipbooks/${effectiveCurrentFolder}/${bookName}/`;
-          const replaceString = `/My_Flipbooks/${targetFolder}/${bookName}/`;
+          // Use regex for robust replacement
+          const escapedCurrentFolder = escapeRegex(effectiveCurrentFolder).replace(/ /g, "(?: |%20)");
+          const escapedBookName = escapeRegex(bookName).replace(/ /g, "(?: |%20)");
+          const pathRegex = new RegExp(`/[^/]+/${escapedCurrentFolder}/${escapedBookName}/`, "g");
+          const replacementPath = `/${FLIPBOOK_ROOT}/${targetFolder}/${bookName}/`;
 
-          if (content.includes(searchString)) {
-            const newContent = content.split(searchString).join(replaceString);
-            fs.writeFileSync(filePath, newContent, "utf8");
+          if (pathRegex.test(content)) {
+            content = content.replace(pathRegex, replacementPath);
+            fs.writeFileSync(filePath, content, "utf8");
             console.log(`Updated HTML content for: ${file}`);
           }
         }
@@ -1727,7 +1933,7 @@ router.delete("/delete", async (req, res) => {
       __dirname,
       "../../uploads",
       sanitizedEmail,
-      "My_Flipbooks",
+      FLIPBOOK_ROOT,
       folderName,
       bookName,
     );
@@ -1881,7 +2087,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
     let safeFolderName = (folderName || "My Flipbooks")
       .replace(/[^a-zA-Z0-9 _-]/g, "")
       .trim();
-    if (!safeFolderName) safeFolderName = "My_Flipbooks";
+    if (!safeFolderName) safeFolderName = FLIPBOOK_ROOT;
 
     let safeFlipbookName = (flipbookName || "Untitled Document")
       .replace(/[^a-zA-Z0-9 _-]/g, "")
@@ -1915,11 +2121,11 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       safeFolderName = "Gallery";
       safeFlipbookName = targetFolder;
     } else {
-      // Standard Flipbook Upload -> uploads/email/My_Flipbooks/Folder/Book/assets/type
+      // Standard Flipbook Upload -> uploads/email/FLIPBOOK_ROOT/Folder/Book/assets/type
       const flipbookDir = path.join(
         uploadsDir,
         sanitizedEmail,
-        "My_Flipbooks",
+        FLIPBOOK_ROOT,
         safeFolderName,
         safeFlipbookName,
       );
@@ -1927,7 +2133,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
         fs.mkdirSync(flipbookDir, { recursive: true });
       }
       targetDir = path.join(flipbookDir, "assets", assetType);
-      relativeUrlBase = `/uploads/${sanitizedEmail}/My_Flipbooks/${safeFolderName}/${safeFlipbookName}/assets/${assetType}`;
+      relativeUrlBase = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/${safeFlipbookName}/assets/${assetType}`;
     }
 
     if (!fs.existsSync(targetDir)) {

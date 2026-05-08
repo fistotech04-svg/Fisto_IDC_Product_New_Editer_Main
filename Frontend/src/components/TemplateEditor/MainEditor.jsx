@@ -1241,6 +1241,20 @@ const MainEditor = ({
         ids.forEach(id => {
           const el = document.getElementById(id);
           if (!el) return;
+
+          // Prevent moving locked elements, PDF backgrounds, or main frames via keyboard
+          const elName = el.getAttribute('data-name') || '';
+          const elType = el.getAttribute('data-type') || '';
+          const isLocked = el.getAttribute('data-locked') === 'true';
+
+          if (isLocked || 
+              elName.includes('PDF Background') || 
+              elName.includes('Overlay') || 
+              elType === 'frame' || 
+              elType === 'background') {
+            return;
+          }
+
           const matrix = getElementMatrix(el);
           const nextMatrix = new DOMMatrix().translate(dx, dy).multiply(matrix);
           el.setAttribute('transform', matrixToTransform(nextMatrix));
@@ -4532,7 +4546,7 @@ const MainEditor = ({
 
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top) */}
-                {((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
+                {!isPdfProject && ((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
                 <div className="absolute top-[-2.5vw] z-30" style={{ [isCurrentlySpread ? 'left' : 'right']: '0vw' }}>
                   <button 
                     onClick={(e) => {
@@ -4706,7 +4720,7 @@ const MainEditor = ({
 
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top - Right Side) */}
-                {((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
+                {!isPdfProject && ((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
                 <div className="absolute top-[-2.5vw] right-0 z-30">
                   <button 
                     onClick={(e) => {

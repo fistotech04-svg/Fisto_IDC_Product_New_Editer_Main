@@ -11,6 +11,7 @@ import authRoutes from "./routes/User_Details/login.js";
 import flipbookRoutes from "./routes/Flipbook/flipbook.js";
 import threedModelRoutes from "./routes/User_Details/threed_models.js";
 import textureRoutes from "./routes/Texture/texture.js";
+import compression from "compression";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -18,6 +19,7 @@ import { fileURLToPath } from "url";
 connectDB();
 
 const app = express();
+app.use(compression());
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

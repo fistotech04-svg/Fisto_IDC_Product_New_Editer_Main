@@ -10,6 +10,7 @@ import TemplateModal from './TemplateModal';
 import FlipbookPreview from './FlipbookPreview';
 import { convertPdfToImages, generatePdfPageSvg } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
+import PdfProcessingLoader from '../PdfProcessingLoader';
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -105,33 +106,32 @@ const TemplateEditor = () => {
   const lastSavedHtmlsRef = useRef({});
 
   // ── Save Logic ─────────────────────────────────────────────────────────────
-  const saveFlipbook = async (isManual = false) => {
-    if (isSaving) {
-      console.warn("Save already in progress, skipping...");
-      return;
-    }
+  const saveFlipbook = async (isManual = false, overridePages = null) => {
+    const pagesToSave = overridePages || pages;
+    if (isSaving || !pagesToSave || pagesToSave.length === 0) return;
 
     try {
       setIsSaving(true);
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
+      const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
       const backendUrl = import.meta.env.VITE_BACKEND_URL;
       
       const modifiedPagesIndices = [];
-      pages.forEach((p, index) => {
+      pagesToSave.forEach((p, index) => {
           const pid = p.v_id || p.id;
           if (!lastSavedHtmlsRef.current[pid] || lastSavedHtmlsRef.current[pid] !== p.html) {
               modifiedPagesIndices.push(index);
           }
       });
 
-      const CHUNK_SIZE = 1; // Send 1 page at a time to stay under network limits for large content
+      const CHUNK_SIZE = 1; 
       let currentVId = v_id;
       let lastRes = null;
 
       if (modifiedPagesIndices.length === 0) {
          // No content changes, but maybe order/name/deletions changed. Send just the structure!
-         const payloadPages = pages.map((p, index) => ({
+         const payloadPages = pagesToSave.map((p, index) => ({
              pageName: p.name || `Page ${index + 1}`,
              content: undefined,
              v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
@@ -155,10 +155,19 @@ const TemplateEditor = () => {
          for (let skip = 0; skip < modifiedPagesIndices.length; skip += CHUNK_SIZE) {
             const currentChunkIndices = new Set(modifiedPagesIndices.slice(skip, skip + CHUNK_SIZE));
             
-            const payloadPages = await Promise.all(pages.map(async (p, index) => {
+            const payloadPages = await Promise.all(pagesToSave.map(async (p, index) => {
                 const isModified = currentChunkIndices.has(index);
                 let content = isModified ? p.html : undefined;
                 let contentChunkId = undefined;
+
+                const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book');
+                const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
+                const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fName}/${bName}/`;
+
+                // Convert absolute paths back to relative for storage portability
+                if (content && content.includes(projectBaseUrl)) {
+                    content = content.split(projectBaseUrl).join('./');
+                }
 
                 // CHUNKED UPLOAD LOGIC: If content is too large (> 2MB), upload in chunks
                 const CHUNK_THRESHOLD = 2 * 1024 * 1024; // 2MB
@@ -211,7 +220,7 @@ const TemplateEditor = () => {
 
       if (lastRes && lastRes.data && lastRes.data.v_id) {
         // Track successfully saved HTML to rapidly skip unchanged pages next time
-        pages.forEach(p => {
+        pagesToSave.forEach(p => {
              const pid = p.v_id || p.id;
              lastSavedHtmlsRef.current[pid] = p.html;
         });
@@ -484,11 +493,21 @@ const TemplateEditor = () => {
       }
       return updated;
     });
+    setHasUnsavedChanges(true);
     setSelectedLayerId(null);
     setMultiSelectedIds(new Set());
   };
 
   const insertPageAfter = (index) => {
+    if (pages.length >= 12) {
+      setAlertState({
+          isOpen: true,
+          title: 'Limit Reached',
+          message: 'You can only have up to 12 pages in a flipbook.',
+          type: 'warning'
+      });
+      return;
+    }
     saveToHistory();
     setPages(prev => {
       const name = `Page ${prev.length + 1}`;
@@ -503,9 +522,19 @@ const TemplateEditor = () => {
       updated.splice(index + 1, 0, newPage);
       return updated;
     });
+    setHasUnsavedChanges(true);
   };
 
   const duplicatePage = (index) => {
+    if (pages.length >= 12) {
+      setAlertState({
+          isOpen: true,
+          title: 'Limit Reached',
+          message: 'You can only have up to 12 pages in a flipbook.',
+          type: 'warning'
+      });
+      return;
+    }
     saveToHistory();
     setPages(prev => {
       const pageToDuplicate = prev[index];
@@ -518,6 +547,7 @@ const TemplateEditor = () => {
       updated.splice(index + 1, 0, newPage);
       return updated;
     });
+    setHasUnsavedChanges(true);
   };
 
   const renamePage = (id, newName) => {
@@ -534,6 +564,7 @@ const TemplateEditor = () => {
     if (activePageIndex >= pages.length - 1) {
       setActivePageIndex(Math.max(0, pages.length - 2));
     }
+    setHasUnsavedChanges(true);
   };
 
   const movePageUp = (index) => {
@@ -582,6 +613,7 @@ const TemplateEditor = () => {
       return updated;
     });
     setActivePageIndex(toIndex);
+    setHasUnsavedChanges(true);
   };
 
   const handleAddFileClick = (index) => {
@@ -612,10 +644,28 @@ const TemplateEditor = () => {
         return;
     }
 
-    setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...' });
+    const isDefaultBlank = pages.length === 0 || 
+                         (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"')));
+
+    const maxAllowed = 12;
+    const currentCount = isDefaultBlank ? 0 : pages.length;
+    const remainingSlots = maxAllowed - currentCount;
+
+    if (remainingSlots <= 0) {
+        setAlertState({
+            isOpen: true,
+            title: 'Limit Reached',
+            message: `The flipbook already has ${pages.length} pages. The maximum allowed is ${maxAllowed}.`,
+            type: 'warning'
+        });
+        setPdfProcessing(null);
+        return;
+    }
+
+    setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
     try {
-        const images = await convertPdfToImages(file, 2, 12);
+        const images = await convertPdfToImages(file, 2, remainingSlots);
         if (!images || images.length === 0) return;
 
         // 1. Check internal uniformity of the PDF
@@ -659,12 +709,10 @@ const TemplateEditor = () => {
             baseHeight = firstH;
         }
 
-        const newPages = [];
-        for (let i = 0; i < images.length; i++) {
-            setPdfProcessing({ current: i + 1, total: images.length, message: `Uploading page ${i + 1} of ${images.length}...` });
-            
+        let completed = 0;
+        const uploadPromises = images.map(async (image, i) => {
             const formData = new FormData();
-            formData.append('file', images[i].blob, `pdf-page-${i + 1}.png`);
+            formData.append('file', image.blob, `pdf-page-${i + 1}.png`);
             formData.append('emailId', emailId);
             formData.append('type', 'image');
             formData.append('v_id', v_id);
@@ -676,36 +724,64 @@ const TemplateEditor = () => {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            const fullUrl = `${backendUrl}${res.data.url}`;
-            const pageName = `PDF Page ${i + 1}`;
-            const html = generatePdfPageSvg(fullUrl, pageName, baseWidth, baseHeight);
+            completed++;
+            setPdfProcessing({ current: completed, total: images.length, message: `Processing page ${completed} of ${images.length}...` });
+
+            const assetUrl = res.data.url;
+            const filename = assetUrl.split('/').pop();
+            const relativeUrl = `./assets/image/${filename}`;
+            const existingNames = pages.map(p => p.name || "");
+            const pdfNums = existingNames
+                .filter(n => n.startsWith("PDF Page "))
+                .map(n => parseInt(n.replace("PDF Page ", "")))
+                .filter(n => !isNaN(n));
+            const startNum = pdfNums.length > 0 ? Math.max(...pdfNums) + 1 : 1;
             
-            // Parse layers for the new page
+            const pageName = `PDF Page ${startNum + i}`;
+            const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
+            
+            // Resolve to absolute for immediate editor preview
+            const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
+            const bName = currentBook?.flipbookName || 'Untitled Flipbook';
+            const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
+            const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+
             const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'image/svg+xml');
+            const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
             const layers = parseLayersFromSVG(doc.documentElement);
 
-            newPages.push({
+            return {
                 id: 'page_' + Math.random().toString(36).substr(2, 9),
                 name: pageName,
-                html,
+                html: absoluteHtml,
                 layers
-            });
-        }
+            };
+        });
+
+        const newPages = await Promise.all(uploadPromises);
 
         saveToHistory();
+        let finalPages = [];
         setPages(prev => {
             const updated = [...prev];
             const insertIdx = pdfInsertIndexRef.current !== null ? pdfInsertIndexRef.current + 1 : updated.length;
             
             // If starting from a blank page, replace it with the PDF content
             if (isDefaultBlank && updated.length === 1) {
+                finalPages = newPages;
                 return newPages;
             }
 
             updated.splice(insertIdx, 0, ...newPages);
+            finalPages = updated;
             return updated;
         });
+        setHasUnsavedChanges(true);
+        
+        // Force an auto-save after successful PDF insertion, passing the new pages directly
+        setTimeout(() => {
+            saveFlipbook(false, finalPages);
+        }, 800);
 
     } catch (error) {
         console.error("PDF upload error:", error);
@@ -2231,6 +2307,11 @@ const TemplateEditor = () => {
               
               if (res.data && res.data.pages) {
                   const parser = new DOMParser();
+                  const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
+                  const folderName = res.data.meta.folderName;
+                  const bookName = res.data.meta.flipbookName;
+                  const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+
                   const mappedPages = res.data.pages.map((p, i) => {
                       const name = p.name || `Page ${i + 1}`;
                       if (!p.html || p.html.trim() === '') {
@@ -2243,12 +2324,17 @@ const TemplateEditor = () => {
                           };
                       }
 
-                      // Re-parse layers from HTML if missing or invalid (source of truth)
-                      let layers = p.layers;
+                      // Transform relative paths to absolute for the editor's canvas
                       let updatedHtml = p.html;
+                      if (updatedHtml.includes('./assets/')) {
+                          updatedHtml = updatedHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+                      }
+
+                      // Re-parse layers from HTML if missing or invalid (source of truth)
+                      const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
+                      const svgEl = doc.querySelector('svg');
+                      let layers = p.layers;
                       if (!layers || layers.length === 0) {
-                          const doc = parser.parseFromString(p.html || '', 'image/svg+xml');
-                          const svgEl = doc.querySelector('svg');
                           if (svgEl) {
                               layers = parseLayersFromSVG(svgEl);
                               updatedHtml = new XMLSerializer().serializeToString(doc);
@@ -2511,35 +2597,7 @@ const TemplateEditor = () => {
       />
 
       {/* PDF Processing Overlay */}
-      {pdfProcessing && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-[1.2vw] p-[2.5vw] shadow-2xl max-w-[25vw] w-full flex flex-col items-center text-center">
-            <div className="relative w-[5vw] h-[5vw] mb-[1.5vw]">
-              <div className="absolute inset-0 border-[0.3vw] border-indigo-100 rounded-full"></div>
-              <div 
-                className="absolute inset-0 border-[0.3vw] border-indigo-600 rounded-full border-t-transparent animate-spin"
-              ></div>
-            </div>
-            
-            <h3 className="text-[1.2vw] font-bold text-gray-900 mb-[0.5vw]">
-              {pdfProcessing.message}
-            </h3>
-            
-            <div className="w-full bg-gray-100 h-[0.6vw] rounded-full overflow-hidden mb-[0.8vw]">
-              <motion.div 
-                className="h-full bg-indigo-600"
-                initial={{ width: 0 }}
-                animate={{ width: `${(pdfProcessing.current / pdfProcessing.total) * 100}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-            
-            <p className="text-[0.85vw] text-gray-500 font-medium">
-              Please wait while we prepare your pages
-            </p>
-          </div>
-        </div>
-      )}
+      <PdfProcessingLoader progress={pdfProcessing} />
 
       <AlertModal
           isOpen={alertState.isOpen}

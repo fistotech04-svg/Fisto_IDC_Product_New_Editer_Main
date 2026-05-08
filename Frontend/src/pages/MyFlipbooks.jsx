@@ -8,6 +8,7 @@ import DashboardBg from '../assets/images/myflipbook.png';
 import AlertModal from '../components/AlertModal';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
 import { convertPdfToImages, getPdfPageCount, generatePdfPageSvg } from '../utils/pdfUtils';
+import PdfProcessingLoader from '../components/PdfProcessingLoader';
 
 export default function MyFlipbooks() {
   const navigate = useNavigate();
@@ -199,8 +200,10 @@ export default function MyFlipbooks() {
 
         // 4. Update the flipbook with final SVG content
         const finalPages = allImages.map((img, i) => {
-            const fullUrl = `${backendUrl}${uploadedAssets[i]}`;
-            const html = generatePdfPageSvg(fullUrl, `Page ${i + 1}`, maxWidth, maxHeight);
+            const assetUrl = uploadedAssets[i]; // e.g., /uploads/.../assets/image/filename.png
+            const filename = assetUrl.split('/').pop();
+            const relativeUrl = `./assets/image/${filename}`;
+            const html = generatePdfPageSvg(relativeUrl, `Page ${i + 1}`, maxWidth, maxHeight);
 
             return {
                 pageName: `Page ${i + 1}`,
@@ -1063,8 +1066,35 @@ export default function MyFlipbooks() {
                                         className="w-full bg-white rounded-[0.75vw] p-[0.75vw] flex gap-[1vw] items-center shadow-lg relative transition-all duration-200 hover:scale-[1.01]"
                                     >
                                     {/* Thumbnail */}
-                                    <div className="w-[8vw] h-[6vw] bg-gray-100 rounded-[0.5vw] overflow-hidden flex-shrink-0 border border-gray-100">
-                                        <img src={"https://plus.unsplash.com/premium_photo-1677567996070-68fa4181775a?w=600&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NXx8Ym9va3N8ZW58MHx8MHx8fDA%3D"} alt={book.title} className="w-full h-full object-cover" />
+                                    <div className="w-[8vw] h-[6vw] bg-gray-100 rounded-[0.5vw] overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center relative">
+                                        {book.image ? (
+                                            <img src={`${backendUrl}${book.image}`} alt={book.title} className="w-full h-full object-contain" />
+                                        ) : book.firstPageHtml ? (
+                                            <iframe
+                                                title={`Preview of ${book.title}`}
+                                                className="w-full h-full border-none pointer-events-none"
+                                                srcDoc={`
+                                                    <!DOCTYPE html>
+                                                    <html>
+                                                    <head>
+                                                        <base href="${backendUrl}/uploads/${user?.emailId?.replace(/[@.]/g, "_")}/My_Flipbooks/${book.folder}/${book.title}/">
+                                                        <style>
+                                                            html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: transparent; }
+                                                            svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
+                                                        </style>
+                                                    </head>
+                                                    <body>
+                                                        ${book.firstPageHtml.replace(/<svg/, '<svg preserveAspectRatio="xMidYMid meet"')}
+                                                    </body>
+                                                    </html>
+                                                `}
+                                            />
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center text-gray-400">
+                                                <BookOpen size="2vw" strokeWidth={1.5} />
+                                                <span className="text-[0.6vw] mt-1 uppercase font-bold tracking-wider">No Preview</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Content */}
@@ -1403,32 +1433,15 @@ export default function MyFlipbooks() {
         onTemplate={handleUseTemplate}
       />
 
-      {/* Loading Overlay */}
-      {isLoading && (
+      {/* PDF Processing Overlay */}
+      <PdfProcessingLoader progress={processingProgress} />
+
+      {/* General Loading Overlay (without specific progress) */}
+      {isLoading && !processingProgress && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
              <div className="flex flex-col items-center gap-[1vw] max-w-[20vw] w-full text-center">
                  <div className="w-[3.5vw] h-[3.5vw] border-[0.3vw] border-white/30 border-t-white rounded-full animate-spin mb-[0.5vw]"></div>
-                 
-                 <div className="w-full">
-                    <p className="text-white font-bold text-[1.15vw] mb-[0.5vw] drop-shadow-sm">
-                        {processingProgress?.message || 'Processing...'}
-                    </p>
-                    
-                    {processingProgress && processingProgress.total > 1 && (
-                        <div className="w-full h-[0.4vw] bg-white/20 rounded-full overflow-hidden">
-                            <div 
-                                className="h-full bg-white transition-all duration-300 ease-out"
-                                style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
-                            ></div>
-                        </div>
-                    )}
-                    
-                    {processingProgress && processingProgress.total > 1 && (
-                        <p className="text-white/70 text-[0.75vw] mt-[0.4vw] font-medium">
-                            {processingProgress.current} of {processingProgress.total} pages
-                        </p>
-                    )}
-                 </div>
+                 <p className="text-white font-bold text-[1.15vw] drop-shadow-sm">Loading...</p>
              </div>
         </div>
       )}
