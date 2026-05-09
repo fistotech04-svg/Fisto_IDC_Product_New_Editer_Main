@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
@@ -258,6 +258,7 @@ const MainEditor = ({
   const activeBendingSegmentRef = useRef(null);
   const handleDraggingStateRef = useRef(null);
   const updatePageHtmlRef = useRef(updatePageHtml);
+  const editorContainerRef = useRef(null);
 
   useEffect(() => {
     paperScopeRef.current = new paper.PaperScope();
@@ -1316,7 +1317,78 @@ const MainEditor = ({
 
   const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 200));
   const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
-  const handleResetZoom = () => setZoom(90);
+  
+  const handleAutoFitZoom = useCallback(() => {
+    if (!editorContainerRef.current) return;
+    
+    const container = editorContainerRef.current;
+    const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
+    
+    // Account for padding (p-[1vw])
+    const padding = window.innerWidth * 0.01;
+    // Reserve space for left and right navigation arrows (approx 4vw each side)
+    const arrowSpace = window.innerWidth * 0.08; 
+    
+    const availWidth = containerWidth - (padding * 2) - arrowSpace;
+    const availHeight = containerHeight - (padding * 2);
+
+    if (availWidth <= 0 || availHeight <= 0) return;
+
+    // Total width and height of the flipbook pages at 100% zoom
+    // Note: The canvas has height: 78vh in the CSS
+    const baseVhHeight = window.innerHeight * 0.78;
+    
+    const spreadStartIndex = (isDoublePage && activePageIndex > 0) 
+      ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+      : activePageIndex;
+    const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+
+    // Calculate effective aspect ratio
+    let totalWidth = baseWidth;
+    let totalHeight = baseHeight;
+    if (isCurrentlySpread) {
+      totalWidth = 2 * baseWidth;
+    }
+
+    const baseCanvasHeight = baseVhHeight;
+    const baseCanvasWidth = baseCanvasHeight * (totalWidth / totalHeight);
+
+    const scaleX = availWidth / baseCanvasWidth;
+    const scaleY = availHeight / baseCanvasHeight;
+
+    // Use a safety margin (95%) of the arrow-adjusted space
+    let autoZoom = Math.min(scaleX, scaleY) * 95;
+    
+    // Clamp to reasonable values
+    autoZoom = Math.max(10, Math.min(500, autoZoom));
+
+    setZoom(Math.round(autoZoom));
+  }, [baseWidth, baseHeight, activePageIndex, isDoublePage, pages.length]);
+
+  const handleResetZoom = () => {
+    if (isPdfProject) {
+        handleAutoFitZoom();
+    } else {
+        setZoom(90);
+    }
+  };
+
+  // ── Auto-Fit Zoom on Page/Spread Change ──────────────────────────────────
+  useEffect(() => {
+    if (isPdfProject) {
+        handleAutoFitZoom();
+    }
+  }, [activePageIndex, isDoublePage, pages.length, isPdfProject, handleAutoFitZoom]);
+
+  // ── Maintain Fit on Window/Sidebar Resize ────────────────────────────────
+  useEffect(() => {
+    if (!editorContainerRef.current) return;
+    const observer = new ResizeObserver(() => {
+        if (isPdfProject) handleAutoFitZoom();
+    });
+    observer.observe(editorContainerRef.current);
+    return () => observer.disconnect();
+  }, [handleAutoFitZoom, isPdfProject]);
 
   const insertImageIntoPage = (pageIdx, dataUrl, dataType = 'image') => {
     // 1. Find the SVG of the target page
@@ -4089,6 +4161,7 @@ const MainEditor = ({
         })()}
       />
       <div 
+        ref={editorContainerRef}
         className="flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden bg-[#FBFBFB]"
         onClick={(e) => {
           // ── Background Click: Deselect everything ─────────────────
@@ -4520,18 +4593,18 @@ const MainEditor = ({
           <button 
             disabled={activePageIndex === 0}
             onClick={handlePrevPage}
-            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-20 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${activePageIndex === 0 ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${activePageIndex === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
             style={{ 
               left: `calc(50% - ${
                 isCurrentlySpread
                   ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)` 
                   : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
-              } * (${zoom / 100}) - 3vw)`,
+              } * (${zoom / 100}) - 3.2vw)`,
               top: '50%',
               transform: 'translate(-50%, -50%)'
             }}
           >
-            <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#D1D5DB] group-hover:text-[#4B5563] rotate-[-90deg]" />
+            <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[-90deg]" />
           </button>
 
           {/* Zoomable Canvas Container with Perimeter Shadow */}
@@ -4888,23 +4961,23 @@ const MainEditor = ({
               : activePageIndex + 1 >= pages.length
             }
             onClick={handleNextPage}
-            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-20 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${ 
+            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${ 
               (isDoublePage 
                 ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length)) 
                 : activePageIndex + 1 >= pages.length
-              ) ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+              ) ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'
             }`}
             style={{ 
               right: `calc(50% - ${
                 isCurrentlySpread
                   ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)` 
                   : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
-              } * (${zoom / 100}) - 3vw)`,
+              } * (${zoom / 100}) - 3.2vw)`,
               top: '50%',
               transform: 'translate(50%, -50%)'
             }}
           >
-            <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#D1D5DB] group-hover:text-[#4B5563] rotate-[90deg]" />
+            <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[90deg]" />
           </button>
         </div>
       </div>

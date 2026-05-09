@@ -1046,9 +1046,29 @@ const Layer = ({
                         <div className={`flex items-center justify-between px-[1vw] py-[1vh] border-b transition-colors ${
                           activePageIndex === index ? 'border-indigo-100 bg-[#EEF2FF]/50' : 'border-gray-100'
                         }`}>
-                          <span className="text-[0.8vw] font-semibold text-gray-900">
-                            {page.name}
-                          </span>
+                          <div className="flex-1 min-w-0 mr-[0.5vw]">
+                            {editingPageId === page.id ? (
+                              <input 
+                                ref={renameInputRef}
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onBlur={() => handleRenameSubmit(page.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleRenameSubmit(page.id);
+                                  if (e.key === 'Escape') handleRenameCancel();
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                onFocus={(e) => e.target.select()}
+                                autoFocus
+                                className="w-full text-left text-[0.8vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
+                              />
+                            ) : (
+                              <span className="text-[0.8vw] font-semibold text-gray-900 truncate block">
+                                {page.name}
+                              </span>
+                            )}
+                          </div>
                           <button 
                             onClick={(e) => { e.stopPropagation(); handleMenuClick(e, page.id); }}
                             className="p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors"

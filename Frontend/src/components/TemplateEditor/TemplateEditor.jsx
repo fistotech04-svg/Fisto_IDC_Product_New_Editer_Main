@@ -303,11 +303,16 @@ const TemplateEditor = () => {
     }
   }, [pages, activePageIndex, isLoading, currentBook, location.state]);
   
-  // Helper to get flipbook dimensions from the first page
+  // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
+  // to ensure the project maintains its primary aspect ratio.
   const getFlipbookDimensions = useCallback(() => {
-    if (pages.length > 0 && pages[0].html) {
+    // 1. Try to find the first page that has a PDF background
+    const pdfPage = pages.find(p => p.html && p.html.includes('data-name="PDF Background"'));
+    const sourcePage = pdfPage || pages[0];
+
+    if (sourcePage && sourcePage.html) {
       const parser = new DOMParser();
-      const doc = parser.parseFromString(pages[0].html, 'image/svg+xml');
+      const doc = parser.parseFromString(sourcePage.html, 'image/svg+xml');
       const viewBox = doc.documentElement.getAttribute('viewBox');
       if (viewBox) {
         const parts = viewBox.split(/[\s,]+/);
@@ -551,11 +556,39 @@ const TemplateEditor = () => {
   };
 
   const renamePage = (id, newName) => {
-    setPages(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
+    setPages(prev => prev.map(p => {
+      if (p.id === id) {
+        const updatedPage = { ...p, name: newName };
+        
+        // Synchronize name with the SVG's root frame data-name
+        if (p.html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(p.html, 'image/svg+xml');
+          const rootGroup = doc.querySelector('g[data-type="frame"]');
+          if (rootGroup) {
+            rootGroup.setAttribute('data-name', newName);
+            updatedPage.html = new XMLSerializer().serializeToString(doc);
+            // Re-parse layers to keep the layer panel header in sync
+            updatedPage.layers = parseLayersFromSVG(doc.documentElement);
+          }
+        }
+        return updatedPage;
+      }
+      return p;
+    }));
+    setHasUnsavedChanges(true);
   };
 
   const deletePage = (index) => {
-    if (pages.length <= 1) return;
+    if (pages.length <= 1) {
+      setAlertState({
+        isOpen: true,
+        title: 'Cannot Delete Page',
+        message: 'A flipbook must have at least one page. You cannot delete the only remaining page.',
+        type: 'warning'
+      });
+      return;
+    }
     saveToHistory();
     setPages(prev => {
       const updated = prev.filter((_, i) => i !== index);
@@ -644,8 +677,9 @@ const TemplateEditor = () => {
         return;
     }
 
-    const isDefaultBlank = pages.length === 0 || 
-                         (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"')));
+    const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+    const isDefaultBlank = !isPdfProject && (pages.length === 0 || 
+                         (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
 
     const maxAllowed = 12;
     const currentCount = isDefaultBlank ? 0 : pages.length;
@@ -668,43 +702,44 @@ const TemplateEditor = () => {
         const images = await convertPdfToImages(file, 2, remainingSlots);
         if (!images || images.length === 0) return;
 
-        // 1. Check internal uniformity of the PDF
+        // 1. Check internal uniformity of the incoming PDF
         const firstW = images[0].width;
         const firstH = images[0].height;
         const isInternalUniform = images.every(img => 
-            Math.abs(img.width - firstW) < 1 && 
-            Math.abs(img.height - firstH) < 1
+            Math.abs(img.width - firstW) < 0.5 && 
+            Math.abs(img.height - firstH) < 0.5
         );
         
         if (!isInternalUniform) {
             setAlertState({
                 isOpen: true,
-                title: 'Dimension Mismatch',
-                message: 'The PDF contains pages with different dimensions. All pages in a flipbook must be the same size.',
+                title: 'Non-Uniform PDF',
+                message: 'The selected PDF contains pages with different sizes. For a consistent flipbook, all pages in the PDF must have identical dimensions.',
                 type: 'error'
             });
             return;
         }
 
-        // 2. Determine base dimensions and check compatibility
+        // 2. Enforce Project Dimensions
         let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
         
-        const isDefaultBlank = pages.length === 0 || 
-                             (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"')));
-
+        // If the flipbook already has PDF content or multiple pages, we lock the size
         if (!isDefaultBlank) {
-            // If the flipbook already has content, the PDF must match its size
-            if (Math.abs(firstW - baseWidth) > 1 || Math.abs(firstH - baseHeight) > 1) {
+            // Check if the new PDF matches the established project size (with 0.5mm tolerance)
+            const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
+            const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
+
+            if (!widthMatch || !heightMatch) {
                 setAlertState({
                     isOpen: true,
                     title: 'Dimension Mismatch',
-                    message: `PDF dimensions (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) do not match the current flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm).`,
+                    message: `This PDF (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a PDF with matching dimensions.`,
                     type: 'error'
                 });
                 return;
             }
         } else {
-            // If starting from blank, adopt the PDF's size
+            // Adoption phase: If we're starting from a blank project, adopt the PDF's dimensions
             baseWidth = firstW;
             baseHeight = firstH;
         }
