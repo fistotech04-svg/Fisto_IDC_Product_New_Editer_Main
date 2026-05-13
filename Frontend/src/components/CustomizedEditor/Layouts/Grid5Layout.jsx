@@ -97,6 +97,7 @@ const Grid5Layout = ({
     showSoundPopup,
     setShowSoundPopupMemo,
     isTablet,
+    showTOC,
     isMobileLandscape
 }) => {
     // ... rest of the setup logic
@@ -136,7 +137,7 @@ const Grid5Layout = ({
 
     const zoomIn = React.useCallback(() => {
         setDimWidth(prev => {
-            const nextWidth = Math.min(prev + 20, initialWidth * 1.5);
+            const nextWidth = Math.min(prev + (initialWidth * 0.01), initialWidth * 1.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -144,7 +145,7 @@ const Grid5Layout = ({
 
     const zoomOut = React.useCallback(() => {
         setDimWidth(prev => {
-            const nextWidth = Math.max(prev - 20, initialWidth * 0.5);
+            const nextWidth = Math.max(prev - (initialWidth * 0.01), initialWidth * 0.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -279,7 +280,6 @@ const Grid5Layout = ({
     }, [isMobileLandscape, initialWidth, initialHeight]);
 
     const [showThumbnails, setShowThumbnails] = useState(false);
-    const [showTOC, setShowTOC] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
@@ -452,14 +452,14 @@ const Grid5Layout = ({
             setShowNotesOptions(false);
             setShowBottomNotesOptions(false);
             setShowThumbnails(false);
-            setShowTOC(false);
+            setShowTOCMemo?.(false);
             setShowBookmarkLocal(false);
             setShowProfileLocal(false);
             setShowSoundPopupMemo(false);
         }}>
             {/* ── TOP BAR ── White with search | title | logo */}
             <div
-                className={`${isMobileLandscape ? 'h-[14%]' : isTablet ? 'h-[5.2vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50 relative`}
+                className={`magazine-toolbar ${isMobileLandscape ? 'h-[14%]' : isTablet ? 'h-[5.2vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50 relative`}
             >
 
                 {/* Left: Search Pill */}
@@ -651,7 +651,7 @@ const Grid5Layout = ({
             </div>
 
             {/* ── BOTTOM BAR ── UI Match to Screenshot */}
-            <div className={`${isMobileLandscape ? 'h-[11%] mb-[2%]' : isTablet ? 'h-[5.5vh]' : 'h-[8vh] mb-[2.5vh]'} flex items-center px-[1.5vw] justify-between shrink-0 w-full relative z-40 bg-transparent border-t border-gray-200/50`}>
+            <div className={`magazine-toolbar ${isMobileLandscape ? 'h-[11%]' : isTablet ? 'h-[5.5vh]' : 'h-[8vh]'} flex items-center px-[1.5vw] justify-between shrink-0 w-full relative z-40 bg-transparent border-t border-gray-200/50 overflow-visible`}>
                 <div className={`rounded-full flex items-center p-[0.3vw] shadow-[0_0.2vw_1vw_rgba(0,0,0,0.06)] border border-gray-100 shrink-0 ${isMobileLandscape ? 'h-[65%] gap-[0.5vw] px-[0.8vw]' : isTablet ? 'h-[4vh] gap-[0.2vw] px-[0.2vw]' : 'h-[6vh] gap-[0.3vw] px-[0.5vw]'}`}
                     style={{
                         backgroundColor: currentPage === 0
@@ -706,7 +706,7 @@ const Grid5Layout = ({
 
                 {/* Center: Long Tool Strip */}
                 <div
-                    className={`flex-1 ${isMobileLandscape ? 'max-w-[80vw] mx-[1vw] h-[65%]' : isTablet ? 'max-w-[75vw] mx-[0.5vw] h-[4vh]' : 'max-w-[78vw] mx-[0.8vw] h-[6vh]'} rounded-full flex items-center ${isTablet ? 'px-[1vw]' : 'px-[1.5vw]'} shadow-[0_0.5vw_2.5vw_rgba(0,0,0,0.15)] border border-white/10 relative`}
+                    className={`flex-1 ${isMobileLandscape ? 'max-w-[80vw] mx-[1vw] h-[65%]' : isTablet ? (isSidebarOpen ? 'max-w-[68vw]' : 'max-w-[75vw]') + ' mx-[0.5vw] h-[4vh]' : (isSidebarOpen ? 'max-w-[68vw]' : 'max-w-[78vw]') + ' mx-[0.8vw] h-[6vh]'} rounded-full flex items-center ${isTablet ? 'px-[1vw]' : 'px-[1.5vw]'} shadow-[0_0.5vw_2.5vw_rgba(0,0,0,0.15)] border border-white/10 relative`}
                     style={{ backgroundColor: getLayoutColorRgba('bottom-toolbar-bg', '87, 92, 156', '1') }}
                 >
                     {/* Functional Icons Group */}
@@ -856,7 +856,7 @@ const Grid5Layout = ({
                             (e) => {
                                 e.stopPropagation();
                                 setShowThumbnails(!showThumbnails);
-                                setShowTOC(false);
+                                setShowTOCMemo?.(false);
                                 setShowBookmarkLocal(false);
                                 setShowProfileLocal(false);
                                 setShowBottomNotesOptions(false);
@@ -873,7 +873,7 @@ const Grid5Layout = ({
                                 'TOC',
                                 (e) => {
                                     e.stopPropagation();
-                                    setShowTOC(!showTOC);
+                                    setShowTOCMemo(!showTOC);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
                                     setShowProfileLocal(false);
@@ -887,7 +887,7 @@ const Grid5Layout = ({
                             {showTOC && (
                                 <>
                                     <div
-                                        className={`absolute ${isTablet ? 'bottom-[2.8vw] -translate-x-[20%]' : 'bottom-[3.2vw] -translate-x-[15%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
+                                        className={`magazine-popup absolute ${isTablet ? 'bottom-[2.8vw] -translate-x-[20%]' : 'bottom-[3.2vw] -translate-x-[15%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
                                         onClick={(e) => e.stopPropagation()}
                                     >
                                         <div className="relative">
@@ -967,15 +967,27 @@ const Grid5Layout = ({
                                                     )}
 
                                                     <div className="flex flex-col gap-[0.6vw] max-h-[30vh] overflow-y-auto pr-[0.4vw] no-scrollbar">
-                                                        {settings?.tocSettings?.content?.length > 0 ? (
-                                                            settings.tocSettings.content
-                                                                .filter(item => {
-                                                                    if (!tocSearchQuery) return true;
-                                                                    const matchMain = item.title.toLowerCase().includes(tocSearchQuery.toLowerCase());
-                                                                    const matchSub = item.subheadings?.some(sub => sub.title.toLowerCase().includes(tocSearchQuery.toLowerCase()));
-                                                                    return matchMain || matchSub;
-                                                                })
-                                                                .map((item, idx) => {
+                                                        {(() => {
+                                                            const propContent = settings?.tocSettings?.content;
+                                                            const propItems = settings?.tocSettings?.items;
+                                                            const propToc = settings?.tocSettings?.toc;
+                                                            const content = (Array.isArray(propContent) && propContent.length > 0)
+                                                                ? propContent
+                                                                : (Array.isArray(propItems) && propItems.length > 0)
+                                                                    ? propItems
+                                                                    : (Array.isArray(propToc?.items) && propToc.items.length > 0)
+                                                                        ? propToc.items
+                                                                        : (propContent || propItems || propToc?.items || []);
+                                                                        
+                                                            return content?.length > 0 ? (
+                                                                content
+                                                                    .filter(item => {
+                                                                        if (!tocSearchQuery) return true;
+                                                                        const matchMain = item.title.toLowerCase().includes(tocSearchQuery.toLowerCase());
+                                                                        const matchSub = item.subheadings?.some(sub => sub.title.toLowerCase().includes(tocSearchQuery.toLowerCase()));
+                                                                        return matchMain || matchSub;
+                                                                    })
+                                                                    .map((item, idx) => {
                                                                     const filteredSubheadings = item.subheadings?.filter(sub =>
                                                                         !tocSearchQuery || sub.title.toLowerCase().includes(tocSearchQuery.toLowerCase())
                                                                     ) || [];
@@ -985,7 +997,7 @@ const Grid5Layout = ({
                                                                             {/* Main Heading */}
                                                                             <div
                                                                                 className="flex items-center justify-between group cursor-pointer py-[0.1vw]"
-                                                                                onClick={() => { onPageClick(item.page - 1); setShowTOC(false); setTocSearchQuery(''); }}
+                                                                                onClick={() => { onPageClick(item.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                                             >
                                                                                 <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw]">
                                                                                     {settings.tocSettings?.addSerialNumberToHeading !== false && (
@@ -1013,7 +1025,7 @@ const Grid5Layout = ({
                                                                                 <div
                                                                                     key={sub.id || sIdx}
                                                                                     className="flex items-center justify-between group cursor-pointer py-[0.1vw]"
-                                                                                    onClick={() => { onPageClick(sub.page - 1); setShowTOC(false); setTocSearchQuery(''); }}
+                                                                                    onClick={() => { onPageClick(sub.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                                                 >
                                                                                     <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw] ml-[0.6vw]">
                                                                                         {settings.tocSettings?.addSerialNumberToSubheading !== false && (
@@ -1039,9 +1051,10 @@ const Grid5Layout = ({
                                                                         </React.Fragment>
                                                                     );
                                                                 })
-                                                        ) : (
-                                                            <div className="text-center py-[1.5vw] text-gray-400 text-[0.7vw]">No content</div>
-                                                        )}
+                                                            ) : (
+                                                                <div className="text-center py-[1.5vw] text-gray-400 text-[0.7vw]">No content</div>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1058,7 +1071,7 @@ const Grid5Layout = ({
                                 (e) => {
                                     e.stopPropagation();
                                     setShowBottomNotesOptions(!showBottomNotesOptions);
-                                    setShowTOC(false);
+                                    setShowTOCMemo?.(false);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
                                     setShowProfileLocal(false);
@@ -1118,7 +1131,7 @@ const Grid5Layout = ({
                                 (e) => {
                                     e.stopPropagation();
                                     setShowBookmarkOptions(!showBookmarkOptions);
-                                    setShowTOC(false);
+                                    setShowTOCMemo?.(false);
                                     setShowThumbnails(false);
                                     setShowProfileLocal(false);
                                     setShowBookmarkLocal(false);
@@ -1158,7 +1171,7 @@ const Grid5Layout = ({
                                     <button
                                         className="relative z-10 w-full flex items-center px-[0.8vw] py-[1.2vh] hover:opacity-70 transition-opacity gap-[0.7vw] text-left"
                                         onClick={() => {
-                                            setShowBookmarkLocal(true);
+                                            setShowViewBookmarkPopup(true);
                                             setShowBookmarkOptions(false);
                                         }}
                                     >
@@ -1168,112 +1181,19 @@ const Grid5Layout = ({
                                 </div>
                             )}
 
-                            {/* Inline Bookmark Popup — always above this icon */}
-                            {showBookmarkLocal && (
-                                <>
-                                    <div
-                                        className={`absolute ${isTablet ? 'bottom-[2.8vw] -translate-x-[25%]' : 'bottom-[3.2vw] -translate-x-[20%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <div className="relative">
-                                            {/* Triangle pointer */}
-                                            <div
-                                                className={`absolute -bottom-[1.3vw] ${isTablet ? 'left-[25%]' : 'left-[20%]'} -translate-x-1/2 z-10 pointer-events-none`}
-                                                style={{ width: '0.9vw', height: '1.4vw' }}
-                                            >
-                                                <svg width="100%" height="100%" viewBox="0 0 10 20" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                                    <path d="M0 0L5 20L10 0" fill="#FFFFFF" />
-                                                    <path d="M0 0L5 20L10 0" fill={getLayoutColorRgba('toc-bg', '255, 255, 255', '1')} />
-                                                    <path d="M0 0L5 20L10 0" stroke={getLayoutColorRgba('toc-bg', '87, 92, 156', '0.3')} strokeWidth="1" />
-                                                </svg>
-                                            </div>
-                                            {/* Popup Card */}
-                                            <div
-                                                className={`rounded-[1.2vw] shadow-[0_1.2vw_3.5vw_rgba(0,0,0,0.08)] ${isTablet ? 'w-[10vw]' : 'w-[16vw]'} flex flex-col relative z-20 border overflow-hidden`}
-                                                style={{
-                                                    backgroundColor: '#FFFFFF',
-                                                    borderColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '0.3')
-                                                }}
-                                            >
-                                                <div
-                                                    className="w-full flex flex-col p-[1.2vw]"
-                                                    style={{ backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', '1') }}
-                                                >
-                                                    <h2
-                                                        className={`${isTablet ? 'text-[0.8vw]' : 'text-[0.95vw]'} font-bold mb-[1.2vw] tracking-tight`}
-                                                        style={{ color: getLayoutColor('toc-text', '#000000') }}
-                                                    >Bookmark</h2>
-
-                                                    <div className="flex flex-col gap-[1vw] max-h-[35vh] overflow-y-auto pr-[0.4vw] no-scrollbar">
-                                                        {bookmarks && bookmarks.length > 0 ? (
-                                                            bookmarks.map((bm) => (
-                                                                <div key={bm.id} className="flex items-center justify-between group/bm">
-                                                                    {editingId === bm.id ? (
-                                                                        <input
-                                                                            autoFocus
-                                                                            className={`w-[8.5vw] text-[0.85vw] font-medium text-black border-b outline-none mr-[0.5vw] bg-transparent`}
-                                                                            style={{ borderBottomColor: getLayoutColorRgba('toc-text', '87, 92, 156', '0.3') }}
-                                                                            value={editValue}
-                                                                            onChange={(e) => setEditValue(e.target.value)}
-                                                                            onKeyDown={(e) => {
-                                                                                if (e.key === 'Enter') {
-                                                                                    if (editValue.trim() && editValue !== bm.label) {
-                                                                                        onUpdateBookmark(bm.id, editValue.trim());
-                                                                                    }
-                                                                                    setEditingId(null);
-                                                                                } else if (e.key === 'Escape') {
-                                                                                    setEditingId(null);
-                                                                                }
-                                                                            }}
-                                                                        />
-                                                                    ) : (
-                                                                        <span
-                                                                            className="text-[0.85vw] font-medium cursor-pointer truncate flex-1 pr-[0.8vw] transition-colors"
-                                                                            style={{ color: getLayoutColor('toc-text', '#4B5563') }}
-                                                                            onClick={() => { onPageClick && onPageClick(bm.pageIndex); setShowBookmarkLocal(false); }}
-                                                                        >
-                                                                            {bm.label}
-                                                                        </span>
-                                                                    )}
-                                                                    <div className="flex items-center gap-[0.6vw] shrink-0">
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                if (editingId === bm.id) {
-                                                                                    if (editValue.trim() && editValue !== bm.label) {
-                                                                                        onUpdateBookmark(bm.id, editValue.trim());
-                                                                                    }
-                                                                                    setEditingId(null);
-                                                                                } else {
-                                                                                    setEditingId(bm.id);
-                                                                                    setEditValue(bm.label);
-                                                                                }
-                                                                            }}
-                                                                            className="text-gray-400 transition-colors"
-                                                                            style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                                                        >
-                                                                            <Icon
-                                                                                icon={editingId === bm.id ? "lucide:check" : "mdi:rename"}
-                                                                                className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`}
-                                                                            />
-                                                                        </button>
-                                                                        <button
-                                                                            onClick={() => onDeleteBookmark && onDeleteBookmark(bm.id)}
-                                                                            className="text-red-300 hover:text-red-500 transition-colors"
-                                                                        >
-                                                                            <Icon icon="material-symbols-light:delete-outline-rounded" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            ))
-                                                        ) : (
-                                                            <div className="text-center py-[1.5vw] text-gray-400 text-[0.8vw] font-medium">No bookmark found</div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
+                            {showViewBookmarkPopup && (
+                                <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.4vw)] z-[160]">
+                                    <ViewBookmarkPopup
+                                        onClose={() => setShowViewBookmarkPopup(false)}
+                                        bookmarks={bookmarks}
+                                        onDelete={onDeleteBookmark}
+                                        onUpdate={onUpdateBookmark}
+                                        onNavigate={onPageClick}
+                                        activeLayout={5}
+                                        isTablet={isTablet}
+                                        layoutColors={layoutColors}
+                                    />
+                                </div>
                             )}
                         </div>
                         {/* Gallery */}
@@ -1282,7 +1202,7 @@ const Grid5Layout = ({
                             'Gallery',
                             () => {
                                 setShowGalleryPopupMemo(true);
-                                setShowTOC(false);
+                                setShowTOCMemo?.(false);
                                 setShowThumbnails(false);
                                 setShowBookmarkLocal(false);
                                 setShowProfileLocal(false);
@@ -1299,7 +1219,7 @@ const Grid5Layout = ({
                                 (e) => {
                                     e.stopPropagation();
                                     setShowSoundPopupMemo(!showSoundPopup);
-                                    setShowTOC(false);
+                                    setShowTOCMemo?.(false);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
                                     setShowProfileLocal(false);
@@ -1390,7 +1310,7 @@ const Grid5Layout = ({
                                 (e) => {
                                     e.stopPropagation();
                                     setShowProfileLocal(!showProfileLocal);
-                                    setShowTOC(false);
+                                    setShowTOCMemo?.(false);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
                                     setShowBottomNotesOptions(false);

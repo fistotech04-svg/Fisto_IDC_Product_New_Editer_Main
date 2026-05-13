@@ -466,7 +466,7 @@ jAFjYHoy8P8BAAD//yXyhswAAAAGSURBVAMAHLaNzQaGWeAAAAAASUVORK5CYII=" />
                 </div>
 
                 <div
-                    className="absolute z-[1] overflow-hidden bg-white rounded-[40px]"
+                    className="absolute z-[1] overflow-hidden bg-black rounded-[40px]"
                     style={{
                         top: '31px',
                         left: '35px',

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'rea
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const Grid1Layout = lazy(() => import('../../Layouts/Grid1Layout'));
+
 
 import ProfilePopup from '../../popups/ProfilePopup';
 import Sound from '../../popups/Sound';
@@ -21,6 +21,22 @@ const getLayoutColor = (id, defaultColor) => {
 
 const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) => {
     return `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
+};
+
+const getLayoutColorAlpha = (id, defaultRgb, alpha) => {
+    return `rgba(var(--${id}-rgb, ${defaultRgb}), ${alpha})`;
+};
+
+const isLightColor = (hex) => {
+    if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return false;
+    let c = hex.substring(1).toUpperCase();
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    if (c.length !== 6) return false;
+    const r = parseInt(c.substring(0, 2), 16);
+    const g = parseInt(c.substring(2, 4), 16);
+    const b = parseInt(c.substring(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.6;
 };
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
@@ -74,8 +90,8 @@ const MenuBtn = ({ icon, label, onClick }) => (
         onClick={(e) => { e.stopPropagation(); onClick(e); }}
         className="flex items-center gap-2 px-2.5 py-1 hover:bg-white/10 active:bg-white/20 transition-colors text-left"
     >
-        <Icon icon={icon} className="w-[14px] h-[14px] text-white/90" />
-        <span className="text-white text-[11px] font-medium">{label}</span>
+        <Icon icon={icon} className="w-[14px] h-[14px]" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.9 }} />
+        <span className="text-[11px] font-medium" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{label}</span>
     </button>
 );
 
@@ -142,10 +158,10 @@ const MobileLayout1 = (props) => {
         showSharePopup,
         setShowSharePopup,
         isLandscape,
-        offset = 0,
         showNotesMenu,
         setShowNotesMenu,
-        tocSettings
+        tocSettings,
+        layoutColors
     } = props;
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
@@ -160,6 +176,7 @@ const MobileLayout1 = (props) => {
     const [showLocalBookmarkMenu, setShowLocalBookmarkMenu] = useState(false);
     const [showDotMenu, setShowDotMenu] = useState(false);
     const dotBtnRef = useRef(null);
+    const [hoveredIdx, setHoveredIdx] = useState(null);
 
     const spreads = useMemo(() => {
         const result = [];
@@ -243,12 +260,28 @@ const MobileLayout1 = (props) => {
         }
     };
 
+    const closeAllPopups = () => {
+        setShowTOC(false);
+        setShowThumbnailBar(false);
+        setShowMoreMenu(false);
+        setShowProfilePopup(false);
+        setShowSoundPopup(false);
+        setShowAddNotesPopup(false);
+        setShowNotesViewer(false);
+        setShowAddBookmarkPopup(false);
+        setShowViewBookmarkPopup(false);
+        setShowLocalNotesMenu(false);
+        setShowLocalBookmarkMenu(false);
+        setShowDotMenu(false);
+    };
+
     const handleProgressClick = (e) => {
         if (!progressRef.current || pages.length <= 1) return;
         const rect = progressRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const percentage = Math.max(0, Math.min(1, x / rect.width));
         const targetIdx = Math.round(percentage * (pages.length - 1));
+        closeAllPopups();
         onPageClick(targetIdx);
     };
 
@@ -282,69 +315,171 @@ const MobileLayout1 = (props) => {
         <div className="absolute inset-0 pointer-events-none z-[2000]">
             <AnimatePresence>
                 {showThumbnailBar && !isLandscape && (
-                    <>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[100] bg-black/5" onClick={() => setShowThumbnailBar(false)} />
-                        <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="absolute bottom-20 left-0 right-0 z-[110] px-1 pointer-events-auto">
-                            <div
-                                className="rounded-xl overflow-hidden flex items-center h-[55px] relative px-0.5 shadow-[0_8px_20px_rgba(0,0,0,0.3)] border backdrop-blur-md"
-                                style={{
-                                    backgroundColor: getLayoutColorRgba('thumbnail-outer-v2', '87, 92, 156', '0.8'),
-                                    borderColor: 'rgba(255,255,255,0.2)'
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <button className={`shrink-0 w-6 h-full flex items-center justify-center text-white transition-opacity ${!canScrollLeft ? 'opacity-20 cursor-default' : 'opacity-100'}`} onClick={() => scroll('left')}><Icon icon="lucide:chevron-left" className="w-4 h-4" /></button>
-                                <div ref={scrollRef} onScroll={checkScroll} className="flex-1 flex overflow-x-auto no-scrollbar gap-1.5 px-1 items-center h-full scroll-smooth">
-                                    {spreads.map((spread, idx) => {
-                                        const isSelected = spread.indices.includes(currentPage);
-                                        let boxWidth = 48;
-                                        let boxHeight = 36;
-                                        if (isOverflowing) {
-                                            const visiblePos = visibleIndices.indexOf(idx);
-                                            if (visiblePos !== -1) {
-                                                if (visiblePos === 0 || visiblePos === visibleIndices.length - 1) { boxWidth = 32; boxHeight = 24; }
-                                                else if (visiblePos === 1 || (visiblePos === visibleIndices.length - 2 && visibleIndices.length > 2)) { boxWidth = 40; boxHeight = 30; }
-                                            } else {
-                                                if (idx === 0 || idx === spreads.length - 1) { boxWidth = 32; boxHeight = 24; }
-                                                else if (idx === 1 || (idx === spreads.length - 2 && spreads.length > 2)) { boxWidth = 40; boxHeight = 30; }
-                                            }
-                                        }
-                                        return (
-                                            <div
-                                                key={idx}
-                                                data-index={idx}
-                                                className={`thumbnail-item shrink-0 flex flex-col items-center gap-1 p-1 rounded-md transition-all duration-300 ${isSelected ? 'active-thumbnail ring-1 ring-white/30' : ''}`}
-                                                style={{ backgroundColor: isSelected ? getLayoutColor('thumbnail-inner-v2', '#BCBEE1') : getLayoutColor('thumbnail-outer-v2', '#575C9C') }}
-                                                onClick={() => onPageClick(spread.indices[0])}
-                                            >
-                                                <div className="bg-white rounded-[2px] overflow-hidden shadow-sm flex gap-[0.5px] transition-all duration-300" style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}>
-                                                    {spread.pages.map((page, pIdx) => (<div key={pIdx} className="flex-1 h-full overflow-hidden transition-all duration-300"><PageThumbnail html={page.html || page.content} index={spread.indices[pIdx]} scale={isSelected ? 0.09 : 0.07} /></div>))}
-                                                </div>
-                                                <span className="text-[7.5px] font-bold text-white/90 truncate w-10 text-center">{spread.label}</span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                <button className={`shrink-0 w-6 h-full flex items-center justify-center text-white transition-opacity ${!canScrollRight ? 'opacity-20 cursor-default' : 'opacity-100'}`} onClick={() => scroll('right')}><Icon icon="lucide:chevron-right" className="w-4 h-4" /></button>
+                    <div className="absolute inset-0 z-[150] pointer-events-none">
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 z-[100] bg-transparent pointer-events-auto"
+                            onClick={() => setShowThumbnailBar(false)}
+                        />
+                        <div
+                            className="absolute flex items-center group/bar fisto-menu-content thumbnail-bar pointer-events-auto transition-all shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-md"
+                            style={{
+                                width: 'fit-content',
+                                minWidth: '280px',
+                                maxWidth: '96%',
+                                height: '110px',
+                                bottom: '100px',
+                                left: '50%',
+                                transform: 'translateX(-50%)',
+                                backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.8),
+                                backdropFilter: 'blur(10px)',
+                                borderRadius: '12px',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                zIndex: 150,
+                                display: 'flex',
+                                alignItems: 'center',
+                                boxSizing: 'border-box',
+                                overflow: 'hidden'
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="absolute left-[8px] inset-y-0 flex items-center z-50">
+                                <button
+                                    className="w-[32px] h-[32px] rounded-[8px] flex items-center justify-center transition-all shadow-xl active:scale-95 opacity-100 transition-colors border border-white/20"
+                                    style={{
+                                        backgroundColor: getLayoutColorAlpha('thumbnail-inner-v2', '255, 255, 255', 0.2),
+                                        color: '#FFFFFF'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); if (canScrollLeft) scroll('left'); }}
+                                >
+                                    <Icon icon="lucide:chevron-left" className="w-[18px] h-[18px]" />
+                                </button>
                             </div>
-                        </motion.div>
-                    </>
+
+                            <div
+                                ref={scrollRef}
+                                onScroll={checkScroll}
+                                className={`flex overflow-x-hidden no-scrollbar scroll-smooth items-center h-full gap-[10px] mx-[50px] ${isOverflowing ? 'justify-start' : 'justify-center'} rounded-[12px]`}
+                            >
+                                {spreads.map((spread, idx) => {
+                                    const isHovered = idx === hoveredIdx;
+                                    const isSelected = spread.indices.includes(currentPage);
+                                    const dynamicScale = isHovered ? 1.05 : 1.0;
+
+                                    let boxWidth = 72;
+                                    let boxHeight = 54;
+                                    let itemOpacity = 1;
+                                    let isEdge = false;
+
+                                    if (isOverflowing && visibleIndices.length > 0) {
+                                        const firstVisible = visibleIndices[0];
+                                        const lastVisible = visibleIndices[visibleIndices.length - 1];
+                                        if (idx === firstVisible || idx === lastVisible) {
+                                            isEdge = true;
+                                            boxWidth = 44;
+                                            boxHeight = 33;
+                                            itemOpacity = isHovered ? 1 : 0.6;
+                                        }
+                                    }
+
+                                    return (
+                                        <div
+                                            key={idx}
+                                            data-index={idx}
+                                            className={`thumbnail-item flex flex-col items-center shrink-0 cursor-pointer group rounded-[12px] ${isSelected ? 'active-thumbnail' : ''}`}
+                                            style={{
+                                                transform: `scale(${dynamicScale}) translateY(${isHovered ? '-2px' : '0'})`,
+                                                transition: 'all 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
+                                                boxShadow: isHovered ? '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' : 'none',
+                                                zIndex: isHovered ? 60 : 30,
+                                                position: 'relative',
+                                                padding: '6px 10px',
+                                                gap: '4px',
+                                                backgroundColor: isSelected
+                                                    ? 'rgba(87, 92, 156, 0.6)'
+                                                    : 'rgba(87, 92, 156, 0.2)',
+                                                border: 'none',
+                                                opacity: itemOpacity,
+                                            }}
+                                            onClick={() => {
+                                                onPageClick(spread.indices[0]);
+                                                setHoveredIdx(null);
+                                            }}
+                                            onMouseEnter={() => setHoveredIdx(idx)}
+                                            onMouseLeave={() => setHoveredIdx(null)}
+                                        >
+                                            <div
+                                                className={`overflow-hidden border transition-all bg-white relative shadow-xl ${isHovered ? 'border-white ring-4 ring-white/30' : isSelected ? 'border-white' : 'border-transparent group-hover:border-white/20'} rounded-none border-[2px]`}
+                                                style={{ width: `${boxWidth}px`, height: `${boxHeight}px` }}
+                                            >
+                                                <div className="flex w-full h-full gap-[1px] bg-gray-200 justify-center">
+                                                    {spread.pages.map((page, pIdx) => {
+                                                        const pageWidth = 400;
+                                                        const pageHeight = 566;
+                                                        const availableWidth = boxWidth / (spread.pages.length === 1 ? 1 : 2);
+                                                        const availableHeight = boxHeight;
+                                                        const scaleX = (availableWidth - 2) / pageWidth;
+                                                        const scaleY = (availableHeight - 2) / pageHeight;
+                                                        const thumbScale = Math.min(scaleX, scaleY);
+
+                                                        return (
+                                                            <div key={`${idx}-${pIdx}`} className="flex-1 bg-white overflow-hidden relative flex items-center justify-center">
+                                                                <PageThumbnail
+                                                                    html={page.html || page.content}
+                                                                    index={spread.indices[pIdx]}
+                                                                    scale={thumbScale}
+                                                                />
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                            {!isEdge && (
+                                                <span className="font-bold tracking-tight transition-all duration-300"
+                                                    style={{
+                                                        fontSize: '9px',
+                                                        color: '#FFFFFF',
+                                                        opacity: isSelected ? 1 : (isHovered ? 1 : 0.7)
+                                                    }}>
+                                                    {spread.label}
+                                                </span>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="absolute right-[8px] inset-y-0 flex items-center z-50">
+                                <button
+                                    className="w-[32px] h-[32px] rounded-[8px] flex items-center justify-center transition-all shadow-xl active:scale-95 opacity-100 transition-colors border border-white/20"
+                                    style={{
+                                        backgroundColor: getLayoutColorAlpha('thumbnail-inner-v2', '255, 255, 255', 0.2),
+                                        color: '#FFFFFF'
+                                    }}
+                                    onClick={(e) => { e.stopPropagation(); if (canScrollRight) scroll('right'); }}
+                                >
+                                    <Icon icon="lucide:chevron-right" className="w-[18px] h-[18px]" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 )}
                 {showMoreMenu && !isLandscape && (
                     <>
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-[150] bg-transparent pointer-events-auto" onClick={() => { setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} />
-                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="absolute top-[9.8rem] right-6 w-[170px] rounded-xl shadow-2xl z-[160] overflow-hidden border border-white/10 bg-[#575c9c]/90 backdrop-blur-md pointer-events-auto">
+                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="absolute top-[10.8rem] right-3 w-[190px] rounded-xl shadow-2xl z-[160] overflow-hidden border border-white/10 backdrop-blur-md pointer-events-auto" style={{ backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.95) }}>
                             <div className="flex flex-col p-1.5 gap-1">
-                                <MenuBtn icon="mdi:table-of-contents" label="Table of Contents" onClick={() => { setShowTOC(true); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="ep:menu" label="Thumbnails" onClick={() => { setShowThumbnailBar(prev => !prev); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="mdi:table-of-contents" label="Table of Contents" onClick={() => { closeAllPopups(); setShowTOC(true); }} />
+                                <MenuBtn icon="ep:menu" label="Thumbnails" onClick={() => { const wasOpen = showThumbnailBar; closeAllPopups(); if (!wasOpen) setShowThumbnailBar(true); }} />
                                 <MenuBtn icon="material-symbols-light:add-notes" label="Add Notes" onClick={() => { setShowLocalNotesMenu(prev => !prev); setShowLocalBookmarkMenu(false); }} />
                                 <MenuBtn icon="mingcute:bookmark-fill" label="Bookmarks" onClick={() => { setShowLocalBookmarkMenu(prev => !prev); setShowLocalNotesMenu(false); }} />
-                                <MenuBtn icon="solar:user-bold" label="Profile" onClick={() => { setShowProfilePopup(true); setShowMoreMenu(false); setShowLocalNotesMenu(false); setShowLocalBookmarkMenu(false); }} />
-                                <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); }} />
-                                <div className="h-[1px] bg-white/10 my-1 mx-2" />
-                                <MenuBtn icon="mage:share-fill" label="Share" onClick={() => { handleShare(); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="meteor-icons:download" label="Download" onClick={() => { handleDownload(); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:fullscreen" label="Fullscreen View" onClick={() => { handleFullScreen(); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="solar:user-bold" label="Profile" onClick={() => { closeAllPopups(); setShowProfilePopup(true); }} />
+                                <MenuBtn icon="solar:music-notes-bold" label="BG Music" onClick={() => { closeAllPopups(); setShowSoundPopup(true); }} />
+                                <MenuBtn icon="mage:share-fill" label="Share" onClick={() => { closeAllPopups(); handleShare(); }} />
+                                <MenuBtn icon="meteor-icons:download" label="Download" onClick={() => { closeAllPopups(); handleDownload(); }} />
+                                <MenuBtn icon="lucide:fullscreen" label="Fullscreen View" onClick={() => { closeAllPopups(); handleFullScreen(); }} />
                             </div>
                         </motion.div>
                     </>
@@ -357,12 +492,12 @@ const MobileLayout1 = (props) => {
                             initial={{ opacity: 0, scale: 0.95, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 bg-[#575c9c]/95 backdrop-blur-md pointer-events-auto"
-                            style={{ top: '12.8rem', right: '130px', width: '140px' }}
+                            className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md pointer-events-auto"
+                            style={{ top: '13.8rem', right: '120px', width: '140px', backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.95) }}
                         >
                             <div className="flex flex-col p-1.5 gap-1">
-                                <MenuBtn icon="material-symbols-light:add-notes" label="Add Notes" onClick={() => { setShowAddNotesPopup(true); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="lucide:eye" label="View Notes" onClick={() => { setShowNotesViewer(true); setShowLocalNotesMenu(false); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="material-symbols-light:add-notes" label="Add Notes" onClick={() => { closeAllPopups(); setShowAddNotesPopup(true); }} />
+                                <MenuBtn icon="lucide:eye" label="View Notes" onClick={() => { closeAllPopups(); setShowNotesViewer(true); }} />
                             </div>
                         </motion.div>
                     </>
@@ -374,12 +509,12 @@ const MobileLayout1 = (props) => {
                             initial={{ opacity: 0, scale: 0.95, y: 10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 bg-[#575c9c]/95 backdrop-blur-md pointer-events-auto"
-                            style={{ top: '15.8rem', right: '130px', width: '140px' }}
+                            className="absolute z-[170] flex flex-col overflow-hidden rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md pointer-events-auto"
+                            style={{ top: '16.8rem', right: '120px', width: '140px', backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.95) }}
                         >
                             <div className="flex flex-col p-1.5 gap-1">
-                                <MenuBtn icon="mingcute:bookmark-fill" label="Add Bookmark" onClick={() => { setShowAddBookmarkPopup(true); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
-                                <MenuBtn icon="mdi:eye-outline" label="View Bookmark" onClick={() => { setShowViewBookmarkPopup(true); setShowLocalBookmarkMenu(false); setShowMoreMenu(false); }} />
+                                <MenuBtn icon="mingcute:bookmark-fill" label="Add Bookmark" onClick={() => { closeAllPopups(); setShowAddBookmarkPopup(true); }} />
+                                <MenuBtn icon="mdi:eye-outline" label="View Bookmark" onClick={() => { closeAllPopups(); setShowViewBookmarkPopup(true); }} />
                             </div>
                         </motion.div>
                     </>
@@ -391,11 +526,12 @@ const MobileLayout1 = (props) => {
                             onPageClick(pageIdx);
                             setShowTOC(false);
                         }}
-                        settings={tocSettings || settings?.toc}
+                        contents={tocSettings?.content || settings?.tocSettings?.content || settings?.toc?.content || []}
+                        settings={tocSettings || props.tocSettings || settings?.tocSettings || settings?.toc || props.settings?.toc}
                         isMobile={true}
                         isLandscape={false}
                         activeLayout={1}
-                        layoutColors={activeLayout?.colors}
+                        layoutColors={layoutColors || props.layoutColors}
                     />
                 )}
 
@@ -408,6 +544,7 @@ const MobileLayout1 = (props) => {
                         isMobile={true}
                         isLandscape={false}
                         activeLayout={activeLayout}
+                        layoutColors={layoutColors || props.layoutColors}
                     />
                 )}
 
@@ -440,6 +577,8 @@ const MobileLayout1 = (props) => {
                         onUpdate={onUpdateBookmark}
                         onNavigate={onPageClick}
                         isMobile={true}
+                        activeLayout={activeLayout}
+                        layoutColors={layoutColors || props.layoutColors}
                     />
                 )}
 
@@ -450,6 +589,7 @@ const MobileLayout1 = (props) => {
                         activeLayout={1}
                         isMobile={true}
                         isLandscape={false}
+                        layoutColors={layoutColors || props.layoutColors}
                     />
                 )}
 
@@ -493,17 +633,15 @@ const MobileLayout1 = (props) => {
         </div>
     );
 
-    // PORTRAIT RETURN
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#DADBE8]" style={{ ...layoutVariables }}>
-            {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
-
+        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: getLayoutColor('page-bg', '#DADBE8') }}>
+            {/* Notch Spacer - fills the area near the hardware notch with a status bar color */}
+            <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />
             {/* Search Area */}
-            <div className="bg-[#575C9C] flex flex-col z-50 pt-0">
+            <div className="flex flex-col z-50 pt-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                 {/* Row 1: Book Name & Logo */}
-                <div className="flex items-center justify-between px-6 pt-4 pb-1">
-                    <span className="text-white text-[14px] font-medium opacity-90 truncate flex-1">{bookName || "Name of the book"}</span>
+                <div className="flex items-center justify-between px-6 pt-6 pb-1">
+                    <span className="text-[16px] font-light opacity-90 truncate flex-1 mt-[-15px]" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{bookName || "Name of the book"}</span>
                     {settings?.brandingProfile?.logo && logoSettings?.src && (
                         <img
                             src={logoSettings.src}
@@ -515,13 +653,14 @@ const MobileLayout1 = (props) => {
                 </div>
 
                 {/* Row 2: Search Bar and Menu */}
-                <div className="px-5 pb-2.5 flex items-center gap-4">
-                    <div className="flex-1 bg-[#DADBE8] rounded-full h-7 px-4 flex items-center gap-2 relative">
-                        <Icon icon="ph:magnifying-glass" className="text-[#575C9C] w-4.5 h-4.5" />
+                <div className="px-5 pt-6 pb-6 flex items-center gap-4">
+                    <div className="flex-1 rounded-full h-9 px-4 flex items-center gap-2 relative" style={{ backgroundColor: getLayoutColor('search-bg-v1', '#DADBE8') }}>
+                        <Icon icon="ph:magnifying-glass" className="w-4.5 h-4.5" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                         <input
                             type="text"
                             placeholder="Quick Search.."
-                            className="bg-transparent text-[#575C9C] placeholder-[#575C9C]/50 text-[11px] outline-none w-full font-bold"
+                            className="bg-transparent placeholder-current text-[11px] outline-none w-full font-bold"
+                            style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}
                             value={localSearchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -583,8 +722,9 @@ const MobileLayout1 = (props) => {
                         </AnimatePresence>
                     </div>
                     <button
-                        onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }}
-                        className="text-white active:scale-90 transition-transform"
+                        onClick={(e) => { e.stopPropagation(); const wasOpen = showMoreMenu; closeAllPopups(); if (!wasOpen) setShowMoreMenu(true); }}
+                        className="active:scale-90 transition-transform"
+                        style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}
                     >
                         <Icon icon="ph:list" className="w-7 h-7" />
                     </button>
@@ -597,10 +737,10 @@ const MobileLayout1 = (props) => {
             <div className="flex-1 relative flex flex-col overflow-hidden">
 
                 {/* Main Content Area */}
-                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: '#BDC3D9' }}>
+                <div className="flex-1 relative overflow-hidden flex flex-col" style={{ backgroundColor: getLayoutColor('page-bg-v2', '#BDC3D9') }}>
                     {/* Zoom/Reset Box */}
-                    <div className="absolute top-2.5 right-2.5 z-[70] flex items-center gap-2 px-2 py-1.5 rounded-lg backdrop-blur-md border border-white/10"
-                        style={{ backgroundColor: 'rgba(87, 92, 156, 0.45)' }}>
+                    <div className="absolute top-3 right-2.5 z-[70] flex items-center gap-2 px-2 py-1.5 rounded-lg backdrop-blur-md border border-white/10"
+                        style={{ backgroundColor: getLayoutColorAlpha('toolbar-bg', '87, 92, 156', 0.45) }}>
                         <button
                             onClick={() => handleZoomOut?.()}
                             className="text-white/90 hover:text-white active:scale-90 transition-all flex items-center justify-center"
@@ -618,7 +758,8 @@ const MobileLayout1 = (props) => {
                         </button>
                         <button
                             onClick={() => setCurrentZoom?.(0.85)}
-                            className="bg-white text-[#575C9C] text-[10px] font-extrabold px-2.5 py-0.5 rounded-[4px] active:scale-95 transition-all ml-0.5"
+                            className="bg-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-[4px] active:scale-95 transition-all ml-0.5"
+                            style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
                         >
                             Reset
                         </button>
@@ -628,17 +769,17 @@ const MobileLayout1 = (props) => {
                     <button
                         className="absolute left-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
                         style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                        onClick={() => { closeAllPopups(); bookRef.current?.pageFlip()?.flipPrev(); }}
                     >
-                        <Icon icon="ph:caret-left-light" strokeWidth="4" className="w-8 h-8 opacity-70" />
+                        <Icon icon="ph:caret-left-light" strokeWidth="4" className="w-8 h-8 opacity-80" />
                     </button>
 
                     <button
                         className="absolute right-[2%] top-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1 active:scale-90 transition-transform"
                         style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                        onClick={() => { closeAllPopups(); bookRef.current?.pageFlip()?.flipNext(); }}
                     >
-                        <Icon icon="ph:caret-right-light" strokeWidth="4" className="w-8 h-8 opacity-70" />
+                        <Icon icon="ph:caret-right-light" strokeWidth="4" className="w-8 h-8 opacity-80" />
                     </button>
 
                     {/* Flipbook Canvas - Scaled down for better mobile fit */}
@@ -652,24 +793,24 @@ const MobileLayout1 = (props) => {
             </div>
 
             {/* Footer Navigation */}
-            <footer className="z-[60] bg-[#575C9C] flex flex-col pt-2 pb-6 relative shadow-[0_-5px_20px_rgba(0,0,0,0.15)]">
-                <div className="flex items-center justify-center gap-6 text-white mb-1.5">
-                    <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform">
+            <footer className="z-[60] flex flex-col pt-8 pb-10 relative mb-[-20px]" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                <div className="flex items-center justify-center gap-6 mb-3" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                    <button onClick={() => { closeAllPopups(); onPageClick(0); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:skip-back-bold" className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onPageClick(Math.max(0, currentPage - 1))} className="active:scale-90 transition-transform">
+                    <button onClick={() => { closeAllPopups(); onPageClick(Math.max(0, currentPage - 1)); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:caret-left-bold" className="w-4 h-4" />
                     </button>
                     <button
-                        onClick={() => setIsPlaying(!isAutoFlipping)}
+                        onClick={() => { closeAllPopups(); setIsPlaying(!isAutoFlipping); }}
                         className="active:scale-90 transition-all"
                     >
                         <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-6 h-6" />
                     </button>
-                    <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="active:scale-90 transition-transform">
+                    <button onClick={() => { closeAllPopups(); onPageClick(Math.min(pages.length - 1, currentPage + 1)); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:caret-right-bold" className="w-4 h-4" />
                     </button>
-                    <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform">
+                    <button onClick={() => { closeAllPopups(); onPageClick(pages.length - 1); }} className="active:scale-90 transition-transform">
                         <Icon icon="ph:skip-forward-bold" className="w-4 h-4" />
                     </button>
                 </div>
@@ -677,8 +818,8 @@ const MobileLayout1 = (props) => {
                 <div className="px-6">
                     <div ref={progressRef} className="h-[3px] w-full bg-white/20 rounded-full cursor-pointer relative overflow-hidden" onClick={handleProgressClick}>
                         <div
-                            className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-300"
-                            style={{ width: `${Math.max(1, progressPercentage)}%` }}
+                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-300"
+                            style={{ width: `${Math.max(1, progressPercentage)}%`, backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
                         />
                     </div>
                 </div>

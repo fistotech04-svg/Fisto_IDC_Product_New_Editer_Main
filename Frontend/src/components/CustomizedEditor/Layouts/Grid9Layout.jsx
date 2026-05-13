@@ -123,7 +123,7 @@ const Grid9Layout = ({
 
     const zoomIn = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.min(prev + 20, initialWidth * 1.3);
+            const nextWidth = Math.min(prev + (initialWidth * 0.01), initialWidth * 1.3);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -131,7 +131,7 @@ const Grid9Layout = ({
 
     const zoomOut = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.max(prev - 10, initialWidth * 0.5);
+            const nextWidth = Math.max(prev - (initialWidth * 0.01), initialWidth * 0.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -363,7 +363,7 @@ const Grid9Layout = ({
 
     return (
         <div
-            className="flex flex-col h-screen w-full font-sans overflow-hidden relative"
+            className="flex flex-col h-full w-full font-sans overflow-hidden relative"
             style={{ backgroundColor: backgroundSettings?.color || baseBgColor, ...backgroundStyle }}
             onClick={() => setRecommendations([])}
         >
@@ -385,9 +385,59 @@ const Grid9Layout = ({
                 {/* Left: Quick Search */}
                 <div className="flex-1 flex justify-start pointer-events-auto">
                     <div className="relative z-50" onClick={(e) => e.stopPropagation()}>
+                        {/* Purple Background & Dropdown Container */}
+                        <AnimatePresence>
+                            {recommendations.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: -5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    exit={{ opacity: 0, y: -5 }}
+                                    className={`absolute left-0 z-0 shadow-2xl flex flex-col w-full ${isTablet ? 'top-[1.8vh]' : 'top-[2.1vh]'}`}
+                                    style={{
+                                        backgroundColor: getLayoutColor('dropdown-bg', primaryColor),
+                                        borderBottomLeftRadius: '1.2vw',
+                                        borderBottomRightRadius: '1.2vw',
+                                        paddingBottom: '0.6vw'
+                                    }}
+                                >
+                                    {/* Invisible spacer to push suggestions below the input */}
+                                    <div className={`${isTablet ? 'h-[1.8vh]' : 'h-[2.1vh]'} shrink-0`} />
+
+                                    {/* Suggestions White Box */}
+                                    <div className="mx-[0.6vw] mt-[0.6vw] bg-white flex flex-col py-[0.5vh] overflow-hidden" style={{ borderRadius: '0.8vw' }}>
+                                        {recommendations.map((rec, idx) => (
+                                            <button
+                                                key={`${rec.word}-${rec.pageNumber}-${idx}`}
+                                                className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-gray-50 transition-colors group"
+                                                style={{ color: getLayoutColor('dropdown-bg', primaryColor) }}
+                                                onClick={() => {
+                                                    onPageClick(rec.pageNumber - 1);
+                                                    const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
+                                                    setLocalSearchQuery(fullQuery);
+                                                    setSearchQuery(fullQuery);
+                                                    setRecommendations([]);
+                                                }}
+                                            >
+                                                <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
+                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
+                                                        <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 600 }}>{rec.word}</span>
+                                                        {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
+                                                    </span>
+                                                </div>
+                                                <span className="text-[0.8vw] font-medium opacity-50 tabular-nums shrink-0">Pg {rec.pageNumber}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
                         <div
-                            className={`flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'} transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[6.5vw]' : 'w-[8.5vw]') : (isTablet ? 'w-[11vw]' : 'w-[14vw]')}`}
-                            style={{ backgroundColor: getLayoutColor('search-bg-v2', '#ffffff'), border: `1px solid ${getLayoutColor('search-text-v1', primaryColor)}30` }}
+                            className={`relative z-10 flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'} transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[10vw]' : 'w-[12vw]') : (isTablet ? 'w-[11vw]' : 'w-[14vw]')}`}
+                            style={{
+                                backgroundColor: recommendations.length > 0 ? '#ffffff' : getLayoutColor('search-bg-v2', '#ffffff'),
+                                border: recommendations.length > 0 ? 'none' : `1px solid ${getLayoutColor('search-text-v1', primaryColor)}30`
+                            }}
                         >
                             <Icon icon="lucide:search" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.0vw] h-[1.0vw]') : (isTablet ? 'w-[1.0vw] h-[1.0vw]' : 'w-[1.1vw] h-[1.1vw]')}`} color={getLayoutColor('search-text-v1', primaryColor)} />
                             <input
@@ -441,46 +491,6 @@ const Grid9Layout = ({
                                 style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
                             />
                         </div>
-
-                        <AnimatePresence>
-                            {recommendations.length > 0 && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -5 }}
-                                    className={`absolute top-[5vh] left-0 bg-white rounded-[0.4vw] shadow-2xl ${isSidebarOpen ? (isTablet ? 'w-[10vw]' : 'w-[12vw]') : (isTablet ? 'w-[14vw]' : 'w-[16vw]')} overflow-hidden border border-gray-100`}
-                                    onClick={(e) => e.stopPropagation()}
-                                >
-                                    <div className="px-[1vw] py-[0.8vh] border-b border-gray-100 bg-gray-50/50">
-                                        <span className="text-[0.9vw] font-bold" style={{ color: primaryColor }}>Suggestion</span>
-                                    </div>
-                                    <div className="flex flex-col py-[0.5vh]">
-                                        {recommendations.map((rec, idx) => (
-                                            <button
-                                                key={`${rec.word}-${rec.pageNumber}-${idx}`}
-                                                className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-gray-50 transition-colors group"
-                                                style={{ color: primaryColor }}
-                                                onClick={() => {
-                                                    onPageClick(rec.pageNumber - 1);
-                                                    const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
-                                                    setLocalSearchQuery(fullQuery);
-                                                    setSearchQuery(fullQuery);
-                                                    setRecommendations([]);
-                                                }}
-                                            >
-                                                <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
-                                                        <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 800 }}>{rec.word}</span>
-                                                        {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
-                                                    </span>
-                                                </div>
-                                                <span className="text-[0.8vw] font-medium opacity-50 tabular-nums shrink-0">Pg {rec.pageNumber}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
                     </div>
                 </div>
 
@@ -975,7 +985,7 @@ const Grid9Layout = ({
             </AnimatePresence>
 
             {/* ═══════════ Bottom Navigation Bar ═══════════ */}
-            <div className={`absolute bottom-[2.5vh] w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex flex-col justify-center items-center z-40 pointer-events-auto`}>
+            <div className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex flex-col justify-center items-center z-40 pointer-events-auto`}>
                 <div className="flex items-center gap-[1.2vw]">
                     {/* First Page */}
                     <button

@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import SidebarItem from './SidebarItem';
 import Appearance from './Appearance';
@@ -25,7 +27,14 @@ const SubNavItem = ({ label, icon, isActive, onClick }) => (
 );
 
 const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPanelCollapsed, setIsPanelCollapsed, pageCount, visibilitySettings, onUpdateVisibility, canUndo, canRedo, onUndo, onRedo, onPreview }) => {
+  const navigate = useNavigate();
+  const { folder, v_id } = useParams();
   const [openSection, setOpenSection] = useState(null);
+
+  const handleGoToPageEditor = () => {
+    const path = folder ? `/editor/${folder}/${v_id}` : `/editor/${v_id}`;
+    navigate(path);
+  };
 
   const getParentSection = (subView) => {
     if (!subView) return null;
@@ -354,6 +363,17 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
           onClick={() => setActiveSubView(activeSubView === 'statistic' ? null : 'statistic')}
           hasDropdown={false}
         />
+      </div>
+
+      {/* Go to Page Editor Button */}
+      <div className="px-[1vw] py-[2vh] border-t border-gray-100 mt-auto bg-white">
+        <button
+          onClick={handleGoToPageEditor}
+          className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-xl cursor-pointer"
+        >
+          <ArrowUpRight size="1.2vw" className="rotate-0" />
+          <span>Go to Page Editor</span>
+        </button>
       </div>
     </div>
   );

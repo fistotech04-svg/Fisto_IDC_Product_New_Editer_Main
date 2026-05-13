@@ -1,5 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect, Suspense, lazy } from 'react';
-const Grid4Layout = lazy(() => import('../../Layouts/Grid4Layout'));
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AddBookmarkPopup from '../../popups/AddBookmarkPopup';
@@ -124,7 +123,6 @@ const MobileLayout4 = (props) => {
         setShowExportPopup,
         showSharePopup,
         setShowSharePopup,
-        isLandscape,
         offset = 0,
         layoutColors = [],
     } = props;
@@ -133,47 +131,17 @@ const MobileLayout4 = (props) => {
     const [showSuggestions, setShowSuggestions] = useState(false);
     const progressRef = useRef(null);
     const scrollRef = useRef(null);
-    const [currentZoom, setCurrentZoom] = useState(0.5);
+
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
     const [showNotesOptions, setShowNotesOptions] = useState(false);
     const [tocSearchQuery, setTocSearchQuery] = useState('');
-    const [responsiveScale, setResponsiveScale] = useState(1);
-    const containerRef = useRef(null);
+    const [showLocalThumbnails, setShowLocalThumbnails] = useState(false);
+    const [showLocalTOC, setShowLocalTOC] = useState(false);
+    const [showLocalProfile, setShowLocalProfile] = useState(false);
+    const [showLocalSound, setShowLocalSound] = useState(false);
 
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
-
-    // Responsive scaling logic for Mobile Landscape
-    useEffect(() => {
-        if (!isLandscape) {
-            setResponsiveScale(1);
-            return;
-        }
-
-        const updateScale = () => {
-            if (containerRef.current) {
-                const cw = containerRef.current.clientWidth;
-                const ch = containerRef.current.clientHeight;
-                // Leave a tiny margin
-                // Leave a better margin for full visibility - pulling top/bottom inside
-                const safeH = ch * 0.85;
-                const safeW = cw * 0.88;
-
-                const designWidth = 1440;
-                const designHeight = 900;
-                const scaleX = safeW / designWidth;
-                const scaleY = safeH / designHeight;
-                setResponsiveScale(Math.min(scaleX, scaleY));
-            }
-        };
-
-        const timer = setTimeout(updateScale, 300);
-        window.addEventListener('resize', updateScale);
-        return () => {
-            clearTimeout(timer);
-            window.removeEventListener('resize', updateScale);
-        };
-    }, [isLandscape]);
 
     const spreads = useMemo(() => {
         const result = [];
@@ -236,233 +204,14 @@ const MobileLayout4 = (props) => {
         };
     }, [activeLayout]);
 
-
-    if (isLandscape) {
-        return (
-            <div ref={containerRef} className="w-full h-full bg-[#DADBE8] relative flex items-start justify-start">
-                <div
-                    style={{
-                        width: `${100 / responsiveScale}%`,
-                        height: `${100 / responsiveScale}%`,
-                        transform: `scale(${responsiveScale}) translateZ(0)`,
-                        transformOrigin: 'left top',
-                        marginLeft: '1vw',
-                        flexShrink: 0,
-                        backfaceVisibility: 'hidden',
-                        WebkitFontSmoothing: 'antialiased',
-                        textRendering: 'optimizeLegibility'
-                    }}
-                >
-                    <Suspense fallback={
-                        <div className="w-full h-full flex items-center justify-center bg-[#DADBE8]">
-                            <div className="flex flex-col items-center gap-3">
-                                <Icon icon="lucide:loader-2" className="w-8 h-8 text-[#575C9C] animate-spin" />
-                                <span className="text-[#575C9C] text-sm font-bold">Scaling Layout...</span>
-                            </div>
-                        </div>
-                    }>
-                        <Grid4Layout
-                            {...({
-                                ...props,
-                                children,
-                                settings,
-                                bookName,
-                                searchQuery,
-                                setSearchQuery,
-                                handleQuickSearch,
-                                setShowThumbnailBarMemo: setShowThumbnailBar,
-                                setShowTOCMemo: setShowTOC,
-                                setShowAddNotesPopupMemo: setShowAddNotesPopup,
-                                setShowAddBookmarkPopupMemo: setShowAddBookmarkPopup,
-                                setShowViewBookmarkPopup,
-                                setShowNotesViewerMemo: setShowNotesViewer,
-                                bookRef,
-                                pages,
-                                setIsPlaying,
-                                isAutoFlipping,
-                                handleShare,
-                                handleDownload,
-                                handleFullScreen,
-                                setShowProfilePopup,
-                                logoSettings,
-                                currentPage,
-                                pagesCount: pages?.length || 0,
-                                currentZoom,
-                                setCurrentZoom,
-                                onPageClick,
-                                bookmarks,
-                                notes,
-                                onUpdateBookmark,
-                                onDeleteBookmark,
-                                profileSettings,
-                                isSidebarOpen: false,
-                                showViewBookmarkPopup,
-                                activeLayout,
-                                isTablet: false,
-                                isMobile: false,
-                                isMobileLandscape: true
-                            })}
-                        />
-
-                        {/* Scaled Desktop-style Popups for Landscape Parity */}
-                        <div className="absolute inset-0 pointer-events-none z-[5000]">
-                            <AnimatePresence>
-                                {showTOC && (
-                                    <div className="pointer-events-auto">
-                                        <TableOfContentsPopup
-                                            onClose={() => setShowTOC(false)}
-                                            settings={settings.tocSettings}
-                                            activeLayout={activeLayout}
-                                            isMobile={false}
-                                            isLandscape={false}
-                                            onNavigate={(pageIndex) => {
-                                                onPageClick(pageIndex);
-                                                setShowTOC(false);
-                                            }}
-                                            isSidebarOpen={false}
-                                            layoutColors={layoutColors}
-                                            isTablet={false}
-                                            isMobileLandscape={true}
-                                        />
-                                    </div>
-                                )}
-                                {showAddNotesPopup && (
-                                    <div className="pointer-events-auto">
-                                        <AddNotesPopup
-                                            onClose={() => setShowAddNotesPopup(false)}
-                                            currentPageIndex={currentPage}
-                                            totalPages={pages.length}
-                                            onAddNote={onAddNote}
-                                            isSidebarOpen={false}
-                                            layoutColors={layoutColors}
-                                            activeLayout={activeLayout}
-                                            isMobile={false}
-                                            isLandscape={false}
-                                            isMobileLandscape={true}
-                                        />
-                                    </div>
-                                )}
-                                {showNotesViewer && (
-                                    <div className="pointer-events-auto">
-                                        <NotesViewerPopup
-                                            onClose={() => setShowNotesViewer(false)}
-                                            notes={notes}
-                                            isSidebarOpen={false}
-                                            activeLayout={activeLayout}
-                                            isTablet={false}
-                                            isLandscape={false}
-                                            layoutColors={layoutColors}
-                                            isMobile={false}
-                                            isMobileLandscape={true}
-                                        />
-                                    </div>
-                                )}
-                                {showAddBookmarkPopup && (
-                                    <div className="pointer-events-auto">
-                                        <AddBookmarkPopup
-                                            onClose={() => setShowAddBookmarkPopup(false)}
-                                            currentPageIndex={currentPage}
-                                            totalPages={pages.length}
-                                            onAddBookmark={onAddBookmark}
-                                            isSidebarOpen={false}
-                                            bookmarkSettings={bookmarkSettings}
-                                            isMobile={false}
-                                            activeLayout={activeLayout}
-                                            isLandscape={false}
-                                            isMobileLandscape={true}
-                                        />
-                                    </div>
-                                )}
-                                {showViewBookmarkPopup && (
-                                    <div className="pointer-events-auto">
-                                        <ViewBookmarkPopup
-                                            onClose={() => setShowViewBookmarkPopup(false)}
-                                            bookmarks={bookmarks}
-                                            onDelete={onDeleteBookmark}
-                                            onUpdate={onUpdateBookmark}
-                                            activeLayout={activeLayout}
-                                            isSidebarOpen={false}
-                                            layoutColors={layoutColors}
-                                            isMobile={false}
-                                            isLandscape={false}
-                                            isMobileLandscape={true}
-                                            onNavigate={(pageIndex) => { onPageClick(pageIndex); setShowViewBookmarkPopup(false); }}
-                                        />
-                                    </div>
-                                )}
-                                {showProfilePopup && (
-                                    <div className="pointer-events-auto">
-                                        <ProfilePopup
-                                            onClose={() => setShowProfilePopup(false)}
-                                            profileSettings={profileSettings}
-                                            activeLayout={activeLayout}
-                                            isSidebarOpen={false}
-                                            layoutColors={layoutColors}
-                                            isMobile={false}
-                                            isLandscape={false}
-                                        />
-                                    </div>
-                                )}
-                                {showSoundPopup && (
-                                    <div className="pointer-events-auto">
-                                        <Sound
-                                            isOpen={showSoundPopup}
-                                            onClose={() => setShowSoundPopup(false)}
-                                            activeLayout={activeLayout}
-                                            otherSetupSettings={otherSetupSettings}
-                                            onUpdateOtherSetup={onUpdateOtherSetup}
-                                            isMuted={isMuted}
-                                            setIsMuted={setIsMuted}
-                                            isFlipMuted={isFlipMuted}
-                                            setIsFlipMuted={setIsFlipMuted}
-                                            flipTrigger={flipTrigger}
-                                            settings={settings}
-                                            isMobile={false}
-                                            isSidebarOpen={false}
-                                            isLandscape={false}
-                                        />
-                                    </div>
-                                )}
-                                {showSharePopup && (
-                                    <div className="pointer-events-auto">
-                                        <FlipbookSharePopup
-                                            onClose={() => setShowSharePopup(false)}
-                                            bookName={bookName}
-                                            url={window.location.href}
-                                            isMobile={false}
-                                            isLandscape={false}
-                                        />
-                                    </div>
-                                )}
-                                {showExportPopup && (
-                                    <div className="pointer-events-auto">
-                                        <Export
-                                            isOpen={showExportPopup}
-                                            onClose={() => setShowExportPopup(false)}
-                                            hideButton={true}
-                                            pages={pages}
-                                            bookName={bookName}
-                                            currentPage={currentPage}
-                                            isMobile={false}
-                                            isLandscape={false}
-                                        />
-                                    </div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                    </Suspense>
-                </div>
-            </div>
-        );
-    }
-
     const renderPopups = () => (
         <div className="absolute inset-0 pointer-events-none z-[2000]">
             <AnimatePresence>
                 {showTOC && (
                     <TableOfContentsPopup
                         onClose={() => setShowTOC(false)}
-                        settings={settings.tocSettings}
+                        contents={settings?.tocSettings?.content || settings?.toc?.content || []}
+                        settings={settings?.tocSettings || settings?.toc}
                         activeLayout={activeLayout}
                         isMobile={true}
                         onNavigate={(pageIndex) => {
@@ -527,8 +276,8 @@ const MobileLayout4 = (props) => {
                 />
             )}
             <Sound
-                isOpen={showSoundPopup}
-                onClose={() => setShowSoundPopup(false)}
+                isOpen={showLocalSound}
+                onClose={() => setShowLocalSound(false)}
                 activeLayout={activeLayout}
                 otherSetupSettings={otherSetupSettings}
                 onUpdateOtherSetup={onUpdateOtherSetup}
@@ -564,27 +313,25 @@ const MobileLayout4 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
-            {/* Top Area - Spacer layer for dark blue notch area */}
-            <div className="h-10 w-full shrink-0" style={{ backgroundColor: '#0B0F4E' }} />
+        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
+            {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
+            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
 
             {/* Header */}
-            <header className="z-50 px-4 pt-4 pb-3 flex flex-col gap-3 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <header className="z-50 px-4 pt-0 pb-3 flex flex-col gap-3 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                 {showSuggestions && recommendations.length > 0 && <div className="fixed inset-0 z-[15] bg-transparent" onClick={() => setShowSuggestions(false)} />}
 
                 {/* Top Row: Book Title & Logo */}
                 <div className="flex items-center justify-between">
                     <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{bookName}</span>
                     <div className="flex items-center">
-                        {settings?.brandingProfile?.logo && logoSettings?.src ? (
+                        {settings?.brandingProfile?.logo && logoSettings?.src && (
                             <img
                                 src={logoSettings.src}
                                 alt="Logo"
                                 className="h-5 w-auto transition-all mix-blend-screen"
                                 style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
                             />
-                        ) : (
-                            <div className="text-white font-bold opacity-80 text-xl tracking-tighter">FIST-O</div>
                         )}
                     </div>
                 </div>
@@ -724,10 +471,13 @@ const MobileLayout4 = (props) => {
                                     className="absolute right-4 top-[5%] bottom-[5%] z-[160] w-[10%] max-w-[40px] flex flex-col items-center justify-evenly py-6 shadow-2xl"
                                     style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
                                 >
-                                    <button onClick={() => { setShowThumbnailBar(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                        <Icon icon="ph:squares-four-fill" className="w-[18px] h-[18px]" />
-                                    </button>
-                                    <button onClick={() => { setShowTOC(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); setTocSearchQuery(''); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                    {/* Thumbnail Button with Popup (Grid Icon) */}
+                                    <div className="relative flex items-center justify-center w-full">
+                                        <button onClick={() => { setShowLocalThumbnails(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); setTocSearchQuery(''); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                            <Icon icon="ph:squares-four-fill" className="w-[18px] h-[18px]" />
+                                        </button>
+                                    </div>
+                                    <button onClick={() => { setShowLocalTOC(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); setTocSearchQuery(''); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="fluent:text-bullet-list-24-filled" className="w-[17px] h-[17px]" />
                                     </button>
 
@@ -785,13 +535,14 @@ const MobileLayout4 = (props) => {
                                         </AnimatePresence>
                                     </div>
 
-                                    <button onClick={() => { setShowThumbnailBar(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                    {/* Gallery Button */}
+                                    <button onClick={() => { if (props.setShowGalleryPopup) props.setShowGalleryPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                                     </button>
                                     <button onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
                                     </button>
-                                    <button onClick={() => { setShowProfilePopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                    <button onClick={() => { setShowLocalProfile(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="fluent:person-24-filled" className="w-[18px] h-[18px]" />
                                     </button>
                                     <button onClick={() => { handleShare(); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
@@ -808,59 +559,268 @@ const MobileLayout4 = (props) => {
                         )}
                     </AnimatePresence>
 
-                    {/* Thumbnail Bar Sidebar */}
+                    {/* Profile Sidebar — Desktop Layout 4 style */}
                     <AnimatePresence>
-                        {showThumbnailBar && (
+                        {showLocalProfile && (
                             <motion.div
+                                key="profile-panel-ml4"
                                 initial={{ x: '100%' }}
                                 animate={{ x: 0 }}
                                 exit={{ x: '100%' }}
-                                transition={{ type: 'tween', duration: 0.3 }}
-                                className="absolute right-0 top-0 bottom-0 z-[170] w-[45%] flex flex-col shadow-2xl border-l border-white/10"
-                                style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
+                                transition={{ type: 'tween', duration: 0.25 }}
+                                className="absolute right-0 top-0 bottom-0 z-[170] w-[58%] flex flex-col shadow-2xl border-l border-gray-200"
+                                style={{ backgroundColor: '#FFFFFF' }}
+                                onClick={(e) => e.stopPropagation()}
                             >
                                 {/* Header */}
-                                <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100 shrink-0">
-                                    <span className="text-[13px] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Thumbnail</span>
-                                    <button onClick={() => setShowThumbnailBar(false)} className="opacity-60 hover:opacity-100">
-                                        <Icon icon="lucide:x" className="w-[16px] h-[16px]" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }} />
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-[#575C9C]/20 shrink-0">
+                                    <span className="text-[13px] font-semibold text-[#3E4491]">Profile</span>
+                                    <button
+                                        onClick={() => setShowLocalProfile(false)}
+                                        className="opacity-60 hover:opacity-100 transition-opacity text-[#3E4491]"
+                                    >
+                                        <Icon icon="lucide:x" className="w-4 h-4" />
                                     </button>
                                 </div>
 
-                                {/* Vertically Scrollable List */}
+                                {/* Content */}
+                                <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4" style={{ scrollbarWidth: 'thin', scrollbarColor: '#BABEE4 transparent' }}>
+                                    {profileSettings?.name || profileSettings?.about ? (
+                                        <>
+                                            {profileSettings?.name && (
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-[11px] font-bold whitespace-nowrap text-[#3E4491]">Name :</span>
+                                                    <span className="text-[11px] font-medium opacity-80 text-[#575C9C]">{profileSettings.name}</span>
+                                                </div>
+                                            )}
+                                            {profileSettings?.about && (
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-start gap-2">
+                                                        <span className="text-[11px] font-bold whitespace-nowrap text-[#3E4491]">About :</span>
+                                                        <div className="text-[11px] font-medium leading-relaxed text-justify opacity-80 text-[#575C9C]">
+                                                            {profileSettings.about}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {profileSettings?.contacts?.filter(c => c.value).length > 0 && (
+                                                <div className="mt-2">
+                                                    <h3 className="text-[12px] font-bold mb-3 text-[#3E4491]">Contact</h3>
+                                                    <div className="flex items-center gap-3 flex-wrap">
+                                                        {profileSettings.contacts.filter(c => c.value).map((contact) => (
+                                                            <button
+                                                                key={contact.id}
+                                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-transform hover:scale-110 shadow-sm ${contact.type === 'x' ? 'bg-black' :
+                                                                    contact.type === 'facebook' ? 'bg-[#3138A9]' :
+                                                                        contact.type === 'instagram' ? 'bg-gradient-to-tr from-[#FFD600] via-[#FF0100] to-[#D800FF]' :
+                                                                            'bg-white border border-gray-300'
+                                                                    }`}
+                                                                onClick={() => {
+                                                                    if (contact.type === 'email' || contact.type === 'gmail') window.open(`mailto:${contact.value}`);
+                                                                    else if (contact.type === 'phone' || contact.type === 'contact') window.open(`tel:${contact.value}`);
+                                                                    else window.open(contact.value, '_blank');
+                                                                }}
+                                                            >
+                                                                {contact.type === 'x' && <Icon icon="ri:twitter-x-fill" className="text-white w-4 h-4" />}
+                                                                {contact.type === 'facebook' && <Icon icon="ri:facebook-fill" className="text-white w-4 h-4" />}
+                                                                {(contact.type === 'email' || contact.type === 'gmail') && <Icon icon="logos:google-gmail" className="w-4 h-4" />}
+                                                                {contact.type === 'instagram' && <Icon icon="ri:instagram-line" className="text-white w-4 h-4" />}
+                                                                {(contact.type === 'phone' || contact.type === 'contact') && <Icon icon="ph:phone-fill" className="text-[#4B4EFC] w-4 h-4 -rotate-90" />}
+                                                                {contact.type === 'linkedin' && <Icon icon="logos:linkedin-icon" className="w-4 h-4" />}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="text-[11px] text-center pt-10 opacity-60 font-medium text-[#575C9C]">
+                                            No profile found
+                                        </div>
+                                    )}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* TOC Sidebar — Desktop Layout 4 style */}
+                    <AnimatePresence>
+                        {showLocalTOC && (
+                            <motion.div
+                                key="toc-panel-ml4"
+                                initial={{ x: '100%' }}
+                                animate={{ x: 0 }}
+                                exit={{ x: '100%' }}
+                                transition={{ type: 'tween', duration: 0.25 }}
+                                className="absolute right-0 top-0 bottom-0 z-[170] w-[58%] flex flex-col shadow-2xl border-l border-gray-200 bg-white"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+                                    <span className="text-[13px] font-semibold text-[#575C9C]">Table of Contents</span>
+                                    <button
+                                        onClick={() => setShowLocalTOC(false)}
+                                        className="opacity-70 hover:opacity-100 transition-opacity text-[#575C9C]"
+                                    >
+                                        <Icon icon="lucide:x" className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {/* Search Bar */}
+                                {settings?.tocSettings?.addSearch !== false && (
+                                    <div className="px-3 py-2 border-b border-gray-50">
+                                        <div className="relative">
+                                            <Icon
+                                                icon="lucide:search"
+                                                className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-[#575C9C]/50"
+                                            />
+                                            <input
+                                                type="text"
+                                                placeholder="Search..."
+                                                value={tocSearchQuery}
+                                                onChange={(e) => setTocSearchQuery(e.target.value)}
+                                                className="w-full rounded-[3px] pl-6 pr-3 py-1.5 text-[11px] outline-none border border-[#575C9C]/20 text-[#575C9C] placeholder-[#575C9C]/40 bg-transparent focus:ring-1 focus:ring-[#575C9C]/20"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* List Area */}
+                                <div
+                                    className="flex-1 overflow-y-auto p-3 flex flex-col"
+                                    style={{ scrollbarWidth: 'thin', scrollbarColor: '#BABEE4 transparent' }}
+                                >
+                                    {(() => {
+                                        const safeContent = Array.isArray(settings?.tocSettings?.content) ? settings.tocSettings.content : [];
+                                        const filteredContent = safeContent.map(heading => {
+                                            const matchesHeading = (heading?.title || '').toLowerCase().includes((tocSearchQuery || '').toLowerCase());
+                                            const filteredSubs = heading?.subheadings?.filter(sub =>
+                                                (sub?.title || '').toLowerCase().includes((tocSearchQuery || '').toLowerCase())
+                                            ) || [];
+                                            if (matchesHeading || filteredSubs.length > 0) {
+                                                return { ...heading, subheadings: matchesHeading ? heading.subheadings : filteredSubs };
+                                            }
+                                            return null;
+                                        }).filter(Boolean);
+
+                                        return filteredContent.length > 0 ? (
+                                            filteredContent.map((heading, hIdx) => (
+                                                <div key={heading.id || hIdx} className={hIdx > 0 ? 'mt-3' : ''}>
+                                                    <div
+                                                        className="flex items-center justify-between py-1.5 rounded-[3px] cursor-pointer hover:bg-[#575C9C]/5 px-1 transition-colors"
+                                                        style={{ color: '#575C9C' }}
+                                                        onClick={() => { onPageClick(heading.page - 1); setShowLocalTOC(false); setTocSearchQuery(''); }}
+                                                    >
+                                                        <span className="text-[11px] font-medium truncate pr-2 flex items-center gap-1">
+                                                            {settings?.tocSettings?.addSerialNumberHeading !== false && <span className="opacity-50">{hIdx + 1}.</span>}
+                                                            {heading.title}
+                                                        </span>
+                                                        {settings?.tocSettings?.addPageNumber !== false && (
+                                                            <span className="text-[10px] font-medium tabular-nums opacity-60 shrink-0">
+                                                                {heading.page < 10 ? `0${heading.page}` : heading.page}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col pl-3 border-l border-gray-100 ml-1">
+                                                        {heading.subheadings?.map((sub, sIdx) => (
+                                                            <div
+                                                                key={sub.id || sIdx}
+                                                                className="flex items-center justify-between py-1 rounded-[3px] cursor-pointer hover:bg-[#575C9C]/5 px-1 transition-colors"
+                                                                style={{ color: '#575C9C' }}
+                                                                onClick={() => { onPageClick(sub.page - 1); setShowLocalTOC(false); setTocSearchQuery(''); }}
+                                                            >
+                                                                <span className="text-[10px] font-normal truncate pr-2 flex items-center gap-1 opacity-80">
+                                                                    {settings?.tocSettings?.addSerialNumberSubheading !== false && <span className="opacity-50">{hIdx + 1}.{sIdx + 1}</span>}
+                                                                    {sub.title}
+                                                                </span>
+                                                                {settings?.tocSettings?.addPageNumber !== false && (
+                                                                    <span className="text-[9px] font-normal tabular-nums opacity-50 shrink-0">
+                                                                        {sub.page < 10 ? `0${sub.page}` : sub.page}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-[11px] text-center pt-10 opacity-50 font-medium text-[#575C9C]">
+                                                No Table Of Content Found
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Thumbnail Sidebar — Desktop Layout 4 style */}
+                    <AnimatePresence>
+                        {showLocalThumbnails && (
+                            <motion.div
+                                key="thumbnail-panel"
+                                initial={{ x: '100%' }}
+                                animate={{ x: 0 }}
+                                exit={{ x: '100%' }}
+                                transition={{ type: 'tween', duration: 0.25 }}
+                                className="absolute right-0 top-0 bottom-0 z-[170] w-[58%] flex flex-col shadow-2xl border-l border-gray-200"
+                                style={{ backgroundColor: '#FFFFFF' }}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 shrink-0">
+                                    <span className="text-[13px] font-bold text-[#3E4491]">Thumbnail</span>
+                                    <button
+                                        onClick={() => setShowLocalThumbnails(false)}
+                                        className="opacity-60 hover:opacity-100 transition-opacity"
+                                        style={{ color: '#3E4491' }}
+                                    >
+                                        <Icon icon="lucide:x" className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {/* Vertically Scrollable Spread List */}
                                 <div
                                     ref={scrollRef}
-                                    className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col gap-6"
+                                    className="flex-1 overflow-y-auto p-3 flex flex-col gap-4"
+                                    style={{ scrollbarWidth: 'thin', scrollbarColor: '#BABEE4 transparent' }}
                                 >
                                     {spreads.map((spread, idx) => {
                                         const isSelected = spread.indices.includes(currentPage);
                                         return (
                                             <div
                                                 key={idx}
-                                                className={`flex flex-col items-center cursor-pointer transition-all ${isSelected ? 'scale-[1.03] active-thumbnail' : ''}`}
+                                                className={`flex flex-col items-center cursor-pointer group transition-all ${isSelected ? 'scale-[1.03] active-thumbnail' : 'hover:scale-[1.01]'}`}
                                                 onClick={() => {
                                                     onPageClick(spread.indices[0]);
-                                                    setShowThumbnailBar(false);
+                                                    setShowLocalThumbnails(false);
                                                 }}
                                             >
                                                 <div
-                                                    className={`relative bg-white shadow-md rounded-[2px] overflow-hidden border-[1.5px] transition-all p-1 ${isSelected ? 'shadow-lg border-[#3E4491]' : 'border-gray-200'}`}
-                                                    style={{ width: '100%', height: '80px', borderColor: isSelected ? getLayoutColor('thumbnail-inner-v2', '#3E4491') : 'transparent' }}
+                                                    className={`relative bg-white shadow-md rounded-[3px] overflow-hidden border-[1.5px] transition-all p-1 ${isSelected
+                                                        ? 'border-[#575C9C] shadow-lg'
+                                                        : 'border-gray-200 group-hover:border-gray-300'
+                                                        }`}
                                                 >
-                                                    <div className="flex w-full h-full gap-px bg-gray-100 justify-center">
+                                                    <div className="flex bg-gray-50/30">
                                                         {spread.pages.map((page, pIdx) => (
-                                                            <div key={`${idx}-${pIdx}`} className="flex-1 max-w-[50%] bg-white overflow-hidden relative flex items-center justify-center">
+                                                            <div
+                                                                key={pIdx}
+                                                                className={`w-[52px] h-[74px] bg-white overflow-hidden relative ${pIdx === 0 && spread.pages.length > 1 ? 'border-r border-gray-100' : ''
+                                                                    }`}
+                                                            >
                                                                 <PageThumbnail
                                                                     html={page.html || page.content}
                                                                     index={spread.indices[pIdx]}
-                                                                    scale={0.14}
+                                                                    scale={0.13}
                                                                 />
                                                             </div>
                                                         ))}
                                                     </div>
                                                 </div>
-                                                <span className="mt-1.5 text-[10px] font-bold transition-colors"
-                                                    style={{ color: isSelected ? getLayoutColor('dropdown-text', '#3E4491') : '#6B7280' }}
+                                                <span
+                                                    className={`text-[10px] font-bold mt-1.5 transition-colors ${isSelected ? 'text-[#575C9C]' : 'text-[#575C9C]/60 group-hover:text-[#575C9C]'
+                                                        }`}
                                                 >
                                                     {spread.label}
                                                 </span>
@@ -872,120 +832,7 @@ const MobileLayout4 = (props) => {
                         )}
                     </AnimatePresence>
 
-                    {/* Table of Contents Sidebar */}
-                    <AnimatePresence>
-                        {showTOC && (
-                            <motion.div
-                                initial={{ x: '100%' }}
-                                animate={{ x: 0 }}
-                                exit={{ x: '100%' }}
-                                transition={{ type: 'tween', duration: 0.3 }}
-                                className="absolute right-0 top-0 bottom-0 z-[170] w-[60%] flex flex-col shadow-2xl border-l border-white/10"
-                                style={{ backgroundColor: getLayoutColor('toc-bg', '#FFFFFF') }}
-                            >
-                                {/* Header */}
-                                <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100 shrink-0">
-                                    <span className="text-[14px] font-bold" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Table of Contents</span>
-                                    <button onClick={() => setShowTOC(false)} className="opacity-60 hover:opacity-100">
-                                        <Icon icon="lucide:x" className="w-[18px] h-[18px]" style={{ color: getLayoutColor('toc-text', '#575C9C') }} />
-                                    </button>
-                                </div>
 
-                                {/* TOC Search Bar */}
-                                {settings.tocSettings?.addSearch !== false && (
-                                    <div className="px-3 py-2 border-b" style={{ borderColor: getLayoutColorRgba('toc-text', '87, 92, 156', '0.1') }}>
-                                        <div className="flex items-center rounded-md px-2 py-1.5" style={{ backgroundColor: getLayoutColorRgba('toc-text', '87, 92, 156', '0.05') }}>
-                                            <Icon icon="lucide:search" className="w-3.5 h-3.5 opacity-50" style={{ color: getLayoutColor('toc-text', '#575C9C') }} />
-                                            <input
-                                                type="text"
-                                                placeholder="Search TOC..."
-                                                className="bg-transparent border-0 outline-none focus:ring-0 text-[12px] ml-2 w-full"
-                                                style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                                value={tocSearchQuery}
-                                                onChange={(e) => setTocSearchQuery(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Vertically Scrollable List */}
-                                <div className="flex-1 overflow-y-auto custom-scrollbar p-3 flex flex-col">
-                                    {settings.tocSettings?.content && settings.tocSettings.content.length > 0 ? (
-                                        settings.tocSettings.content
-                                            .filter(item => {
-                                                if (!tocSearchQuery) return true;
-                                                const query = tocSearchQuery.toLowerCase();
-                                                const matchesHeading = item.title.toLowerCase().includes(query);
-                                                const matchesSubheading = item.subheadings?.some(sub => sub.title.toLowerCase().includes(query));
-                                                return matchesHeading || matchesSubheading;
-                                            })
-                                            .map((heading, hIdx) => {
-                                                const filteredSubheadings = heading.subheadings?.filter(sub =>
-                                                    !tocSearchQuery || sub.title.toLowerCase().includes(tocSearchQuery.toLowerCase())
-                                                );
-
-                                                return (
-                                                    <div key={heading.id} className={`${hIdx > 0 ? 'mt-4' : ''}`}>
-                                                        <div
-                                                            className="flex items-center justify-between py-2 px-1 hover:bg-black/5 rounded transition-colors"
-                                                            onClick={() => {
-                                                                if (onPageClick) onPageClick(heading.page - 1);
-                                                                setShowTOC(false);
-                                                            }}
-                                                        >
-                                                            <div className="flex items-center min-w-0 pr-2">
-                                                                {settings.tocSettings.addSerialNumberToHeading !== false && (
-                                                                    <span className="text-[13px] font-bold mr-2 shrink-0" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                                                        {hIdx + 1}.
-                                                                    </span>
-                                                                )}
-                                                                <span className="text-[13px] font-medium truncate shrink" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>{heading.title}</span>
-                                                            </div>
-                                                            {settings.tocSettings.addPageNumber !== false && (
-                                                                <span className="text-[12px] font-medium tabular-nums shrink-0" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                                                    {heading.page < 10 ? `0${heading.page}` : heading.page}
-                                                                </span>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="flex flex-col ml-4">
-                                                            {filteredSubheadings?.map((sub, sIdx) => (
-                                                                <div
-                                                                    key={sub.id}
-                                                                    className="flex items-center justify-between py-1.5 px-1 hover:bg-black/5 rounded transition-colors"
-                                                                    onClick={() => {
-                                                                        if (onPageClick) onPageClick(sub.page - 1);
-                                                                        setShowTOC(false);
-                                                                    }}
-                                                                >
-                                                                    <div className="flex items-center min-w-0 pr-2">
-                                                                        {settings.tocSettings.addSerialNumberToSubheading !== false && (
-                                                                            <span className="text-[12px] font-medium mr-2 shrink-0 opacity-70" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                                                                {hIdx + 1}.{sIdx + 1}.
-                                                                            </span>
-                                                                        )}
-                                                                        <span className="text-[12px] font-normal truncate shrink opacity-90" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>{sub.title}</span>
-                                                                    </div>
-                                                                    {settings.tocSettings.addPageNumber !== false && (
-                                                                        <span className="text-[11px] font-normal tabular-nums shrink-0 opacity-70" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                                                            {sub.page < 10 ? `0${sub.page}` : sub.page}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })
-                                    ) : (
-                                        <div className="text-center py-10 opacity-50" style={{ color: getLayoutColor('toc-text', '#575C9C') }}>
-                                            No Table Of Content Found
-                                        </div>
-                                    )}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
 
                     {/* View Bookmarks Sidebar */}
                     <AnimatePresence>
@@ -1078,38 +925,30 @@ const MobileLayout4 = (props) => {
 
                     {/* Flipbook Canvas */}
                     <div className="flex-1 flex items-center justify-center px-10 relative overflow-hidden">
-                        <div className="transition-transform duration-500 ease-out" style={{ transform: `scale(${currentZoom})`, transformOrigin: 'center center' }}>
-                            <div className="relative">
-                                {children}
-                            </div>
+                        <div className="relative transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                            {children}
                         </div>
                     </div>
                 </div>
 
                 {/* Footer */}
-                <footer className="z-50 shrink-0 flex flex-col pt-3 pb-8 relative" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+                <footer className="z-50 shrink-0 flex flex-col pt-2 pb-8 relative" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
 
-                    {/* Top of footer: Zoom Control */}
-                    <div className="flex justify-end px-6 mb-4">
-                        <div className="flex items-center gap-2 rounded px-2 py-1 shadow-[0_2px_4px_rgba(0,0,0,0.1)] border"
-                            style={{
-                                backgroundColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '0.15'),
-                                borderColor: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '0.1')
-                            }}
-                        >
-                            <Icon icon="lucide:zoom-in" className="w-[10px] h-[10px]" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }} />
-                            <span className="font-semibold text-[9px] min-w-[28px] text-center" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>{Math.round(currentZoom * 100)}%</span>
-                            <button
-                                onClick={() => setCurrentZoom(0.5)}
-                                className="bg-white px-[5px] py-[2px] rounded-[3px] text-[8px] font-bold active:scale-95 transition-transform"
-                                style={{ color: getLayoutColor('search-text-v1', '#3E4491') }}
-                            >
-                                Reset
-                            </button>
+                    {/* Top row: Page indicator pills (right-aligned) */}
+                    <div className="flex items-center justify-end px-4 mb-2 gap-1.5">
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-sm bg-white/15 backdrop-blur-sm">
+                            <span className="text-white/80 text-[9px] font-bold tabular-nums">
+                                {Math.round(progressPercentage)}%
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-sm bg-white/15 backdrop-blur-sm">
+                            <span className="text-white/80 text-[9px] font-bold tabular-nums">
+                                {currentPage + 1}&nbsp;/&nbsp;{pages.length}
+                            </span>
                         </div>
                     </div>
 
-                    {/* Bottom of footer: Playback & Scrub Bar */}
+                    {/* Bottom row: Playback & Scrub Bar */}
                     <div className="flex items-center px-6 gap-4 w-full">
                         {/* Media Controls */}
                         <div className="flex items-center gap-4">

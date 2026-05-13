@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import ExportModal from '../components/ExportModal';
 import axios from 'axios';
 
 import { getFromDB, saveToDB } from '../utils/dbUtils';
@@ -74,6 +75,7 @@ const Editor = () => {
 
   // Save Success State for Toast
   const [saveSuccessInfo, setSaveSuccessInfo] = useState(null);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const handleSaveSuccess = (info) => {
       setSaveSuccessInfo(info);
@@ -83,10 +85,9 @@ const Editor = () => {
   };
 
   const handleExport = () => {
+    setIsExportModalOpen(true);
     if (exportHandler) {
       exportHandler();
-    } else {
-      console.warn("Export handler is not attached.");
     }
   };
 
@@ -104,6 +105,11 @@ const Editor = () => {
     } else {
       console.warn("Preview handler is not attached.");
     }
+  };
+
+  const handlePublish = () => {
+    console.log("Publishing project...");
+    // Add publish logic here
   };
 
   // 3D Editor Persistence State
@@ -247,6 +253,7 @@ const Editor = () => {
         onExport={handleExport} 
         onSave={handleSave}
         onPreview={handlePreview}
+        onPublish={handlePublish}
         hasUnsavedChanges={hasUnsavedChanges}
         canSave={canSave}
         saveSuccessInfo={saveSuccessInfo}
@@ -260,6 +267,13 @@ const Editor = () => {
       <div className="flex-1 overflow-hidden">
         <Outlet context={contextValue} />
       </div>
+      
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={isExportModalOpen} 
+        onClose={() => setIsExportModalOpen(false)}
+        currentBook={currentBook}
+      />
     </div>
   );
 };

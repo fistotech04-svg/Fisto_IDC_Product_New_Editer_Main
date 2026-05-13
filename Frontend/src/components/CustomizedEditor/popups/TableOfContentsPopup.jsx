@@ -11,7 +11,7 @@ const isLightColor = (hex) => {
     return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) > 0.5;
 };
 
-const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, layoutColors, isMobileLandscape }) => {
+const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, isEditor, layoutColors, isMobileLandscape, isFullscreen, isMobilePortraitOverride }) => {
     // Ensure settings is at least an empty object if it's null
     const safeSettings = settings || {};
     const [searchQuery, setSearchQuery] = useState('');
@@ -47,21 +47,35 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         addPageNumber = true,
         addSerialNumberHeading = true,
         addSerialNumberSubheading = true,
-        content = []
+        content: propContent,
+        items: propItems,
+        toc: propToc
     } = safeSettings;
+
+    // Robust extraction: check content, then items, then nested toc items
+    const content = (Array.isArray(propContent) && propContent.length > 0)
+        ? propContent
+        : (Array.isArray(propItems) && propItems.length > 0)
+            ? propItems
+            : (Array.isArray(propToc?.items) && propToc.items.length > 0)
+                ? propToc.items
+                : (propContent || propItems || propToc?.items || []);
 
     const safeContent = Array.isArray(content) ? content : [];
 
     const filteredContent = useMemo(() => safeContent.map(heading => {
-        const matchesHeading = (heading?.title || '').toLowerCase().includes(searchQuery.toLowerCase());
-        const filteredSubheadings = heading?.subheadings?.filter(sub =>
-            (sub?.title || '').toLowerCase().includes(searchQuery.toLowerCase())
-        ) || [];
+        const title = (heading?.title || heading?.label || '').toString();
+        const matchesHeading = !searchQuery || title.toLowerCase().includes(searchQuery.toLowerCase());
+        const filteredSubheadings = heading?.subheadings?.filter(sub => {
+            const subTitle = (sub?.title || sub?.label || '').toString();
+            return !searchQuery || subTitle.toLowerCase().includes(searchQuery.toLowerCase());
+        }) || [];
 
         if (matchesHeading || filteredSubheadings.length > 0) {
             return {
                 ...heading,
-                subheadings: matchesHeading ? heading.subheadings : filteredSubheadings
+                title: title, // ensure title exists
+                subheadings: matchesHeading ? (heading.subheadings || []) : filteredSubheadings
             };
         }
         return null;
@@ -107,6 +121,101 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     };
 
     if (isLayout9) {
+        if (isMobile && !isLandscape) {
+            return (
+                <>
+                    <div className="fixed inset-0 z-[2000] pointer-events-auto bg-transparent" onClick={onClose} />
+                    <div
+                        className={`absolute top-[105px] left-[10px] z-[2100] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-300 origin-top-left`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className={`relative w-[150px] min-h-[160px] h-fit max-h-[60vh] flex flex-col group`}>
+                            {/* SVG Background (Knob on left for TOC) */}
+                            <div className="absolute inset-0 z-0 pointer-events-none drop-shadow-xl">
+                                <svg width="100%" height="100%" viewBox="0 0 250 600" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                                    <path
+                                        d="M0 35C0 15 15 0 35 0C55 0 70 15 70 35V45C70 65 75 80 90 80H230C241.05 80 250 88.95 250 100V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V35Z"
+                                        fill={getLayoutColor('toc-bg', '#575C9C')}
+                                        fillOpacity={getLayoutOpacity('toc-bg', '0.95')}
+                                    />
+                                </svg>
+                            </div>
+
+                            {/* Content Layer */}
+                            <div className="relative z-10 flex flex-col flex-1 pt-[55px] px-[8px] pb-[12px]">
+                                {/* Search Bar */}
+                                {addSearch && (
+                                    <div className="relative mb-[10px]">
+                                        <input
+                                            type="text"
+                                            placeholder="Search..."
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            className="w-full rounded-full border border-white/10 pl-[10px] pr-[22px] py-[5px] text-[10px] placeholder:text-current placeholder:opacity-40 outline-none backdrop-blur-md italic font-medium shadow-inner transition-colors"
+                                            style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', color: getLayoutColor('toc-text', '#FFFFFF'), opacity: getLayoutOpacity('toc-text', '1') }}
+                                        />
+                                        <Icon
+                                            icon="lucide:search"
+                                            className="absolute right-[8px] top-1/2 -translate-y-1/2 w-[12px] h-[12px] transition-colors"
+                                            style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.5)` }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* TOC List */}
+                                <div className="flex flex-col gap-[4px] overflow-y-auto custom-scrollbar pr-[2px]" style={{ scrollbarWidth: 'none' }}>
+                                    {(filteredContent.length > 0 ? filteredContent : [
+                                        { id: 'h1', title: 'Landing Page', page: 1 },
+                                        { id: 'h2', title: 'Product Page', page: 2, subheadings: [{ id: 's1', title: 'Sub Heading 1', page: 2 }, { id: 's2', title: 'Sub Heading 2', page: 2 }] },
+                                        { id: 'h3', title: 'Pricing', page: 4, subheadings: [{ id: 's3', title: 'Pro Plan', page: 5 }] }
+                                    ]).map((heading, hIdx) => {
+                                        const sectionId = heading.id || heading.title;
+                                        const hasSubItems = heading.subheadings && heading.subheadings.length > 0;
+                                        return (
+                                            <div key={sectionId} className="flex flex-col gap-[3px]">
+                                                <div
+                                                    onClick={() => { if (onNavigate) onNavigate(heading.page - 1); }}
+                                                    className="rounded-full px-[10px] py-[4px] flex items-center justify-between cursor-pointer hover:bg-white/30 active:scale-[0.98] transition-all shadow-sm group border border-white/10"
+                                                    style={{ backgroundColor: 'rgba(255, 255, 255, 0.25)' }}
+                                                >
+                                                    <span className="text-[10px] font-bold tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: getLayoutOpacity('toc-text', '1') }}>
+                                                        {heading.title}
+                                                    </span>
+                                                    <span className="text-[9px] font-bold tabular-nums transition-colors ml-1 shrink-0" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.9)` }}>
+                                                        {heading.page < 10 ? `0${heading.page}` : heading.page}
+                                                    </span>
+                                                </div>
+
+                                                {hasSubItems && (
+                                                    <div className="flex flex-col gap-[2px] pl-[6px] animate-in slide-in-from-top-2 duration-300">
+                                                        {heading.subheadings.map((sub, sIdx) => (
+                                                            <div
+                                                                key={sub.id || sIdx}
+                                                                onClick={(e) => { e.stopPropagation(); if (onNavigate) onNavigate(sub.page - 1); }}
+                                                                className="rounded-full px-[8px] py-[3px] flex items-center justify-between cursor-pointer hover:bg-white/20 active:scale-[0.98] transition-all ml-auto w-[85%] border border-white/10"
+                                                                style={{ backgroundColor: 'rgba(255, 255, 255, 0.12)' }}
+                                                            >
+                                                                <span className="text-[9px] font-semibold tracking-tight truncate transition-colors" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.9)` }}>
+                                                                    {sub.title}
+                                                                </span>
+                                                                <span className="text-[8px] font-bold tabular-nums transition-colors ml-1 shrink-0" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: `calc(${getLayoutOpacity('toc-text', '1')} * 0.8)` }}>
+                                                                    {sub.page < 10 ? `0${sub.page}` : sub.page}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
         return (
             <>
                 <div className="fixed inset-0 z-[40] pointer-events-auto bg-transparent" onClick={onClose} />
@@ -361,25 +470,25 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         return (
             <>
                 <div className="fixed inset-0 z-[1000] pointer-events-auto" onClick={onClose} />
-                <div className="fixed bottom-[120px] left-1/2 -translate-x-1/2 z-[1001] pointer-events-auto w-[280px]">
-                    <div className="bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed bottom-[190px] left-[16px] z-[1001] pointer-events-auto w-[170px]">
+                    <div className="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col border border-gray-100 animate-in fade-in zoom-in-95 duration-200 origin-bottom-left">
                         {/* Header */}
                         <div
-                            className="w-full px-4 py-3 flex items-center justify-between"
+                            className="w-full px-3 py-2 flex items-center justify-between"
                             style={{ backgroundColor: getLayoutColor('toc-bg', '#575C9C') }}
                         >
-                            <h2 className="text-[14px] font-bold tracking-wide" style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>Table of Contents</h2>
+                            <h2 className="text-[12px] font-bold tracking-wide" style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>Table of Contents</h2>
                             <button onClick={onClose} className="hover:opacity-70 transition-opacity">
-                                <Icon icon="lucide:x" className="w-5 h-5 text-white" />
+                                <Icon icon="lucide:x" className="w-4 h-4 text-white" />
                             </button>
                         </div>
                         {/* Body */}
-                        <div className="p-4 w-full">
+                        <div className="p-3 w-full">
                             {addSearch && (
-                                <div className="mb-4 relative">
+                                <div className="mb-3 relative">
                                     <Icon
                                         icon="lucide:search"
-                                        className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4"
+                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
                                         style={{ color: bodyTextColor, opacity: 0.6 }}
                                     />
                                     <input
@@ -387,7 +496,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         placeholder="Search..."
                                         value={searchQuery}
                                         onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full rounded-lg pl-9 pr-3 py-2 text-[13px] outline-none transition-colors border focus:border-opacity-50 shadow-sm"
+                                        className="w-full rounded-lg pl-8 pr-2.5 py-1.5 text-[11px] outline-none transition-colors border focus:border-opacity-50 shadow-sm"
                                         style={{
                                             backgroundColor: 'white',
                                             color: bodyTextColor,
@@ -399,33 +508,33 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
                             <div
                                 ref={scrollContainerRef}
-                                className="flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[35vh]"
+                                className="flex flex-col gap-0.5 overflow-y-auto max-h-[220px] pr-1"
                             >
                                 {filteredContent.length === 0 ? (
-                                    <div className="text-center py-8 text-gray-400 text-[13px] italic">
+                                    <div className="text-center py-6 text-gray-400 text-[11px] italic">
                                         No items found
                                     </div>
                                 ) : (
                                     filteredContent.map((heading, hIdx) => (
                                         <div
                                             key={heading.id}
-                                            className="flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer group"
+                                            className="flex items-center justify-between px-2 py-2 hover:bg-gray-50 rounded-lg transition-colors cursor-pointer group"
                                             onClick={() => { if (onNavigate) onNavigate(heading.page - 1); }}
                                         >
-                                            <div className="flex items-center gap-3 truncate flex-1 min-w-0">
-                                                <span className="text-[13px] font-bold truncate"
+                                            <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                                <span className="text-[11px] font-bold truncate"
                                                     style={{ color: bodyTextColor }}
                                                 >
                                                     {addSerialNumberHeading ? `${hIdx + 1}. ` : ''}{heading.title}
                                                 </span>
                                             </div>
-                                            <div className="flex items-center gap-1.5 ml-2">
-                                                <span className="text-[11px] font-extrabold opacity-40" style={{ color: bodyTextColor }}>
+                                            <div className="flex items-center gap-1 ml-2">
+                                                <span className="text-[9px] font-extrabold opacity-40" style={{ color: bodyTextColor }}>
                                                     {String(heading.page).padStart(2, '0')}
                                                 </span>
                                                 <Icon
                                                     icon="lucide:chevron-right"
-                                                    className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity"
                                                     style={{ color: bodyTextColor }}
                                                 />
                                             </div>
@@ -552,29 +661,38 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             if (isLandscape) {
                 if (Number(activeLayout) === 1) return { bottom: '35px', left: '25px' };
                 if (Number(activeLayout) === 3) return { top: '32px', right: '25%' };
-                if (Number(activeLayout) === 2) return { top: '45px', left: '32%' };
+                if (Number(activeLayout) === 2) return { top: '40px', left: '32%' };
                 return { top: '6vh', left: '28%' };
             }
             if (Number(activeLayout) === 1) return { top: '16vh', right: '24px' };
-            if (Number(activeLayout) === 2) return { top: '135px', left: '18px' };
+            if (Number(activeLayout) === 2) return { top: '125px', left: '18px' };
             if (Number(activeLayout) === 3) return { top: '15rem', right: '4.5rem' };
             if (Number(activeLayout) === 7) return { top: '120px', left: '52px' };
             return { top: '6.5rem', left: '50%', transform: 'translateX(-50%)' };
         }
-        if (activeLayout === 1 || activeLayout === 'Layout1') return isTablet ? { bottom: '3.8vw', left: '2.2vw' } : { bottom: 'calc(4.5vw + 2.5vh)', left: '2.2vw' };
+        if (activeLayout === 1 || activeLayout === 'Layout1') return isTablet ? { bottom: '3.8vw', left: '2.2vw' } : { bottom: '8vh', left: '1vw' };
         if (activeLayout === 2 || activeLayout === 'Layout2') {
-            const leftPos = isSidebarOpen ? 'calc(50% + 1vw)' : 'calc(50% - 6.5vw)';
-            return isTablet ? { top: '7.5vh', left: 'calc(50% - 12vw)', transform: 'translateX(-50%)' } : { top: '16.5vh', left: leftPos, transform: 'translateX(-50%)' };
+            if (!isEditor || isFullscreen) {
+                return { top: '8.5vh', left: 'calc(50% - 14vw)', transform: 'translateX(-50%)' };
+            }
+            const leftPos = isSidebarOpen ? 'calc(50% + 5vw)' : 'calc(50% - 7.5vw)';
+            return isTablet ? { top: '15.5vh', left: 'calc(50% - 12vw)', transform: 'translateX(-50%)' } : { top: '15.5vh', left: leftPos, transform: 'translateX(-50%)' };
         }
         if (activeLayout === 3 || activeLayout === 'Layout3') {
-            const leftPos = isSidebarOpen ? 'calc(50% + 4vw)' : 'calc(50% - 3vw)';
-            return { top: '16.5vh', left: leftPos, transform: 'translateX(-50%)' };
+            if (isMobilePortraitOverride) {
+                return { top: '23vh', left: 'calc(50% - 6.5vw)', transform: 'translateX(-50%) scale(0.85)', transformOrigin: 'top center' };
+            }
+            if (!isEditor || isFullscreen) {
+                return { top: '6.5vh', left: 'calc(50% - 8vw)', transform: 'translateX(-50%)' };
+            }
+            const leftPos = isSidebarOpen ? 'calc(50% + 5.5vw)' : 'calc(50% - 4.5vw)';
+            return { top: isTablet ? '15vh' : '14.5vh', left: leftPos, transform: 'translateX(-50%)' };
         }
         if (activeLayout === 6 || activeLayout === 'Layout6') return { top: '8.5vh', left: '2.2vw' };
         if (activeLayout === 5) return { bottom: '11.5vh', left: 'calc(50% - 1vw)', transform: 'translateX(-50%)' };
         if (activeLayout === 4) return { top: '10.5vh', left: '4.5vw' };
         if (activeLayout === 9) return { top: '8.5vh', left: 'calc(50% - 10vw)', transform: 'translateX(-50%)' };
-        return isTablet ? { bottom: '3.8vw', left: '2vw' } : { bottom: 'calc(4.5vw + 2.5vh)', left: '2vw' };
+        return isTablet ? { bottom: '3.8vw', left: '2vw' } : { bottom: '8vh', left: '1vw' };
     };
 
     if (isMobile && isLandscape && isLayout3) {
@@ -807,43 +925,154 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         );
     }
 
-    // Layout 1 Desktop: use absolute positioning (fixed breaks inside transformed containers)
-    if (isLayout1 && !isMobile) {
+    // Layout 3 Desktop Style: match Grid3Layout dropdown style
+    if (!isMobile && isLayout3) {
+        return (
+            <>
+                <div className="fixed inset-0 z-[1000] pointer-events-auto bg-transparent" onClick={onClose} />
+                <div
+                    className="fixed z-[9999] pointer-events-auto"
+                    style={getPositionStyle()}
+                >
+                    <div
+                        className={`bg-white ${isTablet ? 'rounded-[0.3vw] w-[12vw]' : 'rounded-[0.5vw] w-[14vw]'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200`}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div
+                            className={`${isTablet ? 'rounded-[0.3vw] p-[0.4vw]' : 'rounded-[0.5vw] p-[0.4vw]'} w-full flex flex-col`}
+                            style={{ backgroundColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '1'), fontFamily: "'Poppins', sans-serif" }}
+                        >
+                            {/* Header */}
+                            <div className={`flex items-center ${isTablet ? 'gap-[0.6vw] mb-[0.6vw] px-[0.4vw] pt-[0.2vw]' : 'gap-[0.8vw] mb-[0.8vw] px-[0.6vw] pt-[0.4vw]'}`}>
+                                <h2 className={`${isTablet ? 'text-[0.9vw]' : 'text-[1vw]'} font-bold whitespace-nowrap tracking-tight`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
+                                    Table of Contents
+                                </h2>
+                            </div>
+
+                            {/* Search */}
+                            {addSearch && (
+                                <div className={`mb-[0.6vw] relative ${isTablet ? 'px-[0.4vw]' : 'px-[0.6vw]'}`}>
+                                    <Icon
+                                        icon="lucide:search"
+                                        className={`absolute ${isTablet ? 'left-[0.8vw]' : 'left-[1.2vw]'} top-1/2 -translate-y-1/2 ${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]'}`}
+                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.6)' }}
+                                    />
+                                    <input
+                                        type="text"
+                                        placeholder="Search..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className={`w-full ${isTablet ? 'rounded-[0.4vw] pl-[1.6vw] pr-[0.6vw] py-[0.4vw] text-[0.7vw]' : 'rounded-[0.4vw] pl-[2vw] pr-[0.8vw] py-[0.5vw] text-[0.8vw]'} outline-none transition-colors`}
+                                        style={{
+                                            color: getLayoutColor('toc-text', '#FFFFFF'),
+                                            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                                        }}
+                                    />
+                                </div>
+                            )}
+
+                            {/* TOC List */}
+                            <div
+                                ref={scrollContainerRef}
+                                className="flex flex-col gap-[0.2vw] overflow-y-auto custom-scrollbar max-h-[25vh]"
+                                style={initialHeight !== 'auto' ? { minHeight: initialHeight } : {}}
+                            >
+                                {filteredContent.map((heading, hIdx) => (
+                                    <React.Fragment key={heading.id}>
+                                        <div
+                                            className={`flex items-center justify-between ${isTablet ? 'px-[0.6vw] py-[0.5vw]' : 'px-[0.8vw] py-[0.6vw]'} hover:bg-white/10 ${isTablet ? 'rounded-[0.3vw]' : 'rounded-[0.4vw]'} transition-colors cursor-pointer group`}
+                                            onClick={() => { if (onNavigate) { onNavigate(heading.page - 1); onClose(); } }}
+                                        >
+                                            <div className={`flex items-center ${isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]'} truncate flex-1 min-w-0`}>
+                                                <span className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} font-normal truncate tracking-tight`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
+                                                    {addSerialNumberHeading && <span className={`${isTablet ? 'mr-[0.3vw]' : 'mr-[0.4vw]'}`}>{hIdx + 1}.</span>}
+                                                    {heading.title}
+                                                </span>
+                                            </div>
+                                            {addPageNumber && (
+                                                <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-normal flex-shrink-0 ml-[0.6vw] tabular-nums`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.8)' }}>
+                                                    {heading.page < 10 ? `0${heading.page}` : heading.page}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {heading.subheadings?.map((sub, sIdx) => (
+                                            <div
+                                                key={sub.id}
+                                                className={`flex items-center justify-between ${isTablet ? 'px-[0.6vw] py-[0.4vw] ml-[1vw]' : 'px-[0.8vw] py-[0.5vw] ml-[1.2vw]'} hover:bg-white/10 ${isTablet ? 'rounded-[0.3vw]' : 'rounded-[0.4vw]'} transition-colors cursor-pointer group`}
+                                                onClick={() => { if (onNavigate) { onNavigate(sub.page - 1); onClose(); } }}
+                                            >
+                                                <div className={`flex items-center ${isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]'} truncate flex-1 min-w-0`}>
+                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-normal truncate tracking-tight`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}>
+                                                        {addSerialNumberSubheading && <span className={`${isTablet ? 'mr-[0.3vw]' : 'mr-[0.4vw]'}`}>{hIdx + 1}.{sIdx + 1}.</span>}
+                                                        {sub.title}
+                                                    </span>
+                                                </div>
+                                                {addPageNumber && (
+                                                    <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.7vw]'} font-normal flex-shrink-0 ml-[0.6vw] tabular-nums`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.6)' }}>
+                                                        {sub.page < 10 ? `0${sub.page}` : sub.page}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </React.Fragment>
+                                ))}
+                                {filteredContent.length === 0 && (
+                                    <div className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} text-center ${isTablet ? 'py-[0.8vw]' : 'py-[1vw]'} font-medium`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 0.5 }}>
+                                        No Table Of Content Found
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
+    // Layout 1 Style: use absolute positioning (fixed breaks inside transformed containers)
+    if (isLayout1) {
         return (
             <>
                 <div className="absolute inset-0 z-[1000] pointer-events-auto" onClick={onClose} />
                 <div
-                    className={`absolute ${isTablet ? 'bottom-[3.8vw] left-[2.2vw]' : 'bottom-[calc(4.5vw_+_2.5vh)] left-[2.2vw]'} z-[1001] pointer-events-auto`}
+                    className={`absolute ${isMobile ? 'top-[175px] right-[15px]' : isTablet ? 'bottom-[3.8vw] left-[2.2vw]' : 'bottom-[8vh] left-[1vw]'} z-[1001] pointer-events-auto`}
                 >
                     <div
-                        className="rounded-[1.2vw] w-[13vw] shadow-2xl overflow-hidden relative backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200"
+                        className={`${isMobile ? 'rounded-2xl w-[235px]' : 'rounded-[0.7vw] w-[13vw]'} shadow-2xl overflow-hidden relative backdrop-blur-xl animate-in fade-in slide-in-from-top-4 duration-200`}
                         style={{
                             backgroundColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8'),
                             border: '1px solid rgba(255, 255, 255, 0.2)'
                         }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="p-[1vw] w-full relative h-full">
+                        <div className={`${isMobile ? 'p-3.5' : 'p-[1vw]'} w-full relative h-full`}>
                             {/* Header */}
-                            <div className="text-center mb-[0.8vw] px-[0.5vw]">
-                                <h2 className="text-[0.95vw] font-bold tracking-tight mb-[0.5vw]"
-                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
+                            <div className={`text-center ${isMobile ? 'mb-2.5' : 'mb-[0.8vw]'} px-[0.5vw]`}>
+                                <h2 className={`${isMobile ? 'text-[17px]' : 'text-[1.1vw]'} font-light tracking-tight ${isMobile ? 'mb-1.5' : 'mb-[0.5vw]'}`}
+                                    style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                 >
                                     Table of Contents
                                 </h2>
-                                <div className="h-[1px] w-full"
-                                    style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 0.3)' }}
+                                <div className={`h-[0.5px] ${isMobile ? 'w-[calc(100%+28px)] ml-[-14px]' : 'w-[calc(100%+2vw)] ml-[-1vw]'}`}
+                                    style={{ backgroundColor: '#FFFFFF', opacity: 0.8 }}
                                 />
                             </div>
 
                             {/* Search */}
                             {addSearch && (
-                                <div className="mb-3 relative px-[0.5vw]">
+                                <div className={`${isMobile ? 'mb-3' : 'mb-3'} relative px-[0.5vw]`}>
                                     <Icon
                                         icon="lucide:search"
-                                        className="absolute left-[1.2vw] top-1/2 -translate-y-1/2 w-[0.85vw] h-[0.85vw]"
+                                        className={`absolute ${isMobile ? 'left-3.5' : 'left-[1.2vw]'} top-1/2 -translate-y-1/2 ${isMobile ? 'w-4 h-4' : 'w-[0.85vw] h-[0.85vw]'}`}
                                         style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.7)' }}
                                     />
+                                    <style>{`
+                                        .toc-search-input::placeholder {
+                                            color: ${getLayoutColor('toc-text', '#FFFFFF')};
+                                            opacity: 0.5;
+                                        }
+                                    `}</style>
                                     <input
                                         type="text"
                                         placeholder="Search..."
@@ -851,11 +1080,11 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         onClick={(e) => e.stopPropagation()}
                                         onMouseDown={(e) => e.stopPropagation()}
-                                        className="w-full rounded-full pl-[2.2vw] pr-[0.8vw] py-[0.35vw] text-[0.75vw] outline-none border border-white/10 transition-colors placeholder:opacity-50"
+                                        className={`toc-search-input w-full rounded-full ${isMobile ? 'pl-9 pr-3 py-1.5 text-[11px]' : 'pl-[2.2vw] pr-[0.8vw] py-[0.35vw] text-[0.75vw]'} outline-none border transition-colors`}
                                         style={{
                                             color: getLayoutColor('toc-text', '#FFFFFF'),
-                                            backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                                            backgroundColor: isLightColor(tocBgHex) ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.2)',
+                                            borderColor: isLightColor(tocBgHex) ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.3)',
                                             opacity: 'var(--toc-text-opacity, 1)',
                                         }}
                                     />
@@ -865,82 +1094,67 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                             {/* TOC List */}
                             <div
                                 ref={scrollContainerRef}
-                                className="flex flex-col gap-0.5 overflow-y-auto custom-scrollbar pr-1 max-h-[18vw]"
-                                style={initialHeight !== 'auto' ? { minHeight: initialHeight } : {}}
+                                className={`flex flex-col gap-0.5 overflow-y-auto custom-scrollbar pr-1 ${isMobile ? 'max-h-[220px]' : 'max-h-[15vw]'}`}
+                                style={{
+                                    scrollbarWidth: 'thin',
+                                    scrollbarColor: 'rgba(255,255,255,0.3) transparent',
+                                    ...(initialHeight !== 'auto' ? { minHeight: initialHeight } : {})
+                                }}
                             >
-                                {(() => {
-                                    const displayContent = filteredContent.length > 0
-                                        ? filteredContent
-                                        : (!content?.length && !searchQuery ? [
-                                            { id: 'h1', title: 'Landing Page', page: 1 },
-                                            {
-                                                id: 'h2', title: 'Product Page', page: 2,
-                                                subheadings: [
-                                                    { id: 's1', title: 'Sub Heading 1', page: 2 },
-                                                    { id: 's2', title: 'Sub Heading 2', page: 3 },
-                                                ]
-                                            }
-                                        ] : []);
-
-                                    return (
-                                        <>
-                                            {displayContent.map((heading, hIdx) => (
-                                                <React.Fragment key={heading.id}>
-                                                    <div
-                                                        className="flex items-center justify-between px-[0.6vw] py-[0.4vw] hover:bg-white/10 rounded-md transition-colors cursor-pointer group"
-                                                        onClick={() => onNavigate && onNavigate(heading.page - 1)}
-                                                    >
-                                                        <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                                            <span className="text-[0.85vw] font-bold truncate"
-                                                                style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
-                                                            >
-                                                                {addSerialNumberHeading && <span className="mr-1">{hIdx + 1}.</span>}
-                                                                {heading.title}
-                                                            </span>
-                                                        </div>
-                                                        {addPageNumber && (
-                                                            <span className="text-[10px] font-bold flex-shrink-0 ml-2 tabular-nums"
-                                                                style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.8)' }}
-                                                            >
-                                                                {heading.page < 10 ? `0${heading.page}` : heading.page}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {heading.subheadings?.map((sub, sIdx) => (
-                                                        <div
-                                                            key={sub.id}
-                                                            className="flex items-center justify-between px-[0.6vw] py-[0.4vw] ml-[1.2vw] hover:bg-white/10 rounded-md transition-colors cursor-pointer group"
-                                                            onClick={() => onNavigate && onNavigate(sub.page - 1)}
-                                                        >
-                                                            <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                                                <span className="text-[10px] font-medium truncate"
-                                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
-                                                                >
-                                                                    {addSerialNumberSubheading && <span className="mr-1">{hIdx + 1}.{sIdx + 1}</span>}
-                                                                    {sub.title}
-                                                                </span>
-                                                            </div>
-                                                            {addPageNumber && (
-                                                                <span className="text-[9px] font-bold flex-shrink-0 ml-2 tabular-nums"
-                                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.6)' }}
-                                                                >
-                                                                    {sub.page < 10 ? `0${sub.page}` : sub.page}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ))}
-                                                </React.Fragment>
-                                            ))}
-                                            {displayContent.length === 0 && (
-                                                <div className="text-[10px] text-center py-4 font-medium"
-                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.5)' }}
+                                {filteredContent.map((heading, hIdx) => (
+                                    <React.Fragment key={heading.id}>
+                                        <div
+                                            className={`flex items-center justify-between ${isMobile ? 'px-2 py-2' : 'px-[0.6vw] py-[0.4vw]'} hover:bg-white/10 rounded-md transition-colors cursor-pointer group`}
+                                            onClick={() => onNavigate && onNavigate(heading.page - 1)}
+                                        >
+                                            <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                                <span className={`${isMobile ? 'text-[14px]' : 'text-[0.85vw]'} font-bold truncate`}
+                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                                 >
-                                                    No Table Of Content Found
-                                                </div>
+                                                    {addSerialNumberHeading && <span className="mr-1">{hIdx + 1}.</span>}
+                                                    {heading.title}
+                                                </span>
+                                            </div>
+                                            {addPageNumber && (
+                                                <span className={`${isMobile ? 'text-[12px]' : 'text-[10px]'} font-bold flex-shrink-0 ml-2 tabular-nums`}
+                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.8)' }}
+                                                >
+                                                    {heading.page < 10 ? `0${heading.page}` : heading.page}
+                                                </span>
                                             )}
-                                        </>
-                                    );
-                                })()}
+                                        </div>
+                                        {heading.subheadings?.map((sub, sIdx) => (
+                                            <div
+                                                key={sub.id}
+                                                className={`flex items-center justify-between ${isMobile ? 'px-2 py-1.5 ml-4' : 'px-[0.6vw] py-[0.4vw] ml-[1.2vw]'} hover:bg-white/10 rounded-md transition-colors cursor-pointer group`}
+                                                onClick={() => onNavigate && onNavigate(sub.page - 1)}
+                                            >
+                                                <div className="flex items-center gap-2 truncate flex-1 min-w-0">
+                                                    <span className={`${isMobile ? 'text-[12px]' : 'text-[10px]'} font-medium truncate`}
+                                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
+                                                    >
+                                                        {addSerialNumberSubheading && <span className="mr-1">{hIdx + 1}.{sIdx + 1}</span>}
+                                                        {sub.title}
+                                                    </span>
+                                                </div>
+                                                {addPageNumber && (
+                                                    <span className={`${isMobile ? 'text-[11px]' : 'text-[9px]'} font-bold flex-shrink-0 ml-2 tabular-nums`}
+                                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.6)' }}
+                                                    >
+                                                        {sub.page < 10 ? `0${sub.page}` : sub.page}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </React.Fragment>
+                                ))}
+                                {filteredContent.length === 0 && (
+                                    <div className={`${isMobile ? 'text-[11px]' : 'text-[10px]'} text-center py-4 font-medium`}
+                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.5)' }}
+                                    >
+                                        No Table Of Content Found
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -959,52 +1173,49 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                 <div
                     className={`
                         ${isLayout2 || (isMobile && isLandscape && !isLayout1)
-                            ? 'backdrop-blur-xl border border-white/50 p-1 rounded-2xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]'
+                            ? 'backdrop-blur-xl border border-white/50 p-1 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)]'
                             : isLayout1
                                 ? `${isMobile ? `rounded-2xl ${isLandscape ? 'w-[150px]' : 'w-[190px]'}` : 'rounded-[1.2vw] w-[13vw]'} shadow-2xl overflow-hidden relative backdrop-blur-xl`
-                                : Number(activeLayout) === 3
-                                    ? 'bg-white rounded-[1vw] shadow-2xl relative overflow-hidden'
-                                    : `rounded-[1vw] shadow-2xl ${isMobile ? 'p-3 w-[280px]' : 'p-[0.8vw] ' + (Number(activeLayout) === 6 ? 'w-[17.5vw]' : Number(activeLayout) === 4 ? 'w-[18vw]' : 'w-[13vw]')}`
+                                : `rounded-[1vw] shadow-2xl ${isMobile ? 'p-3 w-[280px]' : 'p-[0.8vw] ' + (Number(activeLayout) === 6 ? 'w-[17.5vw]' : Number(activeLayout) === 4 ? 'w-[18vw]' : 'w-[13vw]')}`
                         } 
                         animate-in fade-in slide-in-from-top-4 duration-200
-                        ${isLayout3 ? (isMobile ? (isLandscape ? 'w-[140px]' : 'w-[170px]') : 'w-[13vw]') : ''}
                         ${(isMobile && !isLandscape && Number(activeLayout) === 5) ? 'w-[280px]' : ''}
                     `}
                     style={{
-                        backgroundColor: (isLayout1) ? getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8') : (isLayout2 || (isMobile && isLandscape) || Number(activeLayout) === 3 ? undefined : getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8')),
+                        backgroundColor: (isLayout1) ? getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8') : (isLayout2 || (isMobile && isLandscape) ? undefined : getLayoutColorRgba('toc-bg', '87, 92, 156', '0.8')),
                         border: isLayout1 ? '1px solid rgba(255, 255, 255, 0.2)' : undefined
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className={(isLayout2 || (isMobile && isLandscape && !isLayout1)) ? 'rounded-xl bg-white overflow-hidden' : ''}>
+                    <div className={(isLayout2 || (isMobile && isLandscape && !isLayout1)) ? 'rounded-lg bg-white overflow-hidden' : ''}>
                         <div
-                            className={(isLayout2 || (isMobile && isLandscape && !isLayout1) || Number(activeLayout) === 3) ? `rounded-xl ${isMobile ? ((isLandscape) ? 'p-[0.5vw] w-[10vw]' : 'p-2.5 w-[170px]') : 'p-3 w-[200px]'} relative flex flex-col` : (isLayout1 ? `${isMobile ? 'p-2' : 'p-[1vw]'} w-full relative h-full` : '')}
-                            style={{ backgroundColor: (isLayout2 || (isMobile && isLandscape && !isLayout1) || Number(activeLayout) === 3) ? `rgba(var(--toc-bg-rgb, 87, 92, 156), calc(0.2 + var(--toc-bg-opacity, 1) * 0.8))` : 'transparent' }}
+                            className={(isLayout2 || (isMobile && isLandscape && !isLayout1)) ? `rounded-lg ${isMobile ? ((isLandscape) ? 'p-[0.5vw] w-[10vw]' : 'p-2.5 w-[170px]') : 'p-3 w-[200px]'} relative flex flex-col` : (isLayout1 ? `${isMobile ? 'p-2' : 'p-[1vw]'} w-full relative h-full` : '')}
+                            style={{ backgroundColor: (isLayout2 || (isMobile && isLandscape && !isLayout1)) ? `rgba(var(--toc-bg-rgb, 87, 92, 156), calc(0.2 + var(--toc-bg-opacity, 1) * 0.8))` : 'transparent' }}
                         >
-                            <div className={Number(activeLayout) === 3 ? 'relative z-10' : ''}>
+                            <div>
                                 {/* Header Section */}
                                 {(isLayout2 || (isMobile && isLandscape && !isLayout1)) ? (
-                                    <div className={`flex items-center gap-2 ${isMobile && isLandscape ? 'mb-[0.5vw]' : 'mb-3'}`}>
-                                        <h2 className={`${isMobile && isLandscape ? 'text-[0.7vw]' : 'text-[11px]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
+                                    <div className={`flex items-center gap-2 ${isMobile && isLandscape ? 'mb-[0.5vw]' : isMobile ? 'mb-2.5 mr-[-0.625rem]' : 'mb-3 mr-[-0.75rem]'}`}>
+                                        <h2 className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[14px]' : 'text-[1vw]'} font-light whitespace-nowrap`} style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
                                             Table of Contents
                                         </h2>
                                         <div className="h-[1px] flex-1" style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.3)' }} />
                                     </div>
                                 ) : (
                                     <div className={`text-center ${isMobile ? 'mb-2 px-2' : 'mb-[0.8vw] px-[0.5vw]'}`}>
-                                        <h2 className={`${isMobile ? 'text-[14px]' : 'text-[0.95vw]'} font-bold tracking-tight ${isMobile ? 'mb-1' : 'mb-[0.5vw]'}`}
-                                            style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
+                                        <h2 className={`${isMobile ? 'text-[14px]' : 'text-[1.1vw]'} font-light tracking-tight ${isMobile ? 'mb-1' : 'mb-[0.5vw]'}`}
+                                            style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                         >
                                             Table of Contents
                                         </h2>
-                                        <div className="h-[1px] w-full"
-                                            style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 0.3)' }}
+                                        <div className="h-[0.5px] w-[calc(100%+2vw)] ml-[-1vw]"
+                                            style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 0.2)' }}
                                         ></div>
                                     </div>
                                 )}
 
                                 {addSearch && (
-                                    <div className={`mb-3 relative ${isMobile ? 'px-0' : 'px-[0.5vw]'}`}>
+                                    <div className={`relative ${isMobile ? 'mb-3 px-0' : 'mb-3 px-[0.5vw]'}`}>
                                         <Icon
                                             icon="lucide:search"
                                             className={`absolute ${isMobile ? (isLandscape ? 'left-[1vw]' : 'left-3') : 'left-[1.2vw]'} top-1/2 -translate-y-1/2 ${isMobile ? (isLandscape ? 'w-[0.6vw] h-[0.6vw]' : 'w-3.5 h-3.5') : 'w-[0.85vw] h-[0.85vw]'}`}
@@ -1031,8 +1242,12 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
                                 <div
                                     ref={scrollContainerRef}
-                                    className={`flex flex-col gap-0.5 overflow-y-auto custom-scrollbar pr-1 ${isMobile ? (isLandscape ? 'max-h-[13vh]' : 'max-h-[155px]') : (isLayout2 ? 'max-h-[25vh]' : 'max-h-[18vw]')}`}
-                                    style={initialHeight !== 'auto' ? { minHeight: initialHeight } : {}}
+                                    className={`flex flex-col gap-0.5 overflow-y-auto custom-scrollbar pr-1 ${isMobile ? (isLandscape ? 'max-h-[13vh]' : 'max-h-[155px]') : (isLayout2 ? 'max-h-[25vh]' : 'max-h-[12vw]')}`}
+                                    style={{
+                                        scrollbarWidth: 'thin',
+                                        scrollbarColor: 'rgba(255,255,255,0.3) transparent',
+                                        ...(initialHeight !== 'auto' ? { minHeight: initialHeight } : {})
+                                    }}
                                 >
                                     {(() => {
                                         const displayContent = filteredContent.length > 0
@@ -1059,8 +1274,8 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                             onClick={() => onNavigate && onNavigate(heading.page - 1)}
                                                         >
                                                             <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                                                <span className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[11px]' : 'text-[0.85vw]'} font-bold truncate`}
-                                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
+                                                                <span className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[11px]' : 'text-[0.85vw]'} ${isLayout2 ? 'font-light' : 'font-bold'} truncate`}
+                                                                    style={{ fontFamily: isLayout2 ? "'Poppins', sans-serif" : undefined, color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                                                 >
                                                                     {addSerialNumberHeading && (
                                                                         <span className="mr-1">{hIdx + 1}.</span>
@@ -1084,8 +1299,8 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                                 onClick={() => onNavigate && onNavigate(sub.page - 1)}
                                                             >
                                                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0">
-                                                                    <span className={`${isMobile && isLandscape ? 'text-[0.65vw]' : isMobile ? 'text-[10px]' : 'text-[10px]'} font-medium truncate flex items-center`}
-                                                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
+                                                                    <span className={`${isMobile && isLandscape ? 'text-[0.65vw]' : isMobile ? 'text-[10px]' : 'text-[10px]'} ${isLayout2 ? 'font-light' : 'font-medium'} truncate flex items-center`}
+                                                                        style={{ fontFamily: isLayout2 ? "'Poppins', sans-serif" : undefined, color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
                                                                     >
                                                                         {addSerialNumberSubheading && (
                                                                             <span className="mr-1">{hIdx + 1}.{sIdx + 1}</span>

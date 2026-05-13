@@ -236,7 +236,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
     const handleInlineColorChange = (layoutIdx, colorId, newHex) => {
         setColors(prev => {
             const updated = { ...prev };
-            
+
             for (let i = 1; i <= 9; i++) {
                 const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
                 const current = updated[i] || [];
@@ -308,7 +308,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
     const handleInlineOpacityChange = (layoutIdx, colorId, newOpacity) => {
         setColors(prev => {
             const updated = { ...prev };
-            
+
             for (let i = 1; i <= 9; i++) {
                 const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
                 const current = updated[i] || [];
@@ -375,11 +375,10 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                                     setColorPopup(null);
                                 }
                             }}
-                           className={`flex-1 py-[0.50vw] text-[0.85vw] font-semibold rounded-[0.5vw] transition-all active:scale-95 border border-transparent ${
-                  activeTab === tab 
-                ? 'text-black bg-white shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)] border-gray-500/20' 
-                    : 'text-gray-400 bg-white shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
-                }`}
+                            className={`flex-1 py-[0.50vw] text-[0.85vw] font-semibold rounded-[0.5vw] transition-all active:scale-95 border border-transparent ${activeTab === tab
+                                    ? 'text-black bg-white shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)] border-gray-500/20'
+                                    : 'text-gray-400 bg-white shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
+                                }`}
                         >
                             {tab}
                         </button>
@@ -387,40 +386,40 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 })}
             </div>
 
-            
+
 
             {/* ── Layout Grid ── */}
             {activeTab === 'Layouts' && (
-            <div className="px-[1vw] pb-[1vw] grid grid-cols-2 gap-[0.8vw] relative z-[10]">
-                {layoutImages.map((img, index) => {
-                    const layoutNum = index + 1;
-                    const isActive = activeLayout === layoutNum;
-                    const layoutColorsList = colors[layoutNum] || [];
-                    const layoutName = layoutNames[layoutNum] || `Layout ${layoutNum}`;
-                    const isSpotlighted = isActive && colorPopup;
+                <div className="px-[1vw] pb-[1vw] grid grid-cols-2 gap-[0.8vw] relative z-[10]">
+                    {layoutImages.map((img, index) => {
+                        const layoutNum = index + 1;
+                        const isActive = activeLayout === layoutNum;
+                        const layoutColorsList = colors[layoutNum] || [];
+                        const layoutName = layoutNames[layoutNum] || `Layout ${layoutNum}`;
+                        const isSpotlighted = isActive && colorPopup;
 
-                    return (
-                        <div
-                            key={index}
-                            onClick={() => { if (!colorPopup) handleLayoutClick(layoutNum); }}
-                            className={`flex flex-col gap-[0.4vw] p-[0.45vw] rounded-[0.8vw] transition-all duration-300 border-2 cursor-pointer ${isActive
-                                ? 'border-[#3E4491] bg-white shadow-[0_4px_12px_rgba(62,68,145,0.12)] scale-[1.02]'
-                                : 'border-transparent hover:bg-gray-50'
-                                } ${isSpotlighted ? 'relative z-[310] !bg-white' : ''}`}
-                        >
-                            <div className="relative group rounded-[0.6vw] overflow-hidden transition-all bg-[#F8F9FA] aspect-[1.4/1]">
-                                <img src={img} alt={layoutName} className="w-full h-full object-cover" />
-                            </div>
+                        return (
+                            <div
+                                key={index}
+                                onClick={() => { if (!colorPopup) handleLayoutClick(layoutNum); }}
+                                className={`flex flex-col gap-[0.4vw] p-[0.45vw] rounded-[0.8vw] transition-all duration-300 border-2 cursor-pointer ${isActive
+                                    ? 'border-[#3E4491] bg-white shadow-[0_4px_12px_rgba(62,68,145,0.12)] scale-[1.02]'
+                                    : 'border-transparent hover:bg-gray-50'
+                                    } ${isSpotlighted ? 'relative z-[310] !bg-white' : ''}`}
+                            >
+                                <div className="relative group rounded-[0.6vw] overflow-hidden transition-all bg-[#F8F9FA] aspect-[1.4/1]">
+                                    <img src={img} alt={layoutName} className="w-full h-full object-cover" />
+                                </div>
 
-                            <div className="flex items-center justify-center px-[0vw] pt-[0.2vw]">
-                                <span className={` font-semibold ${isActive ? 'text-gray-800 text-[0.8vw]' : 'text-gray-800 text-[0.75vw]'}`}>
-                                    {layoutName}
-                                </span>
+                                <div className="flex items-center justify-center px-[0vw] pt-[0.2vw]">
+                                    <span className={` font-semibold ${isActive ? 'text-gray-800 text-[0.8vw]' : 'text-gray-800 text-[0.75vw]'}`}>
+                                        {layoutName}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div>
             )}
 
             {/* ── Inline Layout Colors View ── */}
@@ -430,10 +429,10 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                     return saved ? { ...saved } : { ...d };
                 });
 
-                const toolbarPrimary   = currentLayoutColors.find(c => c.id === 'toolbar-bg')        || { id: 'toolbar-bg',       hex: '#575C9C', opacity: 100 };
-                const toolbarSecondary = currentLayoutColors.find(c => c.id === 'toolbar-text-main') || { id: 'toolbar-text-main', hex: '#FFFFFF',  opacity: 100 };
-                const popupPrimary    = currentLayoutColors.find(c => c.id === 'toc-bg')    || currentLayoutColors.find(c => c.id === 'dropdown-bg')   || { id: 'toc-bg',   hex: '#575C9C', opacity: 80 };
-                const popupSecondary  = currentLayoutColors.find(c => c.id === 'toc-text')  || currentLayoutColors.find(c => c.id === 'dropdown-text')  || { id: 'toc-text', hex: '#FFFFFF',  opacity: 100 };
+                const toolbarPrimary = currentLayoutColors.find(c => c.id === 'toolbar-bg') || { id: 'toolbar-bg', hex: '#575C9C', opacity: 100 };
+                const toolbarSecondary = currentLayoutColors.find(c => c.id === 'toolbar-text-main') || { id: 'toolbar-text-main', hex: '#FFFFFF', opacity: 100 };
+                const popupPrimary = currentLayoutColors.find(c => c.id === 'toc-bg') || currentLayoutColors.find(c => c.id === 'dropdown-bg') || { id: 'toc-bg', hex: '#575C9C', opacity: 80 };
+                const popupSecondary = currentLayoutColors.find(c => c.id === 'toc-text') || currentLayoutColors.find(c => c.id === 'dropdown-text') || { id: 'toc-text', hex: '#FFFFFF', opacity: 100 };
 
                 const colorPresets = [
                     { primary: LAYOUT_DEFAULT_COLORS[1][0].hex, secondary: LAYOUT_DEFAULT_COLORS[1][2].hex },
@@ -518,34 +517,33 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                         {/* Preset swatches: 8-col × 2 rows — clicking applies theme */}
                         <div className="grid grid-cols-6 gap-[0.7vw] mb-[0.7vw]">
                             {colorPresets.map((preset, i) => {
-                                const isActive = preset.primary.toUpperCase() === primaryColor.hex.toUpperCase() && 
-                                               preset.secondary.toUpperCase() === secondaryColor.hex.toUpperCase();
+                                const isActive = preset.primary.toUpperCase() === primaryColor.hex.toUpperCase() &&
+                                    preset.secondary.toUpperCase() === secondaryColor.hex.toUpperCase();
                                 return (
                                     <button
                                         key={i}
-                                        className={`relative aspect-square rounded-[0.5vw] border shadow-sm transition-all hover:scale-110 overflow-hidden ${ 
-                                            isActive 
-                                                ? 'border-[#3E4491] border-[0.125vw] ring-[0.125vw] ring-indigo-100 scale-110' 
+                                        className={`relative aspect-square rounded-[0.5vw] border shadow-sm transition-all hover:scale-110 overflow-hidden ${isActive
+                                                ? 'border-[#3E4491] border-[0.125vw] ring-[0.125vw] ring-indigo-100 scale-110'
                                                 : 'border-gray-200 hover:border-gray-300'
-                                        }`}
+                                            }`}
                                         onClick={() => {
                                             handleInlineColorChange(activeLayout, primaryColor.id, preset.primary);
                                             handleInlineColorChange(activeLayout, secondaryColor.id, preset.secondary);
                                         }}
                                     >
-                                    <div className="absolute inset-0" style={{ backgroundColor: preset.primary }} />
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        className="absolute bottom-0 right-0 left-4 top-4 w-105% h-105%"
-                                        fill="none"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                    >
-                                        <path
-                                            d="M5.8807 5.8807L9.59912 2.16228C14.2178 -2.45636 22.1149 0.814742 22.1149 7.34648V14.7833C22.1149 18.8324 18.8324 22.1149 14.7833 22.1149H7.34647C0.814732 22.1149 -2.45637 14.2178 2.16227 9.59912L5.8807 5.8807Z"
-                                            fill={preset.secondary}
-                                            transform="translate(2, 2)"
-                                        />
-                                    </svg>
+                                        <div className="absolute inset-0" style={{ backgroundColor: preset.primary }} />
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            className="absolute bottom-0 right-0 left-4 top-4 w-105% h-105%"
+                                            fill="none"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                        >
+                                            <path
+                                                d="M5.8807 5.8807L9.59912 2.16228C14.2178 -2.45636 22.1149 0.814742 22.1149 7.34648V14.7833C22.1149 18.8324 18.8324 22.1149 14.7833 22.1149H7.34647C0.814732 22.1149 -2.45637 14.2178 2.16227 9.59912L5.8807 5.8807Z"
+                                                fill={preset.secondary}
+                                                transform="translate(2, 2)"
+                                            />
+                                        </svg>
                                     </button>
                                 );
                             })}
@@ -590,7 +588,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
 
                         {/* Color rows */}
                         <div className="flex flex-col gap-[0.5vw] mb-[0.5vw]">
-                            {renderColorRow('Color 1 :', primaryColor,   primaryDraftKey)}
+                            {renderColorRow('Color 1 :', primaryColor, primaryDraftKey)}
                             {renderColorRow('Color 2 :', secondaryColor, secondaryDraftKey)}
                         </div>
 
@@ -607,7 +605,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                         style={{ scrollbarWidth: 'none' }}
                     >
                         {renderColorSection('Toolbar Color', toolbarPrimary, toolbarSecondary, 'tp', 'ts')}
-                        {renderColorSection('Popups Color',  popupPrimary,   popupSecondary,   'pp', 'ps')}
+                        {renderColorSection('Popups Color', popupPrimary, popupSecondary, 'pp', 'ps')}
                     </div>
                 );
             })()}

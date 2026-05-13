@@ -111,8 +111,8 @@ const DesktopLayout3 = ({
             onClick={(e) => e.stopPropagation()}
         >
             <div className="p-[0.8vw]" style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1') }}>
-                <div className="mb-[0.8vw] px-[0.2vw]">
-                    <h2 className="text-[0.85vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Bookmark</h2>
+                <div className={`${isTablet ? 'mb-[0.6vw]' : 'mb-[0.8vw]'} px-[0.2vw]`}>
+                    <h2 className={`${isTablet ? 'text-[0.8vw]' : 'text-[0.9vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)', fontFamily: "'Poppins', sans-serif" }}>Bookmark</h2>
                 </div>
                 <div className="flex flex-col gap-[0.3vw] max-h-[30vh] overflow-y-auto no-scrollbar">
                     {displayBookmarks.map((bookmark) => (
@@ -161,7 +161,80 @@ const DesktopLayout3 = ({
     );
 };
 
-const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavigate, activeLayout, isTablet, isMobile, isLandscape, layoutColors, isMobileLandscape, isSidebarOpen }) => {
+const DesktopLayout5 = ({
+    displayBookmarks, editingId, editValue, setEditValue, handleEditStart, handleEditSave, handleDelete, handleNavigate,
+    getLayoutColor, getLayoutColorRgba, onClose, isTablet, Icon
+}) => {
+    return (
+        <div className="relative animate-in slide-in-from-bottom-2 duration-200" onClick={(e) => e.stopPropagation()}>
+            {/* Tooltip Arrow/Tail */}
+            <div className="absolute bottom-[-0.6vw] left-1/2 -translate-x-1/2 w-[1.2vw] h-[0.6vw] z-20">
+                <svg width="100%" height="100%" viewBox="0 0 20 10" preserveAspectRatio="none">
+                    <path d="M0 0 L10 10 L20 0 Z" fill="white" />
+                </svg>
+            </div>
+
+            <div className="bg-white rounded-[1vw] shadow-[0_0.4vw_2vw_rgba(0,0,0,0.15)] w-[14vw] overflow-hidden p-[1vw]">
+                <div className="mb-[0.8vw]">
+                    <h2 className="text-[1vw] font-bold text-gray-800" style={{ fontFamily: "'Poppins', sans-serif" }}>Bookmark</h2>
+                    <div className="h-[1px] w-full bg-gray-100 mt-[0.5vw]"></div>
+                </div>
+
+                <div className="flex flex-col gap-[0.3vw] max-h-[30vh] overflow-y-auto no-scrollbar">
+                    {displayBookmarks.map((bookmark) => (
+                        <div
+                            key={bookmark.id}
+                            className="flex items-center justify-between px-[0.5vw] py-[0.6vw] rounded-[0.5vw] hover:bg-gray-50 transition-colors cursor-pointer group"
+                            onClick={() => handleNavigate(bookmark.pageIndex)}
+                        >
+                            <div className="flex-1 min-w-0 mr-[0.5vw]">
+                                {editingId === bookmark.id ? (
+                                    <input
+                                        autoFocus
+                                        className="w-full text-[0.8vw] font-medium border-b border-blue-500 outline-none bg-transparent"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleEditSave(bookmark.id);
+                                            if (e.key === 'Escape') setEditingId(null);
+                                        }}
+                                        onBlur={() => handleEditSave(bookmark.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <span className="text-[0.85vw] font-medium text-gray-600 truncate block">
+                                        {bookmark.label}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center gap-[0.8vw] flex-shrink-0">
+                                <button
+                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); handleEditStart(bookmark); }}
+                                >
+                                    <Icon icon="fluent:edit-16-filled" className="w-[1.1vw] h-[1.1vw]" />
+                                </button>
+                                <button
+                                    className="text-red-400 hover:text-red-600 transition-colors"
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(bookmark.id); }}
+                                >
+                                    <Icon icon="ph:trash" className="w-[1.1vw] h-[1.1vw]" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                    {displayBookmarks.length === 0 && (
+                        <div className="text-[0.8vw] text-center py-[1.2vw] text-gray-400 italic">
+                            no bookmark added
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavigate, activeLayout, isTablet, isMobile, isLandscape, layoutColors, isMobileLandscape, isSidebarOpen, isBigBars }) => {
     const [editingId, setEditingId] = useState(null);
     const [editValue, setEditValue] = useState('');
 
@@ -294,14 +367,14 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
 
         if (isLandscape && isLayout1) {
             return (
-                <div className="absolute inset-0 z-[5000] flex items-end justify-center pointer-events-none pb-[50px] pl-[15vw]" onClick={onClose}>
+                <div className="absolute inset-0 z-[5000] flex items-end justify-center pointer-events-none pb-[20px] pl-[15vw]" onClick={onClose}>
                     <div className="scale-[0.85] origin-bottom shadow-4xl shadow-black/30 bg-transparent pointer-events-auto" onClick={(e) => e.stopPropagation()}>
                         {/* Main Desktop Container (Simplified for scale) */}
-                        <div className="rounded-[1vw] shadow-2xl p-[0.8vw] w-[12vw] backdrop-blur-md"
+                        <div className="rounded-[0.7vw] shadow-2xl p-[0.8vw] w-[12vw] backdrop-blur-md"
                             style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8') }}>
                             <div className="text-center mb-[0.8vw]">
-                                <h2 className="text-[1vw] font-bold tracking-wide" style={{ color: "var(--dropdown-text, #3E4491)", opacity: "var(--dropdown-text-opacity, 1)" }}>Book Mark</h2>
-                                <div className="h-[1.5px] w-full mt-[0.5vw]" style={{ backgroundColor: "var(--dropdown-text, #3E4491)", opacity: "var(--dropdown-text-opacity, 1)" }}></div>
+                                <h2 className="text-[1.1vw] font-light tracking-tight" style={{ fontFamily: "'Poppins', sans-serif", color: "var(--dropdown-text, #3E4491)", opacity: "var(--dropdown-text-opacity, 1)" }}>Book Mark</h2>
+                                <div className="h-[0.5px] w-[calc(100%+1vw)] ml-[-0.5vw] mt-[0.5vw]" style={{ backgroundColor: "#FFFFFF", opacity: 0.8 }}></div>
                             </div>
                             <div className="flex flex-col gap-[0.3vw] max-h-[25vh] overflow-y-auto no-scrollbar">
                                 {displayBookmarks.map((bookmark) => (
@@ -343,7 +416,7 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
                     onClick={onClose}
                 >
                     <div
-                        className="absolute pointer-events-auto animate-in zoom-in-95 duration-200 outline-none rounded-[10px] shadow-2xl border border-gray-100 overflow-hidden"
+                        className="absolute pointer-events-auto animate-in zoom-in-95 duration-200 outline-none rounded-[10px] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-100 overflow-hidden"
                         style={{
                             bottom: '80px',
                             left: '16px',
@@ -400,6 +473,184 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (!isLandscape && isLayout9) {
+            return (
+                <div className="absolute inset-0 z-[2000] pointer-events-none">
+                    <div className="absolute inset-0 z-[100] pointer-events-auto bg-transparent" onClick={onClose} />
+                    <div
+                        className="absolute bottom-[30px] left-[12px] z-[110] pointer-events-auto animate-in slide-in-from-bottom-2 zoom-in-95 duration-200"
+                        style={{ width: '185px' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="relative w-full" style={{ aspectRatio: '250/265' }}>
+                            {/* Unified SVG Background */}
+                            <div className="absolute inset-0 z-0 pointer-events-none">
+                                <svg width="100%" height="100%" viewBox="-5 0 255 265" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+                                    <path
+                                        d="M15 0 H230 C241 0 250 9 250 20 V150 C250 161 241 170 230 170 H75 C60 170 55 190 55 220 V230 C55 250 40 265 25 265 C10 265 -5 250 -5 230 V170 V20 C-5 9 4 0 13 0 Z"
+                                        fill={getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.6')}
+                                        stroke="rgba(255,255,255,0.1)"
+                                        strokeWidth="1.5"
+                                    />
+                                </svg>
+                            </div>
+
+                            {/* Content Layer */}
+                            <div className="w-full h-full relative z-10 flex flex-col justify-start pt-[6px] px-[12px] pb-[78px]">
+                                <div className="bg-white rounded-[12px] w-full h-full flex flex-col overflow-hidden p-1.5 shadow-lg relative">
+                                    <button
+                                        onClick={onClose}
+                                        className="absolute top-1 right-1 w-5 h-5 rounded-md flex items-center justify-center transition-colors text-[#575C9C] hover:bg-gray-100"
+                                    >
+                                        <Icon icon="lucide:x" className="w-[12px] h-[12px]" />
+                                    </button>
+
+                                    {/* Header */}
+                                    <div className="flex flex-col items-center mb-1 px-3">
+                                        <h2 className="text-[11px] font-bold text-[#575C9C]">Bookmark</h2>
+                                        <div className="h-[1px] w-full bg-[#575C9C]/20 mt-1" />
+                                    </div>
+
+                                    <div className="flex-1 overflow-y-auto no-scrollbar py-0.5">
+                                        {displayBookmarks.length > 0 ? (
+                                            displayBookmarks.map((bm) => (
+                                                <div
+                                                    key={bm.id}
+                                                    className="flex flex-col gap-1 py-1.5 px-1.5 hover:bg-gray-50 transition-colors cursor-pointer rounded-lg group"
+                                                    onClick={() => { handleNavigate(bm.pageIndex); onClose(); }}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        {editingId === bm.id ? (
+                                                            <input
+                                                                autoFocus
+                                                                className="flex-1 text-[10px] font-medium border-b border-[#575C9C]/30 outline-none focus:border-[#575C9C] mr-1 bg-transparent text-[#575C9C] min-w-0"
+                                                                value={editValue}
+                                                                onChange={(e) => setEditValue(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') handleEditSave(bm.id);
+                                                                    if (e.key === 'Escape') setEditingId(null);
+                                                                }}
+                                                                onBlur={() => handleEditSave(bm.id)}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                            />
+                                                        ) : (
+                                                            <span className="text-[10px] font-bold text-[#575C9C] truncate flex-1 mr-1">
+                                                                {bm.label}
+                                                            </span>
+                                                        )}
+
+                                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                                            {editingId === bm.id ? (
+                                                                <button
+                                                                    className="hover:scale-110 transition-transform text-[#575C9C]"
+                                                                    onClick={(e) => { e.stopPropagation(); handleEditSave(bm.id); }}
+                                                                >
+                                                                    <Icon icon="lucide:check" className="w-[10px] h-[10px]" />
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    className="hover:scale-110 transition-transform text-[#575C9C]"
+                                                                    onClick={(e) => { e.stopPropagation(); handleEditStart(bm); }}
+                                                                >
+                                                                    <Icon icon="mdi:pencil" className="w-[10px] h-[10px]" />
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                className="text-[#EF4444] hover:scale-110 transition-transform"
+                                                                onClick={(e) => { e.stopPropagation(); handleDelete(bm.id); }}
+                                                            >
+                                                                <Icon icon="lucide:trash-2" className="w-[10px] h-[10px]" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="text-center py-4 text-[10px] font-medium italic opacity-70 text-[#575C9C]">
+                                                No Bookmarks
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        if (!isLandscape && isLayout1) {
+            return (
+                <div
+                    className="fixed inset-0 z-[3000] pointer-events-auto"
+                    onClick={onClose}
+                >
+                    <div
+                        className="absolute top-[215px] right-[12px] pointer-events-auto animate-in zoom-in-95 duration-200 outline-none rounded-[16px] shadow-[0_8px_32px_rgba(0,0,0,0.25)] border border-white/20 p-5 w-[220px] backdrop-blur-xl"
+                        style={{ backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.8) }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Header Section matching DesktopLayout1 */}
+                        <div className="text-center mb-4">
+                            <h2 className="text-[18px] font-light tracking-tight" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>Book Mark</h2>
+                            <div className="h-[0.5px] w-[calc(100%+40px)] -ml-5 mt-2" style={{ backgroundColor: "#FFFFFF", opacity: 0.2 }}></div>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5 max-h-[45vh] overflow-y-auto custom-scrollbar pr-1">
+                            {displayBookmarks.map((bookmark) => (
+                                <div
+                                    key={bookmark.id}
+                                    className="flex items-center justify-between px-3 py-2.5 rounded-lg transition-colors group cursor-pointer hover:bg-white/5"
+                                    onClick={() => { handleNavigate(bookmark.pageIndex); onClose(); }}
+                                >
+                                    {editingId === bookmark.id ? (
+                                        <input
+                                            autoFocus
+                                            className="bg-white/10 border-none outline-none text-[13px] rounded px-2 py-1 w-full mr-2"
+                                            style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
+                                            value={editValue}
+                                            onChange={(e) => setEditValue(e.target.value)}
+                                            onBlur={() => handleEditSave(bookmark.id)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleEditSave(bookmark.id)}
+                                            onClick={(e) => e.stopPropagation()}
+                                        />
+                                    ) : (
+                                        <span
+                                            className="text-[14px] font-medium truncate flex-1"
+                                            style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                        >
+                                            {bookmark.label}
+                                        </span>
+                                    )}
+
+                                    <div className="flex items-center gap-3 flex-shrink-0">
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleEditStart(bookmark); }}
+                                            className="hover:scale-110 transition-transform opacity-70 hover:opacity-100"
+                                            style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                        >
+                                            <Icon icon="mdi:rename" className="w-[18px] h-[18px]" />
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(bookmark.id); }}
+                                            className="hover:scale-110 transition-transform opacity-80 hover:opacity-100"
+                                        >
+                                            <Icon icon="material-symbols-light:delete-outline-rounded" className="w-[22px] h-[22px]" style={{ color: '#FF5252' }} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            {displayBookmarks.length === 0 && (
+                                <div className="text-[13px] text-center py-8 opacity-60 font-medium italic" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                    no bookmark added
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -493,11 +744,11 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
     const getPosition = () => {
         const layout = Number(activeLayout);
         if (layout === 2) return 'top-[8.5vh] left-[calc(50%_-_8.7vw)] -translate-x-1/2';
-        if (layout === 3) return 'top-[8.5vh] left-[calc(50%_-_3.5vw)] -translate-x-1/2';
+        if (layout === 3) return 'top-[5.5vh] left-[calc(50%_-_3.5vw)] -translate-x-1/2';
         if (layout === 5) return 'bottom-[9vh] left-[calc(50%_+_4.8vw)] -translate-x-1/2';
         if (layout === 4) return 'top-[22vh] left-[4.5vw]';
         if (layout === 6 || layout === 7 || layout === 8) return 'top-[26vh] right-[4.2vw]';
-        if (layout === 1) return isTablet ? 'bottom-[4vw] right-[20.8vw]' : 'bottom-[calc(4.5vw_+_2.5vh)] right-[20.8vw]';
+        if (layout === 1) return isTablet ? 'bottom-[2vw] right-[20.5vw]' : 'bottom-[calc(4.5vw_-_1.5vh)] right-[20.5vw]';
         return 'bottom-[calc(4.5vw_+_2.5vh)] right-[27.3vw]';
     };
 
@@ -689,20 +940,26 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
             <>
                 <div className="absolute inset-0 z-[99] pointer-events-auto" onClick={onClose} />
                 <div
-                    className="absolute top-[7.5vh] left-[4.2vw] bottom-[7.5vh] w-[16vw] bg-white border-r border-gray-200/30 flex flex-col z-[100] animate-in slide-in-from-left duration-300 pointer-events-auto shadow-2xl"
+                    className={`absolute ${isMobileLandscape ? 'top-[12%] bottom-[12%] left-[7.5vw] w-[16vw]' : isTablet ? 'top-[5.5vh] bottom-[5vh] left-[3vw] w-[11vw]' : !isBigBars ? 'top-[6.5vh] bottom-[6.5vh] left-[3.5vw] w-[16vw]' : 'top-[7.5vh] bottom-[7.5vh] left-[4.2vw] w-[16vw]'} bg-white border-r border-gray-200/30 flex flex-col z-[100] animate-in slide-in-from-left duration-300 pointer-events-auto shadow-2xl`}
                     style={{ backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', '1') }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between px-[1vw] py-[1.5vh] border-b border-b-[0.15vw]" style={{ borderColor: getLayoutColor('toc-text', '#3E4491') }}>
-                        <span className="text-[1.1vw] font-bold" style={{ color: getLayoutColor('toc-text', '#3E4491') }}>Bookmarks</span>
-                        <button
-                            onClick={onClose}
-                            className="transition-colors opacity-70 hover:opacity-100"
-                            style={{ color: getLayoutColor('toc-text', '#3E4491') }}
-                        >
-                            <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
-                        </button>
+                    <div className="flex flex-col pt-[1.5vh] pb-0">
+                        <div className="flex items-center justify-between px-[1vw]">
+                            <span
+                                className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold`}
+                                style={{ color: getLayoutColor('toc-text', '#3E4491'), fontFamily: "'Poppins', sans-serif" }}
+                            >Bookmarks</span>
+                            <button
+                                onClick={onClose}
+                                className="transition-colors opacity-70 hover:opacity-100"
+                                style={{ color: getLayoutColor('toc-text', '#3E4491') }}
+                            >
+                                <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                            </button>
+                        </div>
+                        <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
                     </div>
 
                     {/* List Area */}
@@ -766,13 +1023,13 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
             <>
                 <div className="fixed inset-0 z-[150]" onClick={onClose} />
                 <div
-                    className="fixed bottom-[10.5vh] left-[70.6%] -translate-x-[15%] z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200"
+                    className="relative z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="relative">
                         {/* Needle Pointer */}
                         <div
-                            className="absolute -bottom-[1.3vw] left-[20%] -translate-x-1/2 z-10 pointer-events-none"
+                            className="absolute -bottom-[1.3vw] left-[50%] -translate-x-1/2 z-10 pointer-events-none"
                             style={{ width: '0.9vw', height: '1.4vw' }}
                         >
                             <svg width="100%" height="100%" viewBox="0 0 10 20" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1057,13 +1314,45 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
                         isTablet={isTablet}
                         Icon={Icon}
                     />
+                ) : isLayout3 ? (
+                    <DesktopLayout3
+                        displayBookmarks={displayBookmarks}
+                        editingId={editingId}
+                        editValue={editValue}
+                        setEditValue={setEditValue}
+                        handleEditStart={handleEditStart}
+                        handleEditSave={handleEditSave}
+                        handleDelete={handleDelete}
+                        handleNavigate={handleNavigate}
+                        getLayoutColor={getLayoutColor}
+                        getLayoutColorRgba={getLayoutColorRgba}
+                        onClose={onClose}
+                        isTablet={isTablet}
+                        Icon={Icon}
+                    />
+                ) : isLayout5 ? (
+                    <DesktopLayout5
+                        displayBookmarks={displayBookmarks}
+                        editingId={editingId}
+                        editValue={editValue}
+                        setEditValue={setEditValue}
+                        handleEditStart={handleEditStart}
+                        handleEditSave={handleEditSave}
+                        handleDelete={handleDelete}
+                        handleNavigate={handleNavigate}
+                        getLayoutColor={getLayoutColor}
+                        getLayoutColorRgba={getLayoutColorRgba}
+                        onClose={onClose}
+                        isTablet={isTablet}
+                        Icon={Icon}
+                    />
                 ) : (
                     <div
                         className={`
                         ${isLayout3
                                 ? `rounded-[0.5vw] shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] ${isTablet ? 'w-[11vw]' : 'w-[14vw]'} border border-gray-100`
                                 : isLayout1
-                                    ? `${isTablet ? 'rounded-[0.8vw] w-[10vw] p-[0.6vw]' : 'rounded-[1vw] shadow-2xl p-[0.8vw] w-[12vw]'} backdrop-blur-md`
+                                    ? `${isTablet ? 'rounded-[0.7vw] w-[10vw] p-[0.6vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)]' : 'rounded-[0.7vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] p-[0.8vw] w-[12vw]'} backdrop-blur-md`
                                     : isLayout4
                                         ? `rounded-[1vw] shadow-2xl p-[0.8vw] w-[13vw] border border-white/10 backdrop-blur-md`
                                         : isLayout7 || isLayout8
@@ -1081,13 +1370,13 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
                         >
                             {/* Header Section */}
                             {isLayout3 ? (
-                                <div className="mb-[0.8vw] px-[0.2vw]">
-                                    <h2 className="text-[0.85vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)" }}>Bookmark</h2>
+                                <div className={`${isTablet ? 'mb-[0.6vw]' : 'mb-[0.8vw]'} px-[0.2vw]`}>
+                                    <h2 className={`${isTablet ? 'text-[0.8vw]' : 'text-[0.9vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)", fontFamily: "'Poppins', sans-serif" }}>Bookmark</h2>
                                 </div>
                             ) : isLayout1 ? (
                                 <div className="text-center mb-[0.8vw]">
-                                    <h2 className="text-[1vw] font-bold tracking-wide" style={{ color: "var(--dropdown-text, #3E4491)", opacity: "var(--dropdown-text-opacity, 1)" }}>Book Mark</h2>
-                                    <div className="h-[1.5px] w-full mt-[0.5vw]" style={{ backgroundColor: "var(--dropdown-text, #3E4491)", opacity: "var(--dropdown-text-opacity, 1)" }}></div>
+                                    <h2 className="text-[1.1vw] font-light tracking-tight" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>Book Mark</h2>
+                                    <div className="h-[0.5px] w-[calc(100%+1vw)] ml-[-0.5vw] mt-[0.5vw]" style={{ backgroundColor: "#FFFFFF", opacity: 0.8 }}></div>
                                 </div>
                             ) : (
                                 <div className="text-center mb-[0.6vw]">
@@ -1120,7 +1409,7 @@ const ViewBookmarkPopup = ({ onClose, bookmarks = [], onDelete, onUpdate, onNavi
                                         ) : (
                                             <span
                                                 className={`${isLayout1 ? (isTablet ? 'text-[0.7vw]' : 'text-[0.9vw]') : (isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]')} font-medium truncate flex-1`}
-                                                style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                                style={{ color: getLayoutColor('dropdown-text', isLayout1 ? '#FFFFFF' : '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)" }}
                                             >
                                                 {bookmark.label}
                                             </span>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, MoreVertical, Layers, Plus, Copy, Edit2, 
@@ -368,6 +369,8 @@ const Layer = ({
   onSave,
   onAddFile
 }) => {
+  const navigate = useNavigate();
+  const { folder, v_id } = useParams();
   const [activeLayerMenu, setActiveLayerMenu] = useState(null); // { layerId, x, y }
   const layerMenuRef = useRef(null);
   const [isVisible, setIsVisible] = useState(true);
@@ -399,6 +402,14 @@ const Layer = ({
       message: '',
       type: 'error'
   });
+  
+  const handleGoToCustomize = () => {
+    const path = folder 
+      ? `/editor/customized_editor/${folder}/${v_id}`
+      : `/editor/customized_editor/${v_id}`;
+    navigate(path);
+  };
+
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const nameInputRef = useRef(null);
 
@@ -1197,10 +1208,7 @@ const Layer = ({
               )}
               
               <button 
-                onClick={() => {
-                  // Logic for GO to Customize
-                  console.log("Navigating to Customize...");
-                }}
+                onClick={handleGoToCustomize}
                 className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-xl cursor-pointer"
               >
                 <ArrowUpRight size="1.2vw" className="rotate-0" />

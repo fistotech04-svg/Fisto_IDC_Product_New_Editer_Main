@@ -95,6 +95,7 @@ const Grid6Layout = ({
     showSoundPopup,
     setShowSoundPopupMemo,
     layoutColors,
+    showTOC,
     isTablet
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
@@ -112,7 +113,7 @@ const Grid6Layout = ({
 
     const zoomIn = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.min(prev + 20, initialWidth * 1.3);
+            const nextWidth = Math.min(prev + (initialWidth * 0.01), initialWidth * 1.3);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -120,7 +121,7 @@ const Grid6Layout = ({
 
     const zoomOut = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.max(prev - 10, initialWidth * 0.5);
+            const nextWidth = Math.max(prev - (initialWidth * 0.01), initialWidth * 0.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -221,7 +222,6 @@ const Grid6Layout = ({
     };
 
     const [showRadialThumbnails, setShowRadialThumbnails] = useState(false);
-    const [showTOCPanel, setShowTOCPanel] = useState(false);
     const [tocSearchQuery, setTocSearchQuery] = useState('');
     const [hoveredIdx, setHoveredIdx] = useState(null);
     const [radialScroll, setRadialScroll] = useState(0);
@@ -331,12 +331,12 @@ const Grid6Layout = ({
 
     return (
         <div
-            className="flex flex-col h-screen w-full overflow-hidden font-sans select-none"
+            className="flex flex-col h-full w-full overflow-hidden font-sans select-none"
             style={backgroundStyle || { backgroundColor: '#D7D8E8' }}
             onClick={() => {
                 setRecommendations([]);
                 setShowRadialThumbnails(false);
-                setShowTOCPanel(false);
+                setShowTOCMemo?.(false);
                 setTocSearchQuery('');
                 setShowBookmarkOptions(false);
                 setShowNotesOptions(false);
@@ -610,7 +610,7 @@ const Grid6Layout = ({
 
             {/* Bottom Footer */}
             <div
-                className={`${isTablet ? 'h-[5vh]' : 'h-[6vh] mb-[1.5vh]'} flex items-center px-[2vw] shrink-0 w-full relative z-40 border-t`}
+                className={`${isTablet ? 'h-[5vh]' : 'h-[6vh]'} flex items-center px-[1vw] shrink-0 w-full relative z-40 border-t`}
                 style={{
                     backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C'),
                     opacity: getLayoutOpacity('bottom-toolbar-bg', 1),
@@ -618,7 +618,7 @@ const Grid6Layout = ({
                 }}
             >
                 {/* Playback Controls */}
-                <div className="flex items-center gap-[1.5vw] mr-[2.5vw]">
+                <div className="flex items-center gap-[1.5vw] mr-[1vw]">
                     <button
                         onClick={() => onPageClick && onPageClick(0)}
                         className="transition-all transform active:scale-90"
@@ -645,7 +645,7 @@ const Grid6Layout = ({
                 {/* Progress Bar Container */}
                 <div
                     ref={progressRef}
-                    className="flex-1 flex items-center relative h-[2vw] cursor-pointer group"
+                    className="flex-1 flex items-center relative h-[2vw] cursor-pointer group mr-[8vw]"
                     onClick={handleProgressClick}
                     onMouseMove={handleProgressMouseMove}
                     onMouseLeave={() => {
@@ -656,20 +656,20 @@ const Grid6Layout = ({
                     {/* Continuous Progress Track */}
                     <div className="w-full h-[0.25vw] rounded-full relative overflow-hidden">
                         {/* Track Underlay (After fill) */}
-                        <div 
-                            className="absolute inset-0 transition-colors duration-300" 
-                            style={{ 
-                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), 
-                                opacity: isTablet ? 0.4 : 0.3 
-                            }} 
+                        <div
+                            className="absolute inset-0 transition-colors duration-300"
+                            style={{
+                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: isTablet ? 0.4 : 0.3
+                            }}
                         />
                         {/* Progress Fill (Before fill) */}
                         <div
                             className="absolute top-0 left-0 h-full transition-all duration-300 ease-out z-10"
-                            style={{ 
-                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), 
-                                width: `${progressPercentage}%`, 
-                                opacity: isTablet ? 1 : 'var(--toolbar-icon-opacity, 1)' 
+                            style={{
+                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                width: `${progressPercentage}%`,
+                                opacity: isTablet ? 1 : 'var(--toolbar-icon-opacity, 1)'
                             }}
                         ></div>
                     </div>
@@ -764,24 +764,56 @@ const Grid6Layout = ({
                         )}
                     </AnimatePresence>
                 </div>
+
+                {/* Right: Zoom Pill */}
+                <div className={`flex items-center ${isTablet ? 'mr-[4vw]' : 'mr-[5vw]'}`}>
+                    <div className={`flex items-center rounded-[0.5vw] ${isTablet ? 'p-[0.2vw] pl-[0.5vw] gap-[0.6vw]' : 'p-[0.3vw] pl-[0.8vw] gap-[1vw]'} border shadow-sm`}
+                        style={{
+                            backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'),
+                            borderColor: getLayoutColorRgba('search-text-v1', '87, 92, 156', '0.1')
+                        }}
+                    >
+                        <div className={`flex items-center ${isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]'}`}>
+                            <button onClick={(e) => { e.stopPropagation(); zoomOut(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                                <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
+                            </button>
+                            <span className={`font-bold ${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                                {Math.round((dimWidth / initialWidth) * 100)}%
+                            </span>
+                            <button onClick={(e) => { e.stopPropagation(); zoomIn(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>
+                                <Icon icon="lucide:zoom-in" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
+                            </button>
+                        </div>
+                        <button
+                            onClick={() => {
+                                setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
+                                setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
+                            }}
+                            className={`${isTablet ? 'text-[0.65vw] px-[0.6vw] py-[0.25vw]' : 'text-[0.8vw] px-[0.8vw] py-[0.35vw]'} rounded-[0.4vw] font-bold active:scale-95 transition-all shadow-sm`}
+                            style={{ backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'), color: getLayoutColor('search-text-v1', '#575C9C'), filter: 'brightness(0.95)' }}
+                        >
+                            Reset
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Right Sidebar Icons - MOVED TO ROOT FOR FULL HEIGHT */}
             <div
-                className={`absolute right-0 top-0 bottom-0 ${isTablet ? 'w-[4.5vw]' : 'w-[5vw]'} flex flex-col items-center justify-start pt-[12vh] gap-[2.5vh] z-50`}
+                className={`absolute right-0 top-0 bottom-0 ${isTablet ? 'w-[3.5vw]' : 'w-[4vw]'} flex flex-col items-center justify-start pt-[12vh] gap-[2.5vh] z-50`}
                 style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), opacity: getLayoutOpacity('toolbar-bg', 1) }}
             >
                 <button
                     onClick={(e) => {
                         e.stopPropagation();
-                        setShowTOCPanel(!showTOCPanel);
+                        setShowTOCMemo?.(!showTOC);
                         setShowRadialThumbnails(false);
                     }}
                     className="transition-all transform hover:scale-110"
                     style={{
                         color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                        backgroundColor: showTOCPanel ? 'rgba(255,255,255,0.2)' : 'transparent',
-                        opacity: showTOCPanel ? 1 : getLayoutOpacity('toolbar-text-main', 0.7)
+                        backgroundColor: showTOC ? 'rgba(255,255,255,0.2)' : 'transparent',
+                        opacity: showTOC ? 1 : getLayoutOpacity('toolbar-text-main', 0.7)
                     }}
                 >
                     <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />
@@ -823,7 +855,7 @@ const Grid6Layout = ({
                         <div
                             className={`absolute right-full mr-[2.5vw] top-1/2 -translate-y-1/2 ${isTablet ? 'w-[10vw]' : 'w-[11.5vw]'} shadow-[0px_4px_20px_rgba(0,0,0,0.3)] z-[100] animate-in fade-in slide-in-from-right-2 duration-200 py-[1vh]`}
                             onClick={(e) => e.stopPropagation()}
-                            style={{ 
+                            style={{
                                 border: '1px solid rgba(255,255,255,0.05)',
                                 backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.85'),
                                 backdropFilter: 'blur(10px)'
@@ -886,7 +918,7 @@ const Grid6Layout = ({
                         <div
                             className={`absolute right-full mr-[2.5vw] top-1/2 -translate-y-1/2 ${isTablet ? 'w-[11vw]' : 'w-[13.5vw]'} shadow-[0px_4px_20px_rgba(0,0,0,0.3)] z-[100] animate-in fade-in slide-in-from-right-2 duration-200 py-[1vh]`}
                             onClick={(e) => e.stopPropagation()}
-                            style={{ 
+                            style={{
                                 border: '1px solid rgba(255,255,255,0.05)',
                                 backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.85'),
                                 backdropFilter: 'blur(10px)'
@@ -1055,7 +1087,7 @@ const Grid6Layout = ({
 
             {/* Table of Contents Panel - MOVED TO ROOT FOR FULL HEIGHT */}
             <AnimatePresence>
-                {showTOCPanel && (
+                {showTOC && (
                     <div
                         className={`absolute ${isTablet ? 'right-[4.5vw] top-[6vh] bottom-[5vh]' : 'right-[5vw] top-[7vh] bottom-[7.5vh]'} w-[17.5vw] z-[60] flex flex-col shadow-[-10px_0_30px_rgba(0,0,0,0.1)]`}
                         style={{

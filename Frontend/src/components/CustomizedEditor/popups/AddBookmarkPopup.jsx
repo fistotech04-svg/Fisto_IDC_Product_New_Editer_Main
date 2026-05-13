@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { getBookmarkClipPath, getBookmarkBorderRadius } from '../BookmarkStylesPopup';
 import ColorPallet from '../ColorPallet';
-import AddBookmarkPopupLandscape from './AddBookmarkPopupLandscape';
 
 const DesktopLayout2 = ({
     onClose, selectedColor, setSelectedColor, textColor, setTextColor,
@@ -21,7 +20,7 @@ const DesktopLayout2 = ({
             onClick={onClose}
         >
             <div
-                className="w-[35vw] rounded-[1.2vw] shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 p-[0.35vw] relative backdrop-blur-md border border-white/30"
+                className="w-[35vw] rounded-none shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 p-[0.35vw] relative backdrop-blur-md border border-white/30"
                 style={{
                     transform: isSidebarOpen ? 'scale(0.85)' : 'scale(1)',
                     transformOrigin: 'center center',
@@ -30,7 +29,7 @@ const DesktopLayout2 = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div
-                    className="w-full h-full rounded-[1vw] shadow-inner flex flex-col relative border border-white/20 p-[1.2vw]"
+                    className="w-full h-full rounded-none shadow-inner flex flex-col relative border border-white/20 p-[1.2vw]"
                     style={{ backgroundColor: "rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))" }}
                 >
                     {/* Header */}
@@ -305,14 +304,14 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
         return (
             <>
                 <div
-                    className="rounded-[1.2vw] shadow-2xl p-[1vw] w-[35vw] relative animate-in zoom-in-95 duration-200 border border-gray-100 bg-white select-none overflow-visible pointer-events-auto"
+                    className="rounded-[0.8vw] shadow-2xl p-[1vw] w-[35vw] relative animate-in zoom-in-95 duration-200 border border-gray-100 bg-white select-none overflow-visible pointer-events-auto"
                     onClick={(e) => {
                         e.stopPropagation();
                         if (showPageDropdown) setShowPageDropdown(false);
                     }}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between mb-[1vw] relative z-10">
+                    <div className="flex items-center justify-between mb-[0.6vw] relative z-10">
                         <h2 className={`${isMobileLandscape ? 'text-[1.5vw]' : 'text-[1.1vw]'} font-extrabold text-[#575C9C]`}>
                             Add Bookmark
                         </h2>
@@ -353,7 +352,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                         {/* Middle Column: Bookmark Preview */}
                         <div className="flex-1 min-w-0 flex items-center justify-center pt-[0.2vw]">
                             <div
-                                className="relative w-full h-[10vw] flex items-center justify-center shadow-xl transition-all duration-300"
+                                className="relative w-full h-[6vw] flex items-center justify-center shadow-xl transition-all duration-300"
                                 style={{
                                     backgroundColor: hexToRgba(selectedColor, opacity),
                                     clipPath: getBookmarkClipPath(bookmarkStyle),
@@ -373,7 +372,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                         </div>
 
                         {/* Right Column: Controls */}
-                        <div className="w-[12vw] flex flex-col gap-[1vw]">
+                        <div className="w-[12vw] flex flex-col gap-[0.8vw]">
                             {/* Text Color Section */}
                             <div className="space-y-[0.5vw]">
                                 <span className={`${isMobileLandscape ? 'text-[1.2vw]' : 'text-[0.9vw]'} font-extrabold text-[#575C9C]`}>Text Color :</span>
@@ -402,7 +401,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             {/* Page Selection */}
                             <div className="space-y-[0.5vw] relative">
                                 <span className={`${isMobileLandscape ? 'text-[1.2vw]' : 'text-[0.9vw]'} font-extrabold text-[#575C9C]`}>Add Bookmark on :</span>
-                                 <div
+                                <div
                                     onClick={() => setShowPageDropdown(!showPageDropdown)}
                                     className="h-[1.6vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner border border-[#575C9C]/10 bg-[#F5F6FA] cursor-pointer hover:border-[#575C9C]/30 transition-colors"
                                 >
@@ -423,8 +422,8 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                     setShowPageDropdown(false);
                                                 }}
                                                 className={`flex items-center justify-center py-[0.4vw] cursor-pointer text-[0.75vw] font-bold transition-all border-b last:border-b-0 border-[#575C9C]/10 ${targetPageIndex === i
-                                                        ? 'bg-[#575C9C] text-white shadow-md'
-                                                        : 'hover:bg-[#575C9C]/10 text-[#575C9C]'
+                                                    ? 'bg-[#575C9C] text-white shadow-md'
+                                                    : 'hover:bg-[#575C9C]/10 text-[#575C9C]'
                                                     }`}
                                             >
                                                 Page {i + 1}
@@ -435,7 +434,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             </div>
 
                             {/* Action Buttons */}
-                            <div className="flex gap-[0.5vw] mt-[0.5vw]">
+                            <div className="flex gap-[0.5vw] mt-[0.3vw]">
                                 <button
                                     onClick={onClose}
                                     className={`flex-1 h-[2.2vw] rounded-[0.5vw] border border-[#575C9C] font-bold ${isMobileLandscape ? 'text-[1.1vw]' : 'text-[0.8vw]'} text-[#575C9C] flex items-center justify-center gap-[0.3vw] transition-all hover:bg-[#575C9C]/5`}
@@ -493,13 +492,29 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
     const renderDesktopLayout = () => {
         const layoutId = typeof activeLayout === 'object' ? activeLayout?.id : activeLayout;
         const isLayout4 = Number(layoutId) === 4 || Number(layoutId) === 5 || Number(layoutId) === 6;
+        // Detect if popup background is light so we can use dark text instead of white
+        const dropBgHex = layoutColors?.find(c => c.id === 'dropdown-bg')?.hex || '#575C9C';
+        const isLightBg = isLightColor(dropBgHex);
+        const textOnBg = isLightBg ? 'text-gray-800' : 'text-white';
+        const textOnBgMuted = isLightBg ? 'text-gray-500' : 'text-white/60';
+        const dividerOnBg = isLightBg ? 'bg-gray-300' : 'bg-white/40';
+        const inputBg = isLightBg ? 'bg-gray-100 border-gray-300' : 'bg-white/10 border-white/20';
+        const colorStyle = isLayout4 ? 'text-gray-900' : textOnBg;
+        const colorStyleMuted = isLayout4 ? 'text-gray-500' : textOnBgMuted;
+        const dividerStyle = isLayout4 ? 'bg-gray-200' : dividerOnBg;
+        const inputStyle = isLayout4 ? 'bg-gray-50 border-gray-300' : inputBg;
+        const closeButtonStyle = isLayout4 ? 'border-red-500 text-red-500 hover:bg-red-50' : `border-transparent ${textOnBg} opacity-60 hover:opacity-100`;
+        const clearBtnStyle = isLayout4 ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : `border-current ${textOnBg} hover:bg-white/10`;
+        const addBtnStyle = isLayout4 ? 'bg-blue-600 text-white hover:bg-blue-700' : (isLightBg ? 'bg-[#575C9C] text-white hover:bg-[#4B5280]' : 'bg-white text-[#575C9C] hover:opacity-90');
+        const dropdownBg = isLayout4 ? 'bg-white border-gray-200' : (isLightBg ? 'bg-white border-gray-200' : 'border-white/20');
+        const dropdownItemStyle = (i) => `flex items-center px-[0.6vw] py-[0.4vw] cursor-pointer text-[0.65vw] font-bold transition-colors ${targetPageIndex === i ? (isLayout4 ? 'bg-black text-white' : 'bg-white text-[#575C9C]') : (isLayout4 ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10')}`;
         return (
             <div
                 className={isMobileLandscape ? "animate-in zoom-in-95 duration-200 pointer-events-auto" : ""}
                 style={isMobileLandscape ? { transform: 'scale(1.1) translateZ(0)', transformOrigin: 'center center' } : {}}
             >
                 <div
-                    className={`rounded-[20px] shadow-2xl p-6 ${isMobileLandscape ? 'w-[420px]' : 'w-[35vw]'} relative animate-in zoom-in-95 duration-200 border select-none overflow-visible transition-transform duration-300 pointer-events-auto`}
+                    className={`rounded-[0.8vw] shadow-2xl p-6 ${isMobileLandscape ? 'w-[420px]' : 'w-[35vw]'} relative animate-in zoom-in-95 duration-200 border select-none overflow-visible transition-transform duration-300 pointer-events-auto`}
                     style={{
                         backgroundColor: (Number(layoutId) === 5 || Number(layoutId) === 6) ? '#FFFFFF' : (isLayout4 ? '#FFFFFF' : getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.95')),
                         borderColor: isLayout4 ? '#e5e7eb' : 'rgba(255,255,255,0.2)',
@@ -519,18 +534,18 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                     </div>
                                 )}
                                 <div className="flex items-center justify-between relative z-10">
-                                    <h2 className={`text-[0.9vw] font-bold ${isLayout4 ? 'text-gray-900' : ''}`} style={!isLayout4 ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}>
+                                    <h2 className="text-[0.9vw] font-bold" style={{ color: isLayout4 ? '#111827' : '#575C9C' }}>
                                         Add Bookmark
                                     </h2>
                                     <button
                                         onClick={onClose}
-                                        className={`w-[1.6vw] h-[1.6vw] flex items-center justify-center rounded-[0.4vw] border transition-colors ${isLayout4 ? 'border-red-500 text-red-500 hover:bg-red-50' : 'border-transparent text-white opacity-60 hover:opacity-100'}`}
+                                        className={`w-[1.6vw] h-[1.6vw] flex items-center justify-center rounded-[0.4vw] border transition-colors ${closeButtonStyle}`}
                                     >
                                         <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw] stroke-[2.5]" />
                                     </button>
                                 </div>
                             </div>
-                            <div className={`h-[1px] w-full mb-[1vw] ${isLayout4 ? 'bg-gray-200' : ''}`} style={!isLayout4 ? { backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.3 } : {}} />
+                            <div className="h-[1px] w-full mb-[1vw]" style={{ backgroundColor: isLayout4 ? '#E5E7EB' : '#575C9C', opacity: 0.3 }} />
 
                             {/* Content Grid */}
                             <div className="flex gap-[1vw] items-start">
@@ -540,7 +555,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                         <button
                                             key={idx}
                                             onClick={() => setSelectedColor(color)}
-                                            className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] transition-all border-[1.5px] shadow-sm ${selectedColor === color ? (isLayout4 ? 'border-gray-400 scale-110' : 'border-white scale-110 shadow-lg') : (isLayout4 ? 'border-transparent hover:border-gray-300' : 'border-white/20 hover:border-white/50')}`}
+                                            className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] transition-all border-[1.5px] shadow-sm ${selectedColor === color ? (isLightBg || isLayout4 ? 'border-gray-400 scale-110' : 'border-white scale-110 shadow-lg') : (isLightBg || isLayout4 ? 'border-transparent hover:border-gray-300' : 'border-white/20 hover:border-white/50')}`}
                                             style={{ backgroundColor: color }}
                                         />
                                     ))}
@@ -584,13 +599,13 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                     {/* Text Color Section */}
                                     <div className="space-y-[0.4vw]">
                                         <div className="flex items-center gap-[0.3vw]">
-                                            <span className={`text-[0.65vw] font-bold whitespace-nowrap ${isLayout4 ? 'text-gray-900' : 'text-white'}`} >Text Color</span>
-                                            <div className={`flex-1 h-[1px] ${isLayout4 ? 'bg-gray-200' : 'bg-white/40'}`} />
+                                            <span className="text-[0.65vw] font-bold whitespace-nowrap" style={{ color: isLayout4 ? '#111827' : '#575C9C' }}>Text Color</span>
+                                            <div className="flex-1 h-[1px]" style={{ backgroundColor: isLayout4 ? '#E5E7EB' : '#575C9C', opacity: 0.3 }} />
                                         </div>
 
                                         <div className="flex items-center gap-[0.3vw]">
                                             <button
-                                                className={`w-[1.8vw] h-[1.8vw] rounded-[0.4vw] border shadow-sm flex-shrink-0 ${isLayout4 ? 'border-gray-300 bg-white' : 'border-white/40 bg-white/20'} p-[0.15vw]`}
+                                                className={`w-[1.8vw] h-[1.8vw] rounded-[0.4vw] border shadow-sm flex-shrink-0 ${isLightBg || isLayout4 ? 'border-gray-300 bg-white' : 'border-white/40 bg-white/20'} p-[0.15vw]`}
                                                 onClick={(e) => {
                                                     const rect = e.currentTarget.getBoundingClientRect();
                                                     setPickerPos({ x: rect.right + 10, y: rect.top - 110 });
@@ -601,8 +616,8 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                 <div className="w-full h-full rounded-[0.2vw]" style={{ backgroundColor: textColor }} />
                                             </button>
 
-                                            <div className={`flex-1 h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner border transition-all ${isLayout4 ? 'bg-gray-50 border-gray-300' : 'bg-white/10 border-white/20'}`}>
-                                                <span className={`text-[0.65vw] uppercase flex-1 font-bold ${isLayout4 ? 'text-gray-700' : 'text-white'}`}>{textColor}</span>
+                                            <div className="flex-1 h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner border transition-all" style={{ backgroundColor: isLayout4 ? '#F9FAFB' : 'rgba(87,92,156,0.08)', borderColor: isLayout4 ? '#D1D5DB' : 'rgba(87,92,156,0.3)' }}>
+                                                <span className="text-[0.65vw] uppercase flex-1 font-bold" style={{ color: isLayout4 ? '#374151' : '#575C9C' }}>{textColor}</span>
                                                 <div className="flex items-center gap-0.5">
                                                     <input
                                                         type="text"
@@ -611,9 +626,10 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                             const val = parseInt(e.target.value);
                                                             if (!isNaN(val)) setTextOpacity(Math.min(100, Math.max(0, val)));
                                                         }}
-                                                        className={`w-[1.5vw] text-right text-[0.65vw] font-bold bg-transparent outline-none ${isLayout4 ? 'text-gray-700' : 'text-white'}`}
+                                                        className="w-[1.5vw] text-right text-[0.65vw] font-bold bg-transparent outline-none"
+                                                        style={{ color: isLayout4 ? '#374151' : '#575C9C' }}
                                                     />
-                                                    <span className={`text-[0.65vw] font-bold ${isLayout4 ? 'text-gray-400' : 'text-white/60'}`}>%</span>
+                                                    <span className="text-[0.65vw] font-bold" style={{ color: isLayout4 ? '#9CA3AF' : '#575C9C', opacity: 0.6 }}>%</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -622,19 +638,22 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                     {/* Page Selection */}
                                     <div className="space-y-[0.4vw] relative">
                                         <div className="flex items-center gap-[0.3vw]">
-                                            <span className={`text-[0.65vw] font-bold whitespace-nowrap ${isLayout4 ? 'text-gray-900' : 'text-white'}`}>Select Page</span>
-                                            <div className={`flex-1 h-[1px] ${isLayout4 ? 'bg-gray-200' : 'bg-white/40'}`} />
+                                            <span className="text-[0.65vw] font-bold whitespace-nowrap" style={{ color: isLayout4 ? '#111827' : '#575C9C' }}>Select Page</span>
+                                            <div className="flex-1 h-[1px]" style={{ backgroundColor: isLayout4 ? '#E5E7EB' : '#575C9C', opacity: 0.3 }} />
                                         </div>
                                         <div
                                             onClick={() => setShowPageDropdown(!showPageDropdown)}
-                                            className={`h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner group cursor-pointer transition-colors border ${isLayout4 ? 'bg-gray-50 border-gray-300 hover:border-black' : 'bg-white/10 border-white/20 hover:border-white/50'}`}
+                                            className={`h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner group cursor-pointer transition-colors border ${isLightBg || isLayout4 ? 'bg-gray-50 border-gray-300 hover:border-black' : 'bg-white/10 border-white/20 hover:border-white/50'}`}
                                         >
-                                            <span className={`text-[0.65vw] font-bold ${isLayout4 ? 'text-gray-700' : 'text-white'}`}>Page {targetPageIndex + 1}</span>
-                                            <Icon icon="fluent:chevron-down-24-filled" className={`w-[0.8vw] h-[0.8vw] transition-transform duration-200 ${showPageDropdown ? 'rotate-180' : ''} ${isLayout4 ? 'text-gray-400' : 'text-white/60'}`} />
+                                            <span className="text-[0.65vw] font-bold" style={{ color: isLayout4 ? '#374151' : '#575C9C' }}>Page {targetPageIndex + 1}</span>
+                                            <Icon icon="fluent:chevron-down-24-filled" className={`w-[0.8vw] h-[0.8vw] transition-transform duration-200 ${showPageDropdown ? 'rotate-180' : ''}`} style={{ color: isLayout4 ? '#9CA3AF' : '#575C9C', opacity: 0.6 }} />
                                         </div>
 
                                         {showPageDropdown && (
-                                            <div className={`absolute top-[3.2vw] left-0 right-0 max-h-[10vw] overflow-y-auto border rounded-[0.4vw] shadow-2xl z-[150] custom-scrollbar ${isLayout4 ? 'bg-white border-gray-200' : 'bg-gray-800/90 backdrop-filter backdrop-blur-xl border-white/20'}`}>
+                                            <div
+                                                className={`absolute top-[3.2vw] left-0 right-0 max-h-[10vw] overflow-y-auto border rounded-[0.4vw] shadow-2xl z-[150] custom-scrollbar ${dropdownBg}`}
+                                                style={(!isLayout4 && !isLightBg) ? { backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.97'), backdropFilter: 'blur(12px)' } : {}}
+                                            >
                                                 {Array.from({ length: totalPages }).map((_, i) => (
                                                     <div
                                                         key={i}
@@ -642,7 +661,8 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                             setTargetPageIndex(i);
                                                             setShowPageDropdown(false);
                                                         }}
-                                                        className={`flex items-center px-[0.6vw] py-[0.4vw] cursor-pointer text-[0.65vw] font-bold transition-colors ${targetPageIndex === i ? (isLayout4 ? 'bg-blue-600 text-white' : 'bg-white text-gray-800') : (isLayout4 ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10 text-white')}`}
+                                                        className={dropdownItemStyle(i)}
+                                                        style={!isLayout4 ? { color: targetPageIndex === i ? '#575C9C' : getLayoutColor('dropdown-text', '#FFFFFF') } : {}}
                                                     >
                                                         Page {i + 1}
                                                     </div>
@@ -655,7 +675,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                     <div className="flex gap-[0.4vw] mt-[0.3vw]">
                                         <button
                                             onClick={onClose}
-                                            className={`flex-1 h-[2vw] rounded-[0.4vw] border font-bold text-[0.65vw] flex items-center justify-center gap-[0.2vw] transition-all shadow-sm ${isLayout4 ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-white text-white hover:bg-white/10'}`}
+                                            className={`flex-1 h-[2vw] rounded-[0.4vw] border font-bold text-[0.65vw] flex items-center justify-center gap-[0.2vw] transition-all shadow-sm ${clearBtnStyle}`}
                                         >
                                             <Icon icon="lucide:x" className="w-[0.8vw] h-[0.8vw]" />
                                             Clear
@@ -672,7 +692,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                 });
                                                 onClose();
                                             }}
-                                            className={`flex-1 h-[2vw] rounded-[0.4vw] font-bold text-[0.65vw] transition-all shadow-lg active:scale-[0.98] ${isLayout4 ? 'bg-blue-600 text-white hover:bg-blue-700' : 'bg-white text-[#575C9C] hover:opacity-90'}`}
+                                            className={`flex-1 h-[2vw] rounded-[0.4vw] font-bold text-[0.65vw] transition-all shadow-lg active:scale-[0.98] ${addBtnStyle}`}
                                         >
                                             Add Bookmark
                                         </button>
@@ -690,21 +710,6 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
     if (isMobile && Number(layoutIdForCheck) !== 5) {
         if (isLandscape) {
             const layoutId = typeof activeLayout === 'object' ? activeLayout?.id : activeLayout;
-            if (Number(layoutId) === 2) {
-                return (
-                    <AddBookmarkPopupLandscape
-                        onClose={onClose}
-                        currentPageIndex={currentPageIndex}
-                        totalPages={totalPages}
-                        onAddBookmark={onAddBookmark}
-                        isSidebarOpen={isSidebarOpen}
-                        isSpread={isSpread}
-                        bookmarkSettings={bookmarkSettings}
-                        activeLayout={activeLayout}
-                        layoutColors={layoutColors}
-                    />
-                );
-            }
             if (Number(layoutId) === 4 || Number(layoutId) === 6) {
                 return (
                     <div
@@ -936,6 +941,216 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
             );
         }
 
+        if (!isLandscape && Number(layoutIdForCheck) === 3) {
+            return (
+                <>
+                    <div
+                        className="absolute inset-0 z-[99999] pointer-events-auto flex items-center justify-center bg-transparent"
+                        onClick={onClose}
+                    >
+                        <div
+                            className="animate-in zoom-in-95 duration-200 pointer-events-auto"
+                            style={{ transform: 'scale(0.55)', transformOrigin: 'center center' }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <DesktopLayout3
+                                onClose={onClose} selectedColor={selectedColor} setSelectedColor={setSelectedColor}
+                                textColor={textColor} setTextColor={setTextColor} opacity={opacity} setOpacity={setOpacity}
+                                textOpacity={textOpacity} setTextOpacity={setTextOpacity} bookmarkText={bookmarkText}
+                                setBookmarkText={setBookmarkText} targetPageIndex={targetPageIndex} setTargetPageIndex={setTargetPageIndex}
+                                totalPages={totalPages} isSidebarOpen={false} showColorPicker={showColorPicker}
+                                setShowColorPicker={setShowColorPicker} pickerTarget={pickerTarget} setPickerTarget={setPickerTarget}
+                                setPickerPos={setPickerPos} pickerPos={pickerPos} bookmarkStyle={bookmarkStyle}
+                                bookmarkFont={bookmarkFont} onAddBookmark={onAddBookmark} getLayoutColor={getLayoutColor}
+                                getLayoutColorRgba={getLayoutColorRgba} getLayoutColorAlpha={getLayoutColorAlpha} hexToRgba={hexToRgba}
+                                getBookmarkClipPath={getBookmarkClipPath} getBookmarkBorderRadius={getBookmarkBorderRadius}
+                                Icon={Icon} isMobileLandscape={false}
+                            />
+                        </div>
+                    </div>
+                    {showColorPicker && (
+                        <ColorPallet
+                            smallMode={true}
+                            color={pickerTarget === 'background' ? selectedColor : textColor}
+                            onChange={(newColor) => {
+                                if (pickerTarget === 'background') setSelectedColor(newColor);
+                                else setTextColor(newColor);
+                            }}
+                            opacity={pickerTarget === 'background' ? opacity : textOpacity}
+                            onOpacityChange={(newOpacity) => {
+                                if (pickerTarget === 'background') setOpacity(newOpacity);
+                                else setTextOpacity(newOpacity);
+                            }}
+                            onClose={() => setShowColorPicker(false)}
+                            style={{
+                                position: 'fixed',
+                                top: pickerPos.y,
+                                left: pickerPos.x,
+                                zIndex: 999999,
+                                transform: 'none'
+                            }}
+                        />
+                    )}
+                </>
+            );
+        }
+
+        if (activeLayout == 8) {
+            return (
+                <div
+                    className="fixed inset-0 z-[999999] flex items-center justify-center pointer-events-auto bg-black/5 px-4"
+                    onClick={onClose}
+                >
+                    <div
+                        className="w-[85%] max-w-[310px] shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 overflow-hidden bg-white border border-gray-100 rounded-[22px]"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Blue Header Bar */}
+                        <div className="flex items-center justify-between bg-[#575C9C] px-4 py-3">
+                            <h2 className="text-[15px] font-bold text-white whitespace-nowrap">Add Bookmark</h2>
+                            <button
+                                onClick={onClose}
+                                className="text-white hover:opacity-80 transition-opacity active:scale-90"
+                            >
+                                <Icon icon="lucide:x" className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-4 flex flex-col gap-3">
+                            {/* Bookmark Preview */}
+                            <div className="w-full flex items-center justify-center">
+                                <div
+                                    className="relative h-[90px] w-full flex items-center justify-center shadow-xl transition-all duration-300"
+                                    style={{
+                                        backgroundColor: hexToRgba(selectedColor, opacity),
+                                        clipPath: getBookmarkClipPath(bookmarkStyle),
+                                        borderRadius: getBookmarkBorderRadius(bookmarkStyle)
+                                    }}
+                                >
+                                    <div
+                                        contentEditable
+                                        suppressContentEditableWarning
+                                        onBlur={(e) => setBookmarkText(e.currentTarget.textContent)}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+                                        className="text-[20px] font-bold outline-none text-center w-full cursor-text text-white drop-shadow-md"
+                                        style={{ fontFamily: 'serif' }}
+                                        dangerouslySetInnerHTML={{ __html: bookmarkText || `Page ${targetPageIndex + 1}` }}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Color Selection */}
+                            <div className="flex items-center justify-between px-0.5">
+                                {['#31B0B0', '#C68798', '#D6566E', '#6B7DBB', '#67AC78', '#D8DC53', '#23D295'].map((color, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => setSelectedColor(color)}
+                                        className={`w-5 h-5 rounded-full transition-all shadow-sm border-2 ${selectedColor === color ? 'border-[#575C9C] scale-110' : 'border-transparent'}`}
+                                        style={{ backgroundColor: color }}
+                                    />
+                                ))}
+                                <button
+                                    onClick={(e) => {
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        setPickerPos({ x: rect.right, y: rect.top - 200 });
+                                        setPickerTarget('background');
+                                        setShowColorPicker(true);
+                                    }}
+                                    className="w-5 h-5 rounded-full shadow-sm bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] border border-gray-200"
+                                />
+                            </div>
+
+                            {/* Text Color */}
+                            <div className="flex flex-col gap-1.5">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[12px] font-bold text-[#575C9C] whitespace-nowrap">Text Color</span>
+                                    <div className="flex-1 h-[1px] bg-gray-100"></div>
+                                </div>
+                                <div className="flex items-center gap-2.5">
+                                    <button
+                                        className="w-8 h-8 rounded-lg border border-gray-200 shadow-sm flex-shrink-0 bg-white p-[2px] transition-transform active:scale-95"
+                                        onClick={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            setPickerPos({ x: rect.left, y: rect.top - 200 });
+                                            setPickerTarget('text');
+                                            setShowColorPicker(true);
+                                        }}
+                                    >
+                                        <div className="w-full h-full rounded-[5px] shadow-inner" style={{ backgroundColor: textColor }} />
+                                    </button>
+                                    <div className="flex-1 h-8 bg-gray-50 border border-gray-200 rounded-lg flex items-center px-3 justify-between">
+                                        <span className="text-[12px] font-bold text-gray-500 uppercase">{textColor}</span>
+                                        <span className="text-[12px] font-bold text-gray-400">{textOpacity}%</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Page Dropdown */}
+                            <div className="flex flex-col gap-1.5 relative">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[12px] font-bold text-[#575C9C] whitespace-nowrap">Add on Page</span>
+                                    <div className="flex-1 h-[1px] bg-gray-100"></div>
+                                </div>
+                                <div
+                                    onClick={() => setShowPageDropdown(!showPageDropdown)}
+                                    className="h-9 bg-gray-50 border border-gray-200 rounded-lg flex items-center px-3 justify-between cursor-pointer hover:border-[#575C9C]/40 transition-all"
+                                >
+                                    <span className="text-[12px] font-bold text-gray-700">Page {targetPageIndex + 1}</span>
+                                    <Icon icon="fluent:chevron-down-24-filled" className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${showPageDropdown ? 'rotate-180' : ''}`} />
+                                </div>
+                                {showPageDropdown && (
+                                    <div className="absolute bottom-full left-0 right-0 mb-1 max-h-[140px] overflow-y-auto rounded-xl border border-gray-100 shadow-2xl z-[150] bg-white custom-scrollbar">
+                                        {Array.from({ length: totalPages }).map((_, i) => (
+                                            <div key={i} onClick={() => { setTargetPageIndex(i); setShowPageDropdown(false); }}
+                                                className={`px-4 py-2.5 text-[12px] font-bold cursor-pointer transition-colors border-b border-gray-50 last:border-b-0 ${targetPageIndex === i ? 'bg-[#575C9C] text-white' : 'text-gray-700 hover:bg-gray-50'}`}>
+                                                Page {i + 1}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Add Button */}
+                            <button
+                                className="w-full bg-[#575C9C] hover:bg-[#4a5089] text-white rounded-[12px] py-2.5 flex flex-col items-center justify-center shadow-lg active:scale-[0.98] transition-all"
+                                onClick={() => {
+                                    onAddBookmark({
+                                        id: Date.now(),
+                                        label: bookmarkText || `Page ${targetPageIndex + 1}`,
+                                        pageIndex: targetPageIndex,
+                                        color: selectedColor,
+                                        style: bookmarkStyle,
+                                        font: bookmarkFont
+                                    });
+                                    onClose();
+                                }}
+                            >
+                                <span className="text-[14px] font-bold">Add Bookmark</span>
+                                <span className="text-[10px] font-medium opacity-70">Page - {targetPageIndex + 1}</span>
+                            </button>
+                        </div>
+
+                        {/* Color Picker Overlay */}
+                        {showColorPicker && (
+                            <div className="fixed inset-0 z-[1000] flex items-center justify-center" onClick={() => setShowColorPicker(false)}>
+                                <div onClick={e => e.stopPropagation()} className="relative">
+                                    <ColorPallet
+                                        smallMode={true}
+                                        color={pickerTarget === 'text' ? textColor : selectedColor}
+                                        opacity={pickerTarget === 'text' ? textOpacity : opacity}
+                                        onOpacityChange={(val) => { if (pickerTarget === 'text') setTextOpacity(val); else setOpacity(val); }}
+                                        onChange={(color) => { if (pickerTarget === 'text') setTextColor(color); else setSelectedColor(color); }}
+                                        onClose={() => setShowColorPicker(false)}
+                                        style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 999999 }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
         if (activeLayout == 2) {
             return (
                 <div
@@ -1102,7 +1317,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                     onClick={onClose}
                 >
                     <div
-                        className={`bg-white rounded-[14px] shadow-2xl p-3 ${isMobileLandscape ? 'w-[280px]' : 'w-[210px]'} relative animate-in zoom-in-95 duration-200`}
+                        className={`bg-white rounded-none shadow-2xl p-3 ${isMobileLandscape ? 'w-[280px]' : 'w-[210px]'} relative animate-in zoom-in-95 duration-200`}
                         style={{
                             transform: isMobileLandscape ? 'scale(1.1) translateZ(0)' : 'none',
                             transformOrigin: 'center center',
@@ -1118,7 +1333,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             <div className="flex-1 h-[0.8px] bg-gray-100"></div>
                             <button
                                 onClick={onClose}
-                                className="w-[20px] h-[20px] rounded-full border-[1.2px] border-[#373D8A] flex items-center justify-center text-[#373D8A] hover:bg-blue-50 transition-colors shadow-sm"
+                                className="w-[20px] h-[20px] rounded-none border-[1.2px] border-[#373D8A] flex items-center justify-center text-[#373D8A] hover:bg-blue-50 transition-colors shadow-sm"
                             >
                                 <Icon icon="lucide:x" className="w-[12px] h-[12px] stroke-[3]" />
                             </button>
@@ -1131,7 +1346,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                 style={{
                                     backgroundColor: hexToRgba(selectedColor, opacity),
                                     clipPath: getBookmarkClipPath(bookmarkStyle),
-                                    borderRadius: '2px 0 0 2px'
+                                    borderRadius: '0px'
                                 }}
                             >
                                 <div
@@ -1152,7 +1367,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                 <div
                                     key={i}
                                     onClick={() => setSelectedColor(color)}
-                                    className={`w-[15px] h-[15px] rounded-full cursor-pointer hover:scale-110 transition-transform shadow-xs border-[1px] ${selectedColor === color ? 'border-gray-800' : 'border-transparent'}`}
+                                    className={`w-[15px] h-[15px] rounded-none cursor-pointer hover:scale-110 transition-transform shadow-xs border-[1px] ${selectedColor === color ? 'border-gray-800' : 'border-transparent'}`}
                                     style={{ backgroundColor: color }}
                                 />
                             ))}
@@ -1163,7 +1378,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                     setPickerTarget('background');
                                     setShowColorPicker(true);
                                 }}
-                                className="w-[15px] h-[15px] rounded-full cursor-pointer hover:scale-110 transition-transform shadow-xs bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] border-[1px] border-transparent"
+                                className="w-[15px] h-[15px] rounded-none cursor-pointer hover:scale-110 transition-transform shadow-xs bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] border-[1px] border-transparent"
                             />
                         </div>
 
@@ -1175,7 +1390,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <div
-                                    className="w-[26px] h-[26px] rounded-[4px] border-[0.8px] border-gray-200 shadow-sm cursor-pointer flex-shrink-0"
+                                    className="w-[26px] h-[26px] rounded-none border-[0.8px] border-gray-200 shadow-sm cursor-pointer flex-shrink-0"
                                     style={{ backgroundColor: textColor }}
                                     onClick={(e) => {
                                         const rect = e.currentTarget.getBoundingClientRect();
@@ -1184,7 +1399,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                         setShowColorPicker(true);
                                     }}
                                 />
-                                <div className="flex-1 h-[26px] flex items-center justify-between border-[0.8px] border-gray-200 rounded-[4px] px-2 bg-white">
+                                <div className="flex-1 h-[26px] flex items-center justify-between border-[0.8px] border-gray-200 rounded-none px-2 bg-white">
                                     <span className={`${isMobileLandscape ? 'text-[12px]' : 'text-[9px]'} font-medium text-gray-500 uppercase`}>{textColor}</span>
                                     <span className={`${isMobileLandscape ? 'text-[12px]' : 'text-[9px]'} text-gray-400 font-medium`}>{opacity}%</span>
                                 </div>
@@ -1193,7 +1408,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
 
                         {/* Final Add Button */}
                         <button
-                            className="w-full bg-black text-white rounded-[6px] py-1.5 flex flex-col items-center justify-center shadow-[0_3px_10px_rgba(0,0,0,0.1)] active:scale-[0.98] transition-all"
+                            className="w-full bg-black text-white rounded-none py-1.5 flex flex-col items-center justify-center shadow-[0_3px_10px_rgba(0,0,0,0.1)] active:scale-[0.98] transition-all"
                             onClick={() => {
                                 onAddBookmark({
                                     id: Date.now(),
@@ -1236,24 +1451,29 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
 
         const isLayout2 = activeLayout == 2;
         const isLayout1Or3 = !activeLayout || activeLayout == 1 || activeLayout == 3;
-        
+        const isLayout9 = activeLayout == 9;
+
         return (
             <div
-                className="fixed inset-0 z-[999999] flex items-center justify-center pointer-events-auto bg-black/20"
+                className={`fixed inset-0 z-[999999] flex items-center justify-center pointer-events-auto ${isLayout9 ? 'bg-transparent px-4' : 'bg-black/20'}`}
                 onClick={onClose}
             >
                 <div
-                    className={`w-[calc(100%-32px)] shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 outline-none ${isLayout2 ? 'max-w-[340px] p-1 rounded-[1.2rem]' : (isLayout1Or3 ? 'max-w-[280px] p-3.5 gap-2.5 rounded-[1.2rem] border border-white/20 bg-[#575C9C]/80 backdrop-blur-md' : 'max-w-[280px] p-3.5 gap-2.5 rounded-[1.2rem] border border-gray-100 bg-white')}`}
+                    className={`w-[calc(100%-32px)] shadow-2xl flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 outline-none ${isLayout2 ? 'max-w-[340px] p-1 rounded-[1.2rem]' :
+                        isLayout9 ? 'max-w-[340px] p-1.5 rounded-[1.2rem] border border-white/20 backdrop-blur-lg' :
+                            (isLayout1Or3 ? 'max-w-[280px] p-3.5 gap-2.5 rounded-[1.2rem] border border-white/20 bg-[#575C9C]/80 backdrop-blur-md' :
+                                'max-w-[280px] p-3.5 gap-2.5 rounded-[1.2rem] border border-gray-100 bg-white')}`}
+                    style={isLayout9 ? { backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.6') } : {}}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className={isLayout2 ? "bg-white rounded-[1rem] p-4 flex flex-col gap-3" : "flex flex-col gap-2.5 h-full"}>
+                    <div className={(isLayout2 || isLayout9) ? "bg-white rounded-[1rem] p-4 flex flex-col gap-3" : "flex flex-col gap-2.5 h-full"}>
                         {/* Header */}
                         <div className="flex items-center gap-2">
-                            <span className={`text-[16px] font-bold flex-shrink-0 ${isLayout1Or3 && !isLayout2 ? 'text-white' : 'text-gray-900'}`}>Add Bookmark</span>
-                            <div className={`flex-1 h-px ${isLayout1Or3 && !isLayout2 ? 'bg-white/20' : 'bg-gray-100'}`} />
+                            <span className={`text-[16px] font-bold flex-shrink-0 ${isLayout1Or3 && !isLayout2 && !isLayout9 ? 'text-white' : 'text-gray-900'}`}>Add Bookmark</span>
+                            <div className={`flex-1 h-px ${isLayout1Or3 && !isLayout2 && !isLayout9 ? 'bg-white/20' : 'bg-gray-100'}`} />
                             <button
                                 onClick={onClose}
-                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors focus:outline-none ${isLayout1Or3 && !isLayout2 ? 'bg-white/10 border border-white/30 text-white hover:bg-white/20' : 'bg-white border border-[#373D8A]/30 text-[#373D8A] hover:bg-gray-50'}`}
+                                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors focus:outline-none ${isLayout1Or3 && !isLayout2 && !isLayout9 ? 'bg-white/10 border border-white/30 text-white hover:bg-white/20' : 'bg-white border border-[#373D8A]/30 text-[#373D8A] hover:bg-gray-50'}`}
                             >
                                 <Icon icon="lucide:x" className="w-[16px] h-[16px]" />
                             </button>
@@ -1319,29 +1539,30 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             </div>
                         </div>
 
-                        {/* Page Select Dropdown - Layout 1 portrait only */}
-                        {isLayout1Or3 && !isLayout2 && (
+                        {/* Page Select Dropdown */}
+                        {(isLayout1Or3 && !isLayout2 || isLayout9) && (
                             <div className="flex flex-col gap-1.5 relative">
-                                <span className="text-[14px] font-bold text-white">Add on Page</span>
+                                <span className={`text-[14px] font-bold ${isLayout9 ? 'text-gray-900' : 'text-white'}`}>Add on Page</span>
                                 <div
-                                    className="flex items-center justify-between border border-white/20 rounded-[10px] px-3 py-2 bg-white/10 cursor-pointer hover:bg-white/20 transition-colors"
+                                    className={`flex items-center justify-between border rounded-[10px] px-3 py-2 cursor-pointer transition-colors ${isLayout9 ? 'bg-gray-50 border-gray-200 hover:border-gray-300' : 'bg-white/10 border-white/20 hover:bg-white/20'}`}
                                     onClick={() => setShowPageDropdown(prev => !prev)}
                                 >
-                                    <span className="text-[13px] font-bold text-white">Page {targetPageIndex + 1}</span>
+                                    <span className={`text-[13px] font-bold ${isLayout9 ? 'text-[#575C9C]' : 'text-white'}`}>Page {targetPageIndex + 1}</span>
                                     <Icon
                                         icon="fluent:chevron-down-24-filled"
-                                        className={`w-4 h-4 text-white/60 transition-transform duration-200 ${showPageDropdown ? 'rotate-180' : ''}`}
+                                        className={`w-4 h-4 transition-transform duration-200 ${showPageDropdown ? 'rotate-180' : ''} ${isLayout9 ? 'text-[#575C9C]/60' : 'text-white/60'}`}
                                     />
                                 </div>
                                 {showPageDropdown && (
-                                    <div className="absolute top-[3.8rem] left-0 right-0 max-h-[140px] overflow-y-auto rounded-[10px] border border-white/20 shadow-2xl z-[220] custom-scrollbar"
-                                        style={{ backgroundColor: 'rgba(87, 92, 156, 0.95)', backdropFilter: 'blur(12px)' }}
+                                    <div className={`absolute top-[3.8rem] left-0 right-0 max-h-[140px] overflow-y-auto rounded-[10px] border shadow-2xl z-[220] custom-scrollbar ${isLayout9 ? 'bg-white border-gray-100' : 'border-white/20'}`}
+                                        style={!isLayout9 ? { backgroundColor: 'rgba(87, 92, 156, 0.95)', backdropFilter: 'blur(12px)' } : {}}
                                     >
                                         {Array.from({ length: totalPages }).map((_, i) => (
                                             <div
                                                 key={i}
                                                 onClick={() => { setTargetPageIndex(i); setShowPageDropdown(false); }}
-                                                className={`px-3 py-2 text-[13px] font-bold cursor-pointer transition-colors ${targetPageIndex === i ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'}`}
+                                                className={`px-3 py-2 text-[13px] font-bold cursor-pointer transition-colors ${targetPageIndex === i ? (isLayout9 ? 'bg-[#575C9C]/10 text-[#575C9C]' : 'bg-white') : (isLayout9 ? 'text-gray-600 hover:bg-gray-50' : 'hover:bg-white/10')}`}
+                                                style={!isLayout9 ? { color: targetPageIndex === i ? '#575C9C' : getLayoutColor('dropdown-text', '#FFFFFF') } : {}}
                                             >
                                                 Page {i + 1}
                                             </div>
@@ -1353,7 +1574,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
 
                         {/* Add Bookmark Button */}
                         <button
-                            className={`w-full bg-white text-[#575C9C] rounded-xl ${isLayout2 ? 'py-3' : 'py-2'} flex flex-col items-center justify-center shadow-lg hover:bg-white/90 transition-colors`}
+                            className={`w-full ${(isLayout2 || isLayout9) ? 'bg-[#575C9C] text-white hover:opacity-90' : 'bg-white text-[#575C9C] hover:bg-white/90'} rounded-xl ${isLayout2 ? 'py-3' : 'py-2'} flex flex-col items-center justify-center shadow-lg transition-colors`}
                             onClick={() => {
                                 onAddBookmark({
                                     id: Date.now(),
@@ -1429,18 +1650,18 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             </div>
                         )}
                         <div className="flex items-center justify-between relative z-10">
-                            <h2 className={`text-[0.9vw] font-bold ${isLayout4 ? 'text-gray-900' : ''}`} style={!isLayout4 ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}>
+                            <h2 className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>
                                 Add Bookmark
                             </h2>
                             <button
                                 onClick={onClose}
-                                className={`w-[1.6vw] h-[1.6vw] flex items-center justify-center rounded-[0.4vw] border transition-colors ${isLayout4 ? 'border-red-500 text-red-500 hover:bg-red-50' : 'border-transparent text-white opacity-60 hover:opacity-100'}`}
+                                className="w-[1.6vw] h-[1.6vw] flex items-center justify-center rounded-[0.4vw] border transition-colors border-transparent hover:opacity-100" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }}
                             >
                                 <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw] stroke-[2.5]" />
                             </button>
                         </div>
                     </div>
-                    <div className={`h-[1px] w-full mb-[1vw] ${isLayout4 ? 'bg-gray-200' : ''}`} style={!isLayout4 ? { backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.3 } : {}} />
+                    <div className="h-[1px] w-full mb-[1vw]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.3 }} />
 
                     {/* Content Grid */}
                     <div className="flex gap-[1vw] items-start">
@@ -1494,13 +1715,13 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             {/* Text Color Section */}
                             <div className="space-y-[0.4vw]">
                                 <div className="flex items-center gap-[0.3vw]">
-                                    <span className={`text-[0.65vw] font-bold whitespace-nowrap ${isLayout4 ? 'text-gray-900' : 'text-white'}`} >Text Color</span>
-                                    <div className={`flex-1 h-[1px] ${isLayout4 ? 'bg-gray-200' : 'bg-white/40'}`} />
+                                    <span className="text-[0.65vw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Text Color</span>
+                                    <div className="flex-1 h-[1px]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.3 }} />
                                 </div>
 
                                 <div className="flex items-center gap-[0.3vw]">
                                     <button
-                                        className={`w-[1.8vw] h-[1.8vw] rounded-[0.4vw] border shadow-sm flex-shrink-0 ${isLayout4 ? 'border-gray-300 bg-white' : 'border-white/40 bg-white/20'} p-[0.15vw]`}
+                                        className="w-[1.8vw] h-[1.8vw] rounded-[0.4vw] border shadow-sm flex-shrink-0 border-[#575C9C]/30 bg-[#575C9C]/5 p-[0.15vw]"
                                         onClick={(e) => {
                                             const rect = e.currentTarget.getBoundingClientRect();
                                             setPickerPos({ x: rect.right + 10, y: rect.top - 110 });
@@ -1511,14 +1732,14 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                         <div className="w-full h-full rounded-[0.2vw]" style={{ backgroundColor: textColor }} />
                                     </button>
 
-                                    <div className={`flex-1 h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner border transition-all ${isLayout4 ? 'bg-gray-50 border-gray-300' : 'bg-white/10 border-white/20'}`}>
+                                    <div className="flex-1 h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner border transition-all" style={{ backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)' }}>
                                         <input
                                             type="text"
                                             value={textColor}
                                             onChange={(e) => setTextColor(e.target.value)}
-                                            className={`text-[0.65vw] font-bold bg-transparent border-none outline-none w-[4vw] ${isLayout4 ? 'text-gray-700' : 'text-white'}`}
+                                            className="text-[0.65vw] font-bold bg-transparent border-none outline-none w-[4vw]" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                                         />
-                                        <span className={`text-[0.6vw] font-bold ${isLayout4 ? 'text-gray-400' : 'text-white/60'}`} >{textOpacity}%</span>
+                                        <span className="text-[0.6vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }}>{textOpacity}%</span>
                                     </div>
                                 </div>
                             </div>
@@ -1526,15 +1747,15 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             {/* Page Selection Section */}
                             <div className="space-y-[0.4vw] relative">
                                 <div className="flex items-center gap-[0.3vw]">
-                                    <span className={`text-[0.65vw] font-bold whitespace-nowrap ${isLayout4 ? 'text-gray-900' : 'text-white'}`} >Add Bookmark on</span>
-                                    <div className={`flex-1 h-[1px] ${isLayout4 ? 'bg-gray-200' : 'bg-white/40'}`} />
+                                    <span className="text-[0.65vw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Add Bookmark on</span>
+                                    <div className="flex-1 h-[1px]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.3 }} />
                                 </div>
                                 <div
                                     onClick={() => setShowPageDropdown(!showPageDropdown)}
                                     className={`h-[1.8vw] rounded-[0.4vw] flex items-center px-[0.5vw] justify-between shadow-inner group cursor-pointer transition-colors border ${isLayout4 ? 'bg-white border-gray-300' : 'bg-white/10 border-white/20'}`}
                                 >
-                                    <span className={`text-[0.65vw] font-bold ${isLayout4 ? 'text-gray-700' : 'text-white'}`}>Page {targetPageIndex + 1}</span>
-                                    <Icon icon="fluent:chevron-down-24-filled" className={`w-[0.8vw] h-[0.8vw] transition-transform duration-200 ${showPageDropdown ? 'rotate-180' : ''} ${isLayout4 ? 'text-gray-400' : 'text-white/60'}`} />
+                                    <span className="text-[0.65vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Page {targetPageIndex + 1}</span>
+                                    <Icon icon="fluent:chevron-down-24-filled" className={`w-[0.8vw] h-[0.8vw] transition-transform duration-200 ${showPageDropdown ? 'rotate-180' : ''}`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }} />
                                 </div>
 
                                 {showPageDropdown && (
@@ -1547,7 +1768,8 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                     setTargetPageIndex(i);
                                                     setShowPageDropdown(false);
                                                 }}
-                                                className={`flex items-center px-[0.6vw] py-[0.4vw] cursor-pointer text-[0.65vw] font-bold transition-colors ${targetPageIndex === i ? (isLayout4 ? 'bg-black text-white' : 'bg-white text-[#575C9C]') : 'hover:bg-white/10 text-current'}`}
+                                                className={`flex items-center px-[0.6vw] py-[0.4vw] cursor-pointer text-[0.65vw] font-bold transition-colors ${targetPageIndex === i ? (isLayout4 ? 'bg-black text-white' : 'bg-white') : (isLayout4 ? 'hover:bg-gray-100 text-gray-700' : 'hover:bg-white/10')}`}
+                                                style={!isLayout4 ? { color: targetPageIndex === i ? '#575C9C' : getLayoutColor('dropdown-text', '#FFFFFF') } : {}}
                                             >
                                                 Page {i + 1}
                                             </div>
@@ -1565,7 +1787,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                         setBookmarkText(`Page ${currentPageIndex + 1}`);
                                         setTargetPageIndex(currentPageIndex);
                                     }}
-                                    className={`flex-1 h-[2vw] rounded-[0.4vw] border font-bold text-[0.65vw] flex items-center justify-center gap-[0.2vw] transition-all shadow-sm ${isLayout4 ? 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-white/40 text-white hover:bg-white/10'}`}
+                                    className="flex-1 h-[2vw] rounded-[0.4vw] border font-bold text-[0.65vw] flex items-center justify-center gap-[0.2vw] transition-all shadow-sm" style={{ borderColor: getLayoutColor('dropdown-text', '#FFFFFF'), color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                                 >
                                     Clear
                                 </button>
@@ -1825,14 +2047,14 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                 onClick={onClose}
             >
                 <div
-                    className="rounded-[1vw] shadow-2xl w-[36vw] relative animate-in zoom-in-95 duration-200 select-none overflow-visible transition-transform duration-300 bg-white"
+                    className="rounded-none shadow-2xl w-[36vw] relative animate-in zoom-in-95 duration-200 select-none overflow-visible transition-transform duration-300 bg-white"
                     style={{
                         transform: isSidebarOpen ? 'translate(8vw, 0)' : 'none'
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     {/* Header */}
-                    <div className="flex items-center justify-between px-[1vw] py-[0.6vw] rounded-t-[1vw]" style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}>
+                    <div className="flex items-center justify-between px-[1vw] py-[0.6vw] rounded-t-none" style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}>
                         <h2 className="text-[0.9vw] font-bold text-white tracking-wide">
                             Add Bookmark
                         </h2>
@@ -2693,7 +2915,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                 }}
             >
                 <div
-                    className="rounded-[1.2rem] shadow-[0_20px_60px_rgba(0,0,0,0.18)] flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 w-[32vw] relative z-[110] transition-transform bg-white"
+                    className="rounded-[0.8vw] shadow-[0_20px_60px_rgba(0,0,0,0.18)] flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 w-[28vw] relative z-[110] transition-transform bg-white"
                     style={{
                         transformOrigin: 'center center'
                     }}
@@ -2701,15 +2923,15 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                 >
                     {/* White layer behind (bg-white on parent) and theme layer on top */}
                     <div
-                        className="absolute inset-0 z-0 rounded-[1.2rem]"
+                        className="absolute inset-0 z-0 rounded-[0.8vw]"
                         style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1') }}
                     />
 
 
-                    <div className="relative z-10 p-[1.5vw] flex flex-col w-full h-full">
+                    <div className="relative z-10 p-[1.2vw] flex flex-col w-full h-full">
                         <div className="flex items-center justify-between mb-[0.8vw]">
 
-                            <h2 className="text-[1vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Add Bookmark</h2>
+                            <h2 className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Add Bookmark</h2>
                             <button
                                 onClick={onClose}
                                 className="p-[0.3vw] rounded-full transition-colors group"
@@ -2721,14 +2943,14 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             </button>
                         </div>
 
-                        <div className="flex gap-[1.5vw]">
+                        <div className="flex gap-[1vw]">
                             {/* Left: Color Palette */}
                             <div className="flex flex-col gap-[0.4vw]">
                                 {['#CF5E71', '#6A7DBB', '#6AAF75', '#E1DB53', '#32B1AD'].map((color, index) => (
                                     <button
                                         key={index}
                                         onClick={() => setSelectedColor(color)}
-                                        className={`w-[2vw] h-[2vw] rounded-[0.4vw] transition-all shadow-sm ${selectedColor === color ? 'border-[0.1vw] scale-105' : 'border border-transparent'}`}
+                                        className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] transition-all shadow-sm ${selectedColor === color ? 'border-[0.1vw] scale-105' : 'border border-transparent'}`}
                                         style={{
                                             backgroundColor: color,
                                             borderColor: selectedColor === color ? getLayoutColor('dropdown-text', '#3E4491') : 'transparent',
@@ -2743,7 +2965,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                         setPickerTarget('background');
                                         setShowColorPicker(true);
                                     }}
-                                    className={`w-[2vw] h-[2vw] rounded-[0.4vw] transition-all hover:scale-105 shadow-sm border`}
+                                    className={`w-[1.6vw] h-[1.6vw] rounded-[0.4vw] transition-all hover:scale-105 shadow-sm border`}
                                     style={{
                                         background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
                                         borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
@@ -2754,7 +2976,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             {/* Middle: Preview Area */}
                             <div className="flex justify-center items-start">
                                 <div
-                                    className="relative w-[13vw] h-[10vw] flex transition-all duration-300"
+                                    className="relative w-[11vw] h-[8.5vw] flex transition-all duration-300"
                                     style={{
                                         backgroundColor: hexToRgba(selectedColor, opacity),
                                         clipPath: getBookmarkClipPath(bookmarkStyle),
@@ -2780,10 +3002,10 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                             <div className="flex-1 flex flex-col pt-[0.2vw]">
                                 {/* Text Color Input */}
                                 <div className="flex flex-col gap-[0.4vw] mb-[1.2vw]">
-                                    <span className="text-[0.8vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Text Color :</span>
+                                    <span className="text-[0.7vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Text Color :</span>
                                     <div className="flex items-center gap-[0.5vw]">
                                         <div
-                                            className="w-[2vw] h-[2vw] rounded-[0.4vw] border-[1.5px] cursor-pointer shadow-sm flex-shrink-0"
+                                            className="w-[1.6vw] h-[1.6vw] rounded-[0.4vw] border-[1.5px] cursor-pointer shadow-sm flex-shrink-0"
                                             style={{
                                                 backgroundColor: textColor,
                                                 borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
@@ -2795,7 +3017,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                                 setShowColorPicker(true);
                                             }}
                                         />
-                                        <div className="flex-1 h-[2vw] border-[1.5px] rounded-[0.4vw] flex items-center px-[0.6vw] justify-between"
+                                        <div className="flex-1 h-[1.6vw] border-[1.5px] rounded-[0.4vw] flex items-center px-[0.6vw] justify-between"
                                             style={{
                                                 backgroundColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
                                                 borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
@@ -2815,9 +3037,9 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
 
                                 {/* Select Page Dropdown Section */}
                                 <div className="flex flex-col gap-[0.4vw] relative mb-[1.5vw]">
-                                    <span className="text-[0.8vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Add Bookmark on :</span>
+                                    <span className="text-[0.7vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Add Bookmark on :</span>
                                     <div
-                                        className="w-full h-[1.8vw] border-[1.5px] rounded-[0.4vw] flex items-center px-[0.6vw] justify-between cursor-pointer transition-all"
+                                        className="w-full h-[1.5vw] border-[1.5px] rounded-[0.4vw] flex items-center px-[0.6vw] justify-between cursor-pointer transition-all"
                                         style={{
                                             backgroundColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
                                             borderColor: showPageDropdown ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
@@ -2870,7 +3092,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                 <div className="flex gap-[0.8vw] mt-auto">
                                     <button
                                         onClick={onClose}
-                                        className="h-[2.5vw] flex-1 px-[0.4vw] border-[1.5px] rounded-[0.4vw] flex items-center justify-center gap-[0.3vw] transition-all font-bold text-[0.85vw]"
+                                        className="h-[2vw] flex-1 px-[0.4vw] border-[1.5px] rounded-[0.4vw] flex items-center justify-center gap-[0.3vw] transition-all font-bold text-[0.75vw]"
                                         style={{
                                             borderColor: getLayoutColor('dropdown-text', '#3E4491'),
                                             color: getLayoutColor('dropdown-text', '#3E4491'),
@@ -2893,7 +3115,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
                                             });
                                             onClose();
                                         }}
-                                        className="h-[2.5vw] flex-[1.2] px-[0.6vw] rounded-[0.4vw] text-[0.8vw] font-bold transition-all shadow-md whitespace-nowrap flex items-center justify-center"
+                                        className="h-[2vw] flex-[1.2] px-[0.6vw] rounded-[0.4vw] text-[0.75vw] font-bold transition-all shadow-md whitespace-nowrap flex items-center justify-center"
                                         style={{
                                             backgroundColor: getLayoutColor('dropdown-text', '#3E4491'),
                                             color: getLayoutColor('dropdown-bg', '#ffffff')
@@ -3132,14 +3354,13 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
 
     const finalLayoutId = typeof activeLayout === 'object' ? activeLayout?.id : activeLayout;
 
-    if (Number(finalLayoutId || 3) === 3) {
+    if (Number(finalLayoutId) === 3) {
         return (
             <div
                 className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-auto bg-black/5"
-                onClick={onClose}
             >
                 <div
-                    className="animate-in zoom-in-95 duration-200 pointer-events-auto"
+                    className="rounded-[0.8vw] animate-in zoom-in-95 duration-200 pointer-events-auto"
                     style={{
                         transform: isMobileLandscape ? 'scale(1.1) translateZ(0)' : (isSidebarOpen ? 'translate(8vw, 0)' : 'none'),
                         transformOrigin: 'center center'
@@ -3181,7 +3402,7 @@ const AddBookmarkPopup = ({ onClose, currentPageIndex, totalPages, onAddBookmark
             onClick={onClose}
         >
             <div
-                className="rounded-[1.2vw] shadow-2xl p-[1vw] w-[35vw] relative animate-in zoom-in-95 duration-200 border select-none overflow-visible transition-transform duration-300"
+                className="rounded-[0.8vw] shadow-2xl p-[1vw] w-[35vw] relative animate-in zoom-in-95 duration-200 border select-none overflow-visible transition-transform duration-300"
                 style={{
                     backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
                     backdropFilter: 'blur(12px)',

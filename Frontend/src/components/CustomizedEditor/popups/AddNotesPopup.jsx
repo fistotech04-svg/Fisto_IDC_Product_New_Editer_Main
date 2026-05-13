@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { RotateCcw, X, Pipette, Pencil } from 'lucide-react';
 import ColorPallet from '../ColorPallet';
 import { rgbToHex, hexToRgb, rgbToHsv, hsvToRgb } from '../AppearanceShared';
-import AddNotesPopupLandscape from './AddNotesPopupLandscape';
 
 // Helper functions for color conversion
 const hexToHsv = (hex) => {
@@ -61,7 +60,7 @@ const hsvToHex = ({ h, s, v }) => {
     return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase();
 };
 
-const ColorPicker = ({ color, onChange, opacity, onOpacityChange, onClose, position }) => {
+const ColorPicker = ({ color, onChange, opacity, onOpacityChange, onClose, position, customWidth, customHeight }) => {
     const [hsv, setHsv] = useState(() => hexToHsv(color));
 
     useEffect(() => {
@@ -130,8 +129,8 @@ const ColorPicker = ({ color, onChange, opacity, onOpacityChange, onClose, posit
 
     return (
         <div
-            className="fixed z-[1000] w-[250px] bg-white rounded-[15px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 p-4 animate-in fade-in zoom-in-95 duration-200 select-none font-sans pointer-events-auto"
-            style={{ top: position.y, left: position.x }}
+            className={`fixed z-[1000] ${customWidth ? customWidth : 'w-[250px]'} bg-white rounded-[15px] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 p-4 animate-in fade-in zoom-in-95 duration-200 select-none font-sans pointer-events-auto`}
+            style={position ? { top: position.y, left: position.x } : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
             onClick={(e) => e.stopPropagation()}
         >
             {/* Header */}
@@ -152,7 +151,7 @@ const ColorPicker = ({ color, onChange, opacity, onOpacityChange, onClose, posit
             </div>
 
             {/* Main Area */}
-            <div className="flex gap-2 h-[85px] mb-2">
+            <div className={`flex gap-2 ${customHeight ? customHeight : 'h-[85px]'} mb-2`}>
                 {/* Saturation/Value Box */}
                 <div
                     ref={satDrag.ref}
@@ -290,9 +289,10 @@ const DesktopLayout2 = ({
                 onClick={(e) => e.stopPropagation()}
             >
                 <div
-                    className="w-full h-full rounded-[0.8vw] shadow-inner flex flex-col relative border border-white/20 p-[1.2vw]"
+                    className="w-full h-full rounded-[0.8vw] shadow-inner flex flex-col relative border border-white/20 p-[1.2vw] overflow-hidden"
                     style={{ backgroundColor: "rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))" }}
                 >
+                    <div className="absolute inset-0 bg-white -z-[1]" />
                     {/* Header */}
                     <div className="flex items-center justify-between mb-[0.4vw]">
                         <span className="text-[1vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Add Notes</span>
@@ -385,39 +385,44 @@ const DesktopLayout2 = ({
                         </div>
 
                         {/* Right - Controls */}
-                        <div className="flex-1 flex flex-col gap-[0.6vw] relative" onClick={() => setActiveFormattingTab(null)}>
+                        <div className="flex-1 flex flex-col gap-[0.4vw]" onClick={() => setActiveFormattingTab(null)}>
                             {/* Properties Title */}
-                            <div className="flex items-center gap-[0.4vw] mb-[0.1vw]">
+                            <div className="flex items-center gap-[0.3vw]">
                                 <span className="text-[0.85vw] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Text Property</span>
-                                <div className="h-[1px] flex-1" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.2 }}></div>
+                                <div className="flex-1 h-[1px]" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.2 }} />
                             </div>
 
                             {/* Font Family Selection */}
                             <div className="relative">
                                 <div
                                     onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsFontMenuOpen(!isFontMenuOpen); setIsWeightMenuOpen(false); setIsSizeMenuOpen(false); }}
-                                    className={`w-full flex items-center justify-between border-[1px] rounded-[0.4vw] px-[0.5vw] py-[0.3vw] cursor-pointer transition-all ${isFontMenuOpen ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.2)]' : ''}`}
+                                    className={`w-full flex items-center justify-between border-[1px] rounded-[0.4rem] px-[0.6vw] py-[0.3vh] cursor-pointer transition-all`}
                                     style={{
                                         backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                        borderColor: isFontMenuOpen ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.4) : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
-                                        color: getLayoutColor('dropdown-text', '#FFFFFF')
+                                        borderColor: isFontMenuOpen ? getLayoutColor('dropdown-text', '#FFFFFF') : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
                                     }}
                                 >
-                                    <span className="text-[0.8vw] font-medium" style={{ fontFamily: noteFontFamily, color: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                    <span className="text-[0.7vw] font-bold truncate" style={{ fontFamily: noteFontFamily, color: getLayoutColor('dropdown-text', '#FFFFFF') }}>
                                         {noteFontFamily}
                                     </span>
-                                    <Icon icon="lucide:chevron-down" className={`w-[0.8vw] h-[0.8vw] transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }} />
+                                    <Icon icon="lucide:chevron-down" className={`w-[0.9vw] h-[0.9vw] transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }} />
                                 </div>
 
                                 {isFontMenuOpen && (
-                                    <div className="absolute top-full left-0 w-full mt-[0.3vw] bg-white border border-gray-200 rounded-[0.75vw] shadow-2xl z-50 overflow-hidden">
-                                        <div className="max-h-[12vw] overflow-y-auto custom-scrollbar py-[0.4vw]">
+                                    <div className="absolute top-full left-0 w-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.4rem] shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="max-h-[8vw] overflow-y-auto custom-scrollbar py-[0.2vw]">
                                             {fonts.map((font) => (
                                                 <div
                                                     key={font}
                                                     onClick={() => { setNoteFontFamily(font); setIsFontMenuOpen(false); }}
-                                                    className={`px-[1vw] py-[0.6vw] text-[0.85vw] cursor-pointer transition-colors ${noteFontFamily === font ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-gray-100'}`}
-                                                    style={{ fontFamily: font }}
+                                                    className={`px-[0.6vw] py-[0.4vw] text-[0.65vw] cursor-pointer transition-colors`}
+                                                    style={{
+                                                        fontFamily: font,
+                                                        backgroundColor: noteFontFamily === font ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
+                                                        color: noteFontFamily === font ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8)
+                                                    }}
+                                                    onMouseOver={(e) => { if (noteFontFamily !== font) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
+                                                    onMouseOut={(e) => { if (noteFontFamily !== font) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                                 >
                                                     {font}
                                                 </div>
@@ -427,46 +432,61 @@ const DesktopLayout2 = ({
                                 )}
                             </div>
 
-                            <div className="flex gap-[0.7vw]">
+                            {/* Weight and Size Row */}
+                            <div className="flex gap-[0.4vw]">
                                 <div className="flex-1 relative">
                                     <div
-                                        onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsWeightMenuOpen(!isWeightMenuOpen); setIsSizeMenuOpen(false); setIsFontMenuOpen(false); }}
-                                        className={`w-full h-[2.2vw] flex items-center justify-between border-[1px] rounded-[0.4vw] px-[0.6vw] py-[0.3vw] cursor-pointer transition-all`}
+                                        onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsWeightMenuOpen(!isWeightMenuOpen); setIsFontMenuOpen(false); setIsSizeMenuOpen(false); }}
+                                        className={`w-full flex items-center justify-between border-[1px] rounded-[0.4rem] px-[0.6vw] py-[0.3vh] cursor-pointer transition-all`}
                                         style={{
                                             backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
-                                            color: getLayoutColor('dropdown-text', '#FFFFFF')
+                                            borderColor: isWeightMenuOpen ? getLayoutColor('dropdown-text', '#FFFFFF') : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
                                         }}
                                     >
-                                        <span className="text-[0.75vw] font-bold whitespace-nowrap overflow-hidden text-ellipsis" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteWeight}</span>
+                                        <span className="text-[0.7vw] font-bold truncate" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteWeight}</span>
                                         <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] transition-transform" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }} />
                                     </div>
                                     {isWeightMenuOpen && (
-                                        <div className="absolute top-full left-0 w-full mt-[0.3vw] bg-white border border-gray-200 rounded-[0.75vw] shadow-2xl z-50">
+                                        <div className="absolute top-full left-0 w-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.4rem] shadow-xl z-50 py-[0.2vw]">
                                             {weights.map((w) => (
-                                                <div key={w} onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }} className="px-[1vw] py-[0.6vw] text-[0.85vw] cursor-pointer hover:bg-gray-100 text-gray-700">{w}</div>
+                                                <div key={w} onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }} className={`px-[0.6vw] py-[0.3vw] text-[0.65vw] cursor-pointer`}
+                                                    style={{
+                                                        backgroundColor: noteWeight === w ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
+                                                        color: noteWeight === w ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8),
+                                                        fontWeight: noteWeight === w ? 'bold' : 'normal'
+                                                    }}
+                                                    onMouseOver={(e) => { if (noteWeight !== w) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
+                                                    onMouseOut={(e) => { if (noteWeight !== w) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                                >{w}</div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
-                                <div className="w-[4.5vw] relative">
+                                <div className="w-[4vw] relative">
                                     <div
-                                        onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsSizeMenuOpen(!isSizeMenuOpen); setIsWeightMenuOpen(false); setIsFontMenuOpen(false); }}
-                                        className={`w-full h-[2.2vw] flex items-center justify-between border-[1px] rounded-[0.4vw] px-[0.5vw] py-[0.3vw] cursor-pointer transition-all`}
+                                        onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsSizeMenuOpen(!isSizeMenuOpen); setIsFontMenuOpen(false); setIsWeightMenuOpen(false); }}
+                                        className={`w-full flex items-center justify-between border-[1px] rounded-[0.4rem] px-[0.6vw] py-[0.3vh] cursor-pointer transition-all`}
                                         style={{
                                             backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
-                                            color: getLayoutColor('dropdown-text', '#FFFFFF')
+                                            borderColor: isSizeMenuOpen ? getLayoutColor('dropdown-text', '#FFFFFF') : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
                                         }}
                                     >
-                                        <span className="text-[0.75vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteFontSize}</span>
+                                        <span className="text-[0.7vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteFontSize}</span>
                                         <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw]" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }} />
                                     </div>
                                     {isSizeMenuOpen && (
-                                        <div className="absolute top-full right-0 w-full mt-[0.3vw] bg-white border border-gray-200 rounded-[0.75vw] shadow-2xl z-50">
-                                            <div className="max-h-[10vw] overflow-y-auto py-[0.4vw]">
+                                        <div className="absolute top-full right-0 w-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.4rem] shadow-xl z-50 py-[0.2vw] text-center">
+                                            <div className="max-h-[6vw] overflow-y-auto custom-scrollbar">
                                                 {sizes.map((s) => (
-                                                    <div key={s} onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }} className="px-[1vw] py-[0.5vw] text-[0.85vw] text-center cursor-pointer hover:bg-gray-100 text-gray-700">{s}</div>
+                                                    <div key={s} onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }} className={`px-[0.6vw] py-[0.3vw] text-[0.65vw] cursor-pointer`}
+                                                        style={{
+                                                            backgroundColor: noteFontSize === s ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
+                                                            color: noteFontSize === s ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8),
+                                                            fontWeight: noteFontSize === s ? 'bold' : 'normal'
+                                                        }}
+                                                        onMouseOver={(e) => { if (noteFontSize !== s) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
+                                                        onMouseOut={(e) => { if (noteFontSize !== s) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                                    >{s}</div>
                                                 ))}
                                             </div>
                                         </div>
@@ -474,120 +494,105 @@ const DesktopLayout2 = ({
                                 </div>
                             </div>
 
-                            {/* Formatting Tool Options Bars */}
-                            <AnimatePresence mode="wait">
-                                {activeFormattingTab && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        className="mb-[0.4vw] flex justify-end"
-                                    >
-                                        <div className="bg-[#1E1E1E] rounded-[0.8vw] p-[0.3vw] flex gap-[0.3vw] shadow-xl" onClick={(e) => e.stopPropagation()}>
-                                            {activeFormattingTab === 'align' && (
-                                                <>
-                                                    {[
-                                                        { id: 'left', icon: 'lucide:align-left' },
-                                                        { id: 'center', icon: 'lucide:align-center' },
-                                                        { id: 'right', icon: 'lucide:align-right' },
-                                                        { id: 'justify', icon: 'lucide:align-justify' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => setNoteAlignment(opt.id)}
-                                                            className={`w-[1.8vw] h-[1.8vw] rounded-[0.5vw] flex items-center justify-center transition-all ${noteAlignment === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <Icon icon={opt.icon} className="w-[1vw] h-[1vw]" />
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'style' && (
-                                                <>
-                                                    {[
-                                                        { id: 'bold', label: 'B' },
-                                                        { id: 'italic', label: 'I' },
-                                                        { id: 'underline', label: 'U' },
-                                                        { id: 'strike', label: 'S' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => toggleNoteStyle(opt.id)}
-                                                            className={`w-[1.8vw] h-[1.8vw] rounded-[0.5vw] flex items-center justify-center transition-all ${noteStyles.includes(opt.id) ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <span className={`text-[0.9vw] font-bold ${opt.id === 'italic' ? 'italic' : opt.id === 'underline' ? 'underline' : opt.id === 'strike' ? 'line-through' : ''}`}>{opt.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'case' && (
-                                                <>
-                                                    {[
-                                                        { id: 'none', label: '—' },
-                                                        { id: 'sentence', label: 'Aa' },
-                                                        { id: 'upper', label: 'AB' },
-                                                        { id: 'lower', label: 'ab' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => setNoteCase(opt.id)}
-                                                            className={`w-[1.8vw] h-[1.8vw] rounded-[0.5vw] flex items-center justify-center transition-all ${noteCase === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <span className="text-[0.85vw] font-bold">{opt.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'list' && (
-                                                <>
-                                                    {[
-                                                        { id: 'bullet', icon: 'lucide:list' },
-                                                        { id: 'bullet2', icon: 'material-symbols:list' },
-                                                        { id: 'ordered', icon: 'lucide:list-ordered' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => handleListClick(opt.id)}
-                                                            className={`w-[1.8vw] h-[1.8vw] rounded-[0.5vw] flex items-center justify-center transition-all ${noteList === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <Icon icon={opt.icon} className="w-[1vw] h-[1vw]" />
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                            {/* Formatting Buttons Row (4 icons as per screenshot) */}
+                            <div className="flex gap-[0.4vw] justify-center relative">
+                                <AnimatePresence mode="wait">
+                                    {activeFormattingTab && (
+                                        <motion.div
+                                            key={activeFormattingTab}
+                                            initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.9, y: 5 }}
+                                            transition={{ duration: 0.15 }}
+                                            className="absolute bottom-full right-0 mb-[0.6vw] z-[60]"
+                                        >
+                                            <div className="flex items-center gap-[0.2vw] bg-[#1A1A1A] p-[0.3vw] rounded-full shadow-2xl border border-white/10" onClick={(e) => e.stopPropagation()}>
+                                                {activeFormattingTab === 'align' && (
+                                                    <>
+                                                        {['left', 'center', 'right', 'justify'].map((id) => (
+                                                            <button
+                                                                key={id}
+                                                                onClick={() => setNoteAlignment(id)}
+                                                                className={`w-[2.4vw] h-[2vw] rounded-full flex items-center justify-center transition-all ${noteAlignment === id ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <Icon icon={`lucide:align-${id}`} className="w-[1.1vw] h-[1.1vw]" />
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {activeFormattingTab === 'style' && (
+                                                    <>
+                                                        {['bold', 'italic', 'underline', 'strike'].map((id) => (
+                                                            <button
+                                                                key={id}
+                                                                onClick={() => toggleNoteStyle(id)}
+                                                                className={`w-[2.4vw] h-[2vw] rounded-full flex items-center justify-center transition-all ${noteStyles.includes(id) ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <span className={`text-[1vw] font-bold ${id === 'italic' ? 'italic' : id === 'underline' ? 'underline' : id === 'strike' ? 'line-through' : ''}`}>{id === 'bold' ? 'B' : id === 'italic' ? 'I' : id === 'underline' ? 'U' : 'S'}</span>
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {activeFormattingTab === 'case' && (
+                                                    <>
+                                                        {['none', 'sentence', 'upper', 'lower'].map((id) => (
+                                                            <button
+                                                                key={id}
+                                                                onClick={() => setNoteCase(id)}
+                                                                className={`w-[2.4vw] h-[2vw] rounded-full flex items-center justify-center transition-all ${noteCase === id ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <span className="text-[0.9vw] font-bold">{id === 'none' ? '—' : id === 'sentence' ? 'Aa' : id === 'upper' ? 'AB' : 'ab'}</span>
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {activeFormattingTab === 'list' && (
+                                                    <>
+                                                        {['bullet', 'ordered'].map((id) => (
+                                                            <button
+                                                                key={id}
+                                                                onClick={() => handleListClick(id)}
+                                                                className={`w-[2.4vw] h-[2vw] rounded-full flex items-center justify-center transition-all ${noteList === id ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <Icon icon={id === 'ordered' ? 'lucide:list-ordered' : 'lucide:list'} className="w-[1.1vw] h-[1.1vw]" />
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
 
-                            {/* Tool Buttons Categories */}
-                            <div className="flex items-center justify-end gap-[0.4vw]">
                                 {[
-                                    { id: 'align', icon: `lucide:align-${noteAlignment === 'justify' ? 'justify' : noteAlignment}`, action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align') },
+                                    { id: 'align', icon: 'lucide:align-left', action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align') },
                                     { id: 'style', label: 'B', action: () => setActiveFormattingTab(prev => prev === 'style' ? null : 'style') },
-                                    { id: 'case', label: noteCase === 'none' ? '—' : noteCase === 'sentence' ? 'Aa' : noteCase === 'upper' ? 'AB' : 'ab', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case') },
-                                    { id: 'list', icon: noteList === 'ordered' ? 'lucide:list-ordered' : 'lucide:list', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list') }
+                                    { id: 'case', label: 'Aa', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case') },
+                                    { id: 'list', icon: 'lucide:list', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list') }
                                 ].map((btn) => (
                                     <button
                                         key={btn.id}
                                         onClick={(e) => { e.stopPropagation(); btn.action(); }}
-                                        className={`w-[2vw] h-[2vw] rounded-[0.4vw] border-[1px] transition-all flex items-center justify-center ${activeFormattingTab === btn.id ? 'border-transparent' : 'hover:opacity-80'}`}
+                                        className={`w-[2.5vw] h-[2.2vw] rounded-[0.4rem] border-[1px] flex items-center justify-center transition-all shadow-sm`}
                                         style={{
                                             backgroundColor: activeFormattingTab === btn.id ? getLayoutColor('dropdown-text', '#FFFFFF') : 'rgba(255, 255, 255, 0.1)',
                                             borderColor: activeFormattingTab === btn.id ? 'transparent' : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2),
                                             color: activeFormattingTab === btn.id ? getLayoutColor('dropdown-bg', '#575C9C') : getLayoutColor('dropdown-text', '#FFFFFF')
                                         }}
                                     >
-                                        {btn.icon ? <Icon icon={btn.icon} className="w-[1vw] h-[1vw]" /> : <span className="text-[0.9vw] font-bold">{btn.label}</span>}
+                                        {btn.icon ? <Icon icon={btn.icon} className="w-[1vw] h-[1vw]" /> : <span className="text-[1vw] font-bold">{btn.label}</span>}
                                     </button>
                                 ))}
                             </div>
 
-                            {/* Color Picker & Hex */}
-                            <div className="flex items-center gap-[0.5vw]">
+                            {/* Color Selection Wrapper (Compact row as per screenshot) */}
+                            <div className="flex items-center gap-[0.4vw]">
                                 <div
-                                    className="w-[1.4vw] h-[1.4vw] rounded-[0.3vw] border border-white/20 cursor-pointer shadow-sm flex-shrink-0 color-picker-trigger"
-                                    style={{ backgroundColor: noteTextColor }}
+                                    className="w-[1.8vw] h-[1.8vw] rounded-[0.4rem] border-[1px] shadow-sm cursor-pointer flex-shrink-0"
+                                    style={{
+                                        backgroundColor: noteTextColor,
+                                        borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2)
+                                    }}
                                     onClick={(e) => {
                                         const rect = e.currentTarget.getBoundingClientRect();
                                         setPickerPos({ x: rect.left - 180, y: rect.top - 50 });
@@ -595,33 +600,38 @@ const DesktopLayout2 = ({
                                         setShowColorPicker(true);
                                     }}
                                 />
-                                <div className="flex-1 flex items-center border rounded-[0.4vw] px-[0.5vw] py-[0.3vw]" style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }}>
-                                    <span className="text-[0.7vw] font-medium flex-1" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteTextColor.toUpperCase()}</span>
-                                    <div className="flex items-center gap-[0.1vw] text-[0.7vw]" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.7 }}>
+                                <div className="flex-1 h-[2vw] flex items-center justify-between border-[1px] rounded-[0.4rem] px-[0.6vw]"
+                                    style={{
+                                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                        borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2)
+                                    }}
+                                >
+                                    <span className="text-[0.65vw] font-bold uppercase tracking-tight" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteTextColor}</span>
+                                    <div className="flex items-center" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.7 }}>
                                         <input
                                             type="text"
                                             value={noteTextOpacity}
                                             onChange={(e) => setNoteTextOpacity(e.target.value)}
-                                            className="w-[1.4vw] text-right bg-transparent outline-none"
+                                            className="w-[1.4vw] text-right bg-transparent outline-none text-[0.65vw] font-bold"
                                             style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                                         />
-                                        <span>%</span>
+                                        <span className="text-[0.65vw] font-bold">%</span>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Action Buttons */}
-                            <div className="mt-auto flex items-center gap-[0.6vw]">
+                            {/* Action Buttons Row (Clear and Add To Notes) */}
+                            <div className="flex items-center gap-[0.5vw] mt-[0.5vw]">
                                 <button
                                     onClick={resetNote}
-                                    className="flex-1 h-[1.8vw] border rounded-[0.4vw] flex items-center justify-center gap-[0.3vw] hover:bg-white/10 transition-colors"
+                                    className="flex-1 h-[2.2vw] border-[1px] rounded-[0.5rem] flex items-center justify-center gap-[0.3vw] transition-all font-bold text-[0.7vw] hover:bg-white/10"
                                     style={{
-                                        borderColor: getLayoutColorRgba('dropdown-text', '255, 255, 255', '0.3'),
+                                        borderColor: getLayoutColor('dropdown-text', '#FFFFFF'),
                                         color: getLayoutColor('dropdown-text', '#FFFFFF')
                                     }}
                                 >
                                     <Icon icon="lucide:x" className="w-[0.8vw] h-[0.8vw]" />
-                                    <span className="text-[0.8vw] font-medium">Clear</span>
+                                    Clear
                                 </button>
                                 <button
                                     onClick={() => {
@@ -643,11 +653,13 @@ const DesktopLayout2 = ({
                                         });
                                         onClose();
                                     }}
-                                    className="flex-[1.5] h-[1.8vw] rounded-[0.4vw] text-[0.8vw] font-bold hover:opacity-90 transition-all shadow-lg"
+                                    className="flex-[1.8] h-[2.2vw] rounded-[0.5rem] text-[0.8vw] font-bold transition-all shadow-md"
                                     style={{
                                         backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'),
                                         color: getLayoutColor('dropdown-bg', '#575C9C')
                                     }}
+                                    onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
+                                    onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
                                 >
                                     Add To Notes
                                 </button>
@@ -934,220 +946,190 @@ const MobileLayout = ({
     }
 
     if (isNewDesignLayout) {
+        const isLayout9Portrait = isMobile && !isLandscape && Number(activeLayout) === 9;
+        const isLayout2Portrait = isMobile && !isLandscape && Number(activeLayout) === 2;
+        const isLayout3Portrait = isMobile && !isLandscape && Number(activeLayout) === 3;
+        const isLayout4Portrait = isMobile && !isLandscape && Number(activeLayout) === 4;
+        const isLayout1Portrait = isMobile && !isLandscape && Number(activeLayout) === 1;
+
         return (
             <div className="absolute inset-0 z-[1000] flex items-center justify-center p-4 bg-black/5 pointer-events-auto" onClick={onClose}>
                 <div
-                    className={`w-full max-w-[245px] max-h-[85%] overflow-y-auto rounded-[24px] shadow-2xl animate-in zoom-in-95 duration-200 ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'bg-white/60 backdrop-blur-xl p-[6px] border border-white/20' : 'bg-transparent p-0'} custom-scrollbar-hidden scale-[0.85] origin-center pointer-events-auto`}
+                    className={`w-full max-w-[280px] max-h-[85%] overflow-y-auto ${isLayout4Portrait ? 'rounded-none bg-white' : 'rounded-[24px]'} shadow-2xl animate-in zoom-in-95 duration-200 ${isLayout9Portrait ? 'p-[6px] border border-white/20' : isLayout2Portrait || isLayout1Portrait ? 'backdrop-blur-xl p-[6px] border' : 'bg-transparent p-0'} custom-scrollbar-hidden scale-[0.95] origin-center pointer-events-auto`}
+                    style={isLayout9Portrait || isLayout1Portrait ? { backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.6), backdropFilter: 'blur(8px)', borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) } : {}}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className={`w-full h-full flex flex-col gap-2 p-3 rounded-[18px] shadow-inner ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'bg-[#575C9C]' : 'bg-white border border-gray-100'}`}>
-                    {/* Header: Title + Line + Action Buttons */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5 flex-grow mr-1.5">
-                            <span className={`text-[13px] font-bold whitespace-nowrap ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'text-white' : isMobile && !isLandscape && Number(activeLayout) === 3 ? 'text-[#575C9C]' : 'text-[#111]'}`}>Add Notes</span>
-                            <div className={`h-[0.5px] flex-1 ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'bg-white/20' : 'bg-gray-100'}`}></div>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                            <button
-                                onClick={onClose}
-                                className="w-6 h-6 rounded-md flex items-center justify-center transition-all bg-white text-[#EB5757] hover:bg-red-50 active:scale-90 border-[1px] border-[#EB5757]/30"
-                            >
-                                <Icon icon="lucide:x" className="w-3 h-3 stroke-[2.5]" />
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (!noteContent.trim()) return;
-                                    onAddNote({
-                                        content: noteContent,
-                                        background: noteBackground,
-                                        color: noteTextColor,
-                                        fontFamily: noteFontFamily,
-                                        fontSize: noteFontSize,
-                                        styles: noteStyles,
-                                        alignment: noteAlignment,
-                                        case: noteCase,
-                                        list: noteList,
-                                        bgOpacity: noteBgOpacity,
-                                        textOpacity: noteTextOpacity,
-                                        pageLabel: `Page ${p1.toString().padStart(2, '0')}`,
-                                        pageIndex: targetPageIndex
-                                    });
-                                    onClose();
-                                }}
-                                className="w-6 h-6 rounded-md flex items-center justify-center transition-all bg-white text-[#27AE60] hover:bg-green-50 active:scale-90 border-[1px] border-[#27AE60]/30"
-                            >
-                                <Icon icon="lucide:check" className="w-3 h-3 stroke-[2.5]" />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Note Preview Area with Badge */}
-                    <div
-                        className="relative w-full aspect-[16/11] rounded-[12px] p-3 shadow-inner flex flex-col transition-all duration-300"
-                        style={{ backgroundColor: noteBackground || '#D9DC54', opacity: noteBgOpacity / 100 }}
+                    <div className={`w-full h-full flex flex-col gap-2 p-3 ${isLayout4Portrait ? 'rounded-none' : 'rounded-[18px]'} shadow-inner ${isLayout2Portrait || isLayout1Portrait ? '' : 'bg-white border border-gray-100'}`}
+                        style={isLayout1Portrait ? { backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.9) } : (isLayout2Portrait ? { backgroundColor: '#575C9C' } : {})}
                     >
-                        <textarea
-                            value={noteContent}
-                            onChange={(e) => setNoteContent(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Enter Your Notes"
-                            style={{
-                                textAlign: noteAlignment,
-                                fontWeight: noteStyles.includes('bold') ? 'bold' : getFontWeight(noteWeight),
-                                fontStyle: noteStyles.includes('italic') ? 'italic' : 'normal',
-                                textDecoration: `${noteStyles.includes('underline') ? 'underline' : ''} ${noteStyles.includes('strike') ? 'line-through' : ''}`,
-                                textTransform: noteCase === 'upper' ? 'uppercase' : noteCase === 'lower' ? 'lowercase' : noteCase === 'sentence' ? 'capitalize' : 'none',
-                                fontFamily: noteFontFamily,
-                                fontSize: `${Math.max(11, Number(noteFontSize) - 4)}px`,
-                                color: noteTextColor,
-                                opacity: noteTextOpacity / 100,
-                                background: 'transparent',
-                                border: 'none',
-                                outline: 'none',
-                                resize: 'none',
-                                width: '100%',
-                                height: '100%'
-                            }}
-                            className="flex-1 placeholder:text-black/30 font-bold text-[12px] overflow-y-auto custom-scrollbar"
-                        />
-                        <div
-                            className="flex justify-end mt-1 items-center cursor-pointer hover:opacity-80 transition-opacity relative"
-                            onClick={(e) => { e.stopPropagation(); setIsPageDropdownOpen(!isPageDropdownOpen); }}
-                        >
-                            <span className="text-[9px] font-extrabold text-[#333] opacity-60 mr-1">{pageDisplay}</span>
-                            <Icon icon="lucide:pencil" className="w-2.5 h-2.5 text-[#333] opacity-60" />
-
-                            {isPageDropdownOpen && (
-                                <div className="absolute bottom-full right-0 mb-1 w-[80px] max-h-[120px] bg-white rounded-lg shadow-[0_10px_30px_rgba(0,0,0,0.15)] overflow-y-auto custom-scrollbar z-[100] border border-gray-100 py-1" onClick={(e) => e.stopPropagation()}>
-                                    {Array.from({ length: totalPages || 1 }, (_, i) => (
-                                        <div
-                                            key={i}
-                                            onClick={() => {
-                                                setTargetPageIndex(i);
-                                                setIsPageDropdownOpen(false);
-                                            }}
-                                            className={`px-3 py-1.5 text-[10px] cursor-pointer transition-colors ${targetPageIndex === i ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-700 hover:bg-gray-50'}`}
-                                        >
-                                            Page {i + 1}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Color Quick Selection Palette */}
-                    <div className="flex items-center justify-between px-0.5">
-                        {['#E2E2D0', '#C68899', '#D6566E', '#6A7DBB', '#68AC77', '#D9DC54', '#23D295'].map((color, i) => (
-                            <div
-                                key={i}
-                                onClick={() => setNoteBackground(color)}
-                                className={`w-5 h-5 rounded-full cursor-pointer hover:scale-110 transition-transform shadow-sm border-[2px] ${noteBackground === color ? 'border-white ring-1 ring-gray-300' : 'border-transparent'}`}
-                                style={{ backgroundColor: color }}
-                            />
-                        ))}
-                        <div
-                            onClick={() => { setPickerTarget('background'); setShowColorPicker(true); }}
-                            className="w-5 h-5 rounded-full cursor-pointer hover:scale-110 transition-transform shadow-sm border-[1px] border-transparent bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)]"
-                        />
-                    </div>
-
-                    {/* Properties Section Label */}
-                    <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-1.5">
-                            <span className={`text-[11px] font-bold whitespace-nowrap ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'text-white' : isMobile && !isLandscape && Number(activeLayout) === 3 ? 'text-[#575C9C]' : 'text-black'}`}>Text Properties</span>
-                            <div className={`h-[0.5px] flex-1 ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'bg-white/20' : 'bg-gray-100'}`}></div>
-                        </div>
-
-                        {/* Font Family Dropdown */}
-                        <div className="relative">
-                            <div
-                                onClick={(e) => { e.stopPropagation(); setIsFontMenuOpen(!isFontMenuOpen); setIsWeightMenuOpen(false); setIsSizeMenuOpen(false); }}
-                                className="w-full flex items-center justify-between bg-white border border-gray-300 rounded-md px-2.5 py-1.5 cursor-pointer text-gray-800 transition-all hover:border-gray-400"
-                            >
-                                <span className="text-[11px] font-semibold truncate" style={{ fontFamily: noteFontFamily }}>{noteFontFamily}</span>
-                                <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} />
+                        {/* Header: Title + Line + Action Buttons */}
+                        <div className={`flex items-center justify-between ${isMobile && !isLandscape && Number(activeLayout) === 8 ? 'bg-[#575C9C] -mx-3 -mt-3 px-3 py-2.5 rounded-t-[18px] mb-1' : ''}`}>
+                            <div className="flex items-center gap-1.5 flex-grow mr-1.5">
+                                <span className={`text-[13px] font-bold whitespace-nowrap ${isMobile && !isLandscape && (Number(activeLayout) === 2 || Number(activeLayout) === 1) ? 'text-white' : isMobile && !isLandscape && Number(activeLayout) === 8 ? 'text-white' : isMobile && !isLandscape && Number(activeLayout) === 3 || isLayout4Portrait ? 'text-[#575C9C]' : 'text-[#111]'}`}
+                                    style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}
+                                >Add Notes</span>
+                                <div className={`h-[0.5px] flex-1 ${isMobile && !isLandscape && (Number(activeLayout) === 2 || Number(activeLayout) === 8 || Number(activeLayout) === 1) ? 'bg-white/20' : 'bg-gray-100'}`}
+                                    style={isLayout1Portrait ? { backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.2 } : {}}
+                                ></div>
                             </div>
-                            <AnimatePresence>
-                                {isFontMenuOpen && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: 10 }}
-                                        className="absolute top-full left-0 w-full mt-1 bg-white rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 overflow-hidden py-1 border border-gray-100"
+                            <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                    onClick={onClose}
+                                    className={`w-6 h-6 ${isLayout4Portrait ? 'rounded-none text-[#575C9C] hover:bg-gray-100' : 'rounded-md bg-white text-[#EB5757] hover:bg-red-50 border-[1px] border-[#EB5757]/30'} flex items-center justify-center transition-all active:scale-90`}
+                                >
+                                    <Icon icon="lucide:x" className="w-3 h-3 stroke-[2.5]" />
+                                </button>
+                                {!isLayout4Portrait && (
+                                    <button
+                                        onClick={() => {
+                                            if (!noteContent.trim()) return;
+                                            onAddNote({
+                                                content: noteContent,
+                                                background: noteBackground,
+                                                color: noteTextColor,
+                                                fontFamily: noteFontFamily,
+                                                fontSize: noteFontSize,
+                                                styles: noteStyles,
+                                                alignment: noteAlignment,
+                                                case: noteCase,
+                                                list: noteList,
+                                                bgOpacity: noteBgOpacity,
+                                                textOpacity: noteTextOpacity,
+                                                pageLabel: `Page ${p1.toString().padStart(2, '0')}`,
+                                                pageIndex: targetPageIndex
+                                            });
+                                            onClose();
+                                        }}
+                                        className="w-6 h-6 rounded-md flex items-center justify-center transition-all bg-white text-[#27AE60] hover:bg-green-50 active:scale-90 border-[1px] border-[#27AE60]/30"
                                     >
-                                        <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
-                                            {fonts.map(font => (
-                                                <div
-                                                    key={font}
-                                                    onClick={() => { setNoteFontFamily(font); setIsFontMenuOpen(false); }}
-                                                    className={`px-2.5 py-1.5 text-[11px] cursor-pointer hover:bg-gray-50 text-gray-800 ${noteFontFamily === font ? 'bg-indigo-50 text-indigo-600 font-bold' : ''}`}
-                                                    style={{ fontFamily: font }}
-                                                >
-                                                    {font}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </motion.div>
+                                        <Icon icon="lucide:check" className="w-3 h-3 stroke-[2.5]" />
+                                    </button>
                                 )}
-                            </AnimatePresence>
+                            </div>
                         </div>
 
-                        {/* Weight and Size Selectors */}
-                        <div className="flex gap-1.5">
-                            <div className="flex-1 relative">
-                                <div
-                                    onClick={(e) => { e.stopPropagation(); setIsWeightMenuOpen(!isWeightMenuOpen); setIsFontMenuOpen(false); setIsSizeMenuOpen(false); }}
-                                    className="w-full h-8 flex items-center justify-between bg-white border border-gray-300 rounded-md px-2.5 cursor-pointer text-gray-800 transition-all hover:border-gray-400"
-                                >
-                                    <span className="text-[11px] font-semibold">{noteWeight}</span>
-                                    <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isWeightMenuOpen ? 'rotate-180' : ''}`} />
-                                </div>
-                                <AnimatePresence>
-                                    {isWeightMenuOpen && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="absolute bottom-full left-0 w-full mb-1 bg-white rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 overflow-hidden py-1 border border-gray-100"
-                                        >
-                                            {weights.map(w => (
-                                                <div
-                                                    key={w}
-                                                    onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }}
-                                                    className={`px-2.5 py-1.5 text-[11px] cursor-pointer hover:bg-gray-50 text-gray-800 ${noteWeight === w ? 'bg-indigo-50 text-indigo-600 font-bold' : ''}`}
-                                                >
-                                                    {w}
-                                                </div>
-                                            ))}
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
+                        {/* Note Preview Area with Badge */}
+                        <div
+                            className={`relative w-full aspect-[16/11] ${isLayout4Portrait ? 'rounded-none' : 'rounded-[12px]'} p-3 shadow-inner flex flex-col transition-all duration-300`}
+                            style={{ backgroundColor: noteBackground || '#D9DC54', opacity: noteBgOpacity / 100 }}
+                        >
+                            <textarea
+                                value={noteContent}
+                                onChange={(e) => setNoteContent(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Enter Your Notes"
+                                style={{
+                                    textAlign: noteAlignment,
+                                    fontWeight: noteStyles.includes('bold') ? 'bold' : getFontWeight(noteWeight),
+                                    fontStyle: noteStyles.includes('italic') ? 'italic' : 'normal',
+                                    textDecoration: `${noteStyles.includes('underline') ? 'underline' : ''} ${noteStyles.includes('strike') ? 'line-through' : ''}`,
+                                    textTransform: noteCase === 'upper' ? 'uppercase' : noteCase === 'lower' ? 'lowercase' : noteCase === 'sentence' ? 'capitalize' : 'none',
+                                    fontFamily: noteFontFamily,
+                                    fontSize: `${Math.max(11, Number(noteFontSize) - 4)}px`,
+                                    color: noteTextColor,
+                                    opacity: noteTextOpacity / 100,
+                                    background: 'transparent',
+                                    border: 'none',
+                                    outline: 'none',
+                                    resize: 'none',
+                                    width: '100%',
+                                    height: '100%'
+                                }}
+                                className="flex-1 placeholder:text-black/30 font-bold text-[12px] overflow-y-auto custom-scrollbar"
+                            />
+                            <div
+                                className="flex justify-end mt-1 items-center cursor-pointer hover:opacity-80 transition-opacity relative"
+                                onClick={(e) => { e.stopPropagation(); setIsPageDropdownOpen(!isPageDropdownOpen); }}
+                            >
+                                <span className="text-[9px] font-extrabold text-[#333] opacity-60 mr-1">{pageDisplay}</span>
+                                <Icon icon="lucide:pencil" className="w-2.5 h-2.5 text-[#333] opacity-60" />
+
+                                {isPageDropdownOpen && (
+                                    <div className="absolute bottom-full right-0 mb-1 w-[80px] max-h-[120px] rounded-lg shadow-[0_10px_30px_rgba(0,0,0,0.15)] overflow-y-auto custom-scrollbar z-[100] border py-1" 
+                                        style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) }}
+                                        onClick={(e) => e.stopPropagation()}>
+                                        {Array.from({ length: totalPages || 1 }, (_, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => {
+                                                    setTargetPageIndex(i);
+                                                    setIsPageDropdownOpen(false);
+                                                }}
+                                                className={`px-3 py-1.5 text-[10px] cursor-pointer transition-colors`}
+                                                style={{ 
+                                                    backgroundColor: targetPageIndex === i ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) : 'transparent',
+                                                    color: getLayoutColor('dropdown-text', '#333'),
+                                                    fontWeight: targetPageIndex === i ? 'bold' : 'normal'
+                                                }}
+                                            >
+                                                Page {i + 1}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
-                            <div className="w-[65px] relative">
+                        </div>
+
+                        {/* Color Quick Selection Palette */}
+                        <div className="flex items-center justify-between px-0.5">
+                            {['#E2E2D0', '#C68899', '#D6566E', '#6A7DBB', '#68AC77', '#D9DC54', '#23D295'].map((color, i) => (
                                 <div
-                                    onClick={(e) => { e.stopPropagation(); setIsSizeMenuOpen(!isSizeMenuOpen); setIsFontMenuOpen(false); setIsWeightMenuOpen(false); }}
-                                    className="w-full h-8 flex items-center justify-between bg-white border border-gray-300 rounded-md px-2.5 cursor-pointer text-gray-800 transition-all hover:border-gray-400"
+                                    key={i}
+                                    onClick={() => setNoteBackground(color)}
+                                    className={`w-5 h-5 ${isLayout4Portrait ? 'rounded-none' : 'rounded-full'} cursor-pointer hover:scale-110 transition-transform shadow-sm border-[2px] ${noteBackground === color ? 'border-white ring-1 ring-gray-300' : 'border-transparent'}`}
+                                    style={{ backgroundColor: color }}
+                                />
+                            ))}
+                            <div
+                                onClick={() => { setPickerTarget('background'); setShowColorPicker(true); }}
+                                className={`w-5 h-5 ${isLayout4Portrait ? 'rounded-none' : 'rounded-full'} cursor-pointer hover:scale-110 transition-transform shadow-sm border-[1px] border-transparent bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)]`}
+                            />
+                        </div>
+
+                        {/* Properties Section Label */}
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-1.5">
+                                <span className={`text-[11px] font-bold whitespace-nowrap`}
+                                    style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}
+                                >Text Property :</span>
+                                <div className={`h-[0.5px] flex-1 ${isMobile && !isLandscape && (Number(activeLayout) === 2 || Number(activeLayout) === 8) ? 'bg-white/20' : 'bg-gray-100'}`}
+                                    style={isLayout1Portrait ? { backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.2 } : {}}
+                                ></div>
+                            </div>
+
+                            {/* Font Family Dropdown */}
+                            <div className="relative">
+                                <div
+                                    onClick={(e) => { e.stopPropagation(); setIsFontMenuOpen(!isFontMenuOpen); setIsWeightMenuOpen(false); setIsSizeMenuOpen(false); }}
+                                    className={`w-full flex items-center justify-between border border-gray-300 ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} px-2.5 py-1.5 cursor-pointer text-gray-800 transition-all hover:border-gray-400`}
+                                    style={isLayout1Portrait ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3) } : { backgroundColor: 'white' }}
                                 >
-                                    <span className="text-[11px] font-semibold">{noteFontSize}</span>
-                                    <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isSizeMenuOpen ? 'rotate-180' : ''}`} />
+                                    <span className="text-[11px] font-semibold truncate" style={{ fontFamily: noteFontFamily, color: isLayout1Portrait ? getLayoutColor('dropdown-text', '#FFFFFF') : '' }}>{noteFontFamily}</span>
+                                    <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 ${isLayout1Portrait ? '' : 'text-gray-400'} transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 } : {}} />
                                 </div>
                                 <AnimatePresence>
-                                    {isSizeMenuOpen && (
+                                    {isFontMenuOpen && (
                                         <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
+                                            initial={{ opacity: 0, y: 10 }}
                                             animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, y: -10 }}
-                                            className="absolute bottom-full right-0 w-full mb-1 bg-white rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 overflow-hidden py-1 text-center border border-gray-100"
+                                            exit={{ opacity: 0, y: 10 }}
+                                            className="absolute top-full left-0 w-full mt-1 rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 overflow-hidden py-1 border"
+                                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) }}
                                         >
                                             <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
-                                                {sizes.map(s => (
+                                                {fonts.map(font => (
                                                     <div
-                                                        key={s}
-                                                        onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }}
-                                                        className={`px-2.5 py-1.5 text-[11px] cursor-pointer hover:bg-gray-50 text-gray-800 ${noteFontSize === s ? 'bg-indigo-50 text-indigo-600 font-bold' : ''}`}
+                                                        key={font}
+                                                        onClick={() => { setNoteFontFamily(font); setIsFontMenuOpen(false); }}
+                                                        className={`px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors`}
+                                                        style={{ 
+                                                            fontFamily: font,
+                                                            backgroundColor: noteFontFamily === font ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) : 'transparent',
+                                                            color: getLayoutColor('dropdown-text', '#333'),
+                                                            fontWeight: noteFontFamily === font ? 'bold' : 'normal'
+                                                        }}
                                                     >
-                                                        {s}
+                                                        {font}
                                                     </div>
                                                 ))}
                                             </div>
@@ -1155,198 +1137,275 @@ const MobileLayout = ({
                                     )}
                                 </AnimatePresence>
                             </div>
-                        </div>
 
-                        {/* Formatting Tool Icons */}
-                        <div className="flex flex-col gap-1.5">
-                            <AnimatePresence mode="wait">
-                                {activeFormattingTab && (
-                                    <motion.div
-                                        key={activeFormattingTab}
-                                        initial={{ opacity: 0, y: 5, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 5, scale: 0.95 }}
-                                        className="flex justify-center"
+                            {/* Weight and Size Selectors */}
+                            <div className="flex gap-1.5">
+                                <div className="flex-1 relative">
+                                    <div
+                                        onClick={(e) => { e.stopPropagation(); setIsWeightMenuOpen(!isWeightMenuOpen); setIsFontMenuOpen(false); setIsSizeMenuOpen(false); }}
+                                        className={`w-full h-8 flex items-center justify-between border border-gray-300 ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} px-2.5 cursor-pointer text-gray-800 transition-all hover:border-gray-400`}
+                                        style={isLayout1Portrait ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3) } : { backgroundColor: 'white' }}
                                     >
-                                        <div className="bg-[#1A1A1A] rounded-[10px] p-1 flex gap-1 shadow-xl border border-white/10" onClick={(e) => e.stopPropagation()}>
-                                            {activeFormattingTab === 'align' && (
-                                                <>
-                                                    {[
-                                                        { id: 'left', icon: 'lucide:align-left' },
-                                                        { id: 'center', icon: 'lucide:align-center' },
-                                                        { id: 'right', icon: 'lucide:align-right' },
-                                                        { id: 'justify', icon: 'lucide:align-justify' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => setNoteAlignment(opt.id)}
-                                                            className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteAlignment === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <Icon icon={opt.icon} className="w-4 h-4" />
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'style' && (
-                                                <>
-                                                    {[
-                                                        { id: 'bold', label: 'B', className: 'font-bold' },
-                                                        { id: 'italic', label: 'I', className: 'italic' },
-                                                        { id: 'underline', label: 'U', className: 'underline' },
-                                                        { id: 'strike', label: 'S', className: 'line-through' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => toggleNoteStyle(opt.id)}
-                                                            className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteStyles.includes(opt.id) ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <span className={`text-[12px] ${opt.className}`}>{opt.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'case' && (
-                                                <>
-                                                    {[
-                                                        { id: 'none', label: '—' },
-                                                        { id: 'sentence', label: 'Aa' },
-                                                        { id: 'upper', label: 'AB' },
-                                                        { id: 'lower', label: 'ab' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => setNoteCase(opt.id)}
-                                                            className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteCase === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <span className="text-[11px] font-bold">{opt.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'list' && (
-                                                <>
-                                                    {[
-                                                        { id: 'bullet', icon: 'lucide:list' },
-                                                        { id: 'bullet2', icon: 'material-symbols:list' },
-                                                        { id: 'ordered', icon: 'lucide:list-ordered' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={() => handleListClick(opt.id)}
-                                                            className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteList === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                        >
-                                                            <Icon icon={opt.icon} className="w-4 h-4" />
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            <div className="flex gap-1.5 justify-start" onClick={(e) => e.stopPropagation()}>
-                                {[
-                                    { id: 'align', icon: `lucide:align-${noteAlignment === 'justify' ? 'justify' : noteAlignment}`, action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align'), active: activeFormattingTab === 'align' },
-                                    { id: 'style', label: 'B', action: () => setActiveFormattingTab(prev => prev === 'style' ? null : 'style'), active: activeFormattingTab === 'style' },
-                                    { id: 'case', label: noteCase === 'none' ? '—' : noteCase === 'sentence' ? 'Aa' : noteCase === 'upper' ? 'AB' : 'ab', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case'), active: activeFormattingTab === 'case' },
-                                    { id: 'list', icon: noteList === 'ordered' ? 'lucide:list-ordered' : 'lucide:list', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list'), active: activeFormattingTab === 'list' }
-                                ].map((btn) => (
-                                    <button
-                                        key={btn.id}
-                                        onClick={btn.action}
-                                        className={`w-9 h-9 rounded-[10px] border flex items-center justify-center transition-all ${
-                                            btn.active 
-                                                ? (isMobile && !isLandscape && Number(activeLayout) === 3 ? 'bg-gray-50 text-[#575C9C] border-[#575C9C]/30 shadow-sm' : 'bg-[#EBF2FF] text-[#2F80ED] border-[#2F80ED]/30')
-                                                : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                                        }`}
+                                        <span className="text-[11px] font-semibold" style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}>{noteWeight}</span>
+                                        <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 ${isLayout1Portrait ? '' : 'text-gray-400'} transition-transform ${isWeightMenuOpen ? 'rotate-180' : ''}`} style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 } : {}} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {isWeightMenuOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="absolute bottom-full left-0 w-full mb-1 rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 overflow-hidden py-1 border"
+                                                style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) }}
+                                            >
+                                                {weights.map(w => (
+                                                    <div key={w} onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }} 
+                                                        className={`px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors`}
+                                                        style={{ 
+                                                            backgroundColor: noteWeight === w ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) : 'transparent',
+                                                            color: getLayoutColor('dropdown-text', '#333'),
+                                                            fontWeight: noteWeight === w ? 'bold' : 'normal'
+                                                        }}
+                                                    >{w}</div>
+                                                ))}
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
+                                <div className="w-[65px] relative">
+                                    <div
+                                        onClick={(e) => { e.stopPropagation(); setIsSizeMenuOpen(!isSizeMenuOpen); setIsFontMenuOpen(false); setIsWeightMenuOpen(false); }}
+                                        className={`w-full h-8 flex items-center justify-between border border-gray-300 ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} px-2.5 cursor-pointer text-gray-800 transition-all hover:border-gray-400`}
+                                        style={isLayout1Portrait ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3) } : { backgroundColor: 'white' }}
                                     >
-                                        {btn.icon ? <Icon icon={btn.icon} className="w-4 h-4" /> : <span className={`text-[14px] font-extrabold ${btn.id === 'case' ? 'opacity-70' : ''}`}>{btn.label}</span>}
-                                    </button>
-                                ))}
+                                        <span className="text-[11px] font-semibold" style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}>{noteFontSize}</span>
+                                        <Icon icon="lucide:chevron-down" className={`w-3.5 h-3.5 ${isLayout1Portrait ? '' : 'text-gray-400'} transition-transform ${isSizeMenuOpen ? 'rotate-180' : ''}`} style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 } : {}} />
+                                    </div>
+                                    <AnimatePresence>
+                                        {isSizeMenuOpen && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                className="absolute bottom-full right-0 w-full mb-1 rounded-lg shadow-[0_10px_40px_rgba(0,0,0,0.15)] z-50 overflow-hidden py-1 text-center border"
+                                                style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) }}
+                                            >
+                                                <div className="max-h-[120px] overflow-y-auto custom-scrollbar">
+                                                    {sizes.map(s => (
+                                                        <div
+                                                            key={s}
+                                                            onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }}
+                                                            className={`px-2.5 py-1.5 text-[11px] cursor-pointer transition-colors`}
+                                                            style={{ 
+                                                                backgroundColor: noteFontSize === s ? getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) : 'transparent',
+                                                                color: getLayoutColor('dropdown-text', '#333'),
+                                                                fontWeight: noteFontSize === s ? 'bold' : 'normal'
+                                                            }}
+                                                        >
+                                                            {s}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                             </div>
-                        </div>
 
-                        {/* Text Color HEX + Opacity row */}
-                        <div className="flex items-center gap-1.5">
-                            <div
-                                className="w-8 h-8 rounded-md border border-gray-300 cursor-pointer shadow-sm flex-shrink-0"
-                                style={{ backgroundColor: noteTextColor }}
-                                onClick={() => { setPickerTarget('text'); setShowColorPicker(true); }}
-                            />
-                            <div className="flex-1 h-8 flex items-center justify-between bg-white border border-gray-300 rounded-md px-2.5 text-gray-700">
-                                <span className="text-[10px] font-bold tracking-wider uppercase">{noteTextColor}</span>
-                                <span className="text-[10px] font-bold opacity-40">{noteTextOpacity}%</span>
+                            {/* Formatting Tool Icons */}
+                            <div className="flex flex-col gap-1.5">
+                                <AnimatePresence mode="wait">
+                                    {activeFormattingTab && (
+                                        <motion.div
+                                            key={activeFormattingTab}
+                                            initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                                            exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                                            className="flex justify-center"
+                                        >
+                                            <div className={`rounded-[10px] p-1 flex gap-1 shadow-xl border ${isLayout1Portrait ? 'bg-black/20 border-white/10' : 'bg-[#1A1A1A] border-white/10'}`} onClick={(e) => e.stopPropagation()}>
+                                                {activeFormattingTab === 'align' && (
+                                                    <>
+                                                        {[
+                                                            { id: 'left', icon: 'lucide:align-left' },
+                                                            { id: 'center', icon: 'lucide:align-center' },
+                                                            { id: 'right', icon: 'lucide:align-right' },
+                                                            { id: 'justify', icon: 'lucide:align-justify' }
+                                                        ].map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                onClick={() => setNoteAlignment(opt.id)}
+                                                                className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteAlignment === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <Icon icon={opt.icon} className="w-4 h-4" />
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {activeFormattingTab === 'style' && (
+                                                    <>
+                                                        {[
+                                                            { id: 'bold', label: 'B', className: 'font-bold' },
+                                                            { id: 'italic', label: 'I', className: 'italic' },
+                                                            { id: 'underline', label: 'U', className: 'underline' },
+                                                            { id: 'strike', label: 'S', className: 'line-through' }
+                                                        ].map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                onClick={() => toggleNoteStyle(opt.id)}
+                                                                className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteStyles.includes(opt.id) ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <span className={`text-[12px] ${opt.className}`}>{opt.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {activeFormattingTab === 'case' && (
+                                                    <>
+                                                        {[
+                                                            { id: 'none', label: '—' },
+                                                            { id: 'sentence', label: 'Aa' },
+                                                            { id: 'upper', label: 'AB' },
+                                                            { id: 'lower', label: 'ab' }
+                                                        ].map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                onClick={() => setNoteCase(opt.id)}
+                                                                className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteCase === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <span className="text-[11px] font-bold">{opt.label}</span>
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                                {activeFormattingTab === 'list' && (
+                                                    <>
+                                                        {[
+                                                            { id: 'bullet', icon: 'lucide:list' },
+                                                            { id: 'bullet2', icon: 'material-symbols:list' },
+                                                            { id: 'ordered', icon: 'lucide:list-ordered' }
+                                                        ].map((opt) => (
+                                                            <button
+                                                                key={opt.id}
+                                                                onClick={() => handleListClick(opt.id)}
+                                                                className={`w-7 h-7 rounded-[6px] flex items-center justify-center transition-all ${noteList === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
+                                                            >
+                                                                <Icon icon={opt.icon} className="w-4 h-4" />
+                                                            </button>
+                                                        ))}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+
+                                <div className="flex gap-1.5 items-center" onClick={(e) => e.stopPropagation()}>
+                                     {[
+                                         { id: 'align', icon: 'lucide:align-left', action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align') },
+                                         { id: 'style', label: 'B', action: () => setActiveFormattingTab(prev => prev === 'style' ? null : 'style') },
+                                         { id: 'case', label: 'Aa', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case') },
+                                         { id: 'list', icon: 'lucide:list', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list') }
+                                     ].map((btn) => (
+                                         <button
+                                             key={btn.id}
+                                             onClick={(e) => { e.stopPropagation(); btn.action(); }}
+                                             className={`h-8 flex-1 rounded-md border flex items-center justify-center transition-all shadow-sm`}
+                                             style={{
+                                                 backgroundColor: activeFormattingTab === btn.id ? (isLayout1Portrait ? getLayoutColor('dropdown-text', '#FFFFFF') : '#eee') : (isLayout1Portrait ? getLayoutColorAlpha('dropdown-text', '255,255,255', 0.1) : 'white'),
+                                                 borderColor: isLayout1Portrait ? getLayoutColorAlpha('dropdown-text', '255,255,255', 0.2) : '#ddd',
+                                                 color: activeFormattingTab === btn.id ? (isLayout1Portrait ? getLayoutColor('dropdown-bg', '#3E4491') : '#000') : (isLayout1Portrait ? getLayoutColor('dropdown-text', '#FFFFFF') : '#555')
+                                             }}
+                                         >
+                                             {btn.icon ? <Icon icon={btn.icon} className="w-4 h-4" /> : <span className="text-[12px] font-bold">{btn.label}</span>}
+                                         </button>
+                                     ))}
+                                 </div>
                             </div>
-                        </div>
 
-                        {/* Bottom Sticky Action Buttons */}
-                        <div className="flex gap-2.5 mt-0.5">
-                            <button
-                                onClick={resetNote}
-                                className={`flex-1 h-8 rounded-md border flex items-center justify-center gap-1 font-bold active:scale-95 transition-all text-[11px] ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'border-white/40 text-white' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
-                            >
-                                <Icon icon="lucide:x" className="w-3 h-3" />
-                                Clear
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (!noteContent.trim()) return;
-                                    onAddNote({
-                                        content: noteContent,
-                                        background: noteBackground,
-                                        color: noteTextColor,
-                                        fontFamily: noteFontFamily,
-                                        fontSize: noteFontSize,
-                                        styles: noteStyles,
-                                        alignment: noteAlignment,
-                                        case: noteCase,
-                                        list: noteList,
-                                        bgOpacity: noteBgOpacity,
-                                        textOpacity: noteTextOpacity,
-                                        pageLabel: `Page ${p1.toString().padStart(2, '0')}`,
-                                        pageIndex: targetPageIndex
-                                    });
-                                    onClose();
-                                }}
-                                className="flex-[1.5] h-8 bg-black text-white rounded-md flex items-center justify-center font-bold hover:bg-gray-900 active:scale-95 transition-all shadow-lg text-[11px]"
-                            >
-                                Add To Notes
-                            </button>
-                        </div>
+                            {/* Text Color HEX + Opacity row */}
+                            <div className="flex items-center gap-1.5">
+                                <div
+                                    className={`w-8 h-8 ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} border border-gray-300 cursor-pointer shadow-sm flex-shrink-0`}
+                                    style={{ backgroundColor: noteTextColor }}
+                                    onClick={() => { setPickerTarget('text'); setShowColorPicker(true); }}
+                                />
+                                <div className={`flex-1 h-8 flex items-center justify-between border border-gray-300 ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} px-2.5 text-gray-700`}
+                                     style={isLayout1Portrait ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1), borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3) } : { backgroundColor: 'white' }}
+                                >
+                                    <span className="text-[10px] font-bold tracking-wider uppercase" style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}>{noteTextColor}</span>
+                                    <span className="text-[10px] font-bold opacity-40" style={isLayout1Portrait ? { color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}>{noteTextOpacity}%</span>
+                                </div>
+                            </div>
+
+                            {/* Bottom Sticky Action Buttons */}
+                            <div className="flex gap-2.5 mt-0.5">
+                                <button
+                                    onClick={resetNote}
+                                    className={`flex-1 h-8 ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} border flex items-center justify-center gap-1 font-bold active:scale-95 transition-all text-[11px] ${isMobile && !isLandscape && Number(activeLayout) === 2 ? 'border-white/40 text-white' : isLayout4Portrait ? 'border-gray-300 text-black hover:bg-gray-50' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                                    style={isLayout1Portrait ? { borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3), color: getLayoutColor('dropdown-text', '#FFFFFF') } : {}}
+                                >
+                                    <Icon icon="lucide:x" className="w-3 h-3" />
+                                    Clear
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (!noteContent.trim()) return;
+                                        onAddNote({
+                                            content: noteContent,
+                                            background: noteBackground,
+                                            color: noteTextColor,
+                                            fontFamily: noteFontFamily,
+                                            fontSize: noteFontSize,
+                                            styles: noteStyles,
+                                            alignment: noteAlignment,
+                                            case: noteCase,
+                                            list: noteList,
+                                            bgOpacity: noteBgOpacity,
+                                            textOpacity: noteTextOpacity,
+                                            pageLabel: `Page ${p1.toString().padStart(2, '0')}`,
+                                            pageIndex: targetPageIndex
+                                        });
+                                        onClose();
+                                    }}
+                                    className={`flex-[1.5] h-8 text-white ${isLayout4Portrait ? 'rounded-none' : 'rounded-md'} flex items-center justify-center font-bold active:scale-95 transition-all shadow-lg text-[11px] ${isMobile && !isLandscape && Number(activeLayout) === 8 ? 'bg-[#575C9C] hover:bg-[#4a5089]' : 'bg-black hover:bg-gray-900'}`}
+                                    style={isLayout1Portrait ? { backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), color: getLayoutColor('dropdown-bg', '#3E4491') } : {}}
+                                >
+                                    Add To Notes
+                                </button>
+                            </div>
                         </div>
                     </div>
-
-                    {/* Overlaid Color Picker Drawer */}
-                    <AnimatePresence>
-                        {showColorPicker && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="fixed inset-0 z-[200] flex items-center justify-center bg-transparent px-4"
-                                onClick={() => setShowColorPicker(false)}
-                            >
-                                <div onClick={e => e.stopPropagation()} className="scale-[0.85] origin-center">
-                                    <ColorPallet
-                                        color={pickerTarget === 'text' ? noteTextColor : noteBackground}
-                                        inline={false}
-                                        opacity={pickerTarget === 'text' ? noteTextOpacity : noteBgOpacity}
-                                        onOpacityChange={(val) => {
-                                            if (pickerTarget === 'text') setNoteTextOpacity(val);
-                                            else setNoteBgOpacity(val);
-                                        }}
-                                        onChange={(color) => {
-                                            if (pickerTarget === 'text') setNoteTextColor(color);
-                                            else setNoteBackground(color);
-                                        }}
-                                        onClose={() => setShowColorPicker(false)}
-                                    />
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
                 </div>
+
+                {/* Overlaid Color Picker Drawer */}
+                <AnimatePresence>
+                    {showColorPicker && (
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="fixed inset-0 z-[200] flex items-center justify-center bg-transparent px-4"
+                            onClick={(e) => { e.stopPropagation(); setShowColorPicker(false); }}
+                        >
+                            <div onClick={e => e.stopPropagation()} className="scale-[0.85] origin-center">
+                                <ColorPallet
+                                    color={pickerTarget === 'text' ? noteTextColor : noteBackground}
+                                    inline={false}
+                                    opacity={pickerTarget === 'text' ? noteTextOpacity : noteBgOpacity}
+                                    onOpacityChange={(val) => {
+                                        if (pickerTarget === 'text') setNoteTextOpacity(val);
+                                        else setNoteBgOpacity(val);
+                                    }}
+                                    onChange={(color) => {
+                                        if (pickerTarget === 'text') setNoteTextColor(color);
+                                        else setNoteBackground(color);
+                                    }}
+                                    onClose={() => setShowColorPicker(false)}
+                                />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         );
     }
@@ -3053,11 +3112,7 @@ const DesktopLayout8 = ({
                                     className={`flex-1 h-full border-[1.5px] rounded-[0.4vw] flex items-center justify-center transition-all ${btn.active ? 'bg-gray-100' : 'bg-white hover:bg-gray-50'}`}
                                     style={{ borderColor: '#555555' }}
                                 >
-                                    {btn.icon ? (
-                                        <Icon icon={btn.icon} className="w-[1vw] h-[1vw] text-gray-700" />
-                                    ) : (
-                                        <span className="text-[0.9vw] font-bold text-gray-700">{btn.label}</span>
-                                    )}
+                                    {btn.icon ? <Icon icon={btn.icon} className="w-[1vw] h-[1vw] text-gray-700" /> : <span className="text-[0.9vw] font-bold text-gray-700">{btn.label}</span>}
                                 </button>
                             ))}
                         </div>
@@ -3165,489 +3220,6 @@ const DesktopLayout8 = ({
 };
 
 
-
-const DesktopLayout3 = ({
-    onClose, noteContent, setNoteContent, noteAlignment, setNoteAlignment,
-    noteStyles, toggleNoteStyle, noteCase, setNoteCase, noteList, handleListClick,
-    noteBackground, setNoteBackground, noteTextColor, setNoteTextColor,
-    noteFontFamily, setNoteFontFamily, noteFontSize, setNoteFontSize,
-    noteTextOpacity, setNoteTextOpacity, noteBgOpacity, setNoteBgOpacity,
-    pageDisplay, handleKeyDown, resetNote, onAddNote, getFontWeight,
-    weights, sizes, fonts, p1, p2, isSidebarOpen, setShowColorPicker, showColorPicker,
-    setPickerTarget, pickerTarget, setPickerPos, pickerPos, noteWeight, setNoteWeight,
-    setIsFontMenuOpen, isFontMenuOpen, setIsWeightMenuOpen, isWeightMenuOpen,
-    setIsSizeMenuOpen, isSizeMenuOpen, ColorPallet, currentPageIndex, Icon,
-    targetPageIndex, setTargetPageIndex, activeFormattingTab, setActiveFormattingTab,
-    isPageDropdownOpen, setIsPageDropdownOpen, getLayoutColor, getLayoutColorRgba, getLayoutColorAlpha, isLightColor, totalPages, isSpread
-}) => {
-    return (
-        <div
-            className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-auto bg-transparent px-[2vw]"
-            onClick={onClose}
-        >
-            <div
-                className="w-[35vw] rounded-[1.2rem] shadow-[0_20px_60px_rgba(0,0,0,0.18)] flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 relative transition-transform overflow-hidden bg-white"
-                style={{
-                    transform: isSidebarOpen ? 'scale(0.85)' : 'scale(1)',
-                    transformOrigin: 'center center',
-                    WebkitTapHighlightColor: 'transparent'
-                }}
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* White layer behind (bg-white on parent) and theme layer on top */}
-                <div
-                    className="absolute inset-0 z-0"
-                    style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1') }}
-                />
-
-                <div className="relative z-10 p-[1.2vw] flex flex-col w-full h-full">
-
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-[0.6vw]">
-                        <span className="text-[1.1vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }}>Add Notes</span>
-                        <button
-                            onClick={onClose}
-                            className="p-[0.3vw] rounded-full transition-colors group"
-                            style={{ backgroundColor: 'transparent' }}
-                            onMouseOver={(e) => e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.1)}
-                            onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                            <Icon icon="lucide:x" className="w-[1vw] h-[1vw] group-hover:scale-110 transition-transform" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: 'var(--dropdown-text-opacity, 1)' }} />
-                        </button>
-                    </div>
-
-                    <div className="flex gap-[1vw] items-stretch">
-                        {/* Left Column - Colors Side Bar (Circles as per screenshot) */}
-                        <div className="flex flex-col gap-[0.4vw]">
-                            {['#34B1AA', '#C68899', '#D6566E', '#6A7DBB', '#68AC77', '#D9DC54', '#23D295'].map((color, i) => (
-                                <div
-                                    key={i}
-                                    onClick={() => setNoteBackground(color)}
-                                    className={`w-[1.6vw] h-[1.6vw] rounded-full cursor-pointer hover:scale-110 transition-all shadow-sm border-[2px]`}
-                                    style={{
-                                        backgroundColor: color,
-                                        borderColor: noteBackground === color ? getLayoutColor('dropdown-text', '#3E4491') : 'transparent'
-                                    }}
-                                />
-                            ))}
-                            <div
-                                onClick={(e) => {
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    setPickerPos({ x: rect.right + 20, y: rect.top - 100 });
-                                    setPickerTarget('background');
-                                    setShowColorPicker(true);
-                                }}
-                                className="w-[1.6vw] h-[1.6vw] rounded-full cursor-pointer hover:scale-110 transition-all shadow-sm flex items-center justify-center overflow-hidden bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)]"
-                            >
-                                <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-white/80" />
-                            </div>
-                        </div>
-
-                        {/* Middle Column - Note Area */}
-                        <div
-                            className="relative w-[12.5vw] h-[12.5vw] rounded-[0.8rem] p-[0.8vw] shadow-[0_10px_35px_rgba(0,0,0,0.12)] flex flex-col transition-colors duration-300"
-                            style={{ backgroundColor: noteBackground, opacity: noteBgOpacity / 100 }}
-                        >
-                            <div className="flex justify-end gap-[0.3vw] mb-[0.2vw] items-center relative">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); setIsPageDropdownOpen(!isPageDropdownOpen); }}
-                                    className="flex items-center gap-[0.3vw] hover:bg-white/10 rounded px-[0.3vw] py-[0.1vw] transition-colors"
-                                >
-                                    <span className={`text-[0.7vw] font-semibold ${isLightColor(noteBackground) ? 'text-black/60' : 'text-white/90'}`}>{pageDisplay}</span>
-                                    <Icon icon="lucide:pencil" className={`w-[0.7vw] h-[0.7vw] ${isLightColor(noteBackground) ? 'text-black/60' : 'text-white/90'}`} />
-                                </button>
-
-                                {isPageDropdownOpen && (
-                                    <div className="absolute top-full right-0 mt-[0.2vw] w-[7vw] max-h-[8vw] rounded-[0.4rem] shadow-2xl overflow-y-auto custom-scrollbar z-[100] border py-[0.3vw]"
-                                        style={{
-                                            backgroundColor: getLayoutColor('dropdown-bg', '#ffffff'),
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.1)
-                                        }}
-                                    >
-                                        {Array.from({ length: totalPages || 1 }, (_, i) => (
-                                            <div
-                                                key={i}
-                                                onClick={() => {
-                                                    setTargetPageIndex(i);
-                                                    setIsPageDropdownOpen(false);
-                                                }}
-                                                className={`px-[0.8vw] py-[0.4vw] text-[0.7vw] font-semibold cursor-pointer transition-colors`}
-                                                style={{
-                                                    backgroundColor: targetPageIndex === i ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
-                                                    color: targetPageIndex === i ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.7)
-                                                }}
-                                                onMouseOver={(e) => { if (targetPageIndex !== i) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
-                                                onMouseOut={(e) => { if (targetPageIndex !== i) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                            >
-                                                Page {(i + 1).toString().padStart(2, '0')}
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                            <textarea
-                                value={noteContent}
-                                onChange={(e) => setNoteContent(e.target.value)}
-                                onKeyDown={handleKeyDown}
-                                placeholder="Enter your Notes"
-                                style={{
-                                    textAlign: noteAlignment,
-                                    fontWeight: noteStyles.includes('bold') ? 'bold' : getFontWeight(noteWeight),
-                                    fontStyle: noteStyles.includes('italic') ? 'italic' : 'normal',
-                                    textDecoration: `${noteStyles.includes('underline') ? 'underline' : ''} ${noteStyles.includes('strike') ? 'line-through' : ''}`,
-                                    textTransform: noteCase === 'upper' ? 'uppercase' : noteCase === 'lower' ? 'lowercase' : noteCase === 'sentence' ? 'capitalize' : 'none',
-                                    fontFamily: noteFontFamily,
-                                    fontSize: `${noteFontSize}px`,
-                                    color: noteTextColor,
-                                    opacity: noteTextOpacity / 100,
-                                    background: 'transparent',
-                                    border: 'none',
-                                    outline: 'none',
-                                    resize: 'none',
-                                    width: '100%',
-                                    height: '100%'
-                                }}
-                                className={`flex-1 font-medium overflow-y-auto custom-scrollbar text-[0.8vw] ${isLightColor(noteBackground) ? 'placeholder:text-black/30' : 'placeholder:text-white/40'}`}
-                            />
-                        </div>
-
-                        {/* Right Column - Properties */}
-                        <div className="flex-1 flex flex-col gap-[0.6vw]" onClick={() => setActiveFormattingTab(null)}>
-                            <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Text Property :</span>
-
-                            {/* Font Family Selection */}
-                            <div className="relative">
-                                <div
-                                    onClick={(e) => { e.stopPropagation(); setIsFontMenuOpen(!isFontMenuOpen); setIsWeightMenuOpen(false); setIsSizeMenuOpen(false); }}
-                                    className={`w-full flex items-center justify-between border-[1.5px] rounded-[0.5rem] px-[0.8vw] py-[0.4vh] cursor-pointer transition-all`}
-                                    style={{
-                                        backgroundColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
-                                        borderColor: isFontMenuOpen ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
-                                    }}
-                                >
-                                    <span className="text-[0.8vw] font-semibold truncate" style={{ fontFamily: noteFontFamily, color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8) }}>
-                                        {noteFontFamily}
-                                    </span>
-                                    <Icon icon="lucide:chevron-down" className={`w-[1vw] h-[1vw] transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.4) }} />
-                                </div>
-
-                                {isFontMenuOpen && (
-                                    <div className="absolute top-full left-0 w-full mt-[0.3vw] border rounded-[0.5rem] shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
-                                        style={{
-                                            backgroundColor: getLayoutColor('dropdown-bg', '#ffffff'),
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.1)
-                                        }}
-                                    >
-                                        <div className="max-h-[10vw] overflow-y-auto custom-scrollbar py-[0.4vw]">
-                                            {fonts.map((font) => (
-                                                <div
-                                                    key={font}
-                                                    onClick={() => { setNoteFontFamily(font); setIsFontMenuOpen(false); }}
-                                                    className={`px-[0.8vw] py-[0.5vw] text-[0.75vw] cursor-pointer transition-colors`}
-                                                    style={{
-                                                        fontFamily: font,
-                                                        backgroundColor: noteFontFamily === font ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
-                                                        color: noteFontFamily === font ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8)
-                                                    }}
-                                                    onMouseOver={(e) => { if (noteFontFamily !== font) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
-                                                    onMouseOut={(e) => { if (noteFontFamily !== font) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                >
-                                                    {font}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Weight and Size Row */}
-                            <div className="flex gap-[0.6vw]">
-                                <div className="flex-1 relative">
-                                    <div
-                                        onClick={(e) => { e.stopPropagation(); setIsWeightMenuOpen(!isWeightMenuOpen); setIsFontMenuOpen(false); setIsSizeMenuOpen(false); }}
-                                        className={`w-full flex items-center justify-between border-[1.5px] rounded-[0.5rem] px-[0.8vw] py-[0.4vh] cursor-pointer transition-all`}
-                                        style={{
-                                            backgroundColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
-                                            borderColor: isWeightMenuOpen ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
-                                        }}
-                                    >
-                                        <span className="text-[0.8vw] font-semibold" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8) }}>{noteWeight}</span>
-                                        <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.4) }} />
-                                    </div>
-                                    {isWeightMenuOpen && (
-                                        <div className="absolute top-full left-0 w-full mt-[0.3vw] border rounded-[0.5rem] shadow-xl z-50 py-[0.4vw]"
-                                            style={{
-                                                backgroundColor: getLayoutColor('dropdown-bg', '#ffffff'),
-                                                borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.1)
-                                            }}
-                                        >
-                                            {weights.map((w) => (
-                                                <div key={w} onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }} className={`px-[0.8vw] py-[0.4vw] text-[0.75vw] cursor-pointer`}
-                                                    style={{
-                                                        backgroundColor: noteWeight === w ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
-                                                        color: noteWeight === w ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8),
-                                                        fontWeight: noteWeight === w ? 'bold' : 'normal'
-                                                    }}
-                                                    onMouseOver={(e) => { if (noteWeight !== w) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
-                                                    onMouseOut={(e) => { if (noteWeight !== w) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                >{w}</div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="w-[5vw] relative">
-                                    <div
-                                        onClick={(e) => { e.stopPropagation(); setIsSizeMenuOpen(!isSizeMenuOpen); setIsFontMenuOpen(false); setIsWeightMenuOpen(false); }}
-                                        className={`w-full flex items-center justify-between border-[1.5px] rounded-[0.5rem] px-[0.6vw] py-[0.4vh] cursor-pointer transition-all`}
-                                        style={{
-                                            backgroundColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
-                                            borderColor: isSizeMenuOpen ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
-                                        }}
-                                    >
-                                        <span className="text-[0.8vw] font-semibold" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8) }}>{noteFontSize}</span>
-                                        <Icon icon="lucide:chevron-down" className="w-[1vw] h-[1vw]" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.4) }} />
-                                    </div>
-                                    {isSizeMenuOpen && (
-                                        <div className="absolute top-full right-0 w-full mt-[0.3vw] border rounded-[0.5rem] shadow-xl z-50 py-[0.4vw] text-center"
-                                            style={{
-                                                backgroundColor: getLayoutColor('dropdown-bg', '#ffffff'),
-                                                borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.1)
-                                            }}
-                                        >
-                                            <div className="max-h-[8vw] overflow-y-auto custom-scrollbar">
-                                                {sizes.map((s) => (
-                                                    <div key={s} onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }} className={`px-[0.8vw] py-[0.3vw] text-[0.75vw] cursor-pointer`}
-                                                        style={{
-                                                            backgroundColor: noteFontSize === s ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05) : 'transparent',
-                                                            color: noteFontSize === s ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8),
-                                                            fontWeight: noteFontSize === s ? 'bold' : 'normal'
-                                                        }}
-                                                        onMouseOver={(e) => { if (noteFontSize !== s) e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.02); }}
-                                                        onMouseOut={(e) => { if (noteFontSize !== s) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                                    >{s}</div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Formatting Sub-menus (Like Layout 1) */}
-                            <AnimatePresence mode="wait">
-                                {activeFormattingTab && (
-                                    <motion.div
-                                        key={activeFormattingTab}
-                                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                                        transition={{ duration: 0.2 }}
-                                        className="mb-[0.4vw] flex justify-end"
-                                    >
-                                        <div className="flex items-center gap-[0.3vw] bg-[#1E1E1E] p-[0.3vw] rounded-[0.8vw] shadow-xl">
-                                            {activeFormattingTab === 'align' && (
-                                                <>
-                                                    {[
-                                                        { id: 'left', icon: 'lucide:align-left' },
-                                                        { id: 'center', icon: 'lucide:align-center' },
-                                                        { id: 'right', icon: 'lucide:align-right' },
-                                                        { id: 'justify', icon: 'lucide:align-justify' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={(e) => { e.stopPropagation(); setNoteAlignment(opt.id); }}
-                                                            className={`w-[2.2vw] h-[1.8vw] rounded-[0.6vw] flex items-center justify-center transition-all ${noteAlignment === opt.id ? 'bg-white text-black shadow-sm' : 'text-white/40 hover:text-white/80'}`}
-                                                        >
-                                                            <Icon icon={opt.icon} className="w-[1vw] h-[1vw]" />
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'style' && (
-                                                <>
-                                                    {[
-                                                        { id: 'bold', label: 'B' },
-                                                        { id: 'italic', label: 'I' },
-                                                        { id: 'underline', label: 'U' },
-                                                        { id: 'strike', label: 'S' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={(e) => { e.stopPropagation(); toggleNoteStyle(opt.id); }}
-                                                            className={`w-[2.2vw] h-[1.8vw] rounded-[0.6vw] flex items-center justify-center transition-all ${noteStyles.includes(opt.id) ? 'bg-white text-black shadow-sm' : 'text-white/40 hover:text-white/80'}`}
-                                                        >
-                                                            <span className={`text-[0.9vw] font-bold ${opt.id === 'italic' ? 'italic' : opt.id === 'underline' ? 'underline' : opt.id === 'strike' ? 'line-through' : ''}`}>{opt.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'case' && (
-                                                <>
-                                                    {[
-                                                        { id: 'none', label: '—' },
-                                                        { id: 'sentence', label: 'Aa' },
-                                                        { id: 'upper', label: 'AB' },
-                                                        { id: 'lower', label: 'ab' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={(e) => { e.stopPropagation(); setNoteCase(opt.id); }}
-                                                            className={`w-[2.2vw] h-[1.8vw] rounded-[0.6vw] flex items-center justify-center transition-all ${noteCase === opt.id ? 'bg-white text-black shadow-sm' : 'text-white/40 hover:text-white/80'}`}
-                                                        >
-                                                            <span className="text-[0.85vw] font-bold">{opt.label}</span>
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            {activeFormattingTab === 'list' && (
-                                                <>
-                                                    {[
-                                                        { id: 'bullet', icon: 'lucide:list' },
-                                                        { id: 'bullet2', icon: 'material-symbols:list' },
-                                                        { id: 'ordered', icon: 'lucide:list-ordered' }
-                                                    ].map((opt) => (
-                                                        <button
-                                                            key={opt.id}
-                                                            onClick={(e) => { e.stopPropagation(); handleListClick(opt.id); }}
-                                                            className={`w-[2.2vw] h-[1.8vw] rounded-[0.6vw] flex items-center justify-center transition-all ${noteList === opt.id ? 'bg-white text-black shadow-sm' : 'text-white/40 hover:text-white/80'}`}
-                                                        >
-                                                            <Icon icon={opt.icon} className="w-[1vw] h-[1vw]" />
-                                                        </button>
-                                                    ))}
-                                                </>
-                                            )}
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); }}
-                                                className="ml-[0.2vw] text-white/40 hover:text-red-400 transition-colors"
-                                            >
-                                                <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            {/* Formatting Buttons Row (Categories) */}
-                            <div className="flex gap-[0.5vw] justify-end">
-                                {[
-                                    { id: 'align', icon: `lucide:align-${noteAlignment === 'justify' ? 'justify' : noteAlignment}`, action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align') },
-                                    { id: 'style', label: 'B', action: () => setActiveFormattingTab(prev => prev === 'style' ? null : 'style') },
-                                    { id: 'case', label: noteCase === 'none' ? '—' : noteCase === 'sentence' ? 'Aa' : noteCase === 'upper' ? 'AB' : 'ab', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case') },
-                                    { id: 'list', icon: noteList === 'ordered' ? 'lucide:list-ordered' : 'lucide:list', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list') }
-                                ].map((btn) => (
-                                    <button
-                                        key={btn.id}
-                                        onClick={(e) => { e.stopPropagation(); btn.action(); }}
-                                        className={`w-[2.8vw] h-[2.6vw] rounded-[0.6vw] border-[1px] flex items-center justify-center transition-all`}
-                                        style={{
-                                            backgroundColor: activeFormattingTab === btn.id ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
-                                            borderColor: activeFormattingTab === btn.id ? getLayoutColor('dropdown-text', '#3E4491') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2),
-                                            color: activeFormattingTab === btn.id ? getLayoutColor('dropdown-bg', '#ffffff') : getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.7),
-                                            boxShadow: activeFormattingTab === btn.id ? '0 4px 12px rgba(0,0,0,0.1)' : 'none',
-                                            transform: activeFormattingTab === btn.id ? 'scale(1.05)' : 'scale(1)'
-                                        }}
-                                    >
-                                        {btn.icon ? <Icon icon={btn.icon} className="w-[1.2vw] h-[1.2vw]" /> : <span className="text-[1.2vw] font-bold">{btn.label}</span>}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Color Selection Wrapper */}
-                            <div className="flex items-center gap-[0.6vw]">
-                                <div
-                                    className="w-[2.2vw] h-[2.2vw] rounded-[0.5rem] border-[1.5px] shadow-sm cursor-pointer flex-shrink-0"
-                                    style={{
-                                        backgroundColor: noteTextColor,
-                                        borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
-                                    }}
-                                    onClick={() => { setPickerTarget('text'); setShowColorPicker(true); }}
-                                />
-                                <div className="flex-1 h-[2.2vw] flex items-center justify-between border-[1.5px] rounded-[0.5rem] px-[0.8vw]"
-                                    style={{
-                                        backgroundColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05),
-                                        borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2)
-                                    }}
-                                >
-                                    <span className="text-[0.75vw] font-bold uppercase tracking-tight" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.6) }}>{noteTextColor}</span>
-                                    <span className="text-[0.75vw] font-bold" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.5) }}>{noteTextOpacity}%</span>
-                                </div>
-                            </div>
-
-                            {/* Action Buttons Row */}
-                            <div className="mt-auto flex items-center gap-[0.6vw]">
-                                <button
-                                    onClick={resetNote}
-                                    className="flex-1 h-[2.6vw] border-[1.5px] rounded-[0.5rem] flex items-center justify-center gap-[0.4vw] transition-all font-bold text-[0.8vw]"
-                                    style={{
-                                        borderColor: getLayoutColor('dropdown-text', '#3E4491'),
-                                        color: getLayoutColor('dropdown-text', '#3E4491')
-                                    }}
-                                    onMouseOver={(e) => e.currentTarget.style.backgroundColor = getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.05)}
-                                    onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                                >
-                                    <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
-                                    Clear
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (!noteContent.trim()) return;
-                                        onAddNote({
-                                            content: noteContent,
-                                            background: noteBackground,
-                                            color: noteTextColor,
-                                            fontFamily: noteFontFamily,
-                                            fontSize: noteFontSize,
-                                            styles: noteStyles,
-                                            alignment: noteAlignment,
-                                            case: noteCase,
-                                            list: noteList,
-                                            bgOpacity: noteBgOpacity,
-                                            textOpacity: noteTextOpacity,
-                                            pageLabel: pageDisplay,
-                                            pageIndex: targetPageIndex
-                                        });
-                                        onClose();
-                                    }}
-                                    className="flex-[1.5] h-[2.6vw] rounded-[0.5rem] text-[0.8vw] font-bold transition-all shadow-md"
-                                    style={{
-                                        backgroundColor: getLayoutColor('dropdown-text', '#3E4491'),
-                                        color: getLayoutColor('dropdown-bg', '#ffffff')
-                                    }}
-                                    onMouseOver={(e) => e.currentTarget.style.opacity = '0.9'}
-                                    onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
-                                >
-                                    Add To Notes
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {showColorPicker && (
-                    <div className="absolute inset-0 z-[200] flex items-center justify-center bg-transparent" onClick={() => setShowColorPicker(false)}>
-                        <div onClick={e => e.stopPropagation()}>
-                            <ColorPallet
-                                color={pickerTarget === 'text' ? noteTextColor : noteBackground}
-                                opacity={pickerTarget === 'text' ? noteTextOpacity : noteBgOpacity}
-                                onOpacityChange={(val) => {
-                                    if (pickerTarget === 'text') setNoteTextOpacity(val);
-                                    else setNoteBgOpacity(val);
-                                }}
-                                onChange={(color) => {
-                                    if (pickerTarget === 'text') setNoteTextColor(color);
-                                    else setNoteBackground(color);
-                                }}
-                                onClose={() => setShowColorPicker(false)}
-                                inline={false}
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-};
-
-
 const DesktopLayout9 = ({
     onClose, noteContent, setNoteContent, noteAlignment, setNoteAlignment,
     noteStyles, toggleNoteStyle, noteCase, setNoteCase, noteList, handleListClick,
@@ -3726,9 +3298,29 @@ const DesktopLayout9 = ({
                             className="relative flex-[1.2] h-[11.5vw] rounded-[0.7vw] p-[0.7vw] flex flex-col transition-colors duration-300 shadow-[0_0.4vw_1.2vw_rgba(0,0,0,0.1)]"
                             style={{ backgroundColor: noteBackground, opacity: noteBgOpacity / 100 }}
                         >
-                            <div className="absolute top-[0.5vw] right-[0.5vw] flex items-center gap-[0.2vw] z-10">
+                            <div
+                                className="absolute top-[0.5vw] right-[0.5vw] flex items-center gap-[0.2vw] z-20 hover:bg-black/10 rounded px-[0.3vw] py-[0.1vw] transition-colors cursor-pointer"
+                                onClick={(e) => { e.stopPropagation(); setIsPageDropdownOpen(!isPageDropdownOpen); }}
+                            >
                                 <span className={`text-[0.55vw] font-bold ${isLightColor(noteBackground) ? 'text-black/60' : 'text-white/90'}`}>{pageDisplay}</span>
                                 <Icon icon="lucide:pencil" className={`w-[0.6vw] h-[0.6vw] ${isLightColor(noteBackground) ? 'text-black/60' : 'text-white/90'}`} />
+
+                                {isPageDropdownOpen && (
+                                    <div className="absolute top-full right-0 mt-[0.2vw] w-[6vw] max-h-[10vw] bg-white rounded-[0.4vw] shadow-2xl overflow-y-auto custom-scrollbar z-[100] border border-gray-100" onClick={(e) => e.stopPropagation()}>
+                                        {Array.from({ length: totalPages || 1 }, (_, i) => (
+                                            <div
+                                                key={i}
+                                                onClick={() => {
+                                                    setTargetPageIndex(i);
+                                                    setIsPageDropdownOpen(false);
+                                                }}
+                                                className={`px-[0.8vw] py-[0.4vw] text-[0.65vw] cursor-pointer transition-colors ${targetPageIndex === i ? 'bg-blue-100 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-100'}`}
+                                            >
+                                                Page {i + 1}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             <textarea
@@ -3848,7 +3440,12 @@ const DesktopLayout9 = ({
                                     <div
                                         className="w-[1.5vw] h-[1.5vw] rounded-full border-[0.05vw] border-gray-300 shadow-sm cursor-pointer shrink-0"
                                         style={{ backgroundColor: noteTextColor }}
-                                        onClick={() => { setPickerTarget('text'); setShowColorPicker(true); }}
+                                        onClick={(e) => {
+                                            const rect = e.currentTarget.getBoundingClientRect();
+                                            setPickerPos({ x: rect.left - 200, y: rect.top - 100 });
+                                            setPickerTarget('text');
+                                            setShowColorPicker(true);
+                                        }}
                                     />
                                     <div className="flex-1 flex items-center border-[0.05vw] border-gray-400 rounded-[0.6vw] pl-[0.5vw] pr-[0.3vw] py-[0.25vw] bg-white group focus-within:border-black min-w-0">
                                         <span className="text-[0.6vw] font-medium text-gray-500 mr-[0.2vw]">#</span>
@@ -4335,10 +3932,12 @@ const DesktopDefaultLayout = ({
                 />
             )}
         </div>
-    );
+        );
 };
 
-const DesktopLayout4 = ({
+
+
+const DesktopLayout3 = ({
     onClose, noteContent, setNoteContent, noteAlignment, setNoteAlignment,
     noteStyles, toggleNoteStyle, noteCase, setNoteCase, noteList, handleListClick,
     noteBackground, setNoteBackground, noteTextColor, setNoteTextColor,
@@ -4348,471 +3947,344 @@ const DesktopLayout4 = ({
     weights, sizes, fonts, p1, p2, isSidebarOpen, setShowColorPicker, showColorPicker,
     setPickerTarget, pickerTarget, setPickerPos, pickerPos, noteWeight, setNoteWeight,
     setIsFontMenuOpen, isFontMenuOpen, setIsWeightMenuOpen, isWeightMenuOpen,
-    setIsSizeMenuOpen, isSizeMenuOpen, totalPages, isSpread, ColorPallet, currentPageIndex, Icon,
-    targetPageIndex, setTargetPageIndex, activeFormattingTab, setActiveFormattingTab,
-    isPageDropdownOpen, setIsPageDropdownOpen,
-    getLayoutColor, getLayoutColorRgba, getLayoutColorAlpha, isLightColor, activeLayout,
-    isMobileLandscape
+    setIsSizeMenuOpen, isSizeMenuOpen, totalPages, isSpread, ColorPallet, Icon,
+    getLayoutColor, getLayoutColorRgba, getLayoutColorAlpha,
+    isLightColor, targetPageIndex, setTargetPageIndex,
+    activeFormattingTab, setActiveFormattingTab,
+    isPageDropdownOpen, setIsPageDropdownOpen
 }) => {
-    const isLayout5 = Number(activeLayout) === 5;
-
     return (
         <div
-            className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-auto bg-transparent px-[2vw]"
+            className="absolute inset-0 z-[100] flex items-center justify-center pointer-events-auto bg-transparent"
             onClick={onClose}
         >
             <div
-                className={isMobileLandscape ? "animate-in zoom-in-95 duration-200 pointer-events-auto" : ""}
-                style={isMobileLandscape ? { transform: 'scale(0.68)', transformOrigin: 'center center' } : {}}
+                className="w-[28vw] min-w-[460px] rounded-[0.8vw] shadow-[0_0.6vw_2.5vw_rgba(0,0,0,0.15)] flex flex-col pointer-events-auto animate-in zoom-in-95 duration-200 overflow-hidden border border-gray-100 p-[1vw] relative"
+                style={{
+                    backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'),
+                    transform: isSidebarOpen ? 'translate(8vw, 0) scale(0.9)' : 'scale(1)',
+                    transformOrigin: 'center center',
+                    fontFamily: "'Poppins', sans-serif"
+                }}
+                onClick={(e) => e.stopPropagation()}
             >
-                <div
-                    className={`${isLayout5 ? 'w-[520px]' : 'w-[600px]'} bg-white rounded-[24px] ${isMobileLandscape ? 'shadow-none' : 'shadow-[0_20px_100px_rgba(0,0,0,0.4)]'} relative ${isMobileLandscape ? '' : 'animate-in zoom-in-95'} duration-300 select-none overflow-hidden border`}
-                    style={{
-                        transform: isMobileLandscape ? 'none' : (isSidebarOpen ? 'translate(8vw, 0) scale(0.9)' : 'scale(1)'),
-                        transformOrigin: 'center center',
-                        borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2)
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div
-                        className="w-full h-full p-0"
-                        style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.98') }}
-                    >
-                        {/* Header */}
-                        <div className={`flex items-center justify-between ${isLayout5 ? 'px-5 pt-3 pb-1' : 'px-6 py-4'}`}>
-                            <h1 className={`${isLayout5 ? 'text-[17px]' : isMobileLandscape ? 'text-[24px]' : 'text-[20px]'} font-bold m-0`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Add Notes</h1>
-                            <button
-                                onClick={onClose}
-                                className="w-8 h-8 flex items-center justify-center hover:opacity-50 transition-all active:scale-95"
-                            >
-                                <Icon icon="lucide:x" className={`${isLayout5 ? 'w-[18px] h-[18px]' : 'w-[22px] h-[22px]'}`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }} />
-                            </button>
-                        </div>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-[0.6vw] px-[0.2vw]">
+                    <span className="text-[1vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Add Notes</span>
+                    <button onClick={onClose} className="hover:opacity-70 transition-opacity p-[0.2vw]">
+                        <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw]" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }} />
+                    </button>
+                </div>
 
-                        {!isLayout5 && <div className="w-full h-[1px]" style={{ backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15) }} />}
-
-                        {/* Content Body */}
-                        <div className={`flex ${isLayout5 ? 'gap-4 px-5 pt-1 pb-4' : 'gap-6 px-6 py-5'} items-start`}>
-                            {/* Left Column - Colors */}
-                            <div className="flex flex-col gap-[8px] pt-1">
-                                {['#31B0B0', '#C68798', '#D6566E', '#6B7DBB', '#67AC78', '#D8DC53', '#23D295'].map((color, i) => (
-                                    <button
-                                        key={i}
-                                        onClick={() => setNoteBackground(color)}
-                                        className={`w-[26px] h-[26px] rounded-[8px] block transition-all hover:scale-110 border-2 border-white shadow-sm ${noteBackground === color ? 'ring-2 ring-offset-2 ring-white/60' : ''}`}
-                                        style={{ backgroundColor: color }}
-                                    />
-                                ))}
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        const rect = e.currentTarget.getBoundingClientRect();
-                                        setPickerPos({ x: rect.right + 12, y: rect.top - 80 });
-                                        setPickerTarget('background');
-                                        setShowColorPicker(prev => pickerTarget === 'background' ? !prev : true);
-                                    }}
-                                    className="w-[26px] h-[26px] rounded-[8px] block shadow-sm transition-all hover:scale-110 flex items-center justify-center overflow-hidden bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] border-2 border-white"
-                                >
-                                    <Icon icon="lucide:pipette" className="w-[14px] h-[14px] text-white/80" />
-                                </button>
-                            </div>
-
-                            {/* Middle Column - Note Area */}
+                <div className="flex gap-[0.8vw]">
+                    {/* Left Column - Colors */}
+                    <div className="flex flex-col gap-[0.4vw]">
+                        {[
+                            '#34B1AA', // Teal
+                            '#C68899', // Dusty Rose
+                            '#D6566E', // Pink
+                            '#6A7DBB', // Blue
+                            '#68AC77', // Green
+                            '#D9DC54', // Yellow
+                            '#23D295'  // Mint
+                        ].map((color, i) => (
                             <div
-                                className="relative w-[230px] h-[240px] rounded-[18px] p-4 flex flex-col transition-all duration-300 shadow-2xl border border-white/10"
-                                style={{ backgroundColor: noteBackground, opacity: noteBgOpacity / 100 }}
-                            >
-                                <div className={`flex ${isLayout5 ? 'justify-end' : 'justify-between'} items-center mb-3`}>
-                                    {!isLayout5 && <div className="w-10 h-1 bg-black/10 rounded-full pointer-events-none"></div>}
-                                    <div
-                                        className={`relative flex items-center gap-1.5 cursor-pointer ${isLayout5 ? '' : 'hover:bg-white/10'} rounded-md px-2 py-1 transition-colors`}
-                                        onClick={(e) => { e.stopPropagation(); setIsPageDropdownOpen(!isPageDropdownOpen); }}
-                                    >
-                                        <span className={`${isLayout5 ? 'text-[11px]' : isMobileLandscape ? 'text-[14px]' : 'text-[11px]'} ${isLayout5 ? 'font-normal' : 'font-extrabold'} uppercase tracking-widest`} style={{ color: isLightColor(noteBackground) ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.9)' }}>{pageDisplay}</span>
-                                        <Pencil className="w-[11px] h-[11px]" style={{ color: isLightColor(noteBackground) ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.9)' }} />
+                                key={i}
+                                onClick={() => setNoteBackground(color)}
+                                className={`w-[1.5vw] h-[1.5vw] rounded-[0.3vw] cursor-pointer hover:scale-110 transition-transform ${noteBackground === color ? 'ring-2 ring-offset-1 ring-gray-300' : 'shadow-sm'}`}
+                                style={{ backgroundColor: color }}
+                            />
+                        ))}
+                        <div
+                            onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setPickerPos({ x: rect.right + 20, y: rect.top - 100 });
+                                setPickerTarget('background');
+                                setShowColorPicker(true);
+                            }}
+                            className="w-[1.5vw] h-[1.5vw] rounded-full cursor-pointer hover:scale-110 transition-transform flex items-center justify-center overflow-hidden bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)] shadow-sm"
+                        >
+                            <Icon icon="lucide:pipette" className="w-[0.8vw] h-[0.8vw] text-white/60" />
+                        </div>
+                    </div>
 
-                                        {isPageDropdownOpen && (
-                                            <div
-                                                className="absolute top-full right-0 mt-2 w-[100px] max-h-[160px] bg-white rounded-[12px] shadow-2xl overflow-y-auto custom-scrollbar z-[100] border border-gray-100 animate-in fade-in slide-in-from-top-2 duration-200"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                {Array.from({ length: totalPages || 1 }, (_, i) => (
-                                                    <div
-                                                        key={i}
-                                                        onClick={() => {
-                                                            setTargetPageIndex(i);
-                                                            setIsPageDropdownOpen(false);
-                                                        }}
-                                                        className={`px-4 py-2 ${isMobileLandscape ? 'text-[14px]' : 'text-[11px]'} cursor-pointer transition-colors ${targetPageIndex === i ? 'bg-blue-100 text-blue-600 font-bold' : 'text-gray-700 hover:bg-gray-100'}`}
-                                                    >
-                                                        Page {i + 1}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <textarea
-                                    value={noteContent}
-                                    onChange={(e) => setNoteContent(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    placeholder="Enter your Notes"
-                                    style={{
-                                        textAlign: noteAlignment,
-                                        fontWeight: noteStyles.includes('bold') ? 'bold' : getFontWeight(noteWeight),
-                                        fontStyle: noteStyles.includes('italic') ? 'italic' : 'normal',
-                                        textDecoration: [
-                                            noteStyles.includes('underline') ? 'underline' : '',
-                                            noteStyles.includes('strike') ? 'line-through' : ''
-                                        ].filter(Boolean).join(' ') || 'none',
-                                        textTransform: noteCase === 'upper' ? 'uppercase' : noteCase === 'lower' ? 'lowercase' : noteCase === 'sentence' ? 'capitalize' : 'none',
-                                        fontFamily: noteFontFamily,
-                                        fontSize: isMobileLandscape ? '18px' : `${noteFontSize}px`,
-                                        color: noteTextColor,
-                                        opacity: noteTextOpacity / 100,
-                                        background: 'transparent',
-                                        border: 'none',
-                                        outline: 'none',
-                                        resize: 'none',
-                                        width: '100%',
-                                        height: '100%'
-                                    }}
-                                    className="flex-1 placeholder:opacity-40 font-semibold overflow-y-auto custom-scrollbar text-[16px]"
-                                />
-                            </div>
+                    {/* Middle Column - Sticky Note */}
+                    <div
+                        className="flex-1 aspect-square rounded-[0.6vw] p-[1vw] shadow-[0_4px_10px_rgba(0,0,0,0.05)] flex flex-col transition-colors duration-300 relative border border-black/5"
+                        style={{ backgroundColor: noteBackground, opacity: noteBgOpacity / 100 }}
+                    >
+                         <div
+                            className="absolute top-[0.6vw] right-[0.6vw] z-20 flex items-center gap-[0.3vw] cursor-pointer hover:bg-black/5 rounded-[0.3vw] px-[0.3vw] py-[0.1vw] transition-colors"
+                            onClick={(e) => { e.stopPropagation(); setIsPageDropdownOpen(!isPageDropdownOpen); }}
+                        >
+                            <span className={`text-[0.65vw] font-medium ${isLightColor(noteBackground) ? 'text-black/40' : 'text-white/80'}`}>
+                                {pageDisplay}
+                            </span>
+                            <Icon icon="lucide:pencil" className={`w-[0.8vw] h-[0.8vw] ${isLightColor(noteBackground) ? 'text-black/40' : 'text-white/80'}`} />
 
-                            {/* Right Column - Properties */}
-                            <div className={`flex-1 flex flex-col ${isLayout5 ? 'gap-2' : 'gap-3'} min-w-[170px]`} onClick={() => setActiveFormattingTab(null)}>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`${isLayout5 ? 'text-[13px]' : isMobileLandscape ? 'text-[18px]' : 'text-[15px]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Text Property</span>
-                                    <div className="h-[1px] flex-1" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.15 }}></div>
-                                </div>
-
-                                {/* Font Family Selection */}
-                                <div className="relative">
-                                    <div
-                                        onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsFontMenuOpen(!isFontMenuOpen); setIsWeightMenuOpen(false); setIsSizeMenuOpen(false); }}
-                                        className={`w-full ${isLayout5 ? 'h-[34px] rounded-[10px] px-3' : 'h-[40px] rounded-[12px] px-4'} flex items-center justify-between border cursor-pointer transition-all`}
-                                        style={{
-                                            backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1),
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15),
-                                            color: getLayoutColor('dropdown-text', '#FFFFFF')
-                                        }}
-                                    >
-                                        <span className={`${isLayout5 ? 'text-[11px]' : isMobileLandscape ? 'text-[16px]' : 'text-[13px]'} font-medium truncate`} style={{ fontFamily: noteFontFamily }}>
-                                            {noteFontFamily}
-                                        </span>
-                                        <Icon icon="lucide:chevron-down" className={`${isLayout5 ? 'w-3.5 h-3.5' : 'w-4 h-4'} transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} style={{ opacity: 0.6 }} />
-                                    </div>
-
-                                    {isFontMenuOpen && (
-                                        <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-200 rounded-[12px] shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                            <div className="max-h-[160px] overflow-y-auto custom-scrollbar py-2">
-                                                {fonts.map((font) => (
-                                                    <div
-                                                        key={font}
-                                                        onClick={() => { setNoteFontFamily(font); setIsFontMenuOpen(false); }}
-                                                        className={`px-4 py-2 text-[12px] cursor-pointer transition-colors ${noteFontFamily === font ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                        style={{ fontFamily: font }}
-                                                    >
-                                                        {font}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Weight and Size Selection */}
-                                <div className="flex gap-2">
-                                    <div className="flex-[1.5] relative">
+                            {isPageDropdownOpen && (
+                                <div className="absolute top-full right-0 mt-[0.2vw] w-[8vw] max-h-[10vw] bg-white rounded-[0.5vw] shadow-2xl overflow-y-auto custom-scrollbar z-[100] border border-gray-100" onClick={(e) => e.stopPropagation()}>
+                                    {Array.from({ length: totalPages || 1 }, (_, i) => (
                                         <div
-                                            onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsWeightMenuOpen(!isWeightMenuOpen); setIsSizeMenuOpen(false); setIsFontMenuOpen(false); }}
-                                            className={`w-full ${isLayout5 ? 'h-[34px] rounded-[10px] px-3' : 'h-[40px] rounded-[12px] px-4'} flex items-center justify-between border cursor-pointer transition-all`}
-                                            style={{
-                                                backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1),
-                                                borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15),
-                                                color: getLayoutColor('dropdown-text', '#FFFFFF')
+                                            key={i}
+                                            onClick={() => {
+                                                setTargetPageIndex(i);
+                                                setIsPageDropdownOpen(false);
                                             }}
+                                            className={`px-[0.7vw] py-[0.4vw] text-[0.7vw] cursor-pointer transition-colors ${targetPageIndex === i ? 'font-bold' : 'text-gray-700 hover:bg-gray-100'}`}
+                                            style={targetPageIndex === i ? { backgroundColor: getLayoutColor('dropdown-bg', '#3E4491'), color: '#FFFFFF' } : {}}
                                         >
-                                            <span className={`${isLayout5 ? 'text-[11px]' : isMobileLandscape ? 'text-[15px]' : 'text-[12px]'} font-medium truncate`}>{noteWeight}</span>
-                                            <Icon icon="lucide:chevron-down" className={`${isLayout5 ? 'w-3.5 h-3.5' : 'w-4 h-4'} transition-transform ${isWeightMenuOpen ? 'rotate-180' : ''}`} style={{ opacity: 0.6 }} />
+                                            Page {i + 1}
                                         </div>
-                                        {isWeightMenuOpen && (
-                                            <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-200 rounded-[12px] shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                                                <div className="py-2">
-                                                    {weights.map((w) => (
-                                                        <div
-                                                            key={w}
-                                                            onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }}
-                                                            className={`px-4 py-2 text-[12px] cursor-pointer transition-colors ${noteWeight === w ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                        >
-                                                            {w}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 relative">
-                                        <div
-                                            onClick={(e) => { e.stopPropagation(); setActiveFormattingTab(null); setIsSizeMenuOpen(!isSizeMenuOpen); setIsWeightMenuOpen(false); setIsFontMenuOpen(false); }}
-                                            className={`w-full ${isLayout5 ? 'h-[34px] rounded-[10px]' : 'h-[40px] rounded-[12px]'} flex items-center justify-between border px-2 cursor-pointer transition-all`}
-                                            style={{
-                                                backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1),
-                                                borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15),
-                                                color: getLayoutColor('dropdown-text', '#FFFFFF')
-                                            }}
-                                        >
-                                            <span className={`${isLayout5 ? 'text-[11px]' : isMobileLandscape ? 'text-[15px]' : 'text-[12px]'} font-medium`}>{noteFontSize}</span>
-                                            <Icon icon="lucide:chevron-down" className={`${isLayout5 ? 'w-3 h-3' : 'w-3.5 h-3.5'} transition-transform ${isSizeMenuOpen ? 'rotate-180' : ''}`} style={{ opacity: 0.6 }} />
-                                        </div>
-                                        {isSizeMenuOpen && (
-                                            <div className="absolute top-full right-0 w-full mt-2 bg-white border border-gray-200 rounded-[12px] shadow-xl z-50 overflow-hidden text-center animate-in fade-in slide-in-from-top-2 duration-200">
-                                                <div className="max-h-[160px] overflow-y-auto custom-scrollbar py-2">
-                                                    {sizes.map((s) => (
-                                                        <div
-                                                            key={s}
-                                                            onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }}
-                                                            className={`px-3 py-1.5 text-[12px] cursor-pointer transition-colors ${noteFontSize === s ? 'bg-indigo-50 text-indigo-600 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}
-                                                        >
-                                                            {s}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Formatting Options Panel */}
-                                <AnimatePresence mode="wait">
-                                    {activeFormattingTab && (
-                                        <motion.div
-                                            key={activeFormattingTab}
-                                            initial={{ opacity: 0, y: 6, scale: 0.96 }}
-                                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                                            exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                                            className="flex justify-end"
-                                        >
-                                            <div className="bg-[#1E1E1E] rounded-[10px] p-1 flex gap-1 shadow-xl" onClick={(e) => e.stopPropagation()}>
-                                                {activeFormattingTab === 'align' && (
-                                                    <>
-                                                        {[
-                                                            { id: 'left', icon: 'lucide:align-left' },
-                                                            { id: 'center', icon: 'lucide:align-center' },
-                                                            { id: 'right', icon: 'lucide:align-right' },
-                                                            { id: 'justify', icon: 'lucide:align-justify' }
-                                                        ].map((opt) => (
-                                                            <button
-                                                                key={opt.id}
-                                                                onClick={() => setNoteAlignment(opt.id)}
-                                                                className={`w-8 h-8 rounded-[7px] flex items-center justify-center transition-all ${noteAlignment === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                            >
-                                                                <Icon icon={opt.icon} className="w-[15px] h-[15px]" />
-                                                            </button>
-                                                        ))}
-                                                    </>
-                                                )}
-                                                {activeFormattingTab === 'style' && (
-                                                    <>
-                                                        {[
-                                                            { id: 'bold', label: 'B' },
-                                                            { id: 'italic', label: 'I' },
-                                                            { id: 'underline', label: 'U' },
-                                                            { id: 'strike', label: 'S' }
-                                                        ].map((opt) => (
-                                                            <button
-                                                                key={opt.id}
-                                                                onClick={() => toggleNoteStyle(opt.id)}
-                                                                className={`w-8 h-8 rounded-[7px] flex items-center justify-center transition-all ${noteStyles.includes(opt.id) ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                            >
-                                                                <span className={`text-[13px] font-bold ${opt.id === 'italic' ? 'italic' : opt.id === 'underline' ? 'underline' : opt.id === 'strike' ? 'line-through' : ''}`}>{opt.label}</span>
-                                                            </button>
-                                                        ))}
-                                                    </>
-                                                )}
-                                                {activeFormattingTab === 'case' && (
-                                                    <>
-                                                        {[
-                                                            { id: 'none', label: '—' },
-                                                            { id: 'sentence', label: 'Aa' },
-                                                            { id: 'upper', label: 'AB' },
-                                                            { id: 'lower', label: 'ab' }
-                                                        ].map((opt) => (
-                                                            <button
-                                                                key={opt.id}
-                                                                onClick={() => setNoteCase(opt.id)}
-                                                                className={`w-8 h-8 rounded-[7px] flex items-center justify-center transition-all ${noteCase === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                            >
-                                                                <span className="text-[12px] font-bold">{opt.label}</span>
-                                                            </button>
-                                                        ))}
-                                                    </>
-                                                )}
-                                                {activeFormattingTab === 'list' && (
-                                                    <>
-                                                        {[
-                                                            { id: 'bullet', icon: 'lucide:list' },
-                                                            { id: 'bullet2', icon: 'material-symbols:list' },
-                                                            { id: 'ordered', icon: 'lucide:list-ordered' }
-                                                        ].map((opt) => (
-                                                            <button
-                                                                key={opt.id}
-                                                                onClick={() => handleListClick(opt.id)}
-                                                                className={`w-8 h-8 rounded-[7px] flex items-center justify-center transition-all ${noteList === opt.id ? 'bg-white text-black' : 'text-white/40 hover:text-white/70'}`}
-                                                            >
-                                                                <Icon icon={opt.icon} className="w-[15px] h-[15px]" />
-                                                            </button>
-                                                        ))}
-                                                    </>
-                                                )}
-                                            </div>
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-
-                                {/* Formatting Tab Buttons */}
-                                <div className={`flex items-center justify-end ${isLayout5 ? 'gap-1.5' : 'gap-2'}`}>
-                                    {[
-                                        { id: 'align', icon: `lucide:align-${noteAlignment === 'justify' ? 'justify' : noteAlignment}`, action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align') },
-                                        { id: 'style', label: 'B', action: () => setActiveFormattingTab(prev => prev === 'style' ? null : 'style') },
-                                        { id: 'case', label: noteCase === 'none' ? '—' : noteCase === 'sentence' ? 'Aa' : noteCase === 'upper' ? 'AB' : 'ab', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case') },
-                                        { id: 'list', icon: noteList === 'ordered' ? 'lucide:list-ordered' : 'lucide:list', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list') }
-                                    ].map((btn) => (
-                                        <button
-                                            key={btn.id}
-                                            onClick={(e) => { e.stopPropagation(); btn.action(); }}
-                                            className={`${isLayout5 ? 'w-[36px] h-[36px] rounded-[10px]' : 'w-[42px] h-[42px] rounded-[12px]'} border flex items-center justify-center transition-all`}
-                                            style={{
-                                                backgroundColor: activeFormattingTab === btn.id ? getLayoutColor('dropdown-text', '#FFFFFF') : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1),
-                                                borderColor: activeFormattingTab === btn.id ? 'transparent' : getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15),
-                                                color: activeFormattingTab === btn.id ? getLayoutColor('dropdown-bg', '87, 92, 156') : getLayoutColor('dropdown-text', '#FFFFFF')
-                                            }}
-                                        >
-                                            {btn.icon
-                                                ? <Icon icon={btn.icon} className={`${isLayout5 ? 'w-[15px] h-[15px]' : 'w-[18px] h-[18px]'}`} />
-                                                : <span className={`${isLayout5 ? 'text-[14px]' : 'text-[16px]'} font-bold`}>{btn.label}</span>
-                                            }
-                                        </button>
                                     ))}
                                 </div>
+                            )}
+                        </div>
+                        <textarea
+                            value={noteContent}
+                            onChange={(e) => setNoteContent(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder="Enter your Notes"
+                            style={{
+                                textAlign: noteAlignment,
+                                fontWeight: noteStyles.includes('bold') ? 'bold' : getFontWeight(noteWeight),
+                                fontStyle: noteStyles.includes('italic') ? 'italic' : 'normal',
+                                textDecoration: `${noteStyles.includes('underline') ? 'underline' : ''} ${noteStyles.includes('strike') ? 'line-through' : ''}`,
+                                textTransform: noteCase === 'upper' ? 'uppercase' : noteCase === 'lower' ? 'lowercase' : noteCase === 'sentence' ? 'capitalize' : 'none',
+                                fontFamily: noteFontFamily,
+                                fontSize: `${noteFontSize}px`,
+                                color: noteTextColor,
+                                opacity: noteTextOpacity / 100,
+                                background: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                resize: 'none',
+                                width: '100%',
+                                height: '100%'
+                            }}
+                            className={`flex-1 pt-[1.2vw] font-medium custom-scrollbar placeholder:${isLightColor(noteBackground) ? 'text-black/20' : 'text-white/30'}`}
+                        />
+                    </div>
 
-                                {/* Color Selection row */}
-                                <div className="flex items-center gap-2 mt-1">
-                                    <div
-                                        className={`${isLayout5 ? 'w-[32px] h-[32px] rounded-[8px]' : 'w-[36px] h-[36px] rounded-[10px]'} border flex items-center justify-center cursor-pointer p-[1px] shadow-sm overflow-hidden`}
-                                        style={{
-                                            backgroundColor: '#FFFFFF',
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3)
-                                        }}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            const rect = e.currentTarget.getBoundingClientRect();
-                                            setPickerPos({ x: rect.left - 200, y: rect.top - 50 });
-                                            setPickerTarget('text');
-                                            setShowColorPicker(prev => pickerTarget === 'text' ? !prev : true);
-                                        }}
-                                    >
-                                        <div className="w-full h-full rounded-[8px]" style={{ backgroundColor: noteTextColor }}></div>
+                    {/* Right Column - Controls */}
+                    <div className="w-[11vw] flex flex-col gap-[0.6vw]">
+                        <h2 className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Text Property :</h2>
+
+                        {/* Font Selection */}
+                        <div className="relative">
+                            <div
+                                onClick={(e) => { e.stopPropagation(); setIsFontMenuOpen(!isFontMenuOpen); setIsWeightMenuOpen(false); setIsSizeMenuOpen(false); setActiveFormattingTab(null); }}
+                                className="w-full h-[2.1vw] flex items-center justify-between border-[1px] rounded-[0.5vw] px-[0.6vw] cursor-pointer bg-white transition-all"
+                                style={{ 
+                                    borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2),
+                                    backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') 
+                                }}
+                            >
+                                <span className="text-[0.75vw] font-medium truncate" style={{ fontFamily: noteFontFamily, color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8) }}>{noteFontFamily}</span>
+                                <Icon icon="lucide:chevron-down" className={`w-[1vw] h-[1vw] transition-transform ${isFontMenuOpen ? 'rotate-180' : ''}`} style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.5) }} />
+                            </div>
+                            {isFontMenuOpen && (
+                                <div className="absolute top-full left-0 w-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="max-h-[10vw] overflow-y-auto custom-scrollbar py-[0.3vw]">
+                                        {fonts.map((f) => (
+                                            <div key={f} onClick={() => { setNoteFontFamily(f); setIsFontMenuOpen(false); }} className={`px-[0.8vw] py-[0.5vw] text-[0.75vw] cursor-pointer transition-colors ${noteFontFamily === f ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-700 hover:bg-gray-50'}`}>{f}</div>
+                                        ))}
                                     </div>
-                                    <div
-                                        className={`flex-1 flex items-center justify-between ${isLayout5 ? 'h-[32px] rounded-[10px]' : 'h-[36px] rounded-[12px]'} border px-3 transition-all`}
-                                        style={{
-                                            backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1),
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15)
-                                        }}
-                                    >
-                                        <span className={`${isLayout5 ? 'text-[11px]' : 'text-[12px]'} font-bold uppercase`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>{noteTextColor}</span>
-                                        <div className="flex items-center gap-0.5" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.6 }}>
-                                            <input
-                                                type="text"
-                                                value={noteTextOpacity}
-                                                onChange={(e) => setNoteTextOpacity(e.target.value)}
-                                                className={`${isLayout5 ? 'w-[24px] text-[10px]' : 'w-[28px] text-[11px]'} text-right font-bold bg-transparent outline-none focus:opacity-100`}
-                                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                            />
-                                            <span className={`${isLayout5 ? 'text-[10px]' : 'text-[11px]'} font-bold`}>%</span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Weight and Size Row */}
+                        <div className="flex gap-[0.4vw]">
+                            <div className="flex-[1.5] relative">
+                                <div
+                                    onClick={(e) => { e.stopPropagation(); setIsWeightMenuOpen(!isWeightMenuOpen); setIsFontMenuOpen(false); setIsSizeMenuOpen(false); setActiveFormattingTab(null); }}
+                                    className="w-full h-[2.1vw] flex items-center justify-between border-[1px] rounded-[0.5vw] px-[0.6vw] cursor-pointer bg-white transition-all"
+                                    style={{ 
+                                        borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2),
+                                        backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') 
+                                    }}
+                                >
+                                    <span className="text-[0.75vw] font-medium truncate" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8) }}>{noteWeight}</span>
+                                    <Icon icon="lucide:chevron-down" className={`w-[0.9vw] h-[0.9vw] transition-transform ${isWeightMenuOpen ? 'rotate-180' : ''}`} style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.5) }} />
+                                </div>
+                                {isWeightMenuOpen && (
+                                    <div className="absolute top-full left-0 w-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="py-[0.3vw]">
+                                            {weights.map((w) => (
+                                                <div key={w} onClick={() => { setNoteWeight(w); setIsWeightMenuOpen(false); }} className={`px-[0.8vw] py-[0.5vw] text-[0.75vw] cursor-pointer transition-colors ${noteWeight === w ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-700 hover:bg-gray-50'}`}>{w}</div>
+                                            ))}
                                         </div>
                                     </div>
+                                )}
+                            </div>
+                            <div className="w-[4.2vw] relative">
+                                <div
+                                    onClick={(e) => { e.stopPropagation(); setIsSizeMenuOpen(!isSizeMenuOpen); setIsFontMenuOpen(false); setIsWeightMenuOpen(false); setActiveFormattingTab(null); }}
+                                    className="w-full h-[2.1vw] flex items-center justify-between border-[1px] rounded-[0.5vw] px-[0.5vw] cursor-pointer bg-white transition-all"
+                                    style={{ 
+                                        borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2),
+                                        backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') 
+                                    }}
+                                >
+                                    <span className="text-[0.75vw] font-medium" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.8) }}>{noteFontSize}</span>
+                                    <Icon icon="lucide:chevron-down" className={`w-[0.9vw] h-[0.9vw] transition-transform ${isSizeMenuOpen ? 'rotate-180' : ''}`} style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.5) }} />
                                 </div>
+                                {isSizeMenuOpen && (
+                                    <div className="absolute top-full right-0 w-full mt-[0.2vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="max-h-[10vw] overflow-y-auto custom-scrollbar py-[0.3vw]">
+                                            {sizes.map((s) => (
+                                                <div key={s} onClick={() => { setNoteFontSize(s); setIsSizeMenuOpen(false); }} className={`px-[0.8vw] py-[0.5vw] text-[0.75vw] text-center cursor-pointer transition-colors ${noteFontSize === s ? 'bg-indigo-50 text-indigo-600 font-bold' : 'text-gray-700 hover:bg-gray-50'}`}>{s}</div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
 
-                                {/* Action Buttons */}
-                                <div className={`mt-auto ${isLayout5 ? 'pt-2' : 'pt-4'} flex items-center gap-3`}>
-                                    <button
-                                        onClick={resetNote}
-                                        className={`flex-1 flex items-center justify-center gap-1.5 ${isLayout5 ? 'h-[32px] rounded-[10px] text-[11px]' : 'h-[38px] rounded-[12px] text-[13px]'} border transition-all font-bold bg-transparent hover:bg-white/5 active:scale-95`}
-                                        style={{
-                                            borderColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.3),
-                                            color: getLayoutColor('dropdown-text', '#FFFFFF')
-                                        }}
-                                    >
-                                        <Icon icon="lucide:x" className={`${isLayout5 ? 'w-[14px] h-[14px]' : 'w-[16px] h-[16px]'}`} />
-                                        Clear
-                                    </button>
+                        {/* Formatting Buttons Row */}
+                        <div className="flex gap-[0.4vw] h-[2.1vw] justify-end">
+                            {[
+                                { id: 'align', icon: `lucide:align-${noteAlignment === 'justify' ? 'justify' : noteAlignment}`, action: () => setActiveFormattingTab(prev => prev === 'align' ? null : 'align') },
+                                { id: 'bold', label: 'B', active: noteStyles.includes('bold') || noteWeight === 'Bold', action: () => toggleNoteStyle('bold') },
+                                { id: 'case', label: noteCase === 'none' ? '—' : noteCase === 'sentence' ? 'Aa' : noteCase === 'upper' ? 'AB' : 'ab', action: () => setActiveFormattingTab(prev => prev === 'case' ? null : 'case') },
+                                { id: 'list', icon: 'lucide:list', active: noteList !== 'none', action: () => setActiveFormattingTab(prev => prev === 'list' ? null : 'list') }
+                            ].map((btn) => (
+                                <button
+                                    key={btn.id}
+                                    onClick={(e) => { e.stopPropagation(); btn.action(); }}
+                                    className={`w-[2.2vw] h-full border-[1px] rounded-[0.5vw] flex items-center justify-center transition-all ${btn.active || activeFormattingTab === btn.id ? 'opacity-100 shadow-inner' : 'opacity-70 hover:opacity-100'}`}
+                                    style={{ 
+                                        borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2),
+                                        backgroundColor: btn.active || activeFormattingTab === btn.id ? getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.1) : 'transparent'
+                                    }}
+                                >
+                                    {btn.icon ? <Icon icon={btn.icon} className="w-[1vw] h-[1vw]" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }} /> : <span className="text-[0.9vw] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>{btn.label}</span>}
+                                </button>
+                            ))}
+                        </div>
 
-                                    <button
-                                        onClick={() => {
-                                            if (!noteContent.trim()) return;
-                                            onAddNote({
-                                                content: noteContent,
-                                                background: noteBackground,
-                                                color: noteTextColor,
-                                                fontFamily: noteFontFamily,
-                                                fontSize: noteFontSize,
-                                                styles: noteStyles,
-                                                alignment: noteAlignment,
-                                                case: noteCase,
-                                                list: noteList,
-                                                bgOpacity: noteBgOpacity,
-                                                textOpacity: noteTextOpacity,
-                                                pageLabel: `Page ${p1.toString().padStart(2, '0')}`,
-                                                pageIndex: currentPageIndex
-                                            });
-                                            onClose();
-                                        }}
-                                        className={`flex-[1.4] ${isLayout5 ? 'h-[32px] rounded-[10px] text-[11px]' : 'h-[38px] rounded-[12px] text-[13px]'} font-bold transition-all hover:opacity-90 active:scale-95 shadow-xl`}
-                                        style={{
-                                            backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'),
-                                            color: getLayoutColor('dropdown-bg', '87, 92, 156')
-                                        }}
+                        {/* Floating Submenus for Align/Case/List */}
+                        <AnimatePresence>
+                            {activeFormattingTab && (activeFormattingTab === 'align' || activeFormattingTab === 'case' || activeFormattingTab === 'list') && (
+                                <div className="relative h-0" onClick={(e) => e.stopPropagation()}>
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        className="absolute bottom-[0.4vw] right-0 rounded-[0.4vw] p-[0.3vw] flex gap-[0.2vw] z-[60] shadow-2xl"
+                                        style={{ backgroundColor: getLayoutColor('dropdown-text', '#333333') }}
                                     >
-                                        Add To Notes
-                                    </button>
+                                        {activeFormattingTab === 'align' && ['left', 'center', 'right', 'justify'].map(align => (
+                                            <button key={align} onClick={() => setNoteAlignment(align)} className={`w-[1.8vw] h-[1.8vw] rounded-[0.3vw] flex items-center justify-center transition-all ${noteAlignment === align ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>
+                                                <Icon icon={`lucide:align-${align}`} className="w-[1vw] h-[1vw]" />
+                                            </button>
+                                        ))}
+                                        {activeFormattingTab === 'case' && ['none', 'sentence', 'upper', 'lower'].map(c => (
+                                            <button key={c} onClick={() => setNoteCase(c)} className={`w-[1.8vw] h-[1.8vw] rounded-[0.3vw] flex items-center justify-center transition-all ${noteCase === c ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>
+                                                <span className="text-[0.75vw] font-bold">{c === 'none' ? '—' : c === 'sentence' ? 'Aa' : c === 'upper' ? 'AB' : 'ab'}</span>
+                                            </button>
+                                        ))}
+                                        {activeFormattingTab === 'list' && ['bullet', 'ordered'].map(list => (
+                                            <button key={list} onClick={() => handleListClick(list)} className={`w-[1.8vw] h-[1.8vw] rounded-[0.3vw] flex items-center justify-center transition-all ${noteList === list ? 'bg-white text-black' : 'text-white/50 hover:text-white'}`}>
+                                                <Icon icon={list === 'bullet' ? 'lucide:list' : 'lucide:list-ordered'} className="w-[1vw] h-[1vw]" />
+                                            </button>
+                                        ))}
+                                    </motion.div>
                                 </div>
+                            )}
+                        </AnimatePresence>
+
+                        {/* Color Selection Row */}
+                        <div className="flex items-center gap-[0.4vw] mt-[0.1vw]">
+                            <div
+                                className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] border-[1px] cursor-pointer shadow-sm flex-shrink-0 transition-transform active:scale-95"
+                                style={{ backgroundColor: noteTextColor, borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2) }}
+                                onClick={(e) => {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setPickerPos({ x: rect.left - 200, y: rect.top - 100 });
+                                    setPickerTarget('text');
+                                    setShowColorPicker(true);
+                                }}
+                            />
+                            <div className="flex-1 h-[2.2vw] flex items-center border-[1px] rounded-[0.5vw] px-[0.6vw]" style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'), borderColor: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.2) }}>
+                                <span className="text-[0.75vw] font-medium flex-1" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.6) }}>{noteTextColor.toUpperCase()}</span>
+                                <div className="flex items-center gap-[0.1vw] text-[0.75vw] font-medium" style={{ color: getLayoutColorAlpha('dropdown-text', '62, 68, 145', 0.6) }}>
+                                    <input
+                                        type="text"
+                                        value={noteTextOpacity}
+                                        onChange={(e) => setNoteTextOpacity(e.target.value)}
+                                        className="w-[1.8vw] text-right bg-transparent outline-none"
+                                    />
+                                    <span>%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons Row */}
+                        <div className="mt-auto pt-[0.6vw] flex gap-[0.5vw]">
+                            <button
+                                onClick={resetNote}
+                                className="flex-1 h-[2.3vw] border-[1.5px] rounded-[0.6vw] flex items-center justify-center gap-[0.3vw] transition-all hover:bg-gray-50 active:scale-95"
+                                style={{ 
+                                    borderColor: getLayoutColor('dropdown-text', '#3E4491'),
+                                    color: getLayoutColor('dropdown-text', '#3E4491')
+                                }}
+                            >
+                                <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw]" />
+                                <span className="text-[0.8vw] font-bold">Clear</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    if (!noteContent.trim()) return;
+                                    onAddNote({
+                                        content: noteContent, background: noteBackground, color: noteTextColor,
+                                        fontFamily: noteFontFamily, fontSize: noteFontSize, styles: noteStyles,
+                                        alignment: noteAlignment, case: noteCase, list: noteList,
+                                        bgOpacity: noteBgOpacity, textOpacity: noteTextOpacity,
+                                        pageLabel: pageDisplay,
+                                        pageIndex: targetPageIndex
+                                    });
+                                    onClose();
+                                }}
+                                className="flex-[1.6] h-[2.3vw] rounded-[0.6vw] font-bold text-[0.8vw] shadow-xl transition-all hover:opacity-90 active:scale-95"
+                                style={{ 
+                                    backgroundColor: getLayoutColor('dropdown-text', '#3E4491'),
+                                    color: getLayoutColor('dropdown-bg', '#FFFFFF')
+                                }}
+                            >
+                                Add To Notes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Floating Color Picker Overlay */}
+                {showColorPicker && (
+                    <div 
+                        className="fixed inset-0 z-[1000] flex items-center justify-center pointer-events-auto bg-black/10"
+                        onClick={() => setShowColorPicker(false)}
+                    >
+                        <div onClick={e => e.stopPropagation()} className="animate-in zoom-in-95 duration-200 scale-[0.8] origin-center">
+                            <div className="w-[14vw]">
+                                <ColorPallet
+                                    inline={true}
+                                    smallMode={true}
+                                    color={pickerTarget === 'text' ? noteTextColor : noteBackground}
+                                    opacity={pickerTarget === 'text' ? noteTextOpacity : noteBgOpacity}
+                                    onOpacityChange={val => pickerTarget === 'text' ? setNoteTextOpacity(val) : setNoteBgOpacity(val)}
+                                    onChange={color => pickerTarget === 'text' ? setNoteTextColor(color) : setNoteBackground(color)}
+                                    onClose={() => setShowColorPicker(false)}
+                                />
                             </div>
                         </div>
                     </div>
-                    {/* Color Picker - overlays note area, aligned with Text Property section */}
-                    {showColorPicker && (
-                        <div
-                            className="absolute top-[80px] right-[25px] z-[999] animate-in fade-in zoom-in-95 duration-200 shadow-2xl"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <ColorPallet
-                                inline={true}
-                                smallMode={true}
-                                color={pickerTarget === 'text' ? noteTextColor : noteBackground}
-                                opacity={pickerTarget === 'text' ? noteTextOpacity : noteBgOpacity}
-                                onOpacityChange={(val) => {
-                                    if (pickerTarget === 'text') setNoteTextOpacity(val);
-                                    else setNoteBgOpacity(val);
-                                }}
-                                onChange={(color) => {
-                                    if (pickerTarget === 'text') setNoteTextColor(color);
-                                    else setNoteBackground(color);
-                                }}
-                                onClose={() => setShowColorPicker(false)}
-                            />
-                        </div>
-                    )}
-                </div>
+                )}
             </div>
         </div>
     );
 };
-
-
+const DesktopLayout4 = DesktopDefaultLayout;
 
 const DesktopLayout6 = ({
     onClose, noteContent, setNoteContent, noteAlignment, setNoteAlignment,
@@ -5510,16 +4982,6 @@ const AddNotesPopup = ({ onClose, currentPageIndex, totalPages, onAddNote, isSid
     };
 
     const layoutId = typeof activeLayout === 'object' ? activeLayout?.id : activeLayout;
-
-    if (isMobile && isLandscape && (Number(layoutId) === 1 || Number(layoutId) === 2)) {
-        return (
-            <AddNotesPopupLandscape
-                {...commonProps}
-                totalPages={totalPages}
-                targetPageIndex={targetPageIndex ?? currentPageIndex}
-            />
-        );
-    }
 
     if (isMobile && isLandscape && Number(layoutId) === 3) {
         return (

@@ -10,7 +10,7 @@ const isLightColor = (hex) => {
     return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) > 0.5;
 };
 
-const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, layoutColors }) => {
+const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, layoutColors, isEditor, isFullscreen }) => {
     // Select the correct profile data based on activeLayout if profileSettings is keyed by layout ID
     const currentProfile = (profileSettings && profileSettings[activeLayout]) ? profileSettings[activeLayout] : profileSettings;
 
@@ -48,6 +48,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
     const isLayout2 = layout === 2;
     const isLayout3 = layout === 3;
     const isLayout4 = layout === 4;
+    const isLayout5 = layout === 5;
     const isLayout6 = layout === 6;
     const isLayout7 = layout === 7;
     const isLayout8 = layout === 8;
@@ -59,10 +60,10 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
     const getSocialIcon = (type) => {
         switch (type) {
             case 'x': return { icon: 'ri:twitter-x-fill', bg: 'bg-black', color: 'text-white' };
-            case 'facebook': return { icon: 'ri:facebook-fill', bg: 'bg-[#3B5998]', color: 'text-white' };
+            case 'facebook': return { icon: 'ri:facebook-fill', bg: 'bg-[#1877F2]', color: 'text-white' };
             case 'email': return { icon: 'logos:google-gmail', bg: 'bg-white', color: '' };
-            case 'instagram': return { icon: 'lucide:instagram', bg: 'bg-gradient-to-tr from-[#FFD600] via-[#FF0144] to-[#0401E5]', color: 'text-white' };
-            case 'phone': return { icon: 'lucide:phone', bg: 'bg-white', color: `text-[${dropdownBgHex}]` };
+            case 'instagram': return { icon: 'skill-icons:instagram', bg: 'bg-transparent', color: '', isFull: true, isLarge: true };
+            case 'phone': return { icon: 'ri:phone-fill', bg: 'bg-white', color: 'text-[#4F46E5]' };
             case 'linkedin': return { icon: 'ri:linkedin-fill', bg: 'bg-[#0077B5]', color: 'text-white' };
             default: return { icon: 'ph:link-bold', bg: 'bg-white', color: 'text-gray-600' };
         }
@@ -210,10 +211,10 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div
-                            className={`bg-white/60 backdrop-blur-xl border border-white/50 p-[0.4vw] rounded-[1.4vw] shadow-[0_2vw_5vw_rgba(0,0,0,0.2)]`}
+                            className={`bg-white/60 backdrop-blur-xl border border-white/50 p-[0.4vw] rounded-[0.9vw] shadow-[0_2vw_5vw_rgba(0,0,0,0.2)]`}
                         >
                             <div
-                                className={`rounded-[1vw] p-[1vw] w-[11vw] relative`}
+                                className={`rounded-[0.65vw] p-[1vw] ${isTablet ? 'w-[9.5vw] min-h-[13vw]' : 'w-[15.5vw] min-h-[18vw]'} relative`}
                                 style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
                             >
                                 <div className="w-full">
@@ -224,10 +225,10 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                     ) : (
                                         <>
                                             <div className="flex items-center gap-[0.5vw] mb-[0.8vw]">
-                                                <h2 className="text-[0.8vw] font-bold whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}>
+                                                <h2 className="text-[1vw] font-normal whitespace-nowrap" style={{ fontFamily: "'Poppins', sans-serif", color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}>
                                                     Profile
                                                 </h2>
-                                                <div className="h-[1px] flex-1 mt-[0.1vw]" style={{ backgroundColor: `color-mix(in srgb, var(--dropdown-text, ${fallbackText}) 30%, transparent)`, opacity: "var(--dropdown-text-opacity, 1)" }} />
+                                                <div className="flex-1 h-[0.5px]" style={{ backgroundColor: '#FFFFFF', opacity: 0.8 }}></div>
                                             </div>
 
                                             {(name || about) && (
@@ -235,14 +236,14 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                     {name && (
                                                         <div className="flex items-start gap-[4px]">
                                                             <span
-                                                                className="text-[0.8vw] font-bold whitespace-nowrap"
-                                                                style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                                                className="text-[0.8vw] font-normal whitespace-nowrap"
+                                                                style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
                                                             >
                                                                 Name:
                                                             </span>
                                                             <span
-                                                                className="text-[0.8vw] font-medium truncate"
-                                                                style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
+                                                                className="text-[0.8vw] font-normal truncate"
+                                                                style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
                                                             >
                                                                 {name}
                                                             </span>
@@ -251,14 +252,14 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                     {about && (
                                                         <div className="flex items-start gap-[4px]">
                                                             <span
-                                                                className="text-[0.8vw] font-bold whitespace-nowrap"
-                                                                style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                                                className="text-[0.8vw] font-normal whitespace-nowrap"
+                                                                style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
                                                             >
                                                                 About:
                                                             </span>
                                                             <p
                                                                 className="text-[0.75vw] font-normal leading-tight text-left tracking-tight opacity-95"
-                                                                style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
+                                                                style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
                                                             >
                                                                 {about}
                                                             </p>
@@ -288,7 +289,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                                 <button
                                                                     key={contact.id}
                                                                     onClick={(e) => handleContactClick(e, contact)}
-                                                                    className={`w-[2.2vw] h-[2.1vw] p-[0.4vw] ${style.bg} rounded-[2px] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/5`}
+                                                                    className={`${style.isFull ? (style.isLarge ? 'w-[2.5vw] h-[2.5vw]' : style.isMedium ? 'w-[2.3vw] h-[2.3vw]' : 'w-[2.1vw] h-[2.1vw]') : (style.isLarge ? 'w-[2.5vw] h-[2.5vw] p-[0.45vw]' : style.isMedium ? 'w-[2.3vw] h-[2.3vw] p-[0.4vw]' : 'w-[2.1vw] h-[2.1vw] p-[0.4vw]')} ${style.isFull ? '' : style.bg} rounded-[0.4vw] flex items-center justify-center hover:scale-110 active:scale-95 transition-all ${style.isFull ? '' : 'shadow-md border border-white/5'}`}
                                                                     title={contact.value}
                                                                 >
                                                                     <Icon
@@ -369,7 +370,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                                 <button
                                                                     key={contact.id}
                                                                     onClick={(e) => handleContactClick(e, contact)}
-                                                                    className={`w-[2.2vw] h-[2.1vw] p-[0.4vw] ${style.bg} rounded-[2px] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/5`}
+                                                                    className={`w-[32px] h-[32px] p-[6px] ${style.bg} rounded-[2px] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/5`}
                                                                     title={contact.value}
                                                                 >
                                                                     <Icon icon={style.icon} className={`${style.color} w-full h-full`} strokeWidth={contact.type === 'phone' ? 4 : 1} />
@@ -452,42 +453,42 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
         return (
             <div className="absolute inset-0 z-[5000] pointer-events-auto" onClick={onClose}>
                 <div
-                    className="absolute top-[150px] right-[16px] pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
+                    className="absolute top-[215px] right-[12px] pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div
-                        className="rounded-[14px] shadow-2xl border border-white/20 backdrop-blur-md"
-                        style={{ width: '160px', backgroundColor: 'rgba(87, 92, 156, 0.85)', padding: '12px' }}
+                        className="rounded-[16px] shadow-2xl border border-white/20 backdrop-blur-md"
+                        style={{ width: '180px', backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'), padding: '16px' }}
                     >
-                        <div className="text-center mb-2">
-                            <h2 className="text-[13px] font-bold text-white leading-tight">Profile</h2>
-                            <div className="h-[1px] w-full mt-1.5" style={{ backgroundColor: 'rgba(255,255,255,0.25)' }} />
+                        <div className="text-center mb-4 relative">
+                            <h2 className="text-[16px] font-light tracking-tight" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>Profile</h2>
+                            <div className="h-[0.5px] w-[calc(100%+32px)] -ml-4 mt-2" style={{ backgroundColor: "#FFFFFF", opacity: 0.2 }}></div>
                         </div>
                         {!hasData ? (
                             <div className="text-[11px] text-center py-3 italic text-white/50">No profile found</div>
                         ) : (
                             <>
                                 {(name || about) && (
-                                    <div className="flex flex-col gap-1.5 mb-2">
+                                    <div className="flex flex-col gap-2 mb-4">
                                         {name && (
-                                            <div className="flex items-start gap-1">
-                                                <span className="text-[11px] font-bold text-white whitespace-nowrap">Name:</span>
-                                                <span className="text-[11px] font-medium text-white/80 truncate">{name}</span>
+                                            <div className="flex items-start gap-1.5">
+                                                <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>Name:</span>
+                                                <span className="text-[11px] font-medium truncate" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 0.8)" }}>{name}</span>
                                             </div>
                                         )}
                                         {about && (
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-[11px] font-bold text-white">About:</span>
-                                                <p className="text-[10px] font-normal leading-tight text-white/75 text-left">{about}</p>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-[11px] font-bold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>About:</span>
+                                                <p className="text-[10px] font-normal leading-tight text-left text-white/80" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 0.8)" }}>{about}</p>
                                             </div>
                                         )}
                                     </div>
                                 )}
                                 {contacts.length > 0 && (
                                     <div>
-                                        <div className="flex items-center gap-1.5 mb-1.5">
-                                            <h3 className="text-[10px] font-bold text-white">Contact</h3>
-                                            <div className="flex-1 h-[0.5px]" style={{ backgroundColor: 'rgba(255,255,255,0.25)' }} />
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <h3 className="text-[11px] font-light tracking-tight" style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>Contact</h3>
+                                            <div className="flex-1 h-[0.5px]" style={{ backgroundColor: '#FFFFFF', opacity: 0.2 }} />
                                         </div>
                                         <div className="flex items-center flex-wrap gap-1.5">
                                             {contacts.map((contact) => {
@@ -506,11 +507,11 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                     <button
                                                         key={contact.id}
                                                         onClick={(e) => handleContactClick(e, contact)}
-                                                        className="w-6 h-6 rounded-[4px] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/10 p-[3px]"
+                                                        className={`w-6 h-6 rounded-[6px] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/5 p-[4px]`}
                                                         style={bgStyle}
                                                         title={contact.value}
                                                     >
-                                                        <Icon icon={style.icon} className={`${style.color} w-full h-full`} strokeWidth={contact.type === 'phone' ? 3 : 1} />
+                                                        <Icon icon={style.icon} className={`${style.color} w-full h-full`} strokeWidth={contact.type === 'phone' ? 4 : 1} />
                                                     </button>
                                                 );
                                             })}
@@ -532,9 +533,9 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                     className="absolute top-[140px] right-[10%] pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="bg-white/60 backdrop-blur-xl border border-white/50 p-[3px] rounded-[20px] shadow-2xl">
+                    <div className="bg-white/60 backdrop-blur-xl border border-white/50 p-[3px] rounded-[12px] shadow-2xl">
                         <div
-                            className="rounded-[16px] p-3 w-[150px] relative"
+                            className="rounded-[8px] p-3 w-[150px] relative"
                             style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
                         >
                             {!hasData ? (
@@ -618,64 +619,86 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
 
     if (isMobile && !isLandscape && isLayout3) {
         return (
-            <div className="absolute inset-0 z-[5000] pointer-events-auto" onClick={onClose}>
+            <div className="absolute inset-0 z-[5000] pointer-events-auto bg-transparent" onClick={onClose}>
                 <div
-                    className="absolute top-[140px] right-5 pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300"
+                    className="absolute top-[165px] right-4 pointer-events-auto animate-in fade-in slide-in-from-top-4 duration-300"
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div
-                        className="rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.15)] border border-gray-100 bg-white"
-                        style={{ width: '150px', padding: '12px' }}
+                        className="bg-white rounded-lg shadow-[0_8px_30px_rgba(0,0,0,0.15)] overflow-hidden w-[160px] border border-gray-100"
+                        style={{ backgroundColor: '#FFFFFF', fontFamily: "'Poppins', sans-serif" }}
                     >
-                        <div className="mb-2.5">
-                            <h2 className="text-[12px] font-bold text-[#3E4491] leading-tight">Profile</h2>
+                        <div
+                            className="rounded-[inherit] p-2.5 w-full flex flex-col"
+                            style={{ backgroundColor: `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` }}
+                        >
+                            {!hasData ? (
+                                <div className="text-[10px] text-center py-2 opacity-80 font-medium whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 0.8)", fontFamily: "'Poppins', sans-serif" }}>
+                                    No profile found
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="mb-2">
+                                        <h2 className="text-[12px] font-bold" style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)", fontFamily: "'Poppins', sans-serif" }}>Profile</h2>
+                                    </div>
+                                    {(name || about) && (
+                                        <div className="space-y-2 mb-2.5" style={{ fontFamily: "'Poppins', sans-serif" }}>
+                                            {name && (
+                                                <div className="flex items-start gap-1">
+                                                    <span className="text-[10px] w-[35px] font-normal whitespace-nowrap flex-shrink-0" style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}>
+                                                        Name:
+                                                    </span>
+                                                    <span className="text-[10px] font-normal truncate" style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}>
+                                                        {name}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {about && (
+                                                <div className="flex items-start gap-1">
+                                                    <span className="text-[10px] w-[35px] font-normal whitespace-nowrap flex-shrink-0" style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}>
+                                                        About:
+                                                    </span>
+                                                    <p className="text-[9px] font-normal leading-tight text-left tracking-tight opacity-95" style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}>
+                                                        {about}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {contacts.length > 0 && (
+                                        <div className="relative">
+                                            <div className="flex items-center gap-1.5 mb-2">
+                                                <h3 className="text-[10px] font-bold" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)", fontFamily: "'Poppins', sans-serif" }}>
+                                                    Contact
+                                                </h3>
+                                                <div className="flex-1 h-[0.5px]" style={{ backgroundColor: '#FFFFFF', opacity: 0.8 }} />
+                                            </div>
+                                            <div className="flex items-center gap-1.5 justify-start mt-[1px] flex-wrap">
+                                                {contacts.map((contact) => {
+                                                    if (!contact.value) return null;
+                                                    const style = getSocialIcon(contact.type);
+
+                                                    return (
+                                                        <button
+                                                            key={contact.id}
+                                                            onClick={(e) => handleContactClick(e, contact)}
+                                                            className={`w-6 h-6 p-1 rounded-md flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/10 ${style.bg}`}
+                                                            title={contact.value}
+                                                        >
+                                                            <Icon
+                                                                icon={style.icon}
+                                                                className={`${style.color} w-full h-full`}
+                                                                strokeWidth={contact.type === 'phone' ? 3 : 1}
+                                                            />
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
-                        {!hasData ? (
-                            <div className="text-[9px] text-center py-3 italic text-gray-400 font-medium">No profile found</div>
-                        ) : (
-                            <>
-                                {(name || about) && (
-                                    <div className="flex flex-col gap-2 mb-3">
-                                        {name && (
-                                            <div className="flex items-start gap-1">
-                                                <span className="text-[9px] font-bold text-[#3E4491] whitespace-nowrap">Name :</span>
-                                                <span className="text-[9px] font-medium text-gray-600 truncate flex-1">{name}</span>
-                                            </div>
-                                        )}
-                                        {about && (
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="text-[9px] font-bold text-[#3E4491]">About :</span>
-                                                <p className="text-[8.5px] font-medium leading-relaxed text-gray-500 text-justify tracking-tight">{about}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                                {contacts.length > 0 && (
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-2.5">
-                                            <h3 className="text-[9px] font-bold text-[#3E4491]">Contact</h3>
-                                            <div className="flex-1 h-[0.5px] bg-[#3E4491]/10" />
-                                        </div>
-                                        <div className="flex items-center flex-wrap gap-1.5 justify-start">
-                                            {contacts.map((contact) => {
-                                                if (!contact.value) return null;
-                                                const style = getSocialIcon(contact.type);
-                                                return (
-                                                    <button
-                                                        key={contact.id}
-                                                        onClick={(e) => handleContactClick(e, contact)}
-                                                        className={`w-6 h-6 rounded-md flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-sm border border-gray-100 p-1 ${style.bg}`}
-                                                        title={contact.value}
-                                                    >
-                                                        <Icon icon={style.icon} className={`${style.color} w-full h-full`} strokeWidth={contact.type === 'phone' ? 3 : 1} />
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </>
-                        )}
                     </div>
                 </div>
             </div>
@@ -691,7 +714,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 >
                     <div className="bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] overflow-hidden w-[220px] border border-white/50">
                         {/* Header */}
-                        <div 
+                        <div
                             className="px-4 py-3 flex items-center justify-between border-b border-gray-100"
                             style={{ backgroundColor: "rgba(var(--toolbar-bg-rgb, 87, 92, 156), 0.05)" }}
                         >
@@ -746,6 +769,95 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                         })}
                                     </div>
                                 </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (isMobile && !isLandscape && isLayout9) {
+        return (
+            <div className="absolute inset-0 z-[5000] pointer-events-auto" onClick={onClose}>
+                <div
+                    className="absolute bottom-[90px] left-1/2 -translate-x-1/2 pointer-events-auto"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="bg-white rounded-md shadow-[0_4px_20px_rgba(0,0,0,0.18)] w-[220px] overflow-hidden border border-gray-100 flex flex-col">
+                        {/* Header — Desktop Layout 8 style with px units for mobile */}
+                        <div
+                            className="w-full px-4 py-2.5"
+                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
+                        >
+                            <h2 className="text-[13px] font-bold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Profile</h2>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-3 w-full">
+                            {!hasData ? (
+                                <div className="text-[11px] text-center py-4 opacity-80 font-medium whitespace-nowrap" style={{ color: bodyTextColor }}>
+                                    No profile found
+                                </div>
+                            ) : (
+                                <>
+                                    {/* Personal Info */}
+                                    {(name || about) && (
+                                        <div className="space-y-2 mb-3">
+                                            {name && (
+                                                <div className="flex items-start gap-1.5">
+                                                    <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: bodyTextColor }}>
+                                                        Name :
+                                                    </span>
+                                                    <span className="text-[11px] font-medium" style={{ color: bodyTextColor, opacity: 0.8 }}>
+                                                        {name}
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {about && (
+                                                <div className="flex items-start gap-1.5">
+                                                    <span className="text-[11px] font-bold whitespace-nowrap" style={{ color: bodyTextColor }}>
+                                                        About :
+                                                    </span>
+                                                    <p className="text-[10px] font-medium leading-[1.4] text-justify tracking-tight" style={{ color: bodyTextColor, opacity: 0.8 }}>
+                                                        {about}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Contact Section */}
+                                    {contacts.length > 0 && (
+                                        <div className="relative">
+                                            <div className="mb-2">
+                                                <h3 className="text-[11px] font-bold" style={{ color: bodyTextColor }}>
+                                                    Contact
+                                                </h3>
+                                            </div>
+                                            <div className="flex items-center flex-wrap gap-2 justify-start">
+                                                {contacts.map((contact) => {
+                                                    if (!contact.value) return null;
+                                                    const style = getSocialIcon(contact.type);
+                                                    return (
+                                                        <button
+                                                            key={contact.id}
+                                                            onClick={(e) => handleContactClick(e, contact)}
+                                                            className={`w-8 h-8 ${style.bg} rounded-md flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border ${style.bg === 'bg-white' ? 'border-gray-200' : 'border-white/5'}`}
+                                                            title={contact.value}
+                                                        >
+                                                            <Icon
+                                                                icon={style.icon}
+                                                                className={`${style.color} w-4 h-4`}
+                                                                strokeWidth={contact.type === 'phone' ? 3 : 1}
+                                                            />
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -961,70 +1073,69 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
         );
     }
 
+
     if (isMobile && !isLandscape && isLayout8) {
         return (
             <div className="absolute inset-0 z-[5000] pointer-events-auto" onClick={onClose}>
                 <div
-                    className="absolute bottom-[120px] left-1/2 -translate-x-1/2 pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
+                    className="absolute bottom-[90px] left-1/2 -translate-x-1/2 pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="bg-white rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.2)] overflow-hidden w-[240px] border border-white/50">
-                        {/* Header */}
-                        <div 
-                            className="px-4 py-3 flex items-center justify-between border-b border-gray-100"
-                            style={{ backgroundColor: "rgba(var(--toolbar-bg-rgb, 87, 92, 156), 0.05)" }}
+                    <div className="bg-white rounded-md shadow-[0_4px_20px_rgba(0,0,0,0.18)] w-[180px] overflow-hidden border border-gray-100 flex flex-col">
+                        {/* Header — Desktop Layout 8 style */}
+                        <div
+                            className="w-full px-3 py-2"
+                            style={{ backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }}
                         >
-                            <h2 className="text-[14px] font-bold" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>Profile</h2>
-                            <button onClick={onClose} className="hover:opacity-70 transition-opacity">
-                                <Icon icon="lucide:x" className="w-4 h-4" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }} />
-                            </button>
+                            <h2 className="text-[12px] font-bold tracking-wide" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Profile</h2>
                         </div>
 
-                        <div className="p-4 flex flex-col gap-4">
-                            {name && (
-                                <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5">
-                                        <span className="text-[11px] font-bold" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>Name :</span>
-                                        <span className="text-[11px] font-semibold text-gray-700">{name}</span>
-                                    </div>
-                                    <div className="h-[1px] w-full bg-gray-100 mt-1" />
+                        {/* Body */}
+                        <div className="p-2.5 w-full">
+                            {!hasData ? (
+                                <div className="text-[10px] text-center py-3 opacity-80 font-medium whitespace-nowrap" style={{ color: bodyTextColor }}>
+                                    No profile found
                                 </div>
-                            )}
-                            {about && (
-                                <div className="flex flex-col gap-1.5">
-                                    <span className="text-[11px] font-bold" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>About :</span>
-                                    <p className="text-[10px] font-medium text-gray-600 leading-relaxed text-justify">
-                                        {about}
-                                    </p>
-                                </div>
-                            )}
-                            {contacts.length > 0 && (
-                                <div className="flex flex-col gap-2.5 mt-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[11px] font-bold" style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}>Contact</span>
-                                        <div className="flex-1 h-[0.5px] bg-gray-100" />
-                                    </div>
-                                    <div className="flex items-center flex-wrap gap-2.5">
-                                        {contacts.map((contact) => {
-                                            if (!contact.value) return null;
-                                            const style = getSocialIcon(contact.type);
-                                            return (
-                                                <button
-                                                    key={contact.id}
-                                                    onClick={(e) => handleContactClick(e, contact)}
-                                                    className={`w-8 h-8 ${style.bg} rounded-lg flex items-center justify-center hover:scale-110 active:scale-95 transition-transform shadow-sm p-1.5 border border-black/5`}
-                                                    title={contact.value}
-                                                >
-                                                    {contact.type === 'x' ? (
-                                                        <span className="text-white font-bold text-xs" style={{ fontFamily: 'serif' }}>𝕏</span>
-                                                    ) : (
-                                                        <Icon icon={style.icon} className={`${style.color} w-full h-full`} />
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                            ) : (
+                                <>
+                                    {(name || about) && (
+                                        <div className="space-y-1.5 mb-2.5">
+                                            {name && (
+                                                <div className="flex items-start gap-1">
+                                                    <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: bodyTextColor }}>Name :</span>
+                                                    <span className="text-[10px] font-medium" style={{ color: bodyTextColor, opacity: 0.8 }}>{name}</span>
+                                                </div>
+                                            )}
+                                            {about && (
+                                                <div className="flex items-start gap-1">
+                                                    <span className="text-[10px] font-bold whitespace-nowrap" style={{ color: bodyTextColor }}>About :</span>
+                                                    <p className="text-[9px] font-medium leading-[1.4] text-justify tracking-tight" style={{ color: bodyTextColor, opacity: 0.8 }}>{about}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {contacts.length > 0 && (
+                                        <div>
+                                            <h3 className="text-[10px] font-bold mb-1.5" style={{ color: bodyTextColor }}>Contact</h3>
+                                            <div className="flex items-center flex-wrap gap-1.5">
+                                                {contacts.map((contact) => {
+                                                    if (!contact.value) return null;
+                                                    const style = getSocialIcon(contact.type);
+                                                    return (
+                                                        <button
+                                                            key={contact.id}
+                                                            onClick={(e) => handleContactClick(e, contact)}
+                                                            className={`w-6 h-6 ${style.bg} rounded flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-sm border ${style.bg === 'bg-white' ? 'border-gray-200' : 'border-white/5'}`}
+                                                            title={contact.value}
+                                                        >
+                                                            <Icon icon={style.icon} className={`${style.color} w-3.5 h-3.5`} strokeWidth={contact.type === 'phone' ? 3 : 1} />
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -1039,7 +1150,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 <div className="absolute inset-0 z-[159] bg-transparent pointer-events-auto" onClick={onClose} />
                 <div className={`absolute bottom-[13vh] left-[calc(50%_+_10.5vw)] -translate-x-1/2 z-[160] pointer-events-auto`}>
                     <div
-                        className="bg-white rounded-[0.4vw] shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] w-[16vw] overflow-hidden border border-gray-100 flex flex-col"
+                        className="bg-white rounded-none shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] w-[16vw] overflow-hidden border border-gray-100 flex flex-col"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Header */}
@@ -1101,7 +1212,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                         <button
                                                             key={contact.id}
                                                             onClick={(e) => handleContactClick(e, contact)}
-                                                            className={`w-[2vw] h-[2vw] ${style.bg} rounded-[0.4vw] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border ${style.bg === 'bg-white' ? 'border-gray-200' : 'border-white/5'}`}
+                                                            className={`w-[2vw] h-[2vw] ${style.bg} rounded-none flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border ${style.bg === 'bg-white' ? 'border-gray-200' : 'border-white/5'}`}
                                                             title={contact.value}
                                                         >
                                                             <Icon
@@ -1131,7 +1242,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 <div
                     className={`absolute z-[120] pointer-events-auto shadow-2xl flex flex-col overflow-hidden border border-[#575C9C]
                         ${isLayout7
-                            ? isTablet ? "right-[3.1vw] top-[1.5vh] bottom-0 w-[16vw] backdrop-blur-xl rounded-t-[1.2vw]" : "right-[4.5vw] bottom-0 w-[18vw] h-[75vh] backdrop-blur-xl rounded-t-[1.2vw]"
+                            ? isTablet ? "right-[3.1vw] top-[1.5vh] bottom-0 w-[16vw] backdrop-blur-xl rounded-none" : "right-[4.5vw] bottom-0 w-[18vw] h-[75vh] backdrop-blur-xl rounded-none"
                             : isTablet ? "right-[4.5vw] top-[6vh] bottom-[5vh] w-[11vw] border-[#575C9C]/10" : "right-[5vw] top-[7vh] bottom-[7.5vh] w-[17.5vw] border-[#575C9C]/10"
                         }`}
                     style={isLayout7 ? { backgroundColor: "rgba(var(--dropdown-bg-rgb, 87, 92, 156), var(--dropdown-bg-opacity, 0.8))" } : { backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
@@ -1194,7 +1305,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                         <button
                                                             key={contact.id}
                                                             onClick={(e) => handleContactClick(e, contact)}
-                                                            className={`w-[2.2vw] h-[2.2vw] ${style.bg} rounded-[0.4vw] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-sm border border-gray-100 p-[0.4vw]`}
+                                                            className={`w-[2.2vw] h-[2.2vw] ${style.bg} rounded-none flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-sm border border-gray-100 p-[0.4vw]`}
                                                             title={contact.value}
                                                         >
                                                             <Icon
@@ -1222,12 +1333,12 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
         if (isMobile) {
             return 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2';
         }
-        if (layoutId === 2) return `top-[8.5vh] left-[calc(50%_+_6vw)] -translate-x-1/2 rounded-[0.2vw]`;
-        if (layoutId === 3) return 'top-[9vh] left-[calc(50%_+_3vw)] -translate-x-1/2';
+        if (layoutId === 2) return `top-[8.5vh] left-[calc(50%_+_12.5vw)] -translate-x-1/2 rounded-[0.2vw]`;
+        if (layoutId === 3) return 'top-[5.5vh] left-[calc(50%_+_3vw)] -translate-x-1/2';
         if (layoutId === 5) return 'bottom-[9vh] left-[calc(50%_+_12vw)] -translate-x-1/2';
         if (layoutId === 4) return 'top-[44vh] left-[6vw]';
         if (layoutId === 6) return 'top-[48vh] right-[4vw]';
-        if (layoutId === 1) return isTablet ? 'bottom-[2.8vw] right-[21.2vw]' : 'bottom-[4.5vw] right-[21.2vw]';
+        if (layoutId === 1) return isTablet ? 'bottom-[2.8vw] right-[14.2vw]' : 'bottom-[4.5vw] right-[14vw]';
         return 'bottom-[4.5vw] right-[21.2vw]';
     };
 
@@ -1238,27 +1349,28 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 <div
                     className={`
                         ${isLayout3
-                            ? `bg-white rounded-[0.5vw] shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] overflow-hidden ${isMobile ? 'w-[60vw]' : isTablet ? 'w-[8.5vw]' : 'w-[14vw]'} border border-gray-100`
+                            ? `bg-white rounded-[0.5vw] shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] overflow-hidden ${isMobile ? 'w-[60vw]' : isTablet ? 'w-[10vw]' : 'w-[16vw]'} border border-gray-100`
                             : isLayout2
-                                ? `bg-white/60 backdrop-blur-xl border border-white/50 ${isMobile ? 'p-[2vw]' : 'p-[0.4vw]'} rounded-[1.4vw] shadow-[0_2vw_5vw_rgba(0,0,0,0.2)]`
+                                ? `bg-white/60 backdrop-blur-xl border border-white/50 ${isMobile ? 'p-[2vw]' : 'p-[0.4vw]'} rounded-[0.9vw] shadow-[0_2vw_5vw_rgba(0,0,0,0.2)]`
                                 : isLayout1
-                                    ? `${isMobile ? 'rounded-[4vw] p-[3vw] w-[60vw]' : isTablet ? 'rounded-[0.8vw] w-[11vw] p-[0.6vw]' : 'rounded-[1vw] shadow-2xl p-[1vw] w-[14vw]'} border border-white/10 backdrop-blur-md`
-                                    : `rounded-[1vw] shadow-2xl ${isMobile ? 'p-[3vw] w-[60vw]' : 'p-[0.8vw] w-[13vw]'} border border-white/10 backdrop-blur-md`
+                                    ? `${isMobile ? 'rounded-[4vw] p-[3vw] w-[60vw]' : isTablet ? 'rounded-[0.8vw] w-[11vw] p-[0.6vw]' : 'rounded-[0.7vw] shadow-2xl p-[1vw] w-[19vw]'} border border-white/10 backdrop-blur-md`
+                                    : `rounded-[0.7vw] shadow-2xl ${isMobile ? 'p-[3vw] w-[60vw]' : 'p-[0.8vw] w-[13vw]'} border border-white/10 backdrop-blur-md`
                         }
                         animate-in fade-in slide-in-from-top-4 duration-300
                     `}
                     onClick={(e) => e.stopPropagation()}
                     style={{
-                        backgroundColor: isLayout1 ? getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8') : (isLayout2) ? undefined : (isLayout3) ? '#FFFFFF' : getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8')
+                        backgroundColor: isLayout1 ? getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8') : (isLayout2) ? undefined : (isLayout3) ? '#FFFFFF' : getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
+                        fontFamily: isLayout3 ? "'Poppins', sans-serif" : undefined
                     }}
                 >
                     <div
-                        className={isLayout2 ? `rounded-[1vw] ${isTablet ? 'p-[0.8vw] w-[8vw]' : 'p-[1vw] w-[11vw]'} relative` : 'p-[0.8vw] w-full'}
+                        className={isLayout2 ? `rounded-[0.65vw] ${isTablet ? 'p-[0.8vw] w-[9.5vw] min-h-[13vw]' : 'p-[1vw] w-[15.5vw] min-h-[18vw]'} relative` : (isLayout4 || isLayout5 || isLayout6 || isLayout7 || isLayout8 || isLayout9 ? 'rounded-[0.7vw] p-[0.8vw] w-full' : `rounded-[0.7vw] ${isLayout1 ? 'pt-[0.05vw] pb-[0.8vw] px-[0.8vw]' : (isLayout3 ? 'pt-[0.3vw] pb-[0.8vw] px-[0.8vw]' : 'p-[0.8vw]')} w-full`)}
                         style={{ backgroundColor: (isLayout2 || isLayout3) ? `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` : (isLayout1 ? 'transparent' : getLayoutColor('dropdown-bg', '#FFFFFF')) }}
                     >
-                        <div className={isLayout3 ? (isMobile ? 'relative z-10 p-[10px] flex-1 flex flex-col justify-between' : 'relative z-10 p-[0.8vw]') : 'w-full'}>
+                        <div className={isLayout3 ? (isMobile ? 'relative z-10 p-[10px] flex-1 flex flex-col justify-between' : 'relative z-10 pt-[0.2vw] pb-[0.8vw] px-[0.8vw]') : 'w-full'}>
                             {!hasData ? (
-                                <div className="text-[0.8vw] text-center py-[1.5vw] opacity-80 font-medium whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 0.8)" }}>
+                                <div className="text-[0.8vw] text-center py-[1.5vw] opacity-80 font-medium whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 0.8)", fontFamily: isLayout3 ? "'Poppins', sans-serif" : undefined }}>
                                     No profile found
                                 </div>
                             ) : (
@@ -1266,36 +1378,36 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                     {/* Header Section */}
                                     {isLayout3 ? (
                                         <div className="mb-[0.6vw]">
-                                            <h2 className={`font-bold ${isMobile ? 'text-[9px]' : 'text-[0.85vw]'}`} style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)" }}>Profile</h2>
+                                            <h2 className={`font-bold ${isMobile ? 'text-[9px]' : isTablet ? 'text-[0.9vw]' : 'text-[1vw]'}`} style={{ color: getLayoutColor('dropdown-text', '#3E4491'), opacity: "var(--dropdown-text-opacity, 1)", fontFamily: "'Poppins', sans-serif" }}>Profile</h2>
                                         </div>
                                     ) : isLayout2 ? (
-                                        <div className="flex items-center gap-[0.5vw] mb-[0.8vw]">
-                                            <h2 className="text-[0.8vw] font-bold whitespace-nowrap" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}>
+                                        <div className={`flex items-center gap-[0.5vw] mb-[0.8vw] ${isTablet ? 'mr-[-0.8vw]' : 'mr-[-1vw]'}`}>
+                                            <h2 className="text-[1vw] font-normal whitespace-nowrap" style={{ fontFamily: "'Poppins', sans-serif", color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}>
                                                 Profile
                                             </h2>
-                                            <div className="h-[1px] flex-1 mt-[0.1vw]" style={{ backgroundColor: `color-mix(in srgb, var(--dropdown-text, ${fallbackText}) 30%, transparent)`, opacity: "var(--dropdown-text-opacity, 1)" }} />
+                                            <div className="flex-1 h-[0.5px]" style={{ backgroundColor: '#FFFFFF', opacity: 0.8 }}></div>
                                         </div>
                                     ) : (
-                                        <div className="text-center mb-[0.8vw] relative">
-                                            <h2 className="text-[1vw] font-bold leading-tight" style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}>Profile</h2>
-                                            <div className="h-[1px] w-full mt-[0.4vw]" style={{ backgroundColor: `color-mix(in srgb, var(--dropdown-text, ${fallbackText}) 40%, transparent)`, opacity: "var(--dropdown-text-opacity, 0.4)" }}></div>
+                                        <div className="text-center mb-[0.4vw] relative mt-[-0.3vw]">
+                                            <h2 className="text-[1.1vw] font-light tracking-tight" style={{ fontFamily: "'Poppins', sans-serif", color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}>Profile</h2>
+                                            <div className="h-[0.5px] w-[calc(100%+2.2vw)] ml-[-1.1vw] mt-[0.2vw]" style={{ backgroundColor: "#FFFFFF", opacity: 0.8 }}></div>
                                         </div>
                                     )}
 
                                     {/* Personal Info */}
                                     {(name || about) && (
-                                        <div className={`${isMobile ? 'space-y-[2px] mb-[4px]' : 'space-y-[0.8vw] mb-[1.5vw]'}`}>
+                                        <div className={`${isMobile ? 'space-y-[2px] mb-[4px]' : 'space-y-[0.8vw] mb-[1.5vw]'}`} style={{ fontFamily: isLayout3 ? "'Poppins', sans-serif" : undefined }}>
                                             {name && (
                                                 <div className="flex items-start gap-[4px]">
                                                     <span
-                                                        className={`${isMobile ? 'text-[8px]' : 'text-[0.8vw]'} font-bold whitespace-nowrap`}
-                                                        style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                                        className={`${isMobile ? 'text-[8px]' : 'text-[0.8vw] w-[3.5vw]'} font-normal whitespace-nowrap flex-shrink-0`}
+                                                        style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
                                                     >
                                                         Name:
                                                     </span>
                                                     <span
-                                                        className={`${isMobile ? 'text-[8px]' : 'text-[0.8vw]'} font-medium truncate`}
-                                                        style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
+                                                        className={`${isMobile ? 'text-[8px]' : 'text-[0.8vw]'} font-normal truncate`}
+                                                        style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
                                                     >
                                                         {name}
                                                     </span>
@@ -1304,14 +1416,14 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                             {about && (
                                                 <div className="flex items-start gap-[4px]">
                                                     <span
-                                                        className={`${isMobile ? 'text-[8px]' : 'text-[0.8vw]'} font-bold whitespace-nowrap`}
-                                                        style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
+                                                        className={`${isMobile ? 'text-[8px]' : 'text-[0.8vw] w-[3.5vw]'} font-normal whitespace-nowrap flex-shrink-0`}
+                                                        style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 1)" }}
                                                     >
                                                         About:
                                                     </span>
                                                     <p
                                                         className={`${isMobile ? 'text-[7.5px]' : 'text-[0.75vw]'} font-normal leading-tight text-left tracking-tight opacity-95`}
-                                                        style={{ color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
+                                                        style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('dropdown-text', fallbackText), opacity: "var(--dropdown-text-opacity, 0.8)" }}
                                                     >
                                                         {about}
                                                     </p>
@@ -1322,18 +1434,18 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
 
                                     {contacts.length > 0 && (
                                         <div className="relative">
-                                            <div className="flex items-center gap-[0.6vw] mb-[0.8vw]">
+                                            <div className={`flex items-center gap-[0.6vw] mb-[0.8vw] ${isLayout2 ? (isTablet ? 'mr-[-0.8vw]' : 'mr-[-1vw]') : ''}`}>
                                                 <h3
-                                                    className={`${isMobile ? 'text-[8px]' : 'text-[10px]'} font-bold`}
-                                                    style={{ color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}
+                                                    className={`${isMobile ? 'text-[8px]' : isTablet ? 'text-[0.9vw]' : 'text-[1vw]'} ${isLayout2 ? 'font-normal' : 'font-bold'}`}
+                                                    style={{ fontFamily: "'Poppins', sans-serif", color: `var(--dropdown-text, ${fallbackText})`, opacity: "var(--dropdown-text-opacity, 1)" }}
                                                 >
                                                     Contact
                                                 </h3>
-                                                <div className="flex-1 h-[0.5px]" style={{ backgroundColor: `color-mix(in srgb, ${getLayoutColor('dropdown-text', fallbackText)} 40%, transparent)`, opacity: "var(--dropdown-text-opacity, 0.4)" }}></div>
+                                                <div className="flex-1 h-[0.5px]" style={{ backgroundColor: '#FFFFFF', opacity: 0.8 }}></div>
                                             </div>
 
                                             {/* Social Icons Stack */}
-                                            <div className="flex items-center flex-wrap gap-[5px] justify-start mt-[1px]">
+                                            <div className="flex items-center gap-[0.8vw] justify-start mt-[1px]">
                                                 {contacts.map((contact) => {
                                                     if (!contact.value) return null;
                                                     const style = getSocialIcon(contact.type);
@@ -1342,13 +1454,13 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                         <button
                                                             key={contact.id}
                                                             onClick={(e) => handleContactClick(e, contact)}
-                                                            className={`${isMobile ? 'w-4 h-4 p-0.5' : 'w-[2.2vw] h-[2.1vw] p-[0.4vw]'} ${style.bg} rounded-[2px] flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-md border border-white/5`}
+                                                            className={`${(isLayout2) ? (isMobile ? (style.isLarge ? 'w-9 h-9' : style.isMedium ? 'w-8 h-8' : 'w-7 h-7') : (style.isLarge ? 'w-[2.7vw] h-[2.7vw]' : style.isMedium ? 'w-[2.5vw] h-[2.5vw]' : 'w-[2.2vw] h-[2.2vw]')) : (isMobile ? (isLayout3 ? 'w-6 h-6' : 'w-7 h-7') : (isLayout3 ? `w-[2.2vw] ${ (contact.type === 'linkedin' || contact.type === 'x') ? 'h-[2vw]' : 'h-[2.2vw]'}` : 'w-[2.2vw] h-[2.2vw]'))} ${style.isFull ? 'p-0' : (isMobile ? (isLayout3 ? 'p-[4px]' : 'p-[6px]') : (isLayout3 && (contact.type === 'email' || contact.type === 'phone') ? 'p-[0.35vw]' : (isLayout3 ? 'p-[0.5vw]' : 'p-[0.5vw]')))} ${style.isFull ? '' : style.bg} rounded-[0.5vw] flex items-center justify-center hover:scale-110 active:scale-95 transition-all ${style.isFull ? '' : 'shadow-lg border border-white/10'}`}
                                                             title={contact.value}
                                                         >
                                                             <Icon
                                                                 icon={style.icon}
                                                                 className={`${style.color} w-full h-full`}
-                                                                strokeWidth={contact.type === 'phone' ? 4 : 1}
+                                                                strokeWidth={contact.type === 'phone' ? 3 : 1}
                                                             />
                                                         </button>
                                                     );

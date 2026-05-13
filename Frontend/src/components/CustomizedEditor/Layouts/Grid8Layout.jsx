@@ -64,6 +64,7 @@ const Grid8Layout = ({
     setSearchQuery,
     handleQuickSearch,
     setShowThumbnailBarMemo,
+    showTOC,
     setShowTOCMemo,
     setShowAddNotesPopupMemo,
     setShowAddBookmarkPopupMemo,
@@ -116,7 +117,7 @@ const Grid8Layout = ({
 
     const zoomIn = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.min(prev + 20, initialWidth * 1.3);
+            const nextWidth = Math.min(prev + (initialWidth * 0.01), initialWidth * 1.3);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -124,7 +125,7 @@ const Grid8Layout = ({
 
     const zoomOut = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.max(prev - 10, initialWidth * 0.5);
+            const nextWidth = Math.max(prev - (initialWidth * 0.01), initialWidth * 0.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -331,7 +332,7 @@ const Grid8Layout = ({
 
     return (
         <div
-            className="h-screen w-full font-sans overflow-hidden relative"
+            className="h-full w-full font-sans overflow-hidden relative"
             style={backgroundStyle}
             onClick={() => {
                 setRecommendations([]);
@@ -577,11 +578,11 @@ const Grid8Layout = ({
 
             {/* Bottom Menu Bar — z-40 so it sits on top of the thumbnail panel */}
             <div
-                className={`fixed bottom-[2.5vh] left-0 right-0 ${isTablet ? 'h-[7.5vh]' : 'h-[9vh]'} flex flex-col justify-center items-center pt-[2vh] z-[50] pointer-events-auto shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
+                className={`fixed bottom-0 left-0 right-0 ${isTablet ? 'h-[7.5vh]' : 'h-[9vh]'} flex flex-col justify-center items-center pt-[2vh] z-[50] pointer-events-auto shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
                 style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'), paddingLeft: '18.5vw' }}
             >
                 <div className="flex items-center gap-[1.6vw] mb-[0.8vh]">
-                    <button onClick={(e) => { e.stopPropagation(); setShowTOCMemo(true); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
+                    <button onClick={(e) => { e.stopPropagation(); setShowTOCMemo?.(!showTOC); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
                         <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
                     </button>
                     <button

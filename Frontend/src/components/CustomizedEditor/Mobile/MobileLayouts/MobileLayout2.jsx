@@ -16,7 +16,7 @@ import TableOfContentsPopup from '../../popups/TableOfContentsPopup';
 
 // Color helper utilities
 const getLayoutColor = (id, defaultColor) => `var(--${id}, ${defaultColor})`;
-const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) => `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
+const getLayoutColorAlpha = (id, defaultRgb, defaultOpacity) => `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
 
 // Page Thumbnail component for the dial and bar
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
@@ -107,8 +107,6 @@ const MobileLayout2 = (props) => {
         bookRef,
         showBookmarkMenu,
         setShowBookmarkMenu,
-        showMoreMenu,
-        setShowMoreMenu,
         showThumbnailBar,
         setShowThumbnailBar,
         showTOC,
@@ -164,6 +162,10 @@ const MobileLayout2 = (props) => {
     const [radialScroll, setRadialScroll] = useState(0);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
+
+    // Local-only menu state — isolated from shared PreviewArea state to prevent
+    // MobileLayout1's hamburger from triggering this layout's menu simultaneously.
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
 
     const scrollRef = useRef(null);
 
@@ -284,21 +286,20 @@ const MobileLayout2 = (props) => {
         <div className="fixed inset-0 pointer-events-none z-[5000]">
             <AnimatePresence>
                 {/* TOC Popup */}
-                {showTOC && (
-                    <div className="pointer-events-auto">
-                        <TableOfContentsPopup
-                            onClose={() => setShowTOC(false)}
-                            onNavigate={(pageIndex) => {
-                                onPageClick(pageIndex);
-                                setShowTOC(false);
-                            }}
-                            settings={tocSettings || settings?.toc || {}}
-                            activeLayout={2}
-                            isMobile={true}
-                            isLandscape={isLandscape}
-                            layoutColors={layoutColors}
-                        />
-                    </div>
+                {showTOC && !isLandscape && (
+                    <TableOfContentsPopup
+                        onClose={() => setShowTOC(false)}
+                        onNavigate={(pageIdx) => {
+                            onPageClick(pageIdx);
+                            setShowTOC(false);
+                        }}
+                        contents={tocSettings?.content || settings?.tocSettings?.content || []}
+                        settings={tocSettings || settings?.tocSettings}
+                        isMobile={true}
+                        isLandscape={false}
+                        activeLayout={2}
+                        layoutColors={layoutColors}
+                    />
                 )}
 
                 {/* More Menu Dropdown */}
@@ -354,7 +355,7 @@ const MobileLayout2 = (props) => {
                             initial={{ opacity: 0, scale: 0.9, y: -10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                            className="fixed top-[140px] right-[15%] z-[160] w-[140px] p-[4px] rounded-[24px] bg-white/60 backdrop-blur-xl shadow-2xl border border-white/20 pointer-events-auto"
+                            className="fixed top-[140px] right-[20%] z-[160] w-[140px] p-[4px] rounded-[24px] bg-white/60 backdrop-blur-xl shadow-2xl border border-white/20 pointer-events-auto"
                         >
                             <div className="bg-[#575C9C] rounded-[18px] p-1 shadow-inner overflow-hidden">
                                 <MenuBtn icon="mdi:bookmark-plus" label="Add Bookmark" onClick={() => { setShowAddBookmarkPopup(true); setShowBookmarkMenu(false); }} />
@@ -530,12 +531,88 @@ const MobileLayout2 = (props) => {
 
                 {/* Secondary Icon Toolbar */}
                 <div className="px-4 py-2 flex items-center justify-between text-white/80 border-t border-white/5">
-                    <ToolbarIcon icon="mdi:table-of-contents" onClick={() => setShowTOC(true)} active={showTOC} className="!p-1.5" />
-                    <ToolbarIcon icon="ep:menu" onClick={() => setShowRadialThumbnails(!showRadialThumbnails)} active={showRadialThumbnails} className="!p-1.5" />
-                    <ToolbarIcon icon="material-symbols-light:add-notes" onClick={() => setShowNotesMenu(!showNotesMenu)} active={showNotesMenu} className="!p-1.5" />
-                    <ToolbarIcon icon="mingcute:bookmark-fill" onClick={() => setShowBookmarkMenu(!showBookmarkMenu)} active={showBookmarkMenu} className="!p-1.5" />
-                    <ToolbarIcon icon="clarity:image-gallery-solid" onClick={() => setShowThumbnailBar(true)} active={showThumbnailBar} className="!p-1.5" />
-                    <ToolbarIcon icon="solar:user-bold" onClick={() => setShowProfilePopup(true)} active={showProfilePopup} className="!p-1.5" />
+                    <ToolbarIcon
+                        icon="mdi:table-of-contents"
+                        onClick={() => {
+                            const next = !showTOC;
+                            if (setShowTOC) setShowTOC(next);
+                            if (next) {
+                                setShowRadialThumbnails(false);
+                                setShowNotesMenu(false);
+                                setShowBookmarkMenu(false);
+                                if (setShowThumbnailBar) setShowThumbnailBar(false);
+                            }
+                        }}
+                        active={showTOC}
+                        className="!p-1.5"
+                    />
+                    <ToolbarIcon
+                        icon="ep:menu"
+                        onClick={() => {
+                            const next = !showRadialThumbnails;
+                            setShowRadialThumbnails(next);
+                            if (next) {
+                                if (setShowTOC) setShowTOC(false);
+                                setShowNotesMenu(false);
+                                setShowBookmarkMenu(false);
+                                if (setShowThumbnailBar) setShowThumbnailBar(false);
+                            }
+                        }}
+                        active={showRadialThumbnails}
+                        className="!p-1.5"
+                    />
+                    <ToolbarIcon
+                        icon="material-symbols-light:add-notes"
+                        onClick={() => {
+                            const next = !showNotesMenu;
+                            setShowNotesMenu(next);
+                            if (next) {
+                                if (setShowTOC) setShowTOC(false);
+                                setShowRadialThumbnails(false);
+                                setShowBookmarkMenu(false);
+                                if (setShowThumbnailBar) setShowThumbnailBar(false);
+                            }
+                        }}
+                        active={showNotesMenu}
+                        className="!p-1.5"
+                    />
+                    <ToolbarIcon
+                        icon="mingcute:bookmark-fill"
+                        onClick={() => {
+                            const next = !showBookmarkMenu;
+                            setShowBookmarkMenu(next);
+                            if (next) {
+                                if (setShowTOC) setShowTOC(false);
+                                setShowRadialThumbnails(false);
+                                setShowNotesMenu(false);
+                                if (setShowThumbnailBar) setShowThumbnailBar(false);
+                            }
+                        }}
+                        active={showBookmarkMenu}
+                        className="!p-1.5"
+                    />
+                    <ToolbarIcon
+                        icon="clarity:image-gallery-solid"
+                        onClick={() => {
+                            // Functionality removed as requested
+                        }}
+                        active={false}
+                        className="!p-1.5"
+                    />
+
+                    <ToolbarIcon
+                        icon="solar:user-bold"
+                        onClick={() => {
+                            setShowProfilePopup(true);
+                            if (setShowTOC) setShowTOC(false);
+                            setShowRadialThumbnails(false);
+                            setShowNotesMenu(false);
+                            setShowBookmarkMenu(false);
+                            if (setShowThumbnailBar) setShowThumbnailBar(false);
+                        }}
+                        active={showProfilePopup}
+                        className="!p-1.5"
+                    />
                     <ToolbarIcon icon="mage:share-fill" onClick={() => handleShare()} className="!p-1.5" />
                     <ToolbarIcon icon="meteor-icons:download" onClick={() => handleDownload()} className="!p-1.5" />
                 </div>
@@ -573,7 +650,7 @@ const MobileLayout2 = (props) => {
                                 <div className="absolute top-[10px] left-0 right-0 flex justify-center pointer-events-none">
                                     <div className="relative w-[380px] pointer-events-auto">
                                         <svg viewBox="0 0 379 220" className="overflow-visible">
-                                            <circle cx="189.5" cy="0" r="195" fill="white" fillOpacity="0.45" />
+                                            <circle cx="189.5" cy="0" r="175" fill="none" stroke="#575C9C" strokeWidth="75" strokeOpacity="0.08" />
                                             <g style={{ transformOrigin: '189.5px 0px', transform: `rotate(${radialScroll}deg)`, transition: 'transform 0.7s cubic-bezier(0.15, 0.85, 0.35, 1)' }}>
                                                 {spreads.map((spread, idx) => {
                                                     const isActive = spread.indices.includes(currentPage) || hoveredIdx === idx;
@@ -581,20 +658,17 @@ const MobileLayout2 = (props) => {
                                                     const totalSpan = (spreads.length - 1) * spacing;
                                                     const angle = (idx * spacing) - (totalSpan / 2);
                                                     return (
-                                                        <g key={idx} style={{ transformOrigin: '189.5px 0.5px', transform: `rotate(${angle}deg) translateY(8px)` }} className="cursor-pointer" onMouseEnter={() => setHoveredIdx(idx)} onMouseLeave={() => setHoveredIdx(null)} onClick={() => onPageClick(spread.indices[0])}>
-                                                            <path d="M162.5 181.3C158.7 180.7 156.3 177 157.3 173.3L163.5 149C164.3 145.9 167.2 143.9 170.4 144.1C180.2 144.8 187.4 144.9 197.2 144.4C200.5 144.3 203.5 146.6 204 149.8L208.3 175C209 178.7 206.3 182.2 202.6 182.5C188.3 183.8 178.4 183.6 162.5 181.3Z" fill={isActive ? '#3E4491' : '#4B528C'} />
+                                                        <g key={idx} style={{ transformOrigin: '189.5px 0.5px', transform: `rotate(${angle}deg) translateY(8px) scale(${hoveredIdx === idx ? 1.4 : 1.35}, ${hoveredIdx === idx ? 1.05 : 1})`, transition: 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} className="cursor-pointer" onMouseEnter={() => setHoveredIdx(idx)} onMouseLeave={() => setHoveredIdx(null)} onClick={() => onPageClick(spread.indices[0])}>
+                                                            <path d="M162.5 181.3C158.7 180.7 156.3 177 157.3 173.3L163.5 149C164.3 145.9 167.2 143.9 170.4 144.1C180.2 144.8 187.4 144.9 197.2 144.4C200.5 144.3 203.5 146.6 204 149.8L208.3 175C209 178.7 206.3 182.2 202.6 182.5C188.3 183.8 178.4 183.6 162.5 181.3Z" fill={isActive ? getLayoutColor('dropdown-bg', '#575C9C') : getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.8)} style={{ transform: 'scaleY(1.4)', transformOrigin: '183.5px 164px' }} />
                                                             <text
                                                                 x="183.5"
                                                                 y="164"
-                                                                fill="white"
+                                                                fill={getLayoutColor('dropdown-text', 'white')}
                                                                 fontSize="7.5"
                                                                 fontWeight="700"
                                                                 textAnchor="middle"
                                                                 dominantBaseline="middle"
-                                                                style={{
-                                                                    transform: `rotate(${- (radialScroll + angle)}deg)`,
-                                                                    transformOrigin: '183.5px 164px'
-                                                                }}
+                                                                style={{ transition: 'transform 0.7s cubic-bezier(0.15, 0.85, 0.35, 1)' }}
                                                             >
                                                                 {spread.label}
                                                             </text>
@@ -608,11 +682,11 @@ const MobileLayout2 = (props) => {
                                             const preview = hoveredIdx !== null ? spreads[hoveredIdx] : spreads[activeSpreadIdx];
                                             if (!preview) return null;
                                             return (
-                                                <div className="absolute top-[10px] left-0 right-0 flex flex-col items-center">
-                                                    <div className="w-20 h-14 bg-white rounded p-1 flex gap-0.5 border border-gray-200">
-                                                        {preview.pages.map((p, i) => <div key={i} className="flex-1 h-full bg-gray-50 overflow-hidden"><PageThumbnail html={p?.html || p?.content} index={preview.indices[i]} scale={0.1} /></div>)}
+                                                <div className="absolute top-[0px] left-0 right-0 flex flex-col items-center">
+                                                    <div className="w-28 h-20 bg-white rounded-lg p-1.5 flex gap-1 border border-gray-200 shadow-lg">
+                                                        {preview.pages.map((p, i) => <div key={i} className="flex-1 h-full bg-gray-50 overflow-hidden"><PageThumbnail html={p?.html || p?.content} index={preview.indices[i]} scale={0.15} /></div>)}
                                                     </div>
-                                                    <div className="w-2 h-2 bg-white rotate-45 -translate-y-1 border-b border-r border-gray-200" />
+                                                    <div className="w-3 h-3 bg-white rotate-45 -translate-y-1.5 border-b border-r border-gray-200" />
                                                 </div>
                                             );
                                         })()}

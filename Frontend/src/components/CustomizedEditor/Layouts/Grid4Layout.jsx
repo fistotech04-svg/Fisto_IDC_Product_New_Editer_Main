@@ -135,7 +135,9 @@ const Grid4Layout = ({
     activeLayout,
     isTablet,
     isMobile,
-    isMobileLandscape = false
+    isMobileLandscape = false,
+    showTOC,
+    isEditor = false
 }) => {
     // If mobile view is active, delegate entirely to MobileLayout1 (as fallback)
     if (isMobile && !isMobileLandscape) {
@@ -190,7 +192,7 @@ const Grid4Layout = ({
 
     const zoomIn = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.min(prev + 20, initialWidth * 1.3);
+            const nextWidth = Math.min(prev + (initialWidth * 0.01), initialWidth * 1.3);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -198,7 +200,7 @@ const Grid4Layout = ({
 
     const zoomOut = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.max(prev - 10, initialWidth * 0.5);
+            const nextWidth = Math.max(prev - (initialWidth * 0.01), initialWidth * 0.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -238,7 +240,6 @@ const Grid4Layout = ({
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
 
     const [showThumbnails, setShowThumbnails] = useState(false);
-    const [showTOC, setShowTOC] = useState(false);
     const [showProfile, setShowProfile] = useState(false);
     const [showNotesOptions, setShowNotesOptions] = useState(false);
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
@@ -246,6 +247,7 @@ const Grid4Layout = ({
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
     const [tocSearchQuery, setTocSearchQuery] = useState('');
     const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
+    const isBigBars = !isEditor || isFullscreen;
     const scrollRef = useRef(null);
     const buttonsRef = useRef(null);
     const sidebarContentRef = useRef(null);
@@ -372,7 +374,7 @@ const Grid4Layout = ({
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={backgroundStyle} onClick={() => setRecommendations([])}>
             {/* Top Bar: Brand - Title - Search */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50 relative border-b border-white/5 shadow-lg`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5.5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50 relative border-b border-white/5 shadow-lg transition-all duration-500`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                 <div className="flex items-center">
                     {settings.brandingProfile.logo && logoSettings?.src && (
                         <img
@@ -493,10 +495,10 @@ const Grid4Layout = ({
             {/* Main Middle Container */}
             <div className="flex-1 flex flex-row min-h-0 relative overflow-hidden">
                 {/* Left Sidebar */}
-                <div ref={buttonsRef} className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isTablet ? 'w-[3vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col py-[2vh] gap-[${isMobileLandscape ? '3.5vh' : isTablet ? '2vh' : '3vh'}] border-r border-white/5 shadow-xl z-40 shrink-0`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                <div ref={buttonsRef} className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isTablet ? 'w-[3vw] items-center' : !isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col py-[2vh] gap-[${isMobileLandscape ? '3.5vh' : isTablet ? '2vh' : '3vh'}] border-r border-white/5 shadow-xl z-40 shrink-0 transition-all duration-500`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                     <button
                         onClick={() => {
-                            setShowTOC(!showTOC);
+                            setShowTOCMemo(!showTOC);
                             setShowThumbnails(false);
                             setShowProfile(false);
                             setShowBookmarkOptions(false);
@@ -511,7 +513,7 @@ const Grid4Layout = ({
                     <button
                         onClick={() => {
                             setShowThumbnails(!showThumbnails);
-                            setShowTOC(false);
+                            setShowTOCMemo?.(false);
                             setShowProfile(false);
                             setShowBookmarkOptions(false);
                             setShowNotesOptions(false);
@@ -529,7 +531,7 @@ const Grid4Layout = ({
                                 setShowNotesOptions(!showNotesOptions);
                                 setShowBookmarkOptions(false);
                                 setShowThumbnails(false);
-                                setShowTOC(false);
+                                setShowTOCMemo?.(false);
                                 setShowProfile(false);
                                 setShowSoundPopupMemo?.(false);
                             }}
@@ -598,7 +600,7 @@ const Grid4Layout = ({
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setShowBookmarkOptions(!showBookmarkOptions);
-                                setShowTOC(false);
+                                setShowTOCMemo?.(false);
                                 setShowThumbnails(false);
                                 setShowProfile(false);
                                 setShowNotesOptions(false);
@@ -757,20 +759,26 @@ const Grid4Layout = ({
 
                 {/* Vertical Thumbnail Sidebar Integration */}
                 {showThumbnails && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between px-[1vw] py-[1.5vh] border-b border-gray-100">
-                                <span className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Thumbnail</span>
-                                <button
-                                    onClick={() => setShowThumbnails(false)}
-                                    className="transition-colors opacity-60 hover:opacity-100"
-                                    style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}
-                                >
-                                    <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                                </button>
+                            <div className="flex flex-col pt-[1.5vh] pb-0">
+                                <div className="flex items-center justify-between px-[1vw]">
+                                    <span
+                                        className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold`}
+                                        style={{ color: getLayoutColor('dropdown-text', '#3E4491'), fontFamily: "'Poppins', sans-serif" }}
+                                    >Thumbnail</span>
+                                    <button
+                                        onClick={() => setShowThumbnails(false)}
+                                        className="transition-colors opacity-60 hover:opacity-100"
+                                        style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}
+                                    >
+                                        <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                    </button>
+                                </div>
+                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
                             </div>
 
                             {/* Vertically Scrollable List */}
@@ -831,25 +839,31 @@ const Grid4Layout = ({
 
                 {/* Vertical Table of Contents Sidebar */}
                 {showTOC && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[11vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[11vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('toc-bg', '#FFFFFF') }}
                         >
                             {/* Header */}
-                            <div className="flex items-center justify-between px-[1vw] py-[1.5vh]">
-                                <span className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-semibold`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Table of Contents</span>
-                                <button
-                                    onClick={() => setShowTOC(false)}
-                                    className="transition-colors opacity-70 hover:opacity-100"
-                                    style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                >
-                                    <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                                </button>
+                            <div className="flex flex-col pt-[1.5vh] pb-0">
+                                <div className="flex items-center justify-between px-[1vw]">
+                                    <span
+                                        className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold`}
+                                        style={{ color: getLayoutColor('toc-text', '#575C9C'), fontFamily: "'Poppins', sans-serif" }}
+                                    >Table of Contents</span>
+                                    <button
+                                        onClick={() => setShowTOC(false)}
+                                        className="transition-colors opacity-70 hover:opacity-100"
+                                        style={{ color: getLayoutColor('toc-text', '#575C9C') }}
+                                    >
+                                        <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                    </button>
+                                </div>
+                                <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
                             </div>
 
                             {/* Search Bar */}
                             {(settings.tocSettings?.addSearch !== false) && (
-                                <div className="px-[1vw] pb-[1.5vh]">
+                                <div className="px-[1vw] pt-[2vh] pb-[1.5vh]">
                                     <div className="relative">
                                         <Icon
                                             icon="lucide:search"
@@ -945,7 +959,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Profile Sidebar */}
                 {showProfile && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                         >
@@ -1037,10 +1051,10 @@ const Grid4Layout = ({
                     </button>
 
                     {/* Page Indicator Badge */}
-                    <div className={`absolute left-[1.5vw] bottom-[1.5vw] rounded-[0.4vw] ${isTablet ? 'px-[0.6vw] py-[0.3vw]' : 'px-[0.8vw] py-[0.4vw]'} shadow-md z-20`}
+                    <div className={`absolute left-[1.5vw] bottom-[1.5vw] rounded-[0.4vw] ${!isBigBars ? 'px-[0.4vw] py-[0.1vw]' : isTablet ? 'px-[0.6vw] py-[0.3vw]' : 'px-[0.8vw] py-[0.4vw]'} shadow-md z-20`}
                         style={{ backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF') }}
                     >
-                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
+                        <span className={`${!isBigBars ? 'text-[0.6vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
                         <input
                             type="text"
                             value={pageInputValue}
@@ -1069,10 +1083,10 @@ const Grid4Layout = ({
                                     setPageInputValue(String(currentPage + 1));
                                 }
                             }}
-                            className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium bg-transparent border-none outline-none text-center p-0`}
+                            className={`${!isBigBars ? 'text-[0.6vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium bg-transparent border-none outline-none text-center p-0`}
                             style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C') }}
                         />
-                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}> / {totalPages}</span>
+                        <span className={`${!isBigBars ? 'text-[0.6vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}> / {totalPages}</span>
                     </div>
 
 
@@ -1092,7 +1106,7 @@ const Grid4Layout = ({
             </div>
 
             {/* Bottom Bar: Multi-Region Integration */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5vh]' : 'h-[9vh] mb-[2.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full relative z-40 border-t border-white/5`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full relative z-40 border-t border-white/5 transition-all duration-500`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
                 {/* Left: Playback Icons */}
                 <div className="flex items-center gap-[1.5vw]">
                     <button onClick={() => onPageClick && onPageClick(0)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
@@ -1224,13 +1238,13 @@ const Grid4Layout = ({
 
                 {/* Right: Zoom Pill */}
                 <div className="flex items-center">
-                    <div className="flex items-center rounded-[0.5vw] p-[0.3vw] pl-[0.8vw] gap-[1vw] border shadow-sm"
+                    <div className={`flex items-center rounded-[0.5vw] ${!isBigBars ? 'p-[0.1vw] pl-[0.4vw] gap-[0.5vw]' : 'p-[0.3vw] pl-[0.8vw] gap-[1vw]'} border shadow-sm`}
                         style={{
                             backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'),
                             borderColor: getLayoutColorRgba('search-text-v1', '87, 92, 156', '0.1')
                         }}
                     >
-                        <div className="flex items-center gap-[0.8vw]">
+                        <div className={`flex items-center ${!isBigBars ? 'gap-[0.3vw]' : 'gap-[0.8vw]'}`}>
                             <button onClick={(e) => { e.stopPropagation(); zoomOut(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#3E4491') }}>
                                 <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
                             </button>
@@ -1246,7 +1260,7 @@ const Grid4Layout = ({
                                 setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
                                 setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
                             }}
-                            className={`${isMobileLandscape ? 'text-[1.2vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold px-[0.8vw] py-[0.35vw] rounded-[0.4vw] active:scale-95 transition-all shadow-sm`}
+                            className={`${!isBigBars ? 'text-[0.6vw] px-[0.4vw] py-[0.15vw] rounded-[0.3vw]' : isMobileLandscape ? 'text-[1.2vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.8vw] px-[0.8vw] py-[0.35vw] rounded-[0.4vw]'} font-bold active:scale-95 transition-all shadow-sm`}
                             style={{ backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'), color: getLayoutColor('search-text-v1', '#3E4491') }}
                         >
                             Reset

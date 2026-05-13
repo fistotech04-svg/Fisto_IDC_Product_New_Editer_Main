@@ -66,6 +66,9 @@ const CustomizedEditor = () => {
   const [pages, setPages] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
   const [targetPage, setTargetPage] = useState(0);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   // Reset collapsed state whenever a new sub-view is selected
   useEffect(() => {
@@ -84,13 +87,9 @@ const CustomizedEditor = () => {
 
   // Update URL when page changes to maintain state on refresh
   useEffect(() => {
-    if (v_id) {
-      const folderPart = folder ? encodeURIComponent(folder) : null;
-      const newUrl = folderPart 
-        ? `/editor/customized_editor/${folderPart}/${v_id}/${targetPage}`
-        : `/editor/customized_editor/${v_id}/${targetPage}`;
-        
-      navigate(newUrl, { replace: true });
+    if (folder && v_id) {
+      // Use replace: true to avoid cluttering history with every page turn
+      navigate(`/editor/customized_editor/${encodeURIComponent(folder)}/${v_id}/${targetPage}`, { replace: true });
     }
   }, [targetPage, folder, v_id, navigate]);
 
@@ -260,15 +259,15 @@ const CustomizedEditor = () => {
 
         if (extracted) {
           const { dark, light } = extracted;
-          
+
           setLayoutColors(prevColors => {
             const updated = { ...prevColors };
-            
+
             // Apply to all 9 layouts
             for (let i = 1; i <= 9; i++) {
               const defaults = LAYOUT_DEFAULT_COLORS[i] || [];
               const current = updated[i] || [];
-              
+
               // Ensure we have a complete list of colors based on defaults
               let layoutColorsList = defaults.map(d => {
                 const s = current.find(c => c.id === d.id);
@@ -289,11 +288,11 @@ const CustomizedEditor = () => {
                   return { ...c, hex: targetHex, opacity: targetOpacity };
                 }
                 if (shadeIds.includes(c.id)) return { ...c, hex: getTint(dark, 0.75) };
-                
+
                 // For search text, we might need contrast
                 if (c.id === 'search-text-v1') {
-                    const isLightBar = isLightColor(dark);
-                    return { ...c, hex: ensureDarkText(isLightBar ? light : dark), opacity: 100 };
+                  const isLightBar = isLightColor(dark);
+                  return { ...c, hex: ensureDarkText(isLightBar ? light : dark), opacity: 100 };
                 }
 
                 return c;
@@ -536,6 +535,14 @@ const CustomizedEditor = () => {
     saveToDB('customized_editor_branding', settings);
   }, [logoSettings, profileSettings]);
 
+  // Save Bookmarks and Notes Logic
+  useEffect(() => {
+    if (isDataLoaded) {
+      saveToDB('customized_editor_bookmarks', bookmarks);
+      saveToDB('customized_editor_notes', notes);
+    }
+  }, [bookmarks, notes, isDataLoaded]);
+
   // Logic for saving and exporting
   const handleExport = useCallback(() => {
     console.log("Exporting...");
@@ -562,7 +569,9 @@ const CustomizedEditor = () => {
           menubar: menuBarSettings,
           othersetup: otherSetupSettings,
           leadform: leadFormSettings,
-          visibility: visibilitySettings
+          visibility: visibilitySettings,
+          bookmarks: bookmarks,
+          notes: notes
         }
       };
 
@@ -596,7 +605,7 @@ const CustomizedEditor = () => {
     if (setExportHandler) setExportHandler(() => stableExportHandler);
     if (setSaveHandler) setSaveHandler(() => stableSaveHandler);
     if (setPreviewHandler) setPreviewHandler(() => stablePreviewHandler);
-    
+
     return () => {
       if (setExportHandler) setExportHandler(null);
       if (setSaveHandler) setSaveHandler(null);
@@ -609,11 +618,11 @@ const CustomizedEditor = () => {
     if (setCurrentBook) {
       // Use flipbookName to match TemplateEditor's expected key
       // Merge with previous state to avoid losing other metadata
-      setCurrentBook(prev => ({ 
+      setCurrentBook(prev => ({
         ...(prev || {}),
-        folder: folder, 
+        folder: folder,
         flipbookName: bookName,
-        v_id: v_id 
+        v_id: v_id
       }));
     }
   }, [setCurrentBook, folder, v_id, bookName]);
@@ -624,15 +633,15 @@ const CustomizedEditor = () => {
   // Track changes for unsaved status
   useEffect(() => {
     if (initialLoadRef.current) return;
-    
+
     if (setHasUnsavedChanges && !notifiedUnsavedRef.current) {
       setHasUnsavedChanges(true);
       notifiedUnsavedRef.current = true;
     }
   }, [
-    bookName, logoSettings, profileSettings, backgroundSettings, 
-    bookAppearanceSettings, layoutSettings, menuBarSettings, 
-    otherSetupSettings, leadFormSettings, visibilitySettings, 
+    bookName, logoSettings, profileSettings, backgroundSettings,
+    bookAppearanceSettings, layoutSettings, menuBarSettings,
+    otherSetupSettings, leadFormSettings, visibilitySettings,
     setHasUnsavedChanges
   ]);
 
@@ -707,10 +716,10 @@ const CustomizedEditor = () => {
           if (!storedUser) return;
           const user = JSON.parse(storedUser);
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          
+
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
             params: { emailId: user.emailId, v_id },
-            timeout: 2000
+            timeout: 10000
           });
 
           if (res.data) {
@@ -730,7 +739,7 @@ const CustomizedEditor = () => {
                 }));
               }
             }
-            
+
             // ALWAYS load settings from backend
             if (res.data.settings) {
               if (res.data.settings.logo) setLogoSettings(res.data.settings.logo);
@@ -746,17 +755,20 @@ const CustomizedEditor = () => {
               }
               if (res.data.settings.leadform) setLeadFormSettings(res.data.settings.leadform);
               if (res.data.settings.visibility) setVisibilitySettings(res.data.settings.visibility);
+              if (res.data.settings.bookmarks) setBookmarks(res.data.settings.bookmarks);
+              if (res.data.settings.notes) setNotes(res.data.settings.notes);
             }
           }
         } catch (err) {
-          console.error("CustomizedEditor: Fetch failed", err);
-          // Only redirect if it's a definitive 404 and we have no local data at all
-          if (err.response?.status === 404 && !autosave && pages.length === 0) {
-            navigate('/not-found', { replace: true });
-          }
+          console.error("CustomizedEditor: Failed to fetch flipbook", err);
+        } finally {
+          setIsLoading(false);
+          setIsDataLoaded(true);
         }
+      } else {
+        setIsLoading(false);
+        setIsDataLoaded(true);
       }
-      setIsLoading(false);
     };
     fetchBook();
   }, [v_id, folder]);
@@ -932,33 +944,41 @@ const CustomizedEditor = () => {
               </div>
             </div>
           )}
-          <PreviewArea
-            bookName={bookName}
+          <PreviewArea 
+            bookName={bookName} 
             pages={pages}
             targetPage={targetPage}
             logoSettings={logoSettings}
-            profileSettings={profileSettings}
             backgroundSettings={backgroundSettings}
             bookAppearanceSettings={bookAppearanceSettings}
-            activeLayout={layoutSettings || 1}
-            layoutColors={layoutColors}
             menuBarSettings={menuBarSettings}
             leadFormSettings={leadFormSettings}
+            profileSettings={profileSettings}
             otherSetupSettings={otherSetupSettings}
             onUpdateOtherSetup={setOtherSetupSettings}
-            activeSubView={activeSubView}
+            activeLayout={layoutSettings}
+            layoutColors={layoutColors}
             isSidebarOpen={activeSubView && !isPanelCollapsed}
             activeDevice={activeDevice || 'Desktop'}
+            activeSubView={activeSubView}
+            bookmarks={bookmarks}
+            notes={notes}
+            setBookmarks={setBookmarks}
+            setNotes={setNotes}
             onFlip={(idx) => setTargetPage(idx)}
+            isEditor={true}
+            useNativeFullscreen={true}
           />
         </div>
       </div>
 
       {showPreview && (
         <FlipbookPreview
-          pages={pages.map(p => ({ ...p, content: p.content || p.html || '' }))}
-          pageName={bookName}
+          pages={pages}
+          bookName={bookName}
           onClose={() => setShowPreview(false)}
+          bookmarks={bookmarks}
+          notes={notes}
           isMobile={false}
           isDoublePage={false}
           settings={{

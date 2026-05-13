@@ -56,6 +56,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         hardCovers = false,
         startPage = 0,
         onFlip,
+        onTurning,
         autoplay = false,
         autoplayDuration = 3000,
         useMouseEvents = true,
@@ -70,37 +71,40 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         activeLayout,
         flipStyle,
         textureStyle,
+        pageOpacity,
         singlePage = false,
     },
     ref
 ) {
-    const bookEl           = useRef(null);   // DOM node for turn.js
-    const reactFlipRef     = useRef(null);   // ref for react-pageflip
-    const onFlipRef        = useRef(onFlip); // always-current onFlip — avoids stale closure in turn.js
-    const [ready, setReady]           = useState(false);
+    const bookEl = useRef(null);   // DOM node for turn.js
+    const reactFlipRef = useRef(null);   // ref for react-pageflip
+    const onFlipRef = useRef(onFlip); // always-current onFlip — avoids stale closure in turn.js
+    const onTurningRef = useRef(onTurning);
+    const [ready, setReady] = useState(false);
     const [currentPage, setCurrentPage] = useState(startPage);
 
     // Keep the ref in sync every render so turn.js always calls the latest onFlip
     useEffect(() => { onFlipRef.current = onFlip; }, [onFlip]);
+    useEffect(() => { onTurningRef.current = onTurning; }, [onTurning]);
 
     /* ── Engine-selection logic ── */
     // useFullTurnJs = true → soft-cover mode (turn.js handles every page)
     // useFullTurnJs = false → hard-cover mode (react-pageflip handles every page)
     const useFullTurnJs = !hardCovers;
 
-    const showingTurnJs    = ready && useFullTurnJs;
+    const showingTurnJs = ready && useFullTurnJs;
     const showingReactFlip = ready && !useFullTurnJs;
 
     /* ── Memoize pages for react-pageflip to prevent iframe reloads ── */
     const memoizedReactPages = useMemo(() => pages.map((page, i) => {
         let isHardPage = false;
-        
+
         if (makeFirstLastPageHard) {
             if (i === 0) isHardPage = true;
             if (i === pages.length - 1) isHardPage = true;
-            if (i === pages.length - 2 && pages[i+1]?.isPad) isHardPage = true;
+            if (i === pages.length - 2 && pages[i + 1]?.isPad) isHardPage = true;
         }
-        
+
         if (selectCustomHardPages) {
             if ((customHardPages || []).includes(i)) isHardPage = true;
             // Pad after a custom hard page
@@ -109,7 +113,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
         if (!makeFirstLastPageHard && !selectCustomHardPages && hardCovers) {
             if (i === 0 || i === pages.length - 1) isHardPage = true;
-            if (i === pages.length - 2 && pages[i+1]?.isPad) isHardPage = true;
+            if (i === pages.length - 2 && pages[i + 1]?.isPad) isHardPage = true;
         }
 
         let startX = 0;
@@ -120,8 +124,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 key={i}
                 data-density={isHardPage ? 'hard' : 'soft'}
                 className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'}`}
-                style={{ 
+                style={{
                     backgroundColor: page.isPad ? 'transparent' : '#fff',
+                    opacity: pageOpacity
                 }}
                 onMouseDown={(e) => {
                     startX = e.clientX;
@@ -144,8 +149,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             style={{ border: 'none', width: 'calc(100% / 0.67)', height: 'calc(100% / 0.67)', transform: 'scale(0.67)', transformOrigin: 'top left', pointerEvents: 'none', borderRadius: 'inherit' }}
                         />
                         {textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor) && (
-                            <div 
-                                className="absolute inset-0 z-10 pointer-events-none" 
+                            <div
+                                className="absolute inset-0 z-10 pointer-events-none"
                                 style={{
                                     ...textureStyle,
                                     borderRadius: 'inherit'
@@ -163,8 +168,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         let alive = true;
         (async () => {
             try {
-                if (!window.jQuery)            await loadScript('/lib/jquery.min.js');
-                if (!window.jQuery?.fn?.turn)  await loadScript('/lib/turn.min.js');
+                if (!window.jQuery) await loadScript('/lib/jquery.min.js');
+                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js');
                 if (alive) setReady(true);
             } catch (err) {
                 console.error('[FlipBookEngine] Script load failed:', err);
@@ -197,14 +202,14 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
             // Determine if this specific page should be hard
             let isPageHard = false;
-            
+
             // 1. First & Last (Covers)
             if (makeFirstLastPageHard) {
                 if (i === 0) isPageHard = true;
                 if (i === augmented.length - 1) isPageHard = true;
-                if (i === augmented.length - 2 && augmented[i+1]?.isPad) isPageHard = true;
+                if (i === augmented.length - 2 && augmented[i + 1]?.isPad) isPageHard = true;
             }
-            
+
             // 2. Custom selected pages
             if (selectCustomHardPages) {
                 if ((customHardPages || []).some(hp => Number(hp) === i)) isPageHard = true;
@@ -217,7 +222,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (!makeFirstLastPageHard && !selectCustomHardPages && hardCovers) {
                 if (i === 0) isPageHard = true;
                 if (i === augmented.length - 1) isPageHard = true;
-                if (i === augmented.length - 2 && augmented[i+1]?.isPad) isPageHard = true;
+                if (i === augmented.length - 2 && augmented[i + 1]?.isPad) isPageHard = true;
             }
 
             // [LOG] Debug hard page detection
@@ -279,7 +284,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 pageDiv.addEventListener('mouseup', (e) => {
                     const diffX = Math.abs(e.clientX - startX);
                     const diffY = Math.abs(e.clientY - startY);
-                    
+
                     // If the mouse hasn't moved significant distance (more than 10px), it's a click.
                     // We stop propagation to prevent the flipbook engine from seeing this as a flip trigger.
                     if (diffX < 10 && diffY < 10) {
@@ -307,21 +312,25 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         const initPage = Math.max(1, currentPage + 1);
 
         $book.turn({
-            width        : singlePage ? width : width * 2,
+            width: singlePage ? width : width * 2,
             height,
-            display      : singlePage ? 'single' : 'double',
-            duration     : flipTime,
-            acceleration : flipStyle === 'Smooth Flip' || flipStyle === '3D Flip',
-            gradients    : true,
-            elevation    : flipStyle === '3D Flip' ? 80 : 10,
+            display: singlePage ? 'single' : 'double',
+            duration: flipTime,
+            acceleration: flipStyle === 'Smooth Flip' || flipStyle === '3D Flip',
+            gradients: true,
+            elevation: flipStyle === '3D Flip' ? 80 : 10,
             // Generous corner hot-zone so the peel starts easily
-            hoverAreaSize  : flipStyle === 'Page Curl' ? 250 : 150,
-            cornerPosition : '60px 30px',
-            turnCorners    : 'l,r',     // peel allowed on both sides
-            pages          : totalPages,
-            page           : initPage,
-            autoCenter     : false,
+            hoverAreaSize: flipStyle === 'Page Curl' ? 250 : 150,
+            cornerPosition: '60px 30px',
+            turnCorners: 'l,r',     // peel allowed on both sides
+            pages: totalPages,
+            page: initPage,
+            autoCenter: false,
             when: {
+                turning: (_e, turnPage) => {
+                    const logical = turnPage - 1;
+                    if (onTurningRef.current) onTurningRef.current({ data: logical });
+                },
                 turned: (_e, turnPage) => {
                     const logical = turnPage - 1;
                     setCurrentPage(logical);
@@ -336,8 +345,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         return () => {
             try { $book.turn('destroy'); } catch (_) { /* noop */ }
         };
-    // onFlip intentionally excluded — it's captured in the closure correctly
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // onFlip intentionally excluded — it's captured in the closure correctly
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [ready, pages, width, height, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle]);
 
     /* ── Imperative API (exposed via ref) ── */
@@ -366,13 +375,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     }, [showingTurnJs]);
 
     useImperativeHandle(ref, () => ({
-        flipNext : flipNextFn,
-        flipPrev : flipPrevFn,
+        flipNext: flipNextFn,
+        flipPrev: flipPrevFn,
         flipToPage: flipToPageFn,
         getCurrentPageIndex: () => currentPage,
         pageFlip: () => ({
-            flipNext  : flipNextFn,
-            flipPrev  : flipPrevFn,
+            flipNext: flipNextFn,
+            flipPrev: flipPrevFn,
             turnToPage: flipToPageFn,
             getCurrentPageIndex: () => currentPage + 1,
         }),
@@ -421,6 +430,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 background: 'transparent',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 ...style,
+                opacity: pageOpacity ?? 1,
             }}
         >
             {/* Loading indicator */}
@@ -433,13 +443,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             {/* ── TURN.JS ENGINE — centering wrapper ── */}
             <div
                 style={{
-                    width     : singlePage ? width : width * 2,
+                    width: singlePage ? width : width * 2,
                     height,
-                    position  : 'relative',
+                    position: 'relative',
                     transition: bookTransition,
-                    visibility   : showingTurnJs ? 'visible' : 'hidden',
-                    pointerEvents: showingTurnJs ? 'auto'    : 'none',
-                    zIndex       : showingTurnJs ? 5         : 1,
+                    visibility: showingTurnJs ? 'visible' : 'hidden',
+                    pointerEvents: showingTurnJs ? 'auto' : 'none',
+                    zIndex: showingTurnJs ? 5 : 1,
                 }}
             >
                 {/* turn.js mounts pages directly inside this div — keep styles minimal */}
@@ -447,9 +457,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     ref={bookEl}
                     className="fbe-book"
                     style={{
-                        width     : singlePage ? width : width * 2,
+                        width: singlePage ? width : width * 2,
                         height,
-                        position  : 'relative',
+                        position: 'relative',
                         background: 'transparent',
                     }}
                 />
@@ -458,9 +468,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             {/* ── REACT-PAGEFLIP ENGINE — handles hard-cover mode ── */}
             {showingReactFlip && (
                 <div style={{
-                    position  : 'absolute',
-                    inset     : 0,
-                    zIndex    : 100,
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 100,
                     background: 'transparent',
                     transition: bookTransition,
                 }}>
@@ -489,13 +499,38 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 </div>
             )}
 
+
             {/* Page styles */}
             {cornerEnable && (
                 <style>{`
-                    .fbe-page { background: #fff; overflow: hidden; margin: 0; padding: 0; -webkit-transform: translate3d(0,0,0); box-shadow: none !important; border: none !important; outline: none !important; }
-                    .fbe-inner { width: 100%; height: 100%; overflow: hidden; background: #fff; margin: 0; padding: 0; box-shadow: none !important; border: none !important; }
-                    .turn-page { box-shadow: none !important; border: none !important; outline: none !important; }
-                    
+                    .fbe-page {
+                        background: #fff;
+                        overflow: hidden;
+                        margin: 0;
+                        padding: 0;
+                        -webkit-transform: translate3d(0,0,0);
+                        box-shadow: none !important;
+                        border: none !important;
+                        outline: none !important;
+                    }
+
+                    .fbe-inner {
+                        width: 100%;
+                        height: 100%;
+                        overflow: hidden;
+                        background: #fff;
+                        margin: 0;
+                        padding: 0;
+                        box-shadow: none !important;
+                        border: none !important;
+                    }
+
+                    .turn-page {
+                        box-shadow: none !important;
+                        border: none !important;
+                        outline: none !important;
+                    }
+
                     /* React-pageflip specific classes */
                     .fbe-react-page {
                         width: 100%;
@@ -504,26 +539,40 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         transition: border-radius 0.5s ease;
                         -webkit-transform: translateZ(0);
                     }
+
                     .fbe-react-page--left {
                         border-radius: ${cornerRadius} 0 0 ${cornerRadius} !important;
                     }
+
                     .fbe-react-page--right {
                         border-radius: 0 ${cornerRadius} ${cornerRadius} 0 !important;
                     }
-                    
+
                     /* Force turn.js hard pages to remain rigid and hide internal peel gradients */
-                    .hard, .turn-page.hard, .cover { 
-                        background-color: #fff !important; 
+                    .hard,
+                    .turn-page.hard,
+                    .cover {
+                        background-color: #fff !important;
                         box-shadow: none !important;
                         -webkit-transform-style: preserve-3d !important;
                         transform-style: preserve-3d !important;
                     }
-                    .hard .fbe-inner, .cover .fbe-inner {
+
+                    .hard .fbe-inner,
+                    .cover .fbe-inner {
                         backface-visibility: hidden !important;
                         -webkit-backface-visibility: hidden !important;
                     }
+
                     /* Remove any shadow/peel effects globally */
-                    .p-shadow, .p-gradient, .p-shadow-left, .p-shadow-right, .hard .p-shadow, .hard .p-gradient, .cover .p-shadow, .cover .p-gradient {
+                    .p-shadow,
+                    .p-gradient,
+                    .p-shadow-left,
+                    .p-shadow-right,
+                    .hard .p-shadow,
+                    .hard .p-gradient,
+                    .cover .p-shadow,
+                    .cover .p-gradient {
                         display: none !important;
                     }
                 `}</style>
@@ -535,3 +584,4 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 const MemoizedFlipBookEngine = React.memo(FlipBookEngine);
 
 export default MemoizedFlipBookEngine;
+

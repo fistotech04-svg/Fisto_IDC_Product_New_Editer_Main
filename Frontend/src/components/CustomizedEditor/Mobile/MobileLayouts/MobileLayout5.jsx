@@ -330,8 +330,8 @@ const MobileLayout5 = (props) => {
                                         )}
 
                                         <div className="flex flex-col gap-2 max-h-[35vh] overflow-y-auto pr-1 no-scrollbar text-left">
-                                            {settings?.tocSettings?.content?.length > 0 ? (
-                                                settings.tocSettings.content
+                                            {(settings?.tocSettings?.content || settings?.toc?.content || []).length > 0 ? (
+                                                (settings?.tocSettings?.content || settings?.toc?.content || [])
                                                     .filter(item => {
                                                         if (!tocSearchQuery) return true;
                                                         const matchMain = item.title.toLowerCase().includes(tocSearchQuery.toLowerCase());

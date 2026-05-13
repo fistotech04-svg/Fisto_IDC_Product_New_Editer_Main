@@ -19,7 +19,7 @@ import {
   ArrowLeftRight,
   Edit2
 } from 'lucide-react';
-import NavIconStylesPopup, { NavIconRenderer } from './NavIconStylesPopup';
+import NavIconStylesPopup, { NavIconRenderer } from './popups/NavIconStylesPopup';
 import { EffectControlRow, ImageCropOverlay } from './AppearanceShared';
 import CoverPicturePopup from './CoverPicturePopup';
 

@@ -135,7 +135,8 @@ const MobileLayout3 = (props) => {
         setShowNotesViewerMemo,
         setShowViewBookmarkPopupMemo,
         setShowSoundPopupMemo,
-        setShowProfilePopupMemo
+        setShowProfilePopupMemo,
+        isEditor
     } = props;
 
     // Internal states for fallback and local sync
@@ -288,6 +289,24 @@ const MobileLayout3 = (props) => {
     const renderPopups = () => (
         <div className="fixed inset-0 pointer-events-none z-[5000]">
             <AnimatePresence>
+                {/* TOC Popup */}
+                {showTOC && !isLandscape && (
+                    <TableOfContentsPopup
+                        onClose={() => toggleTOC(false)}
+                        onNavigate={(pageIdx) => {
+                            onPageClick(pageIdx);
+                            toggleTOC(false);
+                        }}
+                        contents={tocSettings?.content || settings?.tocSettings?.content || settings?.toc?.content || []}
+                        settings={tocSettings || settings?.tocSettings || settings?.toc}
+                        isMobile={false}
+                        isLandscape={false}
+                        isMobilePortraitOverride={true}
+                        activeLayout={3}
+                        layoutColors={layoutColors}
+                    />
+                )}
+
                 {/* Notes Choice Popup */}
                 {showNotesChoicePopup && !isLandscape && (
                     <>
@@ -302,22 +321,59 @@ const MobileLayout3 = (props) => {
                             initial={{ opacity: 0, scale: 0.95, y: -10 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute top-[135px] left-[22%] z-[5001] pointer-events-auto"
+                            className="absolute top-[165px] left-[22%] z-[5001] pointer-events-auto rounded-[4px] shadow-[0_4px_16px_rgba(0,0,0,0.15)] bg-white overflow-hidden w-[130px]"
                         >
-                            <div className="bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] border border-black/5 overflow-hidden w-[130px] flex flex-col p-1.5">
+                            <div
+                                className="rounded-[4px] p-[6px] w-full"
+                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1'), fontFamily: "'Poppins', sans-serif" }}
+                            >
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); toggleAddNotesPopup(true); }}
-                                    className="flex items-center gap-2.5 px-2.5 py-2 hover:bg-gray-50 active:bg-gray-100 rounded-xl transition-colors"
+                                    className="w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[4px] transition-colors group"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleAddNotesPopup(true);
+                                    }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 'var(--dropdown-text-opacity, 1)' }}
                                 >
-                                    <Icon icon="material-symbols-light:add-notes" className="w-4.5 h-4.5 text-[#575C9C]" />
-                                    <span className="text-[10px] font-extrabold text-[#575C9C]">Add Notes</span>
+                                    <Icon icon="solar:notes-bold" className="w-[16px] h-[16px] group-hover:scale-110 transition-transform" />
+                                    <span className="text-[11px] font-bold tracking-tight">Add Notes</span>
                                 </button>
+
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); toggleNotesViewer(true); }}
-                                    className="flex items-center gap-2.5 px-2.5 py-2 hover:bg-gray-50 active:bg-gray-100 rounded-xl transition-colors"
+                                    className="w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[4px] transition-colors group"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleNotesViewer(true);
+                                    }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 'var(--dropdown-text-opacity, 1)' }}
                                 >
-                                    <Icon icon="ph:eye-fill" className="w-4.5 h-4.5 text-[#575C9C]" />
-                                    <span className="text-[10px] font-extrabold text-[#575C9C]">View Notes</span>
+                                    <div className="relative w-[16px] h-[16px] flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        {/* Default State: Eye with subtle shade / tinted fill, Pupil in appropriate background color */}
+                                        <div className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0">
+                                            <Icon
+                                                icon="lets-icons:view-fill"
+                                                className="w-full h-full"
+                                                style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', '0.15') }}
+                                            />
+                                            <div
+                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[4px] rounded-full"
+                                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1') }}
+                                            />
+                                        </div>
+                                        {/* Flip State (Hover): Eye in layout color, Pupil in contrasting color */}
+                                        <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+                                            <Icon
+                                                icon="lets-icons:view-fill"
+                                                className="w-full h-full"
+                                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
+                                            />
+                                            <div
+                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[4px] rounded-full transition-colors duration-300"
+                                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1') }}
+                                            />
+                                        </div>
+                                    </div>
+                                    <span className="text-[11px] font-bold tracking-tight">View Notes</span>
                                 </button>
                             </div>
                         </motion.div>
@@ -367,7 +423,7 @@ const MobileLayout3 = (props) => {
                             initial={{ opacity: 0, x: 50 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 50 }}
-                            className="absolute top-[80px] bottom-[50px] right-4 w-[75px] z-[110] pointer-events-auto"
+                            className="absolute top-[90px] bottom-[15px] right-[10px] w-[86px] z-[1500] pointer-events-auto"
                         >
                             <div
                                 className="h-full bg-white rounded-2xl overflow-hidden flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.2)] border border-black/5 relative"
@@ -397,24 +453,25 @@ const MobileLayout3 = (props) => {
                                             <div
                                                 key={idx}
                                                 data-index={idx}
-                                                className={`thumbnail-item shrink-0 flex flex-col items-center gap-1.5 p-1.5 rounded-lg transition-all duration-300 cursor-pointer ${isSelected ? 'ring-2 ring-[#575C9C] bg-[#575C9C]/5' : 'hover:bg-gray-50'}`}
+                                                className={`thumbnail-item shrink-0 flex flex-col items-center gap-1 p-1.5 rounded-lg transition-all duration-300 cursor-pointer shadow-sm ${isSelected ? 'ring-2 ring-[#575C9C] ring-offset-2' : 'opacity-90 hover:opacity-100'}`}
+                                                style={{ backgroundColor: '#575C9C' }}
                                                 onClick={() => onPageClick(spread.indices[0])}
                                             >
                                                 <div
-                                                    className="bg-white rounded-sm overflow-hidden shadow-sm flex gap-[0.5px] border border-gray-100"
-                                                    style={{ width: '56px', height: '42px' }}
+                                                    className="bg-white rounded-[2px] overflow-hidden flex gap-[1px]"
+                                                    style={{ width: '60px', height: '42px' }}
                                                 >
                                                     {spread.pages.map((page, pIdx) => (
-                                                        <div key={pIdx} className="flex-1 h-full overflow-hidden border-r last:border-r-0 border-gray-50">
+                                                        <div key={pIdx} className="flex-1 h-full overflow-hidden bg-white flex items-center justify-center">
                                                             <PageThumbnail
                                                                 html={page.html || page.content}
                                                                 index={spread.indices[pIdx]}
-                                                                scale={0.12}
+                                                                scale={0.075}
                                                             />
                                                         </div>
                                                     ))}
                                                 </div>
-                                                <span className={`text-[8px] font-bold truncate w-full text-center ${isSelected ? 'text-[#575C9C]' : 'text-gray-500'}`}>
+                                                <span className="text-[9px] font-medium text-white truncate w-full text-center tracking-wide">
                                                     {spread.label}
                                                 </span>
                                             </div>
@@ -436,20 +493,6 @@ const MobileLayout3 = (props) => {
                             </div>
                         </motion.div>
                     </>
-                )}
-                {showTOC && !isLandscape && (
-                    <TableOfContentsPopup
-                        onClose={() => toggleTOC(false)}
-                        onNavigate={(pageIdx) => {
-                            onPageClick(pageIdx);
-                            toggleTOC(false);
-                        }}
-                        settings={tocSettings || settings?.toc}
-                        isMobile={true}
-                        isLandscape={false}
-                        activeLayout={3}
-                        layoutColors={layoutColors}
-                    />
                 )}
                 {showAddNotesPopup && !isLandscape && (
                     <AddNotesPopup
@@ -576,6 +619,7 @@ const MobileLayout3 = (props) => {
                         showAddBookmarkPopup={showAddBookmarkPopup}
                         showAddNotesPopup={showAddNotesPopup}
                         showNotesViewer={showNotesViewer}
+                        isEditor={isEditor}
                     />
                     {renderPopups()}
                 </Suspense>
@@ -591,7 +635,7 @@ const MobileLayout3 = (props) => {
             {/* Header Row 2: Search, Logo and Icons (Medium Blue) */}
             <div className="bg-[#575C9C] z-50 shadow-md pt-0">
                 {/* Search and Logo Row */}
-                <div className="px-4 pt-2.5 pb-1.5 flex items-center justify-start">
+                <div className="px-4 pt-5 pb-4 flex items-center justify-start">
                     <div className="w-[70%] max-w-[300px] bg-[#D9DCEB] rounded-full h-7 px-3 flex items-center gap-2 relative">
                         <Icon icon="ph:magnifying-glass" className="text-[#4B528C] w-3.5 h-3.5" />
                         <input
@@ -661,7 +705,7 @@ const MobileLayout3 = (props) => {
                 </div>
 
                 {/* Icons Row */}
-                <div className="h-9 px-4 flex items-center justify-between border-t border-white/10">
+                <div className="h-14 px-4 flex items-center justify-between">
                     <button onClick={(e) => { e.stopPropagation(); toggleTOC(true); }} className="text-white active:scale-90 transition-transform p-1">
                         <Icon icon="fluent:text-bullet-list-24-filled" className="w-4.5 h-4.5" />
                     </button>
@@ -690,7 +734,7 @@ const MobileLayout3 = (props) => {
             </div>
 
             {/* Content Sub-Header (Light Blue/Gray) */}
-            <div className="bg-[#BDC3D9] h-10 flex items-center justify-between px-5 z-40">
+            <div className="bg-[#BDC3D9] h-10 flex items-center justify-between px-5 z-40 pt-6">
                 <span className="text-[#575C9C] text-[12px] font-bold truncate max-w-[50%]">
                     {bookName || "Name of the book"}
                 </span>
@@ -727,7 +771,7 @@ const MobileLayout3 = (props) => {
                     <button onClick={(e) => { e.stopPropagation(); setShowBookmarkChoicePopup(true); }} className="active:scale-90 transition-transform p-1">
                         <Icon icon="fluent:bookmark-24-filled" className="w-4.5 h-4.5" />
                     </button>
-                    <button onClick={() => onPageClick(Math.max(0, currentPage - 1))} className="active:scale-90 transition-transform p-1">
+                    <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform p-1">
                         <Icon icon="lucide:skip-back" className="w-4 h-4" />
                     </button>
                     <button
@@ -736,7 +780,7 @@ const MobileLayout3 = (props) => {
                     >
                         <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-5.5 h-5.5" />
                     </button>
-                    <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="active:scale-90 transition-transform p-1">
+                    <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform p-1">
                         <Icon icon="lucide:skip-forward" className="w-4 h-4" />
                     </button>
                     <button onClick={handleFullScreen} className="active:scale-90 transition-transform p-1">

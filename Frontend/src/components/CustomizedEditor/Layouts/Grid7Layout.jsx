@@ -101,6 +101,7 @@ const Grid7Layout = ({
     setShowGalleryPopupMemo,
     showSoundPopup,
     setShowSoundPopupMemo,
+    showTOC,
     isTablet
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
@@ -118,7 +119,7 @@ const Grid7Layout = ({
 
     const zoomIn = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.min(prev + 20, initialWidth * 1.3);
+            const nextWidth = Math.min(prev + (initialWidth * 0.01), initialWidth * 1.3);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -126,7 +127,7 @@ const Grid7Layout = ({
 
     const zoomOut = () => {
         setDimWidth(prev => {
-            const nextWidth = Math.max(prev - 10, initialWidth * 0.5);
+            const nextWidth = Math.max(prev - (initialWidth * 0.01), initialWidth * 0.5);
             setDimHeight(nextWidth * aspectRatio);
             return nextWidth;
         });
@@ -199,7 +200,6 @@ const Grid7Layout = ({
     };
 
     const [showThumbnails, setShowThumbnails] = useState(false);
-    const [showTOC, setShowTOC] = useState(false);
     const [showLocalProfile, setShowLocalProfile] = useState(false);
     const [showBookmarks, setShowBookmarks] = useState(false);
     const [editingBookmarkId, setEditingBookmarkId] = useState(null);
@@ -224,7 +224,7 @@ const Grid7Layout = ({
 
     const closeAll = () => {
         setShowThumbnails(false);
-        setShowTOC(false);
+        setShowTOCMemo?.(false);
         setShowLocalProfile(false);
         setShowBookmarks(false);
         setEditingBookmarkId(null);
@@ -323,7 +323,7 @@ const Grid7Layout = ({
 
     return (
         <div
-            className="flex flex-col h-screen w-full overflow-hidden font-sans select-none relative"
+            className="flex flex-col h-full w-full overflow-hidden font-sans select-none relative"
             style={backgroundStyle}
             onClick={() => closeAll()}
         >
@@ -497,7 +497,7 @@ const Grid7Layout = ({
                         >
                             <div className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] border-b shrink-0`} style={{ borderColor: getLayoutColor('toc-text', '#575C9C') + '33' }}> {/* 20% opacity underline */}
                                 <span className={`${isTablet ? 'text-[0.85vw]' : 'text-[1.1vw]'} font-bold`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Table of Contents</span>
-                                <button onClick={() => { setShowTOC(false); setTocSearchQuery(''); }} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}>
+                                <button onClick={() => { setShowTOCMemo?.(false); setTocSearchQuery(''); }} className="transition-colors" style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}>
                                     <Icon icon="lucide:x" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
                                 </button>
                             </div>
@@ -546,7 +546,7 @@ const Grid7Layout = ({
                                                         <div
                                                             className={`flex items-center justify-between ${isTablet ? 'py-[0.5vh] px-[0.6vw]' : 'py-[0.8vh] px-[0.8vw]'} hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group`}
                                                             style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                                            onClick={() => { onPageClick(item.page - 1); setShowTOC(false); setTocSearchQuery(''); }}
+                                                            onClick={() => { onPageClick(item.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                         >
                                                             <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw]">
                                                                 {settings.tocSettings?.addSerialNumberToHeading !== false && (
@@ -571,7 +571,7 @@ const Grid7Layout = ({
                                                                             key={sIdx}
                                                                             className="flex items-center justify-between py-[0.6vh] px-[0.8vw] hover:bg-white/10 rounded-[0.5vw] cursor-pointer transition-all group"
                                                                             style={{ color: getLayoutColor('toc-text', '#575C9C') }}
-                                                                            onClick={() => { onPageClick(sub.page - 1); setShowTOC(false); setTocSearchQuery(''); }}
+                                                                            onClick={() => { onPageClick(sub.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                                         >
                                                                             <div className="flex items-center gap-[0.4vw] truncate pr-[0.5vw] pl-[0.5vw]">
                                                                                 {settings.tocSettings?.addSerialNumberToSubheading !== false && (
@@ -835,7 +835,7 @@ const Grid7Layout = ({
                         onClick={() => {
                             const wasOpen = showTOC;
                             closeAll();
-                            if (!wasOpen) setShowTOC(true);
+                            if (!wasOpen) setShowTOCMemo?.(true);
                         }}
                         className={`transition-all transform hover:scale-110 ${showTOC ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
                         style={{
@@ -1131,7 +1131,7 @@ const Grid7Layout = ({
             </div>
 
             <div
-                className={`${isTablet ? 'h-[6vh]' : 'h-[7vh] mb-[1.2vh]'} flex items-center px-[2vw] shrink-0 w-full relative z-40 transition-all duration-300 overflow-visible`}
+                className={`${isTablet ? 'h-[6vh]' : 'h-[7vh]'} flex items-center px-[2vw] shrink-0 w-full relative z-40 transition-all duration-300 overflow-visible`}
             >
                 <div className="absolute inset-0 -z-10" style={{
                     backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
