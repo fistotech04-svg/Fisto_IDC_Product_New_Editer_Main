@@ -5,11 +5,13 @@ import logo from '../assets/logo/Fisto_logo.png';
 import { User, Share2, Save, Download, Loader2, Eye, ChevronDown, Monitor, Tablet, Smartphone } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ProfileModal from './ProfileModal';
+import ShareModal from './ShareModal';
 
 
 const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const [isPublishMenuOpen, setIsPublishMenuOpen] = useState(false);
   const location = useLocation();
@@ -242,6 +244,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
 
           {/* Share */}
           <button 
+            onClick={() => setIsShareOpen(true)}
             className={`p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw] ${isThreedEditor ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
             title="Share"
             disabled={isThreedEditor}
@@ -351,6 +354,13 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
         onClose={() => setIsProfileOpen(false)} 
         isAutoSaveEnabled={isAutoSaveEnabled}
         onToggleAutoSave={onToggleAutoSave}
+      />
+      {/* Render Share Modal */}
+      <ShareModal 
+        isOpen={isShareOpen} 
+        onClose={() => setIsShareOpen(false)} 
+        flipbookUrl={currentBook?.shareUrl}
+        flipbookThumbnail={currentBook?.thumbnail}
       />
     </>
   );
