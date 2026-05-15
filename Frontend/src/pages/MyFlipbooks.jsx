@@ -9,6 +9,9 @@ import AlertModal from '../components/AlertModal';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
 import { convertPdfToImages, getPdfPageCount, generatePdfPageSvg } from '../utils/pdfUtils';
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
+import ShareModal from '../components/ShareModal';
+import ExportModal from '../components/ExportModal';
+
 
 export default function MyFlipbooks() {
   const navigate = useNavigate();
@@ -92,6 +95,21 @@ export default function MyFlipbooks() {
       showCancel: false,
       onConfirm: null
   });
+
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [selectedFlipbook, setSelectedFlipbook] = useState(null);
+
+  const handleShareClick = (book) => {
+      setSelectedFlipbook(book);
+      setIsShareModalOpen(true);
+  };
+
+  const handleDownloadClick = (book) => {
+      setSelectedFlipbook(book);
+      setIsExportModalOpen(true);
+  };
+
 
   const showAlert = (title, message, type = 'error') => {
       setAlertState({
@@ -1162,10 +1180,16 @@ export default function MyFlipbooks() {
                                             <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
                                                 <BarChart2 size="0.9vw" /> Statistic
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+                                            <button 
+                                                onClick={() => handleShareClick(book)}
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                                            >
                                                 <Share2 size="0.9vw" /> Share
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-green-700 transition-colors">
+                                            <button 
+                                                onClick={() => handleDownloadClick(book)}
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-green-700 transition-colors"
+                                            >
                                                 <Download size="0.9vw" /> Download
                                             </button>
 
@@ -1501,6 +1525,21 @@ export default function MyFlipbooks() {
               </div>
            </div>
       )}
+
+      {/* Share Modal */}
+      <ShareModal 
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        currentBook={selectedFlipbook}
+        flipbookThumbnail={selectedFlipbook?.image ? `${backendUrl}${selectedFlipbook.image}` : null}
+      />
+
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        currentBook={selectedFlipbook}
+      />
     </div>
   );
 }

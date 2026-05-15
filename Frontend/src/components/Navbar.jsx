@@ -361,6 +361,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
         onClose={() => setIsShareOpen(false)} 
         flipbookUrl={currentBook?.shareUrl}
         flipbookThumbnail={currentBook?.thumbnail}
+        currentBook={currentBook}
       />
     </>
   );

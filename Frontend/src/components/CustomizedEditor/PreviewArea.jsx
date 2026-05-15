@@ -391,29 +391,6 @@ const getInteractionScript = (pageNumber) => `
   </script>
 `;
 
-const getIframeContent = (html, pageNumber) => {
-    // Inject scripts
-    const content = `
-        <!DOCTYPE html>
-        <html>
-            <head>
-                <style>
-                    body { margin: 0; padding: 0; overflow: hidden; background: transparent; width: 100%; height: 100%; }
-                    * { box-sizing: border-box; }
-                    ::-webkit-scrollbar { width: 0px; background: transparent; }
-                </style>
-                <base href="/">
-                ${getSlideshowScript()}
-                ${getAnimationScript(pageNumber)}
-                ${getInteractionScript(pageNumber)}
-            </head>
-            <body>
-                ${html || ''}
-            </body>
-        </html>
-    `;
-    return content;
-};
 
 const BookmarkTab = ({ label, color, side, index, spacing = 5.5, onClick, styleIdx = 1, font = 'Poppins' }) => {
     const topOffset = 10 + (index * spacing);
@@ -623,8 +600,33 @@ const PreviewArea = React.memo(({
     bookmarks = [],
     notes = [],
     setBookmarks,
-    setNotes
+    setNotes,
+    baseUrl
 }) => {
+    const getIframeContent = useCallback((html, pageNumber) => {
+        // Inject scripts
+        const content = `
+            <!DOCTYPE html>
+            <html>
+                <head>
+                    <style>
+                        body { margin: 0; padding: 0; overflow: hidden; background: transparent; width: 100%; height: 100%; }
+                        * { box-sizing: border-box; }
+                        ::-webkit-scrollbar { width: 0px; background: transparent; }
+                    </style>
+                    <base href="${baseUrl || '/'}">
+                    ${getSlideshowScript()}
+                    ${getAnimationScript(pageNumber)}
+                    ${getInteractionScript(pageNumber)}
+                </head>
+                <body>
+                    ${html || ''}
+                </body>
+            </html>
+        `;
+        return content;
+    }, [baseUrl]);
+
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
         const r = parseInt(hex.slice(1, 3), 16);

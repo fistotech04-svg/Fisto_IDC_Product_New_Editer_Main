@@ -66,6 +66,7 @@ const CustomizedEditor = () => {
   const [pages, setPages] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
   const [targetPage, setTargetPage] = useState(0);
+  const [projectBaseUrl, setProjectBaseUrl] = useState(null);
   const [bookmarks, setBookmarks] = useState([]);
   const [notes, setNotes] = useState([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -501,6 +502,11 @@ const CustomizedEditor = () => {
     };
   });
 
+  const [shareSettings, setShareSettings] = useState({
+    shareId: '',
+    access: 'public'
+  });
+
   // Save Appearance Logic
   useEffect(() => {
     const settings = {
@@ -622,10 +628,11 @@ const CustomizedEditor = () => {
         ...(prev || {}),
         folder: folder,
         flipbookName: bookName,
-        v_id: v_id
+        v_id: v_id,
+        share: shareSettings
       }));
     }
-  }, [setCurrentBook, folder, v_id, bookName]);
+  }, [setCurrentBook, folder, v_id, bookName, shareSettings]);
 
   const initialLoadRef = useRef(true);
   const notifiedUnsavedRef = useRef(false);
@@ -723,13 +730,27 @@ const CustomizedEditor = () => {
           });
 
           if (res.data) {
+            let pBaseUrl = null;
+            if (res.data.meta) {
+              const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+              pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
+              setProjectBaseUrl(pBaseUrl);
+            }
+
             // ONLY overwrite pages if we DON'T have an autosave
             if (!autosave) {
               // Only set book name from backend if session doesn't have an unsaved change
               if (!currentBook?.flipbookName) setBookName(res.data.name || 'Name of the Book');
               if (res.data.pages) {
                 setPages(res.data.pages.map((p, i) => {
-                  const rawHTML = p.html || p.content || '';
+                  let rawHTML = p.html || p.content || '';
+                  
+                  // Heal broken paths from previous sessions if needed
+                  if (rawHTML.includes('nullassets/') && pBaseUrl) {
+                      rawHTML = rawHTML.split('nullassets/').join(`${pBaseUrl}assets/`);
+                  }
+
                   return {
                     id: p.id || i,
                     content: rawHTML,
@@ -757,6 +778,9 @@ const CustomizedEditor = () => {
               if (res.data.settings.visibility) setVisibilitySettings(res.data.settings.visibility);
               if (res.data.settings.bookmarks) setBookmarks(res.data.settings.bookmarks);
               if (res.data.settings.notes) setNotes(res.data.settings.notes);
+            }
+            if (res.data.share) {
+              setShareSettings(res.data.share);
             }
           }
         } catch (err) {
@@ -968,6 +992,7 @@ const CustomizedEditor = () => {
             onFlip={(idx) => setTargetPage(idx)}
             isEditor={true}
             useNativeFullscreen={true}
+            baseUrl={projectBaseUrl}
           />
         </div>
       </div>
@@ -994,6 +1019,7 @@ const CustomizedEditor = () => {
             visibility: visibilitySettings
           }}
           targetPage={targetPage}
+          baseUrl={projectBaseUrl}
         />
       )}
     </div>

@@ -76,6 +76,7 @@ const TemplateEditor = () => {
   const [isDoublePage, setIsDoublePage] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [projectBaseUrl, setProjectBaseUrl] = useState(null);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [multiSelectedIds, setMultiSelectedIds] = useState(new Set());
@@ -2343,9 +2344,8 @@ const TemplateEditor = () => {
               if (res.data && res.data.pages) {
                   const parser = new DOMParser();
                   const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
-                  const folderName = res.data.meta.folderName;
-                  const bookName = res.data.meta.flipbookName;
-                  const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+                  const pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
+                  setProjectBaseUrl(pBaseUrl);
 
                   const mappedPages = res.data.pages.map((p, i) => {
                       const name = p.name || `Page ${i + 1}`;
@@ -2360,9 +2360,15 @@ const TemplateEditor = () => {
                       }
 
                       // Transform relative paths to absolute for the editor's canvas
+                      // Also heal any 'nullassets/' or broken paths from previous sessions
                       let updatedHtml = p.html;
                       if (updatedHtml.includes('./assets/')) {
-                          updatedHtml = updatedHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+                          updatedHtml = updatedHtml.split('./assets/').join(`${pBaseUrl}assets/`);
+                      } else if (updatedHtml.includes('nullassets/')) {
+                          updatedHtml = updatedHtml.split('nullassets/').join(`${pBaseUrl}assets/`);
+                      } else if (updatedHtml.includes('/assets/') && !updatedHtml.includes('://')) {
+                          // Handle cases where it might have become just /assets/
+                          updatedHtml = updatedHtml.replace(/([^"'])\/assets\//g, `$1${pBaseUrl}assets/`);
                       }
 
                       // Re-parse layers from HTML if missing or invalid (source of truth)
@@ -2397,6 +2403,7 @@ const TemplateEditor = () => {
 
                   setCurrentBook(prev => ({ 
                       ...res.data.meta, 
+                      share: res.data.share,
                       ...(prev || {}), 
                       flipbookName: prev?.flipbookName || res.data.meta.flipbookName 
                   }));
@@ -2619,6 +2626,7 @@ const TemplateEditor = () => {
           isDoublePage={isDoublePage}
           targetPage={0}
           settings={{}}
+          baseUrl={projectBaseUrl}
         />
       )}
 

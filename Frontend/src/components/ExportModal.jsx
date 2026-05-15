@@ -717,22 +717,22 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
       />
       
       {/* Modal Content */}
-      <div className="relative bg-white w-[58vw] h-[40vw] rounded-[1.2vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      <div className="relative bg-white w-[52vw] h-[36vw] rounded-[1vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-[1.5vw] py-[1vw] border-b border-gray-100">
-          <div className="flex items-center gap-[1vw] flex-1">
+        <div className="flex items-center justify-between px-[1.2vw] py-[0.8vw] border-b border-gray-100">
+          <div className="flex items-center gap-[0.8vw] flex-1">
             {!isEditingPoster ? (
               <>
-                <h2 className="text-[1.3vw] font-bold text-gray-800">Export</h2>
+                <h2 className="text-[1.1vw] font-bold text-gray-800">Export</h2>
                 <div className="flex-1 h-[1px] bg-gray-100"></div>
               </>
             ) : (
               <>
-                <div className="flex items-center gap-[0.8vw]">
-                  <h2 className="text-[1.3vw] font-semibold text-gray-400">Export Poster</h2>
-                  <ChevronRight size="1.2vw" className="text-gray-300" />
-                  <h2 className="text-[1.3vw] font-semibold text-gray-800">Edit Poster</h2>
+                <div className="flex items-center gap-[0.6vw]">
+                  <h2 className="text-[1.1vw] font-semibold text-gray-400">Export Poster</h2>
+                  <ChevronRight size="1vw" className="text-gray-300" />
+                  <h2 className="text-[1.1vw] font-semibold text-gray-800">Edit Poster</h2>
                 </div>
                 <div className="flex-1 h-[1px] bg-gray-100"></div>
               </>
@@ -740,39 +740,39 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
           </div>
           <button 
             onClick={onClose}
-            className="ml-[1.5vw] w-[2vw] h-[2vw] flex items-center justify-center rounded-[0.5vw] border border-red-100 text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+            className="ml-[1vw] w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.4vw] border border-red-100 text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
           >
-            <X size="1.1vw" />
+            <X size="1vw" />
           </button>
         </div>
 
         {/* Content Body */}
-        <div className="flex-1 py-[0.8vw] px-[1vw] flex flex-col gap-[0.5vw] overflow-hidden">
+        <div className="flex-1 py-[0.6vw] px-[0.8vw] flex flex-col gap-[0.4vw] overflow-hidden">
           
           {/* Sub Header / Tabs */}
           <div className="flex flex-col gap-[0.5vw] px-[0.5vw]">
             {!isEditingPoster ? (
               <>
-                <div className="flex gap-[1vw]">
+                <div className="flex gap-[0.8vw]">
                   <button 
                     onClick={() => setActiveTab('flipbook')}
-                    className={`px-[1.5vw] py-[0.6vw] rounded-[0.6vw] font-semibold text-[0.8vw] transition-all cursor-pointer ${activeTab === 'flipbook' ? 'bg-white text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.08)] border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`px-[1.2vw] py-[0.5vw] rounded-[0.5vw] font-semibold text-[0.75vw] transition-all cursor-pointer ${activeTab === 'flipbook' ? 'bg-white text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.08)] border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
                   >
                     Export Flipbook
                   </button>
                   <button 
                     onClick={() => setActiveTab('poster')}
-                    className={`px-[1.5vw] py-[0.6vw] rounded-[0.6vw] font-semibold text-[0.8vw] transition-all cursor-pointer ${activeTab === 'poster' ? 'bg-white text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.08)] border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+                    className={`px-[1.2vw] py-[0.5vw] rounded-[0.5vw] font-semibold text-[0.75vw] transition-all cursor-pointer ${activeTab === 'poster' ? 'bg-white text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.08)] border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
                   >
                     Export Poster
                   </button>
                 </div>
                 {activeTab === 'poster' && (
-                  <p className="text-[0.75vw] text-gray-500 font-medium">Create and export customizable posters for social sharing and promotion.</p>
+                  <p className="text-[0.7vw] text-gray-500 font-medium">Create and export customizable posters for social sharing and promotion.</p>
                 )}
               </>
             ) : (
-              <p className="text-[0.75vw] text-gray-500 font-medium px-[0.2vw]">Customize your poster design, Content and Branding</p>
+              <p className="text-[0.7vw] text-gray-500 font-medium px-[0.2vw]">Customize your poster design, Content and Branding</p>
             )}
           </div>
 
@@ -783,9 +783,9 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                 {activeTab === 'flipbook' ? (
                   /* Left Column: Flipbook Selection */
                   <div className="flex-1 flex flex-col border border-gray-200 rounded-[1vw] overflow-hidden bg-white shadow-sm h-full">
-                    <div className="px-[1vw] py-[0.8vw] border-b border-gray-100 flex justify-between items-center">
-                        <div className="flex items-center gap-[1vw] flex-1">
-                            <h3 className="text-[0.95vw] font-bold text-gray-800 whitespace-nowrap">Page Preview</h3>
+                    <div className="px-[0.8vw] py-[0.6vw] border-b border-gray-100 flex justify-between items-center">
+                        <div className="flex items-center gap-[0.8vw] flex-1">
+                            <h3 className="text-[0.85vw] font-bold text-gray-800 whitespace-nowrap">Page Preview</h3>
                             <div className="flex-1 h-[1px] bg-gray-100"></div>
                         </div>
                         <div className="relative ml-[1vw]">
@@ -860,7 +860,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                 )}
 
                 {/* Right Column: Settings */}
-                <div className="w-[22vw] flex flex-col gap-[1vw]">
+                <div className="w-[19vw] flex flex-col gap-[0.8vw]">
                   {activeTab === 'flipbook' ? (
                     <>
                       <div className="flex flex-col gap-[0.6vw]">
@@ -921,14 +921,14 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
 
                   <div className="mt-auto flex flex-col gap-[1vw]">
                     {activeTab === 'flipbook' && (
-                        <div className="bg-[#EEF2FF] rounded-[0.8vw] border border-indigo-100 overflow-hidden flex shadow-sm">
-                            <div className="flex-1 flex items-center gap-[0.6vw] p-[0.6vw] border-r border-indigo-100"><div className="w-[1.6vw] h-[1.6vw] bg-white rounded-[0.4vw] flex items-center justify-center text-[#4A3AFF] shadow-sm"><FileText size="0.9vw" /></div><div className="flex flex-col"><span className="text-[0.7vw] font-bold text-[#373d8a]">Total Content - {selectedPages.size + (includeCover ? 1 : 0) + (includePoster ? 1 : 0)}</span></div></div>
-                            <div className="flex-1 flex flex-col items-end p-[0.6vw] bg-white/40"><span className="text-[0.45vw] text-gray-400 font-medium">Estimated Size</span><span className="text-[0.7vw] font-bold text-[#4A3AFF]">{(selectedPages.size * 1.1 + (includeCover ? 1.5 : 0)).toFixed(2)} MB</span></div>
+                        <div className="bg-[#EEF2FF] rounded-[0.6vw] border border-indigo-100 overflow-hidden flex shadow-sm">
+                            <div className="flex-1 flex items-center gap-[0.5vw] p-[0.4vw] border-r border-indigo-100"><div className="w-[1.4vw] h-[1.4vw] bg-white rounded-[0.3vw] flex items-center justify-center text-[#4A3AFF] shadow-sm"><FileText size="0.8vw" /></div><div className="flex flex-col"><span className="text-[0.65vw] font-bold text-[#373d8a]">Total Content - {selectedPages.size + (includeCover ? 1 : 0) + (includePoster ? 1 : 0)}</span></div></div>
+                            <div className="flex-1 flex flex-col items-end p-[0.4vw] bg-white/40"><span className="text-[0.4vw] text-gray-400 font-medium">Estimated Size</span><span className="text-[0.65vw] font-bold text-[#4A3AFF]">{(selectedPages.size * 1.1 + (includeCover ? 1.5 : 0)).toFixed(2)} MB</span></div>
                         </div>
                     )}
-                    <div className="flex gap-[0.8vw]">
-                      <button onClick={onClose} className="flex-1 flex items-center justify-center gap-[0.5vw] px-[1.2vw] py-[0.7vw] rounded-[0.6vw] border border-gray-200 text-gray-700 font-bold text-[0.8vw] hover:bg-gray-50 transition-all cursor-pointer shadow-sm active:scale-95"><X size="0.9vw" />Cancel</button>
-                      <button className="flex-[2] flex items-center justify-center gap-[0.6vw] px-[1.5vw] py-[0.7vw] rounded-[0.6vw] bg-black text-white font-bold text-[0.8vw] hover:bg-gray-900 shadow-[0_4px_15px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all cursor-pointer active:scale-95"><Download size="0.9vw" />{activeTab === 'flipbook' ? `Export ${selectedPages.size} Pages as ${format}` : `Export poster as ${format}`}</button>
+                    <div className="flex gap-[0.6vw]">
+                      <button onClick={onClose} className="flex-1 flex items-center justify-center gap-[0.4vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.75vw] hover:bg-gray-50 transition-all cursor-pointer shadow-sm active:scale-95"><X size="0.8vw" />Cancel</button>
+                      <button className="flex-[2] flex items-center justify-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.75vw] hover:bg-gray-900 shadow-[0_4px_15px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all cursor-pointer active:scale-95"><Download size="0.8vw" />{activeTab === 'flipbook' ? `Export ${selectedPages.size} Pages` : `Export poster`}</button>
                     </div>
                   </div>
                 </div>
@@ -938,7 +938,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
               <div className="flex-1 flex flex-col gap-[1vw] overflow-hidden px-[0.5vw] pb-[0.5vw]">
                 <div className="flex gap-[1.5vw] flex-1 overflow-hidden">
                     {/* Left Column: Preview & Sizes */}
-                    <div className="w-[22vw] flex flex-col gap-[1.2vw] h-full">
+                    <div className="w-[18vw] flex flex-col gap-[1vw] h-full">
                         {/* Smaller Preview */}
                         <div className="flex-[1.2] bg-gray-50 rounded-[1vw] overflow-hidden relative border border-gray-100 shadow-sm min-h-0">
                             <img src="https://images.pexels.com/photos/35642492/pexels-photo-35642492.jpeg" alt="Poster Preview" className="w-full h-full object-cover" />
@@ -960,9 +960,9 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                         </div>
 
                         {/* Poster Sizes */}
-                        <div className="bg-gray-100 rounded-[1.2vw] border-[0.12vw] border-gray-300 overflow-hidden flex flex-col shrink-0">
-                            <div className="px-[1vw] py-[0.5vw] border-b-[0.12vw] border-gray-300 bg-gray-100/40">
-                                <h3 className="text-[0.8vw] font-bold text-gray-700">Poster Size</h3>
+                        <div className="bg-gray-100 rounded-[1vw] border-[0.12vw] border-gray-300 overflow-hidden flex flex-col shrink-0">
+                            <div className="px-[0.8vw] py-[0.4vw] border-b-[0.12vw] border-gray-300 bg-gray-100/40">
+                                <h3 className="text-[0.75vw] font-bold text-gray-700">Poster Size</h3>
                             </div>
                             <div className="p-[0.6vw] grid grid-cols-5 gap-[0.4vw]">
                                 {posterSizes.map((size, idx) => (
@@ -985,17 +985,17 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                             <div className="flex bg-gray-200/90 border-b border-gray-300 shrink-0">
                                 <button 
                                     onClick={() => setActivePosterEditTab('templates')}
-                                    className={`flex-1 py-[0.7vw] text-[0.85vw] font-semibold transition-all relative ${activePosterEditTab === 'templates' ? 'text-gray-900 bg-white/20' : 'text-gray-500 hover:text-gray-700'}`}
+                                    className={`flex-1 py-[0.5vw] text-[0.75vw] font-semibold transition-all relative ${activePosterEditTab === 'templates' ? 'text-gray-900 bg-white/20' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
                                     Templates
-                                    {activePosterEditTab === 'templates' && <div className="absolute bottom-0 left-0 right-0 h-[0.15vw] bg-black rounded-full" />}
+                                    {activePosterEditTab === 'templates' && <div className="absolute bottom-0 left-0 right-0 h-[0.1vw] bg-black rounded-full" />}
                                 </button>
                                 <button 
                                     onClick={() => setActivePosterEditTab('customize')}
-                                    className={`flex-1 py-[0.7vw] text-[0.85vw] font-semibold transition-all relative ${activePosterEditTab === 'customize' ? 'text-gray-900 bg-white/20' : 'text-gray-500 hover:text-gray-700'}`}
+                                    className={`flex-1 py-[0.5vw] text-[0.75vw] font-semibold transition-all relative ${activePosterEditTab === 'customize' ? 'text-gray-900 bg-white/20' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
                                     Customize
-                                    {activePosterEditTab === 'customize' && <div className="absolute bottom-0 left-0 right-0 h-[0.15vw] bg-black rounded-full" />}
+                                    {activePosterEditTab === 'customize' && <div className="absolute bottom-0 left-0 right-0 h-[0.1vw] bg-black rounded-full" />}
                                 </button>
                             </div>
 
@@ -1022,7 +1022,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                                         <div className="flex flex-col gap-[0.8vw] py-[0.1vw] max-w-full overflow-x-hidden">
                                             {/* Dimensions */}
                                             <div className="flex items-center gap-[0.5vw] min-w-0">
-                                                <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0">Dimension :</span>
+                                                <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0">Dimension :</span>
                                                 <div className="flex items-center gap-[0.5vw]">
                                                     <div className="flex items-center gap-[0.4vw]">
                                                         <span className="text-[0.8vw] font-medium text-gray-500 uppercase whitespace-nowrap">w :</span>
@@ -1050,7 +1050,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                                             {/* Text Inputs */}
                                             <div className="flex flex-col gap-[0.6vw]">
                                                 <div className="flex items-start gap-[0.5vw] min-w-0">
-                                                    <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0 mt-[0.5vw]">Enter Text 1 :</span>
+                                                    <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.5vw]">Enter Text 1 :</span>
                                                     <div className="flex-1 flex items-center gap-[0.5vw]">
                                                         <div className="flex-1 relative">
                                                             <input 
@@ -1066,7 +1066,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                                                     </div>
                                                 </div>
                                                 <div className="flex items-start gap-[0.5vw] min-w-0">
-                                                    <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0 mt-[0.5vw]">Enter Text 2 :</span>
+                                                    <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.5vw]">Enter Text 2 :</span>
                                                     <div className="flex-1 flex items-center gap-[0.5vw]">
                                                         <div className="flex-1 relative">
                                                             <textarea 
@@ -1084,7 +1084,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
 
                                             {/* Background */}
                                             <div className="flex items-start gap-[0.5vw] min-w-0">
-                                                <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0 mt-[0.4vw]">Background :</span>
+                                                <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.4vw]">Background :</span>
                                                 <div className="flex-1 bg-white border border-gray-200 rounded-[0.8vw] overflow-hidden shadow-sm">
                                                     <div className="px-[0.8vw] py-[0.4vw] border-b border-gray-100 bg-gray-50/30">
                                                         <span className="text-[0.7vw] font-bold text-gray-800">Customize your BG</span>
@@ -1119,7 +1119,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
 
                                             {/* Upload Logo */}
                                             <div className="flex items-start gap-[0.5vw] min-w-0">
-                                                <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0 mt-[0.4vw]">Upload Logo :</span>
+                                                <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.4vw]">Upload Logo :</span>
                                                 <div className="flex flex-col items-center gap-[0.4vw]">
                                                     <div className="w-[10vw] h-[4.5vw] border-[0.12vw] border-dashed border-gray-300 rounded-[0.6vw] flex flex-col items-center justify-center gap-[0.2vw] bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer group">
                                                         <Upload size="0.9vw" className="text-gray-400 group-hover:text-gray-600 transition-colors" />
@@ -1130,7 +1130,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
 
                                             {/* Shadow */}
                                             <div className="flex items-start gap-[0.5vw] min-w-0">
-                                                <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0 mt-[0.4vw]">Shadow :</span>
+                                                <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.4vw]">Shadow :</span>
                                                 <div className="flex-1 flex flex-col gap-[0.6vw]">
                                                     <div className="flex items-center gap-[0.6vw]">
                                                         <div className="w-[1.8vw] h-[1.6vw] rounded-[0.3vw] bg-black shadow-sm shrink-0" style={{ backgroundColor: posterShadowColor }}></div>
@@ -1171,7 +1171,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
 
                                             {/* Social Icons */}
                                             <div className="flex items-start gap-[0.5vw] min-w-0">
-                                                <span className="text-[0.8vw] font-semibold text-gray-700 w-[7vw] shrink-0 mt-[0.4vw]">Social Icons :</span>
+                                                <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.4vw]">Social Icons :</span>
                                                 <div className="flex-1 flex flex-col gap-[0.6vw]">
                                                     <div className="bg-white border border-gray-200 rounded-[0.8vw] shadow-sm p-[0.6vw] flex flex-col gap-[0.6vw]">
                                                         <div className="flex items-center justify-between">
@@ -1195,10 +1195,10 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                                                                         }}
                                                                         onDragOver={(e) => e.preventDefault()}
                                                                         onDrop={(e) => handleSocialIconDrop(e, index)}
-                                                                        className={`w-[2.5vw] h-[2.5vw] flex items-center justify-center transition-all hover:scale-110 ${socialTheme === 'colorful-ink' ? '' : 'rounded-[0.5vw] bg-gray-50 border border-gray-100 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md'} ${draggedIconIndex === index ? 'opacity-50' : 'opacity-100'}`}
+                                                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center transition-all hover:scale-110 ${socialTheme === 'colorful-ink' ? '' : 'rounded-[0.4vw] bg-gray-50 border border-gray-100 shadow-sm cursor-grab active:cursor-grabbing hover:shadow-md'} ${draggedIconIndex === index ? 'opacity-50' : 'opacity-100'}`}
                                                                         title="Drag to reorder"
                                                                     >
-                                                                        {renderSocialIcon(icon, socialTheme, "w-[1.8vw] h-[1.8vw]")}
+                                                                        {renderSocialIcon(icon, socialTheme, "w-[1.4vw] h-[1.4vw]")}
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -1228,9 +1228,9 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                                                         </div>
                                                         <div className="max-h-[8vw] overflow-y-auto custom-scrollbar p-[0.5vw] grid grid-cols-2 gap-[0.4vw]">
                                                             {['Instagram', 'Facebook', 'WhatsApp', 'Telegram', 'LinkedIn', 'X', 'Pinterest', 'YouTube'].map((platform) => (
-                                                                <label key={platform} className="flex items-center gap-[0.5vw] cursor-pointer group">
-                                                                    <div className={`w-[0.9vw] h-[0.9vw] rounded-[0.2vw] border-[0.15vw] flex items-center justify-center transition-all ${selectedSocialIcons.includes(platform) ? 'bg-[#4A3AFF] border-[#4A3AFF] text-white' : 'border-gray-300 group-hover:border-gray-400'}`}>
-                                                                        {selectedSocialIcons.includes(platform) && <Check size="0.6vw" strokeWidth={5} />}
+                                                                <label key={platform} className="flex items-center gap-[0.4vw] cursor-pointer group">
+                                                                    <div className={`w-[0.8vw] h-[0.8vw] rounded-[0.2vw] border-[0.12vw] flex items-center justify-center transition-all ${selectedSocialIcons.includes(platform) ? 'bg-[#4A3AFF] border-[#4A3AFF] text-white' : 'border-gray-300 group-hover:border-gray-400'}`}>
+                                                                        {selectedSocialIcons.includes(platform) && <Check size="0.5vw" strokeWidth={5} />}
                                                                     </div>
                                                                     <input 
                                                                         type="checkbox" 
@@ -1244,7 +1244,7 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                                                                             }
                                                                         }}
                                                                     />
-                                                                    <span className={`text-[0.7vw] font-semibold transition-colors ${selectedSocialIcons.includes(platform) ? 'text-gray-900' : 'text-gray-500'}`}>{platform}</span>
+                                                                    <span className={`text-[0.65vw] font-semibold transition-colors ${selectedSocialIcons.includes(platform) ? 'text-gray-900' : 'text-gray-500'}`}>{platform}</span>
                                                                 </label>
                                                             ))}
                                                         </div>

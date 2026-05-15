@@ -7,7 +7,7 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getFromDB } from '../../utils/dbUtils';
 
-const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage }) => {
+const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, baseUrl }) => {
   const { v_id } = useParams();
   const [localSettings, setLocalSettings] = useState(settings || {});
 
@@ -332,6 +332,7 @@ const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isD
         activeDevice={activeDevice}
         isDoublePage={isDoublePage}
         useNativeFullscreen={true}
+        baseUrl={baseUrl}
       />
 
       {/* Draggable Device Settings - Tablet/Mobile: outside device frame */}

@@ -734,6 +734,7 @@ router.get("/list", async (req, res) => {
           image: dbMatch ? firstImageAssetMap.get(dbMatch.v_id) || null : null,
           firstPageHtml: firstPageHtml, // Fallback preview
           mtime: stats.mtime,
+          share: dbMatch ? dbMatch.share : null,
         });
       }
     }
@@ -797,6 +798,7 @@ router.get("/list", async (req, res) => {
         image: firstImageAssetMap.get(doc.v_id) || null,
         firstPageHtml: previewHtml,
         mtime: doc.lastUpdated || doc.createdAt,
+        share: doc.share || null,
       };
     });
 
@@ -1524,16 +1526,156 @@ router.get("/get", async (req, res) => {
       }
     }
 
+    // Ensure shareId exists (Auto-heal for legacy data)
+    if (!dbBook.share || !dbBook.share.shareId) {
+      if (!dbBook.share) dbBook.share = {};
+      dbBook.share.shareId = nanoid(12);
+      dbBook.share.access = 'public';
+      await dbBook.save();
+    }
+
     res.json({
       pages,
+      settings: dbBook ? (dbBook.settings || {}) : {},
+      share: dbBook ? dbBook.share : {},
       meta: {
         flipbookName: effectiveBookName,
         folderName: effectiveFolderName,
         v_id: dbBook ? dbBook.v_id : null,
+        baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/`
       },
     });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   POST /api/flipbook/update-settings
+// @desc    Update flipbook settings (branding, appearance, etc.)
+router.post("/update-settings", async (req, res) => {
+  try {
+    const { emailId, v_id, settings, newName, share } = req.body;
+    if (!emailId || !v_id) {
+      return res.status(400).json({ message: "Missing emailId or v_id" });
+    }
+
+    const updateData = {};
+    if (settings) updateData.settings = settings;
+    if (newName) updateData.flipbookName = newName;
+    if (share) updateData.share = share;
+    updateData.lastUpdated = new Date();
+
+    const updatedDoc = await Flipbook.findOneAndUpdate(
+      { userEmail: emailId, v_id: v_id },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!updatedDoc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    res.json({ message: "Settings updated", v_id: updatedDoc.v_id });
+  } catch (err) {
+    console.error("Error updating settings:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   GET /api/flipbook/public/get/:v_id
+// @desc    Get specific flipbook content publicly for sharing
+router.get("/public/get/:shareId", async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    if (!shareId) return res.status(400).json({ message: "Missing shareId" });
+
+    // Find by the new dedicated shareId
+    const dbDoc = await Flipbook.findOne({ "share.shareId": shareId });
+    if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
+
+    // Check if the flipbook is private
+    if (dbDoc.share?.access === 'private') {
+      return res.status(403).json({ message: "This flipbook is private" });
+    }
+
+    const emailId = dbDoc.userEmail;
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    
+    const folders = Array.isArray(dbDoc.folderName) ? dbDoc.folderName : [dbDoc.folderName];
+    const realFolder = folders.find(f => f !== 'Recent Book' && f !== 'Recent book');
+    const effectiveFolderName = realFolder || folders[0] || "Recent Book";
+
+    const bookPath = path.join(
+      uploadsDir,
+      sanitizedEmail,
+      FLIPBOOK_ROOT,
+      effectiveFolderName,
+      dbDoc.flipbookName,
+    );
+
+    console.log(`[PublicGet] v_id: ${dbDoc.v_id}, effectiveFolderName: ${effectiveFolderName}, bookPath: ${bookPath}`);
+
+    if (!fs.existsSync(bookPath)) {
+      console.error(`[PublicGet] Book path not found: ${bookPath}`);
+      return res.status(404).json({ message: "Book files not found" });
+    }
+
+    // AUTO-HEAL: If DB has no pages but files exist on disk, populate it (similar to main get route)
+    if (!dbDoc.pages || dbDoc.pages.length === 0) {
+        console.log(`[PublicGet] Auto-healing pages for v_id: ${dbDoc.v_id}`);
+        try {
+            const files = await fs.promises.readdir(bookPath);
+            const svgFiles = files.filter(f => f.endsWith('.svg')).sort((a, b) => {
+                const aNum = parseInt(a.match(/\d+/)?.[0] || 0);
+                const bNum = parseInt(b.match(/\d+/)?.[0] || 0);
+                return aNum - bNum;
+            });
+
+            if (svgFiles.length > 0) {
+                const autoHealedPages = svgFiles.map((fileName, idx) => ({
+                    pageNumber: idx + 1,
+                    name: `Page ${idx + 1}`,
+                    fileName: fileName,
+                    v_id: `page_${nanoid(8)}`
+                }));
+
+                // Update the document so future requests are faster
+                dbDoc.pages = autoHealedPages;
+                await dbDoc.save();
+                console.log(`[PublicGet] Auto-healed ${autoHealedPages.length} pages`);
+            }
+        } catch (e) {
+            console.error(`[PublicGet] Auto-heal failed for v_id: ${dbDoc.v_id}`, e);
+        }
+    }
+
+    // Sort and read pages
+    dbDoc.pages.sort((a, b) => a.pageNumber - b.pageNumber);
+    const pagePromises = dbDoc.pages.map(async (p) => {
+      const filePath = path.join(bookPath, p.fileName);
+      try {
+        const content = await fs.promises.readFile(filePath, "utf8");
+        return { name: p.name, html: content, v_id: p.v_id };
+      } catch (e) {
+        return null;
+      }
+    });
+    const pages = (await Promise.all(pagePromises)).filter(Boolean);
+
+    res.json({
+      pages,
+      settings: dbDoc.settings || {},
+      meta: {
+        flipbookName: dbDoc.flipbookName,
+        folderName: effectiveFolderName,
+        v_id: dbDoc.v_id,
+        baseUrl: `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${dbDoc.flipbookName}/`
+      },
+    });
+  } catch (err) {
+    console.error("Error in public/get:", err);
     res.status(500).json({ message: "Server error" });
   }
 });

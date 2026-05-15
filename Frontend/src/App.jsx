@@ -14,6 +14,7 @@ import Editor from './Modules/Editer';
 import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
+import ShareViewBook from './pages/shareviewbook';
 import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -28,6 +29,7 @@ function App() {
           <Route path="/" element={<Signin />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route path="/share=public/:shareId" element={<ShareViewBook />} />
           
           {/* Protected Editor Layout */}
           <Route path="/editor" element={

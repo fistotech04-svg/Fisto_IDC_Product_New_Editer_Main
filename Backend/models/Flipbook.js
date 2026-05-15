@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { nanoid } from 'nanoid';
 
 const flipbookSchema = new mongoose.Schema({
     userEmail: {
@@ -31,6 +32,22 @@ const flipbookSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true
+    },
+    settings: {
+        type: Object,
+        default: {}
+    },
+    share: {
+        shareId: {
+            type: String,
+            default: () => nanoid(12),
+            unique: true
+        },
+        access: {
+            type: String,
+            enum: ['public', 'private'],
+            default: 'public'
+        }
     }
 });
 
