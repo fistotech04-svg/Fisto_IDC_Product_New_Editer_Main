@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Link as LinkIcon, Copy, QrCode, Download, Share2, Mail, Instagram, Edit3, ArrowRight, ChevronRight, ChevronLeft, Check, Sliders, Upload, ChevronDown } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import { QRCodeCanvas } from 'qrcode.react';
 
 const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook }) => {
     const [addCover, setAddCover] = useState(false);
@@ -13,7 +14,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     // Customization States
     const [qrColor, setQrColor] = useState('#000000');
     const [qrBgColor, setQrBgColor] = useState('#ffffff');
-    const [qrSize, setQrSize] = useState('Medium');
+    const [qrLevel, setQrLevel] = useState('M');
     const [qrBgType, setQrBgType] = useState('Solid');
     const [customBgColor, setCustomBgColor] = useState('#D7D8E8');
     const [showBgTypeDropdown, setShowBgTypeDropdown] = useState(false);
@@ -22,6 +23,41 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [showBgFitDropdown, setShowBgFitDropdown] = useState(false);
     const [bgTypeDirection, setBgTypeDirection] = useState('down');
     const [bgFitDirection, setBgFitDirection] = useState('down');
+    
+    // New states for poster text and dimensions
+    const [text1, setText1] = useState('ACCEPTING NEW CLIENTS');
+    const [text2, setText2] = useState('Tap to scan');
+    const [qrWidth, setQrWidth] = useState(1080);
+    const [qrHeight, setQrHeight] = useState(880);
+    
+    const qrRef = useRef();
+
+    const qrThemes = [
+        { fg: '#000000', bg: '#ffffff' },
+        { fg: '#4A3AFF', bg: '#ffffff' },
+        { fg: '#2E7D32', bg: '#ffffff' },
+        { fg: '#D32F2F', bg: '#ffffff' },
+        { fg: '#ffffff', bg: '#000000' },
+        { fg: '#000000', bg: '#FFF9C4' },
+        { fg: '#311B92', bg: '#EDE7F6' },
+        { fg: '#006064', bg: '#E0F7FA' },
+        { fg: '#E65100', bg: '#FFF3E0' },
+        { fg: '#1B5E20', bg: '#E8F5E9' },
+    ];
+
+    const downloadQRCode = () => {
+        const canvas = qrRef.current?.querySelector('canvas');
+        if (canvas) {
+            const format = exportFormat.toLowerCase() === 'webp' ? 'webp' : (exportFormat.toLowerCase() === 'jpg' ? 'jpeg' : 'png');
+            const url = canvas.toDataURL(`image/${format}`, 1.0);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `qrcode-${currentBook?.flipbookName?.replace(/\s+/g, '-') || 'share'}.${exportFormat.toLowerCase()}`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    };
 
     const toggleBgTypeDropdown = (e) => {
         if (!showBgTypeDropdown) {
@@ -210,20 +246,25 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     </div>
                                     <div className="flex items-center gap-[1vw]">
                                         <div 
-                                            className="relative w-[4.1vw] h-[4.1vw] bg-gray-100 rounded-[0.4vw] overflow-hidden border border-gray-200 group cursor-pointer shadow-sm"
+                                            ref={qrRef}
+                                            className="relative w-[4.1vw] h-[4.1vw] bg-gray-100 rounded-[0.4vw] overflow-hidden border border-gray-200 group cursor-pointer shadow-sm flex items-center justify-center"
                                             onClick={() => setIsEditingQR(true)}
                                         >
-                                            <img 
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(publicUrl)}`} 
-                                                alt="QR Code" 
-                                                className="w-full h-full p-[0.3vw]"
+                                            <QRCodeCanvas 
+                                                value={publicUrl}
+                                                size={128}
+                                                style={{ width: '100%', height: '100%', padding: '0.3vw' }}
+                                                level={qrLevel}
                                             />
                                             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <Edit3 size="0.8vw" className="text-white" />
                                                 <span className="text-white text-[0.5vw] font-bold mt-[0.1vw]">Edit</span>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-[0.4vw] text-gray-400 group cursor-pointer hover:text-gray-600 transition-colors">
+                                        <div 
+                                            className="flex items-center gap-[0.4vw] text-gray-400 group cursor-pointer hover:text-gray-600 transition-colors"
+                                            onClick={downloadQRCode}
+                                        >
                                             <Icon icon="mdi:share" className="w-[1vw] h-[1vw]" />
                                             <span className="text-[0.75vw] font-bold underline underline-offset-4 decoration-gray-300">Download QR Code</span>
                                         </div>
@@ -288,12 +329,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                 <div className="relative w-full h-[25vw] bg-[#E8F5E9] rounded-[1vw] border-[0.1vw] border-[#A5D6A7] p-[1.5vw] flex flex-col items-center shadow-sm overflow-hidden ml-[0.5vw]">
                                     {/* Top Text */}
                                     <div className="text-center mb-[2vw] shrink-0">
-                                        <h3 className="text-[1.6vw] font-black text-[#2E7D32] leading-[1.1] uppercase tracking-tight">ACCEPTING<br />NEW CLIENTS</h3>
+                                        <h3 className="text-[1.6vw] font-black text-[#2E7D32] leading-[1.1] uppercase tracking-tight">{text1}</h3>
                                     </div>
                                     
                                     {/* QR Code Area */}
                                     <div className="flex-1 flex flex-col items-center justify-start w-full relative min-h-0">
-                                        <span className="text-[0.7vw] font-bold text-[#2E7D32] mb-[1.5vw] uppercase tracking-[0.2em] opacity-90">Tap to scan</span>
+                                        <span className="text-[0.7vw] font-bold text-[#2E7D32] mb-[1.5vw] uppercase tracking-[0.2em] opacity-90">{text2}</span>
                                         
                                         <div className="relative p-[1.2vw] shrink-0">
                                             {/* Decorative Corners */}
@@ -304,10 +345,13 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             
                                             {/* The QR Code - Styled to match image (no background box) */}
                                             <div className="flex items-center justify-center relative">
-                                                <img 
-                                                    src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://fisto.in&color=2E7D32&bgcolor=ffffff&ecc=H" 
-                                                    alt="Theme Large QR"
-                                                    className="w-[10vw] h-[10vw] object-contain mix-blend-multiply"
+                                                <QRCodeCanvas 
+                                                    value={publicUrl}
+                                                    size={300}
+                                                    fgColor={qrColor}
+                                                    bgColor={qrBgColor === '#ffffff' ? 'transparent' : qrBgColor}
+                                                    level={qrLevel}
+                                                    style={{ width: '10vw', height: '10vw', mixBlendMode: qrBgColor === '#ffffff' || qrBgColor === 'transparent' ? 'multiply' : 'normal' }}
                                                 />
                                             </div>
                                         </div>
@@ -372,19 +416,44 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 <div className="flex items-center gap-[0.3vw]">
                                                                     <button className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"><ChevronLeft size="0.9vw" /></button>
                                                                     <div className="flex items-center border border-gray-300 rounded-[0.4vw] px-[0.4vw] py-[0.15vw] bg-white">
-                                                                        <input type="number" defaultValue="1080" className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin" />
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={qrWidth} 
+                                                                            onChange={(e) => setQrWidth(parseInt(e.target.value) || 0)}
+                                                                            className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin" 
+                                                                        />
                                                                     </div>
-                                                                    <button className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"><ChevronRight size="0.9vw" /></button>
+                                                                    <button 
+                                                                        onClick={() => setQrWidth(prev => prev + 10)}
+                                                                        className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"
+                                                                    >
+                                                                        <ChevronRight size="0.9vw" />
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                             <div className="flex items-center gap-[0.4vw]">
                                                                 <span className="text-[0.7vw] font-medium text-gray-500 uppercase whitespace-nowrap">h :</span>
                                                                 <div className="flex items-center gap-[0.3vw]">
-                                                                    <button className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"><ChevronLeft size="0.9vw" /></button>
+                                                                    <button 
+                                                                        onClick={() => setQrHeight(prev => Math.max(0, prev - 10))}
+                                                                        className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"
+                                                                    >
+                                                                        <ChevronLeft size="0.9vw" />
+                                                                    </button>
                                                                     <div className="flex items-center border border-gray-300 rounded-[0.4vw] px-[0.4vw] py-[0.15vw] bg-white">
-                                                                        <input type="number" defaultValue="880" className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin" />
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={qrHeight} 
+                                                                            onChange={(e) => setQrHeight(parseInt(e.target.value) || 0)}
+                                                                            className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin" 
+                                                                        />
                                                                     </div>
-                                                                    <button className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"><ChevronRight size="0.9vw" /></button>
+                                                                    <button 
+                                                                        onClick={() => setQrHeight(prev => prev + 10)}
+                                                                        className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"
+                                                                    >
+                                                                        <ChevronRight size="0.9vw" />
+                                                                    </button>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -400,6 +469,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         type="text" 
                                                                         className="w-full px-[0.8vw] py-[0.5vw] border border-gray-400 rounded-[0.6vw] text-[0.8vw] font-medium text-gray-700 outline-none focus:border-black transition-colors pr-[2.2vw]"
                                                                         placeholder="Title"
+                                                                        value={text1}
+                                                                        onChange={(e) => setText1(e.target.value)}
                                                                     />
                                                                     <Edit3 size="0.8vw" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400" />
                                                                 </div>
@@ -414,6 +485,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     <textarea 
                                                                         className="w-full px-[0.8vw] py-[0.6vw] border border-gray-400 rounded-[0.6vw] text-[0.8vw] font-medium text-gray-700 outline-none focus:border-black transition-colors pr-[2.2vw] resize-none h-[4vw]"
                                                                         placeholder="Supporting Text"
+                                                                        value={text2}
+                                                                        onChange={(e) => setText2(e.target.value)}
                                                                     />
                                                                     <Edit3 size="0.8vw" className="absolute right-[0.6vw] bottom-[0.6vw] text-gray-400" />
                                                                 </div>
@@ -427,11 +500,17 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                         <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.5vw]">Edit QR Code :</span>
                                                         <div className="flex-1 flex flex-col gap-[0.8vw] min-w-0">
                                                             <div className="bg-white border border-gray-200 rounded-[0.8vw] p-[0.8vw] flex gap-[1vw] relative overflow-hidden shadow-sm">
-                                                                <div className="w-[10.5vw] h-[10.5vw] bg-gray-100 rounded-[0.5vw] flex items-center justify-center relative group shrink-0">
-                                                                    <img 
-                                                                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}&color=${qrColor.replace('#', '')}&bgcolor=${qrBgColor.replace('#', '')}`}
-                                                                        alt="QR Preview"
-                                                                        className="w-full h-full p-[0.8vw] object-contain"
+                                                                <div 
+                                                                    ref={qrRef}
+                                                                    className="w-[10.5vw] h-[10.5vw] bg-gray-100 rounded-[0.5vw] flex items-center justify-center relative group shrink-0"
+                                                                >
+                                                                    <QRCodeCanvas 
+                                                                        value={publicUrl}
+                                                                        size={256}
+                                                                        fgColor={qrColor}
+                                                                        bgColor={qrBgColor}
+                                                                        level={qrLevel}
+                                                                        style={{ width: '100%', height: '100%', padding: '0.8vw' }}
                                                                     />
                                                                     <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                                                                         <div className="bg-white/90 backdrop-blur-sm px-[0.6vw] py-[0.3vw] rounded-[0.4vw] flex items-center gap-[0.3vw] shadow-sm border border-gray-100">
@@ -441,8 +520,24 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex-1 grid grid-cols-2 gap-[0.5vw] min-w-0 h-[10.5vw] overflow-y-auto custom-scrollbar pr-[0.4vw] content-start">
-                                                                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-                                                                        <div key={i} className="aspect-square bg-gray-400 rounded-[0.3vw] cursor-pointer hover:scale-105 transition-transform" />
+                                                                    {qrThemes.map((theme, i) => (
+                                                                        <div 
+                                                                            key={i} 
+                                                                            onClick={() => {
+                                                                                setQrColor(theme.fg);
+                                                                                setQrBgColor(theme.bg);
+                                                                            }}
+                                                                            className="aspect-square bg-white border border-gray-200 rounded-[0.5vw] cursor-pointer flex items-center justify-center p-[0.3vw] shadow-sm hover:border-[#4A3AFF] transition-all"
+                                                                        >
+                                                                            <QRCodeCanvas 
+                                                                                value={publicUrl}
+                                                                                size={64}
+                                                                                fgColor={theme.fg}
+                                                                                bgColor={theme.bg}
+                                                                                level="L"
+                                                                                style={{ width: '100%', height: '100%' }}
+                                                                            />
+                                                                        </div>
                                                                     ))}
                                                                 </div>
                                                             </div>
@@ -482,15 +577,19 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 </div>
 
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
-                                                                    <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">QR Size :</span>
+                                                                    <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">QR Level :</span>
                                                                     <div className="flex-1 flex items-center bg-white border border-gray-200 rounded-[0.6vw] p-[0.3vw] gap-[0.3vw] shadow-sm min-w-0">
-                                                                        {['Small', 'Medium', 'Large'].map((size) => (
+                                                                        {[
+                                                                            { label: 'Low', value: 'L' },
+                                                                            { label: 'Medium', value: 'M' },
+                                                                            { label: 'High', value: 'H' }
+                                                                        ].map((level) => (
                                                                             <button
-                                                                                key={size}
-                                                                                onClick={() => setQrSize(size)}
-                                                                                className={`flex-1 px-[1vw] py-[0.3vw] rounded-[0.4vw] text-[0.75vw] cursor-pointer font-semibold transition-all ${qrSize === size ? 'bg-black text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
+                                                                                key={level.value}
+                                                                                onClick={() => setQrLevel(level.value)}
+                                                                                className={`flex-1 px-[1vw] py-[0.3vw] rounded-[0.4vw] text-[0.75vw] cursor-pointer font-semibold transition-all ${qrLevel === level.value ? 'bg-black text-white shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
                                                                             >
-                                                                                {size}
+                                                                                {level.label}
                                                                             </button>
                                                                         ))}
                                                                     </div>
@@ -645,7 +744,10 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                      
                                      <div className="flex-1 relative">
                                          <div className="flex items-center bg-white border border-gray-200 rounded-[0.5vw] shadow-sm hover:border-gray-300 transition-all group overflow-hidden h-full">
-                                            <button className="flex-1 py-[0.7vw] px-[0.5vw] text-gray-700 font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] whitespace-nowrap">
+                                             <button 
+                                                 onClick={downloadQRCode}
+                                                 className="flex-1 py-[0.7vw] px-[0.5vw] text-gray-700 font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] whitespace-nowrap cursor-pointer hover:bg-gray-50 transition-colors"
+                                             >
                                                  <Download size="0.9vw" className="text-gray-400 shrink-0" /> 
                                                  <span className="truncate">Export as {exportFormat}</span>
                                              </button>

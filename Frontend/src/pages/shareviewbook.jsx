@@ -12,6 +12,7 @@ const ShareViewBook = () => {
     const [bookData, setBookData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [retryAttempt, setRetryAttempt] = useState(0);
 
     // Prepare settings fallback
     const settings = bookData?.settings || {};
@@ -59,44 +60,68 @@ const ShareViewBook = () => {
 
     useEffect(() => {
         let retryCount = 0;
-        const maxRetries = 2;
+        const maxRetries = 3;
+        let cancelled = false;
 
         const fetchBook = async () => {
             try {
                 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                console.log(`Fetching public flipbook: ${shareId} (Attempt ${retryCount + 1})`);
+                console.log(`Fetching public flipbook: ${shareId} (Attempt ${retryCount + 1}/${maxRetries + 1})`);
                 
                 const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, {
-                    timeout: 10000 // 10s timeout
+                    timeout: 15000 // 15s timeout for slow connections
                 });
                 
+                if (cancelled) return;
+
                 let processedData = res.data;
                 
-                if (!processedData || !processedData.pages) {
-                    throw new Error("Invalid flipbook data received");
+                if (!processedData || !processedData.pages || processedData.pages.length === 0) {
+                    throw new Error("Invalid or empty flipbook data received");
                 }
 
-                const bUrl = processedData.meta?.baseUrl ? `${backendUrl}${processedData.meta.baseUrl}` : '';
+                const bUrl = processedData.meta?.baseUrl
+                    ? `${backendUrl}${processedData.meta.baseUrl}`
+                    : '';
                 
                 if (processedData.pages && bUrl) {
                     processedData.pages = processedData.pages.map(p => {
                         let html = p.html || p.content || '';
+                        // Fix nullassets paths
                         if (html.includes('nullassets/')) {
                             html = html.split('nullassets/').join(`${bUrl}assets/`);
+                        }
+                        // Fix any bare /uploads/ relative paths to be absolute
+                        if (html.includes('src="/uploads/') || html.includes("src='/uploads/")) {
+                            html = html
+                                .replace(/src="\/uploads\//g, `src="${backendUrl}/uploads/`)
+                                .replace(/src='\/uploads\//g, `src='${backendUrl}/uploads/`);
                         }
                         return { ...p, html };
                     });
                 }
+
+                // Only update state if the component is still mounted
                 setBookData(processedData);
                 setError(null);
+                setLoading(false); // ✅ Only stop loading on SUCCESS
             } catch (err) {
-                console.error("Error fetching public flipbook:", err);
-                if (retryCount < maxRetries && (!err.response || err.response.status >= 500)) {
+                if (cancelled) return;
+                console.error(`Error fetching public flipbook (attempt ${retryCount + 1}):`, err);
+
+                // Retry on network errors or 5xx server errors — keep loading=true
+                const isRetryable = !err.response || err.response.status >= 500;
+                if (retryCount < maxRetries && isRetryable) {
                     retryCount++;
-                    setTimeout(fetchBook, 1000); // Retry after 1s
-                    return;
+                    setRetryAttempt(retryCount); // Show retry progress in UI
+                    // Exponential back-off: 1s, 2s, 4s
+                    const delay = Math.pow(2, retryCount - 1) * 1000;
+                    console.log(`Retrying in ${delay}ms...`);
+                    setTimeout(fetchBook, delay);
+                    return; // ⬅️ Keep loading=true while retry is pending
                 }
 
+                // All retries exhausted — now show the error
                 if (err.response?.status === 403) {
                     setError("This flipbook is private.");
                 } else if (err.response?.status === 404) {
@@ -104,17 +129,23 @@ const ShareViewBook = () => {
                 } else {
                     setError("Flipbook not found or private.");
                 }
-            } finally {
-                setLoading(false);
+                setLoading(false); // ✅ Stop loading only after all retries fail
             }
         };
 
         if (shareId) fetchBook();
+
+        return () => { cancelled = true; }; // Cleanup to prevent state updates after unmount
     }, [shareId]);
 
     if (loading) return (
-        <div className="flex h-screen items-center justify-center bg-white">
+        <div className="flex h-screen flex-col gap-4 items-center justify-center bg-white">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#4A3AFF]"></div>
+            {retryAttempt > 0 && (
+                <p className="text-sm text-slate-400 animate-pulse">
+                    Connecting… (attempt {retryAttempt + 1} of 4)
+                </p>
+            )}
         </div>
     );
 
@@ -143,6 +174,16 @@ const ShareViewBook = () => {
                 </div>
 
                 <div className="mt-[3vw] flex flex-col sm:flex-row items-center justify-center gap-[1vw]">
+                    {/* Try Again — only for non-403/404 errors (i.e., network/server issues) */}
+                    {error !== "This flipbook is private." && error !== "Flipbook not found." && (
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-[0.5vw] px-[2vw] py-[1vw] bg-[#4A3AFF] text-white font-semibold rounded-full hover:bg-[#3a2aef] transition-all duration-300 shadow-xl shadow-indigo-200 active:scale-95 overflow-hidden text-[1vw]"
+                        >
+                            <span>Try Again</span>
+                        </button>
+                    )}
+
                     <button
                         onClick={() => navigate('/')}
                         className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-[0.5vw] px-[2vw] py-[1vw] bg-slate-950 text-white font-semibold rounded-full hover:bg-slate-800 transition-all duration-300 shadow-xl shadow-slate-200 active:scale-95 overflow-hidden text-[1vw]"
