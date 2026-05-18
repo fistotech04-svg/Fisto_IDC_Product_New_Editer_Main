@@ -1085,9 +1085,7 @@ export default function MyFlipbooks() {
                                     >
                                     {/* Thumbnail */}
                                     <div className="w-[8vw] h-[6vw] bg-gray-100 rounded-[0.5vw] overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center relative">
-                                        {book.image ? (
-                                            <img src={`${backendUrl}${book.image}`} alt={book.title} className="w-full h-full object-contain" />
-                                        ) : book.firstPageHtml ? (
+                                        {book.firstPageHtml ? (
                                             <iframe
                                                 title={`Preview of ${book.title}`}
                                                 className="w-full h-full border-none pointer-events-none"
@@ -1095,7 +1093,7 @@ export default function MyFlipbooks() {
                                                     <!DOCTYPE html>
                                                     <html>
                                                     <head>
-                                                        <base href="${backendUrl}/uploads/${user?.emailId?.replace(/[@.]/g, "_")}/My_Flipbooks/${book.folder}/${book.title}/">
+                                                        <base href="${backendUrl}/uploads/${user?.emailId?.replace(/[@.]/g, "_")}/My_Flipbooks/${encodeURIComponent(book.folder)}/${encodeURIComponent(book.title)}/">
                                                         <style>
                                                             html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: transparent; }
                                                             svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
@@ -1107,6 +1105,8 @@ export default function MyFlipbooks() {
                                                     </html>
                                                 `}
                                             />
+                                        ) : book.image ? (
+                                            <img src={`${backendUrl}${book.image}`} alt={book.title} className="w-full h-full object-contain" />
                                         ) : (
                                             <div className="flex flex-col items-center justify-center text-gray-400">
                                                 <BookOpen size="2vw" strokeWidth={1.5} />

@@ -303,6 +303,22 @@ const TemplateEditor = () => {
       });
     }
   }, [pages, activePageIndex, isLoading, currentBook, location.state]);
+
+  // Sync the first page's SVG HTML to currentBook for live sharing previews
+  useEffect(() => {
+    if (pages[0]?.html && currentBook) {
+      if (currentBook.firstPageHtml !== pages[0].html) {
+        setCurrentBook(prev => {
+          if (!prev) return prev;
+          if (prev.firstPageHtml === pages[0].html) return prev;
+          return {
+            ...prev,
+            firstPageHtml: pages[0].html
+          };
+        });
+      }
+    }
+  }, [pages, currentBook, setCurrentBook]);
   
   // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
   // to ensure the project maintains its primary aspect ratio.
@@ -2191,7 +2207,7 @@ const TemplateEditor = () => {
           // This prevents elements from losing their masks or colors when the container is exploded.
           const attrsToInherit = [
             'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 
-            'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
+            'opacity', 'visibility', 'filter', 'color',
             'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
           ];
           attrsToInherit.forEach(attr => {
@@ -2231,7 +2247,7 @@ const TemplateEditor = () => {
 
         // Inherit visual attributes from the original template SVG
         const svgAttrs = [
-          'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
+          'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color',
           'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
         ];
         

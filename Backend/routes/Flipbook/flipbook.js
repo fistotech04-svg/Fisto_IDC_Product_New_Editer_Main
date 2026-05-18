@@ -703,20 +703,18 @@ router.get("/list", async (req, res) => {
           }
         }
 
-        // FALLBACK PREVIEW: If no image asset, try to get the first page HTML content
+        // Get the first page HTML content for live custom preview
         let firstPageHtml = null;
-        if (!firstImageAssetMap.has(dbMatch?.v_id)) {
-           try {
-             const firstPage = dbMatch?.pages?.find(p => p.pageNumber === 1) || dbMatch?.pages?.[0];
-             if (firstPage) {
-               const firstPagePath = path.join(bookPath, firstPage.fileName);
-               if (fs.existsSync(firstPagePath)) {
-                 firstPageHtml = fs.readFileSync(firstPagePath, "utf8");
-               }
-             }
-           } catch (e) {
-             console.error("Error reading first page for preview:", e);
-           }
+        try {
+          const firstPage = dbMatch?.pages?.find(p => p.pageNumber === 1) || dbMatch?.pages?.[0];
+          if (firstPage) {
+            const firstPagePath = path.join(bookPath, firstPage.fileName);
+            if (fs.existsSync(firstPagePath)) {
+              firstPageHtml = fs.readFileSync(firstPagePath, "utf8");
+            }
+          }
+        } catch (e) {
+          console.error("Error reading first page for preview:", e);
         }
 
         books.push({
@@ -763,7 +761,7 @@ router.get("/list", async (req, res) => {
 
       // If not in the physical scan list, try to fetch its preview
       let previewHtml = matchingPhysicalBook?.firstPageHtml || null;
-      if (!previewHtml && !firstImageAssetMap.has(doc.v_id)) {
+      if (!previewHtml) {
         try {
           const firstPage =
             doc.pages?.find((p) => p.pageNumber === 1) || doc.pages?.[0];
