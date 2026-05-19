@@ -222,8 +222,10 @@ export default function Home() {
 
         // 4. Update the flipbook with final SVG content
         const finalPages = allImages.map((img, i) => {
-            const fullUrl = `${backendUrl}${uploadedAssets[i]}`;
-            const html = generatePdfPageSvg(fullUrl, `Page ${i + 1}`, maxWidth, maxHeight);
+            const assetUrl = uploadedAssets[i];
+            const filename = assetUrl.split('/').pop();
+            const relativeUrl = `./assets/image/${filename}`;
+            const html = generatePdfPageSvg(relativeUrl, `Page ${i + 1}`, maxWidth, maxHeight);
 
             return {
                 pageName: `Page ${i + 1}`,

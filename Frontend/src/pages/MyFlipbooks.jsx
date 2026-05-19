@@ -101,12 +101,22 @@ export default function MyFlipbooks() {
   const [selectedFlipbook, setSelectedFlipbook] = useState(null);
 
   const handleShareClick = (book) => {
-      setSelectedFlipbook(book);
+      let resolvedBook = { ...book };
+      if (resolvedBook.folder === 'Recent Book' || resolvedBook.folder === 'Recent book') {
+          const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book' && b.folder !== 'Recent book');
+          if (physicalBook) resolvedBook.folder = physicalBook.folder;
+      }
+      setSelectedFlipbook(resolvedBook);
       setIsShareModalOpen(true);
   };
 
   const handleDownloadClick = (book) => {
-      setSelectedFlipbook(book);
+      let resolvedBook = { ...book };
+      if (resolvedBook.folder === 'Recent Book' || resolvedBook.folder === 'Recent book') {
+          const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book' && b.folder !== 'Recent book');
+          if (physicalBook) resolvedBook.folder = physicalBook.folder;
+      }
+      setSelectedFlipbook(resolvedBook);
       setIsExportModalOpen(true);
   };
 
@@ -1056,6 +1066,16 @@ export default function MyFlipbooks() {
                             const isBookEditing = editingBookId === book.id;
                             const isSelected = selectedBooks.includes(book.id);
                             
+                            // Resolve the actual folder location if in virtual 'Recent Book' folder
+                            let actualFolder = book.folder;
+                            if (actualFolder === 'Recent Book' || actualFolder === 'Recent book') {
+                                const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book' && b.folder !== 'Recent book');
+                                if (physicalBook) actualFolder = physicalBook.folder;
+                            }
+                            
+                            // Use actualFolder and book.realName (folder name on server) to generate the base path
+                            const iframeBaseUrl = `${backendUrl}/uploads/${user?.emailId?.replace(/[@.]/g, "_")}/My_Flipbooks/${encodeURIComponent(actualFolder)}/${encodeURIComponent(book.realName)}/`;
+                            
                             return (
                                 <div 
                                     key={book.id} 
@@ -1093,7 +1113,7 @@ export default function MyFlipbooks() {
                                                     <!DOCTYPE html>
                                                     <html>
                                                     <head>
-                                                        <base href="${backendUrl}/uploads/${user?.emailId?.replace(/[@.]/g, "_")}/My_Flipbooks/${encodeURIComponent(book.folder)}/${encodeURIComponent(book.title)}/">
+                                                        <base href="${iframeBaseUrl}">
                                                         <style>
                                                             html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: transparent; }
                                                             svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }

@@ -14,6 +14,23 @@ const ShareViewBook = () => {
     const [error, setError] = useState(null);
     const [retryAttempt, setRetryAttempt] = useState(0);
 
+    const getBackendUrl = () => {
+        if (import.meta.env.VITE_BACKEND_URL) {
+            return import.meta.env.VITE_BACKEND_URL;
+        }
+        const origin = window.location.origin;
+        if (origin.includes('devtunnels.ms')) {
+            return origin.replace('-5173', '-5000');
+        }
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            const portMatch = origin.match(/:(\d+)/);
+            if (portMatch) {
+                return origin.replace(portMatch[0], ':5000');
+            }
+        }
+        return 'http://localhost:5000';
+    };
+
     // Prepare settings fallback
     const settings = bookData?.settings || {};
 
@@ -65,7 +82,7 @@ const ShareViewBook = () => {
 
         const fetchBook = async () => {
             try {
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                const backendUrl = getBackendUrl();
                 console.log(`Fetching public flipbook: ${shareId} (Attempt ${retryCount + 1}/${maxRetries + 1})`);
                 
                 const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, {
@@ -87,6 +104,10 @@ const ShareViewBook = () => {
                 if (processedData.pages && bUrl) {
                     processedData.pages = processedData.pages.map(p => {
                         let html = p.html || p.content || '';
+                        
+                        // Fix any hardcoded absolute backend paths to point to the current backendUrl
+                        html = html.replace(/(src|href|xlink:href)=(["'])https?:\/\/[^\/]+\/uploads\//g, `$1=$2${backendUrl}/uploads/`);
+
                         // Fix nullassets paths
                         if (html.includes('nullassets/')) {
                             html = html.split('nullassets/').join(`${bUrl}assets/`);
@@ -268,7 +289,7 @@ const ShareViewBook = () => {
                 settings={settings}
                 isMobile={isMobileDevice}
                 onClose={null} 
-                baseUrl={bookData.meta?.baseUrl ? `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${bookData.meta.baseUrl}` : null}
+                baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
             />
         </div>
     );

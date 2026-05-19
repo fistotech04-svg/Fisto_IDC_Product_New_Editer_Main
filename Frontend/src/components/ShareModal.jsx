@@ -139,14 +139,68 @@ const CustomQRCode = React.forwardRef(({
 
 const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook }) => {
     const [addCover, setAddCover] = useState(false);
+
+    const getResolvedFirstPageHtml = () => {
+        if (!currentBook?.firstPageHtml) return '';
+        const storedUser = localStorage.getItem('user');
+        const user = storedUser ? JSON.parse(storedUser) : null;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        const emailFolder = user?.emailId ? user.emailId.replace(/[@.]/g, "_") : '';
+        const basePath = `${backendUrl}/uploads/${emailFolder}/My_Flipbooks/${encodeURIComponent(currentBook.folder)}/${encodeURIComponent(currentBook.realName || currentBook.title)}/`;
+        
+        let resolvedHtml = currentBook.firstPageHtml;
+        resolvedHtml = resolvedHtml.replace(/href="\.\/assets\//g, `href="${basePath}assets/`);
+        resolvedHtml = resolvedHtml.replace(/href="assets\//g, `href="${basePath}assets/`);
+        resolvedHtml = resolvedHtml.replace(/xlink:href="\.\/assets\//g, `xlink:href="${basePath}assets/`);
+        resolvedHtml = resolvedHtml.replace(/xlink:href="assets\//g, `xlink:href="${basePath}assets/`);
+        return resolvedHtml;
+    };
     const [copied, setCopied] = useState(false);
+    const [embedCopied, setEmbedCopied] = useState(false);
     const [isEditingQR, setIsEditingQR] = useState(false);
     const [activeQRTab, setActiveQRTab] = useState('templates');
     const [selectedTemplateIdx, setSelectedTemplateIdx] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isCapturing, setIsCapturing] = useState(false);
     const [exportFormat, setExportFormat] = useState('JPG');
     const [showExportDropdown, setShowExportDropdown] = useState(false);
     
+    // Saved configuration for the main view (defaults to standard black & white)
+    const [savedConfig, setSavedConfig] = useState({
+        hasCustomized: false,
+        qrColor: '#000000',
+        qrBgColor: '#ffffff',
+        qrDotType: 'square',
+        qrCornerSquareType: 'square',
+        qrCornerDotType: 'square',
+        qrLevel: 'M',
+        qrLogo: null,
+        customBgColor: '#ffffff',
+        qrBgType: 'Color',
+        qrBgImage: null,
+        qrBgOpacity: 100,
+        qrBgFit: 'Fit',
+        text1: 'ACCEPTING NEW CLIENTS',
+        text2: 'Tap to scan',
+        text1Color: '#000000',
+        text2Color: '#000000',
+        text1FontFamily: 'Poppins',
+        text2FontFamily: 'Poppins',
+        text1FontSize: 24,
+        text2FontSize: 12,
+        text1FontWeight: 'Semi Bold',
+        text2FontWeight: 'Bold',
+        text1Bold: true,
+        text2Bold: true,
+        text1Italic: false,
+        text2Italic: false,
+        text1Underline: false,
+        text2Underline: false,
+        text1Linethrough: false,
+        text2Linethrough: false,
+        selectedTemplateIdx: 0,
+    });
+
     // Customization States
     const [qrColor, setQrColor] = useState('#2E7D32');
     const [qrBgColor, setQrBgColor] = useState('transparent');
@@ -169,6 +223,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [showDotTypeDropdown, setShowDotTypeDropdown] = useState(false);
     const [showCornerSquareTypeDropdown, setShowCornerSquareTypeDropdown] = useState(false);
     const [showCornerDotTypeDropdown, setShowCornerDotTypeDropdown] = useState(false);
+    const [dotTypeDirection, setDotTypeDirection] = useState('down');
+    const [cornerSquareTypeDirection, setCornerSquareTypeDirection] = useState('down');
+    const [cornerDotTypeDirection, setCornerDotTypeDirection] = useState('down');
     const [showQrColorPicker, setShowQrColorPicker] = useState(false);
     const [showQrBgColorPicker, setShowQrBgColorPicker] = useState(false);
     const [showCustomBgColorPicker, setShowCustomBgColorPicker] = useState(false);
@@ -194,6 +251,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [text1Bold, setText1Bold] = useState(true);
     const [text1Italic, setText1Italic] = useState(false);
     const [text1Underline, setText1Underline] = useState(false);
+    const [text1Linethrough, setText1Linethrough] = useState(false);
     const [text1Color, setText1Color] = useState('#2E7D32');
     const [text1ColorOpacity, setText1ColorOpacity] = useState(100);
     
@@ -207,6 +265,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [text2Bold, setText2Bold] = useState(true);
     const [text2Italic, setText2Italic] = useState(false);
     const [text2Underline, setText2Underline] = useState(false);
+    const [text2Linethrough, setText2Linethrough] = useState(false);
     const [text2Color, setText2Color] = useState('#2E7D32');
     const [text2ColorOpacity, setText2ColorOpacity] = useState(90);
 
@@ -221,6 +280,14 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const qrRef = useRef();
     const mainQrRef = useRef(null);
     const posterPreviewRef = useRef(null);
+    const posterText1Ref = useRef(null);
+    const posterText2Ref = useRef(null);
+    const posterQrWrapRef = useRef(null);
+
+    const hiddenPosterRef = useRef(null);
+    const hiddenText1Ref = useRef(null);
+    const hiddenText2Ref = useRef(null);
+    const hiddenQrWrapRef = useRef(null);
 
     const qrThemes = [
         { name: 'Classic Black', fg: '#000000', bg: '#ffffff', dotType: 'square', cornerSquareType: 'square', cornerDotType: 'square' },
@@ -375,91 +442,317 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
         }
     };
 
-    const downloadQRCode = async () => {
-        if (!isEditingQR) {
-            // Main Share View: Download only the QR code
-            try {
-                if (mainQrRef.current) {
-                    mainQrRef.current.download({
-                        name: `${currentBook?.flipbookName?.replace(/\s+/g, '-') || 'share'}-qr`,
-                        extension: 'png'
-                    });
-                } else {
-                    console.warn('mainQrRef.current is not available');
-                }
-            } catch (error) {
-                console.error('Error downloading QR code:', error);
-            }
-            return;
+    const handleEnterEditor = () => {
+        setIsEditingQR(true);
+        if (!savedConfig.hasCustomized) {
+            // Apply Classic Emerald template by default if not customized yet
+            applyPosterTemplate(posterTemplates[0], 0);
+        } else {
+            // Load saved config into active editing states
+            setQrColor(savedConfig.qrColor);
+            setQrBgColor(savedConfig.qrBgColor);
+            setQrDotType(savedConfig.qrDotType);
+            setQrCornerSquareType(savedConfig.qrCornerSquareType);
+            setQrCornerDotType(savedConfig.qrCornerDotType);
+            setQrLevel(savedConfig.qrLevel);
+            setQrLogo(savedConfig.qrLogo);
+            setCustomBgColor(savedConfig.customBgColor);
+            setQrBgType(savedConfig.qrBgType);
+            setQrBgImage(savedConfig.qrBgImage);
+            setQrBgOpacity(savedConfig.qrBgOpacity);
+            setQrBgFit(savedConfig.qrBgFit);
+            setText1(savedConfig.text1);
+            setText2(savedConfig.text2);
+            setText1Color(savedConfig.text1Color);
+            setText2Color(savedConfig.text2Color);
+            setText1FontFamily(savedConfig.text1FontFamily);
+            setText2FontFamily(savedConfig.text2FontFamily);
+            setText1FontSize(savedConfig.text1FontSize);
+            setText2FontSize(savedConfig.text2FontSize);
+            setText1FontWeight(savedConfig.text1FontWeight);
+            setText2FontWeight(savedConfig.text2FontWeight);
+            setText1Bold(savedConfig.text1Bold);
+            setText2Bold(savedConfig.text2Bold);
+            setText1Italic(savedConfig.text1Italic);
+            setText2Italic(savedConfig.text2Italic);
+            setText1Underline(savedConfig.text1Underline);
+            setText2Underline(savedConfig.text2Underline);
+            setText1Linethrough(savedConfig.text1Linethrough);
+            setText2Linethrough(savedConfig.text2Linethrough);
+            setSelectedTemplateIdx(savedConfig.selectedTemplateIdx);
         }
+    };
 
-        // Edit QR Poster view
-        if (!posterPreviewRef.current || isDownloading) return;
-        
+    const handleSaveEditor = () => {
+        setSavedConfig({
+            hasCustomized: true,
+            qrColor,
+            qrBgColor,
+            qrDotType,
+            qrCornerSquareType,
+            qrCornerDotType,
+            qrLevel,
+            qrLogo,
+            customBgColor,
+            qrBgType,
+            qrBgImage,
+            qrBgOpacity,
+            qrBgFit,
+            text1,
+            text2,
+            text1Color,
+            text2Color,
+            text1FontFamily,
+            text2FontFamily,
+            text1FontSize,
+            text2FontSize,
+            text1FontWeight,
+            text2FontWeight,
+            text1Bold,
+            text2Bold,
+            text1Italic,
+            text2Italic,
+            text1Underline,
+            text2Underline,
+            text1Linethrough,
+            text2Linethrough,
+            selectedTemplateIdx,
+        });
+        setIsEditingQR(false);
+    };
+
+    const handleCancelEditor = () => {
+        setIsEditingQR(false);
+    };
+
+    const downloadQRCode = async () => {
+        const targetPosterRef = isEditingQR ? posterPreviewRef : hiddenPosterRef;
+        const targetText1Ref = isEditingQR ? posterText1Ref : hiddenText1Ref;
+        const targetText2Ref = isEditingQR ? posterText2Ref : hiddenText2Ref;
+        const targetQrWrapRef = isEditingQR ? posterQrWrapRef : hiddenQrWrapRef;
+
+        if (!targetPosterRef.current || isDownloading) return;
+
         setIsDownloading(true);
         try {
-            // Get actual pixel dimensions of the preview card
-            const rect = posterPreviewRef.current.getBoundingClientRect();
-            const width = rect.width || 400; // fallback if 0
-            const height = rect.height || 600; // fallback if 0
+            const vw = window.innerWidth; // Use actual viewport for vw→px conversion
+            const rect = targetPosterRef.current.getBoundingClientRect();
+            const elWidth  = rect.width  || 400;
+            const elHeight = rect.height || 600;
+            const scale = 3;
 
-            // Render the entire customized poster element to a high-resolution canvas
-            const canvas = await html2canvas(posterPreviewRef.current, {
+            // ── Snapshot live computed styles BEFORE html2canvas touches the DOM ──
+            const snapText = (ref) => {
+                if (!ref?.current) return null;
+                const cs = window.getComputedStyle(ref.current);
+                return {
+                    fontFamily:     cs.fontFamily,
+                    fontSize:       cs.fontSize,
+                    fontWeight:     cs.fontWeight,
+                    letterSpacing:  cs.letterSpacing,
+                    lineHeight:     cs.lineHeight,
+                    textAlign:      cs.textAlign,
+                    color:          cs.color,
+                    opacity:        cs.opacity,
+                    fontStyle:      cs.fontStyle,
+                    textDecoration: cs.textDecoration,
+                    textTransform:  cs.textTransform,
+                    whiteSpace:     cs.whiteSpace,
+                    wordBreak:      cs.wordBreak,
+                    padding:        cs.padding,
+                    width:          cs.width,
+                    textContent:    ref.current.textContent,
+                };
+            };
+            const text1Snap = snapText(targetText1Ref);
+            const text2Snap = snapText(targetText2Ref);
+
+            // ── Snapshot QR container size ──
+            const qrWrapRect = targetQrWrapRef.current
+                ? targetQrWrapRef.current.getBoundingClientRect()
+                : null;
+
+            // ── Snapshot the actual border-radius, border-color and border-width in px before capture ──
+            const posterCs = window.getComputedStyle(targetPosterRef.current);
+            const borderRadiusPx = parseFloat(posterCs.borderRadius) || 0;
+            const borderWidthPx  = parseFloat(posterCs.borderWidth)  || 0;
+            const borderColor    = posterCs.borderColor || 'transparent';
+
+            // ── Snapshot QR SVG BEFORE setting isCapturing (no overlay in DOM yet) ──
+            const originalSvg = targetPosterRef.current.querySelector('svg');
+            let svgDataUrl = null;
+            let svgW = 0, svgH = 0;
+            if (originalSvg) {
+                try {
+                    const svgRect = originalSvg.getBoundingClientRect();
+                    svgW = svgRect.width;
+                    svgH = svgRect.height;
+                    svgDataUrl = 'data:image/svg+xml;charset=utf-8,' +
+                        encodeURIComponent(new XMLSerializer().serializeToString(originalSvg));
+                } catch (e) {
+                    console.error('SVG snapshot error:', e);
+                }
+            }
+
+            // ── Snapshot canvas pixels (fallback for non-SVG QR renderers) ──
+            const origCanvasSnapshots = [];
+            targetPosterRef.current.querySelectorAll('canvas').forEach((c) => {
+                const snapCanvas = document.createElement('canvas');
+                snapCanvas.width  = c.width;
+                snapCanvas.height = c.height;
+                snapCanvas.getContext('2d').drawImage(c, 0, 0);
+                origCanvasSnapshots.push(snapCanvas);
+            });
+
+            // ── NOW show the UI overlay (it won't be in the clone since we snapshot first) ──
+            setIsCapturing(true);
+
+            // ── html2canvas capture ──
+            const isJpeg = exportFormat.toLowerCase() === 'jpg' || exportFormat.toLowerCase() === 'jpeg';
+            const rawCanvas = await html2canvas(targetPosterRef.current, {
                 useCORS: true,
-                allowTaint: false, // set to false to avoid crash if some assets don't support CORS
-                scale: 3, // 3x scale up for razor-sharp high-resolution print export
-                backgroundColor: null,
+                allowTaint: false,
+                scale,
+                backgroundColor: isJpeg ? '#ffffff' : null,
                 logging: false,
-                width: width,
-                height: height,
-                onclone: (clonedDoc) => {
-                    const clonedElement = clonedDoc.getElementById('poster-preview-container');
-                    if (clonedElement) {
-                        clonedElement.style.width = `${width}px`;
-                        clonedElement.style.height = `${height}px`;
+                width:  elWidth,
+                height: elHeight,
+                onclone: (clonedDoc, clonedElement) => {
+                    if (!clonedElement) return;
+
+                    // Fix container size and remove border-radius
+                    // (we'll apply rounded corners manually on the final canvas)
+                    clonedElement.style.width        = `${elWidth}px`;
+                    clonedElement.style.height       = `${elHeight}px`;
+                    clonedElement.style.overflow     = 'hidden';
+                    clonedElement.style.borderRadius = '0';
+
+                    // Remove the loading overlay if it somehow got in
+                    const overlay = clonedElement.querySelector('[data-loading-overlay]');
+                    if (overlay) overlay.remove();
+
+                    // ── Convert ALL vw values in inline styles using window.innerWidth ──
+                    const resolveVw = (el) => {
+                        if (!el || el.nodeType !== 1) return;
+                        const raw = el.getAttribute('style') || '';
+                        if (raw.includes('vw')) {
+                            el.setAttribute('style', raw.replace(
+                                /([\d.]+)vw/g,
+                                (_, v) => `${(parseFloat(v) / 100) * vw}px`
+                            ));
+                        }
+                        Array.from(el.children).forEach(resolveVw);
+                    };
+                    resolveVw(clonedElement);
+
+                    // ── Stamp snapshotted computed styles onto the text elements ──
+                    const applySnap = (id, snap) => {
+                        if (!snap) return;
+                        const el = clonedElement.querySelector(`[data-export-id="${id}"]`);
+                        if (!el) return;
+                        Object.assign(el.style, snap);
+                        el.style.overflow     = 'visible';
+                        el.style.textOverflow = 'clip';
+                        el.style.maxWidth     = '100%';
+                    };
+                    applySnap('poster-text1', text1Snap);
+                    applySnap('poster-text2', text2Snap);
+
+                    // ── Fix QR wrapper to its live pixel size ──
+                    if (qrWrapRect) {
+                        const qrEl = clonedElement.querySelector('[data-export-id="poster-qr-wrap"]');
+                        if (qrEl) {
+                            qrEl.style.width  = `${qrWrapRect.width}px`;
+                            qrEl.style.height = `${qrWrapRect.height}px`;
+                        }
                     }
-                    
-                    // Replace SVG with an Image element containing the serialized SVG data
-                    const originalSvg = posterPreviewRef.current.querySelector('svg');
-                    const clonedSvg = clonedDoc.querySelector('svg');
-                    if (originalSvg && clonedSvg) {
-                        try {
-                            const svgString = new XMLSerializer().serializeToString(originalSvg);
-                            const svgDataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
-                            
+
+                    // ── Replace the cloned SVG with our pre-snapshotted data-URL img ──
+                    if (svgDataUrl) {
+                        const clonedSvg = clonedElement.querySelector('svg');
+                        if (clonedSvg) {
                             const img = clonedDoc.createElement('img');
                             img.src = svgDataUrl;
-                            img.style.width = '100%';
-                            img.style.height = '100%';
+                            img.style.width   = `${svgW}px`;
+                            img.style.height  = `${svgH}px`;
                             img.style.display = 'block';
-                            if (clonedSvg.className) img.className = clonedSvg.className;
-                            
                             clonedSvg.parentNode.replaceChild(img, clonedSvg);
-                        } catch (svgErr) {
-                            console.error('Error serializing SVG for export:', svgErr);
                         }
                     }
-                    
-                    // Explicitly copy canvas content from original DOM to cloned DOM
-                    const originalCanvases = posterPreviewRef.current.querySelectorAll('canvas');
-                    const clonedCanvases = clonedDoc.querySelectorAll('canvas');
-                    originalCanvases.forEach((origCanvas, index) => {
-                        const destCanvas = clonedCanvases[index];
-                        if (destCanvas) {
-                            const destCtx = destCanvas.getContext('2d');
-                            destCanvas.width = origCanvas.width;
-                            destCanvas.height = origCanvas.height;
-                            destCtx.drawImage(origCanvas, 0, 0);
-                        }
+
+                    // ── Restore snapshotted canvas pixels ──
+                    const clonedCanvases = clonedElement.querySelectorAll('canvas');
+                    origCanvasSnapshots.forEach((snapC, i) => {
+                        const destC = clonedCanvases[i];
+                        if (!destC) return;
+                        const ctx = destC.getContext('2d');
+                        destC.width  = snapC.width;
+                        destC.height = snapC.height;
+                        ctx.drawImage(snapC, 0, 0);
                     });
-                }
+                },
             });
+
+            // ── Post-process: apply rounded corners via canvas clipping ──
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width  = rawCanvas.width;
+            finalCanvas.height = rawCanvas.height;
+            const fCtx = finalCanvas.getContext('2d');
+            const r = borderRadiusPx * scale; // scale the radius to match the 3x canvas
+            const w = finalCanvas.width;
+            const h = finalCanvas.height;
+
+            // For JPEG exports, fill white first — JPEG has no alpha channel
+            // so any transparent pixel would otherwise render as black.
+            if (isJpeg) {
+                fCtx.fillStyle = '#ffffff';
+                fCtx.fillRect(0, 0, w, h);
+            }
+
+            // ── Save state, clip to rounded rect, draw image, then restore to draw border on top ──
+            fCtx.save();
+            fCtx.beginPath();
+            fCtx.moveTo(r, 0);
+            fCtx.lineTo(w - r, 0);
+            fCtx.quadraticCurveTo(w, 0, w, r);
+            fCtx.lineTo(w, h - r);
+            fCtx.quadraticCurveTo(w, h, w - r, h);
+            fCtx.lineTo(r, h);
+            fCtx.quadraticCurveTo(0, h, 0, h - r);
+            fCtx.lineTo(0, r);
+            fCtx.quadraticCurveTo(0, 0, r, 0);
+            fCtx.closePath();
+            fCtx.clip();
+            fCtx.drawImage(rawCanvas, 0, 0);
+            fCtx.restore(); // escape clip so we can stroke the border on top
+
+            // ── Re-draw the poster border (was stripped when we zeroed borderRadius in the clone) ──
+            if (borderWidthPx > 0) {
+                const bw = borderWidthPx * scale;
+                const halfBw = bw / 2;
+                fCtx.save();
+                fCtx.strokeStyle = borderColor;
+                fCtx.lineWidth   = bw;
+                fCtx.beginPath();
+                fCtx.moveTo(r + halfBw, halfBw);
+                fCtx.lineTo(w - r - halfBw, halfBw);
+                fCtx.quadraticCurveTo(w - halfBw, halfBw, w - halfBw, r + halfBw);
+                fCtx.lineTo(w - halfBw, h - r - halfBw);
+                fCtx.quadraticCurveTo(w - halfBw, h - halfBw, w - r - halfBw, h - halfBw);
+                fCtx.lineTo(r + halfBw, h - halfBw);
+                fCtx.quadraticCurveTo(halfBw, h - halfBw, halfBw, h - r - halfBw);
+                fCtx.lineTo(halfBw, r + halfBw);
+                fCtx.quadraticCurveTo(halfBw, halfBw, r + halfBw, halfBw);
+                fCtx.closePath();
+                fCtx.stroke();
+                fCtx.restore();
+            }
             
             const format = exportFormat.toLowerCase();
             const fileExt = format === 'jpeg' || format === 'jpg' ? 'jpg' : format === 'webp' ? 'webp' : 'png';
             const mimeType = fileExt === 'jpg' ? 'image/jpeg' : fileExt === 'webp' ? 'image/webp' : 'image/png';
             
-            const dataUrl = canvas.toDataURL(mimeType, 1.0);
+            const dataUrl = finalCanvas.toDataURL(mimeType, 1.0);
             const link = document.createElement('a');
             link.download = `${currentBook?.flipbookName?.replace(/\s+/g, '-') || 'share'}-poster.${fileExt}`;
             link.href = dataUrl;
@@ -471,6 +764,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             alert('Error generating poster image: ' + error.message);
         } finally {
             setIsDownloading(false);
+            setIsCapturing(false);
         }
     };
 
@@ -506,6 +800,63 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             }
         }
         setShowBgFitDropdown(!showBgFitDropdown);
+    };
+
+    const toggleDotTypeDropdown = (e) => {
+        if (!showDotTypeDropdown) {
+            const button = e.currentTarget;
+            const container = button.closest('.custom-scrollbar');
+            if (container) {
+                const containerRect = container.getBoundingClientRect();
+                const buttonRect = button.getBoundingClientRect();
+                const spaceBelow = containerRect.bottom - buttonRect.bottom;
+                setDotTypeDirection(spaceBelow < 150 ? 'up' : 'down');
+            } else {
+                const spaceBelow = window.innerHeight - button.getBoundingClientRect().bottom;
+                setDotTypeDirection(spaceBelow < 180 ? 'up' : 'down');
+            }
+        }
+        setShowDotTypeDropdown(!showDotTypeDropdown);
+        setShowCornerSquareTypeDropdown(false);
+        setShowCornerDotTypeDropdown(false);
+    };
+
+    const toggleCornerSquareTypeDropdown = (e) => {
+        if (!showCornerSquareTypeDropdown) {
+            const button = e.currentTarget;
+            const container = button.closest('.custom-scrollbar');
+            if (container) {
+                const containerRect = container.getBoundingClientRect();
+                const buttonRect = button.getBoundingClientRect();
+                const spaceBelow = containerRect.bottom - buttonRect.bottom;
+                setCornerSquareTypeDirection(spaceBelow < 120 ? 'up' : 'down');
+            } else {
+                const spaceBelow = window.innerHeight - button.getBoundingClientRect().bottom;
+                setCornerSquareTypeDirection(spaceBelow < 180 ? 'up' : 'down');
+            }
+        }
+        setShowCornerSquareTypeDropdown(!showCornerSquareTypeDropdown);
+        setShowDotTypeDropdown(false);
+        setShowCornerDotTypeDropdown(false);
+    };
+
+    const toggleCornerDotTypeDropdown = (e) => {
+        if (!showCornerDotTypeDropdown) {
+            const button = e.currentTarget;
+            const container = button.closest('.custom-scrollbar');
+            if (container) {
+                const containerRect = container.getBoundingClientRect();
+                const buttonRect = button.getBoundingClientRect();
+                const spaceBelow = containerRect.bottom - buttonRect.bottom;
+                setCornerDotTypeDirection(spaceBelow < 120 ? 'up' : 'down');
+            } else {
+                const spaceBelow = window.innerHeight - button.getBoundingClientRect().bottom;
+                setCornerDotTypeDirection(spaceBelow < 180 ? 'up' : 'down');
+            }
+        }
+        setShowCornerDotTypeDropdown(!showCornerDotTypeDropdown);
+        setShowDotTypeDropdown(false);
+        setShowCornerSquareTypeDropdown(false);
     };
 
     if (!isOpen) return null;
@@ -580,7 +931,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                     ) : (
                         <div className="flex items-center gap-[0.5vw]">
                             <button 
-                                onClick={() => setIsEditingQR(false)}
+                                onClick={handleCancelEditor}
                                 className="text-[1.1vw] font-semibold text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                             >
                                 Share Flipbook
@@ -621,7 +972,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             `}} />
                                             <div 
                                                 className="w-full h-full p-[0.8vw] flex items-center justify-center svg-preview-container"
-                                                dangerouslySetInnerHTML={{ __html: currentBook.firstPageHtml }}
+                                                dangerouslySetInnerHTML={{ __html: getResolvedFirstPageHtml() }}
                                                 style={{
                                                     width: '100%',
                                                     height: '100%',
@@ -693,18 +1044,19 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <div 
                                             ref={qrRef}
                                             className="relative w-[4.1vw] h-[4.1vw] bg-gray-100 rounded-[0.4vw] overflow-hidden border border-gray-200 group cursor-pointer shadow-sm flex items-center justify-center"
-                                            onClick={() => setIsEditingQR(true)}
+                                            onClick={handleEnterEditor}
                                         >
                                             <CustomQRCode 
                                                 ref={mainQrRef}
                                                 value={publicUrl}
                                                 size={128}
-                                                fgColor={qrColor}
-                                                bgColor={qrBgColor}
-                                                dotType={qrDotType}
-                                                cornerSquareType={qrCornerSquareType}
-                                                cornerDotType={qrCornerDotType}
-                                                level={qrLevel}
+                                                fgColor={savedConfig.qrColor}
+                                                bgColor={savedConfig.qrBgColor}
+                                                dotType={savedConfig.qrDotType}
+                                                cornerSquareType={savedConfig.qrCornerSquareType}
+                                                cornerDotType={savedConfig.qrCornerDotType}
+                                                level={savedConfig.qrLevel}
+                                                logo={savedConfig.qrLogo}
                                                 style={{ width: '100%', height: '100%', padding: '0.3vw' }}
                                             />
                                             <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -712,26 +1064,83 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                 <span className="text-white text-[0.5vw] font-bold mt-[0.1vw]">Edit</span>
                                             </div>
                                         </div>
-                                        <div 
-                                            className="flex items-center gap-[0.4vw] text-gray-400 group cursor-pointer hover:text-gray-600 transition-colors"
-                                            onClick={downloadQRCode}
-                                        >
-                                            <Icon icon="mdi:share" className="w-[1vw] h-[1vw]" />
-                                            <span className="text-[0.75vw] font-bold underline underline-offset-4 decoration-gray-300">Download QR Code</span>
+                                        <div className="w-[12vw] relative">
+                                            <div className="flex items-center bg-white border border-gray-200 rounded-[0.5vw] shadow-sm hover:border-gray-300 transition-all group overflow-hidden h-[2.8vw]">
+                                                <button 
+                                                    onClick={downloadQRCode}
+                                                    disabled={isDownloading}
+                                                    className={`flex-1 px-[0.8vw] font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] transition-colors h-full ${
+                                                        isDownloading
+                                                            ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                                                            : 'text-gray-700 cursor-pointer hover:bg-gray-50'
+                                                    }`}
+                                                >
+                                                    {isDownloading ? (
+                                                        <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-[0.9vw] h-[0.9vw] shrink-0" />
+                                                    ) : (
+                                                        <Download size="0.9vw" className="text-gray-400 shrink-0" />
+                                                    )}
+                                                    <span className="truncate">
+                                                        {isDownloading ? 'Generating...' : `Download ${exportFormat}`}
+                                                    </span>
+                                                </button>
+                                                <div className="w-[1px] h-[1.5vw] bg-gray-200 shrink-0" />
+                                                <button 
+                                                    onClick={() => !isDownloading && setShowExportDropdown(!showExportDropdown)}
+                                                    disabled={isDownloading}
+                                                    className={`px-[0.6vw] h-full transition-all shrink-0 flex items-center justify-center ${
+                                                        isDownloading
+                                                            ? 'bg-gray-50 cursor-not-allowed opacity-50'
+                                                            : showExportDropdown ? 'bg-gray-100 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                                                    }`}
+                                                >
+                                                    <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
+                                                </button>
+                                            </div>
+
+                                            {showExportDropdown && (
+                                                <>
+                                                    <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowExportDropdown(false)} />
+                                                    <div className="absolute top-[calc(100%+0.3vw)] left-0 right-0 bg-white border border-gray-100 rounded-[0.6vw] shadow-xl z-50 py-[0.4vw] animate-in fade-in slide-in-from-top-2 duration-200">
+                                                        {['JPG', 'PNG', 'WebP'].map((format) => (
+                                                            <button
+                                                                key={format}
+                                                                onClick={() => {
+                                                                    setExportFormat(format);
+                                                                    setShowExportDropdown(false);
+                                                                }}
+                                                                className={`w-full text-left px-[1vw] py-[0.5vw] text-[0.75vw] font-bold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${exportFormat === format ? 'text-[#4A3AFF]' : 'text-gray-600'}`}
+                                                            >
+                                                                {format}
+                                                                {exportFormat === format && <Check size="0.8vw" />}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Share Through */}
-                                <div className="flex flex-col gap-[0.8vw]">
+                                <div className="flex flex-col gap-[0.8vw] mt-auto pb-[1vw]">
                                     <div className="flex items-center gap-[0.6vw]">
                                         <h3 className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Share Through</h3>
                                         <div className="flex-1 h-[1px] bg-gray-100" />
                                     </div>
                                     <div className="flex items-center gap-[0.6vw]">
                                         {/* Embed */}
-                                        <div className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border border-gray-200 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-all cursor-pointer shadow-sm group">
-                                            <Icon icon="lucide:code-2" className="w-[1.2vw] h-[1.2vw] text-gray-600 transition-transform" />
+                                        <div 
+                                            onClick={() => {
+                                                const iframeCode = `<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`;
+                                                navigator.clipboard.writeText(iframeCode);
+                                                setEmbedCopied(true);
+                                                setTimeout(() => setEmbedCopied(false), 2000);
+                                            }}
+                                            title="Copy Embed Code"
+                                            className={`w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${embedCopied ? 'bg-green-500 border-green-500' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
+                                        >
+                                            <Icon icon={embedCopied ? "lucide:check" : "lucide:code-2"} className={`w-[1.2vw] h-[1.2vw] ${embedCopied ? 'text-white' : 'text-gray-600'} transition-transform`} />
                                         </div>
                                         {/* WhatsApp */}
                                         <div 
@@ -754,12 +1163,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         >
                                             <Icon icon="logos:google-gmail" className="w-[1.4vw] h-[1.4vw]" />
                                         </div>
-                                        {/* Drive */}
+                                        {/* LinkedIn */}
                                         <div 
-                                            onClick={() => shareModel('drive')}
-                                            className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border border-gray-200 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-all cursor-pointer shadow-sm"
+                                            onClick={() => shareModel('linkedin')}
+                                            className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-[#0A66C2] flex items-center justify-center transition-all cursor-pointer shadow-md"
                                         >
-                                            <Icon icon="logos:google-drive" className="w-[1.4vw] h-[1.4vw]" />
+                                            <Icon icon="ri:linkedin-fill" className="w-[1.6vw] h-[1.6vw] text-white" />
                                         </div>
                                         {/* Instagram */}
                                         <div 
@@ -776,15 +1185,19 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         /* EDIT QR VIEW */
                         <div className="flex gap-[1.5vw] animate-in fade-in slide-in-from-right-4 duration-300">
                             {/* Left Column: QR Poster Preview */}
-                            <div className="flex-[0.75] flex flex-col">
+                            <div className="flex-[0.75] flex flex-col min-w-0 relative">
                                 <div 
                                     ref={posterPreviewRef} 
                                     id="poster-preview-container" 
                                     className="relative w-full h-[25vw] rounded-[1vw] border-[0.1vw] border-[#A5D6A7] p-[1.5vw] flex flex-col items-center shadow-sm overflow-hidden ml-[0.5vw] bg-white"
                                 >
-                                    {/* High Quality Exporting Overlay */}
-                                    {isDownloading && (
-                                        <div className="absolute inset-0 bg-white/75 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-[0.6vw] animate-in fade-in duration-200 pointer-events-auto">
+                                    {/* High Quality Exporting Overlay — rendered inside poster-preview-container
+                                         but ignored by html2canvas using data-html2canvas-ignore */}
+                                    {(isDownloading || isCapturing) && (
+                                        <div 
+                                            data-html2canvas-ignore="true"
+                                            className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-[0.6vw] pointer-events-auto"
+                                        >
                                             <div className="bg-[#4A3AFF]/10 p-[0.8vw] rounded-full">
                                                 <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-[1.8vw] h-[1.8vw]" />
                                             </div>
@@ -819,20 +1232,25 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     )}
                                     
                                     {/* Top Text */}
-                                    <div className="text-center mb-[2vw] shrink-0 relative z-10">
-                                        <h3 
-                                            className="text-center tracking-tight font-black"
+                                    <div className="text-center mb-[2vw] shrink-0 relative z-10 w-full max-w-full px-[0.5vw]">
+                                        <h3
+                                            ref={posterText1Ref}
+                                            data-export-id="poster-text1"
+                                            className="text-center font-black break-words w-full"
                                             style={{
                                                 fontFamily: text1FontFamily,
                                                 fontSize: typeof text1FontSize === 'number' ? `${text1FontSize / 15}vw` : '1.6vw',
                                                 fontWeight: text1Bold ? (text1FontWeight === 'Regular' ? '400' : text1FontWeight === 'Medium' ? '500' : text1FontWeight === 'Semi Bold' ? '600' : text1FontWeight === 'Bold' ? '700' : '900') : '400',
-                                                letterSpacing: text1LetterSpacing === 'Auto' ? 'normal' : `${text1LetterSpacing}px`,
-                                                lineHeight: text1LineHeight === 'Auto' ? '1.1' : text1LineHeight,
+                                                letterSpacing: text1LetterSpacing === 'Auto' ? 'normal' : `${text1LetterSpacing / 10}em`,
+                                                lineHeight: text1LineHeight === 'Auto' ? '1.1' : String(text1LineHeight),
                                                 textAlign: text1Align,
                                                 color: text1Color,
                                                 opacity: text1ColorOpacity / 100,
                                                 fontStyle: text1Italic ? 'italic' : 'normal',
-                                                textDecoration: text1Underline ? 'underline' : 'none',
+                                                textDecoration: [
+                                                    text1Underline ? 'underline' : '',
+                                                    text1Linethrough ? 'line-through' : ''
+                                                ].filter(Boolean).join(' ') || 'none',
                                                 textTransform: 'uppercase',
                                             }}
                                         >
@@ -842,25 +1260,32 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     
                                     {/* QR Code Area */}
                                     <div className="flex-1 flex flex-col items-center justify-start w-full relative min-h-0 z-10">
-                                        <span 
-                                            className="mb-[1.5vw] uppercase text-center font-bold"
+                                        <span
+                                            ref={posterText2Ref}
+                                            data-export-id="poster-text2"
+                                            className="mb-[1.5vw] uppercase text-center font-bold block w-full max-w-full px-[0.5vw]"
                                             style={{
                                                 fontFamily: text2FontFamily,
                                                 fontSize: typeof text2FontSize === 'number' ? `${text2FontSize / 15}vw` : '0.7vw',
                                                 fontWeight: text2Bold ? (text2FontWeight === 'Regular' ? '400' : text2FontWeight === 'Medium' ? '500' : text2FontWeight === 'Semi Bold' ? '600' : text2FontWeight === 'Bold' ? '700' : '900') : '400',
-                                                letterSpacing: text2LetterSpacing === 'Auto' ? '0.2em' : `${text2LetterSpacing}px`,
-                                                lineHeight: text2LineHeight === 'Auto' ? 'normal' : text2LineHeight,
+                                                letterSpacing: text2LetterSpacing === 'Auto' ? '0.2em' : `${text2LetterSpacing / 10}em`,
+                                                lineHeight: text2LineHeight === 'Auto' ? 'normal' : String(text2LineHeight),
                                                 textAlign: text2Align,
                                                 color: text2Color,
                                                 opacity: text2ColorOpacity / 100,
                                                 fontStyle: text2Italic ? 'italic' : 'normal',
-                                                textDecoration: text2Underline ? 'underline' : 'none',
+                                                textDecoration: [
+                                                    text2Underline ? 'underline' : '',
+                                                    text2Linethrough ? 'line-through' : ''
+                                                ].filter(Boolean).join(' ') || 'none',
+                                                whiteSpace: 'pre-wrap',
+                                                wordBreak: 'break-word',
                                             }}
                                         >
                                             {text2}
                                         </span>
                                         
-                                        <div className="relative p-[1.2vw] shrink-0">
+                                        <div ref={posterQrWrapRef} data-export-id="poster-qr-wrap" className="relative p-[1.2vw] shrink-0">
                                             {/* Decorative Corners */}
                                             <div 
                                                 className="absolute top-0 left-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-l-[3px] rounded-tl-[0.8vw]" 
@@ -1109,7 +1534,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                             <div className="bg-white border border-gray-200 rounded-[0.8vw] p-[0.8vw] flex gap-[1vw] relative overflow-hidden shadow-sm">
                                                                 <div 
                                                                     ref={qrRef}
-                                                                    className="w-[10.5vw] h-[10.5vw] bg-gray-100 rounded-[0.5vw] flex items-center justify-center relative group shrink-0"
+                                                                    className="w-[10.5vw] h-[10.5vw] bg-gray-100 rounded-[0.5vw] flex items-center justify-center relative shrink-0"
                                                                 >
                                                                     <CustomQRCode 
                                                                         value={publicUrl}
@@ -1122,12 +1547,6 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         level={qrLevel}
                                                                         style={{ width: '100%', height: '100%', padding: '0.8vw' }}
                                                                     />
-                                                                    <div className="absolute inset-0 flex items-center justify-center bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                                                                        <div className="bg-white/90 backdrop-blur-sm px-[0.6vw] py-[0.3vw] rounded-[0.4vw] flex items-center gap-[0.3vw] shadow-sm border border-gray-100">
-                                                                            <Icon icon="ri:loop-left-line" className="text-[0.8vw]" />
-                                                                            <span className="text-[0.7vw] font-bold">Theme</span>
-                                                                        </div>
-                                                                    </div>
                                                                 </div>
                                                                 <div className="flex-1 grid grid-cols-2 gap-[0.5vw] min-w-0 h-[10.5vw] overflow-hidden pr-[0.4vw] content-start">
                                                                     {qrThemes.map((theme, i) => (
@@ -1238,11 +1657,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">Dot Style :</span>
                                                                     <div className="flex-1 relative">
                                                                         <button 
-                                                                            onClick={() => {
-                                                                                setShowDotTypeDropdown(!showDotTypeDropdown);
-                                                                                setShowCornerSquareTypeDropdown(false);
-                                                                                setShowCornerDotTypeDropdown(false);
-                                                                            }}
+                                                                            onClick={toggleDotTypeDropdown}
                                                                             className="w-full bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-400 transition-all"
                                                                         >
                                                                             <span className="capitalize">{qrDotType.replace('-', ' ')}</span>
@@ -1251,7 +1666,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         {showDotTypeDropdown && (
                                                                             <>
                                                                                 <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowDotTypeDropdown(false)} />
-                                                                                <div className="absolute top-[calc(100%+0.2vw)] left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw] max-h-[12vw] overflow-y-auto custom-scrollbar">
+                                                                                <div className={`absolute ${dotTypeDirection === 'up' ? 'bottom-[calc(100%+0.2vw)] animate-in fade-in slide-in-from-bottom-1' : 'top-[calc(100%+0.2vw)] animate-in fade-in slide-in-from-top-1'} left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw] max-h-[12vw] overflow-y-auto custom-scrollbar`}>
                                                                                     {['square', 'dots', 'rounded', 'extra-rounded', 'classy', 'classy-rounded'].map((type) => (
                                                                                         <button
                                                                                             key={type}
@@ -1270,17 +1685,13 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         )}
                                                                     </div>
                                                                 </div>
-
+ 
                                                                 {/* Eye Frame Style Selection */}
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">Eye Frame :</span>
                                                                     <div className="flex-1 relative">
                                                                         <button 
-                                                                            onClick={() => {
-                                                                                setShowCornerSquareTypeDropdown(!showCornerSquareTypeDropdown);
-                                                                                setShowDotTypeDropdown(false);
-                                                                                setShowCornerDotTypeDropdown(false);
-                                                                            }}
+                                                                            onClick={toggleCornerSquareTypeDropdown}
                                                                             className="w-full bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-400 transition-all"
                                                                         >
                                                                             <span className="capitalize">{qrCornerSquareType.replace('-', ' ')}</span>
@@ -1289,7 +1700,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         {showCornerSquareTypeDropdown && (
                                                                             <>
                                                                                 <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowCornerSquareTypeDropdown(false)} />
-                                                                                <div className="absolute top-[calc(100%+0.2vw)] left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw]">
+                                                                                <div className={`absolute ${cornerSquareTypeDirection === 'up' ? 'bottom-[calc(100%+0.2vw)] animate-in fade-in slide-in-from-bottom-1' : 'top-[calc(100%+0.2vw)] animate-in fade-in slide-in-from-top-1'} left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw]`}>
                                                                                     {['square', 'dot', 'extra-rounded'].map((type) => (
                                                                                         <button
                                                                                             key={type}
@@ -1308,17 +1719,13 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         )}
                                                                     </div>
                                                                 </div>
-
+ 
                                                                 {/* Eye Ball Style Selection */}
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">Eye Ball :</span>
                                                                     <div className="flex-1 relative">
                                                                         <button 
-                                                                            onClick={() => {
-                                                                                setShowCornerDotTypeDropdown(!showCornerDotTypeDropdown);
-                                                                                setShowDotTypeDropdown(false);
-                                                                                setShowCornerSquareTypeDropdown(false);
-                                                                            }}
+                                                                            onClick={toggleCornerDotTypeDropdown}
                                                                             className="w-full bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-400 transition-all"
                                                                         >
                                                                             <span className="capitalize">{qrCornerDotType.replace('-', ' ')}</span>
@@ -1327,7 +1734,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         {showCornerDotTypeDropdown && (
                                                                             <>
                                                                                 <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowCornerDotTypeDropdown(false)} />
-                                                                                <div className="absolute top-[calc(100%+0.2vw)] left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw]">
+                                                                                <div className={`absolute ${cornerDotTypeDirection === 'up' ? 'bottom-[calc(100%+0.2vw)] animate-in fade-in slide-in-from-bottom-1' : 'top-[calc(100%+0.2vw)] animate-in fade-in slide-in-from-top-1'} left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw]`}>
                                                                                     {['square', 'dot'].map((type) => (
                                                                                         <button
                                                                                             key={type}
@@ -1601,7 +2008,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                 {/* Footer Buttons */}
                                 <div className="flex items-center gap-[0.6vw] mt-auto shrink-0">
                                      <button 
-                                         onClick={() => setIsEditingQR(false)}
+                                         onClick={handleCancelEditor}
                                         className="flex-1 py-[0.7vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.8vw] hover:bg-gray-50 transition-all cursor-pointer flex items-center justify-center gap-[0.4vw] shadow-sm whitespace-nowrap"
                                      >
                                         <X size="0.9vw" className="text-gray-500" /> Cancel
@@ -1665,12 +2072,126 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                      </div>
 
                                      <button 
-                                         onClick={() => setIsEditingQR(false)}
+                                         onClick={handleSaveEditor}
                                         className="flex-1 py-[0.7vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.8vw] hover:bg-gray-800 transition-all cursor-pointer shadow-md flex items-center justify-center gap-[0.5vw] whitespace-nowrap"
                                      >
                                          <Check size="1vw" /> Save
                                      </button>
                                  </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Hidden Template for Main View Export */}
+                    {!isEditingQR && (
+                        <div className="absolute top-[-9999px] left-[-9999px] opacity-0 pointer-events-none -z-50 w-[20vw] flex-[0.75] flex flex-col min-w-0">
+                            <div 
+                                ref={hiddenPosterRef} 
+                                id="hidden-poster-preview-container" 
+                                className="relative w-full h-[25vw] rounded-[1vw] border-[0.1vw] border-[#A5D6A7] p-[1.5vw] flex flex-col items-center shadow-sm overflow-hidden bg-white"
+                            >
+                                {/* Color Background Layer (Bottom) */}
+                                <div 
+                                    className="absolute inset-0 pointer-events-none transition-all duration-300 z-0"
+                                    style={{
+                                        backgroundColor: !customBgColor.includes('gradient') ? customBgColor : 'transparent',
+                                        backgroundImage: customBgColor.includes('gradient') ? customBgColor : 'none',
+                                    }}
+                                />
+                                
+                                {/* Image Background Layer (Top - rendered with dynamic opacity over the color layer) */}
+                                {qrBgType === 'Image' && qrBgImage && (
+                                    <img 
+                                        src={qrBgImage.startsWith('data:') ? qrBgImage : `${qrBgImage}${qrBgImage.includes('?') ? '&' : '?'}cors=1`}
+                                        crossOrigin="anonymous"
+                                        className="absolute inset-0 pointer-events-none transition-all duration-300 z-[1]"
+                                        style={{
+                                            width: '100%',
+                                            height: '100%',
+                                            objectFit: qrBgFit === 'Fit' ? 'contain' : qrBgFit === 'Fill' ? 'cover' : 'fill',
+                                            opacity: qrBgOpacity / 100,
+                                        }}
+                                    />
+                                )}
+                                
+                                {/* Top Text */}
+                                <div className="text-center mb-[2vw] shrink-0 relative z-10 w-full max-w-full px-[0.5vw]">
+                                    <h3
+                                        ref={hiddenText1Ref}
+                                        data-export-id="poster-text1"
+                                        className="text-center font-black break-words w-full"
+                                        style={{
+                                            fontFamily: text1FontFamily,
+                                            fontSize: typeof text1FontSize === 'number' ? `${text1FontSize / 15}vw` : '1.6vw',
+                                            fontWeight: text1Bold ? (text1FontWeight === 'Regular' ? '400' : text1FontWeight === 'Medium' ? '500' : text1FontWeight === 'Semi Bold' ? '600' : text1FontWeight === 'Bold' ? '700' : '900') : '400',
+                                            letterSpacing: text1LetterSpacing === 'Auto' ? 'normal' : `${text1LetterSpacing / 10}em`,
+                                            lineHeight: text1LineHeight === 'Auto' ? '1.1' : String(text1LineHeight),
+                                            textAlign: text1Align,
+                                            color: text1Color,
+                                            opacity: text1ColorOpacity / 100,
+                                            fontStyle: text1Italic ? 'italic' : 'normal',
+                                            textDecoration: [
+                                                text1Underline ? 'underline' : '',
+                                                text1Linethrough ? 'line-through' : ''
+                                            ].filter(Boolean).join(' ') || 'none',
+                                            textTransform: 'uppercase',
+                                        }}
+                                    >
+                                        {text1}
+                                    </h3>
+                                </div>
+                                
+                                {/* QR Code Area */}
+                                <div className="flex-1 flex flex-col items-center justify-start w-full relative min-h-0 z-10">
+                                    <span
+                                        ref={hiddenText2Ref}
+                                        data-export-id="poster-text2"
+                                        className="mb-[1.5vw] uppercase text-center font-bold block w-full max-w-full px-[0.5vw]"
+                                        style={{
+                                            fontFamily: text2FontFamily,
+                                            fontSize: typeof text2FontSize === 'number' ? `${text2FontSize / 15}vw` : '0.7vw',
+                                            fontWeight: text2Bold ? (text2FontWeight === 'Regular' ? '400' : text2FontWeight === 'Medium' ? '500' : text2FontWeight === 'Semi Bold' ? '600' : text2FontWeight === 'Bold' ? '700' : '900') : '400',
+                                            letterSpacing: text2LetterSpacing === 'Auto' ? '0.2em' : `${text2LetterSpacing / 10}em`,
+                                            lineHeight: text2LineHeight === 'Auto' ? 'normal' : String(text2LineHeight),
+                                            textAlign: text2Align,
+                                            color: text2Color,
+                                            opacity: text2ColorOpacity / 100,
+                                            fontStyle: text2Italic ? 'italic' : 'normal',
+                                            textDecoration: [
+                                                text2Underline ? 'underline' : '',
+                                                text2Linethrough ? 'line-through' : ''
+                                            ].filter(Boolean).join(' ') || 'none',
+                                            whiteSpace: 'pre-wrap',
+                                            wordBreak: 'break-word',
+                                        }}
+                                    >
+                                        {text2}
+                                    </span>
+                                    
+                                    <div ref={hiddenQrWrapRef} data-export-id="poster-qr-wrap" className="relative p-[1.2vw] shrink-0">
+                                        {/* Decorative Corners */}
+                                        <div className="absolute top-0 left-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-l-[3px] rounded-tl-[0.8vw]" style={{ borderColor: qrColor }} />
+                                        <div className="absolute top-0 right-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-r-[3px] rounded-tr-[0.8vw]" style={{ borderColor: qrColor }} />
+                                        <div className="absolute bottom-0 left-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-l-[3px] rounded-bl-[0.8vw]" style={{ borderColor: qrColor }} />
+                                        <div className="absolute bottom-0 right-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-r-[3px] rounded-br-[0.8vw]" style={{ borderColor: qrColor }} />
+                                        
+                                        {/* The QR Code - Styled to match image (no background box) */}
+                                        <div className="flex items-center justify-center relative">
+                                            <CustomQRCode 
+                                                value={publicUrl}
+                                                size={300}
+                                                fgColor={qrColor}
+                                                bgColor={qrBgColor === '#ffffff' ? 'transparent' : qrBgColor}
+                                                dotType={qrDotType}
+                                                cornerSquareType={qrCornerSquareType}
+                                                cornerDotType={qrCornerDotType}
+                                                level={qrLevel}
+                                                logo={qrLogo}
+                                                style={{ width: '10vw', height: '10vw' }}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1697,6 +2218,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                     const setItalic = isT1 ? setText1Italic : setText2Italic;
                     const underline = isT1 ? text1Underline : text2Underline;
                     const setUnderline = isT1 ? setText1Underline : setText2Underline;
+                    const linethrough = isT1 ? text1Linethrough : text2Linethrough;
+                    const setLinethrough = isT1 ? setText1Linethrough : setText2Linethrough;
                     const color = isT1 ? text1Color : text2Color;
                     const setColor = isT1 ? setText1Color : setText2Color;
                     const opacity = isT1 ? text1ColorOpacity : text2ColorOpacity;
@@ -1848,230 +2371,171 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                                 {/* Character Spacing */}
                                 <div className="relative w-[5.5vw]">
-                                    <div 
-                                        onMouseDown={(e) => {
-                                            if (e.button !== 0) return;
-                                            
-                                            // Lock global double arrow cursor and prevent text selection during scrubbing drag
-                                            document.body.style.cursor = 'ew-resize';
-                                            document.body.style.userSelect = 'none';
-                                            
-                                            const startX = e.clientX;
-                                            const startVal = letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : parseFloat(letterSpacing);
-                                            let hasDragged = false;
-                                            
-                                            const handleMouseMove = (moveEvent) => {
-                                                const deltaX = moveEvent.clientX - startX;
-                                                if (Math.abs(deltaX) > 3) {
-                                                    hasDragged = true;
-                                                }
-                                                const change = Math.round(deltaX / 8);
-                                                const newVal = Math.min(40, Math.max(isT1 ? -5 : 0, startVal + change));
-                                                setLetterSpacing(newVal);
-                                            };
-                                            
-                                            const handleMouseUp = () => {
-                                                window.removeEventListener('mousemove', handleMouseMove);
-                                                window.removeEventListener('mouseup', handleMouseUp);
-                                                
-                                                // Reset global styles
-                                                document.body.style.cursor = '';
-                                                document.body.style.userSelect = '';
-                                                
-                                                if (!hasDragged) {
-                                                    setShowLetterSpacingSlider(!showLetterSpacingSlider);
-                                                    setShowLineHeightSlider(false);
-                                                    setShowFontFamilyDropdown(false);
-                                                    setShowFontSizeDropdown(false);
-                                                    setShowFontWeightDropdown(false);
-                                                }
-                                            };
-                                            
-                                            window.addEventListener('mousemove', handleMouseMove);
-                                            window.addEventListener('mouseup', handleMouseUp);
-                                        }}
-                                        className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group cursor-ew-resize select-none"
-                                        title="Drag horizontally to scrub value"
-                                    >
+                                    <div className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group">
                                         <input 
                                             type="text" 
-                                            value={letterSpacing}
-                                            readOnly
-                                            className="w-full text-center text-[0.7vw] font-semibold text-gray-700 outline-none bg-transparent cursor-ew-resize select-none pointer-events-none"
+                                            value={letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : letterSpacing}
+                                            onChange={(e) => setLetterSpacing(e.target.value)}
+                                            onFocus={(e) => e.target.select()}
+                                            onBlur={() => {
+                                                if (letterSpacing === 'Auto' || letterSpacing === '') {
+                                                    setLetterSpacing('Auto');
+                                                } else {
+                                                    const parsed = parseInt(letterSpacing);
+                                                    setLetterSpacing(isNaN(parsed) ? 'Auto' : parsed);
+                                                }
+                                            }}
+                                            className="w-full text-center text-[0.7vw] font-semibold text-gray-700 outline-none bg-transparent"
                                         />
-                                        <Icon icon="solar:paragraph-spacing-linear" width="1.2vw" height="1.2vw" rotate={1} className="text-gray-400 shrink-0 pointer-events-none" />
+                                        <div
+                                            onMouseDown={(e) => {
+                                                if (e.button !== 0) return;
+                                                
+                                                // Lock global double arrow cursor and prevent text selection during scrubbing drag
+                                                document.body.style.cursor = 'ew-resize';
+                                                document.body.style.userSelect = 'none';
+                                                
+                                                const startX = e.clientX;
+                                                const startVal = letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : parseFloat(letterSpacing);
+                                                
+                                                const handleMouseMove = (moveEvent) => {
+                                                    const deltaX = moveEvent.clientX - startX;
+                                                    const change = Math.round(deltaX / 8);
+                                                    const newVal = Math.min(40, Math.max(isT1 ? -5 : 0, startVal + change));
+                                                    setLetterSpacing(newVal);
+                                                };
+                                                
+                                                const handleMouseUp = () => {
+                                                    window.removeEventListener('mousemove', handleMouseMove);
+                                                    window.removeEventListener('mouseup', handleMouseUp);
+                                                    
+                                                    // Reset global styles
+                                                    document.body.style.cursor = '';
+                                                    document.body.style.userSelect = '';
+                                                };
+                                                
+                                                window.addEventListener('mousemove', handleMouseMove);
+                                                window.addEventListener('mouseup', handleMouseUp);
+                                            }}
+                                            className="cursor-ew-resize p-[0.1vw] hover:bg-gray-100 rounded-[0.2vw] flex items-center justify-center shrink-0"
+                                            title="Drag to adjust character spacing"
+                                        >
+                                            <Icon icon="solar:paragraph-spacing-linear" width="1.2vw" height="1.2vw" rotate={1} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                        </div>
                                     </div>
-                                    {showLetterSpacingSlider && (
-                                        <>
-                                            <div className="fixed inset-0 z-[80]" onClick={() => setShowLetterSpacingSlider(false)} />
-                                            <div className="absolute right-0 top-[2.4vw] z-[90] p-[0.8vw] bg-white border border-gray-200 rounded-[0.8vw] shadow-xl w-[12vw] flex flex-col gap-[0.6vw] animate-in fade-in slide-in-from-top-2 duration-150">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[0.7vw] font-bold text-gray-400 uppercase tracking-wider">Spacing</span>
-                                                    <button 
-                                                        onClick={() => setLetterSpacing('Auto')}
-                                                        className={`px-[0.4vw] py-[0.1vw] rounded-[0.3vw] text-[0.65vw] font-bold border transition-colors ${letterSpacing === 'Auto' ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#A5D6A7]' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}
-                                                    >
-                                                        Auto
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-[0.4vw]">
-                                                    <input 
-                                                        type="range"
-                                                        min={isT1 ? -5 : 0}
-                                                        max={30}
-                                                        value={letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : letterSpacing}
-                                                        onChange={(e) => setLetterSpacing(parseInt(e.target.value))}
-                                                        className="flex-1 h-[0.3vw] accent-[#2E7D32] cursor-pointer"
-                                                    />
-                                                    <span className="text-[0.7vw] font-bold text-gray-700 w-[2.2vw] text-right shrink-0">
-                                                        {letterSpacing === 'Auto' ? (isT1 ? '0px' : '2px') : `${letterSpacing}px`}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[0.6vw] font-semibold text-gray-400 mt-[-0.2vw]">
-                                                    Default: {isT1 ? "0px" : "2px (0.2em)"}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
                                 </div>
 
                                 {/* Line Height */}
                                 <div className="relative w-[5.5vw]">
-                                    <div 
-                                        onMouseDown={(e) => {
-                                            if (e.button !== 0) return;
-                                            
-                                            // Lock global double arrow cursor and prevent text selection during scrubbing drag
-                                            document.body.style.cursor = 'ew-resize';
-                                            document.body.style.userSelect = 'none';
-                                            
-                                            const startX = e.clientX;
-                                            const startVal = lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : parseFloat(lineHeight);
-                                            let hasDragged = false;
-                                            
-                                            const handleMouseMove = (moveEvent) => {
-                                                const deltaX = moveEvent.clientX - startX;
-                                                if (Math.abs(deltaX) > 3) {
-                                                    hasDragged = true;
-                                                }
-                                                const change = deltaX / 100;
-                                                const newVal = parseFloat(Math.min(3.0, Math.max(0.5, startVal + change)).toFixed(1));
-                                                setLineHeight(newVal);
-                                            };
-                                            
-                                            const handleMouseUp = () => {
-                                                window.removeEventListener('mousemove', handleMouseMove);
-                                                window.removeEventListener('mouseup', handleMouseUp);
-                                                
-                                                // Reset global styles
-                                                document.body.style.cursor = '';
-                                                document.body.style.userSelect = '';
-                                                
-                                                if (!hasDragged) {
-                                                    setShowLineHeightSlider(!showLineHeightSlider);
-                                                    setShowLetterSpacingSlider(false);
-                                                    setShowFontFamilyDropdown(false);
-                                                    setShowFontSizeDropdown(false);
-                                                    setShowFontWeightDropdown(false);
-                                                }
-                                            };
-                                            
-                                            window.addEventListener('mousemove', handleMouseMove);
-                                            window.addEventListener('mouseup', handleMouseUp);
-                                        }}
-                                        className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group cursor-ew-resize select-none"
-                                        title="Drag horizontally to scrub value"
-                                    >
+                                    <div className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group">
                                         <input 
                                             type="text" 
-                                            value={lineHeight}
-                                            readOnly
-                                            className="w-full text-center text-[0.7vw] font-semibold text-gray-700 outline-none bg-transparent cursor-ew-resize select-none pointer-events-none"
+                                            value={lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : lineHeight}
+                                            onChange={(e) => setLineHeight(e.target.value)}
+                                            onFocus={(e) => e.target.select()}
+                                            onBlur={() => {
+                                                if (lineHeight === 'Auto' || lineHeight === '') {
+                                                    setLineHeight('Auto');
+                                                } else {
+                                                    const parsed = parseFloat(lineHeight);
+                                                    setLineHeight(isNaN(parsed) ? 'Auto' : parseFloat(parsed.toFixed(1)));
+                                                }
+                                            }}
+                                            className="w-full text-center text-[0.7vw] font-semibold text-gray-700 outline-none bg-transparent"
                                         />
-                                        <Icon icon="solar:paragraph-spacing-linear" width="1.2vw" height="1.2vw" className="text-gray-400 shrink-0 pointer-events-none" />
+                                        <div
+                                            onMouseDown={(e) => {
+                                                if (e.button !== 0) return;
+                                                
+                                                // Lock global double arrow cursor and prevent text selection during scrubbing drag
+                                                document.body.style.cursor = 'ew-resize';
+                                                document.body.style.userSelect = 'none';
+                                                
+                                                const startX = e.clientX;
+                                                const startVal = lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : parseFloat(lineHeight);
+                                                
+                                                const handleMouseMove = (moveEvent) => {
+                                                    const deltaX = moveEvent.clientX - startX;
+                                                    const change = deltaX / 100;
+                                                    const newVal = parseFloat(Math.min(3.0, Math.max(0.5, startVal + change)).toFixed(1));
+                                                    setLineHeight(newVal);
+                                                };
+                                                
+                                                const handleMouseUp = () => {
+                                                    window.removeEventListener('mousemove', handleMouseMove);
+                                                    window.removeEventListener('mouseup', handleMouseUp);
+                                                    
+                                                    // Reset global styles
+                                                    document.body.style.cursor = '';
+                                                    document.body.style.userSelect = '';
+                                                };
+                                                
+                                                window.addEventListener('mousemove', handleMouseMove);
+                                                window.addEventListener('mouseup', handleMouseUp);
+                                            }}
+                                            className="cursor-ew-resize p-[0.1vw] hover:bg-gray-100 rounded-[0.2vw] flex items-center justify-center shrink-0"
+                                            title="Drag to adjust line height"
+                                        >
+                                            <Icon icon="solar:paragraph-spacing-linear" width="1.2vw" height="1.2vw" className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                        </div>
                                     </div>
-                                    {showLineHeightSlider && (
-                                        <>
-                                            <div className="fixed inset-0 z-[80]" onClick={() => setShowLineHeightSlider(false)} />
-                                            <div className="absolute right-0 top-[2.4vw] z-[90] p-[0.8vw] bg-white border border-gray-200 rounded-[0.8vw] shadow-xl w-[12vw] flex flex-col gap-[0.6vw] animate-in fade-in slide-in-from-top-2 duration-150">
-                                                <div className="flex items-center justify-between">
-                                                    <span className="text-[0.7vw] font-bold text-gray-400 uppercase tracking-wider">Height</span>
-                                                    <button 
-                                                        onClick={() => setLineHeight('Auto')}
-                                                        className={`px-[0.4vw] py-[0.1vw] rounded-[0.3vw] text-[0.65vw] font-bold border transition-colors ${lineHeight === 'Auto' ? 'bg-[#E8F5E9] text-[#2E7D32] border-[#A5D6A7]' : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'}`}
-                                                    >
-                                                        Auto
-                                                    </button>
-                                                </div>
-                                                <div className="flex items-center gap-[0.4vw]">
-                                                    <input 
-                                                        type="range"
-                                                        min="0.5"
-                                                        max="3.0"
-                                                        step="0.1"
-                                                        value={lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : lineHeight}
-                                                        onChange={(e) => setLineHeight(parseFloat(e.target.value))}
-                                                        className="flex-1 h-[0.3vw] accent-[#2E7D32] cursor-pointer"
-                                                    />
-                                                    <span className="text-[0.7vw] font-bold text-gray-700 w-[2.2vw] text-right shrink-0">
-                                                        {lineHeight === 'Auto' ? (isT1 ? '1.1' : '1.2') : lineHeight}
-                                                    </span>
-                                                </div>
-                                                <div className="text-[0.6vw] font-semibold text-gray-400 mt-[-0.2vw]">
-                                                    Default: {isT1 ? "1.1" : "1.2 (normal)"}
-                                                </div>
-                                            </div>
-                                        </>
-                                    )}
                                 </div>
                             </div>
 
-                            {/* Row 3: Align, Bold, Underline/Italic, List */}
+                            {/* Row 3: Align, Underline/Italic */}
                             <div className="flex items-center gap-[0.5vw]">
                                 <button 
-                                    onClick={() => {
-                                        const aligns = ['left', 'center', 'right', 'justify'];
-                                        const idx = aligns.indexOf(align);
-                                        setAlign(aligns[(idx + 1) % aligns.length]);
-                                    }}
-                                    className="w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all cursor-pointer shadow-sm"
+                                    onClick={() => setAlign('left')}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'left' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
-                                    <Icon icon={
-                                        align === 'center' ? "lucide:align-center" : 
-                                        align === 'right' ? "lucide:align-right" : 
-                                        align === 'justify' ? "lucide:align-justify" : 
-                                        "lucide:align-left"
-                                    } className="w-[1vw] h-[1vw]" />
+                                    <Icon icon="lucide:align-left" className="w-[1vw] h-[1vw]" />
                                 </button>
 
                                 <button 
-                                    onClick={() => setBold(!bold)}
-                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${bold ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    onClick={() => setAlign('center')}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'center' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
-                                    <span className="font-bold text-[0.85vw]">B</span>
+                                    <Icon icon="lucide:align-center" className="w-[1vw] h-[1vw]" />
                                 </button>
 
                                 <button 
-                                    onClick={() => {
-                                        if (!underline && !italic) {
-                                            setUnderline(true);
-                                        } else if (underline && !italic) {
-                                            setUnderline(false);
-                                            setItalic(true);
-                                        } else {
-                                            setItalic(false);
-                                            setUnderline(false);
-                                        }
-                                    }}
-                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${underline || italic ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    onClick={() => setAlign('right')}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'right' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
-                                    <span className="font-medium text-[0.85vw]">{underline ? 'U' : italic ? 'I' : '-'}</span>
+                                    <Icon icon="lucide:align-right" className="w-[1vw] h-[1vw]" />
                                 </button>
 
                                 <button 
-                                    className="w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] bg-gray-100 text-gray-700 hover:bg-gray-200 transition-all cursor-pointer shadow-sm"
+                                    onClick={() => setAlign('justify')}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'justify' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
-                                    <Icon icon="lucide:list" className="w-[1vw] h-[1vw]" />
+                                    <Icon icon="lucide:align-justify" className="w-[1vw] h-[1vw]" />
+                                </button>
+
+                                <div className="w-[1px] h-[1.2vw] bg-gray-200 mx-[0.2vw]" />
+
+                                <button 
+                                    onClick={() => setUnderline(!underline)}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${underline ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    title="Underline"
+                                >
+                                    <span className="font-semibold underline text-[0.85vw] leading-none">U</span>
+                                </button>
+
+                                <button 
+                                    onClick={() => setItalic(!italic)}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${italic ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    title="Italic"
+                                >
+                                    <span className="font-semibold italic text-[0.85vw] leading-none">I</span>
+                                </button>
+
+                                <button 
+                                    onClick={() => setLinethrough(!linethrough)}
+                                    className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${linethrough ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    title="Strikethrough"
+                                >
+                                    <span className="font-semibold line-through text-[0.85vw] leading-none">S</span>
                                 </button>
                             </div>
 

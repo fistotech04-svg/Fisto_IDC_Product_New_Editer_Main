@@ -34,13 +34,26 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 <body>${rawHtml || ''}</body>
 </html>`;
 
-const loadScript = (src) =>
+const loadScript = (src, checkFn) =>
     new Promise((resolve, reject) => {
-        if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+        if (checkFn && checkFn()) { resolve(); return; }
+        if (document.querySelector(`script[src="${src}"]`)) {
+            const interval = setInterval(() => {
+                if (checkFn && checkFn()) {
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 50);
+            setTimeout(() => { clearInterval(interval); resolve(); }, 10000);
+            return;
+        }
         const s = document.createElement('script');
         s.src = src;
         s.async = true;
-        s.onload = resolve;
+        s.onload = () => {
+            // Give a tiny delay to ensure execution is complete
+            setTimeout(() => resolve(), 10);
+        };
         s.onerror = () => reject(new Error(`Failed to load ${src}`));
         document.head.appendChild(s);
     });
@@ -168,8 +181,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         let alive = true;
         (async () => {
             try {
-                if (!window.jQuery) await loadScript('/lib/jquery.min.js');
-                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js');
+                if (!window.jQuery) await loadScript('/lib/jquery.min.js', () => window.jQuery);
+                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js', () => window.jQuery?.fn?.turn);
                 if (alive) setReady(true);
             } catch (err) {
                 console.error('[FlipBookEngine] Script load failed:', err);
