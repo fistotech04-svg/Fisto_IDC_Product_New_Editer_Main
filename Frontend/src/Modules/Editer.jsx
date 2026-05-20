@@ -273,6 +273,8 @@ const Editor = () => {
         isOpen={isExportModalOpen} 
         onClose={() => setIsExportModalOpen(false)}
         currentBook={currentBook}
+        pages={currentBook?.pages || []}
+        currentPageIndex={currentBook?.activePageIndex ?? 0}
       />
     </div>
   );

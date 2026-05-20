@@ -536,6 +536,7 @@ router.post("/save", async (req, res) => {
       message: "Flipbook saved successfully",
       flipbookName,
       v_id: savedDoc.v_id,
+      pages: savedDoc.pages,
       savedPagesCount: savedPages.length,
       location: flipbookDir,
     });

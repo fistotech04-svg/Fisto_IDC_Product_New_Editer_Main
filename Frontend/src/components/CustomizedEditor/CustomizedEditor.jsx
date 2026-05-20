@@ -619,20 +619,39 @@ const CustomizedEditor = () => {
     };
   }, [setExportHandler, setSaveHandler, setPreviewHandler, stableSaveHandler, stableExportHandler, stablePreviewHandler]);
 
-  // Sync Current Book to Navbar
+  // Sync Current Book to Navbar and Export Modal
   useEffect(() => {
     if (setCurrentBook) {
-      // Use flipbookName to match TemplateEditor's expected key
-      // Merge with previous state to avoid losing other metadata
-      setCurrentBook(prev => ({
-        ...(prev || {}),
-        folder: folder,
-        flipbookName: bookName,
-        v_id: v_id,
-        share: shareSettings
-      }));
+      setCurrentBook(prev => {
+        const isSame = 
+          prev?.folder === folder &&
+          prev?.flipbookName === bookName &&
+          prev?.v_id === v_id &&
+          prev?.share === shareSettings &&
+          prev?.pages === pages &&
+          prev?.activePageIndex === targetPage &&
+          prev?.meta?.baseUrl === (projectBaseUrl ? projectBaseUrl.replace(import.meta.env.VITE_BACKEND_URL || '', '') : '');
+          
+        if (isSame) return prev;
+        
+        return {
+          ...(prev || {}),
+          folder: folder,
+          flipbookName: bookName,
+          v_id: v_id,
+          share: shareSettings,
+          pages: pages,
+          activePageIndex: targetPage,
+          meta: {
+            baseUrl: projectBaseUrl ? projectBaseUrl.replace(import.meta.env.VITE_BACKEND_URL || '', '') : '',
+            folderName: folder,
+            flipbookName: bookName,
+            v_id: v_id
+          }
+        };
+      });
     }
-  }, [setCurrentBook, folder, v_id, bookName, shareSettings]);
+  }, [setCurrentBook, folder, v_id, bookName, shareSettings, pages, targetPage, projectBaseUrl]);
 
   const initialLoadRef = useRef(true);
   const notifiedUnsavedRef = useRef(false);
@@ -684,7 +703,9 @@ const CustomizedEditor = () => {
               html: p.html || p.content || '',
               content: p.html || p.content || ''
             })));
-            if (data.pageName && !currentBook?.flipbookName) setBookName(data.pageName);
+            if (data.pageName && (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book')) {
+              setBookName(data.pageName);
+            }
             // Start from the first page on initial load if no page specified in URL
             if (!page) setTargetPage(0);
           }
@@ -741,7 +762,9 @@ const CustomizedEditor = () => {
             // ONLY overwrite pages if we DON'T have an autosave
             if (!autosave) {
               // Only set book name from backend if session doesn't have an unsaved change
-              if (!currentBook?.flipbookName) setBookName(res.data.name || 'Name of the Book');
+              if (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book') {
+                setBookName(res.data.meta?.flipbookName || res.data.name || 'Name of the Book');
+              }
               if (res.data.pages) {
                 setPages(res.data.pages.map((p, i) => {
                   let rawHTML = p.html || p.content || '';

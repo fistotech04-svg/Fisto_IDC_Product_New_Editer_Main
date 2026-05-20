@@ -220,11 +220,32 @@ const TemplateEditor = () => {
       }
 
       if (lastRes && lastRes.data && lastRes.data.v_id) {
-        // Track successfully saved HTML to rapidly skip unchanged pages next time
-        pagesToSave.forEach(p => {
+        // Update local pages state with their database v_ids to maintain synchronization
+        if (lastRes.data.pages) {
+          setPages(prev => {
+            const updated = prev.map((p, idx) => {
+              const savedPage = lastRes.data.pages[idx];
+              if (savedPage && savedPage.v_id && p.v_id !== savedPage.v_id) {
+                return {
+                  ...p,
+                  v_id: savedPage.v_id
+                };
+              }
+              return p;
+            });
+            // Update lastSavedHtmlsRef with the new v_ids as well
+            updated.forEach(p => {
+              const pid = p.v_id || p.id;
+              lastSavedHtmlsRef.current[pid] = p.html;
+            });
+            return updated;
+          });
+        } else {
+          pagesToSave.forEach(p => {
              const pid = p.v_id || p.id;
              lastSavedHtmlsRef.current[pid] = p.html;
-        });
+          });
+        }
 
         setHasUnsavedChanges(false);
         triggerSaveSuccess({
@@ -304,21 +325,58 @@ const TemplateEditor = () => {
     }
   }, [pages, activePageIndex, isLoading, currentBook, location.state]);
 
-  // Sync the first page's SVG HTML to currentBook for live sharing previews
+  // Sync pages, activePageIndex & first page HTML to currentBook for ExportModal previews
   useEffect(() => {
-    if (pages[0]?.html && currentBook) {
-      if (currentBook.firstPageHtml !== pages[0].html) {
-        setCurrentBook(prev => {
-          if (!prev) return prev;
-          if (prev.firstPageHtml === pages[0].html) return prev;
-          return {
-            ...prev,
-            firstPageHtml: pages[0].html
-          };
-        });
-      }
+    if (pages.length > 0 && setCurrentBook) {
+      setCurrentBook(prev => {
+        const folderName = folder || prev?.folderName || prev?.folder || location.state?.folderName || 'Recent Book';
+        const bookName = prev?.flipbookName || prev?.title || location.state?.flipbookName || 'Untitled Flipbook';
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        
+        // Compute correct relative and absolute baseUrl
+        const storedUser = localStorage.getItem('user');
+        const user = storedUser ? JSON.parse(storedUser) : null;
+        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
+        const fallbackBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+        
+        const relativeBaseUrl = projectBaseUrl 
+          ? projectBaseUrl.replace(backendUrl, '') 
+          : (prev?.meta?.baseUrl || prev?.baseUrl || fallbackBaseUrl);
+        
+        const resolvedVId = v_id || prev?.v_id;
+
+        const isSame = 
+          prev?.firstPageHtml === pages[0]?.html && 
+          prev?.pages === pages && 
+          prev?.activePageIndex === activePageIndex &&
+          prev?.folder === folderName &&
+          prev?.folderName === folderName &&
+          prev?.flipbookName === bookName &&
+          prev?.v_id === resolvedVId &&
+          prev?.meta?.baseUrl === relativeBaseUrl;
+          
+        if (isSame) return prev;
+        
+        return {
+          ...(prev || {}),
+          folder: folderName,
+          folderName: folderName,
+          flipbookName: bookName,
+          title: bookName,
+          v_id: resolvedVId,
+          firstPageHtml: pages[0]?.html || prev?.firstPageHtml,
+          pages: pages,
+          activePageIndex: activePageIndex,
+          meta: {
+            baseUrl: relativeBaseUrl,
+            folderName: folderName,
+            flipbookName: bookName,
+            v_id: resolvedVId
+          }
+        };
+      });
     }
-  }, [pages, currentBook, setCurrentBook]);
+  }, [pages, activePageIndex, v_id, setCurrentBook, location.state, projectBaseUrl, folder]);
   
   // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
   // to ensure the project maintains its primary aspect ratio.
@@ -2347,12 +2405,12 @@ const TemplateEditor = () => {
     const initializeEditor = async () => {
       setIsLoading(true);
       
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      
       if (v_id) {
           try {
-              const storedUser = localStorage.getItem('user');
-              const user = storedUser ? JSON.parse(storedUser) : null;
-              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-              
               const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
                   params: { emailId: user?.emailId, v_id }
               });
@@ -2417,12 +2475,24 @@ const TemplateEditor = () => {
                       lastSavedHtmlsRef.current[pid] = p.html;
                   });
 
-                  setCurrentBook(prev => ({ 
-                      ...res.data.meta, 
-                      share: res.data.share,
-                      ...(prev || {}), 
-                      flipbookName: prev?.flipbookName || res.data.meta.flipbookName 
-                  }));
+                  setCurrentBook(prev => {
+                      const folderName = prev?.folderName || res.data.meta.folderName || 'My Flipbooks';
+                      const bookName = prev?.flipbookName || res.data.meta.flipbookName || 'Untitled Flipbook';
+                      return {
+                          ...(prev || {}),
+                          folder: folderName,
+                          folderName: folderName,
+                          flipbookName: bookName,
+                          v_id: v_id,
+                          share: res.data.share,
+                          meta: {
+                              baseUrl: res.data.meta.baseUrl || pBaseUrl.replace(backendUrl, ''),
+                              folderName: folderName,
+                              flipbookName: bookName,
+                              v_id: v_id
+                          }
+                      };
+                  });
                   setHasUnsavedChanges(false);
 
                   // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
@@ -2469,10 +2539,23 @@ const TemplateEditor = () => {
               };
           });
           setPages(newPages);
+          
+          const folderName = location.state.folderName || 'Recent Book';
+          const bookName = location.state.flipbookName || 'Untitled Flipbook';
+          const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
+          const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+          
           setCurrentBook(prev => ({
               ...(prev || {}),
-              flipbookName: prev?.flipbookName || location.state.flipbookName || 'Untitled Flipbook',
-              folderName: prev?.folderName || location.state.folderName || 'Recent Book'
+              folder: folderName,
+              folderName: folderName,
+              flipbookName: bookName,
+              meta: {
+                  baseUrl: pBaseUrl,
+                  folderName: folderName,
+                  flipbookName: bookName,
+                  v_id: prev?.v_id
+              }
           }));
       }
       else {
@@ -2486,10 +2569,23 @@ const TemplateEditor = () => {
                   layers
               };
           }));
+          
+          const folderName = 'Recent Book';
+          const bookName = 'Untitled Flipbook';
+          const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
+          const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+          
           setCurrentBook(prev => ({
               ...(prev || {}),
-              flipbookName: prev?.flipbookName || 'Untitled Flipbook',
-              folderName: prev?.folderName || 'Recent Book'
+              folder: folderName,
+              folderName: folderName,
+              flipbookName: bookName,
+              meta: {
+                  baseUrl: pBaseUrl,
+                  folderName: folderName,
+                  flipbookName: bookName,
+                  v_id: prev?.v_id
+              }
           }));
       }
       

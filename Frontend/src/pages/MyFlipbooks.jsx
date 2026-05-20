@@ -1559,6 +1559,7 @@ export default function MyFlipbooks() {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         currentBook={selectedFlipbook}
+        isFromMyFlipbooks={true}
       />
     </div>
   );

@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { X, Check, FileText, Image as ImageIcon, Download, ChevronRight, ChevronLeft, Edit2, Layout, Sliders, Save, Upload } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Check, FileText, Image as ImageIcon, Download, ChevronRight, ChevronLeft, Edit2, Layout, Sliders, Save, Upload, Loader } from 'lucide-react';
 import { Icon } from '@iconify/react';
+import axios from 'axios';
+import JSZip from 'jszip';
+import { jsPDF } from 'jspdf';
+import { saveAs } from 'file-saver';
 
 const SCRIBBLE_ICONS = {
   Facebook: (
@@ -583,7 +587,7 @@ const SQUARE_BLACK_INK_ICONS = {
   ),
 };
 
-const ExportModal = ({ isOpen, onClose, currentBook }) => {
+const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageIndex = 0, isFromMyFlipbooks = false }) => {
   const [activeTab, setActiveTab] = useState('flipbook');
   const [exportType, setExportType] = useState('entire'); // 'entire' or 'selected'
   const [quality, setQuality] = useState('Medium');
@@ -628,7 +632,11 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
   };
 
   // Page Selection State
-  const totalPages = 12; // This would come from currentBook.pages.length
+  const [modalPages, setModalPages] = useState([]);
+  const [isLoadingPages, setIsLoadingPages] = useState(false);
+  const [projectBaseUrl, setProjectBaseUrl] = useState('');
+
+  const totalPages = modalPages.length;
 
   const renderSocialIcon = (iconName, themeId, sizeClass = "w-[1.2vw] h-[1.2vw]", isPreview = false) => {
     let iconSet = BLACK_INK_ICONS;
@@ -646,7 +654,180 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
       </div>
     );
   };
-  const [selectedPages, setSelectedPages] = useState(new Set(Array.from({ length: totalPages }, (_, i) => i + 1)));
+  const [selectedPages, setSelectedPages] = useState(new Set());
+  // currentPage is 1-indexed; initialized from the editor's active page
+  const [currentPage, setCurrentPage] = useState(() => currentPageIndex + 1);
+
+  // Sync / Fetch pages when modal opens
+  React.useEffect(() => {
+    if (!isOpen) {
+      setModalPages(prev => prev.length === 0 ? prev : []);
+      setIsLoadingPages(prev => !prev ? prev : false);
+      setProjectBaseUrl('');
+      return;
+    }
+
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const emailId = user?.emailId || user?.email;
+
+    if (emailId && currentBook) {
+      const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder || 'My Flipbooks');
+      const bookName = currentBook.flipbookName || currentBook.title;
+      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      
+      let pBaseUrl = '';
+      if (currentBook.meta) {
+        pBaseUrl = currentBook.meta.baseUrl ? `${backendUrl}${currentBook.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${currentBook.meta.folderName}/${currentBook.meta.flipbookName}/`;
+      } else {
+        pBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+      }
+      
+      if (pBaseUrl && !pBaseUrl.endsWith('/')) {
+        pBaseUrl += '/';
+      }
+      setProjectBaseUrl(pBaseUrl);
+    }
+
+    const normalizePages = (pagesList) => {
+      if (!pagesList) return [];
+      return pagesList.map((p, i) => ({
+        ...p,
+        name: p.name || p.pageName || `Page ${i + 1}`,
+        html: p.html || p.content || '',
+        content: p.html || p.content || ''
+      }));
+    };
+
+    if (pages && pages.length > 0) {
+      setModalPages(prev => {
+        const normalized = normalizePages(pages);
+        if (prev.length === normalized.length && 
+            (normalized.length === 0 || (prev[0]?.html === normalized[0]?.html && prev[prev.length - 1]?.html === normalized[normalized.length - 1]?.html))) {
+          return prev;
+        }
+        return normalized;
+      });
+      setIsLoadingPages(prev => !prev ? prev : false);
+    } else if (currentBook && !isLoadingPages && modalPages.length === 0) {
+      if (emailId) {
+        const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder);
+        const bookName = currentBook.flipbookName || currentBook.title;
+        const v_id = currentBook.v_id;
+
+        if (v_id || (folderName && bookName)) {
+          setIsLoadingPages(true);
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+          axios.get(`${backendUrl}/api/flipbook/get`, {
+            params: {
+              emailId,
+              v_id,
+              folderName,
+              bookName
+            }
+          })
+          .then(res => {
+            if (res.data) {
+              const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+              let pBaseUrl = '';
+              if (res.data.meta) {
+                pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
+              } else {
+                pBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+              }
+              if (pBaseUrl && !pBaseUrl.endsWith('/')) {
+                pBaseUrl += '/';
+              }
+              setProjectBaseUrl(pBaseUrl);
+
+              if (res.data.pages) {
+                setModalPages(normalizePages(res.data.pages));
+              }
+            }
+          })
+          .catch(err => {
+            console.error("Failed to fetch pages in ExportModal:", err);
+          })
+          .finally(() => {
+            setIsLoadingPages(false);
+          });
+        }
+      }
+    }
+  }, [isOpen, pages, currentBook, isLoadingPages, modalPages.length]);
+
+  // Keep currentPage and selectedPages in sync when modalPages updates
+  React.useEffect(() => {
+    if (isOpen && modalPages.length > 0) {
+      const expectedPage = Math.min(currentPageIndex + 1, modalPages.length);
+      setCurrentPage(prev => prev === expectedPage ? prev : expectedPage);
+      setSelectedPages(prev => {
+        if (prev.size === modalPages.length) {
+          let matches = true;
+          for (let i = 1; i <= modalPages.length; i++) {
+            if (!prev.has(i)) {
+              matches = false;
+              break;
+            }
+          }
+          if (matches) return prev;
+        }
+        return new Set(Array.from({ length: modalPages.length }, (_, i) => i + 1));
+      });
+    }
+  }, [isOpen, modalPages, currentPageIndex]);
+
+  // Force entire book export type if opened from MyFlipbooks list
+  React.useEffect(() => {
+    if (isOpen && isFromMyFlipbooks) {
+      setExportType('entire');
+    }
+  }, [isOpen, isFromMyFlipbooks]);
+
+  // Convert page SVG to natural-size and resolve relative asset URLs
+  const getPageSvgHtml = (html) => {
+    if (!html) return '';
+    
+    let processed = html;
+    
+    // Resolve relative asset paths to absolute ones using projectBaseUrl
+    if (projectBaseUrl) {
+      processed = processed.replace(/href="\.\/assets\//g, `href="${projectBaseUrl}assets/`);
+      processed = processed.replace(/href="assets\//g, `href="${projectBaseUrl}assets/`);
+      processed = processed.replace(/href='\.\/assets\//g, `href='${projectBaseUrl}assets/`);
+      processed = processed.replace(/href='assets\//g, `href='${projectBaseUrl}assets/`);
+    }
+
+    // Find the opening <svg> tag to normalize sizes
+    const svgTagMatch = processed.match(/<svg([^>]*?)>/i);
+    if (!svgTagMatch) return processed;
+    
+    let svgTag = svgTagMatch[0];
+    
+    // Replace width attribute with width="100%" if it exists, otherwise add it
+    if (/width\s*=\s*['"][^'"]*['"]/i.test(svgTag)) {
+      svgTag = svgTag.replace(/width\s*=\s*['"][^'"]*['"]/i, 'width="100%"');
+    } else if (/width\s*=\s*['][^']*[']/i.test(svgTag)) {
+      svgTag = svgTag.replace(/width\s*=\s*['][^']*[']/i, 'width="100%"');
+    } else {
+      svgTag = svgTag.replace('<svg', '<svg width="100%"');
+    }
+    
+    // Replace height attribute with height="100%" if it exists, otherwise add it
+    if (/height\s*=\s*['"][^'"]*['"]/i.test(svgTag)) {
+      svgTag = svgTag.replace(/height\s*=\s*['"][^'"]*['"]/i, 'height="100%"');
+    } else if (/height\s*=\s*['][^']*[']/i.test(svgTag)) {
+      svgTag = svgTag.replace(/height\s*=\s*['][^']*[']/i, 'height="100%"');
+    } else {
+      svgTag = svgTag.replace('<svg', '<svg height="100%"');
+    }
+    
+    return processed.replace(svgTagMatch[0], svgTag);
+  };
+
+  const [isDownloading, setIsDownloading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -706,6 +887,201 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
   };
 
   const isAllSelected = selectedPages.size === totalPages;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Download logic  (quality-aware, viewBox-based exact sizing)
+  // ─────────────────────────────────────────────────────────────────
+
+  // Quality label -> longest-side pixel dimension (matches UI display values)
+  const qualityToPx = { Low: 720, Medium: 1024, High: 2048, Ultra: 4096 };
+
+  // Format -> MIME + extension
+  const formatInfo = {
+    PNG:  { mime: 'image/png',        ext: 'png'  },
+    JPG:  { mime: 'image/jpeg',       ext: 'jpg'  },
+    WEBP: { mime: 'image/webp',       ext: 'webp' },
+    PDF:  { mime: 'application/pdf',  ext: 'pdf'  },
+  };
+
+  /**
+   * Build an export-ready SVG for a given page (0-based index).
+   * - Resolves relative asset URLs using projectBaseUrl
+   * - Reads the viewBox to find the native aspect ratio
+   * - Strips ALL existing width/height from the root <svg> tag
+   * - Sets explicit pixel width/height so the browser renders at full quality
+   * Returns { svgString, targetW, targetH } or null.
+   */
+  const buildExportSvg = (pageIndex, maxPx) => {
+    const page = modalPages[pageIndex];
+    if (!page?.html) return null;
+
+    let svg = page.html;
+
+    // Resolve relative asset paths
+    if (projectBaseUrl) {
+      svg = svg.replace(/href="\.\/assets\//g, `href="${projectBaseUrl}assets/`);
+      svg = svg.replace(/href="assets\//g,      `href="${projectBaseUrl}assets/`);
+      svg = svg.replace(/href='\.\/assets\//g, `href='${projectBaseUrl}assets/`);
+      svg = svg.replace(/href='assets\//g,      `href='${projectBaseUrl}assets/`);
+    }
+
+    // Extract viewBox to get native aspect ratio
+    const vbMatch = svg.match(/viewBox\s*=\s*["']([^"']+)["']/i);
+    let nativeW = 0, nativeH = 0;
+    if (vbMatch) {
+      const parts = vbMatch[1].trim().split(/[\s,]+/);
+      if (parts.length >= 4) {
+        nativeW = parseFloat(parts[2]);
+        nativeH = parseFloat(parts[3]);
+      }
+    }
+
+    // Scale so longest side = maxPx
+    let targetW = maxPx, targetH = maxPx;
+    if (nativeW > 0 && nativeH > 0) {
+      const scale = maxPx / Math.max(nativeW, nativeH);
+      targetW = Math.round(nativeW * scale);
+      targetH = Math.round(nativeH * scale);
+    }
+
+    // Rewrite the root <svg> tag: strip old width/height, add explicit px values
+    svg = svg.replace(/<svg([^>]*?)>/i, (_match, attrs) => {
+      const cleaned = attrs
+        .replace(/\s+width\s*=\s*["'][^"']*["']/gi, '')
+        .replace(/\s+height\s*=\s*["'][^"']*["']/gi, '');
+      return `<svg${cleaned} width="${targetW}" height="${targetH}">`;
+    });
+
+    return { svgString: svg, targetW, targetH };
+  };
+
+  /**
+   * Rasterise an SVG string (already has explicit px width/height) to a Blob.
+   * targetW/targetH are fallback canvas dimensions if naturalWidth is 0.
+   */
+  const svgToBlob = (svgString, mimeType, targetW, targetH) => {
+    return new Promise((resolve, reject) => {
+      if (mimeType === 'image/svg+xml') {
+        resolve(new Blob([svgString], { type: 'image/svg+xml' }));
+        return;
+      }
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const img  = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth  || targetW;
+        const h = img.naturalHeight || targetH;
+        const canvas = document.createElement('canvas');
+        canvas.width  = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (mimeType === 'image/jpeg') {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(
+          (b) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')),
+          mimeType,
+          0.92
+        );
+      };
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  };
+
+  /**
+   * Main export handler.
+   *  - 1 page (non-PDF)  -> direct file download
+   *  - N pages (non-PDF) -> ZIP
+   *  - PDF (any count)   -> single multi-page PDF
+   */
+  const handleDownload = async () => {
+    if (isDownloading) return;
+
+    let indices = [];
+    if (exportType === 'selected') {
+      indices = [currentPage - 1];
+    } else {
+      indices = Array.from(selectedPages)
+        .map((n) => n - 1)
+        .filter((i) => i >= 0 && i < modalPages.length)
+        .sort((a, b) => a - b);
+    }
+
+    if (indices.length === 0) { alert('No pages selected for export.'); return; }
+
+    const { mime, ext } = formatInfo[format] || formatInfo.PNG;
+    const maxPx    = qualityToPx[quality] || 1024;
+    const bookName = (currentBook?.flipbookName || currentBook?.title || 'flipbook')
+                       .replace(/[^a-z0-9_-]/gi, '_');
+
+    setIsDownloading(true);
+    try {
+
+      if (format === 'PDF') {
+        // ── PDF: all pages in one file ───────────────────────────
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', hotfixes: ['px_scaling'] });
+        let first = true;
+        for (const idx of indices) {
+          const res = buildExportSvg(idx, maxPx);
+          if (!res) continue;
+          const { svgString, targetW, targetH } = res;
+          const imgBlob = await svgToBlob(svgString, 'image/png', targetW, targetH);
+          const dataUrl = await new Promise((ok) => {
+            const r = new FileReader();
+            r.onload = () => ok(r.result);
+            r.readAsDataURL(imgBlob);
+          });
+          const imgEl = await new Promise((ok, fail) => {
+            const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = dataUrl;
+          });
+          const pgW = imgEl.naturalWidth  || targetW;
+          const pgH = imgEl.naturalHeight || targetH;
+          if (!first) { pdf.addPage([pgW, pgH]); }
+          else { pdf.internal.pageSize.width = pgW; pdf.internal.pageSize.height = pgH; }
+          pdf.addImage(dataUrl, 'PNG', 0, 0, pgW, pgH);
+          first = false;
+        }
+        const pdfName = indices.length === 1
+          ? `${bookName}_${(modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g,'_')}.pdf`
+          : `${bookName}_${indices.length}_pages.pdf`;
+        pdf.save(pdfName);
+
+      } else if (indices.length === 1) {
+        // ── Single page -> direct download ───────────────────────
+        const res = buildExportSvg(indices[0], maxPx);
+        if (!res) throw new Error('Page content not available');
+        const { svgString, targetW, targetH } = res;
+        const blob   = await svgToBlob(svgString, mime, targetW, targetH);
+        const pgName = (modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g, '_');
+        saveAs(blob, `${bookName}_${pgName}.${ext}`);
+
+      } else {
+        // ── Multiple pages -> ZIP ────────────────────────────────
+        const zip    = new JSZip();
+        const folder = zip.folder(bookName);
+        for (const idx of indices) {
+          const res = buildExportSvg(idx, maxPx);
+          if (!res) continue;
+          const { svgString, targetW, targetH } = res;
+          const blob   = await svgToBlob(svgString, mime, targetW, targetH);
+          const pgName = (modalPages[idx]?.name || `Page_${idx+1}`).replace(/\s+/g, '_');
+          folder.file(`${pgName}.${ext}`, blob);
+        }
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        saveAs(zipBlob, `${bookName}_${indices.length}_pages.zip`);
+      }
+
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert(`Export failed: ${err.message || 'Unknown error'}`);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <>
@@ -783,12 +1159,12 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                 {activeTab === 'flipbook' ? (
                   /* Left Column: Flipbook Selection */
                   <div className="flex-1 flex flex-col border border-gray-200 rounded-[1vw] overflow-hidden bg-white shadow-sm h-full">
-                    <div className="px-[0.8vw] py-[0.6vw] border-b border-gray-100 flex justify-between items-center">
+                    <div className="px-[0.8vw] border-b border-gray-100 flex justify-between items-center h-[3vw] flex-shrink-0">
                         <div className="flex items-center gap-[0.8vw] flex-1">
                             <h3 className="text-[0.85vw] font-bold text-gray-800 whitespace-nowrap">Page Preview</h3>
                             <div className="flex-1 h-[1px] bg-gray-100"></div>
                         </div>
-                        <div className="relative ml-[1vw]">
+                        <div className="relative ml-[1vw]" style={{ visibility: exportType === 'entire' ? 'visible' : 'hidden' }}>
                             <button 
                                 onClick={() => setIsOptionsMenuOpen(!isOptionsMenuOpen)}
                                 className={`w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-[0.4vw] transition-colors cursor-pointer border shadow-sm ${isOptionsMenuOpen ? 'bg-[#4A3AFF] border-[#4A3AFF] text-white' : 'text-gray-400 hover:bg-gray-50 border-gray-100'}`}
@@ -806,29 +1182,87 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                             )}
                         </div>
                     </div>
-                    <p className="px-[1vw] pt-[0.6vw] text-[0.65vw] text-gray-400 font-medium">Select pages to include in your Export</p>
-                    <div className="p-[1vw] grid grid-cols-3 gap-[1vw] flex-1 overflow-y-auto custom-scrollbar">
-                        {Array.from({ length: totalPages }).map((_, i) => {
-                          const pageId = i + 1;
-                          const isSelected = selectedPages.has(pageId);
-                          return (
-                              <div key={pageId} className="flex flex-col gap-[0.5vw] group">
-                                <div onClick={() => togglePage(pageId)} className={`aspect-[3/4] bg-gray-50 rounded-[0.5vw] border-2 transition-all cursor-pointer relative overflow-hidden ${isSelected ? 'border-[#4A3AFF] shadow-md' : 'border-gray-200 group-hover:border-gray-300'}`}>
-                                    <div className={`absolute top-[0.5vw] right-[0.5vw] w-[1.2vw] h-[1.2vw] rounded-[0.3vw] border-2 flex items-center justify-center z-10 transition-all ${isSelected ? 'bg-[#4A3AFF] border-[#4A3AFF] text-white shadow-sm' : 'bg-white/80 border-gray-300 text-transparent'}`}><Check size="0.8vw" strokeWidth={4} /></div>
-                                    <div className={`absolute inset-0 p-[0.6vw] flex flex-col gap-[0.4vw] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-60'}`}>
-                                        <div className="w-[60%] h-[0.6vw] bg-gray-200 rounded-full"></div>
-                                        <div className="w-[40%] h-[0.4vw] bg-gray-100 rounded-full"></div>
-                                        <div className="flex-1 flex flex-col justify-end"><div className="w-full aspect-[4/3] bg-gray-200 rounded-[0.4vw]"></div></div>
-                                    </div>
-                                </div>
-                                <span className={`text-[0.65vw] font-medium text-center transition-colors ${isSelected ? 'text-gray-900' : 'text-gray-400'}`}>Flipbook Na...</span>
+                    <p className="px-[1vw] pt-[0.6vw] text-[0.65vw] text-gray-400 font-medium">
+                      {exportType === 'selected' ? 'Showing current page for export' : 'Select pages to include in your Export'}
+                    </p>
+
+                    {isLoadingPages ? (
+                      <div className="flex-1 flex flex-col items-center justify-center p-[2vw]">
+                        <div className="animate-spin rounded-full h-[2vw] w-[2vw] border-[0.2vw] border-[#4A3AFF]/20 border-t-[#4A3AFF] mb-[1vw]" />
+                        <p className="text-gray-400 text-[0.8vw] font-medium animate-pulse">Loading previews...</p>
+                      </div>
+                    ) : exportType === 'selected' ? (
+                      /* Current Page Only View */
+                      <div className="p-[1vw] flex flex-col flex-1 overflow-y-auto custom-scrollbar">
+                        {modalPages.length > 0 ? (
+                          <div className="flex flex-col gap-[0.5vw] w-[33%]">
+                            <div className={`bg-gray-50 rounded-[0.5vw] border-2 border-[#4A3AFF] shadow-md relative overflow-hidden`}>
+                              <div className="absolute top-[0.5vw] right-[0.5vw] w-[1.2vw] h-[1.2vw] rounded-[0.3vw] border-2 bg-[#4A3AFF] border-[#4A3AFF] text-white flex items-center justify-center z-10 shadow-sm">
+                                <Check size="0.8vw" strokeWidth={4} />
                               </div>
-                          );
-                        })}
-                    </div>
+                              {/* Actual Page Preview – natural size */}
+                              {modalPages[currentPage - 1]?.html ? (
+                                <div
+                                  className="w-full overflow-hidden"
+                                  style={{ pointerEvents: 'none' }}
+                                  dangerouslySetInnerHTML={{ __html: getPageSvgHtml(modalPages[currentPage - 1].html) }}
+                                />
+                              ) : (
+                                <div className="aspect-[3/4] p-[0.6vw] flex flex-col gap-[0.4vw]">
+                                  <div className="w-[60%] h-[0.6vw] bg-gray-200 rounded-full"></div>
+                                  <div className="w-[40%] h-[0.4vw] bg-gray-100 rounded-full"></div>
+                                  <div className="flex-1 flex flex-col justify-end"><div className="w-full aspect-[4/3] bg-gray-200 rounded-[0.4vw]"></div></div>
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[0.65vw] font-medium text-center text-gray-900">{modalPages[currentPage - 1]?.name || `Page ${currentPage}`}</span>
+                          </div>
+                        ) : (
+                          <div className="flex-1 flex items-center justify-center text-gray-400 text-[0.8vw]">No pages available</div>
+                        )}
+                      </div>
+                    ) : (
+                      /* All Pages Grid View */
+                      <div className="p-[1vw] grid grid-cols-3 gap-[1vw] flex-1 overflow-y-auto custom-scrollbar">
+                        {modalPages.length > 0 ? (
+                          Array.from({ length: totalPages }).map((_, i) => {
+                            const pageId = i + 1;
+                            const isSelected = selectedPages.has(pageId);
+                            return (
+                              <div key={pageId} className="flex flex-col gap-[0.5vw] group">
+                                <div onClick={() => togglePage(pageId)} className={`bg-gray-50 rounded-[0.5vw] border-2 transition-all cursor-pointer relative overflow-hidden ${isSelected ? 'border-[#4A3AFF] shadow-md' : 'border-gray-200 group-hover:border-gray-300'}`}>
+                                  {/* Checkbox */}
+                                  <div className={`absolute top-[0.5vw] right-[0.5vw] w-[1.2vw] h-[1.2vw] rounded-[0.3vw] border-2 flex items-center justify-center z-10 transition-all ${isSelected ? 'bg-[#4A3AFF] border-[#4A3AFF] text-white shadow-sm' : 'bg-white/80 border-gray-300 text-transparent'}`}><Check size="0.8vw" strokeWidth={4} /></div>
+                                  {/* Actual Page SVG – natural intrinsic size */}
+                                  {modalPages[i]?.html ? (
+                                    <div
+                                      className={`w-full overflow-hidden transition-opacity ${isSelected ? 'opacity-100' : 'opacity-50'}`}
+                                      style={{ pointerEvents: 'none' }}
+                                      dangerouslySetInnerHTML={{ __html: getPageSvgHtml(modalPages[i].html) }}
+                                    />
+                                  ) : (
+                                    <div className={`aspect-[3/4] p-[0.6vw] flex flex-col gap-[0.4vw] transition-opacity ${isSelected ? 'opacity-100' : 'opacity-60'}`}>
+                                      <div className="w-[60%] h-[0.6vw] bg-gray-200 rounded-full"></div>
+                                      <div className="w-[40%] h-[0.4vw] bg-gray-100 rounded-full"></div>
+                                      <div className="flex-1 flex flex-col justify-end"><div className="w-full aspect-[4/3] bg-gray-200 rounded-[0.4vw]"></div></div>
+                                    </div>
+                                  )}
+                                </div>
+                                <span className={`text-[0.65vw] font-medium text-center transition-colors ${isSelected ? 'text-gray-900' : 'text-gray-400'}`}>{modalPages[i]?.name || `Page ${pageId}`}</span>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="col-span-3 flex-1 flex items-center justify-center text-gray-400 text-[0.8vw]">No pages available</div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-auto px-[1vw] py-[0.8vw] bg-gray-100/50 flex justify-between items-center border-t border-gray-100">
-                        <span className="text-[0.8vw] font-bold text-gray-700">{currentBook?.name || 'Flipbook Name'}</span>
-                        <span className="text-[0.8vw] font-bold text-gray-700">Total Pages : {totalPages}</span>
+                        <span className="text-[0.8vw] font-bold text-gray-700">{currentBook?.flipbookName || currentBook?.title || currentBook?.realName || 'Flipbook Name'}</span>
+                        <span className="text-[0.8vw] font-bold text-gray-700">
+                          {exportType === 'selected' ? `Page : ${currentPage} of ${totalPages}` : `Total Pages : ${totalPages}`}
+                        </span>
                     </div>
                   </div>
                 ) : (
@@ -867,7 +1301,17 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                         <h4 className="text-[0.8vw] font-bold text-gray-800 flex items-center gap-[0.5vw]">Export Type<div className="flex-1 h-[1px] bg-gray-100"></div></h4>
                         <div className="flex flex-col gap-[0.6vw]">
                           <label className="flex items-center gap-[0.7vw] cursor-pointer group"><input type="radio" name="exportType" className="w-[1vw] h-[1vw] accent-[#4A3AFF] cursor-pointer" checked={exportType === 'entire'} onChange={() => setExportType('entire')} /><span className={`text-[0.8vw] font-semibold transition-colors ${exportType === 'entire' ? 'text-gray-900' : 'text-gray-500'}`}>Export Entire Book</span></label>
-                          <label className="flex items-center gap-[0.7vw] cursor-pointer group"><input type="radio" name="exportType" className="w-[1vw] h-[1vw] accent-[#4A3AFF] cursor-pointer" checked={exportType === 'selected'} onChange={() => setExportType('selected')} /><span className={`text-[0.8vw] font-semibold transition-colors ${exportType === 'selected' ? 'text-gray-900' : 'text-gray-500'}`}>Export Selected Pages</span></label>
+                          <label className={`flex items-center gap-[0.7vw] group ${isFromMyFlipbooks ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`} title={isFromMyFlipbooks ? 'Current page context is not available when exporting from the book list.' : ''}>
+                            <input 
+                              type="radio" 
+                              name="exportType" 
+                              className={`w-[1vw] h-[1vw] accent-[#4A3AFF] ${isFromMyFlipbooks ? 'cursor-not-allowed' : 'cursor-pointer'}`} 
+                              checked={exportType === 'selected'} 
+                              onChange={() => !isFromMyFlipbooks && setExportType('selected')} 
+                              disabled={isFromMyFlipbooks} 
+                            />
+                            <span className={`text-[0.8vw] font-semibold transition-colors ${exportType === 'selected' ? 'text-gray-900' : 'text-gray-500'}`}>Export Current Pages</span>
+                          </label>
                         </div>
                       </div>
                       <div className="flex flex-col gap-[0.6vw]">
@@ -927,8 +1371,24 @@ const ExportModal = ({ isOpen, onClose, currentBook }) => {
                         </div>
                     )}
                     <div className="flex gap-[0.6vw]">
-                      <button onClick={onClose} className="flex-1 flex items-center justify-center gap-[0.4vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.75vw] hover:bg-gray-50 transition-all cursor-pointer shadow-sm active:scale-95"><X size="0.8vw" />Cancel</button>
-                      <button className="flex-[2] flex items-center justify-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.75vw] hover:bg-gray-900 shadow-[0_4px_15px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all cursor-pointer active:scale-95"><Download size="0.8vw" />{activeTab === 'flipbook' ? `Export ${selectedPages.size} Pages` : `Export poster`}</button>
+                      <button onClick={onClose} disabled={isDownloading} className="flex-1 flex items-center justify-center gap-[0.4vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.75vw] hover:bg-gray-50 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"><X size="0.8vw" />Cancel</button>
+                      <button
+                        onClick={activeTab === 'flipbook' ? handleDownload : undefined}
+                        disabled={isDownloading || (activeTab === 'flipbook' && selectedPages.size === 0 && exportType !== 'selected')}
+                        className="flex-[2] flex items-center justify-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.75vw] hover:bg-gray-900 shadow-[0_4px_15px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all cursor-pointer active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+                      >
+                        {isDownloading
+                          ? <><span className="animate-spin inline-block w-[0.9vw] h-[0.9vw] border-[0.15vw] border-white/30 border-t-white rounded-full" />Exporting…</>
+                          : <><Download size="0.8vw" />{activeTab === 'flipbook'
+                              ? (exportType === 'selected'
+                                  ? `Download Page ${currentPage}`
+                                  : selectedPages.size === 1
+                                      ? `Download 1 Page`
+                                      : `Download ${selectedPages.size} Pages as ZIP`)
+                              : `Export poster`
+                            }</>
+                        }
+                      </button>
                     </div>
                   </div>
                 </div>
