@@ -5,6 +5,10 @@ import axios from 'axios';
 import JSZip from 'jszip';
 import { jsPDF } from 'jspdf';
 import { saveAs } from 'file-saver';
+import html2canvas from 'html2canvas';
+import domtoimage from 'dom-to-image-more';
+import ColorPicker from './ThreedEditor/ColorPicker';
+import TemplateColorPicker from './TemplateEditor/ColorPicker';
 
 const SCRIBBLE_ICONS = {
   Facebook: (
@@ -597,26 +601,117 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
   const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   
   // Poster specific states
+  const posterRef = useRef(null);
+  const smallPosterRef = useRef(null);
+  const previewParentRef = useRef(null);
+  const smallPreviewParentRef = useRef(null);
+  const [parentRect, setParentRect] = useState({ width: 0, height: 0 });
+
   const [posterName, setPosterName] = useState('Name of the Poster');
+  const [selectedPosterSize, setSelectedPosterSize] = useState('free');
   const [posterWidth, setPosterWidth] = useState(1080);
   const [posterHeight, setPosterHeight] = useState(880);
   const [isEditingPoster, setIsEditingPoster] = useState(false);
   const [activePosterEditTab, setActivePosterEditTab] = useState('templates');
+
+  useEffect(() => {
+    const el = isEditingPoster ? smallPreviewParentRef.current : previewParentRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      setParentRect({
+        width: entries[0].contentRect.width,
+        height: entries[0].contentRect.height
+      });
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isOpen, isEditingPoster, posterWidth, posterHeight]);
+  
+  // Calculate fitted dimensions
+  const parentW = parentRect.width || 1;
+  const parentH = parentRect.height || 1;
+  const pRatio = posterWidth / (posterHeight || 1);
+  const prRatio = parentW / parentH;
+  
+  let fittedW = 0;
+  let fittedH = 0;
+  if (parentRect.width > 0) {
+      if (pRatio > prRatio) {
+          fittedW = parentW;
+          fittedH = parentW / pRatio;
+      } else {
+          fittedH = parentH;
+          fittedW = parentH * pRatio;
+      }
+  }
+
+  // Use the minimum dimension so elements never overflow extreme aspect ratios.
+  const previewMin = Math.min(fittedW, fittedH);
+  // Adjusted baseline divisor from 0.325 to 0.20 to globally increase element size
+  const scaleRatio = previewMin ? previewMin / (window.innerWidth * 0.20) : 1;
+  
+  // Typography states for Text 1
+  const [text1FontFamily, setText1FontFamily] = useState('Poppins');
+  const [text1FontSize, setText1FontSize] = useState(16);
+  const [text1FontWeight, setText1FontWeight] = useState('Bold');
+  const [text1LetterSpacing, setText1LetterSpacing] = useState('Auto');
+  const [text1LineHeight, setText1LineHeight] = useState('Auto');
+  const [text1Align, setText1Align] = useState('center');
+  const [text1Bold, setText1Bold] = useState(false);
+  const [text1Italic, setText1Italic] = useState(false);
+  const [text1Underline, setText1Underline] = useState(false);
+  const [text1Linethrough, setText1Linethrough] = useState(false);
+  const [text1Color, setText1Color] = useState('#FFFFFF');
+  const [text1ColorOpacity, setText1ColorOpacity] = useState(100);
+
+  // Typography states for Text 2
+  const [text2FontFamily, setText2FontFamily] = useState('Outfit');
+  const [text2FontSize, setText2FontSize] = useState(12);
+  const [text2FontWeight, setText2FontWeight] = useState('Regular');
+  const [text2LetterSpacing, setText2LetterSpacing] = useState('Auto');
+  const [text2LineHeight, setText2LineHeight] = useState('Auto');
+  const [text2Align, setText2Align] = useState('center');
+  const [text2Bold, setText2Bold] = useState(false);
+  const [text2Italic, setText2Italic] = useState(true);
+  const [text2Underline, setText2Underline] = useState(false);
+  const [text2Linethrough, setText2Linethrough] = useState(false);
+  const [text2Color, setText2Color] = useState('#FFFFFF');
+  const [text2ColorOpacity, setText2ColorOpacity] = useState(90);
+
+  // Editor UI states
+  const [activeTextEditor, setActiveTextEditor] = useState(null);
+  const [showFontFamilyDropdown, setShowFontFamilyDropdown] = useState(false);
+  const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
+  const [showFontWeightDropdown, setShowFontWeightDropdown] = useState(false);
+  const [showLetterSpacingSlider, setShowLetterSpacingSlider] = useState(false);
+  const [showLineHeightSlider, setShowLineHeightSlider] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+
   const [posterTitle, setPosterTitle] = useState('Title');
   const [posterSupportingText, setPosterSupportingText] = useState('Supporting Text');
   const [posterBgColor, setPosterBgColor] = useState('#D7D8E8');
   const [posterBgOpacity, setPosterBgOpacity] = useState(100);
   const [posterShadowColor, setPosterShadowColor] = useState('#000000');
   const [posterShadowOpacity, setPosterShadowOpacity] = useState(80);
-  const [posterBgType, setPosterBgType] = useState('Solid');
+  const [posterBgType, setPosterBgType] = useState('Image');
+  const [posterBgImage, setPosterBgImage] = useState('https://images.unsplash.com/photo-1589998059171-988d887df646?q=100&w=2000&auto=format&fit=crop');
+  const [posterBgFit, setPosterBgFit] = useState('Cover');
+  const [showPosterBgTypeDropdown, setShowPosterBgTypeDropdown] = useState(false);
+  const [showPosterBgFitDropdown, setShowPosterBgFitDropdown] = useState(false);
+  const [showPosterBgColorPicker, setShowPosterBgColorPicker] = useState(false);
   const [shadowX, setShadowX] = useState(0);
   const [shadowY, setShadowY] = useState(0);
   const [shadowBlur, setShadowBlur] = useState(35);
+  const [posterLogo, setPosterLogo] = useState(null);
   const [showSocialIcons, setShowSocialIcons] = useState(true);
   const [socialTheme, setSocialTheme] = useState('black-ink');
   const [selectedSocialIcons, setSelectedSocialIcons] = useState(['Instagram', 'Facebook', 'X', 'LinkedIn']);
   const [draggedIconIndex, setDraggedIconIndex] = useState(null);
   const [showThemeModal, setShowThemeModal] = useState(false);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('export-modal-state', { detail: { isOpen } }));
+  }, [isOpen]);
 
   const handleSocialIconDrop = (e, index) => {
     e.preventDefault();
@@ -854,17 +949,52 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
   ];
 
   const posterSizes = [
-    { label: 'Free size', icon: null },
-    { label: '2X2', icon: 'mdi:instagram' },
-    { label: '2X4', icon: 'mdi:instagram' },
-    { label: '2X3', icon: 'mdi:instagram' },
-    { label: '4X4', icon: 'mdi:instagram' },
-    { label: 'Free size', icon: null },
-    { label: '2X2', icon: 'mdi:instagram' },
-    { label: '2X4', icon: 'mdi:instagram' },
-    { label: '2X3', icon: 'mdi:instagram' },
-    { label: '4X4', icon: 'mdi:instagram' }
+        // General
+        { platform: 'General', id: 'free', label: 'Free size', w: 0, h: 0, ratio: 'Auto', icon: 'heroicons:square-3-stack-3d' },
+
+        // Facebook
+        { platform: 'Facebook', id: 'fb-profile',   label: 'Profile Photo', w: 180,  h: 180,  ratio: '1:1',   icon: 'ri:facebook-fill' },
+        { platform: 'Facebook', id: 'fb-cover',     label: 'Cover Photo',   w: 820,  h: 312,  ratio: '2.6:1', icon: 'ri:facebook-fill' },
+        { platform: 'Facebook', id: 'fb-post',      label: 'Post Image',    w: 1200, h: 630,  ratio: '1.9:1', icon: 'ri:facebook-fill' },
+        { platform: 'Facebook', id: 'fb-story',     label: 'Story',         w: 1080, h: 1920, ratio: '9:16',  icon: 'ri:facebook-fill' },
+
+        // Instagram
+        { platform: 'Instagram', id: 'ig-profile',   label: 'Profile Photo', w: 320,  h: 320,  ratio: '1:1',   icon: 'ri:instagram-line' },
+        { platform: 'Instagram', id: 'ig-square',    label: 'Square Post',   w: 1080, h: 1080, ratio: '1:1',   icon: 'ri:instagram-line' },
+        { platform: 'Instagram', id: 'ig-portrait',  label: 'Portrait Post', w: 1080, h: 1350, ratio: '4:5',   icon: 'ri:instagram-line' },
+        { platform: 'Instagram', id: 'ig-landscape', label: 'Landscape Post',w: 1080, h: 566,  ratio: '1.9:1', icon: 'ri:instagram-line' },
+        { platform: 'Instagram', id: 'ig-story',     label: 'Story / Reel',  w: 1080, h: 1920, ratio: '9:16',  icon: 'ri:instagram-line' },
+
+        // X (Twitter)
+        { platform: 'X / Twitter', id: 'x-profile',   label: 'Profile Photo', w: 400,  h: 400,  ratio: '1:1',   icon: 'ri:twitter-x-fill' },
+        { platform: 'X / Twitter', id: 'x-header',    label: 'Header / Cover',w: 1500, h: 500,  ratio: '3:1',   icon: 'ri:twitter-x-fill' },
+        { platform: 'X / Twitter', id: 'x-post',      label: 'Post Image',    w: 1600, h: 900,  ratio: '16:9',  icon: 'ri:twitter-x-fill' },
+
+        // LinkedIn
+        { platform: 'LinkedIn', id: 'li-profile',   label: 'Profile Photo', w: 400,  h: 400,  ratio: '1:1',   icon: 'ri:linkedin-fill' },
+        { platform: 'LinkedIn', id: 'li-cover',     label: 'Cover Photo',   w: 1128, h: 191,  ratio: '5.9:1', icon: 'ri:linkedin-fill' },
+        { platform: 'LinkedIn', id: 'li-post',      label: 'Post Image',    w: 1200, h: 627,  ratio: '1.9:1', icon: 'ri:linkedin-fill' },
+
+        // Pinterest
+        { platform: 'Pinterest', id: 'pin-standard', label: 'Standard Pin', w: 1000, h: 1500, ratio: '2:3',   icon: 'ri:pinterest-fill' },
+        { platform: 'Pinterest', id: 'pin-square',   label: 'Square Pin',   w: 1000, h: 1000, ratio: '1:1',   icon: 'ri:pinterest-fill' },
+        { platform: 'Pinterest', id: 'pin-long',     label: 'Long Pin',     w: 1000, h: 2100, ratio: '1:2.1', icon: 'ri:pinterest-fill' },
+
+        // YouTube
+        { platform: 'YouTube', id: 'yt-profile',   label: 'Profile Photo', w: 800,  h: 800,  ratio: '1:1',   icon: 'ri:youtube-fill' },
+        { platform: 'YouTube', id: 'yt-cover',     label: 'Channel Art',   w: 2560, h: 1440, ratio: '16:9',  icon: 'ri:youtube-fill' },
+        { platform: 'YouTube', id: 'yt-thumb',     label: 'Thumbnail',     w: 1280, h: 720,  ratio: '16:9',  icon: 'ri:youtube-fill' }
   ];
+
+  const togglePosterBgTypeDropdown = () => {
+    setShowPosterBgTypeDropdown(!showPosterBgTypeDropdown);
+    setShowPosterBgFitDropdown(false);
+  };
+
+  const togglePosterBgFitDropdown = () => {
+    setShowPosterBgFitDropdown(!showPosterBgFitDropdown);
+    setShowPosterBgTypeDropdown(false);
+  };
 
   const togglePage = (id) => {
     const newSelected = new Set(selectedPages);
@@ -956,8 +1086,51 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
   };
 
   /**
-   * Rasterise an SVG string (already has explicit px width/height) to a Blob.
-   * targetW/targetH are fallback canvas dimensions if naturalWidth is 0.
+   * Fetch and convert all referenced images in the SVG to inline Base64 data URLs.
+   * This completely bypasses the browser's SVG image sandboxing restrictions.
+   */
+  const inlineSvgImages = async (svgString) => {
+    let processed = svgString;
+
+    // Resolve relative asset paths to absolute ones using projectBaseUrl first
+    if (projectBaseUrl) {
+      processed = processed.replace(/href="\.\/assets\//g, `href="${projectBaseUrl}assets/`);
+      processed = processed.replace(/href="assets\//g,      `href="${projectBaseUrl}assets/`);
+      processed = processed.replace(/href='\.\/assets\//g, `href='${projectBaseUrl}assets/`);
+      processed = processed.replace(/href='assets\//g,      `href='${projectBaseUrl}assets/`);
+    }
+
+    // Match all href or xlink:href attributes inside <image> tags
+    const imageRegex = /<image\s+[^>]*?(href|xlink:href)\s*=\s*["']([^"']+)["']/gi;
+    const matches = [...processed.matchAll(imageRegex)];
+
+    for (const match of matches) {
+      const imgUrl = match[2];
+
+      // Skip already inlined data URLs
+      if (imgUrl.startsWith('data:')) continue;
+
+      try {
+        const response = await axios.get(imgUrl, { responseType: 'blob' });
+        const blob = response.data;
+        const base64Data = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+
+        // Replace all occurrences of this URL in the SVG string with Base64 data
+        processed = processed.replaceAll(imgUrl, base64Data);
+      } catch (err) {
+        console.error("Failed to inline image in SVG:", imgUrl, err);
+      }
+    }
+
+    return processed;
+  };
+
+  /**
+   * Rasterise an SVG string (already has explicit px width/height and inlined sub-assets) to a Blob.
    */
   const svgToBlob = (svgString, mimeType, targetW, targetH) => {
     return new Promise((resolve, reject) => {
@@ -992,6 +1165,53 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     });
   };
 
+  const handleDownloadPoster = async () => {
+    if (!posterRef.current || isDownloading) return;
+    setIsDownloading(true);
+    
+    try {
+      const element = posterRef.current;
+      
+      const maxPx = qualityToPx[quality] || 1024;
+      const rect = element.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) {
+        throw new Error('Poster preview is not visible.');
+      }
+      
+      // Calculate scale to achieve the desired maxPx
+      const longestSide = Math.max(rect.width, rect.height);
+      const scale = maxPx / longestSide;
+      
+      const canvas = await html2canvas(element, {
+        scale: scale,
+        useCORS: true,
+        backgroundColor: null
+      });
+      
+      const bookName = (currentBook?.flipbookName || currentBook?.title || posterName || 'poster')
+        .replace(/[^a-z0-9_-]/gi, '_');
+        
+      if (format === 'PDF') {
+        const pdf = new jsPDF({
+          orientation: canvas.width > canvas.height ? 'l' : 'p',
+          unit: 'px',
+          format: [canvas.width, canvas.height]
+        });
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, canvas.width, canvas.height);
+        pdf.save(`${bookName}_poster.pdf`);
+      } else {
+        const mimeType = format === 'PNG' ? 'image/png' : format === 'WEBP' ? 'image/webp' : 'image/jpeg';
+        const dataUrl = canvas.toDataURL(mimeType, 0.95);
+        saveAs(dataUrl, `${bookName}_poster.${format.toLowerCase()}`);
+      }
+    } catch (err) {
+      console.error('Failed to export poster:', err);
+      alert('Failed to export poster: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   /**
    * Main export handler.
    *  - 1 page (non-PDF)  -> direct file download
@@ -1023,39 +1243,64 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
       if (format === 'PDF') {
         // ── PDF: all pages in one file ───────────────────────────
-        const pdf = new jsPDF({ orientation: 'portrait', unit: 'px', hotfixes: ['px_scaling'] });
+        let pdf = null;
         let first = true;
         for (const idx of indices) {
           const res = buildExportSvg(idx, maxPx);
           if (!res) continue;
           const { svgString, targetW, targetH } = res;
-          const imgBlob = await svgToBlob(svgString, 'image/png', targetW, targetH);
+
+          // 1. Inline all referenced images in the SVG to Base64
+          const inlinedSvg = await inlineSvgImages(svgString);
+
+          // 2. Render SVG onto canvas to get image data
+          const imgBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
           const dataUrl = await new Promise((ok) => {
             const r = new FileReader();
             r.onload = () => ok(r.result);
             r.readAsDataURL(imgBlob);
           });
+          
           const imgEl = await new Promise((ok, fail) => {
             const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = dataUrl;
           });
+          
           const pgW = imgEl.naturalWidth  || targetW;
           const pgH = imgEl.naturalHeight || targetH;
-          if (!first) { pdf.addPage([pgW, pgH]); }
-          else { pdf.internal.pageSize.width = pgW; pdf.internal.pageSize.height = pgH; }
+
+          if (first) {
+            pdf = new jsPDF({
+              orientation: pgW > pgH ? 'landscape' : 'portrait',
+              unit: 'px',
+              format: [pgW, pgH],
+              hotfixes: ['px_scaling']
+            });
+          } else {
+            pdf.addPage([pgW, pgH], pgW > pgH ? 'landscape' : 'portrait');
+          }
           pdf.addImage(dataUrl, 'PNG', 0, 0, pgW, pgH);
           first = false;
         }
-        const pdfName = indices.length === 1
-          ? `${bookName}_${(modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g,'_')}.pdf`
-          : `${bookName}_${indices.length}_pages.pdf`;
-        pdf.save(pdfName);
+        
+        if (pdf) {
+          const pdfName = indices.length === 1
+            ? `${bookName}_${(modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g,'_')}.pdf`
+            : `${bookName}_${indices.length}_pages.pdf`;
+          pdf.save(pdfName);
+        } else {
+          throw new Error('Failed to generate PDF document');
+        }
 
       } else if (indices.length === 1) {
         // ── Single page -> direct download ───────────────────────
         const res = buildExportSvg(indices[0], maxPx);
         if (!res) throw new Error('Page content not available');
         const { svgString, targetW, targetH } = res;
-        const blob   = await svgToBlob(svgString, mime, targetW, targetH);
+
+        // 1. Inline all referenced images in the SVG to Base64
+        const inlinedSvg = await inlineSvgImages(svgString);
+
+        const blob = await svgToBlob(inlinedSvg, mime, targetW, targetH);
         const pgName = (modalPages[indices[0]]?.name || `Page_${indices[0]+1}`).replace(/\s+/g, '_');
         saveAs(blob, `${bookName}_${pgName}.${ext}`);
 
@@ -1067,7 +1312,11 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
           const res = buildExportSvg(idx, maxPx);
           if (!res) continue;
           const { svgString, targetW, targetH } = res;
-          const blob   = await svgToBlob(svgString, mime, targetW, targetH);
+
+          // 1. Inline all referenced images in the SVG to Base64
+          const inlinedSvg = await inlineSvgImages(svgString);
+
+          const blob = await svgToBlob(inlinedSvg, mime, targetW, targetH);
           const pgName = (modalPages[idx]?.name || `Page_${idx+1}`).replace(/\s+/g, '_');
           folder.file(`${pgName}.${ext}`, blob);
         }
@@ -1093,7 +1342,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       />
       
       {/* Modal Content */}
-      <div className="relative bg-white w-[52vw] h-[36vw] rounded-[1vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+      <div className="relative bg-white w-[52vw] h-[36vw] rounded-[1vw] shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-300">
         
         {/* Header */}
         <div className="flex items-center justify-between px-[1.2vw] py-[0.8vw] border-b border-gray-100">
@@ -1106,7 +1355,12 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
             ) : (
               <>
                 <div className="flex items-center gap-[0.6vw]">
-                  <h2 className="text-[1.1vw] font-semibold text-gray-400">Export Poster</h2>
+                  <h2 
+                    className="text-[1.1vw] font-semibold text-gray-400 cursor-pointer hover:text-gray-600 transition-colors"
+                    onClick={() => setIsEditingPoster(false)}
+                  >
+                    Export Poster
+                  </h2>
                   <ChevronRight size="1vw" className="text-gray-300" />
                   <h2 className="text-[1.1vw] font-semibold text-gray-800">Edit Poster</h2>
                 </div>
@@ -1267,30 +1521,81 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                   </div>
                 ) : (
                   /* Left Column: Poster Preview */
-                  <div className="flex-1 flex flex-col bg-[#C4A99F]/20 rounded-[1vw] overflow-hidden relative shadow-sm border border-gray-100 h-full group cursor-pointer">
-                    <img src="https://images.pexels.com/photos/35642492/pexels-photo-35642492.jpeg" alt="Poster Preview" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-20">
-                        <button onClick={() => setIsEditingPoster(true)} className="bg-white/20 backdrop-blur-md border border-white/30 px-[1vw] py-[0.6vw] cursor-pointer rounded-[0.5vw] flex items-center gap-[0.6vw] text-white shadow-xl hover:bg-white/30 transition-all active:scale-95">
+                  <div ref={previewParentRef} className="flex-1 flex items-center justify-center relative overflow-hidden">
+                    <div ref={posterRef} className="rounded-[1vw] overflow-hidden relative border border-[#f3f4f6] group cursor-pointer transition-all duration-300" style={{ backgroundColor: 'rgba(196, 169, 159, 0.2)', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', width: fittedW > 0 ? `${fittedW}px` : '100%', height: fittedH > 0 ? `${fittedH}px` : '100%' }}>
+                    <div 
+                        className="w-full h-full absolute inset-0 transition-transform duration-500 group-hover:scale-105 z-0"
+                        style={{
+                            backgroundColor: !posterBgColor.includes('gradient') ? posterBgColor : 'transparent',
+                            backgroundImage: posterBgColor.includes('gradient') ? posterBgColor : 'none',
+                            opacity: posterBgOpacity / 100
+                        }}
+                    />
+                    {posterBgType === 'Image' && posterBgImage && (
+                        <img 
+                            src={posterBgImage}
+                            className="absolute inset-0 pointer-events-none transition-transform duration-500 group-hover:scale-105 z-[1]"
+                            style={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: posterBgFit === 'Fit' ? 'contain' : posterBgFit === 'Stretch' ? 'fill' : 'cover',
+                                opacity: posterBgOpacity / 100,
+                            }}
+                        />
+                    )}
+                    <div data-html2canvas-ignore="true" className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center z-20" style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+                        <button onClick={() => setIsEditingPoster(true)} className="px-[1vw] py-[0.6vw] cursor-pointer rounded-[0.5vw] flex items-center gap-[0.6vw] text-white transition-all active:scale-95" style={{ backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.3)', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)' }}>
                             <Edit2 size="0.9vw" />
                             <span className="text-[1vw] font-semibold">Edit Poster</span>
                         </button>
                     </div>
-                    <div className="absolute top-[2vw] left-[2vw] bg-white p-[0.5vw] rounded-[0.3vw] shadow-md z-10">
-                        <div className="font-black text-[0.8vw] leading-none text-gray-900">YOUR</div>
-                        <div className="font-black text-[0.8vw] leading-none text-gray-900">LOGO</div>
-                    </div>
-                    <div className="absolute top-[2vw] right-[2vw] flex gap-[0.5vw] z-10">
+                    {posterLogo ? (
+                        <img src={posterLogo} alt="Logo" className="absolute z-10 object-contain" style={{ top: `${2 * scaleRatio}vw`, left: `${2 * scaleRatio}vw`, height: `${2 * scaleRatio}vw`, maxWidth: `${5 * scaleRatio}vw`, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }} />
+                    ) : (
+                        <div className="absolute bg-white z-10" style={{ top: `${2 * scaleRatio}vw`, left: `${2 * scaleRatio}vw`, padding: `${0.3 * scaleRatio}vw`, borderRadius: `${0.2 * scaleRatio}vw`, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                            <div className="font-black leading-none text-[#111827]" style={{ fontSize: `${0.5 * scaleRatio}vw` }}>YOUR</div>
+                            <div className="font-black leading-none text-[#111827]" style={{ fontSize: `${0.5 * scaleRatio}vw` }}>LOGO</div>
+                        </div>
+                    )}
+                    <div className="absolute z-10 flex" style={{ top: `${2 * scaleRatio}vw`, right: `${2 * scaleRatio}vw`, gap: `${0.5 * scaleRatio}vw` }}>
                         {selectedSocialIcons.map(icon => (
-                            <div key={icon} className="shadow-sm">
-                                {renderSocialIcon(icon, socialTheme, "w-[1.5vw] h-[1.5vw]", true)}
+                            <div key={icon} style={{ width: `${1.5 * scaleRatio}vw`, height: `${1.5 * scaleRatio}vw`, boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }}>
+                                {renderSocialIcon(icon, socialTheme, "w-full h-full", true)}
                             </div>
                         ))}
                     </div>
-                    <div className="absolute bottom-[2vw] left-0 right-0 text-center z-10">
-                        <h4 className="text-[1.2vw] font-bold text-white">Smart Night Lamp</h4>
-                        <p className="text-[0.6vw] text-white font-medium italic mt-[0.2vw]">"Warm Light for Cozy Nights"</p>
+                    <div className="absolute left-0 right-0 text-center z-10 flex flex-col items-center" style={{ bottom: `${2 * scaleRatio}vw`, paddingLeft: `${1 * scaleRatio}vw`, paddingRight: `${1 * scaleRatio}vw` }}>
+                        <h4 className="leading-tight break-words w-full" style={{
+                            fontFamily: text1FontFamily,
+                            fontSize: typeof text1FontSize === 'number' ? `${(text1FontSize / 15) * scaleRatio}vw` : `${1.6 * scaleRatio}vw`,
+                            fontWeight: text1FontWeight === 'Regular' ? '400' : text1FontWeight === 'Medium' ? '500' : text1FontWeight === 'Semi Bold' ? '600' : text1FontWeight === 'Bold' ? '700' : '900',
+                            letterSpacing: text1LetterSpacing === 'Auto' ? 'normal' : `${text1LetterSpacing / 10}em`,
+                            lineHeight: text1LineHeight === 'Auto' ? '1.1' : String(text1LineHeight),
+                            textAlign: text1Align,
+                            color: text1Color,
+                            opacity: text1ColorOpacity / 100,
+                            fontStyle: text1Italic ? 'italic' : 'normal',
+                            textDecoration: [text1Underline ? 'underline' : '', text1Linethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                            filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))'
+                        }}>{posterTitle || 'Smart Night Lamp'}</h4>
+                        <p className="whitespace-pre-wrap break-words w-full" style={{
+                            marginTop: `${0.2 * scaleRatio}vw`,
+                            fontFamily: text2FontFamily,
+                            fontSize: typeof text2FontSize === 'number' ? `${(text2FontSize / 15) * scaleRatio}vw` : `${0.7 * scaleRatio}vw`,
+                            fontWeight: text2FontWeight === 'Regular' ? '400' : text2FontWeight === 'Medium' ? '500' : text2FontWeight === 'Semi Bold' ? '600' : text2FontWeight === 'Bold' ? '700' : '900',
+                            letterSpacing: text2LetterSpacing === 'Auto' ? '0.2em' : `${text2LetterSpacing / 10}em`,
+                            lineHeight: text2LineHeight === 'Auto' ? 'normal' : String(text2LineHeight),
+                            textAlign: text2Align,
+
+                            color: text2Color,
+                            opacity: text2ColorOpacity / 100,
+                            fontStyle: text2Italic ? 'italic' : 'normal',
+                            textDecoration: [text2Underline ? 'underline' : '', text2Linethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                            filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))'
+                        }}>{posterSupportingText || '"Warm Light for Cozy Nights"'}</p>
                     </div>
                   </div>
+                </div>
                 )}
 
                 {/* Right Column: Settings */}
@@ -1364,6 +1669,38 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                   </div>
 
                   <div className="mt-auto flex flex-col gap-[1vw]">
+                    {activeTab === 'poster' && (
+                        <div className="bg-gray-50 rounded-[0.6vw] border border-gray-200 overflow-hidden flex items-center p-[0.6vw] gap-[0.6vw] shadow-sm">
+                            {(() => {
+                                const sizeObj = posterSizes.find(s => s.id === selectedPosterSize);
+                                if (sizeObj) {
+                                    return (
+                                        <>
+                                            <div className="w-[1.8vw] h-[1.8vw] bg-white rounded-[0.4vw] flex items-center justify-center border border-gray-200 shadow-sm">
+                                                <Icon icon={sizeObj.icon} className="text-gray-600 w-[1vw] h-[1vw]" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[0.7vw] font-bold text-gray-800">{sizeObj.platform} - {sizeObj.label}</span>
+                                                <span className="text-[0.55vw] font-medium text-gray-500">Preset Size: {sizeObj.w}x{sizeObj.h} px • Ratio: {sizeObj.ratio}</span>
+                                            </div>
+                                        </>
+                                    );
+                                } else {
+                                    return (
+                                        <>
+                                            <div className="w-[1.8vw] h-[1.8vw] bg-white rounded-[0.4vw] flex items-center justify-center border border-gray-200 shadow-sm">
+                                                <Layout className="text-gray-600 w-[1vw] h-[1vw]" />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[0.7vw] font-bold text-gray-800">Custom Dimension</span>
+                                                <span className="text-[0.55vw] font-medium text-gray-500">{posterWidth}x{posterHeight} px</span>
+                                            </div>
+                                        </>
+                                    );
+                                }
+                            })()}
+                        </div>
+                    )}
                     {activeTab === 'flipbook' && (
                         <div className="bg-[#EEF2FF] rounded-[0.6vw] border border-indigo-100 overflow-hidden flex shadow-sm">
                             <div className="flex-1 flex items-center gap-[0.5vw] p-[0.4vw] border-r border-indigo-100"><div className="w-[1.4vw] h-[1.4vw] bg-white rounded-[0.3vw] flex items-center justify-center text-[#4A3AFF] shadow-sm"><FileText size="0.8vw" /></div><div className="flex flex-col"><span className="text-[0.65vw] font-bold text-[#373d8a]">Total Content - {selectedPages.size + (includeCover ? 1 : 0) + (includePoster ? 1 : 0)}</span></div></div>
@@ -1373,7 +1710,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                     <div className="flex gap-[0.6vw]">
                       <button onClick={onClose} disabled={isDownloading} className="flex-1 flex items-center justify-center gap-[0.4vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.75vw] hover:bg-gray-50 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"><X size="0.8vw" />Cancel</button>
                       <button
-                        onClick={activeTab === 'flipbook' ? handleDownload : undefined}
+                        onClick={activeTab === 'flipbook' ? handleDownload : handleDownloadPoster}
                         disabled={isDownloading || (activeTab === 'flipbook' && selectedPages.size === 0 && exportType !== 'selected')}
                         className="flex-[2] flex items-center justify-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.75vw] hover:bg-gray-900 shadow-[0_4px_15px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all cursor-pointer active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
                       >
@@ -1384,7 +1721,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                                   ? `Download Page ${currentPage}`
                                   : selectedPages.size === 1
                                       ? `Download 1 Page`
-                                      : `Download ${selectedPages.size} Pages as ZIP`)
+                                      : `Download ${selectedPages.size} Pages`)
                               : `Export poster`
                             }</>
                         }
@@ -1400,40 +1737,131 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                     {/* Left Column: Preview & Sizes */}
                     <div className="w-[18vw] flex flex-col gap-[1vw] h-full">
                         {/* Smaller Preview */}
-                        <div className="flex-[1.2] bg-gray-50 rounded-[1vw] overflow-hidden relative border border-gray-100 shadow-sm min-h-0">
-                            <img src="https://images.pexels.com/photos/35642492/pexels-photo-35642492.jpeg" alt="Poster Preview" className="w-full h-full object-cover" />
-                            <div className="absolute top-[0.8vw] left-[0.8vw] bg-white p-[0.3vw] rounded-[0.2vw] shadow-md z-10 scale-75 origin-top-left">
-                                <div className="font-black text-[0.8vw] leading-none text-gray-900">YOUR</div>
-                                <div className="font-black text-[0.8vw] leading-none text-gray-900">LOGO</div>
-                            </div>
-                            <div className="absolute top-[0.8vw] right-[0.8vw] flex gap-[0.3vw] z-10 scale-75 origin-top-right">
+                        <div ref={smallPreviewParentRef} className="flex-[1.2] flex items-center justify-center bg-gray-50 rounded-[1vw] overflow-hidden border border-gray-100 shadow-sm min-h-0 relative p-[0.5vw]">
+                            <div ref={smallPosterRef} className="relative overflow-hidden rounded-[0.5vw] shadow-sm transition-all duration-300" style={{ width: fittedW > 0 ? `${fittedW}px` : '100%', height: fittedH > 0 ? `${fittedH}px` : '100%' }}>
+                                <div 
+                                    className="w-full h-full absolute inset-0 z-0"
+                                    style={{
+                                        backgroundColor: !posterBgColor.includes('gradient') ? posterBgColor : 'transparent',
+                                        backgroundImage: posterBgColor.includes('gradient') ? posterBgColor : 'none',
+                                        opacity: posterBgOpacity / 100
+                                    }}
+                                />
+                            {posterBgType === 'Image' && posterBgImage && (
+                                <img 
+                                    src={posterBgImage}
+                                    className="absolute inset-0 pointer-events-none transition-all duration-300 z-[1]"
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        objectFit: posterBgFit === 'Fit' ? 'contain' : posterBgFit === 'Stretch' ? 'fill' : 'cover',
+                                        opacity: posterBgOpacity / 100,
+                                    }}
+                                />
+                            )}
+                            {posterLogo ? (
+                                <img src={posterLogo} alt="Logo" className="absolute z-10 object-contain" style={{ top: `${2 * scaleRatio}vw`, left: `${2 * scaleRatio}vw`, height: `${2 * scaleRatio}vw`, maxWidth: `${5 * scaleRatio}vw`, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))' }} />
+                            ) : (
+                                <div className="absolute bg-white z-10" style={{ top: `${2 * scaleRatio}vw`, left: `${2 * scaleRatio}vw`, padding: `${0.3 * scaleRatio}vw`, borderRadius: `${0.2 * scaleRatio}vw`, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                                    <div className="font-black leading-none text-[#111827]" style={{ fontSize: `${0.5 * scaleRatio}vw` }}>YOUR</div>
+                                    <div className="font-black leading-none text-[#111827]" style={{ fontSize: `${0.5 * scaleRatio}vw` }}>LOGO</div>
+                                </div>
+                            )}
+                            <div className="absolute z-10 flex" style={{ top: `${2 * scaleRatio}vw`, right: `${2 * scaleRatio}vw`, gap: `${0.5 * scaleRatio}vw` }}>
                                 {selectedSocialIcons.map(icon => (
-                                    <div key={icon}>
-                                        {renderSocialIcon(icon, socialTheme, "w-[1.5vw] h-[1.5vw]", true)}
+                                    <div key={icon} style={{ width: `${1.5 * scaleRatio}vw`, height: `${1.5 * scaleRatio}vw`, boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)' }}>
+                                        {renderSocialIcon(icon, socialTheme, "w-full h-full", true)}
                                     </div>
                                 ))}
                             </div>
-                            <div className="absolute bottom-[1.2vw] left-0 right-0 text-center z-10 px-[1vw]">
-                                <h4 className="text-[0.9vw] font-bold text-white leading-tight drop-shadow-md">Smart Night Lamp</h4>
-                                <p className="text-[0.5vw] text-white/90 italic mt-[0.1vw] drop-shadow-sm">"Warm Light for Cozy Nights"</p>
+                            <div className="absolute left-0 right-0 text-center z-10 flex flex-col items-center" style={{ bottom: `${2 * scaleRatio}vw`, paddingLeft: `${1 * scaleRatio}vw`, paddingRight: `${1 * scaleRatio}vw` }}>
+                                <h4 className="leading-tight break-words w-full" style={{
+                                    fontFamily: text1FontFamily,
+                                    fontSize: typeof text1FontSize === 'number' ? `${(text1FontSize / 15) * scaleRatio}vw` : `${1.6 * scaleRatio}vw`,
+                                    fontWeight: text1FontWeight === 'Regular' ? '400' : text1FontWeight === 'Medium' ? '500' : text1FontWeight === 'Semi Bold' ? '600' : text1FontWeight === 'Bold' ? '700' : '900',
+                                    letterSpacing: text1LetterSpacing === 'Auto' ? 'normal' : `${text1LetterSpacing / 10}em`,
+                                    lineHeight: text1LineHeight === 'Auto' ? '1.1' : String(text1LineHeight),
+                                    textAlign: text1Align,
+                                    color: text1Color,
+                                    opacity: text1ColorOpacity / 100,
+                                    fontStyle: text1Italic ? 'italic' : 'normal',
+                                    textDecoration: [text1Underline ? 'underline' : '', text1Linethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                                    filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))'
+                                }}>{posterTitle || 'Smart Night Lamp'}</h4>
+                                <p className="whitespace-pre-wrap break-words w-full" style={{
+                                    marginTop: `${0.2 * scaleRatio}vw`,
+                                    fontFamily: text2FontFamily,
+                                    fontSize: typeof text2FontSize === 'number' ? `${(text2FontSize / 15) * scaleRatio}vw` : `${0.7 * scaleRatio}vw`,
+                                    fontWeight: text2FontWeight === 'Regular' ? '400' : text2FontWeight === 'Medium' ? '500' : text2FontWeight === 'Semi Bold' ? '600' : text2FontWeight === 'Bold' ? '700' : '900',
+                                    letterSpacing: text2LetterSpacing === 'Auto' ? '0.2em' : `${text2LetterSpacing / 10}em`,
+                                    lineHeight: text2LineHeight === 'Auto' ? 'normal' : String(text2LineHeight),
+                                    textAlign: text2Align,
+                                    color: text2Color,
+                                    opacity: text2ColorOpacity / 100,
+                                    fontStyle: text2Italic ? 'italic' : 'normal',
+                                    textDecoration: [text2Underline ? 'underline' : '', text2Linethrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                                    filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.1))'
+                                }}>{posterSupportingText || '"Warm Light for Cozy Nights"'}</p>
                             </div>
                         </div>
+                    </div>
 
                         {/* Poster Sizes */}
-                        <div className="bg-gray-100 rounded-[1vw] border-[0.12vw] border-gray-300 overflow-hidden flex flex-col shrink-0">
+                        <div className="bg-gray-100 rounded-[1vw] border-[0.12vw] border-gray-300 overflow-hidden flex flex-col shrink-0 min-h-0 h-[11vw]">
                             <div className="px-[0.8vw] py-[0.4vw] border-b-[0.12vw] border-gray-300 bg-gray-100/40">
                                 <h3 className="text-[0.75vw] font-bold text-gray-700">Poster Size</h3>
                             </div>
-                            <div className="p-[0.6vw] grid grid-cols-5 gap-[0.4vw]">
-                                {posterSizes.map((size, idx) => (
-                                    <div key={idx} className="flex flex-col items-center gap-[0.2vw] group cursor-pointer">
-                                        <div className="w-full aspect-square border-[1.5px] border-dashed border-gray-300 rounded-[0.5vw] flex items-center justify-center bg-white group-hover:border-[#4A3AFF] transition-all relative">
-                                            {size.icon && <Icon icon={size.icon} className="w-[1vw] h-[1vw] text-pink-500 opacity-80" />}
-                                            <div className="absolute inset-[0.1vw] border border-gray-100 rounded-[0.3vw]"></div>
-                                        </div>
-                                        <span className="text-[0.55vw] font-bold text-gray-400 group-hover:text-[#4A3AFF] whitespace-nowrap">{size.label}</span>
-                                    </div>
-                                ))}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-[0.6vw]">
+                                <div className="grid grid-cols-3 gap-[0.8vw]">
+                                    {posterSizes.map((size) => (
+                                        <button
+                                            key={size.id}
+                                            onClick={() => {
+                                                setSelectedPosterSize(size.id);
+                                                if (size.w && size.h) {
+                                                    setPosterWidth(size.w);
+                                                    setPosterHeight(size.h);
+                                                }
+                                            }}
+                                            className={`flex flex-col items-center gap-[0.6vw] p-[0.8vw] rounded-[0.6vw] border-[0.15vw] transition-all group cursor-pointer ${
+                                                selectedPosterSize === size.id 
+                                                ? 'bg-white border-[#5d5efc] shadow-lg' 
+                                                : 'bg-[#E5E7EB] border-transparent hover:bg-gray-300'
+                                            }`}
+                                        >
+                                            {/* Preview Box with Dashed Border */}
+                                            <div className={`w-full aspect-square bg-white rounded-[0.4vw] border-[0.1vw] border-dashed flex items-center justify-center relative ${
+                                                selectedPosterSize === size.id ? 'border-[#5d5efc]' : 'border-gray-400'
+                                            }`}>
+                                                {/* Simulated Aspect Ratio Outline */}
+                                                <div 
+                                                    className={`absolute border-[0.1vw] border-current opacity-20 pointer-events-none rounded-[0.1vw] ${
+                                                        selectedPosterSize === size.id ? 'text-[#5d5efc]' : 'text-gray-400'
+                                                    }`}
+                                                    style={{
+                                                        width: size.w && size.h ? (size.w > size.h ? '80%' : `${(size.w / size.h) * 80}%`) : '80%',
+                                                        height: size.w && size.h ? (size.h > size.w ? '80%' : `${(size.h / size.w) * 80}%`) : '80%',
+                                                    }}
+                                                />
+                                                <Icon 
+                                                    icon={size.icon} 
+                                                    width="1.3vw" 
+                                                    className={selectedPosterSize === size.id ? 'text-[#5d5efc] z-10' : 'text-gray-500 z-10'} 
+                                                />
+                                            </div>
+
+                                            {/* Label Area */}
+                                            <div className="flex flex-col items-center text-center">
+                                                <span className={`text-[0.7vw] font-semibold leading-tight ${selectedPosterSize === size.id ? 'text-[#5d5efc]' : 'text-gray-600'}`}>
+                                                    {size.label.split(' ')[0]} {size.label.split(' ')[1]}
+                                                </span>
+                                                <span className="text-[0.5vw] text-gray-400 font-medium whitespace-nowrap">
+                                                    {size.platform} [{size.ratio}]
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1522,7 +1950,12 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                                                             />
                                                             <Edit2 size="0.8vw" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400" />
                                                         </div>
-                                                        <button className="p-[0.4vw] rounded-[0.4vw] hover:bg-gray-100 transition-colors cursor-pointer text-gray-700"><Sliders size="1vw" /></button>
+                                                        <button 
+                                                            onClick={() => setActiveTextEditor(activeTextEditor === 'text1' ? null : 'text1')}
+                                                            className={`p-[0.4vw] rounded-[0.4vw] transition-colors cursor-pointer ${activeTextEditor === 'text1' ? 'bg-[#4A3AFF] text-white hover:bg-blue-700 shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
+                                                        >
+                                                            <Sliders size="1vw" />
+                                                        </button>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-start gap-[0.5vw] min-w-0">
@@ -1537,7 +1970,12 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                                                             />
                                                             <Edit2 size="0.8vw" className="absolute right-[0.6vw] bottom-[0.6vw] text-gray-400" />
                                                         </div>
-                                                        <button className="p-[0.4vw] rounded-[0.4vw] hover:bg-gray-100 transition-colors cursor-pointer text-gray-700"><Sliders size="1vw" /></button>
+                                                        <button 
+                                                            onClick={() => setActiveTextEditor(activeTextEditor === 'text2' ? null : 'text2')}
+                                                            className={`p-[0.4vw] rounded-[0.4vw] transition-colors cursor-pointer ${activeTextEditor === 'text2' ? 'bg-[#4A3AFF] text-white hover:bg-blue-700 shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
+                                                        >
+                                                            <Sliders size="1vw" />
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1545,34 +1983,149 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                                             {/* Background */}
                                             <div className="flex items-start gap-[0.5vw] min-w-0">
                                                 <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.4vw]">Background :</span>
-                                                <div className="flex-1 bg-white border border-gray-200 rounded-[0.8vw] overflow-hidden shadow-sm">
+                                                <div className="flex-1 bg-white border border-gray-200 rounded-[0.8vw] shadow-sm">
                                                     <div className="px-[0.8vw] py-[0.4vw] border-b border-gray-100 bg-gray-50/30">
                                                         <span className="text-[0.7vw] font-bold text-gray-800">Customize your BG</span>
                                                     </div>
                                                     <div className="p-[0.6vw] flex flex-col gap-[0.6vw]">
-                                                        <div className="relative w-[7vw]">
-                                                            <select 
-                                                                value={posterBgType} 
-                                                                onChange={(e) => setPosterBgType(e.target.value)}
-                                                                className="w-full appearance-none bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none pr-[1.8vw] shadow-sm cursor-pointer"
-                                                            >
-                                                                <option>Solid</option>
-                                                                <option>Gradient</option>
-                                                            </select>
-                                                            <Icon icon="lucide:chevron-down" className="absolute right-[0.5vw] top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none w-[0.9vw] h-[0.9vw]" />
-                                                        </div>
-                                                        <div className="flex items-center gap-[0.6vw]">
-                                                            <div className="w-[1.8vw] h-[1.6vw] rounded-[0.3vw] border border-gray-400 shadow-sm" style={{ backgroundColor: posterBgColor }}></div>
-                                                            <div className="flex-1 flex items-center border border-gray-300 rounded-[0.4vw] bg-white overflow-hidden shadow-sm">
-                                                                <input 
-                                                                    type="text" 
-                                                                    value={posterBgColor} 
-                                                                    onChange={(e) => setPosterBgColor(e.target.value)}
-                                                                    className="flex-1 px-[0.6vw] py-[0.3vw] text-[0.75vw] font-bold text-gray-700 uppercase outline-none"
-                                                                />
-                                                                <span className="px-[0.6vw] text-[0.75vw] font-semibold text-gray-400 border-l border-gray-100">{posterBgOpacity}%</span>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="relative w-[7.5vw]">
+                                                                <button 
+                                                                    onClick={togglePosterBgTypeDropdown}
+                                                                    className="w-full bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-300 transition-all"
+                                                                >
+                                                                    <span>{posterBgType}</span>
+                                                                    <Icon icon="lucide:chevron-down" className={`text-gray-400 transition-transform duration-200 w-[0.8vw] h-[0.8vw] ${showPosterBgTypeDropdown ? 'rotate-180' : ''}`} />
+                                                                </button>
+                                                                
+                                                                {showPosterBgTypeDropdown && (
+                                                                    <>
+                                                                        <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowPosterBgTypeDropdown(false)} />
+                                                                        <div className="absolute top-[calc(100%+0.2vw)] left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw] animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                            {['Color', 'Image'].map((type) => (
+                                                                                <button
+                                                                                    key={type}
+                                                                                    onClick={() => {
+                                                                                        setPosterBgType(type);
+                                                                                        setShowPosterBgTypeDropdown(false);
+                                                                                    }}
+                                                                                    className={`w-full text-left px-[0.6vw] py-[0.4vw] text-[0.7vw] font-semibold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${posterBgType === type ? 'text-[#4A3AFF]' : 'text-gray-500 hover:text-gray-700'}`}
+                                                                                >
+                                                                                    {type}
+                                                                                    {posterBgType === type && <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw]" />}
+                                                                                </button>
+                                                                            ))}
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </div>
+
+                                                            {posterBgType === 'Image' && (
+                                                                <div className="relative w-[6.5vw]">
+                                                                    <button 
+                                                                        onClick={togglePosterBgFitDropdown}
+                                                                        className="w-full bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-300 transition-all"
+                                                                    >
+                                                                        <span>{posterBgFit}</span>
+                                                                        <Icon icon="lucide:chevron-down" className={`text-gray-400 transition-transform duration-200 w-[0.8vw] h-[0.8vw] ${showPosterBgFitDropdown ? 'rotate-180' : ''}`} />
+                                                                    </button>
+                                                                    
+                                                                    {showPosterBgFitDropdown && (
+                                                                        <>
+                                                                            <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowPosterBgFitDropdown(false)} />
+                                                                            <div className="absolute top-[calc(100%+0.2vw)] left-0 w-full bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-[60] py-[0.3vw] animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                                {['Fit', 'Cover', 'Stretch'].map((fit) => (
+                                                                                    <button
+                                                                                        key={fit}
+                                                                                        onClick={() => {
+                                                                                            setPosterBgFit(fit);
+                                                                                            setShowPosterBgFitDropdown(false);
+                                                                                        }}
+                                                                                        className={`w-full text-left px-[0.6vw] py-[0.4vw] text-[0.7vw] font-semibold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${posterBgFit === fit ? 'text-[#4A3AFF]' : 'text-gray-500 hover:text-gray-700'}`}
+                                                                                    >
+                                                                                        {fit}
+                                                                                        {posterBgFit === fit && <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw]" />}
+                                                                                    </button>
+                                                                                ))}
+                                                                            </div>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                            )}
                                                         </div>
+
+                                                        {posterBgType === 'Image' && (
+                                                            <>
+                                                                <label className="w-full h-[6vw] border-[0.12vw] border-dashed border-gray-300 rounded-[0.6vw] flex flex-col items-center justify-center gap-[0.2vw] bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden mt-[0.2vw]">
+                                                                    <input 
+                                                                        type="file" 
+                                                                        accept="image/*" 
+                                                                        onChange={(e) => {
+                                                                            const file = e.target.files[0];
+                                                                            if (file) {
+                                                                                setPosterBgImage(URL.createObjectURL(file));
+                                                                            }
+                                                                        }}
+                                                                        className="hidden" 
+                                                                    />
+                                                                    {posterBgImage ? (
+                                                                        <div className="w-full h-full relative">
+                                                                            <img src={posterBgImage} className="w-full h-full object-cover" alt="Background preview" />
+                                                                            <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                                <p className="text-[0.6vw] font-semibold text-white">Change Image</p>
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex flex-col items-center pointer-events-none">
+                                                                            <Upload size="1.2vw" className="text-gray-400 group-hover:text-[#4A3AFF] transition-colors" />
+                                                                            <p className="text-[0.6vw] font-medium text-gray-500 mt-[0.3vw]">Drag & Drop or <span className="text-[#4A3AFF]">Upload</span></p>
+                                                                            <p className="text-[0.5vw] text-gray-400 mt-[0.1vw]">Supported File Format : JPG, PNG</p>
+                                                                        </div>
+                                                                    )}
+                                                                </label>
+
+                                                                <div className="flex items-center gap-[0.8vw] px-[0.2vw] mt-[0.2vw]">
+                                                                    <span className="text-[0.75vw] font-semibold text-gray-700 w-[4.5vw] shrink-0">Opacity :</span>
+                                                                    <div className="flex-1 flex items-center gap-[0.8vw]">
+                                                                        <input 
+                                                                            type="range" 
+                                                                            min="0" 
+                                                                            max="100" 
+                                                                            value={posterBgOpacity}
+                                                                            onChange={(e) => setPosterBgOpacity(e.target.value)}
+                                                                            className="flex-1 h-[0.25vw] bg-gray-200 rounded-full appearance-none cursor-pointer accent-[#4A3AFF] hover:accent-[#3b2fd9] transition-all"
+                                                                        />
+                                                                        <span className="text-[0.75vw] font-bold text-gray-500 w-[2.5vw] text-right">{posterBgOpacity}%</span>
+                                                                    </div>
+                                                                </div>
+                                                            </>
+                                                        )}
+
+                                                        {posterBgType === 'Color' && (
+                                                            <div className="flex items-center gap-[0.6vw] mt-[0.2vw]">
+                                                                <div className="relative flex-shrink-0">
+                                                                    <button 
+                                                                        onClick={() => {
+                                                                            setShowPosterBgColorPicker(!showPosterBgColorPicker);
+                                                                        }}
+                                                                        className="w-[1.8vw] h-[1.6vw] rounded-[0.3vw] border border-gray-400 shadow-sm block cursor-pointer transition-all hover:scale-105 active:scale-95 outline-none animate-in fade-in duration-200"
+                                                                        style={{ background: posterBgColor }}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex-1 flex items-center border border-gray-300 rounded-[0.4vw] bg-white overflow-hidden shadow-sm">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        value={posterBgColor} 
+                                                                        onChange={(e) => setPosterBgColor(e.target.value)}
+                                                                        onClick={() => {
+                                                                            setShowPosterBgColorPicker(true);
+                                                                        }}
+                                                                        className="flex-1 px-[0.6vw] py-[0.3vw] text-[0.75vw] font-bold text-gray-700 uppercase outline-none cursor-pointer font-mono"
+                                                                    />
+                                                                    <span className="px-[0.6vw] text-[0.75vw] font-semibold text-gray-400 border-l border-gray-100">100%</span>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1580,11 +2133,41 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                                             {/* Upload Logo */}
                                             <div className="flex items-start gap-[0.5vw] min-w-0">
                                                 <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.4vw]">Upload Logo :</span>
-                                                <div className="flex flex-col items-center gap-[0.4vw]">
-                                                    <div className="w-[10vw] h-[4.5vw] border-[0.12vw] border-dashed border-gray-300 rounded-[0.6vw] flex flex-col items-center justify-center gap-[0.2vw] bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer group">
-                                                        <Upload size="0.9vw" className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                                                        <p className="text-[0.55vw] font-medium text-gray-500">Drag & Drop or <span className="text-blue-600">Upload</span></p>
-                                                    </div>
+                                                <div className="flex flex-col items-start gap-[0.4vw]">
+                                                    <label className="w-[10vw] h-[4.5vw] border-[0.12vw] border-dashed border-gray-300 rounded-[0.6vw] flex flex-col items-center justify-center gap-[0.2vw] bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden">
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            onChange={(e) => {
+                                                                const file = e.target.files[0];
+                                                                if (file) {
+                                                                    setPosterLogo(URL.createObjectURL(file));
+                                                                }
+                                                            }}
+                                                            className="hidden" 
+                                                        />
+                                                        {posterLogo ? (
+                                                            <div className="w-full h-full relative">
+                                                                <img src={posterLogo} className="w-full h-full object-contain p-[0.4vw]" alt="Logo preview" />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <p className="text-[0.6vw] font-semibold text-white">Change Logo</p>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <Upload size="0.9vw" className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                                                <p className="text-[0.55vw] font-medium text-gray-500">Drag & Drop or <span className="text-[#4A3AFF]">Upload</span></p>
+                                                            </>
+                                                        )}
+                                                    </label>
+                                                    {posterLogo && (
+                                                        <button 
+                                                            onClick={() => setPosterLogo(null)}
+                                                            className="text-[0.6vw] font-semibold text-red-500 hover:text-red-600 transition-colors ml-[0.2vw]"
+                                                        >
+                                                            Remove Logo
+                                                        </button>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1741,6 +2324,385 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
           </div>
         </div>
         
+                    {activeTextEditor && (() => {
+                        const isT1 = activeTextEditor === 'text1';
+                        const fontFamily = isT1 ? text1FontFamily : text2FontFamily;
+                        const setFontFamily = isT1 ? setText1FontFamily : setText2FontFamily;
+                        const fontSize = isT1 ? text1FontSize : text2FontSize;
+                        const setFontSize = isT1 ? setText1FontSize : setText2FontSize;
+                        const fontWeight = isT1 ? text1FontWeight : text2FontWeight;
+                        const setFontWeight = isT1 ? setText1FontWeight : setText2FontWeight;
+                        const letterSpacing = isT1 ? text1LetterSpacing : text2LetterSpacing;
+                        const setLetterSpacing = isT1 ? setText1LetterSpacing : setText2LetterSpacing;
+                        const lineHeight = isT1 ? text1LineHeight : text2LineHeight;
+                        const setLineHeight = isT1 ? setText1LineHeight : setText2LineHeight;
+                        const align = isT1 ? text1Align : text2Align;
+                        const setAlign = isT1 ? setText1Align : setText2Align;
+                        const bold = isT1 ? text1Bold : text2Bold;
+                        const setBold = isT1 ? setText1Bold : setText2Bold;
+                        const italic = isT1 ? text1Italic : text2Italic;
+                        const setItalic = isT1 ? setText1Italic : setText2Italic;
+                        const underline = isT1 ? text1Underline : text2Underline;
+                        const setUnderline = isT1 ? setText1Underline : setText2Underline;
+                        const linethrough = isT1 ? text1Linethrough : text2Linethrough;
+                        const setLinethrough = isT1 ? setText1Linethrough : setText2Linethrough;
+                        const color = isT1 ? text1Color : text2Color;
+                        const setColor = isT1 ? setText1Color : setText2Color;
+                        const opacity = isT1 ? text1ColorOpacity : text2ColorOpacity;
+                        const setOpacity = isT1 ? setText1ColorOpacity : setText2ColorOpacity;
+
+                        const fontFamilies = ['Poppins', 'Inter', 'Roboto', 'Outfit', 'Montserrat', 'Playfair Display'];
+                        const fontSizes = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 64];
+                        const fontWeights = ['Regular', 'Medium', 'Semi Bold', 'Bold', 'Black'];
+
+                        return (
+                            <div className="absolute top-[1.2vw] left-[calc(100%+1vw)] z-[70] w-[21vw] bg-white border border-gray-200 rounded-[1.2vw] shadow-2xl p-[1.2vw] animate-in fade-in zoom-in-95 duration-200 flex flex-col gap-[1vw]">
+                                <style dangerouslySetInnerHTML={{ __html: `
+                                    .typography-color-picker > div:first-child > div:first-child > *:first-child {
+                                        display: none !important;
+                                    }
+                                    .typography-color-picker > div:first-child > div:first-child::before {
+                                        content: "Text Color";
+                                        font-size: 0.85vw;
+                                        font-weight: 600;
+                                        color: #111827;
+                                        font-family: inherit;
+                                    }
+                                ` }} />
+                                {/* Typography Header */}
+                                <div className="flex items-center justify-between gap-[0.5vw]">
+                                    <span className="font-bold text-[0.85vw] text-gray-900 shrink-0">Typography</span>
+                                    <div className="flex-1 h-[1px] bg-gray-200" />
+                                    <button 
+                                        onClick={() => {
+                                            setActiveTextEditor(null);
+                                            setShowFontFamilyDropdown(false);
+                                            setShowFontSizeDropdown(false);
+                                            setShowFontWeightDropdown(false);
+                                            setShowLetterSpacingSlider(false);
+                                            setShowLineHeightSlider(false);
+                                        }}
+                                        className="p-[0.2vw] rounded-full hover:bg-gray-100 transition-colors text-red-500 cursor-pointer"
+                                    >
+                                        <X size="0.9vw" />
+                                    </button>
+                                </div>
+    
+                                {/* Row 1: Font Family & Size */}
+                                <div className="flex items-center gap-[0.6vw] relative">
+                                    <div className="relative flex-1">
+                                        <button 
+                                            onClick={() => {
+                                                setShowFontFamilyDropdown(!showFontFamilyDropdown);
+                                                setShowFontSizeDropdown(false);
+                                                setShowFontWeightDropdown(false);
+                                                setShowLetterSpacingSlider(false);
+                                                setShowLineHeightSlider(false);
+                                            }}
+                                            className="w-full h-[2.2vw] flex items-center justify-between px-[0.8vw] bg-white border border-gray-300 rounded-[0.6vw] text-[0.75vw] font-medium text-gray-700 hover:border-gray-400 transition-all cursor-pointer"
+                                        >
+                                            <span className="truncate" style={{ fontFamily: fontFamily }}>{fontFamily}</span>
+                                            <Icon icon="lucide:chevron-down" className="text-gray-400 shrink-0 w-[0.8vw] h-[0.8vw]" />
+                                        </button>
+                                        {showFontFamilyDropdown && (
+                                            <div className="absolute left-0 right-0 top-[2.4vw] z-[80] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl max-h-[10vw] overflow-y-auto custom-scrollbar">
+                                                {fontFamilies.map((font) => (
+                                                    <button
+                                                        key={font}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFontFamily(font);
+                                                            setShowFontFamilyDropdown(false);
+                                                        }}
+                                                        className="w-full text-left px-[0.8vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                                        style={{ fontFamily: font }}
+                                                    >
+                                                        {font}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="relative w-[5.5vw]">
+                                        <button 
+                                            onClick={() => {
+                                                setShowFontSizeDropdown(!showFontSizeDropdown);
+                                                setShowFontFamilyDropdown(false);
+                                                setShowFontWeightDropdown(false);
+                                                setShowLetterSpacingSlider(false);
+                                                setShowLineHeightSlider(false);
+                                            }}
+                                            className="w-full h-[2.2vw] flex items-center justify-between px-[0.8vw] bg-white border border-gray-300 rounded-[0.6vw] text-[0.75vw] font-medium text-gray-700 hover:border-gray-400 transition-all cursor-pointer"
+                                        >
+                                            <span>{fontSize}</span>
+                                            <Icon icon="lucide:chevron-down" className="text-gray-400 shrink-0 w-[0.8vw] h-[0.8vw]" />
+                                        </button>
+                                        {showFontSizeDropdown && (
+                                            <div className="absolute left-0 right-0 top-[2.4vw] z-[80] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl max-h-[10vw] overflow-y-auto custom-scrollbar">
+                                                {fontSizes.map((size) => (
+                                                    <button
+                                                        key={size}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFontSize(size);
+                                                            setShowFontSizeDropdown(false);
+                                                        }}
+                                                        className="w-full text-left px-[0.8vw] py-[0.4vw] text-[0.75vw] font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                                    >
+                                                        {size}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+    
+                                {/* Row 2: Weight, Character Spacing, Line Height */}
+                                <div className="flex items-center gap-[0.6vw] relative">
+                                    <div className="relative flex-1">
+                                        <button 
+                                            onClick={() => {
+                                                setShowFontWeightDropdown(!showFontWeightDropdown);
+                                                setShowFontFamilyDropdown(false);
+                                                setShowFontSizeDropdown(false);
+                                                setShowLetterSpacingSlider(false);
+                                                setShowLineHeightSlider(false);
+                                            }}
+                                            className="w-full h-[2.2vw] flex items-center justify-between px-[0.8vw] bg-white border border-gray-300 rounded-[0.6vw] text-[0.75vw] font-medium text-gray-700 hover:border-gray-400 transition-all cursor-pointer"
+                                        >
+                                            <span>{fontWeight}</span>
+                                            <Icon icon="lucide:chevron-down" className="text-gray-400 shrink-0 w-[0.8vw] h-[0.8vw]" />
+                                        </button>
+                                        {showFontWeightDropdown && (
+                                            <div className="absolute left-0 right-0 top-[2.4vw] z-[80] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl max-h-[10vw] overflow-y-auto custom-scrollbar">
+                                                {fontWeights.map((w) => (
+                                                    <button
+                                                        key={w}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setFontWeight(w);
+                                                            setShowFontWeightDropdown(false);
+                                                        }}
+                                                        className="w-full text-left px-[0.8vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+                                                    >
+                                                        {w}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="relative w-[5.5vw]">
+                                        <div className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group">
+                                            <input 
+                                                type="text" 
+                                                value={letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : letterSpacing}
+                                                onChange={(e) => setLetterSpacing(e.target.value)}
+                                                onFocus={(e) => e.target.select()}
+                                                onBlur={() => {
+                                                    if (letterSpacing === 'Auto' || letterSpacing === '') {
+                                                        setLetterSpacing('Auto');
+                                                    } else {
+                                                        const parsed = parseInt(letterSpacing);
+                                                        setLetterSpacing(isNaN(parsed) ? 'Auto' : parsed);
+                                                    }
+                                                }}
+                                                className="w-full text-center text-[0.7vw] font-semibold text-gray-700 outline-none bg-transparent"
+                                            />
+                                            <div
+                                                onMouseDown={(e) => {
+                                                    if (e.button !== 0) return;
+                                                    document.body.style.cursor = 'ew-resize';
+                                                    document.body.style.userSelect = 'none';
+                                                    const startX = e.clientX;
+                                                    const startVal = letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : parseFloat(letterSpacing);
+                                                    const handleMouseMove = (moveEvent) => {
+                                                        const deltaX = moveEvent.clientX - startX;
+                                                        const change = Math.round(deltaX / 8);
+                                                        const newVal = Math.min(40, Math.max(isT1 ? -5 : 0, startVal + change));
+                                                        setLetterSpacing(newVal);
+                                                    };
+                                                    const handleMouseUp = () => {
+                                                        window.removeEventListener('mousemove', handleMouseMove);
+                                                        window.removeEventListener('mouseup', handleMouseUp);
+                                                        document.body.style.cursor = '';
+                                                        document.body.style.userSelect = '';
+                                                    };
+                                                    window.addEventListener('mousemove', handleMouseMove);
+                                                    window.addEventListener('mouseup', handleMouseUp);
+                                                }}
+                                                className="cursor-ew-resize p-[0.1vw] hover:bg-gray-100 rounded-[0.2vw] flex items-center justify-center shrink-0"
+                                                title="Drag to adjust character spacing"
+                                            >
+                                                <Icon icon="solar:paragraph-spacing-linear" width="1.2vw" height="1.2vw" rotate={1} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="relative w-[5.5vw]">
+                                        <div className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group">
+                                            <input 
+                                                type="text" 
+                                                value={lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : lineHeight}
+                                                onChange={(e) => setLineHeight(e.target.value)}
+                                                onFocus={(e) => e.target.select()}
+                                                onBlur={() => {
+                                                    if (lineHeight === 'Auto' || lineHeight === '') {
+                                                        setLineHeight('Auto');
+                                                    } else {
+                                                        const parsed = parseFloat(lineHeight);
+                                                        setLineHeight(isNaN(parsed) ? 'Auto' : parseFloat(parsed.toFixed(1)));
+                                                    }
+                                                }}
+                                                className="w-full text-center text-[0.7vw] font-semibold text-gray-700 outline-none bg-transparent"
+                                            />
+                                            <div
+                                                onMouseDown={(e) => {
+                                                    if (e.button !== 0) return;
+                                                    document.body.style.cursor = 'ew-resize';
+                                                    document.body.style.userSelect = 'none';
+                                                    const startX = e.clientX;
+                                                    const startVal = lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : parseFloat(lineHeight);
+                                                    const handleMouseMove = (moveEvent) => {
+                                                        const deltaX = moveEvent.clientX - startX;
+                                                        const change = deltaX / 100;
+                                                        const newVal = parseFloat(Math.min(3.0, Math.max(0.5, startVal + change)).toFixed(1));
+                                                        setLineHeight(newVal);
+                                                    };
+                                                    const handleMouseUp = () => {
+                                                        window.removeEventListener('mousemove', handleMouseMove);
+                                                        window.removeEventListener('mouseup', handleMouseUp);
+                                                        document.body.style.cursor = '';
+                                                        document.body.style.userSelect = '';
+                                                    };
+                                                    window.addEventListener('mousemove', handleMouseMove);
+                                                    window.addEventListener('mouseup', handleMouseUp);
+                                                }}
+                                                className="cursor-ew-resize p-[0.1vw] hover:bg-gray-100 rounded-[0.2vw] flex items-center justify-center shrink-0"
+                                                title="Drag to adjust line height"
+                                            >
+                                                <Icon icon="solar:paragraph-spacing-linear" width="1.2vw" height="1.2vw" className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Row 3: Align, Underline/Italic */}
+                                <div className="flex items-center gap-[0.5vw]">
+                                    <button 
+                                        onClick={() => setAlign('left')}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'left' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    >
+                                        <Icon icon="lucide:align-left" className="w-[1vw] h-[1vw]" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setAlign('center')}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'center' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    >
+                                        <Icon icon="lucide:align-center" className="w-[1vw] h-[1vw]" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setAlign('right')}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'right' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    >
+                                        <Icon icon="lucide:align-right" className="w-[1vw] h-[1vw]" />
+                                    </button>
+                                    <button 
+                                        onClick={() => setAlign('justify')}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'justify' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                    >
+                                        <Icon icon="lucide:align-justify" className="w-[1vw] h-[1vw]" />
+                                    </button>
+                                    <div className="w-[1px] h-[1.2vw] bg-gray-200 mx-[0.2vw]" />
+                                    <button 
+                                        onClick={() => setUnderline(!underline)}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${underline ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                        title="Underline"
+                                    >
+                                        <span className="font-semibold underline text-[0.85vw] leading-none">U</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => setItalic(!italic)}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${italic ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                        title="Italic"
+                                    >
+                                        <span className="font-semibold italic text-[0.85vw] leading-none">I</span>
+                                    </button>
+                                    <button 
+                                        onClick={() => setLinethrough(!linethrough)}
+                                        className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${linethrough ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                                        title="Strikethrough"
+                                    >
+                                        <span className="font-semibold line-through text-[0.85vw] leading-none">S</span>
+                                    </button>
+                                </div>
+
+                                {/* Text Color Section */}
+                                <div className="flex flex-col gap-[0.8vw]">
+                                    <div className="flex items-center gap-[0.5vw]">
+                                        <span className="font-bold text-[0.8vw] text-gray-900 shrink-0">Text Color</span>
+                                        <div className="flex-1 h-[1px] bg-gray-200" />
+                                    </div>
+                                    <div className="flex items-center gap-[0.6vw]">
+                                        <span className="text-[0.75vw] font-bold text-gray-600 min-w-[2vw]">Fill :</span>
+                                        <div className="relative">
+                                            <div 
+                                                onClick={() => setShowColorPicker(!showColorPicker)}
+                                                className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 shadow-sm cursor-pointer hover:scale-105 transition-all"
+                                                style={{ backgroundColor: color }}
+                                            />
+                                            {showColorPicker && (
+                                                <>
+                                                    <div className="fixed inset-0 z-[80]" onClick={() => setShowColorPicker(false)} />
+                                                    <ColorPicker 
+                                                        color={color}
+                                                        onChange={(newCol) => setColor(newCol)}
+                                                        opacity={opacity}
+                                                        onOpacityChange={(newOp) => setOpacity(newOp)}
+                                                        onClose={() => setShowColorPicker(false)}
+                                                        className="absolute right-[calc(100%+0.8vw)] top-1/2 -translate-y-1/2 z-[90] typography-color-picker"
+                                                    />
+                                                </>
+                                            )}
+                                        </div>
+                                        <div className="w-[10.5vw] flex items-center border border-gray-300 rounded-[0.6vw] bg-white overflow-hidden shadow-sm h-[2.2vw] px-[0.6vw]">
+                                            <input 
+                                                type="text" 
+                                                value={color} 
+                                                onChange={(e) => setColor(e.target.value)}
+                                                className="w-[4vw] text-[0.75vw] font-bold text-gray-700 uppercase outline-none bg-transparent"
+                                                maxLength={7}
+                                            />
+                                            <div className="flex-1 flex items-center justify-end gap-[0.1vw] border-l border-gray-200 pl-[0.5vw] ml-[0.5vw] shrink-0">
+                                                <input 
+                                                    type="number" 
+                                                    value={opacity} 
+                                                    onChange={(e) => setOpacity(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                                                    className="w-[1.8vw] text-center text-[0.75vw] font-bold text-gray-700 outline-none bg-transparent no-spin"
+                                                />
+                                                <span className="text-[0.75vw] font-bold text-gray-400 shrink-0 select-none">%</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Floating Color Picker for Background */}
+                    {showPosterBgColorPicker && (
+                        <>
+                            <div className="fixed inset-0 z-[60] cursor-default" onClick={() => setShowPosterBgColorPicker(false)} />
+                            <TemplateColorPicker 
+                                color={posterBgColor}
+                                onChange={(hex) => setPosterBgColor(hex)}
+                                opacity={100}
+                                onClose={() => setShowPosterBgColorPicker(false)}
+                                className="absolute top-[1.2vw] left-[calc(100%+1vw)] z-[70]"
+                            />
+                        </>
+                    )}
         {/* Icon Themes Side Panel - Inside Main Modal, Left of Button */}
         {showThemeModal && (
           <div 

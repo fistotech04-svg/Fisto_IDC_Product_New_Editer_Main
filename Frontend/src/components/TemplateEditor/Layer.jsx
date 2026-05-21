@@ -376,6 +376,34 @@ const Layer = ({
   const [isVisible, setIsVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState(pages.some(p => p.html && p.html.includes('data-name="PDF Background"')) ? 'pages' : 'layers');
+  const switchedByExportRef = useRef(false);
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleExportModalState = (e) => {
+      const { isOpen } = e.detail;
+      if (isOpen) {
+        if (activeTabRef.current === 'layers') {
+          switchedByExportRef.current = true;
+          setActiveTab('pages');
+        }
+      } else {
+        if (switchedByExportRef.current) {
+          setActiveTab('layers');
+          switchedByExportRef.current = false;
+        }
+      }
+    };
+
+    window.addEventListener('export-modal-state', handleExportModalState);
+    return () => {
+      window.removeEventListener('export-modal-state', handleExportModalState);
+    };
+  }, []);
   
   // Menu State
   const [activeMenuPageId, setActiveMenuPageId] = useState(null);
