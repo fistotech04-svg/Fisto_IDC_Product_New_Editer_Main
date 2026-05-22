@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X } from 'lucide-react';
+import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X, Home, Library, ArrowRight, UploadCloud, Upload, ChevronLeft, ChevronRight, ChevronDown, ArrowDownUp, Globe, Lock, Settings, CloudUpload } from 'lucide-react';
 import DashboardBg from '../assets/images/myflipbook.png';
-
+import { Icon } from '@iconify/react';
 
 import AlertModal from '../components/AlertModal';
 import CreateFlipbookModal from '../components/CreateFlipbookModal';
@@ -329,6 +329,7 @@ export default function MyFlipbooks() {
   
   // Menu Action State
   const [activeMenuId, setActiveMenuId] = useState(null);
+  const [folderMenuPos, setFolderMenuPos] = useState({ top: 0, left: 0, isDropup: false });
 
   // Open Inline Create
   const handleAddFolderClick = () => {
@@ -826,42 +827,51 @@ export default function MyFlipbooks() {
       {/* Sidebar */}
       <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20">
         
-        {/* Create Button */}
-        <button 
-            onClick={() => setIsCreateModalOpen(true)}
-            className="w-full bg-black text-white cursor-pointer py-[0.75vw] px-[1vw] rounded-[0.5vw] flex items-center justify-center gap-[0.5vw] font-semibold mb-[2vw] hover:bg-gray-800 transition-colors shadow-lg text-[0.9vw]"
+        {/* Back to Home */}
+        <Link 
+            to="/home" 
+            className="w-full flex items-center justify-center gap-[0.5vw] px-[1vw] py-[0.75vw] rounded-[0.5vw] border-[1.5px] border-gray-800 text-gray-900 font-bold hover:bg-gray-50 transition-colors text-[1vw] mb-[2vw]"
         >
-          <BookOpen size="1.1vw" />
-          Create Flipbook
-        </button>
+            <Home size="1.2vw" />
+            Back to Home
+        </Link>
 
         {/* Folders Section */}
         <div className="flex-1 flex flex-col min-h-0">
           {/* Static Header Area */}
-          <div className="flex-none">
-            <div className="mb-[0.5vw] flex items-center">
-                <span className="text-[0.875vw] font-bold text-gray-800">Your Folders</span>
-                <div className="h-[0.0625vw] bg-gray-200 flex-1 ml-[1vw]"></div>
-            </div>
-            <div className="flex justify-end mb-[1vw]">
+          <div className="flex-none mb-[1vw]">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center flex-1">
+                    <span className="text-[0.875vw] font-bold text-gray-600">Your Folders</span>
+                    <div className="h-[1px] bg-gray-200 flex-1 ml-[0.5vw] mr-[0.5vw]"></div>
+                </div>
                 <button 
                   onClick={handleAddFolderClick}
-                  className="flex items-center cursor-pointer gap-[0.375vw] px-[0.75vw] py-[0.375vw] rounded-[0.5vw] border border-gray-200 shadow-sm text-gray-500 font-medium text-[0.75vw] bg-white hover:bg-gray-50 transition-colors"
+                  className="flex items-center cursor-pointer gap-[0.25vw] px-[0.75vw] py-[0.375vw] rounded-[0.5vw] border border-[#3b4190] shadow-sm text-[#3b4190] font-medium text-[0.75vw] bg-white hover:bg-blue-50 transition-colors"
                 >
-                    <Plus size="0.9vw" /> Folder
+                    <Plus size="0.8vw" /> Create
                 </button>
             </div>
           </div>
 
           {/* Scrollable Folder List */}
           <div className="flex-1 overflow-y-auto custom-scrollbar pr-[0.25vw] pb-[1vw]" ref={folderListRef}>
-            <div className="space-y-[0.75vw]">
+            <div className="space-y-[0.25vw]">
               {folders.map(folder => {
                   const isEditing = editingId === folder.id;
                   const isActive = activeFolder === folder.name;
+                  const displayName = folder.name === 'Recent Book' ? 'Recent Book' : folder.name;
                   
+                  const getFolderCount = (fName) => {
+                      if (fName === 'Recent Book') {
+                          return books.length;
+                      }
+                      return books.filter(b => b.folder === fName).length;
+                  };
+                  const folderCount = getFolderCount(folder.name);
+
                   return isEditing ? (
-                      <div key={folder.id} className="w-full px-[1vw] py-[0.75vw] rounded-[0.75vw] border border-[#3b4190] bg-white shadow-md">
+                      <div key={folder.id} className="w-full px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-[#3b4190] bg-white shadow-sm">
                           <input 
                               autoFocus
                               type="text"
@@ -876,71 +886,49 @@ export default function MyFlipbooks() {
                       <div 
                           key={folder.id}
                           onClick={() => setActiveFolder(folder.name)}
-                          className={`relative group w-full flex items-center gap-[0.75vw] px-[1vw] py-[0.75vw] rounded-[0.75vw] border transition-all text-[0.875vw] font-medium text-left cursor-pointer
+                          className={`relative group w-full flex items-center gap-[0.75vw] px-[1vw] py-[0.6vw] rounded-[0.5vw] transition-all text-[0.875vw] font-medium text-left cursor-pointer
                               ${isActive 
-                                  ? 'bg-[#3b4190] text-white border-[#3b4190] shadow-md' 
-                                  : 'bg-white text-gray-600 border-gray-200 hover:border-[#3b4190] hover:text-[#3b4190]'
+                                  ? 'bg-[#eef0f8] text-[#3b4190]' 
+                                  : 'bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                               }
                           `}
                       >
-                          <Folder size="1.1vw" fill={isActive ? "currentColor" : "none"} />
-                          <span className="truncate flex-1">{folder.name}</span>
-
-                          {/* Options Menu Trigger */}
+                          <Folder size="1.1vw" className={isActive ? "text-[#3b4190]" : "text-gray-500"} />
+                          <span className="truncate flex-1">{displayName}</span>
+                          
                           {folder.name !== 'Recent Book' && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setActiveMenuId(activeMenuId === folder.id ? null : folder.id);
-                                }}
-                                className={`p-[0.375vw] rounded-[0.5vw] transition-all rotate-90 ${
-                                    isActive 
-                                        ? 'hover:bg-white/20 text-white' 
-                                        : 'hover:bg-gray-100 text-gray-500'
-                                } ${activeMenuId === folder.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                            >
-                                <MoreVertical size="1vw" />
-                            </button>
-                          )}
+                              <div className="flex items-center justify-center w-[1.5vw] h-[1.5vw]">
+                                  <span className={`text-[0.75vw] font-semibold ${isActive ? 'text-[#3b4190]' : 'text-gray-400'} ${activeMenuId === folder.id ? 'hidden' : 'block group-hover:hidden'}`}>
+                                      {folderCount}
+                                  </span>
 
-                          {/* Dropdown Menu */}
-                          {activeMenuId === folder.id && (
-                              <>
-                                  <div className="fixed inset-0 z-30" onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); }}></div>
-                                  <div className="absolute right-[0.5vw] top-[2.5vw] w-[10vw] bg-white rounded-[0.75vw] shadow-xl border border-gray-100 z-40 overflow-hidden py-[0.25vw] animate-in fade-in zoom-in-95 duration-100">
-                                      <button
-                                          onClick={(e) => {
-                                              e.stopPropagation();
-                                              startEditing(folder);
+                                  {/* Options Menu Trigger */}
+                                  <button
+                                      onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (activeMenuId === folder.id) {
                                               setActiveMenuId(null);
-                                          }}
-                                          className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-semibold text-gray-600 hover:bg-gray-50 transition-colors border-b border-gray-50"
-                                      >
-                                          <Edit2 size="0.9vw" />
-                                          Rename
-                                      </button>
-                                      <button
-                                          onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDuplicateFolder(folder);
-                                          }}
-                                          className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-semibold text-gray-600 hover:bg-gray-50 transition-colors border-b border-gray-50"
-                                      >
-                                          <Copy size="0.9vw" />
-                                          Duplicate
-                                      </button>
-                                      <button
-                                          onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleDeleteFolderClick(folder);
-                                          }}
-                                          className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.625vw] text-[0.75vw] font-semibold text-red-500 hover:bg-red-50 transition-colors"
-                                      >
-                                          <Trash2 size="0.9vw" />
-                                          Delete
-                                      </button>
-                                  </div>
-                              </>
+                                          } else {
+                                              const rect = e.currentTarget.getBoundingClientRect();
+                                              const spaceBelow = window.innerHeight - rect.bottom;
+                                              const isDropup = spaceBelow < 120;
+                                              setFolderMenuPos({
+                                                  top: isDropup ? rect.top - 5 : rect.bottom + 5,
+                                                  left: rect.right,
+                                                  isDropup
+                                              });
+                                              setActiveMenuId(folder.id);
+                                          }
+                                      }}
+                                      className={`p-[0.375vw] flex items-center justify-center rounded-[0.5vw] bg-white transition-all rotate-90 shadow-sm border border-gray-100 ${
+                                          isActive 
+                                              ? 'hover:bg-gray-50 text-[#3b4190]' 
+                                              : 'hover:bg-gray-100 text-gray-500'
+                                      } ${activeMenuId === folder.id ? 'flex' : 'hidden group-hover:flex'}`}
+                                  >
+                                      <MoreVertical size="0.9vw" />
+                                  </button>
+                              </div>
                           )}
                       </div>
                   );
@@ -948,7 +936,7 @@ export default function MyFlipbooks() {
               
               {/* New Folder Input */}
               {isCreatingFolder && (
-                   <div className="w-full px-4 py-3 rounded-xl border-2 border-[#3b4190] bg-white shadow-md animate-in fade-in slide-in-from-top-2 duration-300">
+                   <div className="w-full px-[1vw] py-[0.6vw] rounded-[0.5vw] border border-[#3b4190] bg-white shadow-sm animate-in fade-in slide-in-from-top-2 duration-300">
                       <input 
                           autoFocus
                           type="text"
@@ -965,90 +953,244 @@ export default function MyFlipbooks() {
                                   setIsCreatingFolder(false);
                               }
                           }}
-                          className="w-full text-sm font-medium text-gray-900 focus:outline-none placeholder-gray-400"
+                          className="w-full text-[0.875vw] font-medium text-gray-900 focus:outline-none placeholder-gray-400"
                       />
                    </div>
               )}
             </div>
           </div>
+
+          <div className="flex-none pt-[0.5vw]">
+              <div className="mb-[1vw] border-t border-gray-100"></div>
+
+              <div className="w-full flex items-center justify-between px-[1vw] py-[0.6vw] rounded-[0.5vw] transition-all text-[0.875vw] font-medium cursor-pointer hover:bg-red-50 text-red-500">
+                  <div className="flex items-center gap-[0.75vw]">
+                      <Trash2 size="1.1vw" />
+                      <span>Trash</span>
+                  </div>
+                  <span className="text-[0.75vw] font-semibold">2</span>
+              </div>
+          </div>
         </div>
 
-        {/* Bottom Action */}
-        <div className="mt-auto pt-[1vw]">
-             <Link to="/home" className="w-full flex items-center justify-center gap-[0.5vw] px-[1vw] py-[0.75vw] rounded-[0.5vw] border-2 border-[#3b4190] text-[#3b4190] font-medium hover:bg-blue-50 transition-colors text-[0.9vw]">
-                 <ArrowLeft size="1.1vw" />
-                 Back to Home
-             </Link>
+        {/* Upgrade to Pro Card */}
+        <div className="mt-auto relative z-30 pt-[1.5vw]">
+             <div className="absolute -top-[1vw] right-[0.5vw] text-[2.5vw] drop-shadow-lg z-40 transform rotate-[15deg]">
+                 👑
+             </div>
+             <div className="w-full bg-[#0a0a0a] rounded-[0.75vw] p-[1.25vw] relative overflow-hidden text-white shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+                 <div className="absolute inset-0 opacity-30 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-gray-500 via-gray-900 to-black"></div>
+                 
+                 {/* CSS Noise texture overlay */}
+                 <div className="absolute inset-0 opacity-20 mix-blend-overlay pointer-events-none" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.65%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}></div>
+
+                 <div className="relative z-10 flex flex-col gap-[0.25vw]">
+                     <h3 className="text-[1.1vw] font-bold tracking-wide">Upgrade to Pro</h3>
+                     <p className="text-[0.65vw] text-gray-300 mb-[0.75vw] leading-relaxed pr-[1vw]">
+                         Unlock more Storage, templates and Premium features.
+                     </p>
+                     <button className="w-full bg-white text-black py-[0.5vw] px-[0.75vw] rounded-[0.5vw] text-[0.75vw] font-bold flex items-center justify-center gap-[0.375vw] hover:bg-gray-100 transition-colors shadow-md mt-[0.25vw]">
+                         Update Profile <ArrowRight size="0.9vw" />
+                     </button>
+                 </div>
+             </div>
         </div>
+
+        {/* Global Folder Dropdown Portal */}
+        {activeMenuId && (
+            <>
+                <div className="fixed inset-0 z-[100]" onClick={(e) => { e.stopPropagation(); setActiveMenuId(null); }}></div>
+                <div 
+                    className="fixed z-[101] w-[8vw] bg-white rounded-[0.5vw] shadow-xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+                    style={{
+                        top: folderMenuPos.top,
+                        left: folderMenuPos.left,
+                        transform: folderMenuPos.isDropup ? 'translate(-100%, -100%)' : 'translate(-100%, 0)'
+                    }}
+                >
+                    {(() => {
+                        const folder = folders.find(f => f.id === activeMenuId);
+                        if (!folder) return null;
+                        return (
+                            <>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        startEditing(folder);
+                                        setActiveMenuId(null);
+                                    }}
+                                    className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] font-semibold text-gray-600 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                                >
+                                    <Edit2 size="0.8vw" />
+                                    Rename
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDuplicateFolder(folder);
+                                        setActiveMenuId(null);
+                                    }}
+                                    className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] font-semibold text-gray-600 hover:bg-gray-50 transition-colors border-b border-gray-50"
+                                >
+                                    <Copy size="0.8vw" />
+                                    Duplicate
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteFolderClick(folder);
+                                        setActiveMenuId(null);
+                                    }}
+                                    className="w-full flex items-center gap-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                    <Trash2 size="0.8vw" />
+                                    Delete
+                                </button>
+                            </>
+                        );
+                    })()}
+                </div>
+            </>
+        )}
       </aside>
 
       {/* Main Content */}
       <main 
-        className="flex-1 ml-[18vw] p-[2vw] relative overflow-hidden bg-cover bg-center flex flex-col"
-        style={{ backgroundImage: `url(${DashboardBg})` }}
+        className="flex-1 ml-[18vw] px-[2vw] pb-[2vw] pt-[1vw] relative overflow-hidden bg-[#d9dbe9] flex flex-col"
       >
            
-           <h1 className="text-[2vw] font-semibold text-[#00000] mb-[2vw] relative z-10">My Flipbooks</h1>
+           <h1 className="text-[1.45vw] font-semibold text-gray-900 mb-[1.25vw] relative z-10">Quick Create your Flipbook</h1>
 
-           {/* Blue Container Card */}
-           <div className="w-full flex-1 min-h-0 bg-[#343b854d] rounded-[1.5vw] p-[1.5vw] shadow-2xl relative flex flex-col">
-                <div className="flex items-center justify-between mb-[1.5vw] z-10">
-                    <h2 className="text-[1.5vw] font-semibold text-[#343868]">Recent - Flipbooks</h2>
-                    
+           {/* Quick Create Section */}
+           <div className="w-full flex gap-[1vw] mb-[1.5vw] z-10 relative">
+               {/* Upload Box */}
+               <div className="w-[30%] bg-white rounded-[0.75vw] border-[0.15vw] border-dashed border-[#4c5add] flex flex-col items-center justify-center py-[0.75vw] cursor-pointer hover:bg-blue-50/50 transition-colors shadow-sm min-h-[5.5vw]">
+    
+                   <CloudUpload size="2vw" className="text-gray-500 mb-[0.25vw]" strokeWidth={1.5}/>
+                   <p className="text-[0.85vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add]">Upload</span></p>
+                   <div className="flex items-center gap-[0.5vw] text-[0.65vw] text-gray-600">
+                       Supported File format- 
+                       <div className="flex items-center gap-[0.5vw] ml-[0.25vw]">
+                           <Icon icon="vscode-icons:file-type-pdf2" className="w-[1.25vw] h-[1.25vw]" />
+                           <Icon icon="vscode-icons:file-type-word" className="w-[1.25vw] h-[1.25vw]" />
+                           <Icon icon="vscode-icons:file-type-powerpoint" className="w-[1.25vw] h-[1.25vw]" />
+                       </div>
+                   </div>
+               </div>
+
+               {/* Create From Scratch Box */}
+               <div className="flex-1 bg-white rounded-[0.75vw] py-[0.75vw] px-[1.5vw] shadow-sm flex items-center justify-between min-h-[5.5vw]">
+                   <div className="w-[30%] pl-[0.5vw]">
+                       <h3 className="text-[1.1vw] font-bold text-gray-700 mb-[0.15vw]">Create From Scratch</h3>
+                       <p className="text-[0.65vw] text-gray-500 leading-relaxed pr-[1vw]">Begin with a blank canvas and design your flipbook your way.</p>
+                   </div>
+                   
+                   <div className="flex-1 flex items-center justify-between px-[1vw]">
+                       <button className="p-[0.25vw] text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"><ChevronLeft size="1.25vw" /></button>
+                       
+                       <div className="flex items-end justify-center gap-[1.5vw] flex-1">
+                           {/* Carousel Items */}
+                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
+                               <div className="w-[2.25vw] h-[3vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">A4</div>
+                               <div className="text-center mt-[0.15vw]">
+                                   <p className="text-[0.45vw] font-bold text-[#4c5add]">Corporate Brochure</p>
+                                   <p className="text-[0.40vw] font-semibold text-gray-400">(29.7 x 42 Cm)</p>
+                               </div>
+                           </div>
+                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
+                               <div className="w-[3vw] h-[2vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">A4</div>
+                               <div className="text-center mt-[0.15vw]">
+                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Product Catalogue</p>
+                                   <p className="text-[0.40vw] font-semibold text-gray-400">(21 x 29 Cm)</p>
+                               </div>
+                           </div>
+                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
+                               <div className="w-[1.75vw] h-[2.5vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">A5</div>
+                               <div className="text-center mt-[0.15vw]">
+                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Mini Brochure</p>
+                                   <p className="text-[0.40vw] font-semibold text-gray-400">(14.8 x 21 Cm)</p>
+                               </div>
+                           </div>
+                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
+                               <div className="w-[2.5vw] h-[2.5vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">Square</div>
+                               <div className="text-center mt-[0.15vw]">
+                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Square Lookbook</p>
+                                   <p className="text-[0.40vw] font-semibold text-gray-400">(25 x 25 Cm)</p>
+                               </div>
+                           </div>
+                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
+                               <div className="w-[1.5vw] h-[2.75vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">Mob</div>
+                               <div className="text-center mt-[0.15vw]">
+                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Mobile Flipbook</p>
+                                   <p className="text-[0.40vw] font-semibold text-gray-400">(12 x 21.3 Cm)</p>
+                               </div>
+                           </div>
+                       </div>
+
+                       <button className="p-[0.25vw] text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"><ChevronRight size="1.25vw" /></button>
+                   </div>
+               </div>
+           </div>
+
+           {/* List Container */}
+           <div className="w-full flex-1 min-h-0 bg-transparent border border-gray-300 rounded-[1vw] p-[1.5vw] relative flex flex-col shadow-sm">
+                
+                {/* Filter Bar */}
+                <div className="flex items-center justify-between mb-[1.5vw] z-10 w-full">
                     <div className="flex items-center gap-[1vw]">
+                        {/* Search Input */}
+                        <div className="relative w-[18vw]">
+                            <Search className="absolute left-[1vw] top-1/2 -translate-y-1/2 text-gray-500" size="1vw" />
+                            <input 
+                                type="text" 
+                                placeholder="Search..." 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-[2.5vw] pr-[1vw] py-[0.5vw] rounded-[0.5vw] border border-gray-300 text-[0.875vw] focus:outline-none focus:ring-1 focus:ring-[#4c5add] focus:border-[#4c5add] bg-white text-gray-700 placeholder-gray-400 shadow-sm"
+                            />
+                        </div>
+                        
+                        {/* Dropdowns */}
+                        <button className="flex items-center justify-between min-w-[8vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-[0.5vw] text-[0.875vw] text-gray-600 hover:bg-gray-50 shadow-sm">
+                            All Folders <ChevronDown size="0.9vw" className="text-gray-400 ml-[0.5vw]"/>
+                        </button>
+                        <button className="flex items-center justify-between min-w-[8vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-[0.5vw] text-[0.875vw] text-gray-600 hover:bg-gray-50 shadow-sm">
+                            All Status <ChevronDown size="0.9vw" className="text-gray-400 ml-[0.5vw]"/>
+                        </button>
+                        <button className="flex items-center gap-[0.5vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-[0.5vw] text-[0.875vw] text-gray-600 hover:bg-gray-50 shadow-sm">
+                            <ArrowDownUp size="0.9vw" className="text-gray-400" /> Sort by - Newest First <ChevronDown size="0.9vw" className="text-gray-400 ml-[0.25vw]"/>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-[1vw]">
+                        {/* Selected Actions */}
                         {selectedBooks.length > 0 && (
-                            <>
+                            <div className="flex items-center gap-[0.5vw] mr-[1vw]">
                                 <button 
                                     onClick={handleBulkDelete}
-                                    className="flex items-center gap-[0.5vw] px-[1vw] py-[0.5vw] bg-white text-red-500 border border-red-200 rounded-[0.5vw] hover:bg-red-50 transition-colors shadow-sm text-[0.875vw] font-semibold"
+                                    className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-white text-red-500 border border-red-200 rounded-[0.5vw] hover:bg-red-50 transition-colors shadow-sm text-[0.75vw] font-semibold"
                                 >
-                                    <Trash2 size="1vw" /> {activeFolder === 'Recent Book' ? 'Remove' : 'Delete'}
+                                    <Trash2 size="0.9vw" /> {activeFolder === 'Recent Book' ? 'Remove' : 'Delete'}
                                 </button>
                                 {activeFolder !== 'Recent Book' && (
                                     <button 
                                         onClick={handleBulkMove}
-                                        className="flex items-center gap-[0.5vw] px-[1vw] py-[0.5vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.875vw] font-semibold"
+                                        className="flex items-center gap-[0.5vw] px-[0.75vw] py-[0.4vw] bg-[#4c5add] text-white rounded-[0.5vw] hover:bg-[#3f4bc0] transition-colors shadow-sm text-[0.75vw] font-semibold"
                                     >
-                                        <FolderInput size="1vw" /> Move to Folder
+                                        <FolderInput size="0.9vw" /> Move
                                     </button>
                                 )}
-                                <div className="w-[0.0625vw] h-[1.5vw] bg-gray-300 mx-[0.5vw]"></div>
-                            </>
+                            </div>
                         )}
 
-                        <button 
-                            onClick={handleSelectAll}
-                            className="flex items-center gap-[0.75vw] cursor-pointer group"
-                        >
-                            <div className={`w-[1.25vw] h-[1.25vw] rounded-[0.25vw] border-2 flex items-center justify-center transition-all
-                                ${isAllSelected 
-                                    ? 'bg-white border-white' 
-                                    : 'border-white bg-transparent hover:bg-white/10'
-                                }`}
-                            >
-                                {isAllSelected && <Check size="0.9vw" className="text-[#343868]" strokeWidth={3} />}
+                        {/* Checkbox for multiple selection */}
+                        <label className="flex items-center gap-[0.5vw] cursor-pointer" onClick={(e) => { e.preventDefault(); handleSelectAll(); }}>
+                            <div className={`w-[1.1vw] h-[1.1vw] rounded-[0.15vw] border flex items-center justify-center transition-all ${isAllSelected ? 'bg-gray-400 border-gray-400' : 'border-gray-400 bg-transparent'}`}>
+                                {isAllSelected && <Check size="0.8vw" className="text-white" strokeWidth={3} />}
                             </div>
-                            <span className="text-[1vw] font-medium text-white group-hover:text-gray-200 transition-colors">Select All</span>
-                        </button>
+                            <span className="text-[0.875vw] font-medium text-gray-600">Multiple Selection</span>
+                        </label>
                     </div>
-                </div>
-
-                {/* Search & Filter Bar */}
-                <div className="flex items-center gap-[0.75vw] mb-[1.5vw] z-10">
-                    <div className="relative w-[20vw]">
-                        <Search className="absolute left-[1vw] top-1/2 -translate-y-1/2 text-[#343b85]" size="1.1vw" />
-                        <input 
-                            type="text" 
-                            placeholder="Search..." 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-[2.5vw] pr-[1vw] py-[0.6vw] rounded-full border-none text-[0.875vw] focus:outline-none focus:ring-2 focus:ring-blue-300 text-[#343b85] bg-white shadow-lg"
-                        />
-                    </div>
-                    <button className="flex items-center gap-[0.5vw] px-[1.5vw] py-[0.6vw] rounded-full bg-white text-[#343b85] text-[0.875vw] font-semibold shadow-lg hover:bg-gray-50 transition-all">
-                        <SlidersHorizontal size="1.1vw" />
-                        Filter
-                    </button>
                 </div>
 
                 {/* Content Area */}
@@ -1138,33 +1280,42 @@ export default function MyFlipbooks() {
                                     {/* Content */}
                                     <div className="flex-1 flex flex-col justify-between h-[6vw] py-[0.25vw]">
                                         {/* Header Row */}
-                                        <div className="flex justify-between items-start">
+                                        <div className="flex justify-between items-start w-full mb-[0.25vw]">
                                             <div>
-                                                {isBookEditing ? (
-                                                    <input 
-                                                        autoFocus
-                                                        type="text" 
-                                                        value={tempBookTitle} 
-                                                        onChange={(e) => setTempBookTitle(e.target.value)}
-                                                        onBlur={saveBookEdit}
-                                                        onKeyDown={handleBookKeyDown}
-                                                        className="text-[1.125vw] font-bold text-gray-900 border-b border-blue-500 focus:outline-none mb-[0.25vw] w-[16vw]"
-                                                    />
-                                                ) : (
-                                                    <h3 className="text-[1.125vw] font-bold text-gray-900">{book.title}</h3>
-                                                )}
-                                                <p className="text-[0.75vw] text-gray-500 font-medium">{book.pages} Pages</p>
+                                                <div className="flex items-center gap-[0.5vw]">
+                                                    {isBookEditing ? (
+                                                        <input 
+                                                            autoFocus
+                                                            type="text" 
+                                                            value={tempBookTitle} 
+                                                            onChange={(e) => setTempBookTitle(e.target.value)}
+                                                            onBlur={saveBookEdit}
+                                                            onKeyDown={handleBookKeyDown}
+                                                            className="text-[1.125vw] font-bold text-gray-800 border-b border-[#4c5add] focus:outline-none w-[16vw]"
+                                                        />
+                                                    ) : (
+                                                        <h3 className="text-[1.125vw] font-bold text-gray-800">{book.title}</h3>
+                                                    )}
+                                                    
+                                                    {/* Public / Private Pill */}
+                                                    <div className={`flex items-center gap-[0.25vw] px-[0.5vw] py-[0.1vw] rounded-[0.25vw] text-[0.55vw] font-bold ${book.isPublic !== false ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'}`}>
+                                                        {book.isPublic !== false ? <Icon icon="subway:world-1" className="w-[0.6vw] h-[0.6vw]" /> : <Lock size="0.6vw" />}
+                                                        {book.isPublic !== false ? 'Public' : 'Private'}
+                                                    </div>
+                                                </div>
+                                                <p className="text-[0.65vw] text-gray-400 font-medium mt-[0.25vw]">{book.pages} Pages</p>
                                             </div>
-                                            <div className="flex gap-[1.5vw] text-[0.625vw] text-gray-400 font-medium">
+                                            
+                                            <div className="flex gap-[1.5vw] text-[0.65vw] text-gray-400 font-medium">
                                                 <span>Created on : {book.created}</span>
-                                                <span>Views : {book.views}</span>
-                                                <span>Size : {book.size}</span>
+                                                <span>Views : {book.views || 245}</span>
+                                                <span>Size : {book.size || '24MB'}</span>
                                             </div>
                                         </div>
 
                                         {/* Action Row */}
                                         <div className="flex items-center justify-between w-full mt-auto pt-[0.5vw]">
-                                            <button className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-blue-600 transition-colors">
+                                            <button className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors">
                                                 <Eye size="0.9vw" /> View Book
                                             </button>
                                             <button 
@@ -1174,11 +1325,10 @@ export default function MyFlipbooks() {
                                                         const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
                                                         if (physicalBook) targetFolder = physicalBook.folder;
                                                     }
-                                                    // Use v_id if available for stable URL, otherwise fallback to name
                                                     const identifier = book.v_id || encodeURIComponent(book.realName);
                                                     navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`);
                                                 }}
-                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-[#3f4bc0] transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-bold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
                                             >
                                                 <Wrench size="0.9vw" /> Customize
                                             </button>
@@ -1189,26 +1339,25 @@ export default function MyFlipbooks() {
                                                         const physicalBook = books.find(b => b.realName === book.realName && b.folder !== 'Recent Book');
                                                         if (physicalBook) targetFolder = physicalBook.folder;
                                                     }
-                                                    // Use v_id if available for stable URL, otherwise fallback to name
                                                     const identifier = book.v_id || encodeURIComponent(book.realName);
                                                     navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`);
                                                 }}
-                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-blue-600 transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
                                             >
                                                 <PenTool size="0.9vw" /> Open in Editor
                                             </button>
-                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors">
+                                            <button className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors">
                                                 <BarChart2 size="0.9vw" /> Statistic
                                             </button>
                                             <button 
                                                 onClick={() => handleShareClick(book)}
-                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
                                             >
                                                 <Share2 size="0.9vw" /> Share
                                             </button>
                                             <button 
                                                 onClick={() => handleDownloadClick(book)}
-                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-500 hover:text-green-700 transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
                                             >
                                                 <Download size="0.9vw" /> Download
                                             </button>
@@ -1256,20 +1405,20 @@ export default function MyFlipbooks() {
                         <>
                             <div 
                                 onClick={() => setIsCreateModalOpen(true)}
-                                className="w-[4vw] h-[4vw] rounded-full bg-white/10 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-white/20 cursor-pointer hover:bg-white/20 transition-all"
+                                className="w-[4vw] h-[4vw] rounded-full bg-[#4c5add]/10 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-[#4c5add]/20 cursor-pointer hover:bg-[#4c5add]/20 transition-all"
                             >
-                                <Plus size="2vw" className="text-white" />
+                                <Plus size="2vw" className="text-[#4c5add]" />
                             </div>
-                            <h3 className="text-[1.25vw] font-medium text-white mb-[0.25vw]">Create Flipbook</h3>
-                            <p className="text-white/50 text-[0.875vw]">There are no flipbooks in {activeFolder}</p>
+                            <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">Create Flipbook</h3>
+                            <p className="text-[#4c5add]/60 text-[0.875vw]">There are no flipbooks in {activeFolder}</p>
                         </>
                     ) : (
                         <>
-                            <div className="w-[4vw] h-[4vw] rounded-full bg-white/5 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-white/10">
-                                <Folder size="2vw" className="text-white/50" />
+                            <div className="w-[4vw] h-[4vw] rounded-full bg-[#4c5add]/5 flex items-center justify-center mb-[1vw] backdrop-blur-sm border border-[#4c5add]/10">
+                                <Folder size="2vw" className="text-[#4c5add]/50" />
                             </div>
-                            <h3 className="text-[1.25vw] font-medium text-white mb-[0.25vw]">No Flipbooks Found</h3>
-                            <p className="text-white/50 text-[0.875vw]">This folder is empty</p>
+                            <h3 className="text-[1.25vw] font-medium text-[#4c5add] mb-[0.25vw]">No Flipbooks Found</h3>
+                            <p className="text-[#4c5add]/60 text-[0.875vw]">This folder is empty</p>
                         </>
                     )}
                 </div>
