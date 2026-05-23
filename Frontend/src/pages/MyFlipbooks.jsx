@@ -12,6 +12,19 @@ import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
 
+const templates = [
+  { id: 'corporate', label: 'A4', title: 'Corporate Brochure', dim: '(29.7 x 42 Cm)', width: 'w-[2.25vw]', height: 'h-[3vw]' },
+  { id: 'catalogue', label: 'A4', title: 'Product Catalogue', dim: '(21 x 29 Cm)', width: 'w-[3vw]', height: 'h-[2vw]' },
+  { id: 'large_catalogue', label: 'A3', title: 'Large Catalogue', dim: '(29.7 x 42 Cm)', width: 'w-[2.5vw]', height: 'h-[3.5vw]' },
+  { id: 'showcase', label: 'A3', title: 'Showcase Brochure', dim: '(42 x 29.7 Cm)', width: 'w-[3.5vw]', height: 'h-[2.5vw]' },
+  { id: 'mini', label: 'A5', title: 'Mini Brochure', dim: '(14.8 x 21 Cm)', width: 'w-[1.75vw]', height: 'h-[2.5vw]' },
+  { id: 'booklet', label: 'B5', title: 'Standard Booklet', dim: '(17.6 x 25 Cm)', width: 'w-[1.75vw]', height: 'h-[2.5vw]' },
+  { id: 'square', label: 'Square', title: 'Square Lookbook', dim: '(25 x 25 Cm)', width: 'w-[2.5vw]', height: 'h-[2.5vw]' },
+  { id: 'square_small', label: 'Square Small', title: 'Square Small', dim: '(20 x 20 Cm)', width: 'w-[2vw]', height: 'h-[2vw]' },
+  { id: 'digital_mag', label: 'Mag', title: 'Digital Magazine', dim: '(22 x 28 Cm)', width: 'w-[1.75vw]', height: 'h-[2.75vw]' },
+  { id: 'mobile', label: 'Mob', title: 'Mobile Flipbook', dim: '(12 x 21.3 Cm)', width: 'w-[1.5vw]', height: 'h-[2.5vw]' },
+];
+
 
 export default function MyFlipbooks() {
   const navigate = useNavigate();
@@ -25,6 +38,21 @@ export default function MyFlipbooks() {
   const [activeFolder, setActiveFolder] = useState(() => localStorage.getItem('last_active_folder') || 'Recent Book');
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Template Carousel State
+  const [templateIndex, setTemplateIndex] = useState(0);
+
+  const nextTemplate = () => {
+    if (templateIndex < templates.length - 5) {
+      setTemplateIndex(templateIndex + 1);
+    }
+  };
+
+  const prevTemplate = () => {
+    if (templateIndex > 0) {
+      setTemplateIndex(templateIndex - 1);
+    }
+  };
+
   // Persist Active Folder
   useEffect(() => {
     localStorage.setItem('last_active_folder', activeFolder);
@@ -69,6 +97,8 @@ export default function MyFlipbooks() {
   }, [activeFolder]);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createModalInitialView, setCreateModalInitialView] = useState('selection');
+  const [selectedTemplateIdForModal, setSelectedTemplateIdForModal] = useState('corporate');
   
   // Inline Folder Creation State
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -248,8 +278,8 @@ export default function MyFlipbooks() {
             folderName: targetFolder
         });
 
-        // 5. Navigate to editor
-        navigate(`/editor/${encodeURIComponent(targetFolder)}/${v_id}`);
+        // 5. Navigate to customized editor for PDF
+        navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${v_id}`);
 
     } catch (error) {
         console.error("PDF conversion error:", error);
@@ -940,7 +970,7 @@ export default function MyFlipbooks() {
                       <input 
                           autoFocus
                           type="text"
-                          placeholder="Name..."
+                          placeholder="Folder Name..."
                           value={newFolderInputName}
                           onChange={(e) => setNewFolderInputName(e.target.value)}
                           onBlur={saveNewFolder}
@@ -1064,7 +1094,10 @@ export default function MyFlipbooks() {
            {/* Quick Create Section */}
            <div className="w-full flex gap-[1vw] mb-[1.5vw] z-10 relative">
                {/* Upload Box */}
-               <div className="w-[30%] bg-white rounded-[0.75vw] border-[0.15vw] border-dashed border-[#4c5add] flex flex-col items-center justify-center py-[0.75vw] cursor-pointer hover:bg-blue-50/50 transition-colors shadow-sm min-h-[5.5vw]">
+               <div 
+                   className="w-[30%] bg-white rounded-[0.75vw] border-[0.15vw] border-dashed border-[#4c5add] flex flex-col items-center justify-center py-[0.75vw] cursor-pointer hover:bg-blue-50/50 transition-colors shadow-sm min-h-[5.5vw]"
+                   onClick={() => { setCreateModalInitialView('upload'); setIsCreateModalOpen(true); }}
+               >
     
                    <CloudUpload size="2vw" className="text-gray-500 mb-[0.25vw]" strokeWidth={1.5}/>
                    <p className="text-[0.85vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add]">Upload</span></p>
@@ -1086,48 +1119,36 @@ export default function MyFlipbooks() {
                    </div>
                    
                    <div className="flex-1 flex items-center justify-between px-[1vw]">
-                       <button className="p-[0.25vw] text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"><ChevronLeft size="1.25vw" /></button>
+                       <button onClick={prevTemplate} className={`p-[0.25vw] rounded-full transition-colors ${templateIndex > 0 ? 'text-gray-700 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`} disabled={templateIndex === 0}><ChevronLeft size="1.25vw" /></button>
                        
-                       <div className="flex items-end justify-center gap-[1.5vw] flex-1">
-                           {/* Carousel Items */}
-                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
-                               <div className="w-[2.25vw] h-[3vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">A4</div>
-                               <div className="text-center mt-[0.15vw]">
-                                   <p className="text-[0.45vw] font-bold text-[#4c5add]">Corporate Brochure</p>
-                                   <p className="text-[0.40vw] font-semibold text-gray-400">(29.7 x 42 Cm)</p>
-                               </div>
-                           </div>
-                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
-                               <div className="w-[3vw] h-[2vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">A4</div>
-                               <div className="text-center mt-[0.15vw]">
-                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Product Catalogue</p>
-                                   <p className="text-[0.40vw] font-semibold text-gray-400">(21 x 29 Cm)</p>
-                               </div>
-                           </div>
-                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
-                               <div className="w-[1.75vw] h-[2.5vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">A5</div>
-                               <div className="text-center mt-[0.15vw]">
-                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Mini Brochure</p>
-                                   <p className="text-[0.40vw] font-semibold text-gray-400">(14.8 x 21 Cm)</p>
-                               </div>
-                           </div>
-                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
-                               <div className="w-[2.5vw] h-[2.5vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">Square</div>
-                               <div className="text-center mt-[0.15vw]">
-                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Square Lookbook</p>
-                                   <p className="text-[0.40vw] font-semibold text-gray-400">(25 x 25 Cm)</p>
-                               </div>
-                           </div>
-                           <div className="flex flex-col items-center gap-[0.25vw] cursor-pointer group">
-                               <div className="w-[1.5vw] h-[2.75vw] bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-white/50 text-[0.6vw] font-bold">Mob</div>
-                               <div className="text-center mt-[0.15vw]">
-                                   <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">Mobile Flipbook</p>
-                                   <p className="text-[0.40vw] font-semibold text-gray-400">(12 x 21.3 Cm)</p>
+                       <div className="flex-1 flex justify-center items-center overflow-hidden">
+                           <div className="w-[28vw] overflow-hidden">
+                               <div 
+                                   className="flex items-end gap-[0.75vw] transition-transform duration-500 ease-in-out w-max"
+                                   style={{ transform: `translateX(calc(-${templateIndex} * 5.75vw))` }}
+                               >
+                                   {templates.map((template) => (
+                                       <div 
+                                           key={template.id} 
+                                           className="flex flex-col items-center gap-[0.25vw] cursor-pointer group shrink-0 w-[5vw]" 
+                                           onClick={() => {
+                                               setSelectedTemplateIdForModal(template.id);
+                                               setCreateModalInitialView('template');
+                                               setIsCreateModalOpen(true);
+                                           }}
+                                       >
+                                           <div className={`${template.width} ${template.height} bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-gray-700 text-[0.45vw] font-bold text-center p-[0.1vw] leading-tight`}>{template.label}</div>
+                                           <div className="text-center mt-[0.15vw]">
+                                               <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">{template.title}</p>
+                                               <p className="text-[0.40vw] font-semibold text-gray-400">{template.dim}</p>
+                                           </div>
+                                       </div>
+                                   ))}
                                </div>
                            </div>
                        </div>
 
-                       <button className="p-[0.25vw] text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"><ChevronRight size="1.25vw" /></button>
+                       <button onClick={nextTemplate} className={`p-[0.25vw] rounded-full transition-colors ${templateIndex < templates.length - 5 ? 'text-gray-700 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`} disabled={templateIndex >= templates.length - 5}><ChevronRight size="1.25vw" /></button>
                    </div>
                </div>
            </div>
@@ -1328,7 +1349,7 @@ export default function MyFlipbooks() {
                                                     const identifier = book.v_id || encodeURIComponent(book.realName);
                                                     navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`);
                                                 }}
-                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-bold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
+                                                className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
                                             >
                                                 <Wrench size="0.9vw" /> Customize
                                             </button>
@@ -1624,6 +1645,8 @@ export default function MyFlipbooks() {
         onClose={() => setIsCreateModalOpen(false)}
         onUpload={handleUploadPDF}
         onTemplate={handleUseTemplate}
+        initialView={createModalInitialView}
+        initialTemplateId={selectedTemplateIdForModal}
       />
 
       {/* PDF Processing Overlay */}

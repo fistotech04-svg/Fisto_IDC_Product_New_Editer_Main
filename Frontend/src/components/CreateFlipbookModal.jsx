@@ -2,17 +2,27 @@ import React, { useState } from 'react';
 import { X, Upload, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { useModernToast } from './ModernToast';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getPdfPageCount } from '../utils/pdfUtils';
 
-const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
-  const [view, setView] = useState('selection'); // 'selection' | 'upload' | 'template'
+const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate' }) => {
+  const [view, setView] = useState(initialView);
+
+  // Template View State
+  const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId);
+  const [pageCount, setPageCount] = useState(12);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setView(initialView === 'selection' ? 'upload' : initialView);
+      setSelectedTemplateId(initialTemplateId);
+      setUploadedFiles([]);
+    }
+  }, [isOpen, initialView, initialTemplateId]);
   const fileInputRef = React.useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
 
   const carouselRef = React.useRef(null);
-
-  // Template View State
-  const [selectedTemplateId, setSelectedTemplateId] = useState('corporate');
-  const [pageCount, setPageCount] = useState(12);
   const toast = useModernToast();
 
   const templates = [
@@ -30,13 +40,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
 
   const scrollLeft = () => {
     if (carouselRef.current) {
-        carouselRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+      carouselRef.current.scrollBy({ left: -200, behavior: 'smooth' });
     }
   };
 
   const scrollRight = () => {
     if (carouselRef.current) {
-        carouselRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+      carouselRef.current.scrollBy({ left: 200, behavior: 'smooth' });
     }
   };
 
@@ -45,14 +55,14 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
     if (uploadedFiles.length > 0) {
       const timers = uploadedFiles.map(fileObj => {
         if (fileObj.progress < 100) {
-           return setInterval(() => {
-             setUploadedFiles(prev => prev.map(f => {
-               if (f.id === fileObj.id && f.progress < 100) {
-                 return { ...f, progress: Math.min(f.progress + 10, 100) };
-               }
-               return f;
-             }));
-           }, 200);
+          return setInterval(() => {
+            setUploadedFiles(prev => prev.map(f => {
+              if (f.id === fileObj.id && f.progress < 100) {
+                return { ...f, progress: Math.min(f.progress + 10, 100) };
+              }
+              return f;
+            }));
+          }, 200);
         }
         return null;
       });
@@ -66,7 +76,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files);
     const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB Total
-    
+
     // Calculate current total size
     const currentTotalSize = uploadedFiles.reduce((sum, f) => sum + f.file.size, 0);
     let newTotalSize = currentTotalSize;
@@ -85,11 +95,23 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
       const newFiles = validFiles.map(file => ({
         file,
         id: Math.random().toString(36).substr(2, 9),
-        progress: 0
+        progress: 0,
+        pages: null
       }));
       setUploadedFiles(prev => [...prev, ...newFiles]);
+
+      // Fetch actual page count for each PDF
+      newFiles.forEach(async (f) => {
+        try {
+          const pages = await getPdfPageCount(f.file);
+          setUploadedFiles(prev => prev.map(item => item.id === f.id ? { ...item, pages } : item));
+        } catch (e) {
+          console.error("Error reading PDF pages", e);
+          setUploadedFiles(prev => prev.map(item => item.id === f.id ? { ...item, pages: '?' } : item));
+        }
+      });
     }
-    
+
     // Clear input so same file can be selected again
     event.target.value = '';
   };
@@ -106,339 +128,241 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate }) => {
     // Logic for creating from templat
     const template = templates.find(t => t.id === selectedTemplateId);
     console.log("Creating from template:", template, "Pages:", pageCount);
-    onTemplate({ templateId: selectedTemplateId, pageCount }); 
+    onTemplate({ templateId: selectedTemplateId, pageCount });
   };
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
 
-  // Render Selection View
-  const renderSelectionView = () => (
-    <div className="flex flex-col md:flex-row gap-[1vw] md:gap-[1.25vw] justify-center items-stretch">
-            
-      {/* Option 1: Upload PDF - Light Purple Background */}
-      <div className="flex-1 bg-[#F5F6FF] rounded-[1vw] p-[1.25vw] md:p-[2vw] flex flex-col items-center text-center shadow-lg hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 group">
-        
-        {/* Iconify Icon: PDF */}
-        <div className="w-[3vw] h-[3vw] mb-[0.75vw] flex items-center justify-center">
-             <Icon icon="bi:file-earmark-pdf-fill" width="2.5vw" height="2.5vw" className='text-[#FF4444]'/>
-        </div>
-        
-        <h3 className="text-[1.15vw] font-bold text-gray-900 mb-[0.5vw]">Upload PDF</h3>
-        <p className="text-[0.75vw] text-gray-500 mb-[1.5vw] leading-relaxed font-medium">
-          Upload your ready PDF file and instantly convert it into a smooth, interactive flipbook
-        </p>
 
-        <button 
-          onClick={() => setView('upload')}
-          className="mt-auto w-full max-w-[12.5vw] py-[0.6vw] bg-[#4F46E5] text-white rounded-[0.75vw] font-bold text-[0.875vw] hover:bg-[#4338ca] transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
-        >
-          Upload
-        </button>
-      </div>
-
-      {/* Option 2: Build Using Templates - White Background */}
-      <div className="flex-1 bg-white rounded-[1vw] p-[1.25vw] md:p-[2vw] flex flex-col items-center text-center shadow-lg hover:shadow-2xl hover:scale-[1.02] transition-all duration-300 group">
-        
-        {/* Iconify Icon: Templates */}
-        <div className="w-[3vw] h-[3vw] mb-[0.75vw] flex items-center justify-center">
-             <Icon icon="raphael:paper" width="2.5vw" height="2.5vw" />
-        </div>
-        
-        <h3 className="text-[1.15vw] font-bold text-gray-900 mb-[0.5vw]">Build Using Templates</h3>
-        <p className="text-[0.75vw] text-gray-500 mb-[1.5vw] leading-relaxed font-medium">
-          Choose from ready-made page templates and design a flipbook from scratch
-        </p>
-
-        <button 
-          onClick={() => setView('template')}
-          className="mt-auto w-full max-w-[12.5vw] py-[0.6vw] bg-[#4F46E5] text-white rounded-[0.75vw] font-bold text-[0.875vw] hover:bg-[#4338ca] transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
-        >
-          Select Pages
-        </button>
-      </div>
-
-    </div>
-  );
 
   // Render Upload View
   const renderUploadView = () => (
-    <div className="relative bg-white/20 backdrop-blur-xl border border-white/30 rounded-[1.5vw] p-[1.25vw] md:p-[1.5vw] shadow-2xl flex justify-center w-full max-w-[40vw] mx-auto">
-      <div className="bg-white rounded-[1vw] p-[1.25vw] md:p-[2vw] w-full text-center flex flex-col shadow-lg relative min-h-[22vw]">
-        
-         {/* Close Button for Upload View (Red) */}
-         <button
-            onClick={() => {
-                setView('selection');
-                setUploadedFiles([]); // Clear files on back
-            }} 
-            className="absolute top-[0.75vw] right-[0.75vw] text-red-500 hover:text-red-700 transition-colors z-50 p-[0.25vw] hover:bg-red-50 rounded-full"
-         >
-            <X size="1.1vw" />
-         </button>
+    <div className="bg-white rounded-[1vw] p-[1.25vw] md:p-[1.5vw] w-full max-w-[26vw] mx-auto flex flex-col shadow-2xl relative border border-gray-100">
 
-        <div className="flex items-center justify-between mb-[0.75vw] pb-[0.5vw] border-b border-gray-100">
-           <h2 className="text-[1.25vw] font-bold text-gray-900">Upload PDF</h2>
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between pb-[0.75vw] mb-[0.5vw] border-b border-gray-200">
+        <h2 className="text-[1.25vw] font-bold text-gray-900">Upload PDF</h2>
+        <button
+          onClick={onClose}
+          className="absolute top-[1vw] right-[1vw] text-red-500 hover:text-red-700 transition-colors z-50 p-[0.15vw] hover:bg-red-50 rounded-[0.3vw] border border-red-500"
+        >
+          <X size="1vw" strokeWidth={2} />
+        </button>
+      </div>
 
-        <div className="mb-[1vw] text-left">
-            <p className="text-[0.75vw] text-gray-500">Upload your ready PDF file and instantly convert it into a smooth, interactive flipbook</p>
-        </div>
+      {/* Subtitle */}
+      <p className="text-[0.65vw] text-gray-500 mb-[1vw] leading-relaxed pr-[1vw]">
+        Free plan supports up to <span className="font-bold text-gray-700">12 pages</span> per flipbook. If your PDF exceeds the limit, extra pages will be automatically removed.
+      </p>
 
-        {/* Container for centering content */}
-        <div className="flex-1 flex flex-col justify-center min-h-0">
-            {uploadedFiles.length === 0 ? (
-                /* Empty State - Compact Upload Box Centered */
-                <div 
-                className="border-2 border-dashed border-[#3b4190] rounded-[0.75vw] bg-white flex flex-col items-center justify-center gap-[0.5vw] hover:bg-gray-50 transition-colors cursor-pointer w-[10vw] h-[8vw] mx-auto"
-                onClick={handleUploadClick}
-                >
-                    <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        accept="application/pdf" 
-                        onChange={handleFileChange} 
-                        multiple
-                    />
-                    <div className="w-[2.5vw] h-[2.5vw] rounded-full bg-[#f0f2ff] flex items-center justify-center text-[#3b4190] mb-[0.25vw]">
-                        <Upload size="1.25vw" />
-                    </div>
-                    <h4 className="text-[#3b4190] font-bold text-[0.75vw]">Upload PDF</h4>
-                    <p className="text-gray-400 text-[0.6vw]">Browse or Drop</p>
-                </div>
-            ) : (
-                /* With Files - Split Layout */
-                <div className="flex-1 flex flex-col justify-start pt-[0.5vw] h-full">
-                    <div className="flex-1 flex gap-[1vw] items-start h-full">
-                        {/* Left: Small Upload Box */}
-                        <div 
-                            className="w-[7vw] h-[7vw] border-2 border-dashed border-[#3b4190] rounded-[0.75vw] bg-white flex flex-col items-center justify-center gap-[0.5vw] hover:bg-gray-50 transition-colors cursor-pointer flex-shrink-0"
-                            onClick={handleUploadClick}
-                        >
-                            <input 
-                                type="file" 
-                                ref={fileInputRef} 
-                                className="hidden" 
-                                accept="application/pdf" 
-                                onChange={handleFileChange} 
-                                multiple
-                            />
-                            <div className="w-[1.5vw] h-[1.5vw] rounded-[0.5vw] flex items-center justify-center text-[#3b4190]">
-                                <Upload size="1vw" />
-                            </div>
-                            <span className="text-[#3b4190] font-medium text-[0.6vw] text-center px-[0.25vw]">Add PDF</span>
-                        </div>
-
-                        {/* Right: File List - Takes remaining space and scrolls */}
-                        <div className="flex-1 flex flex-col gap-[0.5vw] h-full max-h-[11.25vw] overflow-y-auto pr-[0.5vw] custom-scrollbar">
-                            {uploadedFiles.map((fileObj) => (
-                                <div key={fileObj.id} className="relative flex items-center gap-[0.75vw] p-[0.5vw] bg-gray-50 rounded-[0.5vw] border border-gray-100 flex-shrink-0">
-                                    {/* PDF Icon */}
-                                    <div className="w-[1.75vw] h-[1.75vw] flex-shrink-0 flex items-center justify-center bg-red-50 rounded-[0.375vw]">
-                                        <Icon icon="bi:file-earmark-pdf-fill" width="0.875vw" height="0.875vw" className='text-[#FF4444]'/>
-                                    </div>
-                                    
-                                    {/* Info & Progress */}
-                                    <div className="flex-1 text-left min-w-0">
-                                        <div className="flex justify-between items-center mb-[0.25vw]">
-                                            <span className="text-[0.625vw] font-semibold text-gray-800 truncate pr-[0.5vw]">{fileObj.file.name}</span>
-                                            <button 
-                                                onClick={() => handleRemoveFile(fileObj.id)}
-                                                className="text-gray-400 hover:text-red-500 transition-colors"
-                                            >
-                                                <X size="0.75vw" />
-                                            </button>
-                                        </div>
-                                        {/* Progress Bar */}
-                                        <div className="w-full h-[0.125vw] bg-gray-200 rounded-full overflow-hidden">
-                                            <div 
-                                                className="h-full bg-[#4F46E5] transition-all duration-300 ease-out"
-                                                style={{ width: `${fileObj.progress}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Create Button */}
-                    <div className="mt-[1.5vw] flex justify-center pb-[0.25vw]">
-                        <button 
-                            onClick={handleCreateFlipbook}
-                            className="px-[2vw] py-[0.6vw] bg-[#6366f1] text-white rounded-[0.75vw] font-semibold cursor-pointer text-[0.875vw] hover:bg-[#4f46e5] transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
-                        >
-                            Create Flipbook
-                        </button>
-                    </div>
-                </div>
-            )}
+      {/* Drag & Drop Box */}
+      <div
+        className="w-full border-[0.15vw] border-dashed border-[#4c5add] rounded-[0.75vw] flex flex-col items-center justify-center py-[1.25vw] mb-[1vw] cursor-pointer hover:bg-blue-50/50 transition-colors"
+        onClick={handleUploadClick}
+      >
+        <input
+          type="file"
+          ref={fileInputRef}
+          className="hidden"
+          accept="application/pdf"
+          onChange={handleFileChange}
+          multiple
+        />
+        <Upload size="1.5vw" className="text-gray-400 mb-[0.25vw]" strokeWidth={1.5} />
+        <p className="text-[0.75vw] text-gray-500 mb-[0.5vw]">Drag & Drop or <span className="text-[#4c5add] font-medium">Upload</span></p>
+        <div className="flex items-center gap-[0.5vw] text-[0.6vw] text-gray-600">
+          Supported File format-
+          <div className="flex items-center gap-[0.4vw] ml-[0.25vw]">
+            <Icon icon="vscode-icons:file-type-pdf2" className="w-[1.1vw] h-[1.1vw]" />
+            <Icon icon="vscode-icons:file-type-word" className="w-[1.1vw] h-[1.1vw]" />
+            <Icon icon="vscode-icons:file-type-powerpoint" className="w-[1.1vw] h-[1.1vw]" />
+          </div>
         </div>
       </div>
+
+      {/* Flipbook Name */}
+      <div className="mb-[1vw]">
+        <label className="block text-[0.7vw] font-bold text-gray-800 mb-[0.4vw]">Flipbook Name</label>
+        <input
+          type="text"
+          defaultValue={`PDF_Flipbook_${Date.now()}`}
+          className="w-full border border-gray-300 rounded-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] text-gray-600 focus:outline-none focus:border-[#4c5add]"
+        />
+      </div>
+
+      {/* Uploaded Files List */}
+      <div className="flex flex-col gap-[0.5vw] max-h-[12vw] overflow-y-auto custom-scrollbar mb-[1.5vw] pr-[0.5vw]">
+        {uploadedFiles.map((fileObj) => (
+          <div key={fileObj.id} className="flex flex-col p-[0.75vw] border border-gray-100 rounded-[0.5vw] bg-white shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-[0.75vw] flex-1 min-w-0">
+                <Icon icon="bi:file-earmark-pdf-fill" className="text-[#FF4444] w-[1.25vw] h-[1.25vw] flex-shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[0.75vw] font-bold text-gray-900 truncate">{fileObj.file.name}</span>
+                  <span className="text-[0.55vw] text-gray-500 font-medium">
+                    {(fileObj.file.size / (1024 * 1024)).toFixed(2)} MB - {fileObj.pages ? `${fileObj.pages} Pages` : 'Loading pages...'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-[0.75vw]">
+                {fileObj.progress >= 100 ? (
+                  <div className="w-[1.1vw] h-[1.1vw] bg-green-100 text-green-500 rounded-full flex items-center justify-center">
+                    <Icon icon="lucide:check" width="0.75vw" height="0.75vw" strokeWidth={4} />
+                  </div>
+                ) : null}
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleRemoveFile(fileObj.id); }}
+                  className="text-red-400 hover:text-red-600 transition-colors"
+                >
+                  {fileObj.progress >= 100 ? (
+                    <Icon icon="lucide:trash-2" width="1vw" height="1vw" />
+                  ) : (
+                    <X size="1vw" />
+                  )}
+                </button>
+              </div>
+            </div>
+            {fileObj.progress < 100 && (
+              <div className="w-full h-[0.15vw] bg-gray-100 rounded-full mt-[0.5vw] overflow-hidden">
+                <div className="h-full bg-[#4F46E5] transition-all duration-300" style={{ width: `${fileObj.progress}%` }}></div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex items-center justify-center gap-[1vw] mt-auto">
+        <button
+          onClick={onClose}
+          className="flex-1 py-[0.6vw] cursor-pointer border border-gray-300 text-gray-700 font-semibold rounded-[0.5vw] text-[0.85vw] hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleCreateFlipbook}
+          disabled={uploadedFiles.length === 0 || !uploadedFiles.every(f => f.progress === 100)}
+          className={`flex-1 py-[0.6vw] font-semibold cursor-pointer rounded-[0.5vw] text-[0.85vw] transition-all ${uploadedFiles.length > 0 && uploadedFiles.every(f => f.progress === 100)
+              ? 'bg-[#4F46E5] text-white hover:bg-[#4338ca] shadow-lg shadow-indigo-500/30 active:scale-95'
+              : 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
+            }`}
+        >
+          Create Flipbook
+        </button>
+      </div>
+
     </div>
   );
 
   // Render Template View
-  const renderTemplateView = () => (
-    <div className="relative bg-white/20 backdrop-blur-xl border border-white/30 rounded-[1.5vw] p-[1.25vw] md:p-[1.5vw] shadow-2xl flex justify-center w-full max-w-[60vw] mx-auto">
-      <div className="bg-white rounded-[1vw] p-[1.25vw] md:p-[2vw] w-full flex flex-col shadow-lg relative min-h-[25vw]">
-         {/* Close Button (Red) */}
-         <button
-            onClick={() => setView('selection')} 
-            className="absolute top-[0.75vw] right-[0.75vw] text-red-500 hover:text-red-700 transition-colors z-50 p-[0.25vw] hover:bg-red-50 rounded-full"
-         >
-            <X size="1.1vw" />
-         </button>
+  const renderTemplateView = () => {
+    const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
 
-         {/* Header */}
-         <div className="mb-[1vw]">
-            <div className="flex items-center gap-[0.75vw] mb-[0.25vw]">
-                 <h2 className="text-[1.5vw] font-bold text-gray-900">Build Using Templates</h2>
-                 <div className="flex-1 h-[0.0625vw] bg-gray-200 mt-[0.5vw]"></div>
+    return (
+      <div className="relative bg-white rounded-[1vw] p-[1.25vw] md:p-[1.5vw] shadow-2xl flex flex-col w-full max-w-[26vw] mx-auto border border-gray-100">
+        {/* Close Button (Red) */}
+        <button
+          onClick={onClose}
+          className="absolute top-[1vw] right-[1vw] text-red-500 border border-red-500 hover:bg-red-50 transition-colors z-50 p-[0.15vw] rounded-[0.3vw]"
+        >
+          <X size="1vw" strokeWidth={2} />
+        </button>
+
+        {/* Header */}
+        <div className="mb-[1vw]">
+          <div className="flex items-center mb-[0.2vw]">
+            <h2 className="text-[1.25vw] font-bold text-black pr-[0.75vw]">Built From Starch</h2>
+            <div className="flex-1 h-[0.0625vw] bg-gray-200 mt-[0.2vw] mr-[2vw]"></div>
+          </div>
+          <p className="text-[0.6vw] text-gray-500">Create your flipbook from scratch and design every page your way.</p>
+        </div>
+
+        <div className="border border-gray-200 rounded-[0.5vw] p-[1.25vw] mb-[1.25vw]">
+          {/* Selected Template Preview */}
+          <div className="flex flex-col items-center justify-center mb-[1.25vw]">
+            <div className={`bg-[#b8a9e0] text-gray-700 flex items-center justify-center font-bold text-[0.8vw] shadow-sm rounded-[0.2vw] mb-[0.5vw] ${template.width} ${template.height} max-w-[100%] max-h-[12vw]`} style={{ transform: 'scale(0.85)' }}>
+              {template.label}
             </div>
-            <p className="text-[0.75vw] text-gray-500">Choose from ready-made page templates and design a flipbook from scratch</p>
-         </div>
+            <h4 className="text-[0.8vw] font-bold text-[#3b4190]">{template.title}</h4>
+            <p className="text-[0.55vw] text-gray-500">{template.dim}</p>
+          </div>
 
-         {/* Templates Carousel */}
-         <div className="flex items-center justify-between gap-[1vw] mb-[1.5vw] px-[1vw] py-[0.5vw] min-h-[10vw]">
-             {/* Left Arrow */}
-             <button 
-                onClick={scrollLeft}
-                className="p-[0.375vw] rounded-full hover:bg-gray-100 text-gray-400 z-10"
-             >
-                 <ChevronLeft size="1.25vw" />
-             </button>
+          {/* Form Fields */}
+          <div className="space-y-[1vw]">
+            <div>
+              <label className="block text-[0.7vw] font-bold text-black mb-[0.4vw]">Flipbook Name</label>
+              <input type="text" placeholder="Name of the flipbook" className="w-full border border-gray-300 rounded-[0.3vw] px-[0.6vw] py-[0.5vw] text-[0.7vw] focus:outline-none focus:border-[#4F46E5] text-gray-700" />
+            </div>
 
-             {/* Cards Container - Scrollable */}
-             <div 
-                ref={carouselRef}
-                className="flex items-end gap-[1.5vw] md:gap-[2vw] overflow-x-auto scrollnav-hidden scroll-smooth py-[1vw] px-[0.5vw]"
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-             >
-                 {templates.map((template) => {
-                     const isSelected = selectedTemplateId === template.id;
-                     return (
-                         <div 
-                             key={template.id} 
-                             className="flex flex-col items-center gap-[0.5vw] cursor-pointer group flex-shrink-0"
-                             onClick={() => setSelectedTemplateId(template.id)}
-                         >
-                             {/* The Shape Box */}
-                             <div 
-                                className={`
-                                    ${template.width} ${template.height} 
-                                    border rounded-[0.25vw] flex items-center justify-center shadow-sm transition-all duration-200
-                                    ${isSelected 
-                                        ? 'bg-[#3b4190] border-[#3b4190] text-white shadow-xl scale-105' 
-                                        : 'bg-gray-50 border-gray-300 text-[#3b4190] group-hover:border-[#3b4190] group-hover:scale-105'
-                                    }
-                                `}
-                             >
-                                 <span className="text-[0.875vw] font-medium">{template.label}</span>
-                             </div>
+            <div className="flex items-center">
+              <label className="text-[0.7vw] font-bold text-black mr-[0.5vw]">Units :</label>
+              <div className="border border-gray-200 rounded-[0.3vw] px-[0.4vw] py-[0.2vw] flex items-center bg-gray-50 shadow-sm cursor-pointer w-fit">
+                <span className="text-[0.7vw] text-gray-600 mr-[0.75vw]">Centimeter</span>
+                <ChevronRight size="0.9vw" className="text-gray-400 rotate-90" />
+              </div>
+            </div>
 
-                             {/* Label */}
-                             <div className="text-center w-[6vw]">
-                                 <p className={`text-[0.625vw] font-bold transition-colors truncate ${isSelected ? 'text-[#3b4190]' : 'text-gray-700'}`}>
-                                     {template.title}
-                                 </p>
-                                 <p className="text-[0.56vw] text-gray-400">{template.dim}</p>
-                             </div>
-                         </div>
-                     );
-                 })}
-             </div>
+            <div className="flex items-center">
+              <label className="text-[0.7vw] font-bold text-black mr-[0.5vw]">Number of Pages :</label>
+              <div className="flex items-center gap-[0.4vw]">
+                <button onClick={() => setPageCount(Math.max(2, pageCount - 2))} className="text-gray-400 hover:text-gray-600 outline-none">
+                  <Minus size="0.9vw" />
+                </button>
+                <div className="border border-gray-300 w-[2.5vw] h-[1.5vw] rounded-[0.2vw] flex items-center justify-center text-[0.7vw] font-medium text-black">
+                  <input type="number" value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value) || 2)} className="w-full h-full text-center outline-none bg-transparent" />
+                </div>
+                <button onClick={() => setPageCount(Math.min(100, pageCount + 2))} className="text-gray-400 hover:text-gray-600 outline-none">
+                  <Plus size="0.9vw" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-             {/* Right Arrow */}
-             <button 
-                onClick={scrollRight}
-                className="p-[0.375vw] rounded-full hover:bg-gray-100 text-gray-400 z-10"
-             >
-                 <ChevronRight size="1.25vw" />
-             </button>
-         </div>
-
-         {/* Page Count Selector */}
-         <div className="flex items-center justify-center gap-[0.75vw] mb-[2vw]">
-             <span className="text-[0.875vw] font-medium text-gray-900">Number of Pages<span className="text-red-500">*</span> :</span>
-             
-             <button 
-                onClick={() => setPageCount(Math.max(2, pageCount - 2))}
-                className="text-gray-400 hover:text-gray-600 active:scale-95 transition-transform"
-             >
-                 <Minus size="1.25vw" strokeWidth={1.5} />
-             </button>
-             
-             <div className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center justify-center text-[0.875vw] font-bold text-gray-900 bg-white overflow-hidden">
-                 <input 
-                    type="number"
-                    value={pageCount}
-                    onChange={(e) => {
-                        let val = parseInt(e.target.value);
-                        if (isNaN(val)) val = 2;
-                        if (val > 12) val = 12;
-                        if (val < 2) val = 2;
-                        if (val % 2 !== 0) val = val + 1;
-                        if (val > 12) val = 12; 
-                        setPageCount(val);
-                    }}
-                    className="w-full h-full text-center focus:outline-none bg-transparent"
-                 />
-             </div>
-
-             <button 
-                onClick={() => setPageCount(Math.min(12, pageCount + 2))}
-                className="text-gray-400 hover:text-gray-600 active:scale-95 transition-transform"
-             >
-                 <Plus size="1.25vw" strokeWidth={1.5} />
-             </button>
-         </div>
-
-         {/* Create Button */}
-         <div className="flex justify-center mt-auto">
-            <button 
-                onClick={handleCreateFromTemplate}
-                className="px-[4vw] py-[0.6vw] bg-[#6366f1] text-white rounded-[0.75vw] font-medium text-[1.125vw] hover:bg-[#4f46e5] transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
-            >
-                Create
-            </button>
-         </div>
+        {/* Action Buttons */}
+        <div className="flex gap-[0.75vw]">
+          <button onClick={onClose} className="flex-1 border border-gray-300 rounded-[0.4vw] py-[0.6vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleCreateFromTemplate} className="flex-1 bg-[#4F46E5] rounded-[0.4vw] py-[0.6vw] text-[0.8vw] font-medium text-white hover:bg-[#4338ca] transition-colors shadow-sm">
+            Create Flipbook
+          </button>
+        </div>
 
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-[1vw]">
-      {/* Dark Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
-      ></div>
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-[1vw]">
+          {/* Dark Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={onClose}
+          ></motion.div>
 
-      {/* The Container */}
-      <div className={`relative z-10 w-full transform transition-all animate-in fade-in zoom-in-95 duration-200 ${view === 'template' ? 'max-w-[60vw]' : 'max-w-[36vw]'}`}>
-        
-        {view === 'selection' && (
-             <div className="relative bg-white/20 backdrop-blur-xl border border-white/30 rounded-[1.5vw] p-[1.25vw] md:p-[1.5vw] shadow-2xl">
-                {/* Close Button */}
-                <button 
-                    onClick={onClose} 
-                    className="absolute top-[0.75vw] right-[0.75vw] text-white/80 hover:text-white transition-colors bg-black/20 hover:bg-black/40 rounded-full p-[0.375vw] z-50" 
-                >
-                    <X size="1vw" />
-                </button>
-                {renderSelectionView()}
-             </div>
-        )}
-        
-        {view === 'upload' && renderUploadView()}
-        
-        {view === 'template' && renderTemplateView()}
-
-      </div>
-    </div>
+          {/* The Container */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="relative z-10 w-full flex justify-center"
+          >
+            {view === 'upload' && renderUploadView()}
+            {view === 'template' && renderTemplateView()}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 

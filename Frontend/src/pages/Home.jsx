@@ -317,11 +317,11 @@ export default function Home() {
 
             <div className="flex items-center gap-[1.5vw] pt-[0.5vw]">
               <button 
-                onClick={handleCreateFlipbook}
+                onClick={() => navigate('/my-flipbooks')}
                 className="flex items-center cursor-pointer gap-[0.5vw] px-[2vw] py-[0.8vw] bg-white text-gray-900 border border-gray-100 rounded-[0.5vw] font-semibold shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 text-[0.9vw]"
               >
                 <Icon icon="material-symbols:book-ribbon" className="text-[1.3vw]" />
-                Create Flipbook
+                My Flipbooks
               </button>
               
               <button 
