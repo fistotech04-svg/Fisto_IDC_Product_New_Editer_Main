@@ -41,11 +41,18 @@ const RightSidebar = ({
   const [isInteractionMenuOpen, setIsInteractionMenuOpen] = useState(false);
   const interactionMenuRef = useRef(null);
 
-  const convertValue = (mmValue) => {
-     const val = parseFloat(mmValue || 0);
+  const convertValue = (internalValue) => {
+     const val = parseFloat(internalValue || 0);
      if (dimensionUnit === 'px') return Math.round(val * 96 / 25.4);
      if (dimensionUnit === 'cm') return (val / 10).toFixed(2);
      return Math.round(val); // mm
+  };
+
+  const convertToInternal = (displayValue) => {
+     const val = parseFloat(displayValue || 0);
+     if (dimensionUnit === 'px') return (val * 25.4 / 96).toString();
+     if (dimensionUnit === 'cm') return (val * 10).toString();
+     return val.toString(); // mm
   };
 
   // Close unit dropdown on click outside
@@ -208,22 +215,16 @@ const RightSidebar = ({
               x = bbox.x.toString();
               y = bbox.y.toString();
               
-              // If there's a matrix transform, it usually handles position.
-              // In this editor, interact.js uses matrix transforms for movement.
-              const transform = actualEl.getAttribute('transform');
-              if (transform && transform.includes('matrix')) {
-                 const match = transform.match(/matrix\(([^)]+)\)/);
-                 if (match) {
-                    const m = match[1].split(/[\s,]+/).map(parseFloat);
-                    // matrix(a, b, c, d, e, f) -> e, f are translation
-                    if (m.length === 6) {
-                       x = (parseFloat(x) + m[4]).toString();
-                       y = (parseFloat(y) + m[5]).toString();
-                       // Width/Height are already "local" to the matrix if we use getBBox(),
-                       // but visual width/height should include scaling.
-                       w = (parseFloat(w) * Math.abs(m[0])).toString();
-                       h = (parseFloat(h) * Math.abs(m[3])).toString();
-                    }
+              // Robust transform parsing using SVG DOM API
+              const transformList = actualEl.transform?.baseVal;
+              if (transformList && transformList.numberOfItems > 0) {
+                 const consolidated = transformList.consolidate();
+                 if (consolidated) {
+                    const matrix = consolidated.matrix;
+                    x = (parseFloat(x) + matrix.e).toString();
+                    y = (parseFloat(y) + matrix.f).toString();
+                    w = (parseFloat(w) * Math.abs(matrix.a)).toString();
+                    h = (parseFloat(h) * Math.abs(matrix.d)).toString();
                  }
               }
            } catch (e) {
@@ -397,15 +398,6 @@ const RightSidebar = ({
             ) : (
               <div /> // Spacer to keep Preview button on the right
             )}
-            <div className="flex items-center gap-[0.4vw]">
-               <button 
-                  onClick={onPreview}
-                  className="bg-[#5145F6] cursor-pointer text-white flex items-center gap-[0.5vw] px-[1vw] py-[0.4vw] rounded-[0.5vw] shadow-md hover:bg-[#4338CA] transition-all text-[0.9vw] font-semibold"
-               >
-                  <Icon icon="ic:baseline-preview" width="1.1vw" height="1.1vw" />
-                  <span>Preview</span>
-               </button>
-            </div>
          </div>
       </div>
 
@@ -456,23 +448,26 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'width';
-                               const val = parseFloat(selectedElementProps.w || 0) - 1;
+                               const currentDisplay = convertValue(selectedElementProps.w || 0);
+                               const newValDisplay = parseFloat(currentDisplay) - 1;
+                               const val = parseFloat(convertToInternal(newValDisplay));
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
                       )}
-                      <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
+                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${!selectedElementProps ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
                          <input 
                             key={`w-${dimensionUnit}`}
-                            className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
+                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${!selectedElementProps ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
                             value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
                             readOnly={!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))}
                             onChange={(e) => {
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'width';
-                               const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
+                               const internalVal = parseFloat(convertToInternal(e.target.value) || 0);
+                               const finalVal = tag === 'circle' ? (internalVal/2).toString() : internalVal.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
@@ -485,7 +480,9 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'width';
-                               const val = parseFloat(selectedElementProps.w || 0) + 1;
+                               const currentDisplay = convertValue(selectedElementProps.w || 0);
+                               const newValDisplay = parseFloat(currentDisplay) + 1;
+                               const val = parseFloat(convertToInternal(newValDisplay));
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
@@ -506,23 +503,26 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'height';
-                               const val = parseFloat(selectedElementProps.h || 0) - 1;
+                               const currentDisplay = convertValue(selectedElementProps.h || 0);
+                               const newValDisplay = parseFloat(currentDisplay) - 1;
+                               const val = parseFloat(convertToInternal(newValDisplay));
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
                       )}
-                      <div className="w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
+                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${!selectedElementProps ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
                          <input 
                             key={`h-${dimensionUnit}`}
-                            className="w-full text-center bg-transparent outline-none text-[#111827] text-[0.85vw] font-semibold"
+                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${!selectedElementProps ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
                             value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
                             readOnly={!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))}
                             onChange={(e) => {
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'height';
-                               const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
+                               const internalVal = parseFloat(convertToInternal(e.target.value) || 0);
+                               const finalVal = tag === 'circle' ? (internalVal/2).toString() : internalVal.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
@@ -535,7 +535,9 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'height';
-                               const val = parseFloat(selectedElementProps.h || 0) + 1;
+                               const currentDisplay = convertValue(selectedElementProps.h || 0);
+                               const newValDisplay = parseFloat(currentDisplay) + 1;
+                               const val = parseFloat(convertToInternal(newValDisplay));
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}

@@ -266,11 +266,11 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
             <Download size="1.2vw" />
           </button>
 
-          {/* Preview Button - Hidden on main Editor page and 3D Editor */}
-          {!(location.pathname.startsWith('/editor') && !location.pathname.includes('threed_editor') && !location.pathname.includes('customized_editor')) && !isThreedEditor && (
+          {/* Preview Button - Hidden on 3D Editor */}
+          {!isThreedEditor && (
             <button 
               onClick={onPreview}
-              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0 ml-[0.2vw]"
+              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0 ml-[0.2vw] cursor-pointer"
               title="Preview Book"
             >
               <Icon icon="ic:baseline-preview" className="w-[1.25vw] h-[1.25vw]" />

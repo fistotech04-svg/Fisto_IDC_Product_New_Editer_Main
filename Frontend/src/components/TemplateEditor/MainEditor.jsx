@@ -1084,6 +1084,12 @@ const MainEditor = ({
 
     const layerEl = svg.querySelector(`[id="${layerId}"]`);
     const isOverlay = layerEl ? layerEl.getAttribute('data-name') === 'Overlay' : false;
+    const isPdfBackground = layerEl ? (layerEl.getAttribute('data-name')?.includes('PDF Background') || layerEl.getAttribute('data-type') === 'pdf-background') : false;
+
+    // Disable right click menu on the PDF background itself
+    if (isPdfProject && (isPdfBackground || isOverlay)) {
+        return;
+    }
 
     // 2. Select the layer if not already part of multi-selection
     if (!multiSelectedIds.has(layerId)) {
@@ -4979,6 +4985,11 @@ const MainEditor = ({
           >
             <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[90deg]" />
           </button>
+        </div>
+
+        {/* Page Counter */}
+        <div className="absolute bottom-[2vh] right-[2vw] z-50 bg-white/80 backdrop-blur-sm px-[1vw] py-[0.5vh] rounded-full shadow-md border border-gray-200 text-[#4B5563] text-[0.9vw] font-medium pointer-events-none">
+          {activePageIndex + 1} / {pages.length}
         </div>
       </div>
 

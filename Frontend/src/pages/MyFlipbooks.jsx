@@ -162,21 +162,18 @@ export default function MyFlipbooks() {
       });
   };
 
-  const handleUploadPDF = async (files) => {
+  const handleUploadPDF = async (files, customName) => {
     if (!files || files.length === 0) return;
     setIsCreateModalOpen(false);
     setIsLoading(true);
     
     try {
-        const MAX_TOTAL_PAGES = 12;
         let allImages = [];
 
-        // 1. Extract images from all PDFs until we hit 12 pages
+        // 1. Extract images from all PDFs
         for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
             const file = files[fileIndex];
-            if (allImages.length >= MAX_TOTAL_PAGES) break;
 
-            const remainingPages = MAX_TOTAL_PAGES - allImages.length;
             setProcessingProgress({ 
                 current: 0, 
                 total: 1, 
@@ -184,7 +181,7 @@ export default function MyFlipbooks() {
             });
             
             // convertPdfToImages(file, scale, limit)
-            const images = await convertPdfToImages(file, 2, remainingPages);
+            const images = await convertPdfToImages(file, 2);
             allImages = [...allImages, ...images];
         }
 
@@ -211,7 +208,7 @@ export default function MyFlipbooks() {
         // 2. Create the unified flipbook record
         const now = new Date();
         const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const uniqueName = `PDF_Flipbook_${timeString}`;
+        const uniqueName = customName || `PDF_Flipbook_${timeString}`;
         const targetFolder = activeFolder === 'Recent Book' ? 'My Flipbooks' : activeFolder;
 
         setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
@@ -322,7 +319,7 @@ export default function MyFlipbooks() {
 
         const now = new Date();
         const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const uniqueName = `Flipbook_${timeString}`;
+        const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
         const targetFolder = activeFolder === 'Recent Book' ? 'My Flipbooks' : activeFolder;
 
         console.log(`Saving new flipbook "${uniqueName}" to "${targetFolder}"...`);
@@ -927,8 +924,8 @@ export default function MyFlipbooks() {
                           <span className="truncate flex-1">{displayName}</span>
                           
                           {folder.name !== 'Recent Book' && (
-                              <div className="flex items-center justify-center w-[1.5vw] h-[1.5vw]">
-                                  <span className={`text-[0.75vw] font-semibold ${isActive ? 'text-[#3b4190]' : 'text-gray-400'} ${activeMenuId === folder.id ? 'hidden' : 'block group-hover:hidden'}`}>
+                              <div className="relative flex items-center justify-end h-[1.5vw] min-w-[1.5vw]">
+                                  <span className={`text-[0.75vw] font-semibold transition-all duration-300 ease-in-out ${isActive ? 'text-[#3b4190]' : 'text-gray-400'} ${activeMenuId === folder.id ? 'pr-[2vw]' : 'pr-[0.5vw] group-hover:pr-[2vw]'}`}>
                                       {folderCount}
                                   </span>
 
@@ -950,11 +947,11 @@ export default function MyFlipbooks() {
                                               setActiveMenuId(folder.id);
                                           }
                                       }}
-                                      className={`p-[0.375vw] flex items-center justify-center rounded-[0.5vw] bg-white transition-all rotate-90 shadow-sm border border-gray-100 ${
+                                      className={`absolute right-0 p-[0.375vw] flex items-center justify-center rounded-[0.5vw] bg-transparent transition-all ${
                                           isActive 
                                               ? 'hover:bg-gray-50 text-[#3b4190]' 
                                               : 'hover:bg-gray-100 text-gray-500'
-                                      } ${activeMenuId === folder.id ? 'flex' : 'hidden group-hover:flex'}`}
+                                      } ${activeMenuId === folder.id ? 'opacity-100 visible' : 'opacity-0 invisible group-hover:opacity-100 group-hover:visible'}`}
                                   >
                                       <MoreVertical size="0.9vw" />
                                   </button>
@@ -1647,6 +1644,7 @@ export default function MyFlipbooks() {
         onTemplate={handleUseTemplate}
         initialView={createModalInitialView}
         initialTemplateId={selectedTemplateIdForModal}
+        existingFlipbooks={books.map(b => b.realName || b.title)}
       />
 
       {/* PDF Processing Overlay */}

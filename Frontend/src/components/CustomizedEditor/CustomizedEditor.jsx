@@ -690,10 +690,12 @@ const CustomizedEditor = () => {
   // Load Flipbook Data
   useEffect(() => {
     const fetchBook = async () => {
+      let isAutosaveLoaded = false;
       // Check for recent autosave first (sync from TemplateEditor)
       const autosave = await getFromDB('editor_autosave');
-      if (autosave) {
+      if (autosave && autosave.v_id === v_id) {
         console.log('CustomizedEditor: Loading from autosave');
+        isAutosaveLoaded = true;
         try {
           const data = autosave;
           if (data.pages && Array.isArray(data.pages)) {
@@ -711,6 +713,7 @@ const CustomizedEditor = () => {
           }
         } catch (e) {
           console.error("CustomizedEditor: Failed to load autosave", e);
+          isAutosaveLoaded = false;
         }
       }
 
@@ -760,7 +763,7 @@ const CustomizedEditor = () => {
             }
 
             // ONLY overwrite pages if we DON'T have an autosave
-            if (!autosave) {
+            if (!isAutosaveLoaded) {
               // Only set book name from backend if session doesn't have an unsaved change
               if (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book') {
                 setBookName(res.data.meta?.flipbookName || res.data.name || 'Name of the Book');

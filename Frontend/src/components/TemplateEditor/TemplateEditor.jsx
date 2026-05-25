@@ -88,6 +88,8 @@ const TemplateEditor = () => {
   const [pdfProcessing, setPdfProcessing] = useState(null); // { current, total, message }
   const pdfInputRef = useRef(null);
   const pdfInsertIndexRef = useRef(null);
+  const replacePdfInputRef = useRef(null);
+  const replacePageIndexRef = useRef(null);
   
   const autoSaveTimerRef = useRef(null);
   const isFirstLoadRef = useRef(true);
@@ -320,10 +322,11 @@ const TemplateEditor = () => {
         pages: pages,
         activePageIndex: activePageIndex,
         pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+        v_id: v_id,
         timestamp: Date.now()
       });
     }
-  }, [pages, activePageIndex, isLoading, currentBook, location.state]);
+  }, [pages, activePageIndex, isLoading, currentBook, location.state, v_id]);
 
   // Sync pages, activePageIndex & first page HTML to currentBook for ExportModal previews
   useEffect(() => {
@@ -579,15 +582,6 @@ const TemplateEditor = () => {
   };
 
   const insertPageAfter = (index) => {
-    if (pages.length >= 12) {
-      setAlertState({
-          isOpen: true,
-          title: 'Limit Reached',
-          message: 'You can only have up to 12 pages in a flipbook.',
-          type: 'warning'
-      });
-      return;
-    }
     saveToHistory();
     setPages(prev => {
       const name = `Page ${prev.length + 1}`;
@@ -606,15 +600,6 @@ const TemplateEditor = () => {
   };
 
   const duplicatePage = (index) => {
-    if (pages.length >= 12) {
-      setAlertState({
-          isOpen: true,
-          title: 'Limit Reached',
-          message: 'You can only have up to 12 pages in a flipbook.',
-          type: 'warning'
-      });
-      return;
-    }
     saveToHistory();
     setPages(prev => {
       const pageToDuplicate = prev[index];
@@ -729,6 +714,151 @@ const TemplateEditor = () => {
     if (pdfInputRef.current) pdfInputRef.current.click();
   };
 
+  const handleReplaceFileClick = (index) => {
+      replacePageIndexRef.current = index;
+      if (replacePdfInputRef.current) replacePdfInputRef.current.click();
+  };
+
+  const handleReplaceFileSelect = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+          setAlertState({
+              isOpen: true,
+              title: 'Invalid File',
+              message: 'Please select a PDF file.',
+              type: 'error'
+          });
+          return;
+      }
+
+      e.target.value = '';
+
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser ? JSON.parse(storedUser) : null;
+      const emailId = user?.emailId;
+
+      if (!emailId || !v_id) return;
+
+      setPdfProcessing({ current: 0, total: 1, message: 'Processing replacement...', fileName: file.name });
+
+      try {
+          const images = await convertPdfToImages(file, 2, 1);
+          if (!images || images.length === 0) return;
+
+          const image = images[0];
+          const firstW = image.width;
+          const firstH = image.height;
+
+          let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+
+          const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
+          const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
+          
+          if (!widthMatch || !heightMatch) {
+              setAlertState({
+                  isOpen: true,
+                  title: 'Dimension Mismatch',
+                  message: `This file (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a file with matching dimensions.`,
+                  type: 'error'
+              });
+              return;
+          }
+
+          const formData = new FormData();
+          formData.append('file', image.blob, `replaced-page-${Date.now()}.png`);
+          formData.append('emailId', emailId);
+          formData.append('type', 'image');
+          formData.append('v_id', v_id);
+          formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
+          formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
+          formData.append('page_v_id', 'global');
+
+          const pageToReplace = pages[replacePageIndexRef.current];
+          if (pageToReplace && pageToReplace.html && pageToReplace.html.includes('data-name="PDF Background"')) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(pageToReplace.html, 'image/svg+xml');
+              const oldImg = doc.querySelector('image[data-name="PDF Background"]');
+              if (oldImg) {
+                  const oldHref = oldImg.getAttribute('href') || oldImg.getAttribute('xlink:href');
+                  if (oldHref) {
+                      formData.append('replacing_file_url', oldHref);
+                  }
+              }
+          }
+
+          setPdfProcessing({ current: 1, total: 1, message: 'Uploading replacement asset...' });
+
+          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+          });
+
+          const assetUrl = res.data.url;
+          const filename = assetUrl.split('/').pop();
+          const relativeUrl = `./assets/image/${filename}`;
+
+          const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
+          const bName = currentBook?.flipbookName || 'Untitled Flipbook';
+          const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
+          const absoluteHtmlSrc = relativeUrl.replace('./assets/', `${projectBaseUrl}assets/`);
+
+          saveToHistory();
+          let newPages = [];
+          
+          setPages(prev => {
+              const updated = [...prev];
+              const pageIndex = replacePageIndexRef.current;
+              const page = updated[pageIndex];
+              const updatedPage = { ...page };
+
+              if (updatedPage.html.includes('data-name="PDF Background"')) {
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(updatedPage.html, 'image/svg+xml');
+                  const img = doc.querySelector('image[data-name="PDF Background"]');
+                  if (img) {
+                      img.setAttribute('href', absoluteHtmlSrc);
+                      // In some cases it might use xlink:href, update both to be safe
+                      if (img.hasAttribute('xlink:href')) img.setAttribute('xlink:href', absoluteHtmlSrc);
+                  }
+                  updatedPage.html = new XMLSerializer().serializeToString(doc.documentElement);
+                  updatedPage.layers = parseLayersFromSVG(doc.documentElement);
+              } else {
+                  const pageName = updatedPage.name || "Replaced Page";
+                  const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
+                  const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+                  const parser = new DOMParser();
+                  const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
+                  updatedPage.html = absoluteHtml;
+                  updatedPage.layers = parseLayersFromSVG(doc.documentElement);
+              }
+              
+              updated[pageIndex] = updatedPage;
+              newPages = updated;
+              return updated;
+          });
+
+          setHasUnsavedChanges(true);
+
+          setTimeout(() => {
+              saveFlipbook(false, newPages);
+          }, 800);
+
+      } catch (error) {
+          console.error("Error replacing file:", error);
+          setAlertState({
+              isOpen: true,
+              title: 'Error',
+              message: 'Failed to replace file. Please try again.',
+              type: 'error'
+          });
+      } finally {
+          setPdfProcessing(null);
+          if (replacePdfInputRef.current) replacePdfInputRef.current.value = '';
+      }
+  };
+
   const handlePdfFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -756,25 +886,10 @@ const TemplateEditor = () => {
     const isDefaultBlank = !isPdfProject && (pages.length === 0 || 
                          (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
 
-    const maxAllowed = 12;
-    const currentCount = isDefaultBlank ? 0 : pages.length;
-    const remainingSlots = maxAllowed - currentCount;
-
-    if (remainingSlots <= 0) {
-        setAlertState({
-            isOpen: true,
-            title: 'Limit Reached',
-            message: `The flipbook already has ${pages.length} pages. The maximum allowed is ${maxAllowed}.`,
-            type: 'warning'
-        });
-        setPdfProcessing(null);
-        return;
-    }
-
     setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
     try {
-        const images = await convertPdfToImages(file, 2, remainingSlots);
+        const images = await convertPdfToImages(file, 2);
         if (!images || images.length === 0) return;
 
         // 1. Check internal uniformity of the incoming PDF
@@ -2668,6 +2783,7 @@ const TemplateEditor = () => {
         setCurrentBook={setCurrentBook}
         onSave={saveFlipbook}
         onAddFile={handleAddFileClick}
+        onReplaceFile={handleReplaceFileClick}
       />
 
       <MainEditor 
@@ -2682,6 +2798,7 @@ const TemplateEditor = () => {
         deletePage={deletePage}
         onOpenTemplateModal={handleOpenTemplateModal}
         onAddFile={handleAddFileClick}
+        onReplaceFile={handleReplaceFileClick}
         selectedLayerId={selectedLayerId}
         setSelectedLayerId={setSelectedLayerId}
         updatePageHtml={updatePageHtml}
@@ -2749,6 +2866,13 @@ const TemplateEditor = () => {
         style={{ display: 'none' }} 
         accept=".pdf,application/pdf"
         onChange={handlePdfFileSelect}
+      />
+      <input 
+        type="file" 
+        ref={replacePdfInputRef} 
+        style={{ display: 'none' }} 
+        accept=".pdf,application/pdf"
+        onChange={handleReplaceFileSelect}
       />
 
       {/* PDF Processing Overlay */}

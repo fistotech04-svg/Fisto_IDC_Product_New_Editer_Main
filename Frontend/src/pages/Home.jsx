@@ -273,7 +273,7 @@ export default function Home() {
 
         const now = new Date();
         const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const uniqueName = `Flipbook_${timeString}`;
+        const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
         const targetFolder = 'My Flipbooks';
 
         const res = await axios.post(`${backendUrl}/api/flipbook/save`, {

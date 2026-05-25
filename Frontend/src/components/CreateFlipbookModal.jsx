@@ -1,29 +1,107 @@
 import React, { useState } from 'react';
-import { X, Upload, ChevronLeft, ChevronRight, Minus, Plus } from 'lucide-react';
+import { X, Upload, ChevronLeft, ChevronRight, Minus, Plus, GripVertical } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import { useModernToast } from './ModernToast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPdfPageCount } from '../utils/pdfUtils';
 
-const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate' }) => {
+const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [] }) => {
   const [view, setView] = useState(initialView);
 
   // Template View State
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId);
   const [pageCount, setPageCount] = useState(12);
 
+  const getFormattedDateTime = () => {
+    const now = new Date();
+    const pad = (n) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  };
+
+  const [flipbookName, setFlipbookName] = useState(`PDF_Flipbook_${getFormattedDateTime()}`);
+  const [nameError, setNameError] = useState(false);
+
   React.useEffect(() => {
     if (isOpen) {
       setView(initialView === 'selection' ? 'upload' : initialView);
       setSelectedTemplateId(initialTemplateId);
       setUploadedFiles([]);
+      const isTemplate = (initialView === 'selection' ? 'upload' : initialView) === 'template';
+      setFlipbookName(isTemplate ? `Flipbook_${getFormattedDateTime()}` : `PDF_Flipbook_${getFormattedDateTime()}`);
+      setNameError(false);
     }
   }, [isOpen, initialView, initialTemplateId]);
+
+  const handleNameChange = (e) => {
+      const val = e.target.value;
+      setFlipbookName(val);
+      if (existingFlipbooks.includes(val.trim())) {
+          setNameError(true);
+      } else {
+          setNameError(false);
+      }
+  };
   const fileInputRef = React.useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  
+  // Drag and drop state for reordering files
+  const dragItem = React.useRef(null);
+  const dragOverItem = React.useRef(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+  
+  const handleDragStart = (e, index) => { 
+      dragItem.current = index; 
+      setDragOverIndex(null);
+  };
+  
+  const handleDragEnter = (e, index) => { 
+      dragOverItem.current = index; 
+      setDragOverIndex(index);
+  };
+  
+  const handleDragEnd = () => {
+      if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+          setUploadedFiles(prev => {
+              const _files = [...prev];
+              const draggedItem = _files[dragItem.current];
+              if (!draggedItem) return prev; // Prevent undefined if index is out of bounds
+              _files.splice(dragItem.current, 1);
+              _files.splice(dragOverItem.current, 0, draggedItem);
+              return _files;
+          });
+      }
+      dragItem.current = null;
+      dragOverItem.current = null;
+      setDragOverIndex(null);
+  };
 
   const carouselRef = React.useRef(null);
   const toast = useModernToast();
+
+  const [templateUnit, setTemplateUnit] = useState('Cm');
+  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+  const unitRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (unitRef.current && !unitRef.current.contains(e.target)) {
+        setIsUnitDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getFormattedDim = (dimStr) => {
+    const match = dimStr.match(/\(([\d.]+)\s*x\s*([\d.]+)\s*Cm\)/i);
+    if (!match) return dimStr;
+    const wCm = parseFloat(match[1]);
+    const hCm = parseFloat(match[2]);
+    if (templateUnit === 'Cm') return `(${wCm} x ${hCm} Cm)`;
+    if (templateUnit === 'Mm') return `(${Math.round(wCm * 10)} x ${Math.round(hCm * 10)} Mm)`;
+    if (templateUnit === 'Px') return `(${Math.round(wCm * 10 * 96 / 25.4)} x ${Math.round(hCm * 10 * 96 / 25.4)} Px)`;
+    return dimStr;
+  };
 
   const templates = [
     { id: 'corporate', label: 'A4', title: 'Corporate Brochure', dim: '(29.7 x 42 Cm)', width: 'w-[6vw]', height: 'h-[9vw]' },
@@ -121,14 +199,15 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   };
 
   const handleCreateFlipbook = () => {
-    onUpload(uploadedFiles.map(f => f.file));
+    if (nameError || !flipbookName.trim()) return;
+    onUpload(uploadedFiles.map(f => f.file), flipbookName.trim());
   };
 
   const handleCreateFromTemplate = () => {
-    // Logic for creating from templat
+    if (nameError || !flipbookName.trim()) return;
     const template = templates.find(t => t.id === selectedTemplateId);
     console.log("Creating from template:", template, "Pages:", pageCount);
-    onTemplate({ templateId: selectedTemplateId, pageCount });
+    onTemplate({ templateId: selectedTemplateId, pageCount, flipbookName: flipbookName.trim() });
   };
 
   const handleUploadClick = () => {
@@ -187,50 +266,77 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         <label className="block text-[0.7vw] font-bold text-gray-800 mb-[0.4vw]">Flipbook Name</label>
         <input
           type="text"
-          defaultValue={`PDF_Flipbook_${Date.now()}`}
-          className="w-full border border-gray-300 rounded-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] text-gray-600 focus:outline-none focus:border-[#4c5add]"
+          value={flipbookName}
+          onChange={handleNameChange}
+          className={`w-full border rounded-[0.5vw] px-[0.75vw] py-[0.5vw] text-[0.75vw] focus:outline-none ${nameError ? 'border-red-500 text-red-500 focus:border-red-500 bg-red-50' : 'border-gray-300 text-gray-600 focus:border-[#4c5add]'}`}
         />
+        {nameError && <p className="text-red-500 text-[0.55vw] mt-[0.3vw] font-medium">This flipbook name already exists.</p>}
       </div>
 
       {/* Uploaded Files List */}
       <div className="flex flex-col gap-[0.5vw] max-h-[12vw] overflow-y-auto custom-scrollbar mb-[1.5vw] pr-[0.5vw]">
-        {uploadedFiles.map((fileObj) => (
-          <div key={fileObj.id} className="flex flex-col p-[0.75vw] border border-gray-100 rounded-[0.5vw] bg-white shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-[0.75vw] flex-1 min-w-0">
-                <Icon icon="bi:file-earmark-pdf-fill" className="text-[#FF4444] w-[1.25vw] h-[1.25vw] flex-shrink-0" />
-                <div className="flex flex-col min-w-0">
-                  <span className="text-[0.75vw] font-bold text-gray-900 truncate">{fileObj.file.name}</span>
-                  <span className="text-[0.55vw] text-gray-500 font-medium">
-                    {(fileObj.file.size / (1024 * 1024)).toFixed(2)} MB - {fileObj.pages ? `${fileObj.pages} Pages` : 'Loading pages...'}
-                  </span>
+        {uploadedFiles.filter(Boolean).map((fileObj, index) => {
+          const isDragOver = dragOverIndex === index && dragItem.current !== index;
+          const dropPosition = dragItem.current !== null && dragItem.current > index ? 'top' : 'bottom';
+          
+          return (
+          <div key={fileObj.id} className="relative">
+            {isDragOver && dropPosition === 'top' && (
+                <div className="absolute -top-[0.25vw] left-0 right-0 h-[0.2vw] bg-[#4c5add] rounded-full z-10"></div>
+            )}
+            <div 
+              draggable
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragEnter={(e) => handleDragEnter(e, index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => e.preventDefault()}
+              className={`group flex flex-col p-[0.75vw] border rounded-[0.5vw] bg-white cursor-grab active:cursor-grabbing transition-colors ${isDragOver ? 'border-[#4c5add] bg-blue-50/40' : 'border-gray-100 hover:border-[#4c5add] shadow-sm'}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="relative flex items-center flex-1 min-w-0">
+                  <div className="absolute left-0 flex items-center text-gray-400 opacity-0 group-hover:opacity-100 transition-all duration-300 cursor-grab active:cursor-grabbing">
+                      <GripVertical size="0.9vw" />
+                  </div>
+                  
+                  <div className="flex items-center gap-[0.75vw] transition-transform duration-300 ease-in-out group-hover:translate-x-[1vw]">
+                    <Icon icon="bi:file-earmark-pdf-fill" className="text-[#FF4444] w-[1.25vw] h-[1.25vw] flex-shrink-0" />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[0.75vw] font-bold text-gray-900 truncate">{fileObj.file?.name}</span>
+                      <span className="text-[0.55vw] text-gray-500 font-medium">
+                        {(fileObj.file.size / (1024 * 1024)).toFixed(2)} MB - {fileObj.pages ? `${fileObj.pages} Pages` : 'Loading pages...'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-[0.75vw]">
+                  {fileObj.progress >= 100 ? (
+                    <div className="w-[1.1vw] h-[1.1vw] bg-green-100 text-green-500 rounded-full flex items-center justify-center">
+                      <Icon icon="lucide:check" width="0.75vw" height="0.75vw" strokeWidth={4} />
+                    </div>
+                  ) : null}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRemoveFile(fileObj.id); }}
+                    className="text-red-400 hover:text-red-600 transition-colors"
+                  >
+                    {fileObj.progress >= 100 ? (
+                      <Icon icon="lucide:trash-2" width="1vw" height="1vw" />
+                    ) : (
+                      <X size="1vw" />
+                    )}
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-[0.75vw]">
-                {fileObj.progress >= 100 ? (
-                  <div className="w-[1.1vw] h-[1.1vw] bg-green-100 text-green-500 rounded-full flex items-center justify-center">
-                    <Icon icon="lucide:check" width="0.75vw" height="0.75vw" strokeWidth={4} />
-                  </div>
-                ) : null}
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleRemoveFile(fileObj.id); }}
-                  className="text-red-400 hover:text-red-600 transition-colors"
-                >
-                  {fileObj.progress >= 100 ? (
-                    <Icon icon="lucide:trash-2" width="1vw" height="1vw" />
-                  ) : (
-                    <X size="1vw" />
-                  )}
-                </button>
-              </div>
+              {fileObj.progress < 100 && (
+                <div className="w-full h-[0.15vw] bg-gray-100 rounded-full mt-[0.5vw] overflow-hidden">
+                  <div className="h-full bg-[#4F46E5] transition-all duration-300" style={{ width: `${fileObj.progress}%` }}></div>
+                </div>
+              )}
             </div>
-            {fileObj.progress < 100 && (
-              <div className="w-full h-[0.15vw] bg-gray-100 rounded-full mt-[0.5vw] overflow-hidden">
-                <div className="h-full bg-[#4F46E5] transition-all duration-300" style={{ width: `${fileObj.progress}%` }}></div>
-              </div>
+            {isDragOver && dropPosition === 'bottom' && (
+                <div className="absolute -bottom-[0.25vw] left-0 right-0 h-[0.2vw] bg-[#4c5add] rounded-full z-10"></div>
             )}
           </div>
-        ))}
+        )})}
       </div>
 
       {/* Action Buttons */}
@@ -243,8 +349,8 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
         </button>
         <button
           onClick={handleCreateFlipbook}
-          disabled={uploadedFiles.length === 0 || !uploadedFiles.every(f => f.progress === 100)}
-          className={`flex-1 py-[0.6vw] font-semibold cursor-pointer rounded-[0.5vw] text-[0.85vw] transition-all ${uploadedFiles.length > 0 && uploadedFiles.every(f => f.progress === 100)
+          disabled={uploadedFiles.length === 0 || !uploadedFiles.every(f => f.progress === 100) || nameError || !flipbookName.trim()}
+          className={`flex-1 py-[0.6vw] font-semibold cursor-pointer rounded-[0.5vw] text-[0.85vw] transition-all ${uploadedFiles.length > 0 && uploadedFiles.every(f => f.progress === 100) && !nameError && flipbookName.trim()
               ? 'bg-[#4F46E5] text-white hover:bg-[#4338ca] shadow-lg shadow-indigo-500/30 active:scale-95'
               : 'bg-indigo-100 text-indigo-400 cursor-not-allowed'
             }`}
@@ -286,22 +392,47 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
               {template.label}
             </div>
             <h4 className="text-[0.8vw] font-bold text-[#3b4190]">{template.title}</h4>
-            <p className="text-[0.55vw] text-gray-500">{template.dim}</p>
+            <p className="text-[0.55vw] text-gray-500">{getFormattedDim(template.dim)}</p>
           </div>
 
           {/* Form Fields */}
           <div className="space-y-[1vw]">
             <div>
               <label className="block text-[0.7vw] font-bold text-black mb-[0.4vw]">Flipbook Name</label>
-              <input type="text" placeholder="Name of the flipbook" className="w-full border border-gray-300 rounded-[0.3vw] px-[0.6vw] py-[0.5vw] text-[0.7vw] focus:outline-none focus:border-[#4F46E5] text-gray-700" />
+              <input 
+                  type="text" 
+                  value={flipbookName} 
+                  onChange={handleNameChange} 
+                  placeholder="Name of the flipbook" 
+                  className={`w-full border rounded-[0.3vw] px-[0.6vw] py-[0.5vw] text-[0.7vw] focus:outline-none ${nameError ? 'border-red-500 text-red-500 bg-red-50' : 'border-gray-300 focus:border-[#4F46E5] text-gray-700'}`} 
+              />
+              {nameError && <p className="text-red-500 text-[0.55vw] mt-[0.3vw] font-medium">This flipbook name already exists.</p>}
             </div>
 
-            <div className="flex items-center">
+            <div className="flex items-center relative" ref={unitRef}>
               <label className="text-[0.7vw] font-bold text-black mr-[0.5vw]">Units :</label>
-              <div className="border border-gray-200 rounded-[0.3vw] px-[0.4vw] py-[0.2vw] flex items-center bg-gray-50 shadow-sm cursor-pointer w-fit">
-                <span className="text-[0.7vw] text-gray-600 mr-[0.75vw]">Centimeter</span>
-                <ChevronRight size="0.9vw" className="text-gray-400 rotate-90" />
+              <div 
+                className="border border-gray-200 rounded-[0.3vw] px-[0.4vw] py-[0.2vw] flex items-center bg-gray-50 shadow-sm cursor-pointer w-fit"
+                onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
+              >
+                <span className="text-[0.7vw] text-gray-600 mr-[0.75vw]">
+                    {templateUnit === 'Cm' ? 'Centimeter' : templateUnit === 'Mm' ? 'Millimeter' : 'Pixel'}
+                </span>
+                <ChevronRight size="0.9vw" className={`text-gray-400 transition-transform ${isUnitDropdownOpen ? '-rotate-90' : 'rotate-90'}`} />
               </div>
+              {isUnitDropdownOpen && (
+                  <div className="absolute top-full left-[2.5vw] mt-[0.2vw] bg-white border border-gray-200 rounded-[0.3vw] shadow-lg overflow-hidden z-10 w-[7vw]">
+                      {['Cm', 'Mm', 'Px'].map(u => (
+                          <div 
+                              key={u}
+                              className="px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
+                              onClick={() => { setTemplateUnit(u); setIsUnitDropdownOpen(false); }}
+                          >
+                              {u === 'Cm' ? 'Centimeter' : u === 'Mm' ? 'Millimeter' : 'Pixel'}
+                          </div>
+                      ))}
+                  </div>
+              )}
             </div>
 
             <div className="flex items-center">
@@ -311,7 +442,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
                   <Minus size="0.9vw" />
                 </button>
                 <div className="border border-gray-300 w-[2.5vw] h-[1.5vw] rounded-[0.2vw] flex items-center justify-center text-[0.7vw] font-medium text-black">
-                  <input type="number" value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value) || 2)} className="w-full h-full text-center outline-none bg-transparent" />
+                  <input type="number" value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value) || 2)} className="w-full h-full text-center outline-none bg-transparent no-spin" />
                 </div>
                 <button onClick={() => setPageCount(Math.min(100, pageCount + 2))} className="text-gray-400 hover:text-gray-600 outline-none">
                   <Plus size="0.9vw" />

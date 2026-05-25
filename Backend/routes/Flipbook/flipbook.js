@@ -2164,7 +2164,7 @@ const upload = multer({
 router.post("/upload-asset", upload.single("file"), async (req, res) => {
   try {
     console.log("Upload Asset Request Body:", req.body);
-    const { emailId, type, v_id, replacing_file_v_id, page_v_id } = req.body;
+    const { emailId, type, v_id, replacing_file_v_id, replacing_file_url, page_v_id } = req.body;
     let { folderName, flipbookName } = req.body;
     const file = req.file;
 
@@ -2285,12 +2285,25 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
     let oldFilename = null;
     let oldUrl = null;
 
-    if (replacing_file_v_id) {
+    if (replacing_file_v_id || replacing_file_url) {
+      console.log(`Replacing asset. replacing_file_v_id: ${replacing_file_v_id}, replacing_file_url: ${replacing_file_url}`);
       try {
-        const oldAsset = await FlipbookAsset.findOne({
-          file_v_id: replacing_file_v_id,
-        });
+        let oldAsset = null;
+        if (replacing_file_v_id) {
+          oldAsset = await FlipbookAsset.findOne({ file_v_id: replacing_file_v_id });
+        } else if (replacing_file_url) {
+          let urlQuery = replacing_file_url.startsWith('http') 
+              ? new URL(replacing_file_url).pathname 
+              : replacing_file_url;
+          urlQuery = decodeURIComponent(urlQuery);
+          console.log(`Searching for old asset with URL ending in: ${urlQuery}`);
+          // Escape regex characters just in case, though exact match is often better
+          const escapedUrlQuery = urlQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          oldAsset = await FlipbookAsset.findOne({ url: { $regex: escapedUrlQuery + '$' } });
+        }
+
         if (oldAsset) {
+          console.log(`Found old asset in DB: ${oldAsset._id} with URL ${oldAsset.url}`);
           oldFilename = oldAsset.fileName;
           oldUrl = oldAsset.url;
 
@@ -2300,10 +2313,14 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
             if (fs.existsSync(oldFilePath)) {
               fs.unlinkSync(oldFilePath);
               console.log(`Deleted old asset file: ${oldFilePath}`);
+            } else {
+              console.log(`Old asset file NOT FOUND on disk: ${oldFilePath}`);
             }
           }
           // Delete DB record
           await FlipbookAsset.deleteOne({ _id: oldAsset._id });
+        } else {
+          console.log("Old asset NOT FOUND in DB for the given query.");
         }
       } catch (delErr) {
         console.warn("Failed to delete old asset:", delErr.message);
