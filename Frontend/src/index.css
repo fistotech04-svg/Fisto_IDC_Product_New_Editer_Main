@@ -102,3 +102,10 @@ video.hide-controls:hover::-webkit-media-controls {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+/* Global cursors for panning mode */
+body.space-panning, body.space-panning * {
+  cursor: grab !important;
+}
+body.space-panning.is-grabbing, body.space-panning.is-grabbing * {
+  cursor: grabbing !important;
+}

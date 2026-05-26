@@ -277,15 +277,6 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
             </button>
           )}
 
-          {/* Profile */}
-          <button 
-            onClick={() => setIsProfileOpen(true)}
-            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
-            title="Profile"
-          >
-            <User size="1.2vw" />
-          </button>
-
           {/* Publish Split Button */}
           <div className="relative flex items-center ml-[0.5vw]">
             <div className="flex items-center bg-[#00A58E] text-white rounded-[0.5vw] shadow-[0_0_1.2vw_rgba(0,165,142,0.5)] overflow-hidden">
@@ -345,6 +336,15 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
               </>
             )}
           </div>
+
+          {/* Profile */}
+          <button 
+            onClick={() => setIsProfileOpen(true)}
+            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
+            title="Profile"
+          >
+            <User size="1.2vw" />
+          </button>
         </div>
       </nav>
 

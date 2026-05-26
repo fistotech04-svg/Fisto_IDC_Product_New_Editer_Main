@@ -438,13 +438,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
             <div className="flex items-center">
               <label className="text-[0.7vw] font-bold text-black mr-[0.5vw]">Number of Pages :</label>
               <div className="flex items-center gap-[0.4vw]">
-                <button onClick={() => setPageCount(Math.max(2, pageCount - 2))} className="text-gray-400 hover:text-gray-600 outline-none">
+                <button onClick={() => setPageCount(Math.max(2, pageCount - 2))} className="text-gray-400 hover:text-gray-600 cursor-pointer outline-none">
                   <Minus size="0.9vw" />
                 </button>
                 <div className="border border-gray-300 w-[2.5vw] h-[1.5vw] rounded-[0.2vw] flex items-center justify-center text-[0.7vw] font-medium text-black">
-                  <input type="number" value={pageCount} onChange={(e) => setPageCount(parseInt(e.target.value) || 2)} className="w-full h-full text-center outline-none bg-transparent no-spin" />
+                  <input type="number" value={pageCount} readOnly className="w-full h-full text-center outline-none bg-transparent no-spin cursor-default" />
                 </div>
-                <button onClick={() => setPageCount(Math.min(100, pageCount + 2))} className="text-gray-400 hover:text-gray-600 outline-none">
+                <button onClick={() => setPageCount(Math.min(100, pageCount + 2))} className="text-gray-400 hover:text-gray-600 cursor-pointer outline-none">
                   <Plus size="0.9vw" />
                 </button>
               </div>

@@ -926,12 +926,19 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
   if (!isOpen) return null;
 
-  const qualityOptions = [
-    { name: 'Low', res: '720px' },
-    { name: 'Medium', res: '1024px' },
-    { name: 'High', res: '2048px' },
-    { name: 'Ultra', res: '4096px' },
-  ];
+  const qualityOptions = format === 'PDF' 
+    ? [
+        { name: 'Low', res: '72 DPI' },
+        { name: 'Medium', res: '150 DPI' },
+        { name: 'High', res: '300 DPI' },
+        { name: 'Ultra', res: '600 DPI' },
+      ]
+    : [
+        { name: 'Low', res: '720px' },
+        { name: 'Medium', res: '1024px' },
+        { name: 'High', res: '2048px' },
+        { name: 'Ultra', res: '4096px' },
+      ];
 
   const formatOptions = ['PNG', 'JPG', 'WEBP', 'PDF'];
 
@@ -1082,7 +1089,10 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       return `<svg${cleaned} width="${targetW}" height="${targetH}">`;
     });
 
-    return { svgString: svg, targetW, targetH };
+    // Detect if this is a PDF-origin page (generated from an uploaded PDF)
+    const isPdfPage = svg.includes('data-name="PDF Background"');
+
+    return { svgString: svg, targetW, targetH, nativeW, nativeH, isPdfPage };
   };
 
   /**
@@ -1192,12 +1202,15 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
         .replace(/[^a-z0-9_-]/gi, '_');
         
       if (format === 'PDF') {
+        const pdfW = rect.width;
+        const pdfH = rect.height;
+
         const pdf = new jsPDF({
-          orientation: canvas.width > canvas.height ? 'l' : 'p',
-          unit: 'px',
-          format: [canvas.width, canvas.height]
+          orientation: pdfW > pdfH ? 'l' : 'p',
+          unit: 'pt',
+          format: [pdfW, pdfH]
         });
-        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, canvas.width, canvas.height);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pdfW, pdfH);
         pdf.save(`${bookName}_poster.pdf`);
       } else {
         const mimeType = format === 'PNG' ? 'image/png' : format === 'WEBP' ? 'image/webp' : 'image/jpeg';
@@ -1243,42 +1256,48 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
       if (format === 'PDF') {
         // ── PDF: all pages in one file ───────────────────────────
+        // The physical page size ALWAYS uses the original native dimensions (in pt).
+        // Quality (DPI) only affects internal image raster resolution — not page size.
         let pdf = null;
         let first = true;
         for (const idx of indices) {
           const res = buildExportSvg(idx, maxPx);
           if (!res) continue;
-          const { svgString, targetW, targetH } = res;
+          const { svgString, targetW, targetH, nativeW, nativeH, isPdfPage } = res;
+
+          // Physical PDF page dimensions — always the original native size.
+          // pdfUtils.js stores dimensions as baseViewport.width * (25.4/96).
+          // For PDF-origin pages we must REVERSE that factor to recover the true
+          // original PDF point dimensions (e.g. 842 × 595 for A4 landscape).
+          // For non-PDF template pages the nativeW/H are used directly.
+          const PT_FACTOR = 25.4 / 96; // matches pdfUtils ptToMm factor
+          const pdfW = nativeW > 0 ? Math.round(isPdfPage ? nativeW / PT_FACTOR : nativeW) : targetW;
+          const pdfH = nativeH > 0 ? Math.round(isPdfPage ? nativeH / PT_FACTOR : nativeH) : targetH;
 
           // 1. Inline all referenced images in the SVG to Base64
           const inlinedSvg = await inlineSvgImages(svgString);
 
-          // 2. Render SVG onto canvas to get image data
+          // 2. Render SVG to a high-resolution canvas at the selected quality DPI
+          //    (targetW/targetH is scaled by maxPx — this controls sharpness only)
           const imgBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
           const dataUrl = await new Promise((ok) => {
             const r = new FileReader();
             r.onload = () => ok(r.result);
             r.readAsDataURL(imgBlob);
           });
-          
-          const imgEl = await new Promise((ok, fail) => {
-            const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = dataUrl;
-          });
-          
-          const pgW = imgEl.naturalWidth  || targetW;
-          const pgH = imgEl.naturalHeight || targetH;
 
+          // 3. Build the PDF page at the original native size, filling it with the image
           if (first) {
             pdf = new jsPDF({
-              orientation: pgW > pgH ? 'landscape' : 'portrait',
-              unit: 'px',
-              format: [pgW, pgH],
-              hotfixes: ['px_scaling']
+              orientation: pdfW > pdfH ? 'landscape' : 'portrait',
+              unit: 'pt',
+              format: [pdfW, pdfH]
             });
           } else {
-            pdf.addPage([pgW, pgH], pgW > pgH ? 'landscape' : 'portrait');
+            pdf.addPage([pdfW, pdfH], pdfW > pdfH ? 'landscape' : 'portrait');
           }
-          pdf.addImage(dataUrl, 'PNG', 0, 0, pgW, pgH);
+          // addImage: place the image exactly filling the page (0,0,pdfW,pdfH in pts)
+          pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
           first = false;
         }
         

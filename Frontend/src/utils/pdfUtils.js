@@ -29,7 +29,7 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
   for (let i = 1; i <= numPages; i++) {
     const page = await pdf.getPage(i);
     const viewport = page.getViewport({ scale });
-    
+
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     canvas.height = viewport.height;
@@ -47,8 +47,8 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
     });
 
     const baseViewport = page.getViewport({ scale: 1 });
-    // Convert points (1/72 inch) to millimeters
-    const ptToMm = 25.4 / 72;
+    // Convert points (1/96 inch to match Adobe Illustrator/Web PX 1:1) to millimeters
+    const ptToMm = 25.4 / 96;
     images.push({
       blob,
       width: baseViewport.width * ptToMm,
@@ -76,7 +76,7 @@ export const generatePdfPageSvg = (fullImageUrl, pageName = "PDF Background", ba
   const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
   const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
   const imageId = `img-${Math.random().toString(36).substr(2, 9)}`;
-  
+
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
   <g id="${rootId}" data-name="${pageName}" data-type="frame">
     <rect id="${overlayId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" shape-rendering="crispEdges" />

@@ -456,10 +456,10 @@ const RightSidebar = ({
                             }}
                          />
                       )}
-                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${!selectedElementProps ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
+                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${(!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))) ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
                          <input 
                             key={`w-${dimensionUnit}`}
-                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${!selectedElementProps ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
+                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))) ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
                             value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
                             readOnly={!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))}
                             onChange={(e) => {
@@ -511,10 +511,10 @@ const RightSidebar = ({
                             }}
                          />
                       )}
-                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${!selectedElementProps ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
+                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${(!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))) ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
                          <input 
                             key={`h-${dimensionUnit}`}
-                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${!selectedElementProps ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
+                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))) ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
                             value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
                             readOnly={!selectedElementProps || (isPdfProject && selectedElementProps.id?.includes('background'))}
                             onChange={(e) => {

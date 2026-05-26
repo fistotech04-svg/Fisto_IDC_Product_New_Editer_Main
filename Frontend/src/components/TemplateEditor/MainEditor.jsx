@@ -223,6 +223,19 @@ const MainEditor = ({
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
   const [zoom, setZoom] = useState(90);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const panYRef = useRef(0);
+  const isSpacePressedRef = useRef(false);
+  const isPanningRef = useRef(false);
+  const zoomRef = useRef(90);
+  const rafIdRef = useRef(null);
+  const pendingDyRef = useRef(0);
+  const panOverlayRef = useRef(null); // direct DOM ref for the pan overlay
+  const [isWheeling, setIsWheeling] = useState(false);
+  const wheelTimeoutRef = useRef(null);
+  const canvasWrapperRef = useRef(null);
+  const zoomableCanvasRef = useRef(null);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
 
@@ -313,11 +326,35 @@ const MainEditor = ({
         isCtrlPressedRef.current = true;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('ctrl-down'));
       }
+      if ((e.code === 'Space' || e.key === ' ') && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && document.activeElement.contentEditable !== 'true') {
+        e.preventDefault();
+        if (isSpacePressedRef.current) return; // already held, avoid repeat
+        isSpacePressedRef.current = true;
+        setIsSpacePressed(true);
+        document.body.classList.add('space-panning');
+        
+        // Clear selections so elements don't show highlight/resize handles and can't be moved
+        if (setSelectedLayerId) setSelectedLayerId(null);
+        if (setMultiSelectedIds) setMultiSelectedIds(new Set());
+        if (typeof selectedLayerIdRef !== 'undefined' && selectedLayerIdRef) selectedLayerIdRef.current = null;
+
+        // Clear all SVG hover/selection overlays manually
+        document.querySelectorAll('.selection-overlay-layer polygon').forEach(el => el.remove());
+        document.querySelectorAll('[id^="highlight-overlay-html-"]').forEach(el => { el.innerHTML = ''; });
+      }
     };
     const handleKeyUp = (e) => {
       if (e.key === 'Control') {
         isCtrlPressedRef.current = false;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.remove('ctrl-down'));
+      }
+      if (e.code === 'Space' || e.key === ' ') {
+        isSpacePressedRef.current = false;
+        isPanningRef.current = false;
+        setIsSpacePressed(false);
+        setIsPanning(false);
+        document.body.classList.remove('space-panning');
+        document.body.classList.remove('is-grabbing');
       }
     };
 
@@ -821,6 +858,10 @@ const MainEditor = ({
         const mapped = pts.map(p => p.matrixTransform(svgMatrix));
         const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
 
+        // Compute stroke sizes that counter the CSS zoom scale so they
+        // always appear the same physical pixel size on screen
+        const zs = zoomRef.current / 100; // zoom scale factor
+
         let polyId = `overlay-poly-${type}-${el.id}`;
         let polygon = overlay.querySelector(`[id="${polyId}"]`);
         if (!polygon) {
@@ -828,31 +869,42 @@ const MainEditor = ({
             polygon.id = polyId;
             polygon.setAttribute('class', `overlay-type-${type}`);
             polygon.setAttribute('fill', 'none');
-            
-            if (type === 'hover' || type === 'child-hover') {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('stroke-width', '1');
-                if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', '2,2');
-            } else if (type === 'selected' || type === 'child-selected') {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('stroke-width', type === 'selected' ? '1.5' : '1.2');
-            } else if (type === 'entered') {
-                polygon.setAttribute('stroke', '#6366F1');
-                polygon.setAttribute('stroke-width', '1');
-                polygon.setAttribute('stroke-dasharray', '4,4');
-            }
-            
-            polygon.setAttribute('pointer-events', 'none'); 
+            polygon.setAttribute('stroke', '#6366F1');
+            polygon.setAttribute('pointer-events', 'none');
             overlay.appendChild(polygon);
         }
+
+        // Always update stroke attributes so zoom changes take effect immediately
+        if (type === 'hover') {
+            polygon.setAttribute('stroke-width', (1 / zs).toFixed(3));
+            polygon.removeAttribute('stroke-dasharray');
+        } else if (type === 'child-hover') {
+            polygon.setAttribute('stroke-width', (1 / zs).toFixed(3));
+            const d = (2 / zs).toFixed(3);
+            polygon.setAttribute('stroke-dasharray', `${d},${d}`);
+        } else if (type === 'selected') {
+            polygon.setAttribute('stroke-width', (1.5 / zs).toFixed(3));
+            polygon.removeAttribute('stroke-dasharray');
+        } else if (type === 'child-selected') {
+            polygon.setAttribute('stroke-width', (1.2 / zs).toFixed(3));
+            polygon.removeAttribute('stroke-dasharray');
+        } else if (type === 'entered') {
+            polygon.setAttribute('stroke-width', (1 / zs).toFixed(3));
+            const d = (4 / zs).toFixed(3);
+            polygon.setAttribute('stroke-dasharray', `${d},${d}`);
+        }
+
         polygon.setAttribute('points', pointsStr);
+
         
         // ── RESIZE HANDLES (8 handles) ──
         // Only show handles if exactly ONE element is selected
         const selectionCount = multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0);
         if (selectionCount === 1 && (type === 'selected' || type === 'child-selected')) {
             const htmlOverlay = getHtmlOverlayForElement(el);
-            const handleSize = 9; // Slightly larger for better accessibility
+            // Counter-scale handle size so it stays the same on screen regardless of zoom
+            const zoomScale = zoomRef.current / 100;
+            const handleSize = Math.round(9 / zoomScale); // always 9px on screen
             const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
             
             // Define all 8 points in world space
@@ -900,24 +952,22 @@ const MainEditor = ({
                     if (isSide) {
                         const isHorizontal = (name === 'n' || name === 's');
                         // Calculate length of the side including current scaling/zoom
-                        // Apply a minimum length to ensure very small elements still have hoverable edges
                         const rawLength = (isHorizontal ? bbox.width : bbox.height) * scale;
-                        const length = Math.max(rawLength, 20); 
-                        const thickness = 16; // Significant increase for easier multi-platform hover (was ~11)
+                        const length = Math.max(rawLength, 20);
+                        const thickness = Math.round(16 / zoomScale); // constant screen size
                         
                         handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
                         handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
                         handle.style.left = `${p.x}px`;
                         handle.style.top = `${p.y}px`;
-                        // Side handles are centered on the edge and rotated with the element
                         handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
                     } else {
-                        // Standard corner handle positioning
+                        // Corner handle — counter-scaled to stay same screen size
                         handle.style.width = `${handleSize}px`;
                         handle.style.height = `${handleSize}px`;
                         handle.style.left = `${p.x}px`;
                         handle.style.top = `${p.y}px`;
-                        handle.style.transform = 'translate(-50%, -50%)'; // Center corner handles correctly
+                        handle.style.transform = 'translate(-50%, -50%)';
                     }
                     // Dynamically update cursor based on handle orientation relative to viewport
                     handle.style.cursor = getRotatingCursor(name, rotation);
@@ -1321,8 +1371,153 @@ const MainEditor = ({
     }
   }, [multiSelectedIds]);
 
-  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 200));
-  const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
+  const handleZoomIn = () => { setZoom(prev => Math.min(prev + 10, 200)); };
+  const handleZoomOut = () => { setZoom(prev => Math.max(prev - 10, 10)); };
+
+  useEffect(() => {
+    if (canvasWrapperRef.current && zoomableCanvasRef.current) {
+      const containerHeight = canvasWrapperRef.current.clientHeight;
+      const unscaledHeight = zoomableCanvasRef.current.offsetHeight;
+      const scaledHeight = unscaledHeight * (zoom / 100);
+      const maxPan = Math.max(0, (scaledHeight - containerHeight) / 2);
+      
+      const clampedPanY = Math.max(-maxPan, Math.min(panYRef.current, maxPan));
+      panYRef.current = clampedPanY;
+      zoomableCanvasRef.current.style.transform = `translateY(${clampedPanY}px) scale(${zoom / 100})`;
+    }
+  }, [zoom]);
+
+  // Keep zoomRef in sync so native listeners can read it without closure stale values
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+
+  // Redraw all visible selection/hover overlays when zoom changes so stroke sizes update
+  useEffect(() => {
+    // Re-draw selected element highlight
+    const selId = selectedLayerIdRef.current;
+    if (selId) {
+      const svgs = document.querySelectorAll('.page-svg-container svg');
+      svgs.forEach(svg => {
+        const el = svg.querySelector(`[id="${selId}"]`);
+        if (el) drawOverlayHighlight(el, 'selected');
+      });
+    }
+    // Re-draw multi-selected elements
+    if (multiSelectedIdsRef.current && multiSelectedIdsRef.current.size > 0) {
+      const svgs = document.querySelectorAll('.page-svg-container svg');
+      svgs.forEach(svg => {
+        multiSelectedIdsRef.current.forEach(id => {
+          const el = svg.querySelector(`[id="${id}"]`);
+          if (el) drawOverlayHighlight(el, 'child-selected');
+        });
+      });
+    }
+  }, [zoom]);
+
+  // Reset pan and zoom to defaults when navigating to a different page
+  useEffect(() => {
+    panYRef.current = 0;
+    zoomRef.current = 90;
+    setZoom(90);
+    if (zoomableCanvasRef.current) {
+      zoomableCanvasRef.current.style.transform = `translate3d(0,0px,0) scale(${90 / 100})`;
+    }
+  }, [activePageIndex]);
+
+  // ── Native DOM pan listeners — ZERO React state changes during drag ──
+  useEffect(() => {
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper) return;
+
+    const showOverlay = (grabbing) => {
+      if (panOverlayRef.current) {
+        panOverlayRef.current.style.display = 'block';
+        panOverlayRef.current.style.cursor = grabbing ? 'grabbing' : 'grab';
+      }
+    };
+    const hideOverlay = () => {
+      if (panOverlayRef.current) panOverlayRef.current.style.display = 'none';
+    };
+
+    const onMouseDown = (e) => {
+      if (!isSpacePressedRef.current || e.button !== 0) return;
+      e.preventDefault();
+      isPanningRef.current = true;
+      document.body.classList.add('is-grabbing');
+      showOverlay(true);
+      if (zoomableCanvasRef.current) {
+        zoomableCanvasRef.current.style.transition = 'none';
+      }
+    };
+
+    const onMouseMove = (e) => {
+      if (!isSpacePressedRef.current || !isPanningRef.current) return;
+      e.preventDefault();
+
+      let newPanY = panYRef.current + e.movementY;
+      let maxPan = zoomRef.current * 15;
+      if (canvasWrapperRef.current && zoomableCanvasRef.current) {
+        const containerHeight = canvasWrapperRef.current.clientHeight;
+        const unscaledHeight = zoomableCanvasRef.current.offsetHeight;
+        const scaledHeight = unscaledHeight * (zoomRef.current / 100);
+        maxPan = Math.max(0, (scaledHeight - containerHeight) / 2);
+      }
+      newPanY = Math.max(-maxPan, Math.min(newPanY, maxPan));
+      panYRef.current = newPanY;
+      // Direct DOM write — no React, no RAF, no batching delay
+      if (zoomableCanvasRef.current) {
+        zoomableCanvasRef.current.style.transform =
+          `translate3d(0,${newPanY}px,0) scale(${zoomRef.current / 100})`;
+      }
+    };
+
+    const onMouseUp = () => {
+      if (!isPanningRef.current) return;
+      isPanningRef.current = false;
+      document.body.classList.remove('is-grabbing');
+      showOverlay(false); // keep overlay up (space still held) but switch to grab cursor
+      if (zoomableCanvasRef.current) {
+        zoomableCanvasRef.current.style.transition = '';
+      }
+    };
+
+    wrapper.addEventListener('mousedown', onMouseDown, { capture: true });
+    window.addEventListener('mousemove', onMouseMove, { passive: false });
+    window.addEventListener('mouseup', onMouseUp);
+
+    return () => {
+      wrapper.removeEventListener('mousedown', onMouseDown, { capture: true });
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
+  }, []);
+
+  // Sync overlay visibility with isSpacePressed (React state) via ref
+  useEffect(() => {
+    if (panOverlayRef.current) {
+      panOverlayRef.current.style.display = isSpacePressed ? 'block' : 'none';
+      panOverlayRef.current.style.cursor = 'grab';
+    }
+  }, [isSpacePressed]);
+
+  const handlePanStart = useCallback(() => {}, []);
+  const handlePanMove = useCallback(() => {}, []);
+  const handlePanEnd = useCallback(() => {}, []);
+
+  const handleWheelZoom = useCallback((e) => {
+    // Only zoom when mouse is inside the canvas container
+    if (e.cancelable) {
+      e.preventDefault();
+    }
+
+    setIsWheeling(true);
+    clearTimeout(wheelTimeoutRef.current);
+    wheelTimeoutRef.current = setTimeout(() => setIsWheeling(false), 150);
+
+    const zoomDelta = e.deltaY > 0 ? -10 : 10;
+    
+    setZoom(prevZoom => Math.min(Math.max(prevZoom + zoomDelta, 10), 200));
+  }, []);
   
   const handleAutoFitZoom = useCallback(() => {
     if (!editorContainerRef.current) return;
@@ -2388,6 +2583,7 @@ const MainEditor = ({
   };
 
   const handleSvgMouseDown = (pageIndex, e) => {
+    if (isSpacePressed) return;
     if (e.button !== 0 || e.target.closest('.resize-handle')) return;
 
     const container = e.currentTarget;
@@ -2797,6 +2993,7 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE MOVE: hover highlight & Marquee update ─────────────────
   const handleSvgMouseMove = (pageIndex, e) => {
+    if (isSpacePressed) return;
     // ── Ctrl + Click Bending Update ──
     if (bendingStateRef.current) {
         const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
@@ -3577,6 +3774,7 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE CLICK: hierarchical frame drill-down selection ─────────────────
   const handleSvgClick = (e) => {
+      if (isSpacePressed) return;
     if (e.target.closest('.resize-handle')) return;
     
     e.stopPropagation();
@@ -4594,7 +4792,32 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
-        <div className="w-full h-full flex items-center justify-center relative overflow-hidden bg-white">
+        <div 
+          ref={canvasWrapperRef}
+          className="w-full h-full flex items-center justify-center relative overflow-hidden bg-white"
+          onWheel={handleWheelZoom}
+          onMouseDown={handlePanStart}
+          onMouseMove={handlePanMove}
+          onMouseUp={handlePanEnd}
+          onMouseLeave={handlePanEnd}
+          style={{ 
+            cursor: isSpacePressed ? (isPanning ? 'grabbing' : 'grab') : 'default',
+            userSelect: isSpacePressed ? 'none' : 'auto',
+            WebkitUserSelect: isSpacePressed ? 'none' : 'auto'
+          }}
+        >
+          {/* Invisible pan-lock overlay: controlled directly via panOverlayRef — no React re-renders */}
+          <div
+            ref={panOverlayRef}
+            style={{
+              display: 'none',
+              position: 'absolute',
+              inset: 0,
+              zIndex: 9999,
+              cursor: 'grab',
+              background: 'transparent',
+            }}
+          />
           {/* Left Navigation-Button */}
           <button 
             disabled={activePageIndex === 0}
@@ -4615,9 +4838,12 @@ const MainEditor = ({
 
           {/* Zoomable Canvas Container with Perimeter Shadow */}
           <div 
-            className={`flex items-center justify-center transition-all duration-300 origin-center gap-[0] bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]`}
+            ref={zoomableCanvasRef}
+            className={`flex items-center justify-center origin-center gap-[0] bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]`}
             style={{ 
-              transform: `scale(${zoom / 100})`,
+              transform: `translate3d(0, ${panYRef.current}px, 0) scale(${zoom / 100})`,
+              transition: (isWheeling || isPanning) ? 'none' : 'transform 0.3s ease',
+              willChange: 'transform',
             }}
           >
             {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
