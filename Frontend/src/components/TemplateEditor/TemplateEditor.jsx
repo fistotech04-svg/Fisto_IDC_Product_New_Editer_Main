@@ -18,7 +18,7 @@ import PdfProcessingLoader from '../PdfProcessingLoader';
  */
 const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
-    .filter(child => 
+    .filter(child =>
       !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
       child.getAttribute('data-name') !== 'Overlay'
     )
@@ -57,10 +57,10 @@ const TemplateEditor = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const { 
+  const {
     setSaveHandler,
     setPreviewHandler,
-    setHasUnsavedChanges, 
+    setHasUnsavedChanges,
     triggerSaveSuccess,
     isAutoSaveEnabled,
     isSaving,
@@ -84,26 +84,26 @@ const TemplateEditor = () => {
   const [currentFrameId, setCurrentFrameId] = useState(null);
   const [activeMainTool, setActiveMainTool] = useState('select');
   const [activeTopTool, setActiveTopTool] = useState('editor');
-  
+
   const [pdfProcessing, setPdfProcessing] = useState(null); // { current, total, message }
   const pdfInputRef = useRef(null);
   const pdfInsertIndexRef = useRef(null);
   const replacePdfInputRef = useRef(null);
   const replacePageIndexRef = useRef(null);
-  
+
   const autoSaveTimerRef = useRef(null);
   const isFirstLoadRef = useRef(true);
   const lastPageIndexRef = useRef(-1);
-  const historyRef = useRef([]); 
+  const historyRef = useRef([]);
   const [history, setHistory] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const MAX_HISTORY = 50;
 
   const [alertState, setAlertState] = useState({
-      isOpen: false,
-      title: '',
-      message: '',
-      type: 'error'
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'error'
   });
 
   const lastSavedHtmlsRef = useRef({});
@@ -119,106 +119,106 @@ const TemplateEditor = () => {
       const user = storedUser ? JSON.parse(storedUser) : null;
       const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
       const backendUrl = import.meta.env.VITE_BACKEND_URL;
-      
+
       const modifiedPagesIndices = [];
       pagesToSave.forEach((p, index) => {
-          const pid = p.v_id || p.id;
-          if (!lastSavedHtmlsRef.current[pid] || lastSavedHtmlsRef.current[pid] !== p.html) {
-              modifiedPagesIndices.push(index);
-          }
+        const pid = p.v_id || p.id;
+        if (!lastSavedHtmlsRef.current[pid] || lastSavedHtmlsRef.current[pid] !== p.html) {
+          modifiedPagesIndices.push(index);
+        }
       });
 
-      const CHUNK_SIZE = 1; 
+      const CHUNK_SIZE = 1;
       let currentVId = v_id;
       let lastRes = null;
 
       if (modifiedPagesIndices.length === 0) {
-         // No content changes, but maybe order/name/deletions changed. Send just the structure!
-         const payloadPages = pagesToSave.map((p, index) => ({
-             pageName: p.name || `Page ${index + 1}`,
-             content: undefined,
-             v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
-         }));
+        // No content changes, but maybe order/name/deletions changed. Send just the structure!
+        const payloadPages = pagesToSave.map((p, index) => ({
+          pageName: p.name || `Page ${index + 1}`,
+          content: undefined,
+          v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
+        }));
 
-         const payload = {
+        const payload = {
+          emailId: user?.emailId,
+          v_id: currentVId,
+          flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+          folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
+          overwrite: true,
+          pages: payloadPages
+        };
+
+        lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+        if (lastRes.data && lastRes.data.v_id) {
+          currentVId = lastRes.data.v_id;
+        }
+      } else {
+        // Chunk the modified indices
+        for (let skip = 0; skip < modifiedPagesIndices.length; skip += CHUNK_SIZE) {
+          const currentChunkIndices = new Set(modifiedPagesIndices.slice(skip, skip + CHUNK_SIZE));
+
+          const payloadPages = await Promise.all(pagesToSave.map(async (p, index) => {
+            const isModified = currentChunkIndices.has(index);
+            let content = isModified ? p.html : undefined;
+            let contentChunkId = undefined;
+
+            const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book');
+            const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
+            const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fName}/${bName}/`;
+
+            // Convert absolute paths back to relative for storage portability
+            if (content && content.includes(projectBaseUrl)) {
+              content = content.split(projectBaseUrl).join('./');
+            }
+
+            // CHUNKED UPLOAD LOGIC: If content is too large (> 2MB), upload in chunks
+            const CHUNK_THRESHOLD = 2 * 1024 * 1024; // 2MB
+            if (content && content.length > CHUNK_THRESHOLD) {
+              const uploadId = `chunked-${Math.random().toString(36).substr(2, 9)}`;
+              const CHUNK_DATA_SIZE = 1 * 1024 * 1024; // 1MB chunks
+              const totalChunks = Math.ceil(content.length / CHUNK_DATA_SIZE);
+
+              console.log(`[Save] Page ${index + 1} is large (${(content.length / 1024 / 1024).toFixed(2)} MB). Uploading in ${totalChunks} chunks...`);
+
+              for (let i = 0; i < totalChunks; i++) {
+                const chunk = content.substr(i * CHUNK_DATA_SIZE, CHUNK_DATA_SIZE);
+                await axios.post(`${backendUrl}/api/flipbook/save/chunk`, {
+                  uploadId,
+                  chunkIndex: i,
+                  totalChunks,
+                  chunkData: chunk
+                });
+              }
+              content = undefined;
+              contentChunkId = uploadId;
+            }
+
+            return {
+              pageName: p.name || `Page ${index + 1}`,
+              content,
+              contentChunkId,
+              v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
+            };
+          }));
+
+          const payload = {
             emailId: user?.emailId,
             v_id: currentVId,
             flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
             folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
             overwrite: true,
             pages: payloadPages
-         };
+          };
 
-         lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
-         if (lastRes.data && lastRes.data.v_id) {
-           currentVId = lastRes.data.v_id;
-         }
-      } else {
-         // Chunk the modified indices
-         for (let skip = 0; skip < modifiedPagesIndices.length; skip += CHUNK_SIZE) {
-            const currentChunkIndices = new Set(modifiedPagesIndices.slice(skip, skip + CHUNK_SIZE));
-            
-            const payloadPages = await Promise.all(pagesToSave.map(async (p, index) => {
-                const isModified = currentChunkIndices.has(index);
-                let content = isModified ? p.html : undefined;
-                let contentChunkId = undefined;
+          const payloadSize = JSON.stringify(payload).length;
+          console.log(`[Save] Chunk diffing: sending modified pages ${Array.from(currentChunkIndices).map(n => n + 1).join(', ')}. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
 
-                const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book');
-                const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
-                const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fName}/${bName}/`;
-
-                // Convert absolute paths back to relative for storage portability
-                if (content && content.includes(projectBaseUrl)) {
-                    content = content.split(projectBaseUrl).join('./');
-                }
-
-                // CHUNKED UPLOAD LOGIC: If content is too large (> 2MB), upload in chunks
-                const CHUNK_THRESHOLD = 2 * 1024 * 1024; // 2MB
-                if (content && content.length > CHUNK_THRESHOLD) {
-                  const uploadId = `chunked-${Math.random().toString(36).substr(2, 9)}`;
-                  const CHUNK_DATA_SIZE = 1 * 1024 * 1024; // 1MB chunks
-                  const totalChunks = Math.ceil(content.length / CHUNK_DATA_SIZE);
-                  
-                  console.log(`[Save] Page ${index + 1} is large (${(content.length / 1024 / 1024).toFixed(2)} MB). Uploading in ${totalChunks} chunks...`);
-                  
-                  for (let i = 0; i < totalChunks; i++) {
-                    const chunk = content.substr(i * CHUNK_DATA_SIZE, CHUNK_DATA_SIZE);
-                    await axios.post(`${backendUrl}/api/flipbook/save/chunk`, {
-                      uploadId,
-                      chunkIndex: i,
-                      totalChunks,
-                      chunkData: chunk
-                    });
-                  }
-                  content = undefined;
-                  contentChunkId = uploadId;
-                }
-
-                return {
-                    pageName: p.name || `Page ${index + 1}`,
-                    content, 
-                    contentChunkId,
-                    v_id: p.v_id || (typeof p.id === 'string' && p.id.length > 5 ? p.id : null)
-                };
-            }));
-
-            const payload = {
-               emailId: user?.emailId,
-               v_id: currentVId,
-               flipbookName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
-               folderName: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
-               overwrite: true,
-               pages: payloadPages
-            };
-
-            const payloadSize = JSON.stringify(payload).length;
-            console.log(`[Save] Chunk diffing: sending modified pages ${Array.from(currentChunkIndices).map(n => n + 1).join(', ')}. Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
-
-            lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
-            if (lastRes.data && lastRes.data.v_id) {
-                currentVId = lastRes.data.v_id;
-            }
-         }
+          lastRes = await axios.post(`${backendUrl}/api/flipbook/save`, payload);
+          if (lastRes.data && lastRes.data.v_id) {
+            currentVId = lastRes.data.v_id;
+          }
+        }
       }
 
       if (lastRes && lastRes.data && lastRes.data.v_id) {
@@ -244,8 +244,8 @@ const TemplateEditor = () => {
           });
         } else {
           pagesToSave.forEach(p => {
-             const pid = p.v_id || p.id;
-             lastSavedHtmlsRef.current[pid] = p.html;
+            const pid = p.v_id || p.id;
+            lastSavedHtmlsRef.current[pid] = p.html;
           });
         }
 
@@ -335,31 +335,31 @@ const TemplateEditor = () => {
         const folderName = folder || prev?.folderName || prev?.folder || location.state?.folderName || 'Recent Book';
         const bookName = prev?.flipbookName || prev?.title || location.state?.flipbookName || 'Untitled Flipbook';
         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        
+
         // Compute correct relative and absolute baseUrl
         const storedUser = localStorage.getItem('user');
         const user = storedUser ? JSON.parse(storedUser) : null;
         const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
         const fallbackBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-        
-        const relativeBaseUrl = projectBaseUrl 
-          ? projectBaseUrl.replace(backendUrl, '') 
+
+        const relativeBaseUrl = projectBaseUrl
+          ? projectBaseUrl.replace(backendUrl, '')
           : (prev?.meta?.baseUrl || prev?.baseUrl || fallbackBaseUrl);
-        
+
         const resolvedVId = v_id || prev?.v_id;
 
-        const isSame = 
-          prev?.firstPageHtml === pages[0]?.html && 
-          prev?.pages === pages && 
+        const isSame =
+          prev?.firstPageHtml === pages[0]?.html &&
+          prev?.pages === pages &&
           prev?.activePageIndex === activePageIndex &&
           prev?.folder === folderName &&
           prev?.folderName === folderName &&
           prev?.flipbookName === bookName &&
           prev?.v_id === resolvedVId &&
           prev?.meta?.baseUrl === relativeBaseUrl;
-          
+
         if (isSame) return prev;
-        
+
         return {
           ...(prev || {}),
           folder: folderName,
@@ -380,7 +380,7 @@ const TemplateEditor = () => {
       });
     }
   }, [pages, activePageIndex, v_id, setCurrentBook, location.state, projectBaseUrl, folder]);
-  
+
   // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
   // to ensure the project maintains its primary aspect ratio.
   const getFlipbookDimensions = useCallback(() => {
@@ -434,54 +434,54 @@ const TemplateEditor = () => {
     // Track spread transitions to avoid unnecessary selection resets
     const lastSpreadStart = (lastPageIndexRef.current > 0) ? (lastPageIndexRef.current % 2 === 1 ? lastPageIndexRef.current : lastPageIndexRef.current - 1) : 0;
     const currentSpreadStart = (activePageIndex > 0) ? (activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1) : 0;
-    
+
     const hasSwitchedPage = lastPageIndexRef.current !== activePageIndex;
     const hasSwitchedSpread = lastSpreadStart !== currentSpreadStart;
     lastPageIndexRef.current = activePageIndex;
 
     // A: Double Page Spread Logic (Can be on odd OR even index if it's a middle spread)
     const isSpread = isDoublePage && activePageIndex > 0 && (
-      (activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length) || 
+      (activePageIndex % 2 === 1 && activePageIndex + 1 < pages.length) ||
       (activePageIndex % 2 === 0 && activePageIndex - 1 > 0)
     );
 
 
     if (isSpread) {
-        const leftIdx = activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1;
-        const rightIdx = activePageIndex % 2 === 1 ? activePageIndex + 1 : activePageIndex;
-        
-        const page1 = pages[leftIdx];
-        const page2 = pages[rightIdx];
+      const leftIdx = activePageIndex % 2 === 1 ? activePageIndex : activePageIndex - 1;
+      const rightIdx = activePageIndex % 2 === 1 ? activePageIndex + 1 : activePageIndex;
 
-        if (page1?.layers?.[0] && page2?.layers?.[0]) {
-          const root1 = page1.layers[0].id;
-          const root2 = page2.layers[0].id;
-          // The active page root — determines which frame context is "entered"
-          const activeRoot = activePageIndex === leftIdx ? root1 : root2;
+      const page1 = pages[leftIdx];
+      const page2 = pages[rightIdx];
 
-          // On any page switch: always clear old selection and reset to roots.
-          // Set currentFrameId to the active page root so the first single click
-          // can immediately select child elements without needing to enter the frame first.
-          if (hasSwitchedPage || hasSwitchedSpread) {
+      if (page1?.layers?.[0] && page2?.layers?.[0]) {
+        const root1 = page1.layers[0].id;
+        const root2 = page2.layers[0].id;
+        // The active page root — determines which frame context is "entered"
+        const activeRoot = activePageIndex === leftIdx ? root1 : root2;
+
+        // On any page switch: always clear old selection and reset to roots.
+        // Set currentFrameId to the active page root so the first single click
+        // can immediately select child elements without needing to enter the frame first.
+        if (hasSwitchedPage || hasSwitchedSpread) {
+          setMultiSelectedIds(new Set([root1, root2]));
+          setSelectedLayerId(activeRoot);
+          setCurrentFrameId(activeRoot);
+        } else {
+          // Selection became empty — restore roots (Only if not using a tool)
+          const currentIds = multiSelectedIds || new Set();
+          if (currentIds.size === 0 && activeMainTool === 'select') {
             setMultiSelectedIds(new Set([root1, root2]));
             setSelectedLayerId(activeRoot);
             setCurrentFrameId(activeRoot);
-          } else {
-            // Selection became empty — restore roots (Only if not using a tool)
-            const currentIds = multiSelectedIds || new Set();
-            if (currentIds.size === 0 && activeMainTool === 'select') {
-              setMultiSelectedIds(new Set([root1, root2]));
-              setSelectedLayerId(activeRoot);
-              setCurrentFrameId(activeRoot);
-            }
           }
         }
+      }
     } else {
       // B: Single Page Logic (Cover, Last Page, or Standard Single View)
       const page = pages[activePageIndex];
       if (page?.layers?.[0]) {
         const rootId = page.layers[0].id;
-        
+
         // Auto-select root ONLY if we just landed here OR selection became empty (Only if not using a tool)
         const currentIds = multiSelectedIds || new Set();
         if (hasSwitchedPage || (currentIds.size === 0 && activeMainTool === 'select')) {
@@ -531,7 +531,7 @@ const TemplateEditor = () => {
     const svgEl = doc.querySelector('svg');
 
     const newLayers = svgEl ? parseLayersFromSVG(svgEl) : [];
-    
+
     setPages(prev => {
       const updated = [...prev];
       const page = updated[pageIndex];
@@ -560,7 +560,7 @@ const TemplateEditor = () => {
         }
 
         const { html, layers } = createDefaultPageData(updated[index].name);
-        
+
         // Apply existing background to new default HTML
         const newDoc = parser.parseFromString(html, 'image/svg+xml');
         const newOverlay = newDoc.querySelector('[data-name="Overlay"]');
@@ -568,10 +568,10 @@ const TemplateEditor = () => {
           newOverlay.setAttribute('fill', currentBg);
         }
 
-        updated[index] = { 
-          ...updated[index], 
-          html: new XMLSerializer().serializeToString(newDoc), 
-          layers 
+        updated[index] = {
+          ...updated[index],
+          html: new XMLSerializer().serializeToString(newDoc),
+          layers
         };
       }
       return updated;
@@ -619,7 +619,7 @@ const TemplateEditor = () => {
     setPages(prev => prev.map(p => {
       if (p.id === id) {
         const updatedPage = { ...p, name: newName };
-        
+
         // Synchronize name with the SVG's root frame data-name
         if (p.html) {
           const parser = new DOMParser();
@@ -698,7 +698,7 @@ const TemplateEditor = () => {
   const movePage = (fromIndex, toIndex, alreadySaved = false) => {
     if (fromIndex === toIndex) return;
     if (!alreadySaved) saveToHistory();
-    
+
     setPages(prev => {
       const updated = [...prev];
       const page = updated.splice(fromIndex, 1)[0];
@@ -715,158 +715,158 @@ const TemplateEditor = () => {
   };
 
   const handleReplaceFileClick = (index) => {
-      replacePageIndexRef.current = index;
-      if (replacePdfInputRef.current) replacePdfInputRef.current.click();
+    replacePageIndexRef.current = index;
+    if (replacePdfInputRef.current) replacePdfInputRef.current.click();
   };
 
   const handleReplaceFileSelect = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      
-      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-          setAlertState({
-              isOpen: true,
-              title: 'Invalid File',
-              message: 'Please select a PDF file.',
-              type: 'error'
-          });
-          return;
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setAlertState({
+        isOpen: true,
+        title: 'Invalid File',
+        message: 'Please select a PDF file.',
+        type: 'error'
+      });
+      return;
+    }
+
+    e.target.value = '';
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const emailId = user?.emailId;
+
+    if (!emailId || !v_id) return;
+
+    setPdfProcessing({ current: 0, total: 1, message: 'Processing replacement...', fileName: file.name });
+
+    try {
+      const images = await convertPdfToImages(file, 2, 1);
+      if (!images || images.length === 0) return;
+
+      const image = images[0];
+      const firstW = image.width;
+      const firstH = image.height;
+
+      let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+
+      const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
+      const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
+
+      if (!widthMatch || !heightMatch) {
+        setAlertState({
+          isOpen: true,
+          title: 'Dimension Mismatch',
+          message: `This file (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a file with matching dimensions.`,
+          type: 'error'
+        });
+        return;
       }
 
-      e.target.value = '';
+      const formData = new FormData();
+      formData.append('file', image.blob, `replaced-page-${Date.now()}.svg`);
+      formData.append('emailId', emailId);
+      formData.append('type', 'image');
+      formData.append('v_id', v_id);
+      formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
+      formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
+      formData.append('page_v_id', 'global');
 
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const emailId = user?.emailId;
-
-      if (!emailId || !v_id) return;
-
-      setPdfProcessing({ current: 0, total: 1, message: 'Processing replacement...', fileName: file.name });
-
-      try {
-          const images = await convertPdfToImages(file, 2, 1);
-          if (!images || images.length === 0) return;
-
-          const image = images[0];
-          const firstW = image.width;
-          const firstH = image.height;
-
-          let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
-
-          const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
-          const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
-          
-          if (!widthMatch || !heightMatch) {
-              setAlertState({
-                  isOpen: true,
-                  title: 'Dimension Mismatch',
-                  message: `This file (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a file with matching dimensions.`,
-                  type: 'error'
-              });
-              return;
+      const pageToReplace = pages[replacePageIndexRef.current];
+      if (pageToReplace && pageToReplace.html && pageToReplace.html.includes('data-name="PDF Background"')) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(pageToReplace.html, 'image/svg+xml');
+        const oldImg = doc.querySelector('image[data-name="PDF Background"]');
+        if (oldImg) {
+          const oldHref = oldImg.getAttribute('href') || oldImg.getAttribute('xlink:href');
+          if (oldHref) {
+            formData.append('replacing_file_url', oldHref);
           }
-
-          const formData = new FormData();
-          formData.append('file', image.blob, `replaced-page-${Date.now()}.png`);
-          formData.append('emailId', emailId);
-          formData.append('type', 'image');
-          formData.append('v_id', v_id);
-          formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
-          formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
-          formData.append('page_v_id', 'global');
-
-          const pageToReplace = pages[replacePageIndexRef.current];
-          if (pageToReplace && pageToReplace.html && pageToReplace.html.includes('data-name="PDF Background"')) {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(pageToReplace.html, 'image/svg+xml');
-              const oldImg = doc.querySelector('image[data-name="PDF Background"]');
-              if (oldImg) {
-                  const oldHref = oldImg.getAttribute('href') || oldImg.getAttribute('xlink:href');
-                  if (oldHref) {
-                      formData.append('replacing_file_url', oldHref);
-                  }
-              }
-          }
-
-          setPdfProcessing({ current: 1, total: 1, message: 'Uploading replacement asset...' });
-
-          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
-              headers: { 'Content-Type': 'multipart/form-data' }
-          });
-
-          const assetUrl = res.data.url;
-          const filename = assetUrl.split('/').pop();
-          const relativeUrl = `./assets/image/${filename}`;
-
-          const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
-          const bName = currentBook?.flipbookName || 'Untitled Flipbook';
-          const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
-          const absoluteHtmlSrc = relativeUrl.replace('./assets/', `${projectBaseUrl}assets/`);
-
-          saveToHistory();
-          let newPages = [];
-          
-          setPages(prev => {
-              const updated = [...prev];
-              const pageIndex = replacePageIndexRef.current;
-              const page = updated[pageIndex];
-              const updatedPage = { ...page };
-
-              if (updatedPage.html.includes('data-name="PDF Background"')) {
-                  const parser = new DOMParser();
-                  const doc = parser.parseFromString(updatedPage.html, 'image/svg+xml');
-                  const img = doc.querySelector('image[data-name="PDF Background"]');
-                  if (img) {
-                      img.setAttribute('href', absoluteHtmlSrc);
-                      // In some cases it might use xlink:href, update both to be safe
-                      if (img.hasAttribute('xlink:href')) img.setAttribute('xlink:href', absoluteHtmlSrc);
-                  }
-                  updatedPage.html = new XMLSerializer().serializeToString(doc.documentElement);
-                  updatedPage.layers = parseLayersFromSVG(doc.documentElement);
-              } else {
-                  const pageName = updatedPage.name || "Replaced Page";
-                  const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
-                  const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
-                  const parser = new DOMParser();
-                  const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
-                  updatedPage.html = absoluteHtml;
-                  updatedPage.layers = parseLayersFromSVG(doc.documentElement);
-              }
-              
-              updated[pageIndex] = updatedPage;
-              newPages = updated;
-              return updated;
-          });
-
-          setHasUnsavedChanges(true);
-
-          setTimeout(() => {
-              saveFlipbook(false, newPages);
-          }, 800);
-
-      } catch (error) {
-          console.error("Error replacing file:", error);
-          setAlertState({
-              isOpen: true,
-              title: 'Error',
-              message: 'Failed to replace file. Please try again.',
-              type: 'error'
-          });
-      } finally {
-          setPdfProcessing(null);
-          if (replacePdfInputRef.current) replacePdfInputRef.current.value = '';
+        }
       }
+
+      setPdfProcessing({ current: 1, total: 1, message: 'Uploading replacement asset...' });
+
+      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const assetUrl = res.data.url;
+      const filename = assetUrl.split('/').pop();
+      const relativeUrl = `./assets/image/${filename}`;
+
+      const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
+      const bName = currentBook?.flipbookName || 'Untitled Flipbook';
+      const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
+      const absoluteHtmlSrc = relativeUrl.replace('./assets/', `${projectBaseUrl}assets/`);
+
+      saveToHistory();
+      let newPages = [];
+
+      setPages(prev => {
+        const updated = [...prev];
+        const pageIndex = replacePageIndexRef.current;
+        const page = updated[pageIndex];
+        const updatedPage = { ...page };
+
+        if (updatedPage.html.includes('data-name="PDF Background"')) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(updatedPage.html, 'image/svg+xml');
+          const img = doc.querySelector('image[data-name="PDF Background"]');
+          if (img) {
+            img.setAttribute('href', absoluteHtmlSrc);
+            // In some cases it might use xlink:href, update both to be safe
+            if (img.hasAttribute('xlink:href')) img.setAttribute('xlink:href', absoluteHtmlSrc);
+          }
+          updatedPage.html = new XMLSerializer().serializeToString(doc.documentElement);
+          updatedPage.layers = parseLayersFromSVG(doc.documentElement);
+        } else {
+          const pageName = updatedPage.name || "Replaced Page";
+          const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
+          const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
+          updatedPage.html = absoluteHtml;
+          updatedPage.layers = parseLayersFromSVG(doc.documentElement);
+        }
+
+        updated[pageIndex] = updatedPage;
+        newPages = updated;
+        return updated;
+      });
+
+      setHasUnsavedChanges(true);
+
+      setTimeout(() => {
+        saveFlipbook(false, newPages);
+      }, 800);
+
+    } catch (error) {
+      console.error("Error replacing file:", error);
+      setAlertState({
+        isOpen: true,
+        title: 'Error',
+        message: 'Failed to replace file. Please try again.',
+        type: 'error'
+      });
+    } finally {
+      setPdfProcessing(null);
+      if (replacePdfInputRef.current) replacePdfInputRef.current.value = '';
+    }
   };
 
   const handlePdfFileSelect = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     // Check if it's a PDF
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        alert("Please select a PDF file.");
-        return;
+      alert("Please select a PDF file.");
+      return;
     }
 
     // Reset input
@@ -878,141 +878,141 @@ const TemplateEditor = () => {
     const emailId = user?.emailId;
 
     if (!emailId || !v_id) {
-        console.error("Missing emailId or v_id for asset upload");
-        return;
+      console.error("Missing emailId or v_id for asset upload");
+      return;
     }
 
     const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
-    const isDefaultBlank = !isPdfProject && (pages.length === 0 || 
-                         (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
+    const isDefaultBlank = !isPdfProject && (pages.length === 0 ||
+      (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
 
     setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
     try {
-        const images = await convertPdfToImages(file, 2);
-        if (!images || images.length === 0) return;
+      const images = await convertPdfToImages(file, 2);
+      if (!images || images.length === 0) return;
 
-        // 1. Check internal uniformity of the incoming PDF
-        const firstW = images[0].width;
-        const firstH = images[0].height;
-        const isInternalUniform = images.every(img => 
-            Math.abs(img.width - firstW) < 0.5 && 
-            Math.abs(img.height - firstH) < 0.5
-        );
-        
-        if (!isInternalUniform) {
-            setAlertState({
-                isOpen: true,
-                title: 'Non-Uniform PDF',
-                message: 'The selected PDF contains pages with different sizes. For a consistent flipbook, all pages in the PDF must have identical dimensions.',
-                type: 'error'
-            });
-            return;
+      // 1. Check internal uniformity of the incoming PDF
+      const firstW = images[0].width;
+      const firstH = images[0].height;
+      const isInternalUniform = images.every(img =>
+        Math.abs(img.width - firstW) < 0.5 &&
+        Math.abs(img.height - firstH) < 0.5
+      );
+
+      if (!isInternalUniform) {
+        setAlertState({
+          isOpen: true,
+          title: 'Non-Uniform PDF',
+          message: 'The selected PDF contains pages with different sizes. For a consistent flipbook, all pages in the PDF must have identical dimensions.',
+          type: 'error'
+        });
+        return;
+      }
+
+      // 2. Enforce Project Dimensions
+      let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
+
+      // If the flipbook already has PDF content or multiple pages, we lock the size
+      if (!isDefaultBlank) {
+        // Check if the new PDF matches the established project size (with 0.5mm tolerance)
+        const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
+        const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
+
+        if (!widthMatch || !heightMatch) {
+          setAlertState({
+            isOpen: true,
+            title: 'Dimension Mismatch',
+            message: `This PDF (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a PDF with matching dimensions.`,
+            type: 'error'
+          });
+          return;
         }
+      } else {
+        // Adoption phase: If we're starting from a blank project, adopt the PDF's dimensions
+        baseWidth = firstW;
+        baseHeight = firstH;
+      }
 
-        // 2. Enforce Project Dimensions
-        let { width: baseWidth, height: baseHeight } = getFlipbookDimensions();
-        
-        // If the flipbook already has PDF content or multiple pages, we lock the size
-        if (!isDefaultBlank) {
-            // Check if the new PDF matches the established project size (with 0.5mm tolerance)
-            const widthMatch = Math.abs(firstW - baseWidth) < 0.5;
-            const heightMatch = Math.abs(firstH - baseHeight) < 0.5;
+      let completed = 0;
+      const uploadPromises = images.map(async (image, i) => {
+        const formData = new FormData();
+        formData.append('file', image.blob, `pdf-page-${i + 1}.svg`);
+        formData.append('emailId', emailId);
+        formData.append('type', 'image');
+        formData.append('v_id', v_id);
+        formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
+        formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
+        formData.append('page_v_id', 'global');
 
-            if (!widthMatch || !heightMatch) {
-                setAlertState({
-                    isOpen: true,
-                    title: 'Dimension Mismatch',
-                    message: `This PDF (${firstW.toFixed(0)}x${firstH.toFixed(0)}mm) does not match the existing flipbook size (${baseWidth.toFixed(0)}x${baseHeight.toFixed(0)}mm). Please upload a PDF with matching dimensions.`,
-                    type: 'error'
-                });
-                return;
-            }
-        } else {
-            // Adoption phase: If we're starting from a blank project, adopt the PDF's dimensions
-            baseWidth = firstW;
-            baseHeight = firstH;
-        }
-
-        let completed = 0;
-        const uploadPromises = images.map(async (image, i) => {
-            const formData = new FormData();
-            formData.append('file', image.blob, `pdf-page-${i + 1}.png`);
-            formData.append('emailId', emailId);
-            formData.append('type', 'image');
-            formData.append('v_id', v_id);
-            formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
-            formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
-            formData.append('page_v_id', 'global');
-
-            const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-
-            completed++;
-            setPdfProcessing({ current: completed, total: images.length, message: `Processing page ${completed} of ${images.length}...` });
-
-            const assetUrl = res.data.url;
-            const filename = assetUrl.split('/').pop();
-            const relativeUrl = `./assets/image/${filename}`;
-            const existingNames = pages.map(p => p.name || "");
-            const pdfNums = existingNames
-                .filter(n => n.startsWith("PDF Page "))
-                .map(n => parseInt(n.replace("PDF Page ", "")))
-                .filter(n => !isNaN(n));
-            const startNum = pdfNums.length > 0 ? Math.max(...pdfNums) + 1 : 1;
-            
-            const pageName = `PDF Page ${startNum + i}`;
-            const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
-            
-            // Resolve to absolute for immediate editor preview
-            const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
-            const bName = currentBook?.flipbookName || 'Untitled Flipbook';
-            const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
-            const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
-
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
-            const layers = parseLayersFromSVG(doc.documentElement);
-
-            return {
-                id: 'page_' + Math.random().toString(36).substr(2, 9),
-                name: pageName,
-                html: absoluteHtml,
-                layers
-            };
+        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
         });
 
-        const newPages = await Promise.all(uploadPromises);
+        completed++;
+        setPdfProcessing({ current: completed, total: images.length, message: `Processing page ${completed} of ${images.length}...` });
 
-        saveToHistory();
-        let finalPages = [];
-        setPages(prev => {
-            const updated = [...prev];
-            const insertIdx = pdfInsertIndexRef.current !== null ? pdfInsertIndexRef.current + 1 : updated.length;
-            
-            // If starting from a blank page, replace it with the PDF content
-            if (isDefaultBlank && updated.length === 1) {
-                finalPages = newPages;
-                return newPages;
-            }
+        const assetUrl = res.data.url;
+        const filename = assetUrl.split('/').pop();
+        const relativeUrl = `./assets/image/${filename}`;
+        const existingNames = pages.map(p => p.name || "");
+        const pdfNums = existingNames
+          .filter(n => n.startsWith("PDF Page "))
+          .map(n => parseInt(n.replace("PDF Page ", "")))
+          .filter(n => !isNaN(n));
+        const startNum = pdfNums.length > 0 ? Math.max(...pdfNums) + 1 : 1;
 
-            updated.splice(insertIdx, 0, ...newPages);
-            finalPages = updated;
-            return updated;
-        });
-        setHasUnsavedChanges(true);
-        
-        // Force an auto-save after successful PDF insertion, passing the new pages directly
-        setTimeout(() => {
-            saveFlipbook(false, finalPages);
-        }, 800);
+        const pageName = `PDF Page ${startNum + i}`;
+        const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
+
+        // Resolve to absolute for immediate editor preview
+        const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
+        const bName = currentBook?.flipbookName || 'Untitled Flipbook';
+        const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
+        const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
+        const layers = parseLayersFromSVG(doc.documentElement);
+
+        return {
+          id: 'page_' + Math.random().toString(36).substr(2, 9),
+          name: pageName,
+          html: absoluteHtml,
+          layers
+        };
+      });
+
+      const newPages = await Promise.all(uploadPromises);
+
+      saveToHistory();
+      let finalPages = [];
+      setPages(prev => {
+        const updated = [...prev];
+        const insertIdx = pdfInsertIndexRef.current !== null ? pdfInsertIndexRef.current + 1 : updated.length;
+
+        // If starting from a blank page, replace it with the PDF content
+        if (isDefaultBlank && updated.length === 1) {
+          finalPages = newPages;
+          return newPages;
+        }
+
+        updated.splice(insertIdx, 0, ...newPages);
+        finalPages = updated;
+        return updated;
+      });
+      setHasUnsavedChanges(true);
+
+      // Force an auto-save after successful PDF insertion, passing the new pages directly
+      setTimeout(() => {
+        saveFlipbook(false, finalPages);
+      }, 800);
 
     } catch (error) {
-        console.error("PDF upload error:", error);
-        alert("Failed to process PDF. Please try again.");
+      console.error("PDF upload error:", error);
+      alert("Failed to process PDF. Please try again.");
     } finally {
-        setPdfProcessing(null);
+      setPdfProcessing(null);
     }
   };
 
@@ -1333,7 +1333,7 @@ const TemplateEditor = () => {
       };
 
       findAndInsert(newLayers);
-      
+
       if (!inserted) {
         // Fallback: Return to original spot or just append if target lost
         newLayers.push(sourceItem);
@@ -1344,7 +1344,7 @@ const TemplateEditor = () => {
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
       const sourceEl = doc.querySelector(`[id="${sourceId}"]`);
       const targetEl = doc.querySelector(`[id="${targetId}"]`);
-      
+
       if (sourceEl && targetEl && targetEl.parentNode) {
         // SVG z-index: last child is on top. 
         // To move ABOVE target in sidebar, it must be AFTER target in DOM.
@@ -1365,11 +1365,11 @@ const TemplateEditor = () => {
     const isUrl = currentValue && currentValue.startsWith('url(#');
     const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
     const stopsJson = element.getAttribute(`${baseAttr}-stops`);
-    
+
     // SKILLFUL RETURN: Only apply gradient logic if the element is currently in gradient mode.
     // If it's 'solid' or 'none', the attribute (fill/stroke) should be left as is (the actual color).
     if (type === 'solid' || type === 'none') {
-       return;
+      return;
     }
 
     // Default to solid if type missing and it's not currently an url()
@@ -1392,7 +1392,7 @@ const TemplateEditor = () => {
     }
     const gradId = `grad-${element.id}-${baseAttr}`;
     let gradEl = defs.querySelector(`[id="${gradId}"]`);
-    
+
     // Support Angular and Diamond fallbacks for SVG
     const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
 
@@ -1429,13 +1429,13 @@ const TemplateEditor = () => {
     });
 
     element.setAttribute(baseAttr, `url(#${gradId})`);
-    
+
     // If it's a group (like a vpath), child elements might have their own fill/stroke
     // which prevents inheritance. We remove them to let the gradient through.
     if (element.tagName.toLowerCase() === 'g') {
-       Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
-          child.removeAttribute(baseAttr);
-       });
+      Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
+        child.removeAttribute(baseAttr);
+      });
     }
   };
 
@@ -1565,7 +1565,7 @@ const TemplateEditor = () => {
       merge.appendChild(nodeInput);
       merge.setAttribute('result', 'drop_shadow_merged');
       filterEl.appendChild(merge);
-      
+
       currentIn = "drop_shadow_merged";
     }
 
@@ -1636,7 +1636,7 @@ const TemplateEditor = () => {
     }
 
     element.setAttribute('filter', `url(#${filterId})`);
-    
+
     // Background Blur via Backdrop Filter (CSS style)
     if (hasBackgroundBlur) {
       const bBlur = getVal('data-effect-background-blur-value', '10');
@@ -1671,92 +1671,92 @@ const TemplateEditor = () => {
       const element = doc.getElementById(elementId);
       if (element) {
         if (value === null || value === 'none' || value === '#') {
-           // For Fill/Stroke, we explicitly set 'none' to avoid SVG default black
-           if (attribute === 'fill' || attribute === 'stroke') {
-              element.setAttribute(attribute, 'none');
-           } else {
-              element.removeAttribute(attribute);
-           }
-           
-           if (attribute === 'stroke-width') element.setAttribute('stroke', 'none');
+          // For Fill/Stroke, we explicitly set 'none' to avoid SVG default black
+          if (attribute === 'fill' || attribute === 'stroke') {
+            element.setAttribute(attribute, 'none');
+          } else {
+            element.removeAttribute(attribute);
+          }
+
+          if (attribute === 'stroke-width') element.setAttribute('stroke', 'none');
         } else {
-           element.setAttribute(attribute, value);
-           if (attribute === 'stroke-width' && value !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
-             // If we're setting a stroke width, make sure there's a color
-             element.setAttribute('stroke', '#000000');
-           }
-           
-           // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
-           const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attribute);
-           if (attribute === 'data-count' || attribute === 'data-rx' || attribute === 'data-ry' || attribute === 'data-ratio' || attribute === 'data-radius' || isRectCorner) {
-              const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
-              
-              if (shapeType === 'polygon' || shapeType === 'star') {
-                 // ... (existing polygon/star logic) ...
-                 const cx = parseFloat(element.getAttribute('data-cx') || 0);
-                 const cy = parseFloat(element.getAttribute('data-cy') || 0);
-                 const rx = parseFloat(element.getAttribute('data-rx') || 0);
-                 const count = parseInt(attribute === 'data-count' ? value : (element.getAttribute('data-count') || 3));
-                 const cr = parseFloat(attribute === 'data-radius' ? value : (element.getAttribute('data-radius') || 0));
-                 
-                 const pts = [];
-                 if (shapeType === 'polygon') {
-                    for (let i = 0; i < count; i++) {
-                       const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
-                       pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
-                    }
-                 } else if (shapeType === 'star') {
-                    const ratio = parseFloat(attribute === 'data-ratio' ? value : (element.getAttribute('data-ratio') || 40)) / 100;
-                    const ri = rx * ratio;
-                    const sides = count * 2;
-                    for (let i = 0; i < sides; i++) {
-                       const r = (i % 2 === 0) ? rx : ri;
-                       const angle = (Math.PI / count) * i - Math.PI / 2;
-                       pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
-                    }
-                 }
+          element.setAttribute(attribute, value);
+          if (attribute === 'stroke-width' && value !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
+            // If we're setting a stroke width, make sure there's a color
+            element.setAttribute('stroke', '#000000');
+          }
 
-                 if (cr > 0 && pts.length > 2) {
-                    let pathData = "";
-                    const cornerPoints = pts.map((curr, i) => {
-                       const prev = pts[(i + pts.length - 1) % pts.length];
-                       const next = pts[(i + 1) % pts.length];
-                       const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
-                       const d2 = { x: next.x - curr.x, y: next.y - curr.y };
-                       const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
-                       const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
-                       const limit = Math.min(cr, l1 / 2, l2 / 2);
-                       return {
-                          q: { x: curr.x, y: curr.y },
-                          p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
-                          p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
-                       };
-                    });
-                    cornerPoints.forEach((cp, i) => {
-                       if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
-                       else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
-                       pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
-                    });
-                    pathData += " Z";
-                    element.setAttribute('d', pathData);
-                 } else {
-                    element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
-                 }
-              } 
-              else if (shapeType === 'rectangle' && (isRectCorner || attribute === 'rx')) {
-                 // Convert rect to path if individual corners are used
-                 const x = parseFloat(element.getAttribute('x') || 0);
-                 const y = parseFloat(element.getAttribute('y') || 0);
-                 const w = parseFloat(element.getAttribute('width') || 0);
-                 const h = parseFloat(element.getAttribute('height') || 0);
-                 const defR = parseFloat(element.getAttribute('rx') || 0);
-                 
-                 const tl = parseFloat(element.getAttribute('data-tl') || defR);
-                 const tr = parseFloat(element.getAttribute('data-tr') || defR);
-                 const bl = parseFloat(element.getAttribute('data-bl') || defR);
-                 const br = parseFloat(element.getAttribute('data-br') || defR);
+          // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
+          const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attribute);
+          if (attribute === 'data-count' || attribute === 'data-rx' || attribute === 'data-ry' || attribute === 'data-ratio' || attribute === 'data-radius' || isRectCorner) {
+            const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
 
-                 const d = `
+            if (shapeType === 'polygon' || shapeType === 'star') {
+              // ... (existing polygon/star logic) ...
+              const cx = parseFloat(element.getAttribute('data-cx') || 0);
+              const cy = parseFloat(element.getAttribute('data-cy') || 0);
+              const rx = parseFloat(element.getAttribute('data-rx') || 0);
+              const count = parseInt(attribute === 'data-count' ? value : (element.getAttribute('data-count') || 3));
+              const cr = parseFloat(attribute === 'data-radius' ? value : (element.getAttribute('data-radius') || 0));
+
+              const pts = [];
+              if (shapeType === 'polygon') {
+                for (let i = 0; i < count; i++) {
+                  const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
+                  pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
+                }
+              } else if (shapeType === 'star') {
+                const ratio = parseFloat(attribute === 'data-ratio' ? value : (element.getAttribute('data-ratio') || 40)) / 100;
+                const ri = rx * ratio;
+                const sides = count * 2;
+                for (let i = 0; i < sides; i++) {
+                  const r = (i % 2 === 0) ? rx : ri;
+                  const angle = (Math.PI / count) * i - Math.PI / 2;
+                  pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+                }
+              }
+
+              if (cr > 0 && pts.length > 2) {
+                let pathData = "";
+                const cornerPoints = pts.map((curr, i) => {
+                  const prev = pts[(i + pts.length - 1) % pts.length];
+                  const next = pts[(i + 1) % pts.length];
+                  const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+                  const d2 = { x: next.x - curr.x, y: next.y - curr.y };
+                  const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
+                  const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
+                  const limit = Math.min(cr, l1 / 2, l2 / 2);
+                  return {
+                    q: { x: curr.x, y: curr.y },
+                    p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
+                    p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
+                  };
+                });
+                cornerPoints.forEach((cp, i) => {
+                  if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
+                  else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
+                  pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
+                });
+                pathData += " Z";
+                element.setAttribute('d', pathData);
+              } else {
+                element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
+              }
+            }
+            else if (shapeType === 'rectangle' && (isRectCorner || attribute === 'rx')) {
+              // Convert rect to path if individual corners are used
+              const x = parseFloat(element.getAttribute('x') || 0);
+              const y = parseFloat(element.getAttribute('y') || 0);
+              const w = parseFloat(element.getAttribute('width') || 0);
+              const h = parseFloat(element.getAttribute('height') || 0);
+              const defR = parseFloat(element.getAttribute('rx') || 0);
+
+              const tl = parseFloat(element.getAttribute('data-tl') || defR);
+              const tr = parseFloat(element.getAttribute('data-tr') || defR);
+              const bl = parseFloat(element.getAttribute('data-bl') || defR);
+              const br = parseFloat(element.getAttribute('data-br') || defR);
+
+              const d = `
                     M ${x + tl},${y}
                     L ${x + w - tr},${y}
                     Q ${x + w},${y} ${x + w},${y + tr}
@@ -1769,57 +1769,57 @@ const TemplateEditor = () => {
                     Z
                  `.replace(/\s+/g, ' ').trim();
 
-                 // Crucial: keep width/height so interact.js still works, but render as path
-                 if (element.tagName === 'rect') {
-                    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    // Copy all attributes
-                    Array.from(element.attributes).forEach(attr => path.setAttribute(attr.name, attr.value));
-                    path.setAttribute('d', d);
-                    path.setAttribute('data-shape-type', 'rectangle');
-                    element.parentNode.replaceChild(path, element);
-                 } else {
-                    element.setAttribute('d', d);
-                 }
+              // Crucial: keep width/height so interact.js still works, but render as path
+              if (element.tagName === 'rect') {
+                const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+                // Copy all attributes
+                Array.from(element.attributes).forEach(attr => path.setAttribute(attr.name, attr.value));
+                path.setAttribute('d', d);
+                path.setAttribute('data-shape-type', 'rectangle');
+                element.parentNode.replaceChild(path, element);
+              } else {
+                element.setAttribute('d', d);
               }
-           }
+            }
+          }
         }
-        
+
         // --- GRADIENT SYNC ---
         const isGradientRelated = attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type');
         if (attribute.startsWith('fill') || attribute.startsWith('stroke') || isGradientRelated || attribute.includes('stroke-')) {
-           const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
-           syncGradient(doc, element, base);
+          const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
+          syncGradient(doc, element, base);
 
-           // If it's a group, remove child attributes to allow inheritance
-           if (element.tagName.toLowerCase() === 'g') {
-              const children = element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon');
-              children.forEach(child => {
-                 // Remove child-level definition to let group-level value through
-                 if (attribute === 'fill' || attribute === 'stroke' || attribute === 'stroke-width' || attribute === 'stroke-dasharray' || attribute === 'opacity') {
-                    child.removeAttribute(attribute);
-                 }
-                 // If it was a gradient related change, we might need to remove BOTH fill and stroke from child
-                 // to ensure they don't block inheritance.
-                 if (isGradientRelated) {
-                    child.removeAttribute(base);
-                 }
-              });
-           }
-           
-           // DEFAULT STROKE THICKNESS: When picking a stroke color, if no width exists, default to 1.
-            if (attribute === 'stroke' && value !== 'none' && value !== '#') {
-               const currentWidth = element.getAttribute('stroke-width');
-               if (!currentWidth || currentWidth === '0') {
-                  element.setAttribute('stroke-width', '1');
-               }
+          // If it's a group, remove child attributes to allow inheritance
+          if (element.tagName.toLowerCase() === 'g') {
+            const children = element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon');
+            children.forEach(child => {
+              // Remove child-level definition to let group-level value through
+              if (attribute === 'fill' || attribute === 'stroke' || attribute === 'stroke-width' || attribute === 'stroke-dasharray' || attribute === 'opacity') {
+                child.removeAttribute(attribute);
+              }
+              // If it was a gradient related change, we might need to remove BOTH fill and stroke from child
+              // to ensure they don't block inheritance.
+              if (isGradientRelated) {
+                child.removeAttribute(base);
+              }
+            });
+          }
+
+          // DEFAULT STROKE THICKNESS: When picking a stroke color, if no width exists, default to 1.
+          if (attribute === 'stroke' && value !== 'none' && value !== '#') {
+            const currentWidth = element.getAttribute('stroke-width');
+            if (!currentWidth || currentWidth === '0') {
+              element.setAttribute('stroke-width', '1');
             }
-            
-            // The syncGradient logic above handles the 'solid' type, so no fallback needed.
-         }
+          }
 
-         if (attribute.startsWith('data-effect-')) {
-            syncFilters(doc, element);
-         }
+          // The syncGradient logic above handles the 'solid' type, so no fallback needed.
+        }
+
+        if (attribute.startsWith('data-effect-')) {
+          syncFilters(doc, element);
+        }
         const serializer = new XMLSerializer();
         updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
       }
@@ -1833,14 +1833,14 @@ const TemplateEditor = () => {
       const updated = [...prev];
       const page = updated[pageIndex];
       if (page && page.html) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(page.html, 'image/svg+xml');
-          const overlay = doc.querySelector('[data-name="Overlay"]');
-          if (overlay) {
-              overlay.setAttribute('fill', color);
-              page.html = new XMLSerializer().serializeToString(doc);
-          }
-          updated[pageIndex] = { ...page };
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(page.html, 'image/svg+xml');
+        const overlay = doc.querySelector('[data-name="Overlay"]');
+        if (overlay) {
+          overlay.setAttribute('fill', color);
+          page.html = new XMLSerializer().serializeToString(doc);
+        }
+        updated[pageIndex] = { ...page };
       }
       return updated;
     });
@@ -1864,7 +1864,7 @@ const TemplateEditor = () => {
             const element = doc.querySelector(`[id="${layerId}"]`);
             // PROTECT THE BASE OVERLAY & ROOT FOLDER
             if (element && (element.getAttribute('data-name') === 'Overlay' || element.getAttribute('data-type') === 'frame')) {
-              continue; 
+              continue;
             }
             layersList.splice(i, 1);
             if (element) element.remove();
@@ -1905,12 +1905,12 @@ const TemplateEditor = () => {
     const findLayers = (layersList, parentId = null, alreadyCopyingAncestor = false) => {
       for (let layer of layersList) {
         const isSelected = idList.includes(layer.id);
-        
+
         if (isSelected && !alreadyCopyingAncestor) {
           const element = doc.querySelector(`[id="${layer.id}"]`);
           if (element) {
             let svgSnippet = new XMLSerializer().serializeToString(element);
-            
+
             // Extract external definitions (clipPath, grads) used by this snippet
             const defSnippets = [];
             const collectedIds = new Set();
@@ -1956,7 +1956,7 @@ const TemplateEditor = () => {
             });
           }
         }
-        
+
         if (layer.children) {
           findLayers(layer.children, layer.id, alreadyCopyingAncestor || isSelected);
         }
@@ -2005,24 +2005,24 @@ const TemplateEditor = () => {
       // Ensure <defs> exists on the target page
       let defs = doc.querySelector('defs');
       if (!defs && svgRoot) {
-         defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
-         svgRoot.insertBefore(defs, svgRoot.firstChild);
+        defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+        svgRoot.insertBefore(defs, svgRoot.firstChild);
       }
 
       newItems.forEach(({ svgSnippet, defSnippets, newLayer, originalParentId }) => {
         // Add missing defs to the current page's <defs>
         if (defSnippets && defs) {
-           defSnippets.forEach(defHtml => {
-              const defDoc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${defHtml}</svg>`, 'image/svg+xml');
-              const defEl = defDoc.querySelector('svg').firstElementChild;
-              if (defEl && defEl.id) {
-                // Check if it already exists, if not, append to defs
-                const safeId = defEl.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-                if (!doc.querySelector(`[id="${safeId}"]`)) {
-                   defs.appendChild(doc.importNode(defEl, true));
-                }
+          defSnippets.forEach(defHtml => {
+            const defDoc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${defHtml}</svg>`, 'image/svg+xml');
+            const defEl = defDoc.querySelector('svg').firstElementChild;
+            if (defEl && defEl.id) {
+              // Check if it already exists, if not, append to defs
+              const safeId = defEl.id.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+              if (!doc.querySelector(`[id="${safeId}"]`)) {
+                defs.appendChild(doc.importNode(defEl, true));
               }
-           });
+            }
+          });
         }
 
         const snippetDoc = parser.parseFromString(svgSnippet, 'image/svg+xml');
@@ -2064,7 +2064,7 @@ const TemplateEditor = () => {
             }
             return false;
           };
-          
+
           const result = insertNextTo(newLayers, true);
           if (result) {
             if (result.method === 'inside') {
@@ -2122,19 +2122,19 @@ const TemplateEditor = () => {
             }
           }
         }
-        
+
         // 4. Fallback: Always insert into the page's root frame to keep it inside the page layer
         if (!pasted) {
-           const topFrame = newLayers.find(l => l.type === 'g');
-           if (topFrame) {
-              topFrame.children = [...(topFrame.children || []), newLayer];
-              const rootEl = doc.querySelector(`[id="${topFrame.id}"]`);
-              if (rootEl) rootEl.appendChild(newElement);
-              else if (svgRoot) svgRoot.appendChild(newElement);
-           } else {
-              newLayers.push(newLayer);
-              if (svgRoot) svgRoot.appendChild(newElement);
-           }
+          const topFrame = newLayers.find(l => l.type === 'g');
+          if (topFrame) {
+            topFrame.children = [...(topFrame.children || []), newLayer];
+            const rootEl = doc.querySelector(`[id="${topFrame.id}"]`);
+            if (rootEl) rootEl.appendChild(newElement);
+            else if (svgRoot) svgRoot.appendChild(newElement);
+          } else {
+            newLayers.push(newLayer);
+            if (svgRoot) svgRoot.appendChild(newElement);
+          }
         }
       });
 
@@ -2153,8 +2153,8 @@ const TemplateEditor = () => {
   useEffect(() => {
     const handleKeyDown = (e) => {
       // Ignore if user is typing in an input, textarea or contenteditable element
-      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || 
-          document.activeElement.contentEditable === 'true') {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) ||
+        document.activeElement.contentEditable === 'true') {
         return;
       }
 
@@ -2210,11 +2210,11 @@ const TemplateEditor = () => {
     try {
       const response = await fetch(templateUrl);
       const content = await response.text();
-      
+
       const parser = new DOMParser();
       const targetIndex = templateTargetIndex !== null ? templateTargetIndex : activePageIndex;
       const currentPage = pages[targetIndex];
-      
+
       if (!currentPage) return;
 
       // 1. Parse template content
@@ -2281,11 +2281,11 @@ const TemplateEditor = () => {
       // 2. Always start with a fresh canvas when applying a template, preserving the background color
       const oldDoc = parser.parseFromString(currentPage.html || '', 'image/svg+xml');
       const currentBg = oldDoc.querySelector('[data-name="Overlay"]')?.getAttribute('fill') || '#ffffff';
-      
+
       const { html: defaultHtml } = createDefaultPageData(currentPage.name);
       const pageDoc = parser.parseFromString(defaultHtml, 'image/svg+xml');
       let pageSvg = pageDoc.querySelector('svg');
-      
+
       const newOverlay = pageSvg.querySelector('[data-name="Overlay"]');
       if (newOverlay) {
         newOverlay.setAttribute('fill', currentBg);
@@ -2293,7 +2293,7 @@ const TemplateEditor = () => {
 
       // 3. Find the Root Folder (<g>) - prioritized by data-type="frame"
       const rootFolder = pageSvg.querySelector('g[data-type="frame"]') || pageSvg.querySelector('g');
-      
+
       // 4. Calculate Scale to Fit (Target: Actual Flipbook Dimensions)
       const { width: targetW, height: targetH } = getFlipbookDimensions();
       let templateWidth = parseFloat(templateSvg.getAttribute('width'));
@@ -2301,7 +2301,7 @@ const TemplateEditor = () => {
       const viewBoxStr = templateSvg.getAttribute('viewBox');
       let viewBoxX = 0;
       let viewBoxY = 0;
-      
+
       if (viewBoxStr) {
         const parts = viewBoxStr.trim().split(/[ ,]+/).map(parseFloat);
         if (parts.length === 4) {
@@ -2322,11 +2322,11 @@ const TemplateEditor = () => {
 
       // 5. Handle Defs, Style and Resource merging
       const RESOURCE_TAGS = ['mask', 'clippath', 'lineargradient', 'radialgradient', 'pattern', 'filter', 'symbol', 'marker'];
-      
+
       // Automatically move ALL resource tags found ANYWHERE in the template into our target defs
       const allResources = templateSvg.querySelectorAll(RESOURCE_TAGS.join(','));
       let targetDefs = pageSvg.querySelector('defs');
-      
+
       if (allResources.length > 0) {
         if (!targetDefs) {
           targetDefs = pageDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
@@ -2366,20 +2366,20 @@ const TemplateEditor = () => {
       // Extract children from the template - if it has a single main container <g>, we enter it
       const getExplodedTemplateChildren = (svg) => {
         // Now identify renderable content (filtering out metadata/defs/style)
-        let infants = Array.from(svg.children).filter(child => 
+        let infants = Array.from(svg.children).filter(child =>
           !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
           !RESOURCE_TAGS.includes(child.tagName.toLowerCase())
         );
-        
+
         // If there's exactly one main group, we "explode" it to take its contents directly
         if (infants.length === 1 && infants[0].tagName.toLowerCase() === 'g') {
           const mainGroup = infants[0];
           const children = Array.from(mainGroup.children);
-          
+
           // IMPORTANT: Transfer visual inheritance (fill, stroke, masks, etc.)
           // This prevents elements from losing their masks or colors when the container is exploded.
           const attrsToInherit = [
-            'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', 
+            'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
             'opacity', 'visibility', 'filter', 'color',
             'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
           ];
@@ -2413,7 +2413,7 @@ const TemplateEditor = () => {
       // 6. Inject template content into root folder (Ungrouped & Non-Destructive)
       if (rootFolder || pageSvg) {
         const targetParent = rootFolder || pageSvg;
-        
+
         // Find the 'Overlay' layer (absolute background) to insert AFTER it
         const overlayChild = Array.from(targetParent.children).find(el => el.getAttribute('data-name') === 'Overlay');
         const nextSiblingRef = overlayChild ? overlayChild.nextSibling : targetParent.firstChild;
@@ -2423,10 +2423,10 @@ const TemplateEditor = () => {
           'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color',
           'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
         ];
-        
+
         finalTemplateElements.forEach(child => {
           const imported = pageDoc.importNode(child, true);
-          
+
           // Inherit top-level SVG attributes if not explicitly set on element
           svgAttrs.forEach(attr => {
             const val = templateSvg.getAttribute(attr);
@@ -2439,7 +2439,7 @@ const TemplateEditor = () => {
           const currentTransform = imported.getAttribute('transform') || '';
           const fittingTransform = `translate(${offsetX}, ${offsetY}) scale(${scale}) translate(${-viewBoxX}, ${-viewBoxY})`;
           imported.setAttribute('transform', `${fittingTransform} ${currentTransform}`.trim());
-          
+
           // Insert into target parent
           if (nextSiblingRef) {
             targetParent.insertBefore(imported, nextSiblingRef);
@@ -2454,7 +2454,7 @@ const TemplateEditor = () => {
 
       const parseLayersAndSetIds = (element) => {
         return Array.from(element.children)
-          .filter(child => 
+          .filter(child =>
             !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
             child.getAttribute('data-name') !== 'Overlay'
           )
@@ -2465,7 +2465,7 @@ const TemplateEditor = () => {
             const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
             // Strip the unique template prefix for cleaner display (e.g. tpl-a1b2-MyLayer -> MyLayer)
             const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
-            
+
             const layer = {
               id: id,
               name: cleanName,
@@ -2488,8 +2488,8 @@ const TemplateEditor = () => {
       setPages(prev => {
         const updated = [...prev];
         if (updated[targetIndex]) {
-          updated[targetIndex] = { 
-            ...updated[targetIndex], 
+          updated[targetIndex] = {
+            ...updated[targetIndex],
             html: updatedHtml,
             layers: updatedLayers
           };
@@ -2504,7 +2504,7 @@ const TemplateEditor = () => {
         setMultiSelectedIds(new Set([rootId]));
         setCurrentFrameId(rootId);
       }
-      
+
       setTemplateTargetIndex(null);
     } catch (error) {
       console.error('Failed to load template:', error);
@@ -2519,191 +2519,191 @@ const TemplateEditor = () => {
   useEffect(() => {
     const initializeEditor = async () => {
       setIsLoading(true);
-      
+
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      
+
       if (v_id) {
-          try {
-              const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-                  params: { emailId: user?.emailId, v_id }
-              });
-              
-              if (res.data && res.data.pages) {
-                  const parser = new DOMParser();
-                  const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
-                  const pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
-                  setProjectBaseUrl(pBaseUrl);
-
-                  const mappedPages = res.data.pages.map((p, i) => {
-                      const name = p.name || `Page ${i + 1}`;
-                      if (!p.html || p.html.trim() === '') {
-                          const { html, layers } = createDefaultPageData(name);
-                          return {
-                              id: p.v_id || i + 1,
-                              name: name,
-                              html: html,
-                              layers: layers
-                          };
-                      }
-
-                      // Transform relative paths to absolute for the editor's canvas
-                      // Also heal any 'nullassets/' or broken paths from previous sessions
-                      let updatedHtml = p.html;
-                      if (updatedHtml.includes('./assets/')) {
-                          updatedHtml = updatedHtml.split('./assets/').join(`${pBaseUrl}assets/`);
-                      } else if (updatedHtml.includes('nullassets/')) {
-                          updatedHtml = updatedHtml.split('nullassets/').join(`${pBaseUrl}assets/`);
-                      } else if (updatedHtml.includes('/assets/') && !updatedHtml.includes('://')) {
-                          // Handle cases where it might have become just /assets/
-                          updatedHtml = updatedHtml.replace(/([^"'])\/assets\//g, `$1${pBaseUrl}assets/`);
-                      }
-
-                      // Re-parse layers from HTML if missing or invalid (source of truth)
-                      const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
-                      const svgEl = doc.querySelector('svg');
-                      let layers = p.layers;
-                      if (!layers || layers.length === 0) {
-                          if (svgEl) {
-                              layers = parseLayersFromSVG(svgEl);
-                              updatedHtml = new XMLSerializer().serializeToString(doc);
-                          } else {
-                              layers = [];
-                          }
-                      }
-
-                      return {
-                          id: p.v_id || i + 1,
-                          v_id: p.v_id,
-                          name: name,
-                          html: updatedHtml,
-                          layers: layers
-                      };
-                  });
-
-                  setPages(mappedPages);
-                  
-                  // Initialize tracking reference to avoid massive resyncs of untouched pages
-                  mappedPages.forEach((p, i) => {
-                      const pid = p.v_id || p.id;
-                      lastSavedHtmlsRef.current[pid] = p.html;
-                  });
-
-                  setCurrentBook(prev => {
-                      const folderName = prev?.folderName || res.data.meta.folderName || 'My Flipbooks';
-                      const bookName = prev?.flipbookName || res.data.meta.flipbookName || 'Untitled Flipbook';
-                      return {
-                          ...(prev || {}),
-                          folder: folderName,
-                          folderName: folderName,
-                          flipbookName: bookName,
-                          v_id: v_id,
-                          share: res.data.share,
-                          meta: {
-                              baseUrl: res.data.meta.baseUrl || pBaseUrl.replace(backendUrl, ''),
-                              folderName: folderName,
-                              flipbookName: bookName,
-                              v_id: v_id
-                          }
-                      };
-                  });
-                  setHasUnsavedChanges(false);
-
-                  // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
-                  const imageUrls = [];
-                  mappedPages.forEach(p => {
-                      if (!p.html) return;
-                      const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
-                      let match;
-                      while ((match = imgRegex.exec(p.html)) !== null) {
-                          const url = match[1];
-                          if (url && !url.startsWith('data:')) imageUrls.push(url);
-                      }
-                  });
-
-                  const uniqueUrls = Array.from(new Set(imageUrls));
-                  if (uniqueUrls.length > 0) {
-                      console.log(`[Cache] Loading ${uniqueUrls.length} unique assets before initialization...`);
-                      await Promise.all(uniqueUrls.map(url => {
-                          return new Promise((resolve) => {
-                              const img = new Image();
-                              img.onload = resolve;
-                              img.onerror = resolve; // Continue even if one fails
-                              img.src = url;
-                          });
-                      }));
-                  }
-              }
-          } catch (err) {
-              console.error("Failed to fetch flipbook:", err);
-              // Redirect to 404 if flipbook not found or other fetch error
-              navigate('/not-found', { replace: true });
-          }
-      } 
-      else if (location.state && location.state.pageCount) {
-          const count = location.state.pageCount;
-          const newPages = Array.from({ length: count }, (_, i) => {
-              const name = `Page ${i + 1}`;
-              const { html, layers } = createDefaultPageData(name);
-              return {
-                  id: i + 1,
-                  name,
-                  html,
-                  layers
-              };
+        try {
+          const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
+            params: { emailId: user?.emailId, v_id }
           });
-          setPages(newPages);
-          
-          const folderName = location.state.folderName || 'Recent Book';
-          const bookName = location.state.flipbookName || 'Untitled Flipbook';
-          const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
-          const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-          
-          setCurrentBook(prev => ({
-              ...(prev || {}),
-              folder: folderName,
-              folderName: folderName,
-              flipbookName: bookName,
-              meta: {
-                  baseUrl: pBaseUrl,
+
+          if (res.data && res.data.pages) {
+            const parser = new DOMParser();
+            const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
+            const pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
+            setProjectBaseUrl(pBaseUrl);
+
+            const mappedPages = res.data.pages.map((p, i) => {
+              const name = p.name || `Page ${i + 1}`;
+              if (!p.html || p.html.trim() === '') {
+                const { html, layers } = createDefaultPageData(name);
+                return {
+                  id: p.v_id || i + 1,
+                  name: name,
+                  html: html,
+                  layers: layers
+                };
+              }
+
+              // Transform relative paths to absolute for the editor's canvas
+              // Also heal any 'nullassets/' or broken paths from previous sessions
+              let updatedHtml = p.html;
+              if (updatedHtml.includes('./assets/')) {
+                updatedHtml = updatedHtml.split('./assets/').join(`${pBaseUrl}assets/`);
+              } else if (updatedHtml.includes('nullassets/')) {
+                updatedHtml = updatedHtml.split('nullassets/').join(`${pBaseUrl}assets/`);
+              } else if (updatedHtml.includes('/assets/') && !updatedHtml.includes('://')) {
+                // Handle cases where it might have become just /assets/
+                updatedHtml = updatedHtml.replace(/([^"'])\/assets\//g, `$1${pBaseUrl}assets/`);
+              }
+
+              // Re-parse layers from HTML if missing or invalid (source of truth)
+              const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
+              const svgEl = doc.querySelector('svg');
+              let layers = p.layers;
+              if (!layers || layers.length === 0) {
+                if (svgEl) {
+                  layers = parseLayersFromSVG(svgEl);
+                  updatedHtml = new XMLSerializer().serializeToString(doc);
+                } else {
+                  layers = [];
+                }
+              }
+
+              return {
+                id: p.v_id || i + 1,
+                v_id: p.v_id,
+                name: name,
+                html: updatedHtml,
+                layers: layers
+              };
+            });
+
+            setPages(mappedPages);
+
+            // Initialize tracking reference to avoid massive resyncs of untouched pages
+            mappedPages.forEach((p, i) => {
+              const pid = p.v_id || p.id;
+              lastSavedHtmlsRef.current[pid] = p.html;
+            });
+
+            setCurrentBook(prev => {
+              const folderName = prev?.folderName || res.data.meta.folderName || 'My Flipbooks';
+              const bookName = prev?.flipbookName || res.data.meta.flipbookName || 'Untitled Flipbook';
+              return {
+                ...(prev || {}),
+                folder: folderName,
+                folderName: folderName,
+                flipbookName: bookName,
+                v_id: v_id,
+                share: res.data.share,
+                meta: {
+                  baseUrl: res.data.meta.baseUrl || pBaseUrl.replace(backendUrl, ''),
                   folderName: folderName,
                   flipbookName: bookName,
-                  v_id: prev?.v_id
+                  v_id: v_id
+                }
+              };
+            });
+            setHasUnsavedChanges(false);
+
+            // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
+            const imageUrls = [];
+            mappedPages.forEach(p => {
+              if (!p.html) return;
+              const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
+              let match;
+              while ((match = imgRegex.exec(p.html)) !== null) {
+                const url = match[1];
+                if (url && !url.startsWith('data:')) imageUrls.push(url);
               }
-          }));
+            });
+
+            const uniqueUrls = Array.from(new Set(imageUrls));
+            if (uniqueUrls.length > 0) {
+              console.log(`[Cache] Loading ${uniqueUrls.length} unique assets before initialization...`);
+              await Promise.all(uniqueUrls.map(url => {
+                return new Promise((resolve) => {
+                  const img = new Image();
+                  img.onload = resolve;
+                  img.onerror = resolve; // Continue even if one fails
+                  img.src = url;
+                });
+              }));
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch flipbook:", err);
+          // Redirect to 404 if flipbook not found or other fetch error
+          navigate('/not-found', { replace: true });
+        }
+      }
+      else if (location.state && location.state.pageCount) {
+        const count = location.state.pageCount;
+        const newPages = Array.from({ length: count }, (_, i) => {
+          const name = `Page ${i + 1}`;
+          const { html, layers } = createDefaultPageData(name);
+          return {
+            id: i + 1,
+            name,
+            html,
+            layers
+          };
+        });
+        setPages(newPages);
+
+        const folderName = location.state.folderName || 'Recent Book';
+        const bookName = location.state.flipbookName || 'Untitled Flipbook';
+        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
+        const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+
+        setCurrentBook(prev => ({
+          ...(prev || {}),
+          folder: folderName,
+          folderName: folderName,
+          flipbookName: bookName,
+          meta: {
+            baseUrl: pBaseUrl,
+            folderName: folderName,
+            flipbookName: bookName,
+            v_id: prev?.v_id
+          }
+        }));
       }
       else {
-          setPages(Array.from({ length: 12 }, (_, i) => {
-              const name = `Page ${i + 1}`;
-              const { html, layers } = createDefaultPageData(name);
-              return {
-                  id: i + 1,
-                  name,
-                  html,
-                  layers
-              };
-          }));
-          
-          const folderName = 'Recent Book';
-          const bookName = 'Untitled Flipbook';
-          const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
-          const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-          
-          setCurrentBook(prev => ({
-              ...(prev || {}),
-              folder: folderName,
-              folderName: folderName,
-              flipbookName: bookName,
-              meta: {
-                  baseUrl: pBaseUrl,
-                  folderName: folderName,
-                  flipbookName: bookName,
-                  v_id: prev?.v_id
-              }
-          }));
+        setPages(Array.from({ length: 12 }, (_, i) => {
+          const name = `Page ${i + 1}`;
+          const { html, layers } = createDefaultPageData(name);
+          return {
+            id: i + 1,
+            name,
+            html,
+            layers
+          };
+        }));
+
+        const folderName = 'Recent Book';
+        const bookName = 'Untitled Flipbook';
+        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
+        const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+
+        setCurrentBook(prev => ({
+          ...(prev || {}),
+          folder: folderName,
+          folderName: folderName,
+          flipbookName: bookName,
+          meta: {
+            baseUrl: pBaseUrl,
+            folderName: folderName,
+            flipbookName: bookName,
+            v_id: prev?.v_id
+          }
+        }));
       }
-      
+
       setIsLoading(false);
     };
 
@@ -2716,7 +2716,7 @@ const TemplateEditor = () => {
       const cachedUrls = new Set();
       pages.forEach(page => {
         if (!page.html) return;
-        
+
         // Scan for SVG <image> hrefs and standard <img> src
         const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
         let match;
@@ -2733,22 +2733,22 @@ const TemplateEditor = () => {
   }, [pages]);
 
   if (isLoading) {
-      return (
-          <div className="flex-1 flex items-center justify-center bg-white h-[92vh]">
-              <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
-          </div>
-      );
+    return (
+      <div className="flex-1 flex items-center justify-center bg-white h-[92vh]">
+        <div className="w-8 h-8 border-4 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
 
   return (
     <div className="flex h-[92vh] w-full bg-white overflow-hidden">
-      <Layer 
-        pages={pages} 
-        activePageIndex={activePageIndex} 
-        setActivePageIndex={setActivePageIndex} 
-        isDoublePage={isDoublePage} 
+      <Layer
+        pages={pages}
+        activePageIndex={activePageIndex}
+        setActivePageIndex={setActivePageIndex}
+        isDoublePage={isDoublePage}
         insertPageAfter={insertPageAfter}
         duplicatePage={duplicatePage}
         renamePage={renamePage}
@@ -2786,12 +2786,12 @@ const TemplateEditor = () => {
         onReplaceFile={handleReplaceFileClick}
       />
 
-      <MainEditor 
+      <MainEditor
         isPdfProject={isPdfProject}
-        isDoublePage={isDoublePage} 
-        pages={pages} 
-        activePageIndex={activePageIndex} 
-        setActivePageIndex={setActivePageIndex} 
+        isDoublePage={isDoublePage}
+        pages={pages}
+        activePageIndex={activePageIndex}
+        setActivePageIndex={setActivePageIndex}
         insertPageAfter={insertPageAfter}
         duplicatePage={duplicatePage}
         clearPage={clearPage}
@@ -2822,9 +2822,9 @@ const TemplateEditor = () => {
         onSave={saveFlipbook}
         flipbookDimensions={getFlipbookDimensions()}
       />
-      <RightSidebar 
-        isDoublePage={isDoublePage} 
-        setIsDoublePage={setIsDoublePage} 
+      <RightSidebar
+        isDoublePage={isDoublePage}
+        setIsDoublePage={setIsDoublePage}
         activeMainTool={activeMainTool}
         setActiveMainTool={setActiveMainTool}
         activeTopTool={activeTopTool}
@@ -2836,13 +2836,13 @@ const TemplateEditor = () => {
         onPreview={() => setShowPreview(true)}
         flipbookDimensions={getFlipbookDimensions()}
       />
-      
+
       {showTemplateModal && (
-        <TemplateModal 
-          showTemplateModal={showTemplateModal} 
-          setShowTemplateModal={setShowTemplateModal} 
-          clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)} 
-          loadTemplate={loadTemplate} 
+        <TemplateModal
+          showTemplateModal={showTemplateModal}
+          setShowTemplateModal={setShowTemplateModal}
+          clearCanvas={() => clearPage(templateTargetIndex !== null ? templateTargetIndex : activePageIndex)}
+          loadTemplate={loadTemplate}
         />
       )}
 
@@ -2860,17 +2860,17 @@ const TemplateEditor = () => {
       )}
 
       {/* Hidden File Input for PDF Upload */}
-      <input 
-        type="file" 
-        ref={pdfInputRef} 
-        style={{ display: 'none' }} 
+      <input
+        type="file"
+        ref={pdfInputRef}
+        style={{ display: 'none' }}
         accept=".pdf,application/pdf"
         onChange={handlePdfFileSelect}
       />
-      <input 
-        type="file" 
-        ref={replacePdfInputRef} 
-        style={{ display: 'none' }} 
+      <input
+        type="file"
+        ref={replacePdfInputRef}
+        style={{ display: 'none' }}
         accept=".pdf,application/pdf"
         onChange={handleReplaceFileSelect}
       />
@@ -2879,11 +2879,11 @@ const TemplateEditor = () => {
       <PdfProcessingLoader progress={pdfProcessing} />
 
       <AlertModal
-          isOpen={alertState.isOpen}
-          title={alertState.title}
-          message={alertState.message}
-          type={alertState.type}
-          onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        isOpen={alertState.isOpen}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+        onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
       />
     </div>
   );

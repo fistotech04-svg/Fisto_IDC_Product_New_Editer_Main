@@ -10,6 +10,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react(), tailwindcss()],
     optimizeDeps: {
       include: ["fabric"],
+      exclude: ["mupdf"],
     },
     define: {
       global: "window",

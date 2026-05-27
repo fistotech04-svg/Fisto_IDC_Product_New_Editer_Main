@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X, Home, Library, ArrowRight, UploadCloud, Upload, ChevronLeft, ChevronRight, ChevronDown, ArrowDownUp, Globe, Lock, Settings, CloudUpload } from 'lucide-react';
-import DashboardBg from '../assets/images/myflipbook.png';
 import { Icon } from '@iconify/react';
 
 import AlertModal from '../components/AlertModal';
@@ -286,7 +285,7 @@ export default function MyFlipbooks() {
                 });
 
                 const formData = new FormData();
-                formData.append('file', allImages[i].blob, `page-${i + 1}.png`);
+                formData.append('file', allImages[i].blob, `page-${i + 1}.svg`);
                 formData.append('emailId', emailId);
                 formData.append('type', 'image');
                 formData.append('v_id', v_id);

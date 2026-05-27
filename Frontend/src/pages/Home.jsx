@@ -34,32 +34,32 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [processingProgress, setProcessingProgress] = useState(null);
   const [alertState, setAlertState] = useState({
-      isOpen: false,
-      title: '',
-      message: '',
-      type: 'error',
-      showCancel: false,
-      onConfirm: null
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'error',
+    showCancel: false,
+    onConfirm: null
   });
 
   const showAlert = (title, message, type = 'error') => {
-      setAlertState({
-          isOpen: true,
-          title,
-          message,
-          type,
-          showCancel: false,
-          onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
-      });
+    setAlertState({
+      isOpen: true,
+      title,
+      message,
+      type,
+      showCancel: false,
+      onConfirm: () => setAlertState(prev => ({ ...prev, isOpen: false }))
+    });
   };
   const containerRef = useRef(null);
   const editorsContainerRef = useRef(null);
   const [scrollContainer, setScrollContainer] = useState(null);
 
   useEffect(() => {
-      if (editorsContainerRef.current) {
-          setScrollContainer(editorsContainerRef.current.parentElement);
-      }
+    if (editorsContainerRef.current) {
+      setScrollContainer(editorsContainerRef.current.parentElement);
+    }
   }, []);
 
   const { scrollYProgress: editorsScrollProgress } = useScroll({
@@ -70,11 +70,11 @@ export default function Home() {
 
   // react-pageflip Logic
   const bookRef = useRef(null);
-  const isInView = useInView(containerRef, { 
+  const isInView = useInView(containerRef, {
     margin: "-10% 0px 0px 0px",
-    amount: 0.9 
+    amount: 0.9
   });
-  
+
   const [page, setPage] = useState(0);
 
   const onPage = useCallback((e) => {
@@ -88,13 +88,13 @@ export default function Home() {
       const delta = e.deltaY;
       const flipbook = bookRef.current.pageFlip();
       const state = flipbook.getState();
-      
+
       // If we're flipping, ALWAYS block the scroll to keep the section pinned
       if (state === 'flipping') {
         e.preventDefault();
         return;
       }
-      
+
       if (delta > 0) {
         // Scroll Down - Lock until page index 4 (last spread)
         if (page < 4) {
@@ -131,126 +131,126 @@ export default function Home() {
     if (!files || files.length === 0) return;
     setIsCreateModalOpen(false);
     setIsLoading(true);
-    
+
     try {
-        const MAX_TOTAL_PAGES = 12;
-        let allImages = [];
+      const MAX_TOTAL_PAGES = 12;
+      let allImages = [];
 
-        // 1. Extract images from all PDFs until we hit 12 pages
-        for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
-            const file = files[fileIndex];
-            if (allImages.length >= MAX_TOTAL_PAGES) break;
+      // 1. Extract images from all PDFs until we hit 12 pages
+      for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
+        const file = files[fileIndex];
+        if (allImages.length >= MAX_TOTAL_PAGES) break;
 
-            const remainingPages = MAX_TOTAL_PAGES - allImages.length;
-            setProcessingProgress({ 
-                current: 0, 
-                total: 1, 
-                message: `Extracting pages from ${file.name}...` 
-            });
-            
-            const images = await convertPdfToImages(file, 2, remainingPages);
-            allImages = [...allImages, ...images];
-        }
-
-        if (allImages.length > 0) {
-            const firstW = allImages[0].width;
-            const firstH = allImages[0].height;
-            const isUniform = allImages.every(img => 
-                Math.abs(img.width - firstW) < 1 && 
-                Math.abs(img.height - firstH) < 1
-            );
-            
-            if (!isUniform) {
-                showAlert("Uniformity Error", "Selected PDF pages have different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.");
-                return;
-            }
-            
-            var maxWidth = firstW;
-            var maxHeight = firstH;
-        } else {
-            showAlert("Error", "No pages could be extracted from the selected files.");
-            return;
-        }
-
-        // 2. Create the unified flipbook record
-        const now = new Date();
-        const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const uniqueName = `PDF_Flipbook_${timeString}`;
-        const targetFolder = 'My Flipbooks';
-
-        setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
-
-        // Create empty pages structure first
-        const initialPages = allImages.map((_, i) => ({
-            pageName: `Page ${i + 1}`,
-            content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxWidth} ${maxHeight}" width="100%" height="100%"></svg>`
-        }));
-
-        const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
-            emailId,
-            flipbookName: uniqueName,
-            pages: initialPages,
-            overwrite: true,
-            folderName: targetFolder
+        const remainingPages = MAX_TOTAL_PAGES - allImages.length;
+        setProcessingProgress({
+          current: 0,
+          total: 1,
+          message: `Extracting pages from ${file.name}...`
         });
 
-        const v_id = createRes.data.v_id;
+        const images = await convertPdfToImages(file, 2, remainingPages);
+        allImages = [...allImages, ...images];
+      }
 
-        // 3. Upload all aggregated pages as assets
-        const uploadedAssets = [];
-        for (let i = 0; i < allImages.length; i++) {
-            setProcessingProgress({ 
-                current: i + 1, 
-                total: allImages.length, 
-                message: `Uploading page ${i + 1} of ${allImages.length}...` 
-            });
-            
-            const formData = new FormData();
-            formData.append('file', allImages[i].blob, `page-${i + 1}.png`);
-            formData.append('emailId', emailId);
-            formData.append('type', 'image');
-            formData.append('v_id', v_id);
-            formData.append('folderName', targetFolder);
-            formData.append('flipbookName', uniqueName);
-            formData.append('page_v_id', 'global');
+      if (allImages.length > 0) {
+        const firstW = allImages[0].width;
+        const firstH = allImages[0].height;
+        const isUniform = allImages.every(img =>
+          Math.abs(img.width - firstW) < 1 &&
+          Math.abs(img.height - firstH) < 1
+        );
 
-            const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            uploadedAssets.push(uploadRes.data.url);
+        if (!isUniform) {
+          showAlert("Uniformity Error", "Selected PDF pages have different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.");
+          return;
         }
 
-        // 4. Update the flipbook with final SVG content
-        const finalPages = allImages.map((img, i) => {
-            const assetUrl = uploadedAssets[i];
-            const filename = assetUrl.split('/').pop();
-            const relativeUrl = `./assets/image/${filename}`;
-            const html = generatePdfPageSvg(relativeUrl, `Page ${i + 1}`, maxWidth, maxHeight);
+        var maxWidth = firstW;
+        var maxHeight = firstH;
+      } else {
+        showAlert("Error", "No pages could be extracted from the selected files.");
+        return;
+      }
 
-            return {
-                pageName: `Page ${i + 1}`,
-                content: html
-            };
+      // 2. Create the unified flipbook record
+      const now = new Date();
+      const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+      const uniqueName = `PDF_Flipbook_${timeString}`;
+      const targetFolder = 'My Flipbooks';
+
+      setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
+
+      // Create empty pages structure first
+      const initialPages = allImages.map((_, i) => ({
+        pageName: `Page ${i + 1}`,
+        content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxWidth} ${maxHeight}" width="100%" height="100%"></svg>`
+      }));
+
+      const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
+        emailId,
+        flipbookName: uniqueName,
+        pages: initialPages,
+        overwrite: true,
+        folderName: targetFolder
+      });
+
+      const v_id = createRes.data.v_id;
+
+      // 3. Upload all aggregated pages as assets
+      const uploadedAssets = [];
+      for (let i = 0; i < allImages.length; i++) {
+        setProcessingProgress({
+          current: i + 1,
+          total: allImages.length,
+          message: `Uploading page ${i + 1} of ${allImages.length}...`
         });
 
-        await axios.post(`${backendUrl}/api/flipbook/save`, {
-            emailId,
-            v_id,
-            flipbookName: uniqueName,
-            pages: finalPages,
-            overwrite: true,
-            folderName: targetFolder
-        });
+        const formData = new FormData();
+        formData.append('file', allImages[i].blob, `page-${i + 1}.svg`);
+        formData.append('emailId', emailId);
+        formData.append('type', 'image');
+        formData.append('v_id', v_id);
+        formData.append('folderName', targetFolder);
+        formData.append('flipbookName', uniqueName);
+        formData.append('page_v_id', 'global');
 
-        // 5. Navigate to editor
-        navigate(`/editor/${encodeURIComponent(targetFolder)}/${v_id}`);
+        const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        uploadedAssets.push(uploadRes.data.url);
+      }
+
+      // 4. Update the flipbook with final SVG content
+      const finalPages = allImages.map((img, i) => {
+        const assetUrl = uploadedAssets[i];
+        const filename = assetUrl.split('/').pop();
+        const relativeUrl = `./assets/image/${filename}`;
+        const html = generatePdfPageSvg(relativeUrl, `Page ${i + 1}`, maxWidth, maxHeight);
+
+        return {
+          pageName: `Page ${i + 1}`,
+          content: html
+        };
+      });
+
+      await axios.post(`${backendUrl}/api/flipbook/save`, {
+        emailId,
+        v_id,
+        flipbookName: uniqueName,
+        pages: finalPages,
+        overwrite: true,
+        folderName: targetFolder
+      });
+
+      // 5. Navigate to editor
+      navigate(`/editor/${encodeURIComponent(targetFolder)}/${v_id}`);
 
     } catch (error) {
-        console.error("PDF conversion error:", error);
-        showAlert("Error", "Failed to process PDF. Please try again.");
+      console.error("PDF conversion error:", error);
+      showAlert("Error", "Failed to process PDF. Please try again.");
     } finally {
-        setIsLoading(false);
-        setProcessingProgress(null);
+      setIsLoading(false);
+      setProcessingProgress(null);
     }
   };
 
@@ -259,41 +259,41 @@ export default function Home() {
     if (!templateData) return;
 
     if (!emailId) {
-        navigate('/editor', { state: templateData });
-        return;
+      navigate('/editor', { state: templateData });
+      return;
     }
 
     setIsLoading(true);
     try {
-        const pageCount = templateData.pageCount || 12;
-        const pages = Array.from({ length: pageCount }, (_, i) => ({
-             pageName: `Page ${i + 1}`,
-             content: '' 
-        }));
+      const pageCount = templateData.pageCount || 12;
+      const pages = Array.from({ length: pageCount }, (_, i) => ({
+        pageName: `Page ${i + 1}`,
+        content: ''
+      }));
 
-        const now = new Date();
-        const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
-        const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
-        const targetFolder = 'My Flipbooks';
+      const now = new Date();
+      const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
+      const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
+      const targetFolder = 'My Flipbooks';
 
-        const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
-            emailId,
-            flipbookName: uniqueName,
-            pages: pages,
-            overwrite: true,
-            folderName: targetFolder
-        });
+      const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
+        emailId,
+        flipbookName: uniqueName,
+        pages: pages,
+        overwrite: true,
+        folderName: targetFolder
+      });
 
-        if (res.data && res.data.v_id) {
-            navigate(`/editor/${encodeURIComponent(targetFolder)}/${res.data.v_id}`, { state: templateData });
-        } else {
-            navigate('/editor', { state: templateData });
-        }
-    } catch (e) {
-        console.error("Creation failed", e);
+      if (res.data && res.data.v_id) {
+        navigate(`/editor/${encodeURIComponent(targetFolder)}/${res.data.v_id}`, { state: templateData });
+      } else {
         navigate('/editor', { state: templateData });
+      }
+    } catch (e) {
+      console.error("Creation failed", e);
+      navigate('/editor', { state: templateData });
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -301,7 +301,7 @@ export default function Home() {
     <div className="bg-white text-[#1a1a1a] font-sans">
       {/* Hero Section Container */}
       <div className="snap-start w-[100%] h-[92vh] mx-auto px-[3vw] relative flex flex-col pt-[5vh]">
-        
+
         {/* Main Content Area */}
         <div className="flex items-start justify-between gap-[5vw] w-full">
           {/* Left Content */}
@@ -316,15 +316,15 @@ export default function Home() {
             </p>
 
             <div className="flex items-center gap-[1.5vw] pt-[0.5vw]">
-              <button 
+              <button
                 onClick={() => navigate('/my-flipbooks')}
                 className="flex items-center cursor-pointer gap-[0.5vw] px-[2vw] py-[0.8vw] bg-white text-gray-900 border border-gray-100 rounded-[0.5vw] font-semibold shadow-md hover:shadow-lg transition-all duration-300 active:scale-95 text-[0.9vw]"
               >
                 <Icon icon="material-symbols:book-ribbon" className="text-[1.3vw]" />
                 My Flipbooks
               </button>
-              
-              <button 
+
+              <button
                 className="flex items-center cursor-pointer gap-[0.5vw] px-[2vw] py-[0.8vw] bg-black text-white rounded-[0.5vw] font-semibold shadow-[0_0.5vw_2vw_-0.5vw_rgba(0,0,0,0.3)] hover:bg-gray-800 transition-all duration-300 active:scale-95 text-[0.9vw]"
               >
                 <Icon icon="basil:video-outline" className="text-[1.3vw]" />
@@ -335,13 +335,13 @@ export default function Home() {
 
           {/* Right Content - Shelf Image */}
           <div className="relative flex justify-end animate-in fade-in zoom-in-95 duration-1000 delay-200 w-[60%] pt-[8vh]">
-               <div className="relative w-full">
-                  <img 
-                      src={shelfImg} 
-                      alt="Content Shelf" 
-                      className="w-full h-auto drop-shadow-[0_5vw_6vw_rgba(0,0,0,0.2)]"
-                  />
-               </div>
+            <div className="relative w-full">
+              <img
+                src={shelfImg}
+                alt="Content Shelf"
+                className="w-full h-auto drop-shadow-[0_5vw_6vw_rgba(0,0,0,0.2)]"
+              />
+            </div>
           </div>
         </div>
 
@@ -353,196 +353,196 @@ export default function Home() {
         </div>
       </div>
 
-    {/* Book Section */}
-      <div 
+      {/* Book Section */}
+      <div
         ref={containerRef}
         className="snap-start w-full h-[92vh] overflow-hidden bg-gradient-to-b from-[#FFFFFF] 75% to-[#55909C] 25% relative flex flex-col pt-[10vh]"
       >
-            <div className="px-[3vw] relative z-20">
-                <h2 className="text-[3.5vw] font-[600] text-gray-900 tracking-tight leading-tight transition-opacity duration-300">
-                    {page < 2 ? "Why Creators Choose Us ?" : page < 4 ? "What You Get ?" : "How it works ?"}
-                </h2>
-            </div>
+        <div className="px-[3vw] relative z-20">
+          <h2 className="text-[3.5vw] font-[600] text-gray-900 tracking-tight leading-tight transition-opacity duration-300">
+            {page < 2 ? "Why Creators Choose Us ?" : page < 4 ? "What You Get ?" : "How it works ?"}
+          </h2>
+        </div>
 
-            {/* Environment - Book sandwiched between Tree Layers */}
-            <div className="absolute bottom-0 left-0 w-full h-full pointer-events-none flex items-end">
-                <img src={Layer5} alt="Layer 5" className="absolute -bottom-[5vw] left-0 w-full h-auto" style={{ zIndex: 1 }} />
-                
-                {/* Custom Digital Book - Sandwiched */}
-                <div className="absolute top-[45%] left-[70%] -translate-x-1/2 -translate-y-1/2 w-[46.65vw] h-[33vw] pointer-events-auto" style={{ zIndex: 2 }}>
-                    <HTMLFlipBook 
-                        width={1000} 
-                        height={1414} 
-                        size="stretch"
-                        minWidth={200}
-                        maxWidth={2000}
-                        minHeight={300}
-                        maxHeight={3000}
-                        maxShadowOpacity={0.5}
-                        showCover={false}
-                        mobileScrollSupport={true}
-                        clickEventForward={false}
-                        useMouseEvents={false}
-                        onFlip={onPage}
-                        flippingTime={1000}
-                        swipeDistance={30}
-                        ref={bookRef}
-                    >
-                        {/* Page 1 */}
-                        <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
-                        {/* Page 2 */}
-                        <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
-                        {/* Page 3 */}
-                        <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
-                        {/* Page 4 */}
-                        <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
-                        {/* Page 5 */}
-                        <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
-                        {/* Page 6 */}
-                        <div className="bg-white relative overflow-hidden">
-                             <img src={page6} alt="" className="w-full h-full object-cover" />
-                        </div>
-                    </HTMLFlipBook>
-                </div>
+        {/* Environment - Book sandwiched between Tree Layers */}
+        <div className="absolute bottom-0 left-0 w-full h-full pointer-events-none flex items-end">
+          <img src={Layer5} alt="Layer 5" className="absolute -bottom-[5vw] left-0 w-full h-auto" style={{ zIndex: 1 }} />
 
-                {/* Middle to Foreground Layers - static for now, can be linked to progress */}
-                <img src={Layer4} alt="Layer 4" className="absolute -bottom-[10vw] left-0 w-full h-auto" style={{ zIndex: 3 }} />
-                <img src={Layer3} alt="Layer 3" className="absolute -bottom-[10vw] left-0 w-full h-auto" style={{ zIndex: 4 }} />
-                <img src={Layer2} alt="Layer 2" className="absolute -bottom-[10vw] left-0 w-full h-auto" style={{ zIndex: 5 }} />
-                <img src={Layer1} alt="Layer 1" className="absolute -bottom-[5vw] left-0 w-full h-auto" style={{ zIndex: 6 }} />
-            </div>
+          {/* Custom Digital Book - Sandwiched */}
+          <div className="absolute top-[45%] left-[70%] -translate-x-1/2 -translate-y-1/2 w-[46.65vw] h-[33vw] pointer-events-auto" style={{ zIndex: 2 }}>
+            <HTMLFlipBook
+              width={1000}
+              height={1414}
+              size="stretch"
+              minWidth={200}
+              maxWidth={2000}
+              minHeight={300}
+              maxHeight={3000}
+              maxShadowOpacity={0.5}
+              showCover={false}
+              mobileScrollSupport={true}
+              clickEventForward={false}
+              useMouseEvents={false}
+              onFlip={onPage}
+              flippingTime={1000}
+              swipeDistance={30}
+              ref={bookRef}
+            >
+              {/* Page 1 */}
+              <div className="bg-white"><img src={page1} alt="" className="w-full h-full object-cover" /></div>
+              {/* Page 2 */}
+              <div className="bg-white"><img src={page2} alt="" className="w-full h-full object-cover" /></div>
+              {/* Page 3 */}
+              <div className="bg-white"><img src={page3} alt="" className="w-full h-full object-cover" /></div>
+              {/* Page 4 */}
+              <div className="bg-white"><img src={page4} alt="" className="w-full h-full object-cover" /></div>
+              {/* Page 5 */}
+              <div className="bg-white"><img src={page5} alt="" className="w-full h-full object-cover" /></div>
+              {/* Page 6 */}
+              <div className="bg-white relative overflow-hidden">
+                <img src={page6} alt="" className="w-full h-full object-cover" />
+              </div>
+            </HTMLFlipBook>
+          </div>
+
+          {/* Middle to Foreground Layers - static for now, can be linked to progress */}
+          <img src={Layer4} alt="Layer 4" className="absolute -bottom-[10vw] left-0 w-full h-auto" style={{ zIndex: 3 }} />
+          <img src={Layer3} alt="Layer 3" className="absolute -bottom-[10vw] left-0 w-full h-auto" style={{ zIndex: 4 }} />
+          <img src={Layer2} alt="Layer 2" className="absolute -bottom-[10vw] left-0 w-full h-auto" style={{ zIndex: 5 }} />
+          <img src={Layer1} alt="Layer 1" className="absolute -bottom-[5vw] left-0 w-full h-auto" style={{ zIndex: 6 }} />
+        </div>
       </div>
- 
+
       {/* Editors Showcase Section - 400vh Scrollytelling */}
-      <div 
+      <div
         ref={editorsContainerRef}
         className="snap-start w-full h-[400vh] bg-black relative"
       >
         <div className="sticky top-0 w-full h-screen overflow-hidden flex flex-col justify-center px-[5vw]">
-            {/* Background Abstract Glows */}
-            <div className="absolute top-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
-            <div className="absolute bottom-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+          {/* Background Abstract Glows */}
+          <div className="absolute top-[-20%] right-[-10%] w-[50vw] h-[50vw] bg-purple-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+          <div className="absolute bottom-[-20%] left-[-10%] w-[50vw] h-[50vw] bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-            {/* Stage 1: Headline (Fades out as cards spread) */}
-            <motion.div 
-                style={{ 
-                    opacity: useTransform(editorsScrollProgress, [0, 0.2, 0.4], [1, 1, 0]),
-                    x: useTransform(editorsScrollProgress, [0, 0.4], [0, -50])
-                }}
-                className="absolute left-[3vw] top-[15%] z-30 max-w-[70vw] space-y-[1.5vw]"
-            >
-                <h2 className="text-[3vw] font-bold text-white leading-tight">
-                    Create Your Flipbook With 3 Powerful Editor
-                </h2>
-                <p className="text-[1.1vw] text-slate-400 font-light">
-                    Choose how you want to design, edit, and experience your content.
-                </p>
-            </motion.div>
+          {/* Stage 1: Headline (Fades out as cards spread) */}
+          <motion.div
+            style={{
+              opacity: useTransform(editorsScrollProgress, [0, 0.2, 0.4], [1, 1, 0]),
+              x: useTransform(editorsScrollProgress, [0, 0.4], [0, -50])
+            }}
+            className="absolute left-[3vw] top-[15%] z-30 max-w-[70vw] space-y-[1.5vw]"
+          >
+            <h2 className="text-[3vw] font-bold text-white leading-tight">
+              Create Your Flipbook With 3 Powerful Editor
+            </h2>
+            <p className="text-[1.1vw] text-slate-400 font-light">
+              Choose how you want to design, edit, and experience your content.
+            </p>
+          </motion.div>
 
-            {/* The Interactive Folder & Cards Container */}
-            <div className="relative w-full h-full flex items-center justify-center">
-                
-                {/* Stage 2 & 3: The Spread Cards (Visible during spread phase) */}
-                <div className="absolute inset-0 flex items-center justify-center gap-[4vw] z-40">
-                    {[
-                        { 
-                            id: 1, 
-                            title: "Visual Editor", 
-                            color: "bg-purple-600", 
-                            desc: "Design your flipbook with simple and flexible tools. Customize layouts, colors, and backgrounds.",
-                            icon: "hugeicons:view-main" 
-                        },
-                        { 
-                            id: 2, 
-                            title: "Page Editor", 
-                            color: "bg-blue-600", 
-                            desc: "Edit and organize each page with ease. Add text, images, and arrange your content for a smooth flow.",
-                            icon: "hugeicons:page-edit" 
-                        },
-                        { 
-                            id: 3, 
-                            title: "3D Editor", 
-                            color: "bg-amber-600", 
-                            desc: "Make your flipbook more interactive with realistic visuals. Add depth and smooth effects.",
-                            icon: "hugeicons:3d-view" 
-                        }
-                    ].map((card, i) => {
-                        // Stagger the cards one-by-one
-                        const staggerStart = 0.35 + (i * 0.15);
-                        const staggerMove = 0.4 + (i * 0.15);
-                        
-                        return (
-                            <motion.div 
-                                key={card.id}
-                                style={{
-                                    opacity: useTransform(editorsScrollProgress, [staggerStart, staggerStart + 0.1], [0, 1]),
-                                    y: useTransform(editorsScrollProgress, [staggerStart, staggerMove + 0.15], [100, 0]),
-                                    scale: useTransform(editorsScrollProgress, [staggerStart, staggerMove + 0.15], [0.8, 1]),
-                                }}
-                                className="flex flex-col items-start w-[25vw] space-y-[2vw]"
-                            >
-                                <div className="space-y-[1vw]">
-                                    <div className="flex items-center gap-[1vw]">
-                                        <div className="w-[2.5vw] h-[2.5vw] rounded-full border border-white/20 flex items-center justify-center text-white text-[1vw] font-bold">
-                                            {card.id}
-                                        </div>
-                                        <h3 className="text-[2vw] font-bold text-white">{card.title}</h3>
-                                    </div>
-                                    <p className="text-[0.95vw] text-slate-400 leading-relaxed font-light">
-                                        {card.desc}
-                                    </p>
-                                </div>
-                                <div className={`w-full aspect-[4/5] ${card.color} rounded-[1.5vw] shadow-2xl overflow-hidden relative group border border-white/10`}>
-                                    <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-50"></div>
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                         <Icon icon={card.icon} className="text-white/20 w-[10vw] h-[10vw] group-hover:scale-110 transition-transform duration-700" />
-                                    </div>
-                                    <div className="absolute bottom-0 left-0 w-full p-[2vw] bg-black/40 backdrop-blur-md">
-                                        <span className="text-white font-bold text-[1.2vw]">{card.title}</span>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        );
-                    })}
-                </div>
+          {/* The Interactive Folder & Cards Container */}
+          <div className="relative w-full h-full flex items-center justify-center">
 
-                {/* The Folder (Stage 1 & 2 only) */}
-                <motion.div 
+            {/* Stage 2 & 3: The Spread Cards (Visible during spread phase) */}
+            <div className="absolute inset-0 flex items-center justify-center gap-[4vw] z-40">
+              {[
+                {
+                  id: 1,
+                  title: "Visual Editor",
+                  color: "bg-purple-600",
+                  desc: "Design your flipbook with simple and flexible tools. Customize layouts, colors, and backgrounds.",
+                  icon: "hugeicons:view-main"
+                },
+                {
+                  id: 2,
+                  title: "Page Editor",
+                  color: "bg-blue-600",
+                  desc: "Edit and organize each page with ease. Add text, images, and arrange your content for a smooth flow.",
+                  icon: "hugeicons:page-edit"
+                },
+                {
+                  id: 3,
+                  title: "3D Editor",
+                  color: "bg-amber-600",
+                  desc: "Make your flipbook more interactive with realistic visuals. Add depth and smooth effects.",
+                  icon: "hugeicons:3d-view"
+                }
+              ].map((card, i) => {
+                // Stagger the cards one-by-one
+                const staggerStart = 0.35 + (i * 0.15);
+                const staggerMove = 0.4 + (i * 0.15);
+
+                return (
+                  <motion.div
+                    key={card.id}
                     style={{
-                        scale: useTransform(editorsScrollProgress, [0, 0.3], [1, 1.2]),
-                        opacity: useTransform(editorsScrollProgress, [0.5, 0.6], [1, 0]),
-                        x: useTransform(editorsScrollProgress, [0, 0.4], ["25vw", "10vw"]),
-                        y: useTransform(editorsScrollProgress, [0, 0.4], ["5vw", "8vw"]),
+                      opacity: useTransform(editorsScrollProgress, [staggerStart, staggerStart + 0.1], [0, 1]),
+                      y: useTransform(editorsScrollProgress, [staggerStart, staggerMove + 0.15], [100, 0]),
+                      scale: useTransform(editorsScrollProgress, [staggerStart, staggerMove + 0.15], [0.8, 1]),
                     }}
-                    className="relative w-[26vw] h-[18vw] perspective-3000"
-                >
-                    {/* Interior Cards Peeking Out */}
-                    <div className="absolute top-[-4vw] left-1/2 -translate-x-1/2 flex gap-[-1.5vw] pointer-events-none">
-                         <motion.div style={{ y: useTransform(editorsScrollProgress, [0.1, 0.4], [0, -40]), rotate: -10 }} className="w-[9vw] h-[12vw] bg-purple-500 rounded-lg shadow-xl border border-white/20"></motion.div>
-                         <motion.div style={{ y: useTransform(editorsScrollProgress, [0.15, 0.45], [0, -60]), rotate: 0 }} className="w-[9vw] h-[12vw] bg-blue-500 rounded-lg shadow-xl border border-white/20 -ml-[3vw]"></motion.div>
-                         <motion.div style={{ y: useTransform(editorsScrollProgress, [0.2, 0.5], [0, -50]), rotate: 10 }} className="w-[9vw] h-[12vw] bg-amber-500 rounded-lg shadow-xl border border-white/20 -ml-[3vw]"></motion.div>
+                    className="flex flex-col items-start w-[25vw] space-y-[2vw]"
+                  >
+                    <div className="space-y-[1vw]">
+                      <div className="flex items-center gap-[1vw]">
+                        <div className="w-[2.5vw] h-[2.5vw] rounded-full border border-white/20 flex items-center justify-center text-white text-[1vw] font-bold">
+                          {card.id}
+                        </div>
+                        <h3 className="text-[2vw] font-bold text-white">{card.title}</h3>
+                      </div>
+                      <p className="text-[0.95vw] text-slate-400 leading-relaxed font-light">
+                        {card.desc}
+                      </p>
                     </div>
-
-                    {/* Folder Back */}
-                    <div className="absolute inset-0 bg-slate-800/40 backdrop-blur-xl rounded-[1.5vw] border border-white/10 shadow-2xl"></div>
-                    
-                    {/* Folder Front (The Door) */}
-                    <motion.div 
-                        style={{ 
-                            transformOrigin: "bottom center",
-                            rotateX: useTransform(editorsScrollProgress, [0.1, 0.4], [0, -110]) 
-                        }}
-                        className="absolute inset-0 bg-slate-700/30 backdrop-blur-2xl rounded-[1.5vw] border-t border-white/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] flex items-center justify-center preserve-3d"
-                    >
-                         <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full w-[10vw] h-[2.5vw] bg-slate-700/30 backdrop-blur-2xl rounded-t-[0.8vw] border-x border-t border-white/20"></div>
-                         <h3 className="text-[4vw] font-bold text-white/40 tracking-widest uppercase">Editors</h3>
-                    </motion.div>
-                </motion.div>
+                    <div className={`w-full aspect-[4/5] ${card.color} rounded-[1.5vw] shadow-2xl overflow-hidden relative group border border-white/10`}>
+                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-50"></div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Icon icon={card.icon} className="text-white/20 w-[10vw] h-[10vw] group-hover:scale-110 transition-transform duration-700" />
+                      </div>
+                      <div className="absolute bottom-0 left-0 w-full p-[2vw] bg-black/40 backdrop-blur-md">
+                        <span className="text-white font-bold text-[1.2vw]">{card.title}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
+
+            {/* The Folder (Stage 1 & 2 only) */}
+            <motion.div
+              style={{
+                scale: useTransform(editorsScrollProgress, [0, 0.3], [1, 1.2]),
+                opacity: useTransform(editorsScrollProgress, [0.5, 0.6], [1, 0]),
+                x: useTransform(editorsScrollProgress, [0, 0.4], ["25vw", "10vw"]),
+                y: useTransform(editorsScrollProgress, [0, 0.4], ["5vw", "8vw"]),
+              }}
+              className="relative w-[26vw] h-[18vw] perspective-3000"
+            >
+              {/* Interior Cards Peeking Out */}
+              <div className="absolute top-[-4vw] left-1/2 -translate-x-1/2 flex gap-[-1.5vw] pointer-events-none">
+                <motion.div style={{ y: useTransform(editorsScrollProgress, [0.1, 0.4], [0, -40]), rotate: -10 }} className="w-[9vw] h-[12vw] bg-purple-500 rounded-lg shadow-xl border border-white/20"></motion.div>
+                <motion.div style={{ y: useTransform(editorsScrollProgress, [0.15, 0.45], [0, -60]), rotate: 0 }} className="w-[9vw] h-[12vw] bg-blue-500 rounded-lg shadow-xl border border-white/20 -ml-[3vw]"></motion.div>
+                <motion.div style={{ y: useTransform(editorsScrollProgress, [0.2, 0.5], [0, -50]), rotate: 10 }} className="w-[9vw] h-[12vw] bg-amber-500 rounded-lg shadow-xl border border-white/20 -ml-[3vw]"></motion.div>
+              </div>
+
+              {/* Folder Back */}
+              <div className="absolute inset-0 bg-slate-800/40 backdrop-blur-xl rounded-[1.5vw] border border-white/10 shadow-2xl"></div>
+
+              {/* Folder Front (The Door) */}
+              <motion.div
+                style={{
+                  transformOrigin: "bottom center",
+                  rotateX: useTransform(editorsScrollProgress, [0.1, 0.4], [0, -110])
+                }}
+                className="absolute inset-0 bg-slate-700/30 backdrop-blur-2xl rounded-[1.5vw] border-t border-white/30 shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] flex items-center justify-center preserve-3d"
+              >
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full w-[10vw] h-[2.5vw] bg-slate-700/30 backdrop-blur-2xl rounded-t-[0.8vw] border-x border-t border-white/20"></div>
+                <h3 className="text-[4vw] font-bold text-white/40 tracking-widest uppercase">Editors</h3>
+              </motion.div>
+            </motion.div>
+          </div>
         </div>
       </div>
 
-      <CreateFlipbookModal 
+      <CreateFlipbookModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onUpload={handleUploadPDF}
@@ -565,35 +565,35 @@ export default function Home() {
       {/* Loading Overlay */}
       {isLoading && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-             <div className="flex flex-col items-center gap-[1vw] max-w-[20vw] w-full text-center">
-                 <div className="w-[3.5vw] h-[3.5vw] border-[0.3vw] border-white/30 border-t-white rounded-full animate-spin mb-[0.5vw]"></div>
-                 
-                 <div className="w-full">
-                    <p className="text-white font-bold text-[1.15vw] mb-[0.5vw] drop-shadow-sm">
-                        {processingProgress?.message || 'Processing...'}
-                    </p>
-                    
-                    {processingProgress && processingProgress.total > 1 && (
-                        <div className="w-full h-[0.4vw] bg-white/20 rounded-full overflow-hidden">
-                            <div 
-                                className="h-full bg-white transition-all duration-300 ease-out"
-                                style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
-                            ></div>
-                        </div>
-                    )}
-                    
-                    {processingProgress && processingProgress.total > 1 && (
-                        <p className="text-white/70 text-[0.75vw] mt-[0.4vw] font-medium">
-                            {processingProgress.current} of {processingProgress.total} pages
-                        </p>
-                    )}
-                 </div>
-             </div>
+          <div className="flex flex-col items-center gap-[1vw] max-w-[20vw] w-full text-center">
+            <div className="w-[3.5vw] h-[3.5vw] border-[0.3vw] border-white/30 border-t-white rounded-full animate-spin mb-[0.5vw]"></div>
+
+            <div className="w-full">
+              <p className="text-white font-bold text-[1.15vw] mb-[0.5vw] drop-shadow-sm">
+                {processingProgress?.message || 'Processing...'}
+              </p>
+
+              {processingProgress && processingProgress.total > 1 && (
+                <div className="w-full h-[0.4vw] bg-white/20 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-white transition-all duration-300 ease-out"
+                    style={{ width: `${(processingProgress.current / processingProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              )}
+
+              {processingProgress && processingProgress.total > 1 && (
+                <p className="text-white/70 text-[0.75vw] mt-[0.4vw] font-medium">
+                  {processingProgress.current} of {processingProgress.total} pages
+                </p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
       {/* Generic Alert Modal */}
-      <AlertModal 
+      <AlertModal
         isOpen={alertState.isOpen}
         onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
         type={alertState.type}

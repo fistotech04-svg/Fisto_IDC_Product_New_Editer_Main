@@ -1383,7 +1383,7 @@ const MainEditor = ({
       
       const clampedPanY = Math.max(-maxPan, Math.min(panYRef.current, maxPan));
       panYRef.current = clampedPanY;
-      zoomableCanvasRef.current.style.transform = `translateY(${clampedPanY}px) scale(${zoom / 100})`;
+      zoomableCanvasRef.current.style.transform = `translate3d(0, ${clampedPanY}px, 0) scale(${zoom / 100})`;
     }
   }, [zoom]);
 
@@ -1413,13 +1413,11 @@ const MainEditor = ({
     }
   }, [zoom]);
 
-  // Reset pan and zoom to defaults when navigating to a different page
+  // Reset pan to default when navigating to a different page, but retain zoom
   useEffect(() => {
     panYRef.current = 0;
-    zoomRef.current = 90;
-    setZoom(90);
     if (zoomableCanvasRef.current) {
-      zoomableCanvasRef.current.style.transform = `translate3d(0,0px,0) scale(${90 / 100})`;
+      zoomableCanvasRef.current.style.transform = `translate3d(0,0px,0) scale(${zoomRef.current / 100})`;
     }
   }, [activePageIndex]);
 
@@ -1574,10 +1572,19 @@ const MainEditor = ({
     }
   };
 
-  // ── Auto-Fit Zoom on Page/Spread Change ──────────────────────────────────
+  const prevLayoutModeRef = useRef(null);
+  // ── Auto-Fit Zoom on Project Load or Layout Change ───────────────────────
   useEffect(() => {
-    if (isPdfProject) {
+    if (!isPdfProject || pages.length === 0) return;
+    
+    const spreadStartIndex = (isDoublePage && activePageIndex > 0) 
+      ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+      : activePageIndex;
+    const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+    
+    if (prevLayoutModeRef.current !== isCurrentlySpread) {
         handleAutoFitZoom();
+        prevLayoutModeRef.current = isCurrentlySpread;
     }
   }, [activePageIndex, isDoublePage, pages.length, isPdfProject, handleAutoFitZoom]);
 

@@ -7,6 +7,10 @@ import { nanoid } from "nanoid";
 import multer from "multer";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 const router = express.Router();
 // ... (rest of top) ...
@@ -2159,6 +2163,83 @@ const upload = multer({
   limits: {
     fileSize: 20 * 1024 * 1024, // 20MB limit
   },
+});
+
+router.post("/convert-pdf-to-svg", upload.single("pdf"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    // Temporary output directory for SVG files
+    const outDir = path.join(__dirname, "../../uploads/temp_svg_" + Date.now());
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir, { recursive: true });
+    }
+
+    // Output pattern for pdf2svg
+    const outPattern = path.join(outDir, "page-%d.svg");
+
+    try {
+      let commandFailed = false;
+      try {
+        // Attempt 1: Execute pdf2svg command if it exists in system PATH
+        await execAsync(`pdf2svg "${file.path}" "${outPattern}" all`);
+      } catch (err1) {
+        console.warn("pdf2svg failed or not found, attempting local pdftocairo fallback...", err1.message);
+        commandFailed = true;
+      }
+
+      if (commandFailed) {
+        // Attempt 2: Fallback to local pdftocairo (Poppler Windows binary)
+        const pdftocairoPath = path.join(__dirname, "../../poppler/poppler-24.08.0/Library/bin/pdftocairo.exe");
+        const outPrefix = path.join(outDir, "page");
+        
+        // pdftocairo syntax: pdftocairo -svg input.pdf output_prefix
+        // Generates: output_prefix-1.svg, output_prefix-2.svg, etc.
+        await execAsync(`"${pdftocairoPath}" -svg "${file.path}" "${outPrefix}"`);
+      }
+
+      // Read all generated SVG files
+      const files = fs.readdirSync(outDir).filter(f => f.endsWith(".svg"));
+      
+      // Sort files by page number: page-1.svg, page-2.svg, etc.
+      files.sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, ''));
+        const numB = parseInt(b.replace(/\D/g, ''));
+        return numA - numB;
+      });
+
+      const svgs = [];
+      for (const svgFile of files) {
+        const svgPath = path.join(outDir, svgFile);
+        const svgContent = fs.readFileSync(svgPath, "utf-8");
+        svgs.push({ content: svgContent });
+      }
+
+      // Cleanup temp directory and original uploaded PDF
+      fs.rmSync(outDir, { recursive: true, force: true });
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+
+      res.status(200).json({ svgs });
+
+    } catch (err) {
+      console.error("Error running pdf2svg / pdftocairo:", err);
+      // Cleanup on error
+      if (fs.existsSync(outDir)) fs.rmSync(outDir, { recursive: true, force: true });
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      
+      res.status(500).json({ 
+        message: "Failed to convert PDF using native tools. Please ensure pdf2svg is installed in PATH, or the local pdftocairo binary has finished downloading.", 
+        error: err.message 
+      });
+    }
+
+  } catch (error) {
+    console.error("PDF to SVG conversion error:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
 });
 
 router.post("/upload-asset", upload.single("file"), async (req, res) => {
