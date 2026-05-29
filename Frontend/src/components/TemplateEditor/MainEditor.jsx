@@ -42,6 +42,8 @@ const svgGlobalStyles = `
 
   .page-svg-container svg * {
     cursor: default;
+  }
+  .page-svg-container svg *:not(image) {
     vector-effect: non-scaling-stroke !important;
   }
 
@@ -1383,7 +1385,7 @@ const MainEditor = ({
       
       const clampedPanY = Math.max(-maxPan, Math.min(panYRef.current, maxPan));
       panYRef.current = clampedPanY;
-      zoomableCanvasRef.current.style.transform = `translate3d(0, ${clampedPanY}px, 0) scale(${zoom / 100})`;
+      zoomableCanvasRef.current.style.transform = `translate(0, ${clampedPanY}px) scale(${zoom / 100})`;
     }
   }, [zoom]);
 
@@ -1417,7 +1419,7 @@ const MainEditor = ({
   useEffect(() => {
     panYRef.current = 0;
     if (zoomableCanvasRef.current) {
-      zoomableCanvasRef.current.style.transform = `translate3d(0,0px,0) scale(${zoomRef.current / 100})`;
+      zoomableCanvasRef.current.style.transform = `translate(0,0px) scale(${zoomRef.current / 100})`;
     }
   }, [activePageIndex]);
 
@@ -1464,7 +1466,7 @@ const MainEditor = ({
       // Direct DOM write — no React, no RAF, no batching delay
       if (zoomableCanvasRef.current) {
         zoomableCanvasRef.current.style.transform =
-          `translate3d(0,${newPanY}px,0) scale(${zoomRef.current / 100})`;
+          `translate(0,${newPanY}px) scale(${zoomRef.current / 100})`;
       }
     };
 

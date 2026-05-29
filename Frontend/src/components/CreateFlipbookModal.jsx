@@ -5,7 +5,7 @@ import { useModernToast } from './ModernToast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPdfPageCount } from '../utils/pdfUtils';
 
-const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [] }) => {
+const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [], initialFiles = null }) => {
   const [view, setView] = useState(initialView);
 
   // Template View State
@@ -43,6 +43,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   };
   const fileInputRef = React.useRef(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isDragActive, setIsDragActive] = useState(false);
   
   // Drag and drop state for reordering files
   const dragItem = React.useRef(null);
@@ -149,8 +150,6 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     }
   }, [uploadedFiles]);
 
-  if (!isOpen) return null;
-
   const handleFileChange = (event) => {
     const files = Array.from(event.target.files);
     const MAX_TOTAL_SIZE = 20 * 1024 * 1024; // 20MB Total
@@ -191,8 +190,18 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     }
 
     // Clear input so same file can be selected again
-    event.target.value = '';
+    if (event.target && event.target.value !== undefined) {
+      event.target.value = '';
+    }
   };
+
+  React.useEffect(() => {
+    if (isOpen && initialFiles && initialFiles.length > 0) {
+      handleFileChange({ target: { files: initialFiles } });
+    }
+  }, [isOpen, initialFiles]);
+
+  if (!isOpen) return null;
 
   const handleRemoveFile = (id) => {
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
@@ -212,6 +221,31 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleDragEnterBox = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(true);
+  };
+  const handleDragLeaveBox = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+  };
+  const handleDragOverBox = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragActive) setIsDragActive(true);
+  };
+  const handleDropBox = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const eMock = { target: { files: e.dataTransfer.files, value: '' } };
+      handleFileChange(eMock);
+    }
   };
 
 
@@ -238,8 +272,12 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
       {/* Drag & Drop Box */}
       <div
-        className="w-full border-[0.15vw] border-dashed border-[#4c5add] rounded-[0.75vw] flex flex-col items-center justify-center py-[1.25vw] mb-[1vw] cursor-pointer hover:bg-blue-50/50 transition-colors"
+        className={`w-full border-[0.15vw] border-dashed rounded-[0.75vw] flex flex-col items-center justify-center py-[1.25vw] mb-[1vw] cursor-pointer transition-colors ${isDragActive ? 'border-green-500 bg-green-50/50 scale-[1.02]' : 'border-[#4c5add] hover:bg-blue-50/50'}`}
         onClick={handleUploadClick}
+        onDragEnter={handleDragEnterBox}
+        onDragLeave={handleDragLeaveBox}
+        onDragOver={handleDragOverBox}
+        onDrop={handleDropBox}
       >
         <input
           type="file"

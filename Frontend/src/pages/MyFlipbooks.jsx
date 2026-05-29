@@ -145,6 +145,20 @@ export default function MyFlipbooks() {
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [createModalInitialView, setCreateModalInitialView] = useState('selection');
     const [selectedTemplateIdForModal, setSelectedTemplateIdForModal] = useState('corporate');
+    const [initialDroppedFiles, setInitialDroppedFiles] = useState(null);
+
+    const handleUploadBoxDragOver = (e) => {
+        e.preventDefault();
+    };
+
+    const handleUploadBoxDrop = (e) => {
+        e.preventDefault();
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            setInitialDroppedFiles(Array.from(e.dataTransfer.files));
+            setCreateModalInitialView('upload');
+            setIsCreateModalOpen(true);
+        }
+    };
 
     // Inline Folder Creation State
     const [isCreatingFolder, setIsCreatingFolder] = useState(false);
@@ -1195,6 +1209,8 @@ export default function MyFlipbooks() {
                     <div
                         className="w-[30%] bg-white rounded-[0.75vw] border-[0.15vw] border-dashed border-[#4c5add] flex flex-col items-center justify-center py-[0.75vw] cursor-pointer hover:bg-blue-50/50 transition-colors shadow-sm min-h-[5.5vw]"
                         onClick={() => { setCreateModalInitialView('upload'); setIsCreateModalOpen(true); }}
+                        onDragOver={handleUploadBoxDragOver}
+                        onDrop={handleUploadBoxDrop}
                     >
 
                         <CloudUpload size="2vw" className="text-gray-500 mb-[0.25vw]" strokeWidth={1.5} />
@@ -1820,12 +1836,13 @@ export default function MyFlipbooks() {
             {/* Create Flipbook Modal */}
             <CreateFlipbookModal
                 isOpen={isCreateModalOpen}
-                onClose={() => setIsCreateModalOpen(false)}
+                onClose={() => { setIsCreateModalOpen(false); setInitialDroppedFiles(null); }}
                 onUpload={handleUploadPDF}
                 onTemplate={handleUseTemplate}
                 initialView={createModalInitialView}
                 initialTemplateId={selectedTemplateIdForModal}
                 existingFlipbooks={books.map(b => b.realName || b.title)}
+                initialFiles={initialDroppedFiles}
             />
 
             {/* PDF Processing Overlay */}
