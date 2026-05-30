@@ -183,6 +183,21 @@ const CurveIcon = ({ width, height, className }) => (
   </svg>
 );
 
+const processSvgHtmlForRender = (html) => {
+  if (!html) return html;
+  // Apply the scaling trick dynamically to fix blurry PDFs on zoom
+  if (html.includes('data-name="PDF Scale Wrapper"')) return html;
+  
+  return html.replace(
+      /(<image[^>]*data-name="PDF Background"[^>]*width=")([\d.]+)"\s+height="([\d.]+)"([^>]*>)/i,
+      (match, p1, widthStr, heightStr, p4) => {
+          const w = parseFloat(widthStr) * 5;
+          const h = parseFloat(heightStr) * 5;
+          return `<g transform="scale(0.2)" data-name="PDF Scale Wrapper">${p1}${w}" height="${h}"${p4}</g>`;
+      }
+  );
+};
+
 
 const MainEditor = ({ 
   isPdfProject,
@@ -227,6 +242,7 @@ const MainEditor = ({
   const [zoom, setZoom] = useState(90);
   const [isSpacePressed, setIsSpacePressed] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const panXRef = useRef(0);
   const panYRef = useRef(0);
   const isSpacePressedRef = useRef(false);
   const isPanningRef = useRef(false);
@@ -1381,11 +1397,18 @@ const MainEditor = ({
       const containerHeight = canvasWrapperRef.current.clientHeight;
       const unscaledHeight = zoomableCanvasRef.current.offsetHeight;
       const scaledHeight = unscaledHeight * (zoom / 100);
-      const maxPan = Math.max(0, (scaledHeight - containerHeight) / 2);
+      const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2);
       
-      const clampedPanY = Math.max(-maxPan, Math.min(panYRef.current, maxPan));
+      const containerWidth = canvasWrapperRef.current.clientWidth;
+      const unscaledWidth = zoomableCanvasRef.current.offsetWidth;
+      const scaledWidth = unscaledWidth * (zoom / 100);
+      const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2);
+      
+      const clampedPanY = Math.max(-maxPanY, Math.min(panYRef.current, maxPanY));
+      const clampedPanX = Math.max(-maxPanX, Math.min(panXRef.current, maxPanX));
       panYRef.current = clampedPanY;
-      zoomableCanvasRef.current.style.transform = `translate(0, ${clampedPanY}px) scale(${zoom / 100})`;
+      panXRef.current = clampedPanX;
+      zoomableCanvasRef.current.style.transform = `translate(${clampedPanX}px, ${clampedPanY}px) scale(${zoom / 100})`;
     }
   }, [zoom]);
 
@@ -1417,9 +1440,10 @@ const MainEditor = ({
 
   // Reset pan to default when navigating to a different page, but retain zoom
   useEffect(() => {
+    panXRef.current = 0;
     panYRef.current = 0;
     if (zoomableCanvasRef.current) {
-      zoomableCanvasRef.current.style.transform = `translate(0,0px) scale(${zoomRef.current / 100})`;
+      zoomableCanvasRef.current.style.transform = `translate(0px, 0px) scale(${zoomRef.current / 100})`;
     }
   }, [activePageIndex]);
 
@@ -1453,20 +1477,29 @@ const MainEditor = ({
       if (!isSpacePressedRef.current || !isPanningRef.current) return;
       e.preventDefault();
 
+      let newPanX = panXRef.current + e.movementX;
       let newPanY = panYRef.current + e.movementY;
-      let maxPan = zoomRef.current * 15;
+      let maxPanY = zoomRef.current * 15;
+      let maxPanX = zoomRef.current * 15;
       if (canvasWrapperRef.current && zoomableCanvasRef.current) {
         const containerHeight = canvasWrapperRef.current.clientHeight;
         const unscaledHeight = zoomableCanvasRef.current.offsetHeight;
         const scaledHeight = unscaledHeight * (zoomRef.current / 100);
-        maxPan = Math.max(0, (scaledHeight - containerHeight) / 2);
+        maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2);
+        
+        const containerWidth = canvasWrapperRef.current.clientWidth;
+        const unscaledWidth = zoomableCanvasRef.current.offsetWidth;
+        const scaledWidth = unscaledWidth * (zoomRef.current / 100);
+        maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2);
       }
-      newPanY = Math.max(-maxPan, Math.min(newPanY, maxPan));
+      newPanX = Math.max(-maxPanX, Math.min(newPanX, maxPanX));
+      newPanY = Math.max(-maxPanY, Math.min(newPanY, maxPanY));
+      panXRef.current = newPanX;
       panYRef.current = newPanY;
       // Direct DOM write — no React, no RAF, no batching delay
       if (zoomableCanvasRef.current) {
         zoomableCanvasRef.current.style.transform =
-          `translate(0,${newPanY}px) scale(${zoomRef.current / 100})`;
+          `translate(${newPanX}px, ${newPanY}px) scale(${zoomRef.current / 100})`;
       }
     };
 
@@ -4850,7 +4883,7 @@ const MainEditor = ({
             ref={zoomableCanvasRef}
             className={`flex items-center justify-center origin-center gap-[0] bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]`}
             style={{ 
-              transform: `translate3d(0, ${panYRef.current}px, 0) scale(${zoom / 100})`,
+              transform: `translate3d(${panXRef.current}px, ${panYRef.current}px, 0) scale(${zoom / 100})`,
               transition: (isWheeling || isPanning) ? 'none' : 'transform 0.3s ease',
               willChange: 'transform',
             }}
@@ -4961,7 +4994,7 @@ const MainEditor = ({
                         >
                          <div 
                            className="w-full h-full flex items-center justify-center"
-                           dangerouslySetInnerHTML={{ __html: pages[displayIndex]?.html }}
+                           dangerouslySetInnerHTML={{ __html: typeof processSvgHtmlForRender !== 'undefined' ? processSvgHtmlForRender(pages[displayIndex]?.html) : pages[displayIndex]?.html }}
                            onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
                            onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
                            onMouseLeave={handleSvgMouseLeave}
@@ -5137,7 +5170,7 @@ const MainEditor = ({
                         >
                            <div
                              className="w-full h-full flex items-center justify-center"
-                             dangerouslySetInnerHTML={{ __html: page.html }}
+                             dangerouslySetInnerHTML={{ __html: typeof processSvgHtmlForRender !== 'undefined' ? processSvgHtmlForRender(page.html) : page.html }}
                              onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
                              onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
                              onMouseLeave={handleSvgMouseLeave}

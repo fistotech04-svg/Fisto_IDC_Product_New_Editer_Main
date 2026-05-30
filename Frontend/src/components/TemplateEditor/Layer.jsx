@@ -481,6 +481,24 @@ const Layer = ({
     }
   }, [pages, activePageIndex]);
 
+  // Auto-scroll to the active page preview in the center
+  useEffect(() => {
+    if (pages && pages.length > 0 && isVisible) {
+      const page = pages[activePageIndex];
+      if (page) {
+        // Small timeout to ensure DOM is updated and visible
+        const timer = setTimeout(() => {
+          const elementId = activeTab === 'layers' ? `page-card-${page.id}` : `page-card-preview-${page.id}`;
+          const element = document.getElementById(elementId);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [activePageIndex, activeTab, pages, isVisible]);
+
   // Force activeTab to 'pages' if it's a PDF project and user somehow switches (though UI is hidden)
   useEffect(() => {
     if (isPdfProject && activeTab !== 'pages') {
