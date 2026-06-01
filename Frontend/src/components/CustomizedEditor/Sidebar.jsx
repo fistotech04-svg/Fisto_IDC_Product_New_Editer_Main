@@ -10,6 +10,38 @@ import LeadForm from './LeadForm';
 import Visibility from './Visibility';
 import Statistic from './Statistic';
 
+const AttachedCurve = ({ position }) => {
+  const isTop = position.includes('top');
+  const isLeft = position.includes('left');
+  
+  const containerStyle = {
+    position: 'absolute',
+    width: '1vw',
+    height: '1.5vw',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    zIndex: 1998,
+    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
+    ...(isLeft ? { left: '0' } : { right: '0' }),
+  };
+
+  const circleStyle = {
+    position: 'absolute',
+    width: '1.5vw',
+    height: '1.6vw',
+    borderRadius: '60%',
+    boxShadow: '0 0 0 2vw black',
+    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
+    ...(isLeft ? { right: '-0.8vw' } : { left: '-0.8vw' }),
+  };
+
+  return (
+    <div style={containerStyle}>
+      <div style={circleStyle} />
+    </div>
+  );
+};
+
 const SubNavItem = ({ label, icon, isActive, onClick }) => (
   <button
     onClick={onClick}
@@ -175,30 +207,33 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
   return (
     <div
       ref={sidebarRef}
-      className="w-[16.25vw] h-full bg-white border-r border-gray-100 flex flex-col relative z-30 overflow-visible"
+      className="w-[16.25vw] h-full bg-white border-r border-gray-100 flex flex-col relative z-30 overflow-visible select-none"
     >
 
       {/* Draggable Tab Handle and Full-height Line — only visible when sub-panel is collapsed */}
       {activeSubView && activeTab && isPanelCollapsed && (
         <div className="absolute left-full top-0 w-[3.5vw] h-full pointer-events-none z-50">
           {/* The full-height vertical black line (0.25vw wide) */}
-          <div className="absolute left-[-1px] top-0 w-[0.25vw] h-full bg-black pointer-events-auto  shadow-[0.1vw_0_0.5vw_rgba(0,0,0,0.1)]" />
+          <div className="absolute left-[-1px] top-0 w-[0.25vw] h-full bg-black pointer-events-auto select-none shadow-[0.1vw_0_0.5vw_rgba(0,0,0,0.1)]" />
 
           {/* The Draggable icon itself - repositioned to overlap with the line */}
           <div
             onMouseDown={handleMouseDown}
-            className={`absolute flex items-stretch rounded-r-[0.8vw] cursor-pointer shadow-[0.2vw_0_1vw_rgba(0,0,0,0.2)] pointer-events-auto group ${isDragging ? 'cursor-grabbing scale-100' : 'cursor-grab'
+            className={`absolute flex items-stretch rounded-r-[0.8vw] cursor-pointer shadow-[0.2vw_0_1vw_rgba(0,0,0,0.2)] pointer-events-auto select-none group ${isDragging ? 'cursor-grabbing scale-100' : 'cursor-grab'
               }`}
             style={{
               top: `${tabTop}px`,
+              left: '-1px',
               transition: isDragging ? 'none' : 'top 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), transform 0.1s ease'
             }}
           >
+            <AttachedCurve position="top-left" />
+            <AttachedCurve position="bottom-left" />
             {/* Internal overflow-hidden container for icons/background */}
-            <div className="flex items-stretch rounded-r-[0.8vw] overflow-hidden min-h-[3.2vw] ">
+            <div className="flex items-stretch rounded-r-[0.8vw] overflow-hidden min-h-[3vw] ">
               {/* Connector strip to ensure no gap with the line */}
               <div className="w-[0.25vw] h-full bg-black flex-shrink-0 " />
-              <div className="w-[3vw] h-[3vw] bg-black text-white flex items-center justify-center">
+              <div className="w-[3vw] h-[3vw] bg-black text-white flex items-center justify-center select-none">
                 <Icon
                   icon={activeTab.icon}
                   className="w-[1.5vw] h-[1.5vw]"
@@ -369,7 +404,7 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
       <div className="px-[1vw] py-[2vh] border-t border-gray-100 mt-auto bg-white">
         <button
           onClick={handleGoToPageEditor}
-          className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-xl cursor-pointer"
+          className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer"
         >
           <ArrowUpRight size="1.2vw" className="rotate-0" />
           <span>Go to Page Editor</span>

@@ -7,7 +7,39 @@ import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getFromDB } from '../../utils/dbUtils';
 
-const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, baseUrl }) => {
+const AttachedCurve = ({ position }) => {
+  const isTop = position.includes('top');
+  const isLeft = position.includes('left');
+  
+  const containerStyle = {
+    position: 'absolute',
+    width: '1vw',
+    height: '1.5vw',
+    pointerEvents: 'none',
+    overflow: 'hidden',
+    zIndex: 1998,
+    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
+    ...(isLeft ? { left: '0' } : { right: '0' }),
+  };
+
+  const circleStyle = {
+    position: 'absolute',
+    width: '1.5vw',
+    height: '1.6vw',
+    borderRadius: '60%',
+    boxShadow: '0 0 0 2vw black',
+    ...(isTop ? { top: '-0.8vw' } : { bottom: '-0.8vw' }),
+    ...(isLeft ? { right: '-0.8vw' } : { left: '-0.8vw' }),
+  };
+
+  return (
+    <div style={containerStyle}>
+      <div style={circleStyle} />
+    </div>
+  );
+};
+
+const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage }) => {
   const { v_id } = useParams();
   const [localSettings, setLocalSettings] = useState(settings || {});
 
@@ -223,7 +255,7 @@ const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isD
   return (
     <div 
       ref={containerRef}
-      className="fixed inset-0 z-[1000] flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[1000] flex flex-col overflow-hidden select-none"
       style={{ 
         backgroundColor: '#ffffff',
         ...(layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(Boolean).map(v => v.split(':').map(s => s.trim()))) : {}) 
@@ -256,54 +288,67 @@ const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isD
               }}
               onClick={(e) => e.stopPropagation()}
             >
+              {!isDraggerDragging && draggerTabLeft < 10 && (
+                <>
+                  <AttachedCurve position="top-left" />
+                  <AttachedCurve position="bottom-left" />
+                </>
+              )}
+              {!isDraggerDragging && draggerTabLeft >= 10 && (
+                <>
+                  <AttachedCurve position="top-right" />
+                  <AttachedCurve position="bottom-right" />
+                </>
+              )}
               <div
-                className={`bg-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerDragging ? 'rounded-[0.8vw]' : (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none' : 'rounded-l-[0.8vw] rounded-r-none')}`}
-                style={{ width: '3.2vw', height: isDraggerExpanded ? '14vw' : '3.2vw' }}
+                className={`bg-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex flex-col items-center justify-between transition-all duration-300 py-[0.5vw] overflow-hidden ${isDraggerDragging ? 'rounded-[0.8vw]' : (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none' : 'rounded-l-[0.8vw] rounded-r-none')}`}
+                style={{ width: '4vw', height: isDraggerExpanded ? '10.5vw' : '5.5vw' }}
               >
                 <div
+                  className="w-full flex justify-center cursor-grab active:cursor-grabbing"
                   onMouseDown={handleDraggerMouseDown}
-                  className={`w-[2.6vw] h-[2.6vw] mt-[0.3vw] flex items-center justify-center rounded-[0.5vw] cursor-grab transition-colors flex-shrink-0 ${isDraggerExpanded ? 'bg-white text-black' : 'bg-transparent text-white hover:bg-white/20'} ${isDraggerDragging ? 'cursor-grabbing scale-105' : ''}`}
-                  title="Toggle Device Preview Settings"
                 >
-                  <Icon icon="lucide:settings" className="w-[1.4vw] h-[1.4vw]" />
-                </div>
-
-                <div className={`flex flex-col gap-[0.8vw] mt-[0.8vw] w-full px-[0.4vw] transition-opacity duration-300 ${isDraggerExpanded ? 'opacity-100 delay-100' : 'opacity-0 pointer-events-none'}`}>
-                  <div className="flex flex-col gap-[0.4vw] border border-white/30 rounded-[1.5vw] p-[0.3vw]">
-                    <button
-                      onClick={() => handleDeviceChange('Desktop')}
-                      className={`w-[1.8vw] h-[1.8vw] mx-auto rounded-full flex items-center justify-center transition-colors ${activeDevice === 'Desktop' ? 'bg-white text-black shadow-md' : 'text-white hover:bg-white/20'}`}
-                      title="Desktop View"
-                    >
-                      <Icon icon="lucide:monitor" className="w-[1vw] h-[1vw]" />
-                    </button>
-                    <button
-                      onClick={() => handleDeviceChange('Tablet')}
-                      className={`w-[1.8vw] h-[1.8vw] mx-auto rounded-full flex items-center justify-center transition-colors ${activeDevice === 'Tablet' ? 'bg-white text-black shadow-md' : 'text-white hover:bg-white/20'}`}
-                      title="Tablet View"
-                    >
-                      <Icon icon="lucide:tablet" className="w-[1vw] h-[1vw]" />
-                    </button>
-                    <button
-                      onClick={() => handleDeviceChange('Mobile')}
-                      className={`w-[1.8vw] h-[1.8vw] mx-auto rounded-full flex items-center justify-center transition-colors ${activeDevice === 'Mobile' ? 'bg-white text-black shadow-md' : 'text-white hover:bg-white/20'}`}
-                      title="Mobile View"
-                    >
-                      <Icon icon="lucide:smartphone" className="w-[1vw] h-[1vw]" />
-                    </button>
+                  <div className="flex items-start">
+                    <div className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent h-[1.8vw]'} w-[1.8vw]`}>
+                      {!isDraggerExpanded ? (
+                        <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
+                          <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col w-full h-full justify-between items-center">
+                          {['Desktop', 'Tablet', 'Mobile'].map((device) => (
+                            <div
+                              key={device}
+                              className="w-full flex items-center justify-center cursor-pointer py-[0.2vw]"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeviceChange(device);
+                                setIsDraggerExpanded(false);
+                              }}
+                            >
+                              <Icon icon={device === 'Desktop' ? 'mynaui:desktop' : device === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className={`w-[1.5vw] h-[1.5vw] ${activeDevice === device ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="ml-[0.01vw] mt-[0.2vw]">
+                      <Icon icon="lucide:chevron-down" className={`w-[0.9vw] h-[0.9vw] text-white transition-transform duration-300 ${isDraggerExpanded ? 'rotate-180' : ''}`} />
+                    </div>
                   </div>
-
-                  <button
-                    className="w-[2.6vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center mx-auto text-white hover:bg-gray-500/50 transition-colors border border-white/20"
-                    title="Exit Preview"
-                    onClick={onClose}
-                  >
-                    <Icon
-                      icon="heroicons-outline:logout"
-                      className={`w-[1.1vw] h-[1.1vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
-                    />
-                  </button>
                 </div>
+
+                <button
+                  className="mt-auto mr-[0.9vw] flex items-start justify-start text-[#ff3333]"
+                  title="Exit Preview"
+                  onClick={onClose}
+                >
+                  <Icon
+                    icon="famicons:exit-outline"
+                    className={`w-[1.7vw] h-[1.7vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
+                  />
+                </button>
               </div>
             </div>
           </>
@@ -315,7 +360,7 @@ const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isD
       })()}
 
       <PreviewArea 
-        bookName={pageName} 
+        bookName={pageName || bookName} 
         pages={pages}
         targetPage={targetPage}
         logoSettings={localSettings?.logo}
@@ -332,7 +377,6 @@ const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isD
         activeDevice={activeDevice}
         isDoublePage={isDoublePage}
         useNativeFullscreen={true}
-        baseUrl={baseUrl}
       />
 
       {/* Draggable Device Settings - Tablet/Mobile: outside device frame */}
@@ -361,53 +405,67 @@ const FlipbookPreview = ({ pages, pageName, onClose, isMobile: isMobileProp, isD
               onMouseDown={handleDraggerMouseDown}
               onClick={(e) => e.stopPropagation()}
             >
+              {!isDraggerDragging && draggerTabLeft < 10 && (
+                <>
+                  <AttachedCurve position="top-left" />
+                  <AttachedCurve position="bottom-left" />
+                </>
+              )}
+              {!isDraggerDragging && draggerTabLeft >= 10 && (
+                <>
+                  <AttachedCurve position="top-right" />
+                  <AttachedCurve position="bottom-right" />
+                </>
+              )}
               <div
-                className={`bg-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerDragging ? 'rounded-[0.8vw]' : (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none' : 'rounded-l-[0.8vw] rounded-r-none')}`}
-                style={{ width: '3.2vw', height: isDraggerExpanded ? '14vw' : '3.2vw' }}
+                className={`bg-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.3)] flex flex-col items-center justify-between transition-all duration-300 py-[0.5vw] overflow-hidden ${isDraggerDragging ? 'rounded-[0.8vw]' : (draggerTabLeft < 10 ? 'rounded-r-[0.8vw] rounded-l-none' : 'rounded-l-[0.8vw] rounded-r-none')}`}
+                style={{ width: '4vw', height: isDraggerExpanded ? '10.5vw' : '5.5vw' }}
               >
                 <div
-                  className={`w-[2.6vw] h-[2.6vw] mt-[0.3vw] flex items-center justify-center rounded-[0.5vw] cursor-grab transition-colors flex-shrink-0 ${isDraggerExpanded ? 'bg-white text-black' : 'bg-transparent text-white hover:bg-white/20'} ${isDraggerDragging ? 'cursor-grabbing scale-105' : ''}`}
-                  title="Toggle Device Preview Settings"
+                  className="w-full flex justify-center cursor-grab active:cursor-grabbing"
+                  onMouseDown={handleDraggerMouseDown}
                 >
-                  <Icon icon="lucide:settings" className="w-[1.4vw] h-[1.4vw]" />
-                </div>
-
-                <div className={`flex flex-col gap-[0.8vw] mt-[0.8vw] w-full px-[0.4vw] transition-opacity duration-300 ${isDraggerExpanded ? 'opacity-100 delay-100' : 'opacity-0 pointer-events-none'}`}>
-                  <div className="flex flex-col gap-[0.4vw] border border-white/30 rounded-[1.5vw] p-[0.3vw]">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeviceChange('Desktop'); }}
-                      className={`w-[1.8vw] h-[1.8vw] mx-auto rounded-full flex items-center justify-center transition-colors ${activeDevice === 'Desktop' ? 'bg-white text-black shadow-md' : 'text-white hover:bg-white/20'}`}
-                      title="Desktop View"
-                    >
-                      <Icon icon="lucide:monitor" className="w-[1vw] h-[1vw]" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeviceChange('Tablet'); }}
-                      className={`w-[1.8vw] h-[1.8vw] mx-auto rounded-full flex items-center justify-center transition-colors ${activeDevice === 'Tablet' ? 'bg-white text-black shadow-md' : 'text-white hover:bg-white/20'}`}
-                      title="Tablet View"
-                    >
-                      <Icon icon="lucide:tablet" className="w-[1vw] h-[1vw]" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDeviceChange('Mobile'); }}
-                      className={`w-[1.8vw] h-[1.8vw] mx-auto rounded-full flex items-center justify-center transition-colors ${activeDevice === 'Mobile' ? 'bg-white text-black shadow-md' : 'text-white hover:bg-white/20'}`}
-                      title="Mobile View"
-                    >
-                      <Icon icon="lucide:smartphone" className="w-[1vw] h-[1vw]" />
-                    </button>
+                  <div className="flex items-start">
+                    <div className={`flex flex-col items-center transition-all duration-300 overflow-hidden ${isDraggerExpanded ? 'bg-[#2A2A2A] rounded-[0.4vw] py-[0.5vw] h-[7vw] w-[2.3vw]' : 'bg-transparent h-[1.8vw]'} w-[1.8vw]`}>
+                      {!isDraggerExpanded ? (
+                        <div className="w-full h-[1.5vw] flex items-center justify-center flex-shrink-0">
+                          <Icon icon={activeDevice === 'Desktop' ? 'mynaui:desktop' : activeDevice === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className="w-[1.8vw] h-[1.8vw] text-white" />
+                        </div>
+                      ) : (
+                        <div className="flex flex-col w-full h-full justify-between items-center">
+                          {['Desktop', 'Tablet', 'Mobile'].map((device) => (
+                            <div
+                              key={device}
+                              className="w-full flex items-center justify-center cursor-pointer py-[0.2vw]"
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeviceChange(device);
+                                setIsDraggerExpanded(false);
+                              }}
+                            >
+                              <Icon icon={device === 'Desktop' ? 'mynaui:desktop' : device === 'Tablet' ? 'proicons:tablet' : 'mynaui:mobile'} className={`w-[1.5vw] h-[1.5vw] ${activeDevice === device ? 'text-white' : 'text-gray-400 hover:text-gray-200'}`} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="ml-[0.01vw] mt-[0.2vw]">
+                      <Icon icon="lucide:chevron-down" className={`w-[0.9vw] h-[0.9vw] text-white transition-transform duration-300 ${isDraggerExpanded ? 'rotate-180' : ''}`} />
+                    </div>
                   </div>
-
-                  <button
-                    className="w-[2.6vw] h-[2.2vw] rounded-[0.5vw] flex items-center justify-center mx-auto text-white hover:bg-gray-500/50 transition-colors border border-white/20"
-                    title="Exit Preview"
-                    onClick={(e) => { e.stopPropagation(); onClose(); }}
-                  >
-                    <Icon
-                      icon="heroicons-outline:logout"
-                      className={`w-[1.1vw] h-[1.1vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
-                    />
-                  </button>
                 </div>
+
+                <button
+                  className="mt-auto mr-[0.9vw] flex items-start justify-start text-[#ff3333]"
+                  title="Exit Preview"
+                  onClick={(e) => { e.stopPropagation(); onClose(); }}
+                >
+                  <Icon
+                    icon="famicons:exit-outline"
+                    className={`w-[1.7vw] h-[1.7vw] transition-transform duration-300 ${draggerTabLeft < 10 ? 'rotate-0' : 'rotate-180'}`}
+                  />
+                </button>
               </div>
             </div>
           </>

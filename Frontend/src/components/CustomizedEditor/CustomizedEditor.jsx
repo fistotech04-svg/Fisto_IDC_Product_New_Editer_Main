@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { LAYOUT_DEFAULT_COLORS } from './Layout';
-import { useParams, useOutletContext, useNavigate } from 'react-router-dom';
+import { useParams, useOutletContext, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import Sidebar from './Sidebar';
 import PreviewArea from './PreviewArea';
@@ -56,9 +56,22 @@ const ensureDarkText = (hex) => {
 };
 // Navbar removed
 
+const createDefaultPageData = (name) => {
+  const baseWidth = 794;
+  const baseHeight = 1123;
+  const rootId = `g-${Math.random().toString(36).substr(2, 9)}`;
+  const overlayId = `rect-${Math.random().toString(36).substr(2, 9)}`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${baseWidth} ${baseHeight}" width="100%" height="100%" style="overflow: visible">
+  <g id="${rootId}" data-name="${name}" data-type="frame">
+    <rect id="${overlayId}" x="0" y="0" width="${baseWidth}" height="${baseHeight}" fill="#ffffff" data-name="Overlay" data-type="background" data-locked="true" shape-rendering="crispEdges" />
+  </g>
+</svg>`;
+};
+
 const CustomizedEditor = () => {
   const { folder, v_id, page } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { setExportHandler, setSaveHandler, setPreviewHandler, setHasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
   const [bookName, setBookName] = useState(() => currentBook?.flipbookName || 'Name of the Book');
   const [activeSubView, setActiveSubView] = useState(null);
@@ -347,7 +360,7 @@ const CustomizedEditor = () => {
       media: {
         autoFlip: true,
         autoFlipSettings: {
-          duration: 8,
+          duration: 4,
           forwardBackwardButtons: true,
           countdown: true
         },
@@ -442,20 +455,30 @@ const CustomizedEditor = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (parsed.leadForm) return parsed.leadForm;
+        if (parsed.leadForm) {
+          let lf = parsed.leadForm;
+          if (lf.fields && !Array.isArray(lf.fields)) {
+            const newFields = [];
+            if (lf.fields.name) newFields.push({ id: '1', type: 'name', placeholder: 'Enter your Name' });
+            if (lf.fields.email) newFields.push({ id: '2', type: 'email', placeholder: 'Enter your Gmail' });
+            if (lf.fields.phone) newFields.push({ id: '3', type: 'phone', placeholder: 'Enter your Phone Number' });
+            if (lf.fields.feedback) newFields.push({ id: '4', type: 'feedback', placeholder: 'Enter your Feedback' });
+            lf.fields = newFields;
+          }
+          return lf;
+        }
       } catch (e) {
         console.error("Failed to parse lead form settings from local storage", e);
       }
     }
     return {
       enabled: true,
-      leadText: 'Share your Information to get personalized updates.',
-      fields: {
-        name: true,
-        phone: false,
-        email: true,
-        feedback: true
-      },
+      leadText: 'Share your information to get personalized updates.',
+      fields: [
+        { id: '1', type: 'name', placeholder: 'Enter your Name' },
+        { id: '2', type: 'email', placeholder: 'Enter your Gmail' },
+        { id: '3', type: 'feedback', placeholder: 'Enter your Feedback' }
+      ],
       appearance: {
         timing: 'after-pages', // before, after-pages, end
         afterPages: 4,
@@ -604,7 +627,22 @@ const CustomizedEditor = () => {
   // Stable wrappers that call the latest version of the handlers
   const stableSaveHandler = useCallback((...args) => handleSaveRef.current?.(...args), []);
   const stableExportHandler = useCallback((...args) => handleExportRef.current?.(...args), []);
-  const stablePreviewHandler = useCallback(() => setShowPreview(true), []);
+
+  const handlePreview = useCallback(async () => {
+    await saveToDB('editor_autosave', {
+      pages: pages,
+      activePageIndex: targetPage || 0,
+      pageName: bookName,
+      timestamp: Date.now(),
+      isDoublePage: false,
+      projectBaseUrl: projectBaseUrl
+    });
+    window.open('/preview', '_blank');
+  }, [pages, bookName, projectBaseUrl, targetPage]);
+
+  const handlePreviewRef = useRef(handlePreview);
+  handlePreviewRef.current = handlePreview;
+  const stablePreviewHandler = useCallback(() => handlePreviewRef.current?.(), []);
 
   // Export/Save Handlers for Context (Registration)
   useEffect(() => {
@@ -619,39 +657,20 @@ const CustomizedEditor = () => {
     };
   }, [setExportHandler, setSaveHandler, setPreviewHandler, stableSaveHandler, stableExportHandler, stablePreviewHandler]);
 
-  // Sync Current Book to Navbar and Export Modal
+  // Sync Current Book to Navbar
   useEffect(() => {
     if (setCurrentBook) {
-      setCurrentBook(prev => {
-        const isSame = 
-          prev?.folder === folder &&
-          prev?.flipbookName === bookName &&
-          prev?.v_id === v_id &&
-          prev?.share === shareSettings &&
-          prev?.pages === pages &&
-          prev?.activePageIndex === targetPage &&
-          prev?.meta?.baseUrl === (projectBaseUrl ? projectBaseUrl.replace(import.meta.env.VITE_BACKEND_URL || '', '') : '');
-          
-        if (isSame) return prev;
-        
-        return {
-          ...(prev || {}),
-          folder: folder,
-          flipbookName: bookName,
-          v_id: v_id,
-          share: shareSettings,
-          pages: pages,
-          activePageIndex: targetPage,
-          meta: {
-            baseUrl: projectBaseUrl ? projectBaseUrl.replace(import.meta.env.VITE_BACKEND_URL || '', '') : '',
-            folderName: folder,
-            flipbookName: bookName,
-            v_id: v_id
-          }
-        };
-      });
+      // Use flipbookName to match TemplateEditor's expected key
+      // Merge with previous state to avoid losing other metadata
+      setCurrentBook(prev => ({
+        ...(prev || {}),
+        folder: folder,
+        flipbookName: bookName,
+        v_id: v_id,
+        share: shareSettings
+      }));
     }
-  }, [setCurrentBook, folder, v_id, bookName, shareSettings, pages, targetPage, projectBaseUrl]);
+  }, [setCurrentBook, folder, v_id, bookName, shareSettings]);
 
   const initialLoadRef = useRef(true);
   const notifiedUnsavedRef = useRef(false);
@@ -693,12 +712,15 @@ const CustomizedEditor = () => {
       let isAutosaveLoaded = false;
       // Check for recent autosave first (sync from TemplateEditor)
       const autosave = await getFromDB('editor_autosave');
-      if (autosave && autosave.v_id === v_id) {
-        console.log('CustomizedEditor: Loading from autosave');
-        isAutosaveLoaded = true;
-        try {
-          const data = autosave;
-          if (data.pages && Array.isArray(data.pages)) {
+      if (autosave && autosave.v_id === v_id && autosave.pages && autosave.pages.length > 0) {
+        // Check if pages are corrupted from previous bug (e.g., html is an object instead of string)
+        const isCorrupted = autosave.pages.some(p => typeof p.html === 'object' || typeof p.content === 'object');
+        
+        if (!isCorrupted) {
+          console.log('CustomizedEditor: Loading from autosave');
+          isAutosaveLoaded = true;
+          try {
+            const data = autosave;
             setPages(data.pages.map((p, i) => ({
               id: p.id || i,
               name: p.name || `Page ${i + 1}`,
@@ -708,12 +730,16 @@ const CustomizedEditor = () => {
             if (data.pageName && (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book')) {
               setBookName(data.pageName);
             }
-            // Start from the first page on initial load if no page specified in URL
-            if (!page) setTargetPage(0);
+              // Start from the first page on initial load if no page specified in URL
+              if (!page) setTargetPage(0);
+          } catch (e) {
+            console.error("CustomizedEditor: Failed to load autosave", e);
+            isAutosaveLoaded = false;
           }
-        } catch (e) {
-          console.error("CustomizedEditor: Failed to load autosave", e);
-          isAutosaveLoaded = false;
+        } else {
+          console.warn('CustomizedEditor: Autosave is corrupted. Ignoring and clearing it.');
+          // We don't await this to avoid blocking the fetch
+          saveToDB('editor_autosave', null);
         }
       }
 
@@ -736,11 +762,22 @@ const CustomizedEditor = () => {
       if (setup) {
         if (setup.menuBar) setMenuBarSettings(setup.menuBar);
         if (setup.otherSetup) setOtherSetupSettings(setup.otherSetup);
-        if (setup.leadForm) setLeadFormSettings(setup.leadForm);
+        if (setup.leadForm) {
+          let lf = setup.leadForm;
+          if (lf.fields && !Array.isArray(lf.fields)) {
+            const newFields = [];
+            if (lf.fields.name) newFields.push({ id: '1', type: 'name', placeholder: 'Enter your Name' });
+            if (lf.fields.email) newFields.push({ id: '2', type: 'email', placeholder: 'Enter your Gmail' });
+            if (lf.fields.phone) newFields.push({ id: '3', type: 'phone', placeholder: 'Enter your Phone Number' });
+            if (lf.fields.feedback) newFields.push({ id: '4', type: 'feedback', placeholder: 'Enter your Feedback' });
+            lf.fields = newFields;
+          }
+          setLeadFormSettings(lf);
+        }
         if (setup.visibility) setVisibilitySettings(setup.visibility);
       }
 
-      if (v_id && folder) {
+      if (v_id) {
         console.log('CustomizedEditor: Fetching flipbook with folder:', folder, 'v_id:', v_id);
         try {
           const storedUser = localStorage.getItem('user');
@@ -749,8 +786,7 @@ const CustomizedEditor = () => {
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: { emailId: user.emailId, v_id },
-            timeout: 10000
+            params: { emailId: user.emailId, v_id }
           });
 
           if (res.data) {
@@ -766,11 +802,16 @@ const CustomizedEditor = () => {
             if (!isAutosaveLoaded) {
               // Only set book name from backend if session doesn't have an unsaved change
               if (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book') {
-                setBookName(res.data.meta?.flipbookName || res.data.name || 'Name of the Book');
+                setBookName(res.data.meta?.flipbookName || res.data.name || location.state?.flipbookName || decodeURIComponent(v_id) || 'Name of the Book');
               }
               if (res.data.pages) {
                 setPages(res.data.pages.map((p, i) => {
                   let rawHTML = p.html || p.content || '';
+                  
+                  if (!rawHTML || rawHTML.trim() === '') {
+                    const defaultData = createDefaultPageData(p.name || `Page ${i + 1}`);
+                    rawHTML = defaultData.html;
+                  }
                   
                   // Heal broken paths from previous sessions if needed
                   if (rawHTML.includes('nullassets/') && pBaseUrl) {
@@ -805,7 +846,18 @@ const CustomizedEditor = () => {
                 if (setup.sound && !setup.sound.customBgSounds) setup.sound.customBgSounds = [];
                 setOtherSetupSettings(setup);
               }
-              if (res.data.settings.leadform) setLeadFormSettings(res.data.settings.leadform);
+              if (res.data.settings.leadform) {
+                let lf = res.data.settings.leadform;
+                if (lf.fields && !Array.isArray(lf.fields)) {
+                  const newFields = [];
+                  if (lf.fields.name) newFields.push({ id: '1', type: 'name', placeholder: 'Enter your Name' });
+                  if (lf.fields.email) newFields.push({ id: '2', type: 'email', placeholder: 'Enter your Gmail' });
+                  if (lf.fields.phone) newFields.push({ id: '3', type: 'phone', placeholder: 'Enter your Phone Number' });
+                  if (lf.fields.feedback) newFields.push({ id: '4', type: 'feedback', placeholder: 'Enter your Feedback' });
+                  lf.fields = newFields;
+                }
+                setLeadFormSettings(lf);
+              }
               if (res.data.settings.visibility) setVisibilitySettings(res.data.settings.visibility);
               if (res.data.settings.bookmarks) setBookmarks(res.data.settings.bookmarks);
               if (res.data.settings.notes) setNotes(res.data.settings.notes);
@@ -816,9 +868,29 @@ const CustomizedEditor = () => {
           }
         } catch (err) {
           console.error("CustomizedEditor: Failed to fetch flipbook", err);
+          if (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book') {
+            setBookName(location.state?.flipbookName || decodeURIComponent(v_id) || 'Name of the Book');
+          }
         } finally {
           setIsLoading(false);
           setIsDataLoaded(true);
+          // Fallback: If we still have 0 pages, initialize 12 empty ones to prevent UI from breaking
+          setPages(prevPages => {
+            if (!prevPages || prevPages.length === 0) {
+              console.log("CustomizedEditor: No pages loaded. Initializing 12 default pages.");
+              return Array.from({ length: 12 }, (_, i) => {
+                const name = `Page ${i + 1}`;
+                const defaultData = createDefaultPageData(name);
+                return {
+                  id: i + 1,
+                  name: name,
+                  html: defaultData.html,
+                  content: defaultData.html
+                };
+              });
+            }
+            return prevPages;
+          });
         }
       } else {
         setIsLoading(false);
@@ -949,7 +1021,7 @@ const CustomizedEditor = () => {
 
   return (
     <div
-      className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans"
+      className="flex flex-col h-full w-full bg-[#DADBE8] overflow-hidden font-sans select-none"
       style={layoutColorVars ? Object.fromEntries(layoutColorVars.split(';').filter(v => v.trim()).map(v => {
         const i = v.indexOf(':');
         return [v.slice(0, i).trim(), v.slice(i + 1).trim()];
@@ -972,7 +1044,7 @@ const CustomizedEditor = () => {
             pageCount={pages.length}
             visibilitySettings={visibilitySettings}
             onUpdateVisibility={setVisibilitySettings}
-            onPreview={() => setShowPreview(true)}
+            onPreview={stablePreviewHandler}
           />
         </div>
 
@@ -1028,31 +1100,6 @@ const CustomizedEditor = () => {
         </div>
       </div>
 
-      {showPreview && (
-        <FlipbookPreview
-          pages={pages}
-          bookName={bookName}
-          onClose={() => setShowPreview(false)}
-          bookmarks={bookmarks}
-          notes={notes}
-          isMobile={false}
-          isDoublePage={false}
-          settings={{
-            logo: logoSettings,
-            profile: profileSettings,
-            background: backgroundSettings,
-            appearance: bookAppearanceSettings,
-            layout: layoutSettings,
-            layoutColors: layoutColors,
-            menubar: menuBarSettings,
-            othersetup: otherSetupSettings,
-            leadform: leadFormSettings,
-            visibility: visibilitySettings
-          }}
-          targetPage={targetPage}
-          baseUrl={projectBaseUrl}
-        />
-      )}
     </div>
   );
 };

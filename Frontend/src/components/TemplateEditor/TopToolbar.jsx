@@ -238,11 +238,11 @@ const TopToolbar = ({
           </div>
         )}
 
-        <div className="flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw] gap-[0.1vw]">
+        <div className="flex items-center bg-[#F3F4F6] p-[0.3vw] rounded-full gap-[0.1vw]">
           {/* Zoom Out */}
           <button 
             onClick={onZoomOut}
-            className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
+            className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
             <Minus size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
           </button>
@@ -255,7 +255,7 @@ const TopToolbar = ({
           {/* Zoom In */}
           <button 
             onClick={onZoomIn}
-            className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
+            className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
             <Plus size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
           </button>
@@ -266,7 +266,7 @@ const TopToolbar = ({
           {/* Reset Action */}
           <button 
             onClick={onReset}
-            className="h-[1.9vw] px-[0.7vw] flex items-center justify-center hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm group"
+            className="h-[1.9vw] px-[0.7vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm group"
           >
             <span className="text-[0.55vw] text-[#6B7280] uppercase font-bold tracking-wider group-hover:text-black transition-colors">Reset</span>
           </button>

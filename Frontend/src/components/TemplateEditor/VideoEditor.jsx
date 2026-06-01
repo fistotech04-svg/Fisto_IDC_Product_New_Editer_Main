@@ -176,7 +176,7 @@ const RadiusBox = ({ corner, value, onChange, radiusStyle }) => {
         <div className="flex items-center justify-between w-full">
             <button onClick={() => onChange(corner, value - 1)} className="text-gray-300 hover:text-indigo-500 transition-colors p-[0.25vw]"><ChevronLeft size="0.9vw" strokeWidth={1.5} /></button>
             <div onMouseDown={onMouseDown} className="flex-1 h-full flex items-center justify-center cursor-ew-resize">
-              <span className="text-[0.8vw] font-bold text-gray-800 select-none block w-full text-center">{value}</span>
+              <span className="text-[0.8vw] font-semibold text-gray-800 select-none block w-full text-center">{value}</span>
             </div>
             <button onClick={() => onChange(corner, value + 1)} className="text-gray-300 hover:text-indigo-500 transition-colors p-[0.25vw]"><ChevronRight size="0.9vw" strokeWidth={1.5} /></button>
         </div>
@@ -1449,7 +1449,7 @@ const VideoEditor = ({
         {/* OR Divider */}
         <div className="flex items-center gap-[1vw] py-[0.25vw]">
           <div className="h-px flex-1 bg-gray-200" />
-          <span className="text-[0.7vw] font-bold text-gray-400">OR</span>
+          <span className="text-[0.7vw] font-semibold text-gray-400">OR</span>
           <div className="h-px flex-1 bg-gray-200" />
         </div>
 
@@ -1522,7 +1522,7 @@ const VideoEditor = ({
       <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.5vw]">
           <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Cover Image Upload Options</span>
-          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.4vw' }}> </div>
+          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
         </div>
         
         <div className="flex items-center justify-between px-[0.5vw]">
@@ -1567,7 +1567,7 @@ const VideoEditor = ({
       <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.5vw]">
           <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Video Playback Settings</span>
-          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.3vw' }}> </div>
+          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
         </div>
         
         <div className="space-y-[0.8vw] px-[0.5vw]">
@@ -1817,7 +1817,7 @@ const VideoEditor = ({
                   }} 
                   className={`flex items-center justify-between p-[0.6vw] rounded-[0.6vw] border transition-all cursor-pointer ${activePopup === eff ? 'border-indigo-600 bg-indigo-50/20 shadow-sm' : 'bg-gray-50/80 border-gray-100 hover:border-gray-300'}`}
                 >
-                  <span className="text-[0.8vw] font-bold text-gray-700 flex-1">{eff}</span>
+                  <span className="text-[0.8vw] font-semibold text-gray-700 flex-1">{eff}</span>
                   <button 
                     onClick={(e) => { 
                       e.stopPropagation(); 
@@ -1839,7 +1839,7 @@ const VideoEditor = ({
                 {activePopup === eff && (
                   <div className="fixed z-[9999] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[1.5vw] animate-in slide-in-from-right-4 fade-in duration-200" style={{ width: '18vw', top: '35%', left: '92%', transform: 'translateX(-120%)' }}>
                     <div className="flex items-center mb-[1.2vw]">
-                      <span className="text-[0.9vw] font-bold text-gray-800">{eff}</span>
+                      <span className="text-[0.9vw] font-semibold text-gray-800">{eff}</span>
                       <div className="h-[0.1vw] flex-1 mx-[0.75vw] bg-gray-100" />
                       <button onClick={() => setActivePopup(null)} className="p-[0.375vw] rounded-[0.5vw] hover:bg-gray-100 transition"><Icon icon="lucide:x" size="1vw" className="text-gray-500" /></button>
                     </div>
@@ -1877,7 +1877,7 @@ const VideoEditor = ({
                                       setEffectSettings(next);
                                       updateElementAttribute('effects', next);
                                     }} 
-                                    className="w-full text-[0.85vw] text-gray-800 outline-none bg-white border border-gray-300 rounded-[0.6vw] px-[0.75vw] h-[2.2vw] font-mono font-bold" 
+                                    className="w-full text-[0.85vw] text-gray-800 outline-none bg-white border border-gray-300 rounded-[0.6vw] px-[0.75vw] h-[2.2vw] font-mono font-semibold" 
                                   />
                                 </div>
                               </div>
@@ -2005,7 +2005,7 @@ const VideoEditor = ({
         >
           {/* Header */}
           <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.85vw] font-bold text-gray-800">Dashed</span>
+            <span className="text-[0.85vw] font-semibold text-gray-800">Dashed</span>
             <div className="h-px flex-grow bg-gray-100" />
             <button
               onClick={() => setShowStrokeSettings(false)}
@@ -2017,13 +2017,13 @@ const VideoEditor = ({
 
           {/* Position */}
           <div className="flex items-center justify-between">
-            <span className="text-[0.75vw] font-bold text-gray-600">Position :</span>
+            <span className="text-[0.75vw] font-semibold text-gray-600">Position :</span>
             <div className="relative flex-grow ml-[1vw]">
               <div
                 className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white min-w-[5.5vw]"
                 onClick={() => setIsDashPosOpen(!isDashPosOpen)}
               >
-                <span className="text-[0.7vw] font-bold text-gray-700 capitalize">{strokeDashPosition}</span>
+                <span className="text-[0.7vw] font-semibold text-gray-700 capitalize">{strokeDashPosition}</span>
                 <ChevronDown size="0.8vw" className="text-gray-400" />
               </div>
               {isDashPosOpen && (
@@ -2032,7 +2032,7 @@ const VideoEditor = ({
                     <div
                       key={pos}
                       onClick={() => { updateElementAttribute('strokeDashPosition', pos); setIsDashPosOpen(false); }}
-                      className="px-[1vw] py-[0.4vw] text-[0.7vw] font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                      className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
                     >
                       {pos}
                     </div>
@@ -2052,7 +2052,7 @@ const VideoEditor = ({
             ].map(item => (
               <div key={item.label} className="flex items-center justify-between">
                 <span
-                  className="text-[0.75vw] font-bold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                  className="text-[0.75vw] font-semibold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                   onPointerDown={(e) => handleScrubHelper(e, item.val, (v) => updateElementAttribute(item.attr, Math.max(0, parseInt(v) || 0)))}
                 >
                   {item.label} :
@@ -2067,7 +2067,7 @@ const VideoEditor = ({
                       value={item.val}
                       onChange={(e) => updateElementAttribute(item.attr, Math.max(0, parseInt(e.target.value) || 0))}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-full text-center text-[0.75vw] font-bold text-gray-700 outline-none no-spin bg-transparent cursor-text"
+                      className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
                     />
                   </div>
                   <button onClick={() => updateElementAttribute(item.attr, item.val + 1)} className="text-gray-400 hover:text-indigo-600">
@@ -2082,7 +2082,7 @@ const VideoEditor = ({
 
           {/* Round Corners */}
           <div className="flex items-center justify-between">
-            <span className="text-[0.75vw] font-bold text-gray-600">Round Corners :</span>
+            <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
             <div
               className={`w-[2.4vw] h-[1.2vw] rounded-full relative cursor-pointer transition-colors ${strokeLinecap === 'round' ? 'bg-indigo-500' : 'bg-gray-200'}`}
               onClick={() => updateElementAttribute('strokeLinecap', strokeLinecap === 'round' ? 'butt' : 'round')}

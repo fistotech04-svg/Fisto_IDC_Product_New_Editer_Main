@@ -4,10 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 const Grid2Layout = lazy(() => import('../../Layouts/Grid2Layout'));
 
-import AddBookmarkPopup from '../../popups/AddBookmarkPopup';
-import AddNotesPopup from '../../popups/AddNotesPopup';
-import NotesViewerPopup from '../../popups/NotesViewerPopup';
-import ViewBookmarkPopup from '../../popups/ViewBookmarkPopup';
+
+
+
+
 import ProfilePopup from '../../popups/ProfilePopup';
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
@@ -395,32 +395,22 @@ const MobileLayout2 = (props) => {
             {/* Global Popups (Modals) */}
             {showAddBookmarkPopup && (
                 <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <AddBookmarkPopup
-                        onClose={() => setShowAddBookmarkPopup(false)}
-                        currentPageIndex={currentPage}
-                        totalPages={pages.length}
-                        onAddBookmark={onAddBookmark}
-                        isSidebarOpen={false}
-                        bookmarkSettings={bookmarkSettings}
-                        isMobile={!isLandscape}
-                        activeLayout={2}
-                        isLandscape={isLandscape}
-                    />
+                    
                 </div>
             )}
             {showAddNotesPopup && (
                 <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <AddNotesPopup onClose={() => setShowAddNotesPopup(false)} currentPageIndex={currentPage} totalPages={pages.length} onAddNote={onAddNote} isSidebarOpen={false} isMobile={true} activeLayout={2} isLandscape={isLandscape} />
+                    
                 </div>
             )}
             {showNotesViewer && (
                 <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <NotesViewerPopup onClose={() => setShowNotesViewer(false)} notes={notes} isSidebarOpen={false} isMobile={true} activeLayout={2} isLandscape={isLandscape} />
+                    
                 </div>
             )}
             {showViewBookmarkPopup && (
                 <div className="absolute inset-0 z-[3000] pointer-events-auto">
-                    <ViewBookmarkPopup onClose={() => setShowViewBookmarkPopup(false)} bookmarks={bookmarks?.filter(b => b.layoutId === 2)} onDelete={onDeleteBookmark} onUpdate={onUpdateBookmark} onNavigate={(pageIndex) => { onPageClick(pageIndex); setShowViewBookmarkPopup(false); }} activeLayout={2} isMobile={true} />
+                    
                 </div>
             )}
             {showProfilePopup && (

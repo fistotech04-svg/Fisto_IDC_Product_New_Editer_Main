@@ -34,29 +34,29 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 <body>${rawHtml || ''}</body>
 </html>`;
 
-const loadScript = (src, checkFn) =>
-    new Promise((resolve, reject) => {
-        if (checkFn && checkFn()) { resolve(); return; }
-        if (document.querySelector(`script[src="${src}"]`)) {
-            const interval = setInterval(() => {
-                if (checkFn && checkFn()) {
-                    clearInterval(interval);
-                    resolve();
-                }
-            }, 50);
-            setTimeout(() => { clearInterval(interval); resolve(); }, 10000);
-            return;
-        }
+const scriptPromises = {};
+
+const loadScript = (src) => {
+    if (scriptPromises[src]) {
+        return scriptPromises[src];
+    }
+
+    scriptPromises[src] = new Promise((resolve, reject) => {
+        // If another script tag exists somehow, we might need to wait for it, 
+        // but since we manage it here, we'll just create it.
         const s = document.createElement('script');
         s.src = src;
         s.async = true;
-        s.onload = () => {
-            // Give a tiny delay to ensure execution is complete
-            setTimeout(() => resolve(), 10);
+        s.onload = resolve;
+        s.onerror = () => {
+            delete scriptPromises[src];
+            reject(new Error(`Failed to load ${src}`));
         };
-        s.onerror = () => reject(new Error(`Failed to load ${src}`));
         document.head.appendChild(s);
     });
+
+    return scriptPromises[src];
+};
 
 /* ─────────────────────────────── component ─────────────────────────────── */
 
@@ -99,6 +99,29 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     // Keep the ref in sync every render so turn.js always calls the latest onFlip
     useEffect(() => { onFlipRef.current = onFlip; }, [onFlip]);
     useEffect(() => { onTurningRef.current = onTurning; }, [onTurning]);
+
+    // Forward mousemove events from iframe to turn.js book element to trigger corner curls/peels
+    useEffect(() => {
+        const handleMessage = (e) => {
+            if (e.data && e.data.type === 'IFRAME_MOUSEMOVE') {
+                if (bookEl.current) {
+                    const event = new MouseEvent('mousemove', {
+                        bubbles: true,
+                        cancelable: true,
+                        clientX: e.data.clientX,
+                        clientY: e.data.clientY,
+                        screenX: e.data.screenX,
+                        screenY: e.data.screenY
+                    });
+                    bookEl.current.dispatchEvent(event);
+                }
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, []);
 
     /* ── Engine-selection logic ── */
     // useFullTurnJs = true → soft-cover mode (turn.js handles every page)
@@ -159,7 +182,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         <iframe
                             title={`Page ${i + 1}`}
                             srcdoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
-                            style={{ border: 'none', width: 'calc(100% / 0.67)', height: 'calc(100% / 0.67)', transform: 'scale(0.67)', transformOrigin: 'top left', pointerEvents: 'none', borderRadius: 'inherit' }}
+                            style={{ border: 'none', width: 'calc(100% / 0.67)', height: 'calc(100% / 0.67)', transform: 'scale(0.67)', transformOrigin: 'top left', pointerEvents: 'auto', borderRadius: 'inherit' }}
                         />
                         {textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor) && (
                             <div
@@ -170,6 +193,28 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 }}
                             />
                         )}
+                        {/* Drag overlay for react-pageflip to allow corner dragging */}
+                        <div
+                            className="fbe-drag-overlay"
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                bottom: 0,
+                                width: '50px',
+                                zIndex: 100,
+                                background: 'transparent',
+                                [i % 2 === 0 ? 'right' : 'left']: 0
+                            }}
+                            onMouseDown={(e) => {
+                                const iframes = document.querySelectorAll('.fbe-react-page iframe');
+                                iframes.forEach(iframe => iframe.style.pointerEvents = 'none');
+                                const handleMouseUp = () => {
+                                    iframes.forEach(iframe => iframe.style.pointerEvents = 'auto');
+                                    window.removeEventListener('mouseup', handleMouseUp);
+                                };
+                                window.addEventListener('mouseup', handleMouseUp);
+                            }}
+                        />
                     </>
                 )}
             </div>
@@ -181,8 +226,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         let alive = true;
         (async () => {
             try {
-                if (!window.jQuery) await loadScript('/lib/jquery.min.js', () => window.jQuery);
-                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js', () => window.jQuery?.fn?.turn);
+                if (!window.jQuery) await loadScript('/lib/jquery.min.js');
+                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js');
                 if (alive) setReady(true);
             } catch (err) {
                 console.error('[FlipBookEngine] Script load failed:', err);
@@ -265,7 +310,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 const iframe = document.createElement('iframe');
                 iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
                 // Render scaled to fill exactly
-                iframe.style.cssText = 'border:none;width:calc(100% / 0.67);height:calc(100% / 0.67);transform:scale(0.67);transform-origin:top left;pointer-events:none;';
+                iframe.style.cssText = 'border:none;width:calc(100% / 0.67);height:calc(100% / 0.67);transform:scale(0.67);transform-origin:top left;pointer-events:auto;';
                 inner.appendChild(iframe);
 
                 // Add texture overlay
@@ -285,16 +330,42 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
                 pageDiv.appendChild(inner);
 
+                // Add drag overlay for turn.js to capture drag/click on outer edge
+                const dragOverlay = document.createElement('div');
+                dragOverlay.className = 'fbe-drag-overlay';
+                Object.assign(dragOverlay.style, {
+                    position: 'absolute',
+                    top: '0',
+                    bottom: '0',
+                    width: '50px',
+                    zIndex: '100',
+                    background: 'transparent',
+                });
+                if (i % 2 === 0) { // Right page: drag zone on the right edge
+                    dragOverlay.style.right = '0';
+                } else { // Left page: drag zone on the left edge
+                    dragOverlay.style.left = '0';
+                }
+                pageDiv.appendChild(dragOverlay);
+
                 // Distinguish between a click and a drag to block single-click flipping
                 let startX = 0;
                 let startY = 0;
 
                 pageDiv.addEventListener('mousedown', (e) => {
+                    if (!e.target.closest('.fbe-inner')) {
+                        // Allow click/drag on drag overlay or turn.js elements
+                        return;
+                    }
                     startX = e.clientX;
                     startY = e.clientY;
                 }, true);
 
                 pageDiv.addEventListener('mouseup', (e) => {
+                    if (!e.target.closest('.fbe-inner')) {
+                        // Allow click/drag on drag overlay or turn.js elements
+                        return;
+                    }
                     const diffX = Math.abs(e.clientX - startX);
                     const diffY = Math.abs(e.clientY - startY);
 
@@ -308,6 +379,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
                 // Also block the 'click' event itself just in case
                 pageDiv.addEventListener('click', (e) => {
+                    if (!e.target.closest('.fbe-inner')) {
+                        // Allow click/drag on drag overlay or turn.js elements
+                        return;
+                    }
                     e.stopPropagation();
                     e.stopImmediatePropagation();
                 }, true);
@@ -353,9 +428,35 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             },
         });
 
+        const handleMouseDown = (e) => {
+            if (e.target.closest('.fbe-drag-overlay') || !e.target.closest('.fbe-inner')) {
+                const iframes = bookEl.current.querySelectorAll('iframe');
+                iframes.forEach(iframe => {
+                    iframe.style.pointerEvents = 'none';
+                });
+
+                const handleMouseUp = () => {
+                    const iframes = bookEl.current.querySelectorAll('iframe');
+                    iframes.forEach(iframe => {
+                        iframe.style.pointerEvents = 'auto';
+                    });
+                    window.removeEventListener('mouseup', handleMouseUp);
+                };
+                window.addEventListener('mouseup', handleMouseUp);
+            }
+        };
+
+        const bookDom = bookEl.current;
+        if (bookDom) {
+            bookDom.addEventListener('mousedown', handleMouseDown);
+        }
+
         if (!useMouseEvents) $book.turn('disable', true);
 
         return () => {
+            if (bookDom) {
+                bookDom.removeEventListener('mousedown', handleMouseDown);
+            }
             try { $book.turn('destroy'); } catch (_) { /* noop */ }
         };
         // onFlip intentionally excluded — it's captured in the closure correctly
@@ -514,82 +615,106 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
 
             {/* Page styles */}
-            {cornerEnable && (
-                <style>{`
-                    .fbe-page {
-                        background: #fff;
-                        overflow: hidden;
-                        margin: 0;
-                        padding: 0;
-                        -webkit-transform: translate3d(0,0,0);
-                        box-shadow: none !important;
-                        border: none !important;
-                        outline: none !important;
-                    }
+            <style>{`
+                .fbe-page {
+                    background: #fff;
+                    overflow: hidden;
+                    margin: 0;
+                    padding: 0;
+                    -webkit-transform: translate3d(0,0,0);
+                    box-shadow: none !important;
+                    border: none !important;
+                    outline: none !important;
+                }
 
-                    .fbe-inner {
-                        width: 100%;
-                        height: 100%;
-                        overflow: hidden;
-                        background: #fff;
-                        margin: 0;
-                        padding: 0;
-                        box-shadow: none !important;
-                        border: none !important;
-                    }
+                .fbe-inner {
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden;
+                    background: #fff;
+                    margin: 0;
+                    padding: 0;
+                    box-shadow: none !important;
+                    border: none !important;
+                }
 
-                    .turn-page {
-                        box-shadow: none !important;
-                        border: none !important;
-                        outline: none !important;
-                    }
+                .turn-page {
+                    box-shadow: none !important;
+                    border: none !important;
+                    outline: none !important;
+                }
 
-                    /* React-pageflip specific classes */
-                    .fbe-react-page {
-                        width: 100%;
-                        height: 100%;
-                        overflow: hidden !important;
-                        transition: border-radius 0.5s ease;
-                        -webkit-transform: translateZ(0);
-                    }
+                /* React-pageflip specific classes */
+                .fbe-react-page {
+                    width: 100%;
+                    height: 100%;
+                    overflow: hidden !important;
+                    transition: border-radius 0.5s ease;
+                    -webkit-transform: translateZ(0);
+                }
 
-                    .fbe-react-page--left {
-                        border-radius: ${cornerRadius} 0 0 ${cornerRadius} !important;
-                    }
+                .fbe-react-page--left {
+                    border-radius: ${cornerRadius} 0 0 ${cornerRadius} !important;
+                }
 
-                    .fbe-react-page--right {
-                        border-radius: 0 ${cornerRadius} ${cornerRadius} 0 !important;
-                    }
+                .fbe-react-page--right {
+                    border-radius: 0 ${cornerRadius} ${cornerRadius} 0 !important;
+                }
 
-                    /* Force turn.js hard pages to remain rigid and hide internal peel gradients */
-                    .hard,
-                    .turn-page.hard,
-                    .cover {
-                        background-color: #fff !important;
-                        box-shadow: none !important;
-                        -webkit-transform-style: preserve-3d !important;
-                        transform-style: preserve-3d !important;
-                    }
+                /* Force turn.js hard pages to remain rigid and hide internal peel gradients */
+                .hard,
+                .turn-page.hard,
+                .cover {
+                    background-color: #fff !important;
+                    box-shadow: none !important;
+                    -webkit-transform-style: preserve-3d !important;
+                    transform-style: preserve-3d !important;
+                }
 
-                    .hard .fbe-inner,
-                    .cover .fbe-inner {
-                        backface-visibility: hidden !important;
-                        -webkit-backface-visibility: hidden !important;
-                    }
+                .hard .fbe-inner,
+                .cover .fbe-inner {
+                    backface-visibility: hidden !important;
+                    -webkit-backface-visibility: hidden !important;
+                }
 
-                    /* Remove any shadow/peel effects globally */
-                    .p-shadow,
-                    .p-gradient,
-                    .p-shadow-left,
-                    .p-shadow-right,
-                    .hard .p-shadow,
-                    .hard .p-gradient,
-                    .cover .p-shadow,
-                    .cover .p-gradient {
-                        display: none !important;
-                    }
-                `}</style>
-            )}
+                /* Remove any shadow/peel effects globally */
+                .p-shadow,
+                .p-gradient,
+                .p-shadow-left,
+                .p-shadow-right,
+                .hard .p-shadow,
+                .hard .p-gradient,
+                .cover .p-shadow,
+                .cover .p-gradient {
+                    display: none !important;
+                }
+                
+                /* Reset global cursor pointer applied by flipbook engines and their descendants */
+                .stf__wrapper, .stf__wrapper *, 
+                .stf__block, .stf__block *, 
+                .turn-page-wrapper, .turn-page-wrapper *, 
+                .turn-page, .turn-page *, 
+                .fbe-wrapper, .fbe-wrapper *, 
+                .fbe-react-page, .fbe-react-page *,
+                .fbe-book, .fbe-book * {
+                    cursor: default;
+                }
+                
+                /* Hand cursor for turn.js pages and drag overlays */
+                .fbe-drag-overlay {
+                    cursor: grab !important;
+                    pointer-events: auto !important;
+                }
+                .fbe-drag-overlay:active {
+                    cursor: grabbing !important;
+                }
+                .turn-page-wrapper, .turn-page {
+                    cursor: grab;
+                }
+                .turn-page-wrapper:active, .turn-page:active {
+                    cursor: grabbing;
+                }
+            `}</style>
         </div>
     );
 });

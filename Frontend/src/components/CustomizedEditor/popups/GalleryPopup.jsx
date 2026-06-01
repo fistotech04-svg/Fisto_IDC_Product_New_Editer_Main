@@ -88,23 +88,42 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
     dragStartX.current = null;
   };
 
+  const hexToRgba = (hex, opacity = 100) => {
+    if (!hex) return `rgba(0, 0, 0, ${opacity / 100})`;
+    if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
+    let c = hex.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    if (c.length !== 6 && c.length !== 8) return hex;
+    const r = parseInt(c.slice(0, 2), 16);
+    const g = parseInt(c.slice(2, 4), 16);
+    const b = parseInt(c.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${opacity / 100})`;
+  };
+
+  const primaryColor = hexToRgba(settings.primaryColor || '#000000', settings.primaryOpacity ?? 100);
+  const secondaryColor = hexToRgba(settings.secondaryColor || '#D7DBE8', settings.secondaryOpacity ?? 100);
+
   if (!images || images.length === 0) return null;
 
-  const bgColor = popupSettings?.backgroundColor?.fill
+  const overlayBgColor = popupSettings?.backgroundColor?.fill
     ? `${popupSettings.backgroundColor.fill}50`
     : 'rgba(0,0,0,0.5)';
+
+  const popupBgColor = hexToRgba(settings.bgColor || popupSettings?.backgroundColor?.fill || '#FFFFFF', settings.bgOpacity ?? 80);
 
   return (
     <div
       className={`absolute inset-0 z-[200] flex flex-col items-center justify-center ${isTablet ? 'p-[1vw]' : 'p-[2vw]'}`}
-      style={{ backgroundColor: bgColor, backdropFilter: 'blur(5px)' }}
+      style={{ backgroundColor: overlayBgColor, backdropFilter: 'blur(5px)' }}
       onClick={onClose}
     >
       {/* The White Box */}
       <div
         className={`relative w-full shadow-2xl flex flex-col overflow-hidden ${isTablet ? 'max-w-[50vw] h-[55vh] rounded-[0.4vw]' : 'max-w-[85vw] h-[75vh] rounded-[0.5vw]'}`}
         style={{
-          backgroundColor: popupSettings?.backgroundColor?.fill || '#f5f6f8',
+          backgroundColor: popupBgColor,
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           border: popupSettings?.backgroundColor?.stroke && popupSettings.backgroundColor.stroke !== '#' ? `1px solid ${popupSettings.backgroundColor.stroke}` : 'none',
           fontFamily: popupSettings?.textProperties?.font || 'Poppins'
         }}
@@ -130,13 +149,15 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
           {images.length > 1 && (
             <button
               className={`absolute z-[210] transition-all cursor-pointer ${isTablet ? 'left-[2vw] p-[0.4vw]' : 'left-[3vw] p-[0.5vw]'}`}
-              style={{ color: settings.navIconColor || '#000000' }}
+              style={{ color: primaryColor, backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = secondaryColor}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               onClick={(e) => { e.stopPropagation(); goPrev(); setIsPlaying(false); }}
             >
               {NavIconRenderer({
                 styleId: settings.navStyle || 1,
                 size: isTablet ? "2vw" : "2.5vw",
-                color: settings.navIconColor || '#000000'
+                color: primaryColor
               }).left}
             </button>
           )}
@@ -234,13 +255,15 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
           {images.length > 1 && (
             <button
               className={`absolute z-[210] transition-all cursor-pointer ${isTablet ? 'right-[2.5vw] p-[0.4vw]' : 'right-[3vw] p-[0.5vw]'}`}
-              style={{ color: settings.navIconColor || '#000000' }}
+              style={{ color: primaryColor, backgroundColor: 'transparent' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = secondaryColor}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               onClick={(e) => { e.stopPropagation(); goNext(); setIsPlaying(false); }}
             >
               {NavIconRenderer({
                 styleId: settings.navStyle || 1,
                 size: isTablet ? "2vw" : "2.5vw",
-                color: settings.navIconColor || '#000000'
+                color: primaryColor
               }).right}
             </button>
           )}
@@ -257,7 +280,7 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
                 style={{
                   width: isTablet ? '0.5vw' : '0.6vw',
                   height: isTablet ? '0.5vw' : '0.6vw',
-                  backgroundColor: i === currentIndex ? (settings.dotColor || '#000000') : 'rgba(0,0,0,0.2)',
+                  backgroundColor: i === currentIndex ? primaryColor : secondaryColor,
                   border: 'none'
                 }}
               />
@@ -270,7 +293,8 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
           <div className={`flex items-center flex-1 ${isTablet ? 'gap-[1.2vw]' : 'gap-[1.5vw]'}`}>
             {images.length > 1 && (
               <button
-                className="text-[#3b3b98] hover:text-[#272766] transition-colors cursor-pointer"
+                className="transition-colors cursor-pointer"
+                style={{ color: primaryColor }}
                 onClick={() => setIsPlaying(!isPlaying)}
               >
                 {isPlaying ? <Pause fill="currentColor" size={isTablet ? "1vw" : "1.2vw"} /> : <Play fill="currentColor" size={isTablet ? "1vw" : "1.2vw"} />}
@@ -278,10 +302,13 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
             )}
 
             {/* Progress Bar */}
-            <div className={`relative flex-1 bg-gray-300 rounded-full overflow-hidden ${isTablet ? 'h-[0.25vw] mr-[2.5vw]' : 'h-[0.3vw] mr-[3vw]'}`}>
+            <div
+              className={`relative flex-1 rounded-full overflow-hidden ${isTablet ? 'h-[0.25vw] mr-[2.5vw]' : 'h-[0.3vw] mr-[3vw]'}`}
+              style={{ backgroundColor: secondaryColor }}
+            >
               <div
-                className="absolute top-0 left-0 h-full bg-[#3b3b98] transition-all duration-300 ease-linear rounded-full"
-                style={{ width: `${((currentIndex + 1) / images.length) * 100}%` }}
+                className="absolute top-0 left-0 h-full transition-all duration-300 ease-linear rounded-full"
+                style={{ width: `${((currentIndex + 1) / images.length) * 100}%`, backgroundColor: primaryColor }}
               />
             </div>
           </div>

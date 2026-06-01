@@ -1541,7 +1541,7 @@ export default function MyFlipbooks() {
                                                                 if (physicalBook) targetFolder = physicalBook.folder;
                                                             }
                                                             const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                            navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`);
+                                                            navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
                                                         }}
                                                         className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
                                                     >
@@ -1555,7 +1555,7 @@ export default function MyFlipbooks() {
                                                                 if (physicalBook) targetFolder = physicalBook.folder;
                                                             }
                                                             const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                            navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`);
+                                                            navigate(`/editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
                                                         }}
                                                         className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
                                                     >

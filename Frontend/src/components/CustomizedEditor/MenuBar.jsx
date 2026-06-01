@@ -42,7 +42,7 @@ const Switch = ({ enabled, onChange, variant = 'primary' }) => {
 // Reusable Section Header
 const SectionHeader = ({ title }) => (
   <div className="flex items-center gap-[0.5vw] mt-[1.2vw] mb-[0.8vw]">
-    <h4 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">{title}</h4>
+    <h4 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">{title}</h4>
     <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
   </div>
 );

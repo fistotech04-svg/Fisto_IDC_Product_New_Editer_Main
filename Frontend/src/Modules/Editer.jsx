@@ -76,6 +76,7 @@ const Editor = () => {
   // Save Success State for Toast
   const [saveSuccessInfo, setSaveSuccessInfo] = useState(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportContext, setExportContext] = useState({ pages: [], activePageIndex: 0 });
 
   const handleSaveSuccess = (info) => {
       setSaveSuccessInfo(info);
@@ -235,8 +236,10 @@ const Editor = () => {
     currentBook,
     setCurrentBook,
     activeDevice,
-    setActiveDevice
-  }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, canSave, threedState, currentBook, activeDevice]);
+    setActiveDevice,
+    isExportModalOpen,
+    setExportContext
+  }), [isAutoSaveEnabled, isSaving, hasUnsavedChanges, canSave, threedState, currentBook, activeDevice, isExportModalOpen]);
 
   if (isRestoring) {
       return (
@@ -273,8 +276,8 @@ const Editor = () => {
         isOpen={isExportModalOpen} 
         onClose={() => setIsExportModalOpen(false)}
         currentBook={currentBook}
-        pages={currentBook?.pages || []}
-        currentPageIndex={currentBook?.activePageIndex ?? 0}
+        pages={exportContext.pages}
+        currentPageIndex={exportContext.activePageIndex}
       />
     </div>
   );

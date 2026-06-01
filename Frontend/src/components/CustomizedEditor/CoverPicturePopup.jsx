@@ -38,28 +38,17 @@ const scrollbarStyles = `
     scrollbar-color: #333333 #f9f9f9;
   }
 `;
-import cover1 from '../../assets/cover/cover1.png';
-import cover2 from '../../assets/cover/cover2.jpg';
-import cover3 from '../../assets/cover/cover3.jpg';
-import cover4 from '../../assets/cover/cover4.jpg';
-import cover5 from '../../assets/cover/cover5.jpg';
-import cover6 from '../../assets/cover/cover6.jpg';
-import cover7 from '../../assets/cover/cover7.jpg';
-import cover8 from '../../assets/cover/cover8.jpg';
-import cover9 from '../../assets/cover/cover9.jpg';
-import cover10 from '../../assets/cover/cover10.jpg';
-
+import cover1 from '../../assets/cover/cover1.svg';
+import cover2 from '../../assets/cover/cover2.svg';
+import cover3 from '../../assets/cover/cover3.svg';
+import cover4 from '../../assets/cover/cover4.svg';
+import cover5 from '../../assets/cover/cover5.svg';
 const COVER_TEMPLATES = [
   { id: 1, src: cover1, label: 'Cover 1' },
   { id: 2, src: cover2, label: 'Cover 2' },
   { id: 3, src: cover3, label: 'Cover 3' },
   { id: 4, src: cover4, label: 'Cover 4' },
   { id: 5, src: cover5, label: 'Cover 5' },
-  { id: 6, src: cover6, label: 'Cover 6' },
-  { id: 7, src: cover7, label: 'Cover 7' },
-  { id: 8, src: cover8, label: 'Cover 8' },
-  { id: 9, src: cover9, label: 'Cover 9' },
-  { id: 10, src: cover10, label: 'Cover 10' },
 ];
 
 const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] }) => {

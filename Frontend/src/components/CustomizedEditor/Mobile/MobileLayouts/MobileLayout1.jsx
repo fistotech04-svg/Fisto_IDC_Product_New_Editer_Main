@@ -9,10 +9,10 @@ import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
 import FlipbookSharePopup from '../../popups/FlipbookSharePopup';
 import TableOfContentsPopup from '../../popups/TableOfContentsPopup';
-import AddNotesPopup from '../../popups/AddNotesPopup';
-import AddBookmarkPopup from '../../popups/AddBookmarkPopup';
-import ViewBookmarkPopup from '../../popups/ViewBookmarkPopup';
-import NotesViewerPopup from '../../popups/NotesViewerPopup';
+
+
+
+
 
 
 const getLayoutColor = (id, defaultColor) => {
@@ -535,52 +535,7 @@ const MobileLayout1 = (props) => {
                     />
                 )}
 
-                {showAddNotesPopup && !isLandscape && (
-                    <AddNotesPopup
-                        onClose={() => setShowAddNotesPopup(false)}
-                        onAddNote={onAddNote}
-                        currentPageIndex={currentPage}
-                        totalPages={pages.length}
-                        isMobile={true}
-                        isLandscape={false}
-                        activeLayout={activeLayout}
-                        layoutColors={layoutColors || props.layoutColors}
-                    />
-                )}
 
-                {showNotesViewer && !isLandscape && (
-                    <NotesViewerPopup
-                        onClose={() => setShowNotesViewer(false)}
-                        notes={notes}
-                        onPageClick={onPageClick}
-                        isMobile={true}
-                    />
-                )}
-
-                {showAddBookmarkPopup && !isLandscape && (
-                    <AddBookmarkPopup
-                        onClose={() => setShowAddBookmarkPopup(false)}
-                        onAddBookmark={onAddBookmark}
-                        currentPageIndex={currentPage}
-                        totalPages={pages.length}
-                        bookmarkSettings={bookmarkSettings}
-                        activeLayout={activeLayout}
-                        isMobile={true}
-                    />
-                )}
-
-                {showViewBookmarkPopup && !isLandscape && (
-                    <ViewBookmarkPopup
-                        onClose={() => setShowViewBookmarkPopup(false)}
-                        bookmarks={bookmarks}
-                        onDelete={onDeleteBookmark}
-                        onUpdate={onUpdateBookmark}
-                        onNavigate={onPageClick}
-                        isMobile={true}
-                        activeLayout={activeLayout}
-                        layoutColors={layoutColors || props.layoutColors}
-                    />
-                )}
 
                 {showProfilePopup && !isLandscape && (
                     <ProfilePopup

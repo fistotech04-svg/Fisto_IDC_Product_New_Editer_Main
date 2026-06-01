@@ -169,7 +169,7 @@ const RadiusBox = ({ corner, value, onChange, radiusStyle }) => {
         <div className="flex items-center justify-between w-full">
             <button onClick={() => onChange(corner, value - 1)} className="text-gray-300 hover:text-indigo-500 transition-colors p-[0.25vw]"><ChevronLeft size="0.9vw" strokeWidth={1.5} /></button>
             <div onMouseDown={onMouseDown} className="flex-1 h-full flex items-center justify-center cursor-ew-resize">
-              <span className="text-[0.8vw] font-bold text-gray-800 select-none block w-full text-center">{value}</span>
+              <span className="text-[0.8vw] font-semibold text-gray-800 select-none block w-full text-center">{value}</span>
             </div>
             <button onClick={() => onChange(corner, value + 1)} className="text-gray-300 hover:text-indigo-500 transition-colors p-[0.25vw]"><ChevronRight size="0.9vw" strokeWidth={1.5} /></button>
         </div>
@@ -887,7 +887,7 @@ const GifEditor = ({
 
       <div className="flex items-center gap-[0.5vw]">
         <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">GIF Property</span>
-        <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
+        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
       </div>
 
       <div className="flex items-center justify-between relative z-20">
@@ -940,10 +940,10 @@ const GifEditor = ({
         <div className="space-y-[0.5vw]">
           <div className="flex items-center gap-[0.5vw]">
             <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-            <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
+            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
           </div>
           <div className="flex items-center gap-[1vw] pb-[0.5vw]">
-            <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="flex-1 cursor-pointer" style={{ background: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }} />
+            <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="flex-1 cursor-pointer" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }} />
             <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{opacity}%</span>
           </div>
         </div>
@@ -1002,9 +1002,9 @@ const GifEditor = ({
                         <DraggableSpan label={label} value={filters[key]} onChange={(v) => setFilters((f) => ({ ...f, [key]: v }))} min={min} max={max} className="text-[0.8vw] font-medium text-gray-700" />
                         <button onClick={() => setFilters((f) => ({ ...f, [key]: 0 }))} className="text-gray-400 hover:text-indigo-600 transition-colors" title={`Reset ${label}`}><Icon icon="ix:reset" className="w-[1vw] h-[1vw]" /></button>
                       </div>
-                      <span className="text-[0.75vw] font-bold text-gray-900">{filters[key]}</span>
+                      <span className="text-[0.75vw] font-semibold text-gray-900">{filters[key]}</span>
                     </div>
-                    <input type="range" min={min} max={max} value={filters[key]} onChange={(e) => setFilters((f) => ({ ...f, [key]: +e.target.value }))} className="w-full cursor-pointer" style={{ background: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((filters[key]-min)/(max-min))*100}%, #E2E8F0 ${((filters[key]-min)/(max-min))*100}%, #E2E8F0 100%)` }} />
+                    <input type="range" min={min} max={max} value={filters[key]} onChange={(e) => setFilters((f) => ({ ...f, [key]: +e.target.value }))} className="w-full cursor-pointer" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${((filters[key]-min)/(max-min))*100}%, #E2E8F0 ${((filters[key]-min)/(max-min))*100}%, #E2E8F0 100%)` }} />
                   </div>
                 ))}
               </div>
@@ -1047,7 +1047,7 @@ const GifEditor = ({
                 {['Drop Shadow', 'Inner Shadow', 'Blur', 'Background Blur'].map((eff) => (
                   <div key={eff} className="relative">
                     <div onClick={() => { const isActive = activeEffects.includes(eff); if (!isActive) { setActiveEffects(prev => [...prev, eff]); setActivePopup(eff); } else { setActivePopup(activePopup === eff ? null : eff); } }} className={`flex items-center justify-between p-[0.5vw] rounded-[0.5vw] border transition-all cursor-pointer ${activePopup === eff ? 'border-black-800 bg-indigo-50/20' : 'bg-gray-50/80 border-gray-100 hover:border-gray-300'}`}>
-                      <span className="text-[0.75vw] font-bold text-gray-700 flex-1">{eff}</span>
+                      <span className="text-[0.75vw] font-semibold text-gray-700 flex-1">{eff}</span>
                       <button onClick={(e) => { e.stopPropagation(); const isActive = activeEffects.includes(eff); if (isActive) { setActiveEffects(prev => prev.filter(e => e !== eff)); if (activePopup === eff) setActivePopup(null); } else { setActiveEffects(prev => [...prev, eff]); setActivePopup(eff); } }} className="p-[0.25vw] hover:bg-white/50 rounded-[0.5vw] transition-colors">
                         {activeEffects.includes(eff) ? <Trash2 size="1vw" className="text-red-500" /> : <Plus size="1vw" className="text-gray-400" />}
                       </button>
@@ -1055,16 +1055,16 @@ const GifEditor = ({
                     {activePopup === eff && (
                       <div className="fixed z-[50] bg-white rounded-[0.5vw] shadow-2xl border border-gray-100 p-[1.5vw] animate-in slide-in-from-right-4 fade-in duration-200" style={{ width: '18vw', top: '35%', left: '92%', transform: 'translateX(-120%)' }}>
                         <div className="flex items-center mb-[1vw]">
-                          <span className="text-[0.85vw] font-bold text-gray-800">{eff}</span>
+                          <span className="text-[0.85vw] font-semibold text-gray-800">{eff}</span>
                           <div className="h-[0.1vw] flex-1 mx-[0.75vw] bg-gray-100" />
                           <button onClick={() => setActivePopup(null)} className="p-[0.375vw] rounded-[0.5vw] hover:bg-gray-100 transition" aria-label="Close"><X size="1vw" className="text-gray-500" /></button>
                         </div>
                         <div className="space-y-[0.75vw]">
                           {eff.includes('Shadow') && (
-                            <><div className="flex items-start gap-[0.5vw]"><div className="relative"><div className="w-[4vw] h-[4vw] rounded-[0.25vw] flex items-center justify-center text-white text-[0.85vw] font-semibold cursor-pointer overflow-hidden" style={{ background: `linear-gradient(to right, ${effectSettings[eff].color} 0%, ${effectSettings[eff].color}88 50%, transparent 100%)` }}><span className="relative z-10">{effectSettings[eff].opacity} %</span><input type="color" value={effectSettings[eff].color} onChange={(e) => updateEffectSetting(eff, 'color', e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /></div></div>
+                            <><div className="flex items-start gap-[0.5vw]"><div className="relative"><div className="w-[4vw] h-[4vw] rounded-[0.25vw] flex items-center justify-center text-white text-[0.85vw] font-semibold cursor-pointer overflow-hidden" style={{ backgroundImage: `linear-gradient(to right, ${effectSettings[eff].color} 0%, ${effectSettings[eff].color}88 50%, transparent 100%)` }}><span className="relative z-10">{effectSettings[eff].opacity} %</span><input type="color" value={effectSettings[eff].color} onChange={(e) => updateEffectSetting(eff, 'color', e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /></div></div>
                             <div className="flex-1 space-y-[0.75vw]">
                               <div className="flex items-center gap-[0.5vw]"><span className="text-[0.75vw] text-gray-800 font-normal whitespace-nowrap">Code :</span><div className="flex-1 relative"><input type="text" value={effectSettings[eff].color} onChange={(e) => updateEffectSetting(eff, 'color', e.target.value)} className="w-full text-[0.85vw] text-gray-800 outline-none bg-transparent border border-gray-300 rounded-[0.5vw] px-[0.75vw] pr-[2vw] h-[2.25vw]" /><div className="absolute right-[0.5vw] top-1/2 -translate-y-1/2 w-[1vw] h-[1vw] cursor-pointer"><Pencil size="1vw" className="text-gray-400" strokeWidth={2} />{'EyeDropper' in window ? <button onClick={() => handleColorPick(eff)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" /> : <input type="color" value={effectSettings[eff].color} onChange={(e) => updateEffectSetting(eff, 'color', e.target.value)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />}</div></div></div>
-                              <div className="flex items-center gap-[0.5vw]"><DraggableSpan label="Opacity :" value={effectSettings[eff].opacity} onChange={(v) => updateEffectSetting(eff, 'opacity', v)} className="text-[0.75vw] text-gray-800 font-normal whitespace-nowrap" /><div className="flex-1 flex items-center gap-[0.5vw]"><input type="range" min="0" max="100" value={effectSettings[eff].opacity} onChange={(e) => updateEffectSetting(eff, 'opacity', Number(e.target.value))} className="flex-1 cursor-pointer" style={{ background: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${effectSettings[eff].opacity}%, #E2E8F0 ${effectSettings[eff].opacity}%, #E2E8F0 100%)` }} /><span className="text-[0.75vw] text-gray-800">{effectSettings[eff].opacity} %</span></div></div>
+                              <div className="flex items-center gap-[0.5vw]"><DraggableSpan label="Opacity :" value={effectSettings[eff].opacity} onChange={(v) => updateEffectSetting(eff, 'opacity', v)} className="text-[0.75vw] text-gray-800 font-normal whitespace-nowrap" /><div className="flex-1 flex items-center gap-[0.5vw]"><input type="range" min="0" max="100" value={effectSettings[eff].opacity} onChange={(e) => updateEffectSetting(eff, 'opacity', Number(e.target.value))} className="flex-1 cursor-pointer" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${effectSettings[eff].opacity}%, #E2E8F0 ${effectSettings[eff].opacity}%, #E2E8F0 100%)` }} /><span className="text-[0.75vw] text-gray-800">{effectSettings[eff].opacity} %</span></div></div>
                             </div></div>
                             <div className="space-y-[0.75vw] pt-[0.5vw]"><EffectControlRow label="X Axis" value={effectSettings[eff].x} onChange={(v) => updateEffectSetting(eff, 'x', v)} min={-100} max={100} /><EffectControlRow label="Y Axis" value={effectSettings[eff].y} onChange={(v) => updateEffectSetting(eff, 'y', v)} min={-100} max={100} /><EffectControlRow label="Blur %" value={effectSettings[eff].blur} onChange={(v) => updateEffectSetting(eff, 'blur', v)} min={0} max={100} /><EffectControlRow label="Spread" value={effectSettings[eff].spread} onChange={(v) => updateEffectSetting(eff, 'spread', v)} min={0} max={100} /></div></>
                           )}

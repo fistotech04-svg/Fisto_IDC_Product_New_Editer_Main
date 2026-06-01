@@ -6,11 +6,13 @@ import { saveToDB } from '../../utils/dbUtils';
 import Layer from './Layer';
 import MainEditor from './MainEditor';
 import RightSidebar from './RightSidebar';
+import TooltipCustomization from './TooltipCustomization';
 import TemplateModal from './TemplateModal';
 import FlipbookPreview from './FlipbookPreview';
 import { convertPdfToImages, generatePdfPageSvg } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
+import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -66,7 +68,9 @@ const TemplateEditor = () => {
     isSaving,
     setIsSaving,
     currentBook,
-    setCurrentBook
+    setCurrentBook,
+    isExportModalOpen,
+    setExportContext
   } = useOutletContext();
 
   // ── States & Refs ──────────────────────────────────────────────────────────
@@ -76,7 +80,6 @@ const TemplateEditor = () => {
   const [isDoublePage, setIsDoublePage] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [projectBaseUrl, setProjectBaseUrl] = useState(null);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [multiSelectedIds, setMultiSelectedIds] = useState(new Set());
@@ -84,6 +87,14 @@ const TemplateEditor = () => {
   const [currentFrameId, setCurrentFrameId] = useState(null);
   const [activeMainTool, setActiveMainTool] = useState('select');
   const [activeTopTool, setActiveTopTool] = useState('editor');
+  const [popupEditContext, setPopupEditContext] = useState(null);
+  const [showPopupTemplateChange, setShowPopupTemplateChange] = useState(false);
+
+  useEffect(() => {
+    const handleOpen = () => setShowPopupTemplateChange(true);
+    window.addEventListener('open-change-popup-template', handleOpen);
+    return () => window.removeEventListener('open-change-popup-template', handleOpen);
+  }, []);
 
   const [pdfProcessing, setPdfProcessing] = useState(null); // { current, total, message }
   const pdfInputRef = useRef(null);
@@ -107,6 +118,13 @@ const TemplateEditor = () => {
   });
 
   const lastSavedHtmlsRef = useRef({});
+
+  // Sync state to ExportModal context
+  useEffect(() => {
+    if (setExportContext) {
+      setExportContext({ pages, activePageIndex });
+    }
+  }, [pages, activePageIndex, setExportContext]);
 
   // ── Save Logic ─────────────────────────────────────────────────────────────
   const saveFlipbook = async (isManual = false, overridePages = null) => {
@@ -222,32 +240,11 @@ const TemplateEditor = () => {
       }
 
       if (lastRes && lastRes.data && lastRes.data.v_id) {
-        // Update local pages state with their database v_ids to maintain synchronization
-        if (lastRes.data.pages) {
-          setPages(prev => {
-            const updated = prev.map((p, idx) => {
-              const savedPage = lastRes.data.pages[idx];
-              if (savedPage && savedPage.v_id && p.v_id !== savedPage.v_id) {
-                return {
-                  ...p,
-                  v_id: savedPage.v_id
-                };
-              }
-              return p;
-            });
-            // Update lastSavedHtmlsRef with the new v_ids as well
-            updated.forEach(p => {
-              const pid = p.v_id || p.id;
-              lastSavedHtmlsRef.current[pid] = p.html;
-            });
-            return updated;
-          });
-        } else {
-          pagesToSave.forEach(p => {
-            const pid = p.v_id || p.id;
-            lastSavedHtmlsRef.current[pid] = p.html;
-          });
-        }
+        // Track successfully saved HTML to rapidly skip unchanged pages next time
+        pagesToSave.forEach(p => {
+          const pid = p.v_id || p.id;
+          lastSavedHtmlsRef.current[pid] = p.html;
+        });
 
         setHasUnsavedChanges(false);
         triggerSaveSuccess({
@@ -274,14 +271,50 @@ const TemplateEditor = () => {
     }
   };
 
+  // Listen for the select-layer custom event to select elements by ID
+  useEffect(() => {
+    const handleSelectLayer = (e) => {
+      const targetLayerId = e.detail?.layerId;
+      if (targetLayerId) {
+        // Find which page this layer belongs to
+        let foundIdx = -1;
+        for (let i = 0; i < pages.length; i++) {
+          const page = pages[i];
+          if (page && page.html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(page.html, 'image/svg+xml');
+            if (doc.getElementById(targetLayerId)) {
+              foundIdx = i;
+              break;
+            }
+          }
+        }
+
+        if (foundIdx !== -1 && foundIdx !== activePageIndex) {
+          setActivePageIndex(foundIdx);
+        }
+
+        setSelectedLayerId(targetLayerId);
+        setMultiSelectedIds(new Set([targetLayerId]));
+        setCurrentFrameId(targetLayerId);
+      } else {
+        setSelectedLayerId(null);
+        setMultiSelectedIds(new Set());
+        setCurrentFrameId(null);
+      }
+    };
+    window.addEventListener('select-layer', handleSelectLayer);
+    return () => window.removeEventListener('select-layer', handleSelectLayer);
+  }, [pages, activePageIndex]);
+
   // Register Save Handler to Navbar (Pass true for manual save)
   useEffect(() => {
-    setSaveHandler(() => () => saveFlipbook(true));
+    setSaveHandler(() => () => saveFlipbook(true, popupEditContext ? popupEditContext.backup.pages : pages));
     return () => setSaveHandler(null);
-  }, [pages, currentBook, v_id]);
+  }, [pages, currentBook, v_id, popupEditContext]);
 
   // Register Preview Handler to Navbar
-  const stablePreviewHandler = useCallback(() => setShowPreview(true), []);
+  const stablePreviewHandler = useCallback(() => window.open('/preview', '_blank'), []);
   useEffect(() => {
     if (setPreviewHandler) {
       setPreviewHandler(() => stablePreviewHandler);
@@ -307,79 +340,26 @@ const TemplateEditor = () => {
     if (isAutoSaveEnabled && pages.length > 0 && !isLoading) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = setTimeout(() => {
-        saveFlipbook(false); // false = auto save
+        saveFlipbook(false, popupEditContext ? popupEditContext.backup.pages : pages); // false = auto save
       }, 1500);
     }
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     };
-  }, [pages, isAutoSaveEnabled, currentBook]);
+  }, [pages, isAutoSaveEnabled, currentBook, popupEditContext]);
 
   // Sync state to IndexedDB for Customized Editor
   useEffect(() => {
     if (pages.length > 0 && !isLoading) {
       saveToDB('editor_autosave', {
-        pages: pages,
-        activePageIndex: activePageIndex,
-        pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
         v_id: v_id,
+        pages: popupEditContext ? popupEditContext.backup.pages : pages,
+        activePageIndex: popupEditContext ? popupEditContext.backup.activePageIndex : activePageIndex,
+        pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
         timestamp: Date.now()
       });
     }
-  }, [pages, activePageIndex, isLoading, currentBook, location.state, v_id]);
-
-  // Sync pages, activePageIndex & first page HTML to currentBook for ExportModal previews
-  useEffect(() => {
-    if (pages.length > 0 && setCurrentBook) {
-      setCurrentBook(prev => {
-        const folderName = folder || prev?.folderName || prev?.folder || location.state?.folderName || 'Recent Book';
-        const bookName = prev?.flipbookName || prev?.title || location.state?.flipbookName || 'Untitled Flipbook';
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-
-        // Compute correct relative and absolute baseUrl
-        const storedUser = localStorage.getItem('user');
-        const user = storedUser ? JSON.parse(storedUser) : null;
-        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
-        const fallbackBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-
-        const relativeBaseUrl = projectBaseUrl
-          ? projectBaseUrl.replace(backendUrl, '')
-          : (prev?.meta?.baseUrl || prev?.baseUrl || fallbackBaseUrl);
-
-        const resolvedVId = v_id || prev?.v_id;
-
-        const isSame =
-          prev?.firstPageHtml === pages[0]?.html &&
-          prev?.pages === pages &&
-          prev?.activePageIndex === activePageIndex &&
-          prev?.folder === folderName &&
-          prev?.folderName === folderName &&
-          prev?.flipbookName === bookName &&
-          prev?.v_id === resolvedVId &&
-          prev?.meta?.baseUrl === relativeBaseUrl;
-
-        if (isSame) return prev;
-
-        return {
-          ...(prev || {}),
-          folder: folderName,
-          folderName: folderName,
-          flipbookName: bookName,
-          title: bookName,
-          v_id: resolvedVId,
-          firstPageHtml: pages[0]?.html || prev?.firstPageHtml,
-          pages: pages,
-          activePageIndex: activePageIndex,
-          meta: {
-            baseUrl: relativeBaseUrl,
-            folderName: folderName,
-            flipbookName: bookName,
-            v_id: resolvedVId
-          }
-        };
-      });
-    }
-  }, [pages, activePageIndex, v_id, setCurrentBook, location.state, projectBaseUrl, folder]);
+  }, [pages, activePageIndex, isLoading, currentBook, location.state, v_id, popupEditContext]);
 
   // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
   // to ensure the project maintains its primary aspect ratio.
@@ -426,6 +406,225 @@ const TemplateEditor = () => {
     return { html, layers };
   };
 
+
+  // ── Popup Customization Handlers ──────────────────────────────────────────
+  const onCustomizePopup = async (templateId, elementId, pageIndex) => {
+    // Try to find existing custom HTML on the element
+    let initialSvgText = null;
+    try {
+      const originalPage = pages[pageIndex];
+      if (originalPage && originalPage.html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(originalPage.html, 'image/svg+xml');
+        const el = doc.getElementById(elementId) || doc.querySelector(`[data-name="${elementId}"]`);
+        if (el) {
+          initialSvgText = el.getAttribute('data-interaction-popup-custom-html');
+        }
+      }
+    } catch (e) {
+      console.error("Error checking for existing custom HTML:", e);
+    }
+
+    // Backup current states
+    const backupContext = {
+      backup: {
+        pages: [...pages],
+        activePageIndex,
+        isDoublePage,
+        selectedLayerId,
+        multiSelectedIds: new Set(multiSelectedIds),
+        currentFrameId,
+        history: [...history],
+        redoStack: [...redoStack],
+        activeTopTool
+      },
+      elementId,
+      pageIndex,
+      templateId
+    };
+
+    const loadPopupData = (svgText) => {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(svgText, 'image/svg+xml');
+      const svgEl = doc.documentElement;
+
+      let popupWidth = 800;
+      let popupHeight = 600;
+      const viewBox = svgEl.getAttribute('viewBox');
+      if (viewBox) {
+        const parts = viewBox.split(/[\s,]+/);
+        if (parts.length === 4) {
+          popupWidth = parseFloat(parts[2]);
+          popupHeight = parseFloat(parts[3]);
+        }
+      } else {
+        const w = svgEl.getAttribute('width');
+        const h = svgEl.getAttribute('height');
+        if (w && h && !w.includes('%') && !h.includes('%')) {
+          popupWidth = parseFloat(w);
+          popupHeight = parseFloat(h);
+        }
+      }
+      backupContext.dimensions = { width: popupWidth, height: popupHeight };
+
+      svgEl.setAttribute('width', '100%');
+      svgEl.setAttribute('height', '100%');
+
+      // Wrap popup content in a frame if it doesn't already have one,
+      // so it behaves exactly like a page in the normal editor.
+      const hasFrame = Array.from(svgEl.children).some(c => c.getAttribute('data-type') === 'frame');
+      if (!hasFrame) {
+        const frame = doc.createElementNS('http://www.w3.org/2000/svg', 'g');
+        frame.setAttribute('data-type', 'frame');
+        frame.setAttribute('data-name', 'Popup Template');
+        frame.setAttribute('id', `popup-frame-${Math.random().toString(36).substr(2, 9)}`);
+
+        // Move children into the frame (leaving defs/style at the root if possible)
+        const childrenToMove = Array.from(svgEl.children).filter(c => 
+          c.tagName.toLowerCase() !== 'defs' && 
+          c.tagName.toLowerCase() !== 'style'
+        );
+        childrenToMove.forEach(c => frame.appendChild(c));
+        
+        svgEl.appendChild(frame);
+      }
+
+      let layers = parseLayersFromSVG(svgEl);
+      if (layers.length === 0) {
+        layers = [{
+          id: 'layer-1',
+          name: 'Background',
+          type: 'rect',
+          visible: true,
+          locked: false
+        }];
+      }
+
+      const serializer = new XMLSerializer();
+      const serializedSvg = serializer.serializeToString(svgEl);
+
+      // Perform the swap
+      setPopupEditContext(backupContext);
+      setPages([{
+        id: 'popup-1',
+        name: 'Popup Template',
+        html: serializedSvg,
+        layers: layers
+      }]);
+      setActivePageIndex(0);
+      setIsDoublePage(false);
+      setSelectedLayerId(null);
+      setMultiSelectedIds(new Set());
+      setCurrentFrameId(null);
+      setHistory([]);
+      setRedoStack([]);
+      setActiveTopTool('editor');
+    };
+
+    if (initialSvgText && initialSvgText.trim() !== '') {
+      loadPopupData(initialSvgText);
+    } else {
+      const template = popupTemplates.find(t => t.id === templateId);
+      if (template && template.image) {
+        try {
+          const res = await fetch(template.image);
+          if (!res.ok) throw new Error("Failed to fetch template image");
+          const svgText = await res.text();
+          loadPopupData(svgText);
+        } catch (err) {
+          console.error("Failed to fetch template SVG, using fallback:", err);
+          const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+            <g id="layer-1" data-name="Background">
+              <rect width="100%" height="100%" fill="#ffffff" rx="16" />
+            </g>
+            <g id="layer-2" data-name="Content">
+              <text x="50%" y="50%" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">Popup Template</text>
+            </g>
+          </svg>`;
+          loadPopupData(fallbackSvg);
+        }
+      } else {
+        const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+          <g id="layer-1" data-name="Background">
+            <rect width="100%" height="100%" fill="#ffffff" rx="16" />
+          </g>
+          <g id="layer-2" data-name="Content">
+            <text x="50%" y="50%" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">Popup Template</text>
+          </g>
+        </svg>`;
+        loadPopupData(fallbackSvg);
+      }
+    }
+  };
+
+  const handleApplyPopupChanges = () => {
+    if (!popupEditContext) return;
+    const { backup, elementId, pageIndex, templateId } = popupEditContext;
+
+    // Save customized HTML
+    const customHtml = pages[0]?.html || '';
+
+    // Restore original book states FIRST
+    setPages(backup.pages);
+    setActivePageIndex(backup.activePageIndex);
+    setIsDoublePage(backup.isDoublePage);
+    setSelectedLayerId(backup.selectedLayerId);
+    setMultiSelectedIds(backup.multiSelectedIds);
+    setCurrentFrameId(backup.currentFrameId);
+    setHistory(backup.history);
+    setRedoStack(backup.redoStack);
+    setActiveTopTool(backup.activeTopTool);
+
+    // Reset context
+    setPopupEditContext(null);
+
+    // Apply attributes on the interactive element
+    setTimeout(() => {
+      // Find the element and dispatch update to InteractionPanel
+      const updateEl = document.getElementById(elementId) || document.querySelector(`[data-name="${elementId}"]`);
+      if (updateEl) {
+        updateEl.setAttribute('data-interaction', 'popup');
+        updateEl.setAttribute('data-interaction-value', templateId);
+        updateEl.setAttribute('data-interaction-popup-custom-html', customHtml);
+        // Force state sync
+        setPages(prevPages => {
+          const newPages = [...prevPages];
+          if (newPages[pageIndex]) {
+            const serializer = new XMLSerializer();
+            // Need to update the page HTML properly
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(newPages[pageIndex].html, 'image/svg+xml');
+            const targetEl = doc.getElementById(elementId) || doc.querySelector(`[data-name="${elementId}"]`);
+            if (targetEl) {
+              targetEl.setAttribute('data-interaction', 'popup');
+              targetEl.setAttribute('data-interaction-value', templateId);
+              targetEl.setAttribute('data-interaction-popup-custom-html', customHtml);
+              newPages[pageIndex].html = serializer.serializeToString(doc.documentElement);
+            }
+          }
+          return newPages;
+        });
+      }
+    }, 0);
+  };
+
+  const handleCancelPopupChanges = () => {
+    if (!popupEditContext) return;
+    const { backup } = popupEditContext;
+
+    // Restore everything
+    setPages(backup.pages);
+    setActivePageIndex(backup.activePageIndex);
+    setIsDoublePage(backup.isDoublePage);
+    setSelectedLayerId(backup.selectedLayerId);
+    setMultiSelectedIds(backup.multiSelectedIds);
+    setCurrentFrameId(backup.currentFrameId);
+    setHistory(backup.history);
+    setRedoStack(backup.redoStack);
+    setActiveTopTool(backup.activeTopTool);
+
+    setPopupEditContext(null);
+  };
 
   // ── FIGMA-STYLE: Unified Page Selection & Frame Sync ──────────────────────────
   useEffect(() => {
@@ -582,6 +781,15 @@ const TemplateEditor = () => {
   };
 
   const insertPageAfter = (index) => {
+    if (pages.length >= 12) {
+      setAlertState({
+        isOpen: true,
+        title: 'Limit Reached',
+        message: 'You can only have up to 12 pages in a flipbook.',
+        type: 'warning'
+      });
+      return;
+    }
     saveToHistory();
     setPages(prev => {
       const name = `Page ${prev.length + 1}`;
@@ -600,6 +808,15 @@ const TemplateEditor = () => {
   };
 
   const duplicatePage = (index) => {
+    if (pages.length >= 12) {
+      setAlertState({
+        isOpen: true,
+        title: 'Limit Reached',
+        message: 'You can only have up to 12 pages in a flipbook.',
+        type: 'warning'
+      });
+      return;
+    }
     saveToHistory();
     setPages(prev => {
       const pageToDuplicate = prev[index];
@@ -886,10 +1103,25 @@ const TemplateEditor = () => {
     const isDefaultBlank = !isPdfProject && (pages.length === 0 ||
       (pages.length === 1 && (!pages[0].html || pages[0].html.includes('data-name="Page 1"'))));
 
+    const maxAllowed = 12;
+    const currentCount = isDefaultBlank ? 0 : pages.length;
+    const remainingSlots = maxAllowed - currentCount;
+
+    if (remainingSlots <= 0) {
+      setAlertState({
+        isOpen: true,
+        title: 'Limit Reached',
+        message: `The flipbook already has ${pages.length} pages. The maximum allowed is ${maxAllowed}.`,
+        type: 'warning'
+      });
+      setPdfProcessing(null);
+      return;
+    }
+
     setPdfProcessing({ current: 0, total: 1, message: 'Processing PDF...', fileName: file.name });
 
     try {
-      const images = await convertPdfToImages(file, 2);
+      const images = await convertPdfToImages(file, 2, remainingSlots);
       if (!images || images.length === 0) return;
 
       // 1. Check internal uniformity of the incoming PDF
@@ -937,7 +1169,7 @@ const TemplateEditor = () => {
       let completed = 0;
       const uploadPromises = images.map(async (image, i) => {
         const formData = new FormData();
-        formData.append('file', image.blob, `pdf-page-${i + 1}.svg`);
+        formData.append('file', image.blob, `pdf-page-${i + 1}.png`);
         formData.append('emailId', emailId);
         formData.append('type', 'image');
         formData.append('v_id', v_id);
@@ -1670,156 +1902,164 @@ const TemplateEditor = () => {
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
       const element = doc.getElementById(elementId);
       if (element) {
-        if (value === null || value === 'none' || value === '#') {
-          // For Fill/Stroke, we explicitly set 'none' to avoid SVG default black
-          if (attribute === 'fill' || attribute === 'stroke') {
-            element.setAttribute(attribute, 'none');
+        const updates = (typeof attribute === 'object' && attribute !== null)
+          ? Object.entries(attribute)
+          : [[attribute, value]];
+
+        updates.forEach(([attr, val]) => {
+          if (val === null || val === 'none' || val === '#') {
+            // For Fill/Stroke, we explicitly set 'none' to avoid SVG default black
+            if (attr === 'fill' || attr === 'stroke') {
+              element.setAttribute(attr, 'none');
+            } else {
+              element.removeAttribute(attr);
+            }
+
+            if (attr === 'stroke-width') element.setAttribute('stroke', 'none');
           } else {
-            element.removeAttribute(attribute);
-          }
-
-          if (attribute === 'stroke-width') element.setAttribute('stroke', 'none');
-        } else {
-          element.setAttribute(attribute, value);
-          if (attribute === 'stroke-width' && value !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
-            // If we're setting a stroke width, make sure there's a color
-            element.setAttribute('stroke', '#000000');
-          }
-
-          // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
-          const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attribute);
-          if (attribute === 'data-count' || attribute === 'data-rx' || attribute === 'data-ry' || attribute === 'data-ratio' || attribute === 'data-radius' || isRectCorner) {
-            const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
-
-            if (shapeType === 'polygon' || shapeType === 'star') {
-              // ... (existing polygon/star logic) ...
-              const cx = parseFloat(element.getAttribute('data-cx') || 0);
-              const cy = parseFloat(element.getAttribute('data-cy') || 0);
-              const rx = parseFloat(element.getAttribute('data-rx') || 0);
-              const count = parseInt(attribute === 'data-count' ? value : (element.getAttribute('data-count') || 3));
-              const cr = parseFloat(attribute === 'data-radius' ? value : (element.getAttribute('data-radius') || 0));
-
-              const pts = [];
-              if (shapeType === 'polygon') {
-                for (let i = 0; i < count; i++) {
-                  const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
-                  pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
-                }
-              } else if (shapeType === 'star') {
-                const ratio = parseFloat(attribute === 'data-ratio' ? value : (element.getAttribute('data-ratio') || 40)) / 100;
-                const ri = rx * ratio;
-                const sides = count * 2;
-                for (let i = 0; i < sides; i++) {
-                  const r = (i % 2 === 0) ? rx : ri;
-                  const angle = (Math.PI / count) * i - Math.PI / 2;
-                  pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
-                }
-              }
-
-              if (cr > 0 && pts.length > 2) {
-                let pathData = "";
-                const cornerPoints = pts.map((curr, i) => {
-                  const prev = pts[(i + pts.length - 1) % pts.length];
-                  const next = pts[(i + 1) % pts.length];
-                  const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
-                  const d2 = { x: next.x - curr.x, y: next.y - curr.y };
-                  const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
-                  const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
-                  const limit = Math.min(cr, l1 / 2, l2 / 2);
-                  return {
-                    q: { x: curr.x, y: curr.y },
-                    p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
-                    p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
-                  };
-                });
-                cornerPoints.forEach((cp, i) => {
-                  if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
-                  else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
-                  pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
-                });
-                pathData += " Z";
-                element.setAttribute('d', pathData);
-              } else {
-                element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
-              }
+            element.setAttribute(attr, val);
+            if (attr === 'stroke-width' && val !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
+              // If we're setting a stroke width, make sure there's a color
+              element.setAttribute('stroke', '#000000');
             }
-            else if (shapeType === 'rectangle' && (isRectCorner || attribute === 'rx')) {
-              // Convert rect to path if individual corners are used
-              const x = parseFloat(element.getAttribute('x') || 0);
-              const y = parseFloat(element.getAttribute('y') || 0);
-              const w = parseFloat(element.getAttribute('width') || 0);
-              const h = parseFloat(element.getAttribute('height') || 0);
-              const defR = parseFloat(element.getAttribute('rx') || 0);
 
-              const tl = parseFloat(element.getAttribute('data-tl') || defR);
-              const tr = parseFloat(element.getAttribute('data-tr') || defR);
-              const bl = parseFloat(element.getAttribute('data-bl') || defR);
-              const br = parseFloat(element.getAttribute('data-br') || defR);
+            // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
+            const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attr);
+            if (attr === 'data-count' || attr === 'data-rx' || attr === 'data-ry' || attr === 'data-ratio' || attr === 'data-radius' || isRectCorner) {
+              const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
 
-              const d = `
-                    M ${x + tl},${y}
-                    L ${x + w - tr},${y}
-                    Q ${x + w},${y} ${x + w},${y + tr}
-                    L ${x + w},${y + h - br}
-                    Q ${x + w},${y + h} ${x + w - br},${y + h}
-                    L ${x + bl},${y + h}
-                    Q ${x},${y + h} ${x},${y + h - bl}
-                    L ${x},${y + tl}
-                    Q ${x},${y} ${x + tl},${y}
-                    Z
-                 `.replace(/\s+/g, ' ').trim();
+              if (shapeType === 'polygon' || shapeType === 'star') {
+                const cx = parseFloat(element.getAttribute('data-cx') || 0);
+                const cy = parseFloat(element.getAttribute('data-cy') || 0);
+                const rx = parseFloat(element.getAttribute('data-rx') || 0);
+                const count = parseInt(attr === 'data-count' ? val : (element.getAttribute('data-count') || 3));
+                const cr = parseFloat(attr === 'data-radius' ? val : (element.getAttribute('data-radius') || 0));
 
-              // Crucial: keep width/height so interact.js still works, but render as path
-              if (element.tagName === 'rect') {
-                const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-                // Copy all attributes
-                Array.from(element.attributes).forEach(attr => path.setAttribute(attr.name, attr.value));
-                path.setAttribute('d', d);
-                path.setAttribute('data-shape-type', 'rectangle');
-                element.parentNode.replaceChild(path, element);
-              } else {
-                element.setAttribute('d', d);
+                const pts = [];
+                if (shapeType === 'polygon') {
+                  for (let i = 0; i < count; i++) {
+                    const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
+                    pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
+                  }
+                } else if (shapeType === 'star') {
+                  const ratio = parseFloat(attr === 'data-ratio' ? val : (element.getAttribute('data-ratio') || 40)) / 100;
+                  const ri = rx * ratio;
+                  const sides = count * 2;
+                  for (let i = 0; i < sides; i++) {
+                    const r = (i % 2 === 0) ? rx : ri;
+                    const angle = (Math.PI / count) * i - Math.PI / 2;
+                    pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+                  }
+                }
+
+                if (cr > 0 && pts.length > 2) {
+                  let pathData = "";
+                  const cornerPoints = pts.map((curr, i) => {
+                    const prev = pts[(i + pts.length - 1) % pts.length];
+                    const next = pts[(i + 1) % pts.length];
+                    const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+                    const d2 = { x: next.x - curr.x, y: next.y - curr.y };
+                    const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
+                    const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
+                    const limit = Math.min(cr, l1 / 2, l2 / 2);
+                    return {
+                      q: { x: curr.x, y: curr.y },
+                      p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
+                      p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
+                    };
+                  });
+                  cornerPoints.forEach((cp, i) => {
+                    if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
+                    else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
+                    pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
+                  });
+                  pathData += " Z";
+                  element.setAttribute('d', pathData);
+                } else {
+                  element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
+                }
+              }
+              else if (shapeType === 'rectangle' && (isRectCorner || attr === 'rx')) {
+                const x = parseFloat(element.getAttribute('x') || 0);
+                const y = parseFloat(element.getAttribute('y') || 0);
+                const w = parseFloat(element.getAttribute('width') || 0);
+                const h = parseFloat(element.getAttribute('height') || 0);
+                const defR = parseFloat(element.getAttribute('rx') || 0);
+
+                const tl = parseFloat(element.getAttribute('data-tl') || defR);
+                const tr = parseFloat(element.getAttribute('data-tr') || defR);
+                const bl = parseFloat(element.getAttribute('data-bl') || defR);
+                const br = parseFloat(element.getAttribute('data-br') || defR);
+
+                const d = `
+                      M ${x + tl},${y}
+                      L ${x + w - tr},${y}
+                      Q ${x + w},${y} ${x + w},${y + tr}
+                      L ${x + w},${y + h - br}
+                      Q ${x + w},${y + h} ${x + w - br},${y + h}
+                      L ${x + bl},${y + h}
+                      Q ${x},${y + h} ${x},${y + h - bl}
+                      L ${x},${y + tl}
+                      Q ${x},${y} ${x + tl},${y}
+                      Z
+                   `.replace(/\s+/g, ' ').trim();
+
+                if (element.tagName === 'rect') {
+                  const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+                  Array.from(element.attributes).forEach(a => path.setAttribute(a.name, a.value));
+                  path.setAttribute('d', d);
+                  path.setAttribute('data-shape-type', 'rectangle');
+                  element.parentNode.replaceChild(path, element);
+                } else {
+                  element.setAttribute('d', d);
+                }
               }
             }
           }
-        }
+        });
 
         // --- GRADIENT SYNC ---
-        const isGradientRelated = attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type');
-        if (attribute.startsWith('fill') || attribute.startsWith('stroke') || isGradientRelated || attribute.includes('stroke-')) {
-          const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
+        const checkGrad = (attr) => attr.startsWith('fill') || attr.startsWith('stroke') || attr.includes('-stops') || attr.includes('-gradient-type') || attr.includes('-type') || attr.includes('stroke-');
+        const hasGradRelated = typeof attribute === 'object' && attribute !== null
+          ? Object.keys(attribute).some(checkGrad)
+          : checkGrad(attribute);
+
+        if (hasGradRelated) {
+          const primaryAttr = typeof attribute === 'object' && attribute !== null ? Object.keys(attribute)[0] : attribute;
+          const base = (primaryAttr.startsWith('fill') || primaryAttr.includes('fill-')) ? 'fill' : 'stroke';
           syncGradient(doc, element, base);
 
-          // If it's a group, remove child attributes to allow inheritance
           if (element.tagName.toLowerCase() === 'g') {
             const children = element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon');
             children.forEach(child => {
-              // Remove child-level definition to let group-level value through
-              if (attribute === 'fill' || attribute === 'stroke' || attribute === 'stroke-width' || attribute === 'stroke-dasharray' || attribute === 'opacity') {
-                child.removeAttribute(attribute);
-              }
-              // If it was a gradient related change, we might need to remove BOTH fill and stroke from child
-              // to ensure they don't block inheritance.
-              if (isGradientRelated) {
+              updates.forEach(([attr]) => {
+                if (attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray' || attr === 'opacity') {
+                  child.removeAttribute(attr);
+                }
+              });
+              if (typeof attribute === 'object' && attribute !== null ? Object.keys(attribute).some(a => a.includes('-stops') || a.includes('-gradient-type') || a.includes('-type')) : (attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type'))) {
                 child.removeAttribute(base);
               }
             });
           }
 
-          // DEFAULT STROKE THICKNESS: When picking a stroke color, if no width exists, default to 1.
-          if (attribute === 'stroke' && value !== 'none' && value !== '#') {
-            const currentWidth = element.getAttribute('stroke-width');
-            if (!currentWidth || currentWidth === '0') {
-              element.setAttribute('stroke-width', '1');
+          updates.forEach(([attr, val]) => {
+            if (attr === 'stroke' && val !== 'none' && val !== '#') {
+              const currentWidth = element.getAttribute('stroke-width');
+              if (!currentWidth || currentWidth === '0') {
+                element.setAttribute('stroke-width', '1');
+              }
             }
-          }
-
-          // The syncGradient logic above handles the 'solid' type, so no fallback needed.
+          });
         }
 
-        if (attribute.startsWith('data-effect-')) {
+        const hasEffectRelated = typeof attribute === 'object' && attribute !== null
+          ? Object.keys(attribute).some(a => a.startsWith('data-effect-'))
+          : attribute.startsWith('data-effect-');
+        if (hasEffectRelated) {
           syncFilters(doc, element);
         }
+
         const serializer = new XMLSerializer();
         updated[pageIndex] = { ...page, html: serializer.serializeToString(doc.documentElement) };
       }
@@ -2380,7 +2620,7 @@ const TemplateEditor = () => {
           // This prevents elements from losing their masks or colors when the container is exploded.
           const attrsToInherit = [
             'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
-            'opacity', 'visibility', 'filter', 'color',
+            'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
             'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
           ];
           attrsToInherit.forEach(attr => {
@@ -2420,7 +2660,7 @@ const TemplateEditor = () => {
 
         // Inherit visual attributes from the original template SVG
         const svgAttrs = [
-          'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color',
+          'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
           'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
         ];
 
@@ -2512,20 +2752,24 @@ const TemplateEditor = () => {
   };
 
   const handleOpenTemplateModal = (index) => {
-    setTemplateTargetIndex(index !== undefined ? index : activePageIndex);
-    setShowTemplateModal(true);
+    if (popupEditContext) {
+      setShowPopupTemplateChange(true);
+    } else {
+      setTemplateTargetIndex(index !== undefined ? index : activePageIndex);
+      setShowTemplateModal(true);
+    }
   };
 
   useEffect(() => {
     const initializeEditor = async () => {
       setIsLoading(true);
 
-      const storedUser = localStorage.getItem('user');
-      const user = storedUser ? JSON.parse(storedUser) : null;
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-
       if (v_id) {
         try {
+          const storedUser = localStorage.getItem('user');
+          const user = storedUser ? JSON.parse(storedUser) : null;
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
             params: { emailId: user?.emailId, v_id }
           });
@@ -2533,8 +2777,9 @@ const TemplateEditor = () => {
           if (res.data && res.data.pages) {
             const parser = new DOMParser();
             const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
-            const pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
-            setProjectBaseUrl(pBaseUrl);
+            const folderName = res.data.meta.folderName;
+            const bookName = res.data.meta.flipbookName;
+            const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
 
             const mappedPages = res.data.pages.map((p, i) => {
               const name = p.name || `Page ${i + 1}`;
@@ -2549,15 +2794,9 @@ const TemplateEditor = () => {
               }
 
               // Transform relative paths to absolute for the editor's canvas
-              // Also heal any 'nullassets/' or broken paths from previous sessions
               let updatedHtml = p.html;
               if (updatedHtml.includes('./assets/')) {
-                updatedHtml = updatedHtml.split('./assets/').join(`${pBaseUrl}assets/`);
-              } else if (updatedHtml.includes('nullassets/')) {
-                updatedHtml = updatedHtml.split('nullassets/').join(`${pBaseUrl}assets/`);
-              } else if (updatedHtml.includes('/assets/') && !updatedHtml.includes('://')) {
-                // Handle cases where it might have become just /assets/
-                updatedHtml = updatedHtml.replace(/([^"'])\/assets\//g, `$1${pBaseUrl}assets/`);
+                updatedHtml = updatedHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
               }
 
               // Re-parse layers from HTML if missing or invalid (source of truth)
@@ -2590,24 +2829,11 @@ const TemplateEditor = () => {
               lastSavedHtmlsRef.current[pid] = p.html;
             });
 
-            setCurrentBook(prev => {
-              const folderName = prev?.folderName || res.data.meta.folderName || 'My Flipbooks';
-              const bookName = prev?.flipbookName || res.data.meta.flipbookName || 'Untitled Flipbook';
-              return {
-                ...(prev || {}),
-                folder: folderName,
-                folderName: folderName,
-                flipbookName: bookName,
-                v_id: v_id,
-                share: res.data.share,
-                meta: {
-                  baseUrl: res.data.meta.baseUrl || pBaseUrl.replace(backendUrl, ''),
-                  folderName: folderName,
-                  flipbookName: bookName,
-                  v_id: v_id
-                }
-              };
-            });
+            setCurrentBook(prev => ({
+              ...res.data.meta,
+              ...(prev || {}),
+              flipbookName: prev?.flipbookName || res.data.meta.flipbookName
+            }));
             setHasUnsavedChanges(false);
 
             // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
@@ -2654,23 +2880,10 @@ const TemplateEditor = () => {
           };
         });
         setPages(newPages);
-
-        const folderName = location.state.folderName || 'Recent Book';
-        const bookName = location.state.flipbookName || 'Untitled Flipbook';
-        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
-        const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-
         setCurrentBook(prev => ({
           ...(prev || {}),
-          folder: folderName,
-          folderName: folderName,
-          flipbookName: bookName,
-          meta: {
-            baseUrl: pBaseUrl,
-            folderName: folderName,
-            flipbookName: bookName,
-            v_id: prev?.v_id
-          }
+          flipbookName: prev?.flipbookName || location.state.flipbookName || 'Untitled Flipbook',
+          folderName: prev?.folderName || location.state.folderName || 'Recent Book'
         }));
       }
       else {
@@ -2684,23 +2897,10 @@ const TemplateEditor = () => {
             layers
           };
         }));
-
-        const folderName = 'Recent Book';
-        const bookName = 'Untitled Flipbook';
-        const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_") || 'guest';
-        const pBaseUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-
         setCurrentBook(prev => ({
           ...(prev || {}),
-          folder: folderName,
-          folderName: folderName,
-          flipbookName: bookName,
-          meta: {
-            baseUrl: pBaseUrl,
-            folderName: folderName,
-            flipbookName: bookName,
-            v_id: prev?.v_id
-          }
+          flipbookName: prev?.flipbookName || 'Untitled Flipbook',
+          folderName: prev?.folderName || 'Recent Book'
         }));
       }
 
@@ -2741,6 +2941,25 @@ const TemplateEditor = () => {
   }
 
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+
+  const selectedElementInteraction = (() => {
+    if (!selectedLayerId || pages.length === 0 || activePageIndex < 0 || activePageIndex >= pages.length) return null;
+    const page = pages[activePageIndex];
+    if (page && page.html) {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const el = doc.getElementById(selectedLayerId);
+      if (el) {
+        return {
+          id: selectedLayerId,
+          tagName: el.tagName,
+          'data-interaction': el.getAttribute('data-interaction'),
+          'data-tooltip-settings': el.getAttribute('data-tooltip-settings')
+        };
+      }
+    }
+    return null;
+  })();
 
   return (
     <div className="flex h-[92vh] w-full bg-white overflow-hidden">
@@ -2784,6 +3003,8 @@ const TemplateEditor = () => {
         onSave={saveFlipbook}
         onAddFile={handleAddFileClick}
         onReplaceFile={handleReplaceFileClick}
+        isPopupEditor={!!popupEditContext}
+        isExportModalOpen={isExportModalOpen}
       />
 
       <MainEditor
@@ -2798,7 +3019,6 @@ const TemplateEditor = () => {
         deletePage={deletePage}
         onOpenTemplateModal={handleOpenTemplateModal}
         onAddFile={handleAddFileClick}
-        onReplaceFile={handleReplaceFileClick}
         selectedLayerId={selectedLayerId}
         setSelectedLayerId={setSelectedLayerId}
         updatePageHtml={updatePageHtml}
@@ -2820,8 +3040,17 @@ const TemplateEditor = () => {
           }
         }}
         onSave={saveFlipbook}
-        flipbookDimensions={getFlipbookDimensions()}
+        isPopupEditor={!!popupEditContext}
+        flipbookDimensions={popupEditContext ? (popupEditContext.dimensions || { width: 800, height: 600 }) : getFlipbookDimensions()}
       />
+      {(activeTopTool === 'interaction' || (isPdfProject && activeTopTool === 'editor' && activeMainTool !== 'upload')) && selectedElementInteraction?.['data-interaction'] === 'tooltip' && (
+        <TooltipCustomization
+          selectedElementProps={selectedElementInteraction}
+          activePageIndex={activePageIndex}
+          selectedLayerId={selectedLayerId}
+          updateElementAttribute={updateElementAttribute}
+        />
+      )}
       <RightSidebar
         isDoublePage={isDoublePage}
         setIsDoublePage={setIsDoublePage}
@@ -2835,6 +3064,10 @@ const TemplateEditor = () => {
         updateElementAttribute={updateElementAttribute}
         onPreview={() => setShowPreview(true)}
         flipbookDimensions={getFlipbookDimensions()}
+        isPopupEditor={!!popupEditContext}
+        onCustomizePopup={onCustomizePopup}
+        onApplyPopupChanges={handleApplyPopupChanges}
+        onCancelPopupChanges={handleCancelPopupChanges}
       />
 
       {showTemplateModal && (
@@ -2855,7 +3088,6 @@ const TemplateEditor = () => {
           isDoublePage={isDoublePage}
           targetPage={0}
           settings={{}}
-          baseUrl={projectBaseUrl}
         />
       )}
 
@@ -2867,6 +3099,8 @@ const TemplateEditor = () => {
         accept=".pdf,application/pdf"
         onChange={handlePdfFileSelect}
       />
+
+      {/* Hidden File Input for PDF Replace */}
       <input
         type="file"
         ref={replacePdfInputRef}
@@ -2885,12 +3119,25 @@ const TemplateEditor = () => {
         type={alertState.type}
         onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
       />
+
+      {/* Change Popup Template Modal */}
+      {showPopupTemplateChange && popupEditContext && (
+        <PopupTemplateSelection
+          isOpen={showPopupTemplateChange}
+          onClose={() => setShowPopupTemplateChange(false)}
+          onSelect={(templateId) => {
+            onCustomizePopup(templateId, popupEditContext.elementId, popupEditContext.pageIndex);
+            setShowPopupTemplateChange(false);
+          }}
+          onCustomize={(templateId) => {
+            onCustomizePopup(templateId, popupEditContext.elementId, popupEditContext.pageIndex);
+            setShowPopupTemplateChange(false);
+          }}
+          selectedTemplateId={popupEditContext.templateId}
+        />
+      )}
     </div>
   );
 };
 
 export default TemplateEditor;
-
-
-
-

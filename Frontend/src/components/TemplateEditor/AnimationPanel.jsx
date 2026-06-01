@@ -66,39 +66,39 @@ const WAAPI_ANIMATIONS = {
   'fade-in': [{ opacity: 0 }, { opacity: 1 }],
   'fade-out': [{ opacity: 1 }, { opacity: 0 }],
   'blur-in': [{ filter: 'blur(20px)', opacity: 0 }, { filter: 'blur(0)', opacity: 1 }],
-  'focus-in': [{ filter: 'blur(12px)', opacity: 0, transform: 'scale(1.2)' }, { filter: 'blur(0)', opacity: 1, transform: 'scale(1)' }],
+  'focus-in': [{ filter: 'blur(12px)', opacity: 0, scale: 1.2 }, { filter: 'blur(0)', opacity: 1, scale: 1 }],
   'glass-reveal': [{ opacity: 0, backdropFilter: 'blur(20px)' }, { opacity: 1, backdropFilter: 'blur(0px)' }],
   'perspective-in': [{ transform: 'perspective(400px) rotateX(-60deg) translateZ(-500px)', opacity: 0 }, { transform: 'perspective(400px) rotateX(0deg) translateZ(0)', opacity: 1 }],
-  'slide-up': [{ transform: 'translateY(100px)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }],
-  'slide-down': [{ transform: 'translateY(-100px)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }],
-  'slide-left': [{ transform: 'translateX(100px)', opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
-  'slide-right': [{ transform: 'translateX(-100px)', opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }],
-  'back-in-up': [{ transform: 'translateY(500px) scale(0.7)', opacity: 0 }, { transform: 'translateY(0) scale(0.7)', opacity: 0.7, offset: 0.8 }, { transform: 'translateY(0) scale(1)', opacity: 1 }],
-  'back-in-down': [{ transform: 'translateY(-500px) scale(0.7)', opacity: 0 }, { transform: 'translateY(0) scale(0.7)', opacity: 0.7, offset: 0.8 }, { transform: 'translateY(0) scale(1)', opacity: 1 }],
-  'back-in-left': [{ transform: 'translateX(-500px) scale(0.7)', opacity: 0 }, { transform: 'translateX(0) scale(0.7)', opacity: 0.7, offset: 0.8 }, { transform: 'translateX(0) scale(1)', opacity: 1 }],
-  'back-in-right': [{ transform: 'translateX(500px) scale(0.7)', opacity: 0 }, { transform: 'translateX(0) scale(0.7)', opacity: 0.7, offset: 0.8 }, { transform: 'translateX(0) scale(1)', opacity: 1 }],
-  'zoom-in': [{ transform: 'scale(0)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
-  'zoom-out': [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(0)', opacity: 0 }],
-  'zoom-in-up': [{ transform: 'scale(0.1) translateY(100px)', opacity: 0 }, { transform: 'scale(1) translateY(0)', opacity: 1 }],
-  'zoom-in-down': [{ transform: 'scale(0.1) translateY(-100px)', opacity: 0 }, { transform: 'scale(1) translateY(0)', opacity: 1 }],
-  'rotate-in': [{ transform: 'rotate(-200deg) scale(0)', opacity: 0 }, { transform: 'rotate(0) scale(1)', opacity: 1 }],
-  'rotate-in-down-left': [{ transform: 'rotate(-45deg)', transformOrigin: 'left bottom', opacity: 0 }, { transform: 'rotate(0)', transformOrigin: 'left bottom', opacity: 1 }],
-  'rotate-in-up-right': [{ transform: 'rotate(-90deg)', transformOrigin: 'right bottom', opacity: 0 }, { transform: 'rotate(0)', transformOrigin: 'right bottom', opacity: 1 }],
-  'bounce-in': [{ transform: 'scale(0.3)', opacity: 0 }, { transform: 'scale(1.1)', opacity: 0.8, offset: 0.5 }, { transform: 'scale(0.9)', opacity: 1, offset: 0.7 }, { transform: 'scale(1)', opacity: 1 }],
-  'bounce-out': [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.1)', opacity: 0.8, offset: 0.2 }, { transform: 'scale(0.3)', opacity: 0, offset: 1 }],
+  'slide-up': [{ translate: '0 100px', opacity: 0 }, { translate: '0 0', opacity: 1 }],
+  'slide-down': [{ translate: '0 -100px', opacity: 0 }, { translate: '0 0', opacity: 1 }],
+  'slide-left': [{ translate: '100px 0', opacity: 0 }, { translate: '0 0', opacity: 1 }],
+  'slide-right': [{ translate: '-100px 0', opacity: 0 }, { translate: '0 0', opacity: 1 }],
+  'back-in-up': [{ translate: '0 500px', scale: 0.7, opacity: 0 }, { translate: '0 0', scale: 0.7, opacity: 0.7, offset: 0.8 }, { translate: '0 0', scale: 1, opacity: 1 }],
+  'back-in-down': [{ translate: '0 -500px', scale: 0.7, opacity: 0 }, { translate: '0 0', scale: 0.7, opacity: 0.7, offset: 0.8 }, { translate: '0 0', scale: 1, opacity: 1 }],
+  'back-in-left': [{ translate: '-500px 0', scale: 0.7, opacity: 0 }, { translate: '0 0', scale: 0.7, opacity: 0.7, offset: 0.8 }, { translate: '0 0', scale: 1, opacity: 1 }],
+  'back-in-right': [{ translate: '500px 0', scale: 0.7, opacity: 0 }, { translate: '0 0', scale: 0.7, opacity: 0.7, offset: 0.8 }, { translate: '0 0', scale: 1, opacity: 1 }],
+  'zoom-in': [{ scale: 0, opacity: 0 }, { scale: 1, opacity: 1 }],
+  'zoom-out': [{ scale: 1, opacity: 1 }, { scale: 0, opacity: 0 }],
+  'zoom-in-up': [{ translate: '0 100px', scale: 0.1, opacity: 0 }, { translate: '0 0', scale: 1, opacity: 1 }],
+  'zoom-in-down': [{ translate: '0 -100px', scale: 0.1, opacity: 0 }, { translate: '0 0', scale: 1, opacity: 1 }],
+  'rotate-in': [{ rotate: '-200deg', scale: 0, opacity: 0 }, { rotate: '0deg', scale: 1, opacity: 1 }],
+  'rotate-in-down-left': [{ rotate: '-45deg', transformOrigin: 'left bottom', opacity: 0 }, { rotate: '0deg', transformOrigin: 'left bottom', opacity: 1 }],
+  'rotate-in-up-right': [{ rotate: '-90deg', transformOrigin: 'right bottom', opacity: 0 }, { rotate: '0deg', transformOrigin: 'right bottom', opacity: 1 }],
+  'bounce-in': [{ scale: 0.3, opacity: 0 }, { scale: 1.1, opacity: 0.8, offset: 0.5 }, { scale: 0.9, opacity: 1, offset: 0.7 }, { scale: 1, opacity: 1 }],
+  'bounce-out': [{ scale: 1, opacity: 1 }, { scale: 1.1, opacity: 0.8, offset: 0.2 }, { scale: 0.3, opacity: 0, offset: 1 }],
   'flip-in': [{ transform: 'perspective(400px) rotateX(90deg)', opacity: 0 }, { transform: 'perspective(400px) rotateX(0deg)', opacity: 1 }],
   'flip-in-y': [{ transform: 'perspective(400px) rotateY(90deg)', opacity: 0 }, { transform: 'perspective(400px) rotateY(0deg)', opacity: 1 }],
-  'roll-in': [{ transform: 'translateX(-100px) rotate(-120deg)', opacity: 0 }, { transform: 'translateX(0) rotate(0)', opacity: 1 }],
-  'pulse': [{ transform: 'scale(1)' }, { transform: 'scale(1.1)', offset: 0.5 }, { transform: 'scale(1)' }],
-  'heartbeat': [{ transform: 'scale(1)' }, { transform: 'scale(1.3)', offset: 0.14 }, { transform: 'scale(1)', offset: 0.28 }, { transform: 'scale(1.3)', offset: 0.42 }, { transform: 'scale(1)', offset: 0.7 }],
-  'float': [{ transform: 'translateY(0)' }, { transform: 'translateY(-15px)', offset: 0.5 }, { transform: 'translateY(0)' }],
+  'roll-in': [{ translate: '-100px 0', rotate: '-120deg', opacity: 0 }, { translate: '0 0', rotate: '0deg', opacity: 1 }],
+  'pulse': [{ scale: 1 }, { scale: 1.1, offset: 0.5 }, { scale: 1 }],
+  'heartbeat': [{ scale: 1 }, { scale: 1.3, offset: 0.14 }, { scale: 1, offset: 0.28 }, { scale: 1.3, offset: 0.42 }, { scale: 1, offset: 0.7 }],
+  'float': [{ translate: '0 0' }, { translate: '0 -15px', offset: 0.5 }, { translate: '0 0' }],
   'neon-glow': [{ filter: 'brightness(1) drop-shadow(0 0 0px rgba(79, 70, 229, 0))' }, { filter: 'brightness(1.5) drop-shadow(0 0 10px rgba(79, 70, 229, 0.8))', offset: 0.5 }, { filter: 'brightness(1) drop-shadow(0 0 0px rgba(79, 70, 229, 0))' }],
-  'tada': [{ transform: 'scale(1) rotate(0)' }, { transform: 'scale(0.9) rotate(-3deg)', offset: 0.1 }, { transform: 'scale(0.9) rotate(-3deg)', offset: 0.2 }, { transform: 'scale(1.1) rotate(3deg)', offset: 0.3 }, { transform: 'scale(1.1) rotate(-3deg)', offset: 0.4 }, { transform: 'scale(1.1) rotate(3deg)', offset: 0.5 }, { transform: 'scale(1.1) rotate(-3deg)', offset: 0.6 }, { transform: 'scale(1.1) rotate(3deg)', offset: 0.7 }, { transform: 'scale(1.1) rotate(-3deg)', offset: 0.8 }, { transform: 'scale(1.1) rotate(3deg)', offset: 0.9 }, { transform: 'scale(1) rotate(0)' }],
-  'rubber-band': [{ transform: 'scale(1, 1)' }, { transform: 'scale(1.25, 0.75)', offset: 0.3 }, { transform: 'scale(0.75, 1.25)', offset: 0.4 }, { transform: 'scale(1.15, 0.85)', offset: 0.5 }, { transform: 'scale(0.95, 1.05)', offset: 0.65 }, { transform: 'scale(1.05, 0.95)', offset: 0.75 }, { transform: 'scale(1, 1)' }],
-  'jello': [{ transform: 'skew(0,0)' }, { transform: 'skew(-12.5deg, -12.5deg)', offset: 0.22 }, { transform: 'skew(6.25deg, 6.25deg)', offset: 0.33 }, { transform: 'skew(-3.125deg, -3.125deg)', offset: 0.44 }, { transform: 'skew(1.5625deg, 1.5625deg)', offset: 0.55 }, { transform: 'skew(-0.78deg, -0.78deg)', offset: 0.66 }, { transform: 'skew(0.39deg, 0.39deg)', offset: 0.77 }, { transform: 'skew(-0.2deg, -0.2deg)', offset: 0.88 }, { transform: 'skew(0,0)' }],
-  'swing': [{ transform: 'rotate(0deg)' }, { transform: 'rotate(15deg)', offset: 0.2 }, { transform: 'rotate(-10deg)', offset: 0.4 }, { transform: 'rotate(5deg)', offset: 0.6 }, { transform: 'rotate(-5deg)', offset: 0.8 }, { transform: 'rotate(0deg)' }],
-  'wobble': [{ transform: 'translateX(0%) rotate(0deg)' }, { transform: 'translateX(-25%) rotate(-5deg)', offset: 0.15 }, { transform: 'translateX(20%) rotate(3deg)', offset: 0.3 }, { transform: 'translateX(-15%) rotate(-3deg)', offset: 0.45 }, { transform: 'translateX(10%) rotate(2deg)', offset: 0.6 }, { transform: 'translateX(-5%) rotate(-1deg)', offset: 0.75 }, { transform: 'translateX(0%) rotate(0deg)' }],
-  'glitch': [{ transform: 'translate(0)' }, { transform: 'translate(-2px, 2px)', offset: 0.2 }, { transform: 'translate(2px, -2px)', offset: 0.4 }, { transform: 'translate(-2px, 2px)', offset: 0.6 }, { transform: 'translate(2px, -2px)', offset: 0.8 }, { transform: 'translate(0)' }],
+  'tada': [{ scale: 1, rotate: '0deg' }, { scale: 0.9, rotate: '-3deg', offset: 0.1 }, { scale: 0.9, rotate: '-3deg', offset: 0.2 }, { scale: 1.1, rotate: '3deg', offset: 0.3 }, { scale: 1.1, rotate: '-3deg', offset: 0.4 }, { scale: 1.1, rotate: '3deg', offset: 0.5 }, { scale: 1.1, rotate: '-3deg', offset: 0.6 }, { scale: 1.1, rotate: '3deg', offset: 0.7 }, { scale: 1.1, rotate: '-3deg', offset: 0.8 }, { scale: 1.1, rotate: '3deg', offset: 0.9 }, { scale: 1, rotate: '0deg' }],
+  'rubber-band': [{ scale: '1 1' }, { scale: '1.25 0.75', offset: 0.3 }, { scale: '0.75 1.25', offset: 0.4 }, { scale: '1.15 0.85', offset: 0.5 }, { scale: '0.95 1.05', offset: 0.65 }, { scale: '1.05 0.95', offset: 0.75 }, { scale: '1 1' }],
+  'jello': [{ skew: '0,0' }, { skew: '-12.5deg, -12.5deg', offset: 0.22 }, { skew: '6.25deg, 6.25deg', offset: 0.33 }, { skew: '-3.125deg, -3.125deg', offset: 0.44 }, { skew: '1.5625deg, 1.5625deg', offset: 0.55 }, { skew: '-0.78deg, -0.78deg', offset: 0.66 }, { skew: '0.39deg, 0.39deg', offset: 0.77 }, { skew: '-0.2deg, -0.2deg', offset: 0.88 }, { skew: '0,0' }],
+  'swing': [{ rotate: '0deg' }, { rotate: '15deg', offset: 0.2 }, { rotate: '-10deg', offset: 0.4 }, { rotate: '5deg', offset: 0.6 }, { rotate: '-5deg', offset: 0.8 }, { rotate: '0deg' }],
+  'wobble': [{ translate: '0 0', rotate: '0deg' }, { translate: '-25% 0', rotate: '-5deg', offset: 0.15 }, { translate: '20% 0', rotate: '3deg', offset: 0.3 }, { translate: '-15% 0', rotate: '-3deg', offset: 0.45 }, { translate: '10% 0', rotate: '2deg', offset: 0.6 }, { translate: '-5% 0', rotate: '-1deg', offset: 0.75 }, { translate: '0 0', rotate: '0deg' }],
+  'glitch': [{ translate: '0' }, { translate: '-2px 2px', offset: 0.2 }, { translate: '2px -2px', offset: 0.4 }, { translate: '-2px 2px', offset: 0.6 }, { translate: '2px -2px', offset: 0.8 }, { translate: '0' }],
 };
 
 const ANIMATION_GALLERY_ITEMS = [
@@ -209,106 +209,305 @@ const Stepper = React.memo(({ label, value, onChange, unit = '' }) => {
 });
 
 /* -------------------------------------------------------------------------- */
-/*                             RENDER SECTION                                 */
+/*                        SINGLE ELEMENT EDITOR                               */
 /* -------------------------------------------------------------------------- */
 
-const AnimationSection = React.memo(({ 
-  settings, title, sectionKey, onUpdateSetting, onOpenGallery, onPreview,
-  showEasingSelector, setShowEasingSelector, showTopDropdowns, mainType, actionType,
-  onMainTypeChange, onActionTypeChange, showMainTypeSelector, setShowMainTypeSelector
-}) => {
-  const isClose = sectionKey === 'close';
+const SingleAnimationEditor = ({ element, elements, onUpdate, onDelete, onOpenGallery, previewAnimation, ANIMATION_GALLERY_ITEMS, EASING_OPTIONS }) => {
+  const [showEasingSelector, setShowEasingSelector] = React.useState(false);
+  const [showTriggerSelector, setShowTriggerSelector] = React.useState(false);
+
+  const primaryElement = element || (elements && elements[0]);
+  const targetList = elements || (() => {
+      if (!element) return [];
+      const multiSelect = Array.from(document.querySelectorAll('.is-selected'));
+      if (multiSelect.length > 1 && multiSelect.some(el => el.id === element.id || el.getAttribute('data-name') === (element.getAttribute('data-name') || element.id))) {
+          return multiSelect;
+      }
+      return [element];
+  })();
+
+  const [trigger, setTrigger] = React.useState(primaryElement.getAttribute('data-animation-trigger') || 'While Opening');
+  const [action, setAction] = React.useState(primaryElement.getAttribute('data-animation-action') || 'Click');
+  const [showActionSelector, setShowActionSelector] = React.useState(false);
+
+  const getPrefix = (t) => (t === 'While Opening' ? 'open' : 'interact');
+
+  const [settings, setSettings] = React.useState({
+    type: primaryElement.getAttribute(`data-animation-${getPrefix(trigger)}-type`) || 'none',
+    delay: parseFloat(primaryElement.getAttribute(`data-animation-${getPrefix(trigger)}-delay`)) || 0,
+    duration: parseFloat(primaryElement.getAttribute(`data-animation-${getPrefix(trigger)}-duration`)) || 1,
+    speed: parseFloat(primaryElement.getAttribute(`data-animation-${getPrefix(trigger)}-speed`)) || 1,
+    easing: primaryElement.getAttribute(`data-animation-${getPrefix(trigger)}-easing`) || 'Linear',
+    everyVisit: primaryElement.getAttribute(`data-animation-${getPrefix(trigger)}-every-visit`) !== 'false'
+  });
+
+  React.useEffect(() => {
+    const t = primaryElement.getAttribute('data-animation-trigger') || 'While Opening';
+    const p = getPrefix(t);
+    setTrigger(t);
+    setAction(primaryElement.getAttribute('data-animation-action') || 'Click');
+    setSettings({
+      type: primaryElement.getAttribute(`data-animation-${p}-type`) || 'none',
+      delay: parseFloat(primaryElement.getAttribute(`data-animation-${p}-delay`)) || 0,
+      duration: parseFloat(primaryElement.getAttribute(`data-animation-${p}-duration`)) || 1,
+      speed: parseFloat(primaryElement.getAttribute(`data-animation-${p}-speed`)) || 1,
+      easing: primaryElement.getAttribute(`data-animation-${p}-easing`) || 'Linear',
+      everyVisit: primaryElement.getAttribute(`data-animation-${p}-every-visit`) !== 'false'
+    });
+  }, [primaryElement]);
+
+  const updateSetting = (key, value) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    const prefix = getPrefix(trigger);
+    const attr = `data-animation-${prefix}-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`;
+    
+    targetList.forEach(el => {
+        let target = el;
+        if (target && !document.body.contains(target)) {
+            const id = target.id || target.getAttribute('data-name');
+            if (id) {
+                const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container');
+                const fresh = activePage?.querySelector(`[id="${id}"], [data-name="${id}"]`) || document.getElementById(id);
+                if (fresh) target = fresh;
+            }
+        }
+        target.setAttribute(attr, String(value));
+        target.setAttribute('data-animation-trigger', trigger);
+        if (trigger === 'On Page') {
+            target.setAttribute('data-animation-action', action || 'Click');
+            target.style.pointerEvents = 'auto';
+            if ((action || 'Click') === 'Click') target.style.cursor = 'pointer';
+        }
+        target.setAttribute('data-animation-intent', 'true');
+        if (onUpdate) {
+            onUpdate(target.id || target.getAttribute('data-name'), attr, value);
+            onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-trigger', trigger);
+            onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-intent', 'true');
+            if (trigger === 'On Page') {
+                onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-action', action || 'Click');
+            }
+        }
+    });
+  };
+
+  const handleTriggerChange = (newTrigger) => {
+    const oldPrefix = getPrefix(trigger);
+    const newPrefix = getPrefix(newTrigger);
+    setTrigger(newTrigger);
+
+    // Refresh local settings to match the new prefix
+    setSettings({
+      type: primaryElement.getAttribute(`data-animation-${newPrefix}-type`) || 'none',
+      delay: parseFloat(primaryElement.getAttribute(`data-animation-${newPrefix}-delay`)) || 0,
+      duration: parseFloat(primaryElement.getAttribute(`data-animation-${newPrefix}-duration`)) || 1,
+      speed: parseFloat(primaryElement.getAttribute(`data-animation-${newPrefix}-speed`)) || 1,
+      easing: primaryElement.getAttribute(`data-animation-${newPrefix}-easing`) || 'Linear',
+      everyVisit: primaryElement.getAttribute(`data-animation-${newPrefix}-every-visit`) === 'true'
+    });
+    
+    targetList.forEach(el => {
+        let target = el;
+        if (target && !document.body.contains(target)) {
+            const id = target.id || target.getAttribute('data-name');
+            const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container');
+            const fresh = activePage?.querySelector(`[id="${id}"], [data-name="${id}"]`) || document.getElementById(id);
+            if (fresh) target = fresh;
+        }
+
+        // Migrate settings if the new namespace is empty
+        const currentNewType = target.getAttribute(`data-animation-${newPrefix}-type`);
+        if (!currentNewType || currentNewType === 'none') {
+            const oldType = target.getAttribute(`data-animation-${oldPrefix}-type`);
+            if (oldType && oldType !== 'none') {
+                ['type', 'delay', 'duration', 'speed', 'easing', 'every-visit'].forEach(k => {
+                    const attrName = `data-animation-${newPrefix}-${k}`;
+                    const val = target.getAttribute(`data-animation-${oldPrefix}-${k}`);
+                    if (val) {
+                        target.setAttribute(attrName, val);
+                        if (onUpdate) onUpdate(target.id || target.getAttribute('data-name'), attrName, val);
+                    }
+                });
+            }
+        }
+
+        target.setAttribute('data-animation-trigger', newTrigger);
+        if (newTrigger === 'On Page') {
+            const currentAction = target.getAttribute('data-animation-action') || action || 'Click';
+            target.setAttribute('data-animation-action', currentAction);
+            target.style.pointerEvents = 'auto';
+            if (currentAction === 'Click') target.style.cursor = 'pointer';
+            if (onUpdate) onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-action', currentAction);
+        } else {
+            target.style.pointerEvents = '';
+            target.style.cursor = '';
+        }
+        target.setAttribute('data-animation-intent', 'true');
+        if (onUpdate) {
+            onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-trigger', newTrigger);
+            onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-intent', 'true');
+        }
+    });
+    setShowTriggerSelector(false);
+  };
+
+  const handleActionChange = (newAction) => {
+    setAction(newAction);
+    targetList.forEach(el => {
+        let target = el;
+        if (target && !document.body.contains(target)) {
+            const id = target.id || target.getAttribute('data-name');
+            const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container');
+            const fresh = activePage?.querySelector(`[id="${id}"], [data-name="${id}"]`) || document.getElementById(id);
+            if (fresh) target = fresh;
+        }
+        target.setAttribute('data-animation-action', newAction);
+        target.setAttribute('data-animation-intent', 'true');
+        
+        // Ensure interactive elements are receptive to pointer events
+        if (newAction === 'Click' || newAction === 'Hover') {
+            target.style.pointerEvents = 'auto';
+            if (newAction === 'Click') target.style.cursor = 'pointer';
+        }
+
+        if (onUpdate) {
+            onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-action', newAction);
+            onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-intent', 'true');
+        }
+    });
+    setShowActionSelector(false);
+  };
+
+  const handleDelete = () => {
+    targetList.forEach(el => {
+        let target = el;
+        if (target && !document.body.contains(target)) {
+            const id = target.id || target.getAttribute('data-name');
+            const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container');
+            const fresh = activePage?.querySelector(`[id="${id}"], [data-name="${id}"]`) || document.getElementById(id);
+            if (fresh) target = fresh;
+        }
+        const attrsToRemove = Array.from(target.attributes)
+            .map(a => a.name)
+            .filter(name => name.startsWith('data-animation-') && name !== 'data-animation-group');
+        attrsToRemove.forEach(a => {
+            target.removeAttribute(a);
+            if (onUpdate) onUpdate(target.id || target.getAttribute('data-name'), a, null);
+        });
+        target.removeAttribute('data-animation-intent');
+        if (onUpdate) onUpdate(target.id || target.getAttribute('data-name'), 'data-animation-intent', null);
+
+        // Clear inline styles that might have been left over by WAAPI animations
+        target.style.opacity = '';
+        target.style.transform = '';
+        target.style.filter = '';
+        target.style.backdropFilter = '';
+        target.style.translate = '';
+        target.style.scale = '';
+        target.style.rotate = '';
+    });
+    setSettings({ type: 'none', delay: 0, duration: 1, speed: 1, easing: 'Linear', everyVisit: true });
+    if (onDelete) {
+        onDelete(targetList);
+    }
+  };
+
   const galleryItem = ANIMATION_GALLERY_ITEMS.find(a => a.id === settings.type);
-  
+
   return (
-    <div className="space-y-[1vw] transition-all duration-300">
-      {/* Top Dropdowns (for On Page mode) */}
-      {showTopDropdowns && (
-        <div className="flex gap-[0.75vw] my-[1vw]">
-          <div className="flex-1 relative">
-            <button 
-              onClick={(e) => { e.stopPropagation(); setShowMainTypeSelector(showMainTypeSelector === 'context' ? null : 'context'); }}
-              className="w-full h-[2.5vw] flex items-center justify-between px-[0.75vw] bg-gray-50/50 border border-gray-100 rounded-[0.75vw] hover:bg-gray-100 transition-colors group"
-            >
-               <span className="text-[0.75vw] font-medium text-gray-600">{mainType}</span>
-               <ArrowRightLeft size="0.75vw" className="text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
-            </button>
-            {showMainTypeSelector === 'context' && (
-              <div onClick={(e) => e.stopPropagation()} className="absolute top-full left-0 w-[7.75vw] mt-[0.5vw] bg-white border border-gray-100 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-hidden animate-in zoom-in-95 duration-200">
-                {['While Opening', 'On Page'].map(type => (
-                  <button key={type} onClick={(e) => onMainTypeChange(e, type)} className="w-[7.75vw] text-center px-[1vw] py-[0.65vw] text-[0.75vw] font-medium text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors">
-                    {type}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="flex-1 relative">
-            <button 
-              onClick={(e) => { e.stopPropagation(); setShowMainTypeSelector(showMainTypeSelector === 'action' ? null : 'action'); }}
-              className="w-full h-[2.5vw] flex items-center justify-between px-[0.75vw] bg-gray-50/50 border border-gray-100 rounded-[0.75vw] hover:bg-gray-100 transition-colors group"
-            >
-               <span className="text-[0.75vw] font-medium text-gray-600">{actionType}</span>
-               <ArrowRightLeft size="0.75vw" className="text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
-            </button>
-            {showMainTypeSelector === 'action' && (
-              <div onClick={(e) => e.stopPropagation()} className="absolute top-full left-0 w-full mt-[0.5vw] bg-white border border-gray-100 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-hidden animate-in zoom-in-95 duration-200">
-                {['Click', 'Hover', 'Always'].map(type => (
-                  <button key={type} onClick={(e) => onActionTypeChange(e, type)} className="w-full text-center px-[1vw] py-[0.65vw] text-[0.75vw] font-medium text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors">
-                    {type}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={(e) => onPreview(e, settings.type, settings)}
-             className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-white border border-indigo-600 rounded-[0.75vw] text-indigo-600 shadow-sm hover:bg-indigo-50 transition-colors flex-shrink-0"
-             title="Preview"
+    <div className="flex flex-col gap-[1vw]">
+      {/* Top Dropdowns & Preview */}
+      <div className="flex gap-[0.75vw]">
+        <div className="flex-1 relative">
+          <button 
+            onClick={(e) => { e.stopPropagation(); setShowTriggerSelector(!showTriggerSelector); setShowActionSelector(false); }}
+            className="w-full h-[2.5vw] flex items-center justify-between px-[0.75vw] bg-gray-100 border border-gray-100 rounded-[0.75vw] hover:bg-gray-100 transition-colors group"
           >
-            <ScanEye size="1vw" />
+             <span className="text-[0.75vw] font-medium text-gray-600 truncate">{trigger}</span>
+             <ArrowRightLeft size="0.75vw" className="text-gray-500 group-hover:rotate-180 transition-transform duration-500" />
           </button>
+          {showTriggerSelector && (
+            <div className="absolute top-full left-0 w-full mt-[0.5vw] bg-white border border-gray-200 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-hidden">
+              {['While Opening', 'On Page'].map(t => (
+                <button key={t} onClick={() => handleTriggerChange(t)} className="w-full text-center px-[1vw] py-[0.65vw] text-[0.75vw] font-medium text-gray-500 hover:bg-gray-100 hover:text-indigo-600 transition-colors">
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
-      {title && (
-        <div className="flex items-center gap-[0.75vw]">
-          <span className="text-[0.75vw] font-bold text-gray-900 whitespace-nowrap">{title}</span>
-          <div className="h-[0.05vw] w-full bg-gray-100" />
-        </div>
-      )}
-      
-      <div className="flex gap-[1vw] pt-[1vw] items-start">
+        {trigger === 'On Page' && (
+          <div className="flex-1 relative">
+            <button 
+              onClick={(e) => { e.stopPropagation(); setShowActionSelector(!showActionSelector); setShowTriggerSelector(false); }}
+              className="w-full h-[2.5vw] flex items-center justify-between px-[0.75vw] bg-gray-100/50 border border-gray-100 rounded-[0.75vw] hover:bg-gray-100 transition-colors group"
+            >
+               <span className="text-[0.75vw] font-medium text-gray-600 truncate">{action}</span>
+               <ArrowRightLeft size="0.75vw" className="text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
+            </button>
+            {showActionSelector && (
+              <div className="absolute top-full left-0 w-full mt-[0.5vw] bg-white border border-gray-100 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-hidden">
+                {['Click', 'Hover', 'Always'].map(a => (
+                  <button key={a} onClick={() => handleActionChange(a)} className="w-full text-center px-[1vw] py-[0.65vw] text-[0.75vw] font-medium text-gray-500 hover:bg-gray-100 hover:text-indigo-600 transition-colors">
+                    {a}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          onClick={(e) => {
+            if (elements) {
+                elements.forEach(target => {
+                    previewAnimation(e, settings.type, settings, target, true);
+                });
+            } else {
+                previewAnimation(e, settings.type, settings, primaryElement);
+            }
+          }}
+           className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-indigo-50 border border-indigo-600 rounded-[0.75vw] text-indigo-600 shadow-sm hover:bg-indigo-200 transition-colors flex-shrink-0"
+           title="Preview Animation"
+        >
+          <ScanEye size="1vw" />
+        </button>
+      </div>
+
+      <div className="flex gap-[1vw] items-start">
         {/* Style Preview Card */}
         <div 
-          onClick={(e) => onPreview(e, settings.type, settings)}
-          className="anim-panel-preview-card w-[5.8vw] h-[7vw]  relative group rounded-[0.8vw] overflow-hidden border border-gray-200 bg-white shadow-[0_0.05vw_0.4vw_rgba(0,0,0,0.04)] hover:shadow-xs transition-all duration-300 flex-shrink-0 flex flex-col cursor-pointer"
+          onClick={(e) => {
+            if (elements) {
+                elements.forEach(target => {
+                    previewAnimation(e, settings.type, settings, target, true);
+                });
+            } else {
+                previewAnimation(e, settings.type, settings, primaryElement);
+            }
+          }}
+          className="anim-panel-preview-card w-[5.8vw] h-[7vw] relative group rounded-[0.8vw] overflow-hidden border border-gray-200 bg-white shadow-[0_0.05vw_0.4vw_rgba(0,0,0,0.04)] hover:shadow-xs transition-all duration-300 flex-shrink-0 flex flex-col cursor-pointer"
         >
-          {/* Top Section: Graphic & Replace Button */}
           <div className="flex-1 relative w-full flex items-center justify-center">
-             
-             {/* Replace Button - Z-Index 20 to sit above overlay */}
              <div 
-               onClick={(e) => { e.stopPropagation(); onOpenGallery(settings.type); }}
+               onClick={(e) => { 
+                   e.stopPropagation(); 
+                   onOpenGallery(primaryElement, (newType) => {
+                       updateSetting('type', newType);
+                   }); 
+               }}
                className="anim-panel-replace-btn absolute top-[0.5vw] right-[0.5vw] w-[1.75vw] h-[1.75vw] rounded-[0.4vw] flex items-center justify-center cursor-pointer transition-all duration-200 z-20 group-hover:bg-white group-hover:shadow-sm"
                title="Replace Animation"
              >
                <Icon icon="ph:arrows-left-right" width="0.85vw" height="0.85vw" className="text-gray-400 group-hover:text-gray-900 transition-colors overlay:hidden" />
              </div>
-
-             {/* Graphic */}
              <div className="pt-[1.5vw] group-hover:opacity-40 transition-opacity duration-100 relative z-0">
-               {galleryItem?.icon === 'None' ? (
-                 <div className="anim-panel-none-icon w-[2vw] h-[2vw] rounded-full border-[0.15vw] border-gray-400 flex items-center justify-center -rotate-45">
-                   <div className="w-[0.1vw] h-full bg-gray-400" />
-                 </div>
-               ) : galleryItem?.icon === 'Circle' ? (
-                 <div className="anim-panel-circle-icon w-[2vw] h-[2vw] rounded-full border-[0.1vw] border-gray-700 flex items-center justify-center">
-                   <div className="w-[1.25vw] h-[1.25vw] rounded-full border-[0.1vw] border-dashed border-gray-800" />
-                 </div>
-               ) : (
+                {galleryItem?.icon === 'None' ? (
+                  <Icon icon="radix-icons:shadow-none" width="2vw" height="2vw" className="text-gray-500" />
+                ) : galleryItem?.icon === 'Circle' ? (
+                  <Icon icon="game-icons:glass-ball" width="2vw" height="2vw" className="text-gray-700" />
+                ) : (
                  <div className="anim-panel-bars flex items-end gap-[0.375vw]">
                     <div className="anim-panel-bar w-[0.625vw] h-[1.75vw] bg-gray-300 rounded-[0.05vw]" />
                     <div className="anim-panel-bar w-[0.625vw] h-[1.75vw] bg-gray-400 rounded-[0.05vw]" />
@@ -317,46 +516,38 @@ const AnimationSection = React.memo(({
                )}
              </div>
           </div>
-
-          {/* Divider */}
           <div className="h-[0.05vw] w-full bg-gray-100 relative z-0" />
-
-          {/* Bottom Section: Label */}
           <div className="h-[2.25vw] w-full flex items-center justify-center bg-white relative z-0">
              <span className="text-[0.6vw] font-medium text-gray-500 truncate px-[0.5vw]">{galleryItem?.label || 'None'}</span>
           </div>
-
-          {/* Dark Overlay on Hover - Z-Index 10 */}
           <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-300 transition-opacity duration-300 pointer-events-none z-10" />
-
-
         </div>
 
         {/* Steppers */}
         <div className="flex-1 space-y-[0.625vw]">
-          <Stepper label="Fix Delay" value={settings.delay} onChange={(v) => onUpdateSetting('delay', v)} unit="s" />
-          <Stepper label="Fix Duration" value={settings.duration} onChange={(v) => onUpdateSetting('duration', v)} unit="s" />
-          <Stepper label="Fix Speed" value={settings.speed} onChange={(v) => onUpdateSetting('speed', v)} />
+          <Stepper label="Delay" value={settings.delay} onChange={(v) => updateSetting('delay', v)} unit="s" />
+          <Stepper label="Duration" value={settings.duration} onChange={(v) => updateSetting('duration', v)} unit="s" />
+          <Stepper label="Speed" value={settings.speed} onChange={(v) => updateSetting('speed', v)} />
         </div>
       </div>
 
       {/* Easing Dropdown */}
-      <div className="flex items-center justify-between gap-[0.5vw]">
-        <span className="text-[0.75vw] font-medium text-gray-800 leading-none">Select the Easing Effects :</span>
+      <div className="flex items-center justify-between gap-[0.5vw] pt-[0.5vw]">
+        <span className="text-[0.7vw] font-medium text-gray-800 leading-none">Select the Easing Effects :</span>
         <div className="relative">
           <button 
-            onClick={(e) => { e.stopPropagation(); setShowEasingSelector(showEasingSelector === sectionKey ? null : sectionKey); }}
-            className="flex items-center justify-between px-[0.75vw] py-[0.75vw] bg-gray-50/50 border border-gray-100 rounded-[0.75vw] hover:bg-gray-100 transition-colors group min-w-[6.2vw]"
+            onClick={(e) => { e.stopPropagation(); setShowEasingSelector(!showEasingSelector); }}
+            className="flex items-center justify-between px-[0.75vw] py-[0.5vw] bg-gray-100/50 border border-gray-100 rounded-[0.5vw] hover:bg-gray-100 transition-colors group min-w-[6.2vw]"
           >
              <span className="text-[0.75vw] font-medium text-gray-600">{settings.easing}</span>
-             <ChevronDown size="0.85vw" className={`text-gray-400 transition-transform duration-300 ${showEasingSelector === sectionKey ? 'rotate-180' : ''}`} />
+             <ChevronDown size="0.85vw" className={`text-gray-400 transition-transform duration-300 ${showEasingSelector ? 'rotate-180' : ''}`} />
           </button>
-          {showEasingSelector === sectionKey && (
-            <div onClick={(e) => e.stopPropagation()} className="absolute bottom-full left-0 w-full mb-[0.5vw] bg-white border border-gray-100 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-visible animate-in zoom-in-95 duration-200">
+          {showEasingSelector && (
+            <div className="absolute bottom-full left-0 w-full mb-[0.5vw] bg-white border border-gray-100 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-visible">
               {EASING_OPTIONS.map(opt => (
                 <button
                   key={opt}
-                  onClick={() => { onUpdateSetting('easing', opt); setShowEasingSelector(null); }}
+                  onClick={() => { updateSetting('easing', opt); setShowEasingSelector(false); }}
                   className="w-full text-center overflow-visible px-[1vw] py-[0.65vw] text-[0.75vw] font-medium text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors"
                 >
                   {opt}
@@ -367,179 +558,185 @@ const AnimationSection = React.memo(({
         </div>
       </div>
 
-      {/* Options - Only show for "While Open & Close" mode */}
-      {!showTopDropdowns && (
-        <div className="space-y-[0.75vw] pt-[0.25vw]">
-          <button onClick={() => onUpdateSetting('everyVisit', !settings.everyVisit)} className="flex items-center gap-[0.75vw] w-full overflow-visible text-left group">
+      {/* Bottom Actions */}
+      <div className="flex items-center justify-between pt-[0.5vw] ">
+        {(trigger === 'While Opening' || (trigger === 'On Page' && action === 'Always')) && (
+          <button onClick={() => updateSetting('everyVisit', !settings.everyVisit)} className="flex items-center gap-[0.75vw] group">
             <div className={`w-[1.25vw] h-[1.25vw] rounded-full border-2 flex items-center justify-center transition-all ${settings.everyVisit ? 'border-indigo-600 bg-white ring-4 ring-indigo-50' : 'border-gray-300'}`}>
               <div className={`w-[0.65vw] h-[0.65vw] rounded-full transition-all ${settings.everyVisit ? 'bg-indigo-600' : 'bg-transparent'}`} />
             </div>
             <span className="text-[0.7vw] font-medium text-gray-500 group-hover:text-gray-800 transition-colors">Animate in Every Visit</span>
           </button>
-          
-        </div>
-      )}
+        )}
+        <button onClick={handleDelete} className="text-red-400 hover:text-red-600 transition-colors p-[0.25vw] ml-auto">
+          <Icon icon="lucide:trash-2" width="1vw" height="1vw" />
+        </button>
+      </div>
     </div>
   );
-});
+};
 
 /* -------------------------------------------------------------------------- */
-/*                             MAIN COMPONENT                                */
+/*                             MAIN COMPONENT                                 */
 /* -------------------------------------------------------------------------- */
 
-const AnimationPanel = ({ selectedElement, onUpdate, isOpen: externalIsOpen, onToggle }) => {
-  const [internalIsOpen, setInternalIsOpen] = useState(true);
-  const isOpen = externalIsOpen !== undefined ? externalIsOpen : internalIsOpen;
-  
-  const [mainType, setMainType] = useState('While Opening');
-  const [actionType, setActionType] = useState('Click');
-  const [showMainTypeSelector, setShowMainTypeSelector] = useState(null); // 'context' or 'action'
-  const [showEasingSelector, setShowEasingSelector] = useState(null); // 'open' or 'close'
+const AnimationPanel = ({ selectedElement, onUpdate }) => {
+  const [animatableElements, setAnimatableElements] = React.useState([]);
+  const [expandedElementId, setExpandedElementId] = React.useState(null);
+  const [editingNameId, setEditingNameId] = React.useState(null);
+  const [tempName, setTempName] = React.useState('');
+
+  const scrollContainerRef = React.useRef(null);
+  const itemRefs = React.useRef({});
+
+  const [showGallery, setShowGallery] = React.useState(false);
+  const [tempSelectedAnim, setTempSelectedAnim] = React.useState(null);
+  const [editingElement, setEditingElement] = React.useState(null);
+  const [galleryCallback, setGalleryCallback] = React.useState(null);
+
+  const [forceIncludeIds, setForceIncludeIds] = React.useState(new Set());
+  const previewCleanupRef = React.useRef([]);
+  const [isPreviewing, setIsPreviewing] = React.useState(false);
+  const [previewMaxTime, setPreviewMaxTime] = React.useState(0);
+  const [previewKey, setPreviewKey] = React.useState(0);
+
+  // Stop and cancel all active WAAPI animations when the Animation panel is closed / unmounted
+  React.useEffect(() => {
+    return () => {
+      // 1. Run all registered preview cleanup functions
+      if (previewCleanupRef.current && previewCleanupRef.current.length > 0) {
+        previewCleanupRef.current.forEach(cancel => {
+          try { cancel(); } catch (_) {}
+        });
+        previewCleanupRef.current = [];
+      }
+      // 2. Also cancel any other active WAAPI animations inside the page SVG containers 
+      //    to ensure the canvas is completely clean when leaving the Animation tab.
+      document.querySelectorAll('.page-svg-container *').forEach(el => {
+        try {
+          const anims = el.getAnimations?.() || [];
+          anims.forEach(anim => {
+            try { anim.cancel(); } catch (_) {}
+          });
+          el.removeAttribute('data-is-animating');
+          el.style.translate = '';
+          el.style.scale = '';
+          el.style.rotate = '';
+          el.style.opacity = '';
+          el.style.transform = '';
+          el.style.filter = '';
+        } catch (_) {}
+      });
+    };
+  }, []);
 
 
-  const [showGallery, setShowGallery] = useState(false);
-  const [gallerySection, setGallerySection] = useState('open'); // 'open' or 'close'
-  const [tempSelectedAnim, setTempSelectedAnim] = useState(null);
+  React.useEffect(() => {
+     // Robust discovery of the SVG root for the active page
+     let activePage = document.querySelector('.active-page-outline');
+     let svgRoot = selectedElement?.closest ? selectedElement.closest('svg') : null;
+     
+     if (!svgRoot) {
+         if (activePage) svgRoot = activePage.querySelector('svg');
+         if (!svgRoot) svgRoot = document.querySelector('.flipbook-page-active svg') || document.querySelector('.page-svg-container svg') || document.querySelector('svg');
+     }
+     
+     if (!svgRoot) return;
+     
+     const els = Array.from(svgRoot.querySelectorAll('[data-name], [id]')).filter(el => {
+        const tag = el.tagName?.toLowerCase();
+        return !['svg', 'defs', 'clippath', 'pattern', 'lineargradient', 'radialgradient', 'filter', 'style', 'script'].includes(tag);
+     });
+     
+     const visibleEls = els.filter(el => !el.closest('defs') && !el.closest('clipPath'));
+     
+      let relevantEls = visibleEls.filter(el => {
+          const id = el.id || el.getAttribute('data-name');
+          const hasAnim = el.getAttribute('data-animation-open-type') && el.getAttribute('data-animation-open-type') !== 'none';
+          const hasIntent = el.getAttribute('data-animation-intent') === 'true';
+          const isForced = id && forceIncludeIds.has(id);
+          return hasAnim || hasIntent || isForced;
+      });
 
-  // States for animation settings
-  const [openSettings, setOpenSettings] = useState({
-    type: 'none', delay: 0, duration: 1, speed: 1, easing: 'Linear',
-    everyVisit: true, fadeStart: true, fadeStartEnd: true
-  });
+      if (selectedElement) {
+          const id = selectedElement.id || selectedElement.getAttribute('data-name');
+          const hasAnim = selectedElement.getAttribute('data-animation-open-type') && selectedElement.getAttribute('data-animation-open-type') !== 'none';
+          const hasIntent = selectedElement.getAttribute('data-animation-intent') === 'true';
+          const isForced = id && forceIncludeIds.has(id);
 
-  const [closeSettings, setCloseSettings] = useState({
-    type: 'none', delay: 0, duration: 1, speed: 1, easing: 'Linear',
-    everyVisit: true, fadeEnd: true
-  });
+           if (hasAnim || hasIntent || isForced) {
+              const isAlreadyInList = relevantEls.some(el => el === selectedElement || (id && (el.id === id || el.getAttribute('data-name') === id)));
+              if (!isAlreadyInList) {
+                  relevantEls = [selectedElement, ...relevantEls];
+              }
+          }
+      }
 
-  const [interactSettings, setInteractSettings] = useState({
-    type: 'none', delay: 0, duration: 1, speed: 1, easing: 'Linear',
-    everyVisit: true // Note: interaction triggers usually force play, but we keep structure
-  });
+      const uniqueEls = [];
+      const seenIds = new Set();
+      relevantEls.forEach(el => {
+          const id = el.id || el.getAttribute('data-name');
+          if (id && !seenIds.has(id)) {
+              seenIds.add(id);
+              uniqueEls.push(el);
+          } else if (!id && !uniqueEls.includes(el)) {
+              uniqueEls.push(el);
+          }
+      });
+      setAnimatableElements(uniqueEls);
 
-  // Unique refs for sync and preview
-  const lastElementRef = useRef(null);
-  const isInitializedRef = useRef(false);
-  const updateTimeoutRef = useRef(null);
-  const previewCleanupRef = useRef(null);
+      if (selectedElement) {
+          const id = selectedElement.id || selectedElement.getAttribute('data-name');
+          if (id) {
+             const group = selectedElement.getAttribute('data-animation-group');
+             const targetId = group || id;
+             if (expandedElementId !== targetId) {
+                setExpandedElementId(targetId);
+             }
+          }
+      }
+  }, [selectedElement, forceIncludeIds]);
 
-  /* -------------------------------------------------------------------------- */
-  /*                                SYNC LOGIC                                  */
-  /* -------------------------------------------------------------------------- */
-
-  useEffect(() => {
+  // Force re-render when DOM attributes change (sync with Canvas Tooltip)
+  const [, setTick] = React.useState(0);
+  React.useEffect(() => {
     if (!selectedElement) return;
-
-    // Load values from DOM
-    let newMainType = selectedElement.getAttribute('data-animation-trigger') || 'While Opening';
-    if (newMainType === 'While Open & Close') newMainType = 'While Opening'; // Backward compatibility
-    
-    const newActionType = selectedElement.getAttribute('data-animation-action') || 'Click';
-
-      
-    const loadSettings = (prefix) => ({
-      type: selectedElement.getAttribute(`data-animation-${prefix}-type`) || 'none',
-      delay: parseFloat(selectedElement.getAttribute(`data-animation-${prefix}-delay`)) || 0,
-      duration: parseFloat(selectedElement.getAttribute(`data-animation-${prefix}-duration`)) || 1,
-      speed: parseFloat(selectedElement.getAttribute(`data-animation-${prefix}-speed`)) || 1,
-      easing: selectedElement.getAttribute(`data-animation-${prefix}-easing`) || 'Linear',
-      everyVisit: selectedElement.getAttribute(`data-animation-${prefix}-every-visit`) !== 'false',
-      fadeStart: selectedElement.getAttribute(`data-animation-${prefix}-fade-start`) !== 'false',
-      fadeEnd: selectedElement.getAttribute(`data-animation-${prefix}-fade-end`) !== 'false',
-      fadeStartEnd: selectedElement.getAttribute(`data-animation-${prefix}-fade-start-end`) !== 'false'
-    });
-
-    const newOpen = loadSettings('open');
-    const newClose = loadSettings('close');
-    const newInteract = loadSettings('interact');
-
-    // Update state only if changed (Deep Compare)
-    setMainType(prev => prev !== newMainType ? newMainType : prev);
-    setActionType(prev => prev !== newActionType ? newActionType : prev);
-
-    
-    setOpenSettings(prev => JSON.stringify(prev) !== JSON.stringify(newOpen) ? newOpen : prev);
-    setCloseSettings(prev => JSON.stringify(prev) !== JSON.stringify(newClose) ? newClose : prev);
-    setInteractSettings(prev => JSON.stringify(prev) !== JSON.stringify(newInteract) ? newInteract : prev);
-
-    lastElementRef.current = selectedElement;
+    const observer = new MutationObserver(() => setTick(t => t + 1));
+    observer.observe(selectedElement, { attributes: true });
+    return () => observer.disconnect();
   }, [selectedElement]);
 
-  // Clean up timeouts
-  useEffect(() => {
-    return () => {
-      if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
-      if (previewCleanupRef.current) previewCleanupRef.current();
-    };
-  }, []);
+  // Handle auto-scroll to center when an item is expanded
+  React.useEffect(() => {
+    if (expandedElementId && itemRefs.current[expandedElementId] && scrollContainerRef.current) {
+      const element = itemRefs.current[expandedElementId];
+      
+      // Use setTimeout to allow the element's height to expand before calculating center
+      setTimeout(() => {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [expandedElementId]);
 
-  // Close dropdowns on outside click
-  useEffect(() => {
-    const handleClickOutside = () => {
-      setShowMainTypeSelector(null);
-      setShowEasingSelector(null);
-    };
-
-    window.addEventListener('click', handleClickOutside);
-    return () => window.removeEventListener('click', handleClickOutside);
-  }, []);
-
-  /* -------------------------------------------------------------------------- */
-  /*                                UPDATE LOGIC                                */
-  /* -------------------------------------------------------------------------- */
-
-  const updateAttribute = useCallback((attr, value) => {
-    if (!selectedElement) return;
-    selectedElement.setAttribute(attr, value);
-    
-    // Debounce
-    if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
-    updateTimeoutRef.current = setTimeout(() => {
-      if (onUpdate) onUpdate();
-    }, 50);
-  }, [selectedElement, onUpdate]);
-
-  const updateSetting = useCallback((section, key, value) => {
-    let setter;
-    if (section === 'open') setter = setOpenSettings;
-    else if (section === 'close') setter = setCloseSettings;
-    else setter = setInteractSettings;
-
-    setter(prev => ({ ...prev, [key]: value }));
-    updateAttribute(`data-animation-${section}-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`, value);
-  }, [updateAttribute]);
-
-  const handleMainTypeChange = useCallback((e, type) => {
-    if (e) e.stopPropagation();
-    setMainType(type);
-    updateAttribute('data-animation-trigger', type);
-    setShowMainTypeSelector(null);
-  }, [updateAttribute]);
-
-  const handleActionTypeChange = useCallback((e, type) => {
-    if (e) e.stopPropagation();
-    setActionType(type);
-    updateAttribute('data-animation-action', type);
-    setShowMainTypeSelector(null);
-  }, [updateAttribute]);
-
-
-
-  /* -------------------------------------------------------------------------- */
-  /*                               PREVIEW LOGIC                                */
-  /* -------------------------------------------------------------------------- */
-
-  const previewAnimation = useCallback((e, animType, animSettings) => {
+  const previewAnimation = React.useCallback((e, type, settings, elementToAnimate, isGlobal = false) => {
     if (e && e.stopPropagation) e.stopPropagation();
-    if (!selectedElement) return;
+    if (!elementToAnimate) return;
 
-    // 1. Cancel previous
-    if (previewCleanupRef.current) {
-      previewCleanupRef.current();
-      previewCleanupRef.current = null;
+    let target = elementToAnimate;
+    if (target && !document.body.contains(target)) {
+        const id = target.id || target.getAttribute('data-name');
+        if (id) {
+            const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container');
+            const fresh = activePage?.querySelector(`[id="${id}"], [data-name="${id}"]`) || document.getElementById(id);
+            if (fresh) target = fresh;
+        }
     }
 
-    const type = animType || animSettings?.type;
+    if (!isGlobal && previewCleanupRef.current && previewCleanupRef.current.length > 0) {
+      previewCleanupRef.current.forEach(cancel => cancel());
+      previewCleanupRef.current = [];
+    }
+
     const keyframes = WAAPI_ANIMATIONS[type];
     if (!type || !keyframes || keyframes.length === 0) return;
 
@@ -556,42 +753,108 @@ const AnimationPanel = ({ selectedElement, onUpdate, isOpen: externalIsOpen, onT
        return map[name] || 'linear';
     };
 
-    const duration = ((parseFloat(animSettings?.duration || 1)) / (parseFloat(animSettings?.speed || 1))) * 1000;
-    const delay = (parseFloat(animSettings?.delay || 0)) * 1000;
-    const easing = getWaapiEase(animSettings?.easing || 'Linear');
+    const LOOP_ANIMATIONS = ['pulse', 'tada', 'rubber-band', 'jello', 'heartbeat', 'glitch', 'neon-glow', 'swing', 'wobble', 'float'];
+    const action = target.getAttribute('data-animation-action');
+    const isLoop = LOOP_ANIMATIONS.includes(type) || action === 'Always';
+    const duration = ((parseFloat(settings?.duration || 1)) / (parseFloat(settings?.speed || 1))) * 1000;
+    const delay = (parseFloat(settings?.delay || 0)) * 1000;
+    const easing = getWaapiEase(settings?.easing || 'Linear');
+    let cx = 0, cy = 0;
+    let useMathOrigin = false;
+    const isSVG = target.namespaceURI === 'http://www.w3.org/2000/svg' || target.ownerSVGElement !== undefined;
+    if (isSVG) {
+        try {
+            const bbox = target.getBBox();
+            cx = bbox.x + bbox.width / 2;
+            cy = bbox.y + bbox.height / 2;
+            useMathOrigin = true;
+            target.style.transformOrigin = '0 0';
+        } catch(e) {
+            target.style.transformBox = 'fill-box';
+            target.style.transformOrigin = 'center';
+        }
+    }
 
     try {
-      const animation = selectedElement.animate(keyframes, {
+      // Cancel previous on this specific target
+      if (target.__currentAnimation) {
+          try { target.__currentAnimation.cancel(); } catch(err) {}
+      }
+
+      if (target.__originalTransform === undefined) {
+          let baseTransform = window.getComputedStyle(target).transform;
+          if (!baseTransform || baseTransform === 'none') {
+              const transformAttr = target.getAttribute('transform');
+              if (transformAttr) {
+                  try {
+                      const dummy = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                      dummy.setAttribute('transform', transformAttr);
+                      if (dummy.transform.baseVal) {
+                          dummy.transform.baseVal.consolidate();
+                          if (dummy.transform.baseVal.numberOfItems > 0) {
+                              const m = dummy.transform.baseVal.getItem(0).matrix;
+                              baseTransform = `matrix(${m.a}, ${m.b}, ${m.c}, ${m.d}, ${m.e}, ${m.f})`;
+                          }
+                      }
+                  } catch(e) {}
+              }
+          }
+          target.__originalTransform = (!baseTransform || baseTransform === 'none') ? '' : baseTransform;
+      }
+
+      const baseTransform = target.__originalTransform;
+
+      const finalKeyframes = keyframes.map(kf => {
+          const newKf = { ...kf };
+          if (baseTransform || useMathOrigin) {
+              if (kf.transform) {
+                  if (useMathOrigin) {
+                      newKf.transform = `${baseTransform} translate(${cx}px, ${cy}px) ${kf.transform} translate(-${cx}px, -${cy}px)`;
+                  } else {
+                      newKf.transform = `${baseTransform} ${kf.transform}`;
+                  }
+              } else {
+                  newKf.transform = baseTransform;
+              }
+          }
+          return newKf;
+      });
+
+      target.setAttribute('data-is-animating', 'true');
+      const anim = target.animate(finalKeyframes, {
         duration,
         delay,
         easing,
-        fill: 'forwards' 
+        fill: isLoop ? 'none' : 'forwards',
+        iterations: isLoop ? Infinity : 1
       });
 
-      const cancel = () => {
-        animation.cancel();
+      const cleanup = () => {
+        target.removeAttribute('data-is-animating');
+        try { anim.cancel(); } catch(err) {}
+        target.style.translate = '';
+        target.style.scale = '';
+        target.style.rotate = '';
+        target.style.opacity = '';
+        target.style.transform = '';
+        target.style.filter = '';
+        if (target.__currentAnimation === anim) target.__currentAnimation = null;
       };
+      anim.onfinish = cleanup;
+      anim.oncancel = cleanup;
 
-      previewCleanupRef.current = cancel;
+      target.__currentAnimation = anim;
+      previewCleanupRef.current.push(cleanup);
 
-      let previewTime = duration + delay + 100;
-      if (['pulse', 'tada', 'rubber-band', 'jello', 'heartbeat', 'glitch', 'neon-glow', 'swing', 'wobble', 'float'].includes(type) && !animType) {
-         // If triggering from settings (not gallery click) and it's a loop type, maybe let it run longer? 
-         // But "preview without save" usually means run once or briefly. 
-         // We will enforce the duration + strict timeout to ensure it resets.
-      }
-
-      const timer = setTimeout(() => {
-        cancel();
-        if (previewCleanupRef.current === cancel) previewCleanupRef.current = null;
-      }, previewTime);
+      let previewTime = duration + delay + 500; // Hold for 500ms then reset
+      const timer = setTimeout(cleanup, previewTime);
 
     } catch (err) {
       console.error("Preview error:", err);
     }
-  }, [selectedElement]);
+  }, []);
 
-  const handleReset = useCallback((e) => {
+  const handleReset = React.useCallback((e) => {
     if (e) e.stopPropagation();
     if (!selectedElement) return;
 
@@ -600,7 +863,7 @@ const AnimationPanel = ({ selectedElement, onUpdate, isOpen: externalIsOpen, onT
     const toRemove = [];
     for (let i = 0; i < attributes.length; i++) {
         const name = attributes[i].name;
-        if (name.startsWith('data-animation-')) {
+        if (name.startsWith('data-animation-') && name !== 'data-animation-group') {
             toRemove.push(name);
         }
     }
@@ -611,6 +874,9 @@ const AnimationPanel = ({ selectedElement, onUpdate, isOpen: externalIsOpen, onT
     selectedElement.style.transform = '';
     selectedElement.style.filter = '';
     selectedElement.style.backdropFilter = '';
+    selectedElement.style.translate = '';
+    selectedElement.style.scale = '';
+    selectedElement.style.rotate = '';
 
     // 3. Reset local states to complete defaults
     const defaultSettings = {
@@ -628,198 +894,506 @@ const AnimationPanel = ({ selectedElement, onUpdate, isOpen: externalIsOpen, onT
     if (onUpdate) onUpdate();
   }, [selectedElement, onUpdate]);
 
-  /* -------------------------------------------------------------------------- */
-  /*                             RENDER SECTION                                 */
-  /* -------------------------------------------------------------------------- */
+  const handleDeleteAnimation = React.useCallback((targets) => {
+    const ids = targets.map(t => t.id || t.getAttribute('data-name')).filter(Boolean);
+    const groups = targets.map(t => t.getAttribute('data-animation-group')).filter(Boolean);
 
+    setForceIncludeIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.delete(id));
+      return next;
+    });
 
+    setExpandedElementId(prev => {
+      if (ids.includes(prev) || groups.includes(prev)) {
+        return null;
+      }
+      return prev;
+    });
+  }, []);
 
-  const handleOpenUpdate = useCallback((k, v) => updateSetting('open', k, v), [updateSetting]);
-  const handleCloseUpdate = useCallback((k, v) => updateSetting('close', k, v), [updateSetting]);
-  const handleInteractUpdate = useCallback((k, v) => updateSetting('interact', k, v), [updateSetting]);
-  const handleOpenGallery = useCallback((type) => { setGallerySection('open'); setTempSelectedAnim(type); setShowGallery(true); }, []);
-  const handleCloseGallery = useCallback((type) => { setGallerySection('close'); setTempSelectedAnim(type); setShowGallery(true); }, []);
-  const handleInteractGallery = useCallback((type) => { setGallerySection('interact'); setTempSelectedAnim(type); setShowGallery(true); }, []);
+  const handleOpenGallery = (el, callback) => {
+     setEditingElement(el);
+     const trigger = el.getAttribute('data-animation-trigger') || 'While Opening';
+     const prefix = trigger === 'While Opening' ? 'open' : 'interact';
+     setTempSelectedAnim(el.getAttribute(`data-animation-${prefix}-type`) || 'none');
+     setGalleryCallback(() => callback);
+     setShowGallery(true);
+  };
 
-  const hasAnimation = openSettings.type !== 'none' || closeSettings.type !== 'none' || interactSettings.type !== 'none';
+  React.useEffect(() => {
+    const handleForceAdd = (e) => {
+      const id = e.detail;
+      setForceIncludeIds(prev => new Set(prev).add(id));
+      setExpandedElementId(id);
 
-  if (!selectedElement) return null;
+      setTimeout(() => {
+        const el = document.getElementById(id) || document.querySelector(`[data-name="${id}"]`);
+        if (el) {
+          setAnimatableElements(prev => {
+            const alreadyIn = prev.some(existing => (existing.id === id || existing.getAttribute('data-name') === id));
+            if (alreadyIn) return prev;
+            return [el, ...prev];
+          });
+        }
+      }, 150); 
+    };
+    window.addEventListener('animation-force-add', handleForceAdd);
+    return () => window.removeEventListener('animation-force-add', handleForceAdd);
+  }, [onUpdate]);
+
+  const handleGlobalPreview = () => {
+     if (previewCleanupRef.current.length > 0) {
+         previewCleanupRef.current.forEach(cancel => cancel());
+         previewCleanupRef.current = [];
+     }
+     
+     let maxT = 0;
+     animatableElements.forEach(el => {
+        const trigger = el.getAttribute('data-animation-trigger') || 'While Opening';
+        const prefix = trigger === 'While Opening' ? 'open' : 'interact';
+        const type = el.getAttribute(`data-animation-${prefix}-type`);
+        
+        if (type && type !== 'none') {
+            const duration = parseFloat(el.getAttribute(`data-animation-${prefix}-duration`)) || 1;
+            const delay = parseFloat(el.getAttribute(`data-animation-${prefix}-delay`)) || 0;
+            const speed = parseFloat(el.getAttribute(`data-animation-${prefix}-speed`)) || 1;
+            const total = (duration / speed) + delay;
+            if (total > maxT) maxT = total;
+
+            const settings = {
+               delay,
+               duration,
+               speed,
+               easing: el.getAttribute(`data-animation-${prefix}-easing`) || 'Linear'
+            };
+            previewAnimation(null, type, settings, el, true);
+        }
+     });
+
+     if (maxT > 0) {
+        setPreviewMaxTime(maxT);
+        setIsPreviewing(true);
+        setPreviewKey(prev => prev + 1);
+     }
+  };
+
+  // removed null check to allow page-level rendering
+  const currentTrigger = selectedElement?.getAttribute ? (selectedElement.getAttribute('data-animation-trigger') || 'While Opening') : 'While Opening';
+  const currentPrefix = currentTrigger === 'While Opening' ? 'open' : 'interact';
+  
+  // Comprehensive check for ANY animation (sync with MainEditor)
+  const hasAnimation = selectedElement?.getAttribute ? (
+    (selectedElement.getAttribute('data-animation-open-type') && selectedElement.getAttribute('data-animation-open-type') !== 'none') ||
+    (selectedElement.getAttribute('data-animation-interact-type') && selectedElement.getAttribute('data-animation-interact-type') !== 'none') ||
+    selectedElement.getAttribute('data-animation-intent') === 'true'
+  ) : false;
 
   return (
-    <div className="relative flex flex-col gap-2 w-full max-w-sm">
+    <div className="relative flex flex-col w-full h-full">
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 0.25vw; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 0.5vw; }
-        input[type='range'] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type='range']::-webkit-slider-runnable-track { height: 0.25vw; border-radius: 0.125vw; }
-        input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 0.75vw; width: 0.75vw; border-radius: 50%; background: #6366f1; border: 0.1vw solid #ffffff; box-shadow: 0 0.05vw 0.15vw rgba(0,0,0,0.2); margin-top: -0.25vw; cursor: pointer; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        @keyframes anim-panel-progress {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
       `}</style>
-      <div className="bg-white border border-gray-200 rounded-[0.8vw] shadow-sm overflow-visible">
-        {/* Panel Header */}
-        <div 
-          className={`flex items-center justify-between px-[1vw] py-[1vw] cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-50 ${isOpen ? 'rounded-t-[0.8vw]' : 'rounded-[0.8vw]'}`}
-          onClick={onToggle || (() => setInternalIsOpen(!internalIsOpen))}
-        >
-          <div className="flex items-center gap-[0.5vw]">
-            <Sparkles size="1vw" className="text-gray-600" />
-            <span className="font-medium text-gray-700 text-[0.85vw]">Animation</span>
-          </div>
-          <div className="flex items-center gap-[0.5vw]">
-            {hasAnimation && (
-              <button 
-                onClick={handleReset}
-                className=" rounded-[0.4vw] text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 transition-all duration-200"
-                title="Reset All Animations"
-              >
-                <Icon icon="ix:reset" className="w-[1.1vw] h-[1.1vw]" />
-              </button>
-            )}
-            <ChevronUp 
-              size="1vw" 
-              className={`text-gray-500 transition-transform duration-200 ${isOpen ? '' : 'rotate-180'}`} 
-            />
-          </div>
-        </div>
+      
+      {/* Top Banner Button */}
+      <div 
+        onClick={handleGlobalPreview}
+        className="relative bg-gray-200/75 p-[0.75vw] rounded-[0.8vw] flex items-center gap-[0.75vw] border border-gray-200 cursor-pointer mb-[1.5vw] hover:bg-gray-200 transition-all overflow-hidden group shadow-[0_0.2vw_1vw_rgba(0,0,0,0.05)]"
+      >
+         {/* Progress Bar Overlay */}
+         {isPreviewing && (
+           <div 
+             key={previewKey}
+             className="absolute inset-y-0 left-0 bg-white pointer-events-none z-0"
+             style={{ animation: `anim-panel-progress ${previewMaxTime}s linear forwards` }}
+             onAnimationEnd={() => setIsPreviewing(false)}
+           />
+         )}
 
-        {isOpen && (
-          <div className="space-y-[1.25vw] px-[1.25vw] pb-[1.25vw] pt-[1vw]">
-            {mainType === 'While Opening' && (
-              <>
-                {/* Mode Dropdown */}
-                <div className="flex gap-[0.75vw] mb-[1vw]">
-                  <div className="flex-1 relative">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); setShowMainTypeSelector(showMainTypeSelector === 'context' ? null : 'context'); }}
-                      className="w-[7.75vw] h-[2.5vw] flex items-center justify-between px-[0.75vw] bg-gray-50/50 border border-gray-100 rounded-[0.75vw] hover:bg-gray-100 transition-colors group"
-                    >
-                       <span className="text-[0.75vw] font-medium text-gray-600">{mainType}</span>
-                       <ArrowRightLeft size="0.75vw" className="text-gray-400 group-hover:rotate-180 transition-transform duration-500" />
-                    </button>
-                    {showMainTypeSelector === 'context' && (
-                      <div onClick={(e) => e.stopPropagation()} className="absolute top-full left-0 w-[7.75vw] mt-[0.5vw] bg-white border border-gray-100 rounded-[0.75vw] shadow-xl z-30 py-[0.25vw] overflow-hidden animate-in zoom-in-95 duration-200">
-                        {['While Opening', 'On Page'].map(type => (
-                          <button key={type} onClick={(e) => handleMainTypeChange(e, type)} className="w-[7.75vw] text-center px-[1vw] py-[0.65vw] text-[0.75vw] font-medium text-gray-500 hover:bg-gray-50 hover:text-indigo-600 transition-colors">
-                            {type}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+         <div className="relative z-10  px-[0.4vw]">
+            <Icon icon="tdesign:animation-1" width="1.5vw" height="1.5vw" className="text-yellow-400 fill-yellow-400" />
+         </div>
+         <span className="relative z-10 text-[0.75vw] text-gray-500 leading-tight">
+            Click to preview<br/>
+            <span className="font-semibold text-gray-900">Animations</span>
+         </span>
+      </div>
+
+      {/* Add Animation Button for Selected Element */}
+      {selectedElement && (() => {
+        const isMultiSelected = Array.from(document.querySelectorAll('.is-selected')).length > 1;
+        const currentMultiSelect = isMultiSelected ? Array.from(document.querySelectorAll('.is-selected')) : [];
+        const partOfMultiSelect = currentMultiSelect.includes(selectedElement);
+        const isGrouped = !!selectedElement.getAttribute('data-animation-group');
+        
+        const buttonText = hasAnimation 
+          ? "Animation Added" 
+          : `Add Animation to ${isGrouped ? 'Group' : (partOfMultiSelect ? `${currentMultiSelect.length} Elements` : (selectedElement.getAttribute('data-name') || selectedElement.id || 'Element'))}`;
+
+        return (
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            const id = selectedElement.id || selectedElement.getAttribute('data-name');
+            const groupId = selectedElement.getAttribute('data-animation-group');
+            
+            let activeGroupId = groupId;
+
+            if (!hasAnimation) {
+              const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container') || document;
+              let targets = [selectedElement];
+              
+              if (groupId) {
+                  const groupEls = Array.from(activePage.querySelectorAll(`[data-animation-group="${groupId}"]`));
+                  if (groupEls.length > 0) targets = groupEls;
+              } else if (partOfMultiSelect) {
+                  targets = currentMultiSelect;
+                  activeGroupId = 'anim-group-' + Date.now();
+                  targets.forEach(t => {
+                      t.setAttribute('data-animation-group', activeGroupId);
+                      const tId = t.id || t.getAttribute('data-name');
+                      if (onUpdate && tId) onUpdate(tId, 'data-animation-group', activeGroupId);
+                  });
+              }
+
+              targets.forEach(target => {
+                  target.setAttribute('data-animation-open-type', 'fade-in');
+                  target.setAttribute('data-animation-open-duration', '1');
+                  target.setAttribute('data-animation-open-delay', '0');
+                  target.setAttribute('data-animation-open-easing', 'Linear');
+                  target.setAttribute('data-animation-intent', 'true');
                   
-                  <button
-                    onClick={(e) => previewAnimation(e, openSettings.type, openSettings)}
-                     className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-indigo-50 border border-indigo-600 rounded-[0.75vw] text-indigo-600 shadow-sm hover:bg-indigo-200 transition-colors flex-shrink-0"
-                     title="Preview Animation"
-                  >
-                    <ScanEye size="1vw" />
-                  </button>
-                </div>
+                  const targetId = target.id || target.getAttribute('data-name');
+                  if (onUpdate && targetId) {
+                    onUpdate(targetId, 'data-animation-open-type', 'fade-in');
+                    onUpdate(targetId, 'data-animation-open-duration', '1');
+                    onUpdate(targetId, 'data-animation-open-delay', '0');
+                    onUpdate(targetId, 'data-animation-open-easing', 'Linear');
+                    onUpdate(targetId, 'data-animation-intent', 'true');
+                  }
+              });
+            }
 
-                {/* Animation Sections */}
-                <AnimationSection 
-                  sectionKey="open" settings={openSettings} 
-                  onUpdateSetting={handleOpenUpdate} onOpenGallery={handleOpenGallery} onPreview={previewAnimation}
-                  showEasingSelector={showEasingSelector} setShowEasingSelector={setShowEasingSelector}
-                  showTopDropdowns={false}
-                />
-              </>
-            )}
+            const targetExpandedId = activeGroupId || id;
+            setExpandedElementId(targetExpandedId);
+            
+            if (activeGroupId) {
+                 const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container') || document;
+                 const groupEls = Array.from(activePage.querySelectorAll(`[data-animation-group="${activeGroupId}"]`));
+                 const ids = groupEls.map(el => el.id || el.getAttribute('data-name')).filter(Boolean);
+                 
+                 ids.forEach(targetId => {
+                    setForceIncludeIds(prev => new Set(prev).add(targetId));
+                    window.dispatchEvent(new CustomEvent('animation-force-add', { detail: targetId }));
+                 });
+                 window.dispatchEvent(new CustomEvent('select-layer', { detail: { ids: ids.length > 0 ? ids : [id] } }));
+            } else {
+                 setForceIncludeIds(prev => new Set(prev).add(id));
+                 window.dispatchEvent(new CustomEvent('animation-force-add', { detail: id }));
+                 window.dispatchEvent(new CustomEvent('select-layer', { detail: { ids: [id] } }));
+            }
+          }}
+          className={`w-full h-[3.25vw] ${hasAnimation ? 'bg-[#2D2D2D]' : 'bg-[#3E3E3E] hover:bg-[#2D2D2D]'} text-white rounded-[0.6vw] flex items-center justify-center gap-[0.75vw] transition-all mb-[1.5vw] shadow-sm group`}
+        >
+          <Icon icon={hasAnimation ? "lucide:check" : "lucide:plus"} width="1.2vw" height="1.2vw" className="text-white group-hover:scale-110 transition-transform" />
+          <span className="text-[0.85vw] font-semibold">
+            {buttonText}
+          </span>
+        </button>
+        );
+      })()}
 
-            {/* On Page Mode */}
-            {mainType === 'On Page' && (
-              <AnimationSection 
-                sectionKey="interact" settings={interactSettings} 
-                onUpdateSetting={handleInteractUpdate} onOpenGallery={handleInteractGallery} onPreview={previewAnimation}
-                showEasingSelector={showEasingSelector} setShowEasingSelector={setShowEasingSelector}
-                showTopDropdowns={true}
-                mainType={mainType}
-                actionType={actionType}
-                onMainTypeChange={handleMainTypeChange}
-                onActionTypeChange={handleActionTypeChange}
-                showMainTypeSelector={showMainTypeSelector}
-                setShowMainTypeSelector={setShowMainTypeSelector}
-              />
-            )}
-          </div>
-        )}
+      <div className="flex items-center gap-[0.5vw] mb-[1vw]">
+         <h3 className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Animations in this Page</h3>
+         <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+      </div>
+
+      {/* Accordions List */}
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto space-y-[0.5vw] pr-[0.25vw] relative"
+        style={{ maxHeight: 'calc(100vh - 20vw)' }}
+      >
+         {(() => {
+            const groups = {};
+            const items = [];
+            
+            animatableElements.forEach(el => {
+                const g = el.getAttribute('data-animation-group');
+                if (g) {
+                    if (!groups[g]) groups[g] = [];
+                    groups[g].push(el);
+                } else {
+                    items.push({ type: 'single', element: el });
+                }
+            });
+
+            // Add groups to items
+            Object.entries(groups).forEach(([name, elements]) => {
+                items.push({ type: 'group', name, elements });
+            });
+
+            return items.map((item, idx) => {
+                const isGroup = item.type === 'group';
+                const el = isGroup ? item.elements[0] : item.element;
+                const id = isGroup ? item.name : (el.id || el.getAttribute('data-name'));
+                const name = isGroup ? item.name : (el.getAttribute('data-name') || el.id);
+                const isExpanded = expandedElementId === id;
+                const trigger = el.getAttribute('data-animation-trigger') || 'While Opening';
+                const prefix = trigger === 'While Opening' ? 'open' : 'interact';
+                const hasAnim = el.getAttribute(`data-animation-${prefix}-type`) && el.getAttribute(`data-animation-${prefix}-type`) !== 'none';
+                
+                return (
+                   <div 
+                      key={id || idx} 
+                      ref={el => itemRefs.current[id] = el}
+                      className={`border rounded-[0.8vw] bg-white transition-all duration-200 overflow-hidden ${isExpanded ? 'border-gray-300 shadow-sm' : 'border-gray-200 hover:border-gray-300'}`}
+                   >
+                      <div className="flex items-center justify-between p-[1vw] cursor-pointer bg-white" onClick={() => {
+                         const nextId = isExpanded ? null : id;
+                         setExpandedElementId(nextId);
+                         if (nextId) {
+                            const targetIds = isGroup ? item.elements.map(e => e.id || e.getAttribute('data-name')) : [el.id || el.getAttribute('data-name')];
+                            window.dispatchEvent(new CustomEvent('select-layer', { detail: { ids: targetIds } }));
+                         }
+                      }}>
+                         <div className="flex items-center gap-[0.5vw] flex-1 min-w-0">
+                            <Icon icon="tdesign:animation-1" className="text-gray-500" width="1.1vw" height="1.2vw" />
+                            {editingNameId === id ? (
+                              <input 
+                                className="text-[0.8vw] text-gray-700 font-medium bg-gray-50 border-b border-indigo-400 outline-none w-full px-[0.2vw]"
+                                value={tempName}
+                                autoFocus
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  const newVal = e.target.value;
+                                  setTempName(newVal);
+                                  if (newVal.trim() && !isGroup) {
+                                    onUpdate(id, 'data-name', newVal);
+                                    // Refresh the list to reflect the name change in the accordion header
+                                    setTick(t => t + 1);
+                                  }
+                                }}
+                                onBlur={() => {
+                                  setEditingNameId(null);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') e.target.blur();
+                                  if (e.key === 'Escape') {
+                                    // Revert if escape
+                                    if (!isGroup) onUpdate(id, 'data-name', name);
+                                    setEditingNameId(null);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span 
+                                className="text-[0.8vw] text-gray-700 font-medium truncate max-w-[14vw] cursor-pointer hover:text-indigo-600"
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isGroup) {
+                                    setEditingNameId(id);
+                                    setTempName(name);
+                                  }
+                                }}
+                              >
+                                {name}
+                              </span>
+                            )}
+                            {isGroup && <span className="text-[0.6vw] bg-gray-100 text-gray-400 px-[0.3vw] py-[0.1vw] rounded-full">{item.elements.length}</span>}
+                         </div>
+                         <div className="flex items-center gap-[0.5vw]">
+                            {isExpanded && <Icon icon="lucide:rotate-cw" width="0.8vw" height="0.8vw" className="text-gray-400 hover:text-gray-600" onClick={(e) => { 
+                                e.stopPropagation(); 
+                                 if (isGroup) {
+                                     if (previewCleanupRef.current.length > 0) {
+                                         previewCleanupRef.current.forEach(cancel => cancel());
+                                         previewCleanupRef.current = [];
+                                     }
+                                     item.elements.forEach(target => {
+                                         const t = target.getAttribute('data-animation-trigger') || 'While Opening';
+                                         const p = t === 'While Opening' ? 'open' : 'interact';
+                                         previewAnimation(e, target.getAttribute(`data-animation-${p}-type`), {delay: parseFloat(target.getAttribute(`data-animation-${p}-delay`)) || 0, duration: parseFloat(target.getAttribute(`data-animation-${p}-duration`)) || 1, speed: parseFloat(target.getAttribute(`data-animation-${p}-speed`)) || 1, easing: target.getAttribute(`data-animation-${p}-easing`) || 'Linear'}, target, true);
+                                     });
+                                 } else {
+                                     const t = el.getAttribute('data-animation-trigger') || 'While Opening';
+                                     const p = t === 'While Opening' ? 'open' : 'interact';
+                                     previewAnimation(e, el.getAttribute(`data-animation-${p}-type`), {delay: parseFloat(el.getAttribute(`data-animation-${p}-delay`)) || 0, duration: parseFloat(el.getAttribute(`data-animation-${p}-duration`)) || 1, speed: parseFloat(el.getAttribute(`data-animation-${p}-speed`)) || 1, easing: el.getAttribute(`data-animation-${p}-easing`) || 'Linear'}, el);
+                                 }
+                            }} />}
+                            <Icon icon={isExpanded ? "lucide:chevron-up" : "lucide:chevron-down"} width="1vw" height="1vw" className="text-gray-400" />
+                         </div>
+                      </div>
+                      
+                      {isExpanded && (
+                         <div className="p-[1vw] border-t border-gray-100 bg-[#FDFDFD]">
+                            <SingleAnimationEditor 
+                               element={isGroup ? null : el} 
+                               elements={isGroup ? item.elements : null}
+                               onUpdate={onUpdate} 
+                               onDelete={handleDeleteAnimation} 
+                               onOpenGallery={(target, cb) => {
+                                   if (isGroup) {
+                                       handleOpenGallery(target, (newType) => {
+                                           // 1. Close gallery immediately for better UX
+                                           setShowGallery(false);
+                                           
+                                            // 2. Immediate DOM update for all
+                                            item.elements.forEach(member => {
+                                                const t = member.getAttribute('data-animation-trigger') || 'While Opening';
+                                                const p = t === 'While Opening' ? 'open' : 'interact';
+                                                member.setAttribute(`data-animation-${p}-type`, newType);
+                                            });
+                                            
+                                            // 3. Staggered state updates to prevent UI hang
+                                            item.elements.forEach((member, i) => {
+                                                const t = member.getAttribute('data-animation-trigger') || 'While Opening';
+                                                const p = t === 'While Opening' ? 'open' : 'interact';
+                                                if (onUpdate) {
+                                                    setTimeout(() => {
+                                                        onUpdate(member.id || member.getAttribute('data-name'), `data-animation-${p}-type`, newType);
+                                                    }, i * 30);
+                                                }
+                                            });
+
+                                            // 4. Update the editor UI state
+                                            cb(newType);
+
+                                            // 5. Play preview for the whole group
+                                            setTimeout(() => {
+                                                item.elements.forEach(member => {
+                                                    const t = member.getAttribute('data-animation-trigger') || 'While Opening';
+                                                    const p = t === 'While Opening' ? 'open' : 'interact';
+                                                    previewAnimation(null, newType, {
+                                                        delay: parseFloat(member.getAttribute(`data-animation-${p}-delay`)) || 0,
+                                                        duration: parseFloat(member.getAttribute(`data-animation-${p}-duration`)) || 1,
+                                                        speed: parseFloat(member.getAttribute(`data-animation-${p}-speed`)) || 1,
+                                                        easing: member.getAttribute(`data-animation-${p}-easing`) || 'Linear'
+                                                    }, member, true);
+                                                });
+                                            }, 200);
+                                       });
+                                   } else {
+                                       handleOpenGallery(target, cb);
+                                   }
+                               }} 
+                               previewAnimation={previewAnimation}
+                               ANIMATION_GALLERY_ITEMS={ANIMATION_GALLERY_ITEMS}
+                               EASING_OPTIONS={EASING_OPTIONS}
+                            />
+                         </div>
+                      )}
+                   </div>
+                );
+            });
+         })()}
+         {animatableElements.length === 0 && (
+             <div className="text-center p-[2vw] text-gray-400 text-[0.75vw] border border-dashed border-gray-200 rounded-[0.4vw] bg-gray-50/50">
+                Select an element to add animations
+             </div>
+         )}
       </div>
 
       {/* Animation Gallery Modal */}
       {showGallery && (
-        <div className="anim-panel-gallery-modal fixed z-[50] bg-white  rounded-[0.6vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{ width: '20vw', height: '34vw', top: '55%', left: '80%', transform: 'translate(-50%, -50%)' }}>
-          <div className="anim-panel-gallery-header flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
-            <h2 className="text-[0.9vw] font-semibold text-gray-900">Animation Gallery</h2>
-            <button onClick={() => setShowGallery(false)} className="anim-panel-close-btn w-[2vw] h-[2vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-              <X size="0.9vw" className="text-gray-400" />
+        <div className="anim-panel-gallery-modal fixed z-[50] bg-white rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" style={{ width: '20vw', height: '34vw', top: '55%', left: '80%', transform: 'translate(-50%, -50%)' }}>
+          <div className="anim-panel-gallery-header flex items-center gap-[1vw] px-[1vw] py-[1vw] border-b border-gray-100 shadow-md">
+            <h2 className="text-[1vw] font-semibold text-gray-900">Animation Gallery</h2>
+            <div className="h-[0.1vw] flex-1 bg-gray-200 opacity-50"></div>
+            <button onClick={() => setShowGallery(false)} className="anim-panel-close-btn w-[2vw] h-[2vw] flex items-center justify-center rounded-lg border border-red-500 hover:bg-red-50 transition-colors">
+              <X size="1vw" className="text-red-500" strokeWidth={2} />
             </button>
           </div>
 
-          <div className="anim-panel-gallery-content flex-1 px-[1vw] py-[1vw] overflow-y-auto custom-scrollbar">
-            <h3 className="text-[0.7vw] font-semibold text-gray-900 mb-[1vw]">Choose Animation</h3>
-            <div className="anim-panel-gallery-grid grid grid-cols-3 gap-x-[1vw] gap-y-[1.5vw]">
+          <div className="anim-panel-gallery-content flex-1 px-[1vw] py-[1vw] overflow-y-auto no-scrollbar">
+            <div className="anim-panel-gallery-grid grid grid-cols-4 gap-x-[0.5vw] gap-y-[0.5vw]">
               {ANIMATION_GALLERY_ITEMS.map((anim, idx) => (
                 <div key={idx} className="anim-panel-gallery-item group cursor-pointer flex flex-col items-center" onClick={(e) => {
                   setTempSelectedAnim(anim.id);
-                  let targetSettings;
-                  if (gallerySection === 'open') targetSettings = openSettings;
-                  else if (gallerySection === 'close') targetSettings = closeSettings;
-                  else targetSettings = interactSettings;
-                  
-                  previewAnimation(e, anim.id, targetSettings);
+                  const t = editingElement?.getAttribute('data-animation-trigger') || 'While Opening';
+                  const p = t === 'While Opening' ? 'open' : 'interact';
+                  previewAnimation(e, anim.id, {
+                     delay: parseFloat(editingElement?.getAttribute(`data-animation-${p}-delay`)) || 0,
+                     duration: parseFloat(editingElement?.getAttribute(`data-animation-${p}-duration`)) || 1,
+                     speed: parseFloat(editingElement?.getAttribute(`data-animation-${p}-speed`)) || 1,
+                     easing: editingElement?.getAttribute(`data-animation-${p}-easing`) || 'Linear'
+                  }, editingElement);
                 }}>
-                  <div className={`anim-panel-item-card aspect-square w-full rounded-[0.4vw] border-2 flex flex-col items-center justify-center transition-all bg-gray-50/30 overflow-hidden ${
-                    tempSelectedAnim === anim.id ? 'border-gray-400 ring-2 ring-gray-100 bg-white' : 'border-transparent hover:bg-white hover:shadow-sm'
+                  <div className={`anim-panel-item-card aspect-square w-full rounded-[0.2vw] border flex flex-col items-center justify-center transition-all bg-white shadow-sm overflow-hidden ${
+                    tempSelectedAnim === anim.id ? 'border-gray-700 border-[0.1vw]' : 'border-gray-100 hover:border-gray-300'
                   }`}>
                     <div className="anim-panel-item-icon flex-1 flex items-center justify-center p-[0.25vw]">
                       {anim.icon === 'None' ? (
-                        <div className="anim-panel-none-icon w-[2vw] h-[2vw] rounded-full border-[0.15vw] border-gray-400 flex items-center justify-center -rotate-45"><div className="w-[0.1vw] h-full bg-gray-400" /></div>
+                        <Icon icon="radix-icons:shadow-none" width="2.2vw" height="2.2vw" className="text-gray-500" />
                       ) : anim.icon === 'Circle' ? (
                         <motion.div 
                           variants={ANIMATION_VARIANTS[anim.id]} initial="initial" animate="animate"
                           transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 2 }}
-                          className="anim-panel-circle-icon w-[2vw] h-[2vw] rounded-full border-[0.1vw] border-gray-700 flex items-center justify-center"
+                          className="flex items-center justify-center"
                         >
-                          <div className="w-[1.25vw] h-[1.25vw] rounded-full border-[0.1vw] border-dashed border-gray-800" />
+                          <Icon icon="game-icons:glass-ball" width="2vw" height="2vw" className="text-gray-500" />
                         </motion.div>
                       ) : (
-                        <div className="anim-panel-bars-icon flex items-end gap-[0.25vw] h-[1.5vw]">
+                        <div className="anim-panel-bars-icon flex items-end gap-[0.3vw] h-[1.8vw]">
                           <motion.div 
                             variants={ANIMATION_VARIANTS[anim.id]} initial="initial" animate="animate"
-                            transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 1.5 }} className="anim-panel-bar-1 w-[0.5vw] h-[1.5vw] bg-gray-300 rounded-[0.05vw]" 
+                            transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 1.5 }} className="anim-panel-bar-1 w-[0.6vw] h-[1.8vw] bg-gray-200 rounded-[0.05vw]" 
                           />
                           <motion.div 
                             variants={ANIMATION_VARIANTS[anim.id]} initial="initial" animate="animate"
-                            transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 1.5, delay: 0.1 }} className="anim-panel-bar-2 w-[0.5vw] h-[1.5vw] bg-gray-400 rounded-[0.05vw]" 
+                            transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 1.5, delay: 0.1 }} className="anim-panel-bar-2 w-[0.6vw] h-[1.8vw] bg-gray-300 rounded-[0.05vw]" 
                           />
                           <motion.div 
                             variants={ANIMATION_VARIANTS[anim.id]} initial="initial" animate="animate"
-                            transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 1.5, delay: 0.2 }} className="anim-panel-bar-3 w-[0.5vw] h-[1.5vw] bg-gray-600 rounded-[0.05vw]" 
+                            transition={ANIMATION_VARIANTS[anim.id]?.transition || { repeat: Infinity, duration: 1.5, delay: 0.2 }} className="anim-panel-bar-3 w-[0.6vw] h-[1.8vw] bg-gray-400 rounded-[0.05vw]" 
                           />
                         </div>
                       )}
                     </div>
                   </div>
-                  <span className={`anim-panel-item-label text-[0.6vw] mt-[0.5vw] font-medium text-center leading-tight transition-colors ${tempSelectedAnim === anim.id ? 'text-indigo-600 font-bold' : 'text-gray-400'}`}>{anim.label}</span>
+                  <span className={`anim-panel-item-label text-[0.6vw] mt-[0.6vw] font-medium text-center leading-tight transition-colors ${tempSelectedAnim === anim.id ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>{anim.label}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="anim-panel-gallery-footer p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white">
-            <button onClick={() => setShowGallery(false)} className="anim-panel-gallery-close cursor-pointer flex-1 h-[2vw] border border-gray-300 rounded-[0.4vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.25vw] hover:bg-gray-50 transition-colors">
-              <X size="0.8vw" /> Close
+          <div className="anim-panel-gallery-footer p-[0.8vw] border-t border-gray-100 flex justify-end gap-[0.5vw] bg-white rounded-b-[0.5vw] shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.10)] relative z-10">
+            <button onClick={() => setShowGallery(false)} className="anim-panel-gallery-close cursor-pointer px-[1vw] h-[2vw] border border-black rounded-[0.3vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.5vw] hover:bg-gray-50 transition-colors">
+              <X size="1vw" /> Close
             </button>
             <button 
               disabled={!tempSelectedAnim}
               onClick={() => {
-                if (tempSelectedAnim) {
-                  updateSetting(gallerySection, 'type', tempSelectedAnim);
+                if (tempSelectedAnim && editingElement) {
+                  // Execute callback if present
+                  if (typeof galleryCallback === 'function') {
+                      try {
+                          galleryCallback(tempSelectedAnim);
+                      } catch (err) {
+                          console.error('Gallery callback error:', err);
+                      }
+                  } else {
+                      // Fallback for direct single element edit
+                      editingElement.setAttribute('data-animation-open-type', tempSelectedAnim);
+                      if (onUpdate) onUpdate(editingElement.id || editingElement.getAttribute('data-name'), 'data-animation-open-type', tempSelectedAnim);
+                  }
+                  
+                  // Always close and reset
                   setShowGallery(false);
+                  setTempSelectedAnim(null);
+                  setGalleryCallback(null);
                 }
               }}
-              className="anim-panel-gallery-replace flex-1 cursor-pointer h-[2vw] bg-black text-white rounded-[0.4vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.25vw] hover:bg-zinc-800 disabled:opacity-50 transition-all"
+              className="anim-panel-gallery-replace px-[1vw] cursor-pointer h-[2vw] bg-black text-white rounded-[0.3vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.5vw] hover:bg-zinc-800 disabled:opacity-50 transition-all shadow-lg"
             >
-              <Replace size="0.7vw" /> Replace
+              <Icon icon="ph:arrows-clockwise-bold" width="1vw" height="1vw" className="text-white" /> Replace
             </button>
           </div>
         </div>
@@ -829,3 +1403,4 @@ const AnimationPanel = ({ selectedElement, onUpdate, isOpen: externalIsOpen, onT
 };
 
 export default AnimationPanel;
+

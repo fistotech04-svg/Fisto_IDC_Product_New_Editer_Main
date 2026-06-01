@@ -2,10 +2,10 @@ import React, { useState, useMemo, useRef, useEffect, lazy, Suspense } from 'rea
 const Grid5Layout = lazy(() => import('../../Layouts/Grid5Layout'));
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AddBookmarkPopup from '../../popups/AddBookmarkPopup';
-import AddNotesPopup from '../../popups/AddNotesPopup';
-import NotesViewerPopup from '../../popups/NotesViewerPopup';
-import ViewBookmarkPopup from '../../popups/ViewBookmarkPopup';
+
+
+
+
 import ProfilePopup from '../../popups/ProfilePopup';
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
@@ -447,9 +447,9 @@ const MobileLayout5 = (props) => {
                     </>
                 )}
 
-                {showAddBookmarkPopup && <AddBookmarkPopup onClose={() => setShowAddBookmarkPopup(false)} currentPageIndex={currentPage} totalPages={pages.length} onAddBookmark={onAddBookmark} bookmarkSettings={bookmarkSettings} isMobile={true} activeLayout={activeLayout || 5} isLandscape={effectiveIsLandscape} isMobileLandscape={effectiveIsLandscape} />}
-                {showAddNotesPopup && <AddNotesPopup onClose={() => setShowAddNotesPopup(false)} currentPageIndex={currentPage} totalPages={pages.length} onAddNote={onAddNote} activeLayout={activeLayout || 5} isLandscape={effectiveIsLandscape} isSpread={settings.layoutSettings?.isSpread} isMobile={true} isMobileLandscape={effectiveIsLandscape} />}
-                {showNotesViewer && <NotesViewerPopup onClose={() => setShowNotesViewer(false)} notes={notes} onPageClick={onPageClick} isMobile={true} activeLayout={activeLayout || 5} isMobileLandscape={effectiveIsLandscape} />}
+                
+                
+                
                 <Sound isOpen={showSoundPopup} onClose={() => setShowSoundPopup(false)} otherSetupSettings={otherSetupSettings} onUpdateOtherSetup={onUpdateOtherSetup} isMuted={isMuted} setIsMuted={setIsMuted} isFlipMuted={isFlipMuted} setIsFlipMuted={setIsFlipMuted} isMobile={true} settings={settings} />
                 <Export
                     isOpen={showExportPopup}

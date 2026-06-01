@@ -11,9 +11,21 @@ export const processBookAppearanceSettings = (settings) => {
   };
 
   const shadow = settings.dropShadow || {};
-  const shadowColor = hexToRgba(shadow.color || '#6B6868', shadow.opacity);
-  const shadowStyle = shadow.active
-    ? `${shadow.xAxis || 0}px ${shadow.yAxis || 0}px ${shadow.blur || 0}px ${shadow.spread || 0}px ${shadowColor}`
+
+  const positionMap = {
+    'Top Left': { x: -15, y: -15 },
+    'Top Right': { x: 15, y: -15 },
+    'Bottom Left': { x: -15, y: 15 },
+    'Bottom Right': { x: 15, y: 15 }
+  };
+
+  const pos = positionMap[shadow.position] || { x: 15, y: 15 };
+  const strength = shadow.strength ?? 35;
+  const softness = shadow.softness ?? 35;
+  const shadowColor = `rgba(107, 104, 104, ${strength / 100})`;
+
+  const shadowStyle = shadow.active !== false
+    ? `${pos.x}px ${pos.y}px ${softness}px 0px ${shadowColor}`
     : 'none';
 
   const cornerMap = { 'Sharp': '0px', 'Soft': '5px', 'Round': '10px' };
@@ -25,12 +37,9 @@ export const processBookAppearanceSettings = (settings) => {
 
   // Add flip style alterations to flip time / stiffness where possible
   const styleMapTimeModifiers = {
-    'Fast Flip': 0.7,
-    'Smooth Flip': 1.2,
-    'Slide Pages': 1.0, 
-    '3D Flip': 1.3,
-    'Page Curl': 1.0,
-    'Classic Flip': 1.0
+    'Fast Flip': 0.6,
+    'Smooth Flip': 1.0,
+    'Classic Flip': 1.4
   };
   
   if (settings.flipStyle && styleMapTimeModifiers[settings.flipStyle]) {

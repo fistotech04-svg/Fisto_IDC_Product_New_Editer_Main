@@ -1,13 +1,11 @@
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import backgroundComponents from './Backgrounds'; // Import the background components
 import animationComponents from './Animations';
 import * as BookAppearanceHelpers from './bookAppearanceHelpers';
-import AddBookmarkPopup from './popups/AddBookmarkPopup';
-import AddNotesPopup from './popups/AddNotesPopup';
-import NotesViewerPopup from './popups/NotesViewerPopup';
-import ViewBookmarkPopup from './popups/ViewBookmarkPopup';
+
 import TableOfContentsPopup from './popups/TableOfContentsPopup';
 import MobileFrame from './MobileFrame';
 import MobileLayoutRenderer from './Mobile/MobileLayoutRenderer';
@@ -25,7 +23,7 @@ import Grid7Layout from './Layouts/Grid7Layout';
 import Grid8Layout from './Layouts/Grid8Layout';
 import Grid9Layout from './Layouts/Grid9Layout';
 import GalleryPopup from './popups/GalleryPopup';
-import { getBookmarkClipPath, getBookmarkBorderRadius } from './BookmarkStylesPopup';
+import { getBookmarkClipPath, getBookmarkBorderRadius, getBookmarkSVGPath } from './BookmarkStylesPopup';
 import FlipBookEngine from './FlipBookEngine';
 import LeadFormPopup from './popups/LeadFormPopup';
 import { getFromDB, saveToDB } from '../../utils/dbUtils';
@@ -294,6 +292,7 @@ const getAnimationScript = (pageNumber) => `
   <script>
     (function() {
       const pageNumber = ${pageNumber};
+      window._pageNumber = pageNumber;
       const initAnim = () => {
       const WAAPI_ANIMATIONS = {
         'none': [],
@@ -333,32 +332,173 @@ const getAnimationScript = (pageNumber) => `
         'bounce-out': [{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.1)', opacity: 0.8, offset: 0.2 }, { transform: 'scale(0.3)', opacity: 0, offset: 1 }],
         'fade-out': [{ opacity: 1 }, { opacity: 0 }],
       };
+
+      const LOOP_ANIMATIONS = ['pulse', 'tada', 'rubber-band', 'jello', 'heartbeat', 'glitch', 'neon-glow', 'swing', 'wobble', 'float'];
+
+      const getWaapiEase = (name) => {
+        const map = {
+          'Linear': 'linear', 'Smooth': 'ease-in-out', 'Ease In': 'ease-in',
+          'Ease Out': 'ease-out', 'Ease In & Out': 'ease-in-out',
+          'Bounce': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)'
+        };
+        return map[name] || 'linear';
+      };
+
       const runAnim = (el, type, settings) => {
-         if (!type || !WAAPI_ANIMATIONS[type]) return;
-         if (!settings.everyVisit && el.dataset.animRun === 'true') return;
-                 
-         const duration = ((parseFloat(settings.duration) || 1) / (parseFloat(settings.speed) || 1)) * 1000;
-         const delay = (parseFloat(settings.delay) || 0) * 1000;
-         el.animate(WAAPI_ANIMATIONS[type], { 
-           duration, delay, fill: 'forwards', easing: 'ease-out'
-         });
-         el.dataset.animRun = 'true';
+        if (!type || !WAAPI_ANIMATIONS[type] || type === 'none') {
+          if (el.__currentAnimation) { el.__currentAnimation.cancel(); el.__currentAnimation = null; }
+          return;
+        }
+        const elementId = el.getAttribute('data-id') || el.id;
+        const sessionKey = \`fisto_anim_played_\${window._pageNumber}_\${elementId}\`;
+        const hasPlayedInSession = elementId ? sessionStorage.getItem(sessionKey) === 'true' : false;
+        if (!settings.everyVisit && (el.getAttribute('data-anim-run') === 'true' || el.__animOpened || hasPlayedInSession)) return;
+        el.setAttribute('data-anim-run', 'true');
+        el.__animOpened = true;
+        if (elementId) sessionStorage.setItem(sessionKey, 'true');
+        if (el.__currentAnimation) el.__currentAnimation.cancel();
+        const duration = ((parseFloat(settings && settings.duration || 1)) / (parseFloat(settings && settings.speed || 1))) * 1000;
+        const delay = (parseFloat(settings && settings.delay || 0)) * 1000;
+        const easing = getWaapiEase(settings && settings.easing || 'Linear');
+        const isLoop = LOOP_ANIMATIONS.includes(type) || !!(settings && settings.isAlways);
+        try {
+          let cx = 0, cy = 0, useMathOrigin = false;
+          const isSVG = el.namespaceURI === 'http://www.w3.org/2000/svg' || el.ownerSVGElement !== undefined;
+          if (isSVG) {
+            try {
+              const bbox = el.getBBox();
+              cx = bbox.x + bbox.width / 2; cy = bbox.y + bbox.height / 2;
+              useMathOrigin = true; el.style.transformOrigin = '0 0';
+            } catch(e) { el.style.transformBox = 'fill-box'; el.style.transformOrigin = 'center'; }
+          }
+          if (WAAPI_ANIMATIONS[type][0] && WAAPI_ANIMATIONS[type][0].opacity !== undefined && !isLoop) {
+            el.style.opacity = WAAPI_ANIMATIONS[type][0].opacity;
+          }
+          if (el.__originalTransform === undefined) {
+            let baseT = window.getComputedStyle(el).transform;
+            if (!baseT || baseT === 'none') {
+              const tAttr = el.getAttribute('transform');
+              if (tAttr) {
+                try {
+                  const dummy = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                  dummy.setAttribute('transform', tAttr);
+                  if (dummy.transform.baseVal) {
+                    dummy.transform.baseVal.consolidate();
+                    if (dummy.transform.baseVal.numberOfItems > 0) {
+                      const m = dummy.transform.baseVal.getItem(0).matrix;
+                      baseT = \`matrix(\${m.a}, \${m.b}, \${m.c}, \${m.d}, \${m.e}, \${m.f})\`;
+                    }
+                  }
+                } catch(e) {}
+              }
+            }
+            el.__originalTransform = (!baseT || baseT === 'none') ? '' : baseT;
+          }
+          const baseTransform = el.__originalTransform;
+          const keyframes = WAAPI_ANIMATIONS[type].map(kf => {
+            const newKf = Object.assign({}, kf);
+            if ((baseTransform || useMathOrigin) && kf.transform) {
+              newKf.transform = useMathOrigin
+                ? \`\${baseTransform} translate(\${cx}px,\${cy}px) \${kf.transform} translate(-\${cx}px,-\${cy}px)\`
+                : \`\${baseTransform} \${kf.transform}\`;
+            } else if (baseTransform) {
+              newKf.transform = baseTransform;
+            }
+            return newKf;
+          });
+          const anim = el.animate(keyframes, { duration, delay, easing, fill: isLoop ? 'none' : 'forwards', iterations: isLoop ? Infinity : 1 });
+          el.__currentAnimation = anim;
+        } catch(e) { console.error('Animation error', e); }
       };
-      const handleTrigger = (context) => { 
-           requestAnimationFrame(() => {
-               document.querySelectorAll('[data-animation-trigger="While Opening"]').forEach(el => {
-                   const type = el.getAttribute('data-animation-open-type');
-                   if (type) runAnim(el, type, { 
-                       duration: el.getAttribute('data-animation-open-duration'),
-                       speed: el.getAttribute('data-animation-open-speed'),
-                       delay: el.getAttribute('data-animation-open-delay'),
-                       everyVisit: el.getAttribute('data-animation-open-every-visit') !== 'false'
-                   });
-               });
-           });
+
+      let isVisible = false;
+
+      const handleTrigger = (forceRetrigger) => {
+        // 1. While Opening
+        document.querySelectorAll('[data-animation-trigger="While Opening"]').forEach(el => {
+          if (forceRetrigger) {
+            const everyVisit = el.getAttribute('data-animation-open-every-visit') !== 'false';
+            if (everyVisit) {
+              el.removeAttribute('data-anim-run'); el.__animOpened = false;
+              const eid = el.getAttribute('data-id') || el.id;
+              if (eid) sessionStorage.removeItem(\`fisto_anim_played_\${window._pageNumber}_\${eid}\`);
+            }
+          }
+          const type = el.getAttribute('data-animation-open-type');
+          if (type) runAnim(el, type, {
+            duration: el.getAttribute('data-animation-open-duration'),
+            speed:    el.getAttribute('data-animation-open-speed'),
+            delay:    el.getAttribute('data-animation-open-delay'),
+            easing:   el.getAttribute('data-animation-open-easing'),
+            everyVisit: el.getAttribute('data-animation-open-every-visit') !== 'false'
+          });
+        });
+        // 2. On Page (Always / Click / Hover)
+        document.querySelectorAll('[data-animation-trigger="On Page"]').forEach(el => {
+          const action = el.getAttribute('data-animation-action');
+          const type   = el.getAttribute('data-animation-interact-type');
+          const s = {
+            duration:   el.getAttribute('data-animation-interact-duration'),
+            speed:      el.getAttribute('data-animation-interact-speed'),
+            delay:      el.getAttribute('data-animation-interact-delay'),
+            easing:     el.getAttribute('data-animation-interact-easing'),
+            everyVisit: el.getAttribute('data-animation-interact-every-visit') !== 'false',
+            isAlways:   action === 'Always'
+          };
+          if (action === 'Always') {
+            if (forceRetrigger && s.everyVisit) { el.removeAttribute('data-anim-run'); el.__animOpened = false; }
+            runAnim(el, type, s);
+          } else if (action === 'Click' && !el.__clickBound) {
+            el.__clickBound = true;
+            el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto';
+            el.addEventListener('click', function(ev) {
+              ev.stopPropagation();
+              runAnim(el, el.getAttribute('data-animation-interact-type'), Object.assign({}, s, { everyVisit: true }));
+            });
+          } else if (action === 'Hover' && !el.__hoverBound) {
+            el.__hoverBound = true;
+            el.style.pointerEvents = 'auto';
+            el.addEventListener('mouseenter', function() {
+              runAnim(el, el.getAttribute('data-animation-interact-type'), Object.assign({}, s, { everyVisit: true }));
+            });
+          }
+        });
       };
-      // Simple initial trigger
-      handleTrigger();
+
+      window.addEventListener('message', function(e) {
+        if (!e.data) return;
+        if (e.data.type === 'PAGE_TURNED') {
+          const visiblePages = e.data.visiblePages || [];
+          const nowVisible = visiblePages.includes(pageNumber);
+          if (nowVisible && !isVisible) { isVisible = true; handleTrigger(true); }
+          else if (!nowVisible && isVisible) {
+            isVisible = false;
+            document.querySelectorAll('[data-anim-run="true"]').forEach(el => {
+              const trigger = el.getAttribute('data-animation-trigger');
+              const action  = el.getAttribute('data-animation-action');
+              const evOpen  = el.getAttribute('data-animation-open-every-visit') !== 'false';
+              const evInt   = el.getAttribute('data-animation-interact-every-visit') !== 'false';
+              if ((action === 'Always' && evInt) || (trigger === 'While Opening' && evOpen)) {
+                if (el.__currentAnimation) { el.__currentAnimation.cancel(); el.__currentAnimation = null; }
+                el.removeAttribute('data-anim-run'); el.__animOpened = false;
+                const eid = el.getAttribute('data-id') || el.id;
+                if (eid) sessionStorage.removeItem(\`fisto_anim_played_\${window._pageNumber}_\${eid}\`);
+              }
+            });
+          }
+        } else if (e.data.type === 'RETRIGGER_ANIMATIONS') {
+          handleTrigger(true);
+        }
+      });
+
+      // Fallback: run animations if no PAGE_TURNED message arrives within 1500ms
+      // Only run fallback on Page 1 or if running outside a parent flipbook context (standalone/editor)
+      setTimeout(function() {
+        if (!isVisible && (pageNumber === 1 || window.parent === window)) {
+          isVisible = true;
+          handleTrigger();
+        }
+      }, 1500);
       };
       if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAnim);
       else initAnim();
@@ -367,23 +507,201 @@ const getAnimationScript = (pageNumber) => `
 `;
 
 const getInteractionScript = (pageNumber) => `
+  <style>
+    [data-interaction="link"],
+    [data-interaction="open-link"],
+    [data-interaction="navigate-to"],
+    [data-interaction="download"],
+    [data-interaction="zoom"],
+    [data-interaction="popup"],
+    [data-interaction="tooltip"],
+    [data-interaction="call"],
+    [data-interaction="audio"] { 
+      cursor: pointer !important; 
+    }
+  </style>
   <script>
     (function() {
         const init = () => {
             window._pageNumber = ${pageNumber};
+            // Walk ancestors from target to find data-interaction (handles SVG bubbling quirks)
+            const findInteractionEl = (target) => {
+                let el = target;
+                while (el && el !== document.body) {
+                    if (el.dataset && el.dataset.interaction) return el;
+                    // Also check getAttribute for SVG elements where dataset may not work
+                    if (el.getAttribute && el.getAttribute('data-interaction')) return el;
+                    el = el.parentElement;
+                }
+                return null;
+            };
             document.addEventListener('click', (e) => {
-               const el = e.target.closest('[data-interaction]');
+               const el = findInteractionEl(e.target);
                if (el) {
-                   const type = el.dataset.interaction;
-                   const value = el.dataset.interactionValue;
-                   if (type === 'link' && value) {
+                   const type = el.dataset.interaction || el.getAttribute('data-interaction');
+                   const value = el.dataset.interactionValue || el.getAttribute('data-interaction-value');
+                   if ((type === 'link' || type === 'open-link') && value) {
+                       e.preventDefault();
+                       e.stopPropagation();
                        window.open(value.startsWith('http') ? value : 'https://' + value, '_blank');
-                   } else if (type === 'popup') {
-                       // Basic alert for now in customized editor
-                       // console.log("Popup clicked", el.dataset.interactionContent);
+                   } else if (type === 'navigate-to' && value) {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       window.parent.postMessage({ type: 'navigate-to-page', page: parseInt(value, 10) }, '*');
+                   } else if (type === 'download' && value) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.parent.postMessage({ type: 'download-file', value: value }, '*');
+                    } else if (type === 'zoom') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // Toggle zoom in/out per element
+                        var currentlyZoomed = el.dataset.zoomedIn === 'true';
+                        if (currentlyZoomed) {
+                            el.dataset.zoomedIn = 'false';
+                            window.parent.postMessage({ type: 'zoom-out-element' }, '*');
+                        } else {
+                            document.querySelectorAll('[data-zoomed-in="true"]').forEach(function(other) {
+                                other.dataset.zoomedIn = 'false';
+                            });
+                            el.dataset.zoomedIn = 'true';
+                            var rect = el.getBoundingClientRect();
+                            window.parent.postMessage({
+                                type: 'zoom-to-element',
+                                speed: value || 'Medium',
+                                pageNumber: window._pageNumber,
+                                rect: {
+                                    left: rect.left,
+                                    top: rect.top,
+                                    width: rect.width,
+                                    height: rect.height,
+                                    windowWidth: window.innerWidth,
+                                    windowHeight: window.innerHeight
+                                }
+                            }, '*');
+                        }
+                    } else if (type === 'popup') {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       var customHtml = el.dataset.interactionPopupCustomHtml || el.getAttribute('data-interaction-popup-custom-html');
+                       if (customHtml) {
+                           window.parent.postMessage({
+                               type: 'show-popup-interaction',
+                               html: customHtml,
+                               templateId: value
+                           }, '*');
+                       }
+                   } else if (type === 'audio' && value) {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       try {
+                           const audioData = JSON.parse(value);
+                           if (audioData && audioData.data) {
+                               if (window.parent._activePreviewAudio && window.parent._activePreviewAudioEl === el) {
+                                   if (!window.parent._activePreviewAudio.paused) {
+                                       window.parent._activePreviewAudio.pause();
+                                       window.parent._activePreviewAudio.currentTime = 0;
+                                   } else {
+                                       window.parent._activePreviewAudio.play().catch(function(e) { console.error('Audio playback failed', e) });
+                                   }
+                               } else {
+                                   if (window.parent._activePreviewAudio) {
+                                       window.parent._activePreviewAudio.pause();
+                                       window.parent._activePreviewAudio.currentTime = 0;
+                                   }
+                                   const audio = new Audio(audioData.data);
+                                   window.parent._activePreviewAudio = audio;
+                                   window.parent._activePreviewAudioEl = el;
+                                   audio.play().catch(function(e) { console.error('Audio playback failed', e) });
+                               }
+                           }
+                       } catch(err) {
+                           console.error('Failed to parse or play audio interaction', err);
+                       }
+                   } else if (type === 'tooltip') {
+                       const trigger = el.dataset.interactionTrigger || el.getAttribute('data-interaction-trigger') || 'click';
+                       if (trigger === 'click') {
+                           e.preventDefault();
+                           e.stopPropagation();
+                           var isShowing = el.dataset.tooltipShowing === 'true';
+                           if (isShowing) {
+                               el.dataset.tooltipShowing = 'false';
+                               window.parent.postMessage({ type: 'hide-tooltip' }, '*');
+                           } else {
+                               document.querySelectorAll('[data-tooltip-showing="true"]').forEach(function(other) {
+                                   other.dataset.tooltipShowing = 'false';
+                               });
+                               el.dataset.tooltipShowing = 'true';
+                               var rect = el.getBoundingClientRect();
+                               var settingsStr = el.getAttribute('data-tooltip-settings');
+                               var settings = null;
+                               try { if (settingsStr) settings = JSON.parse(settingsStr); } catch(e){}
+                               var absLeft = rect.left, absTop = rect.top, absW = rect.width, absH = rect.height;
+                               try {
+                                   var iframe = window.frameElement;
+                                   if (iframe) {
+                                       var fr = iframe.getBoundingClientRect();
+                                       var sx = fr.width / (window.innerWidth || 1);
+                                       var sy = fr.height / (window.innerHeight || 1);
+                                       absLeft = fr.left + rect.left * sx;
+                                       absTop  = fr.top  + rect.top  * sy;
+                                       absW    = rect.width  * sx;
+                                       absH    = rect.height * sy;
+                                   }
+                               } catch(err) {}
+                               window.parent.postMessage({
+                                   type: 'show-tooltip',
+                                   abs: { left: absLeft, top: absTop, width: absW, height: absH },
+                                   settings: settings,
+                                   pageNumber: window._pageNumber,
+                                   elementId: el.id
+                               }, '*');
+                           }
+                       }
                    }
                }
             });
+
+            // Hover logic for tooltips
+            const handleHover = (e, isEnter) => {
+                const el = findInteractionEl(e.target);
+                if (el) {
+                    const type = el.dataset.interaction || el.getAttribute('data-interaction');
+                    const trigger = el.dataset.interactionTrigger || el.getAttribute('data-interaction-trigger') || 'click';
+                    if (type === 'tooltip' && trigger === 'hover') {
+                        if (isEnter) {
+                             var rect = el.getBoundingClientRect();
+                             var settingsStr = el.getAttribute('data-tooltip-settings');
+                             var settings = null;
+                             try { if (settingsStr) settings = JSON.parse(settingsStr); } catch(e){}
+                             var absLeft = rect.left, absTop = rect.top, absW = rect.width, absH = rect.height;
+                             try {
+                                 var iframe = window.frameElement;
+                                 if (iframe) {
+                                     var fr = iframe.getBoundingClientRect();
+                                     var sx = fr.width / (window.innerWidth || 1);
+                                     var sy = fr.height / (window.innerHeight || 1);
+                                     absLeft = fr.left + rect.left * sx;
+                                     absTop  = fr.top  + rect.top  * sy;
+                                     absW    = rect.width  * sx;
+                                     absH    = rect.height * sy;
+                                 }
+                             } catch(err) {}
+                             window.parent.postMessage({
+                                 type: 'show-tooltip',
+                                 abs: { left: absLeft, top: absTop, width: absW, height: absH },
+                                 settings: settings,
+                                 pageNumber: window._pageNumber,
+                                 elementId: el.id
+                             }, '*');
+                        } else {
+                             window.parent.postMessage({ type: 'hide-tooltip' }, '*');
+                        }
+                    }
+                }
+            };
+            document.addEventListener('mouseover', (e) => handleHover(e, true));
+            document.addEventListener('mouseout', (e) => handleHover(e, false));
         };
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
         else init();
@@ -391,27 +709,84 @@ const getInteractionScript = (pageNumber) => `
   </script>
 `;
 
+const getIframeContent = (html, pageNumber) => {
+    // Inject scripts
+    const content = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <style>
+                    html, body { cursor: default !important; -webkit-user-select: none; user-select: none; }
+                    body { margin: 0; padding: 0; overflow: hidden; background: transparent; width: 100%; height: 100%; }
+                    * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+                    ::-webkit-scrollbar { width: 0px; background: transparent; }
+                    [data-interaction="open-link"][data-interaction-value]:not([data-interaction-value=""]),
+                    [data-interaction="link"][data-interaction-value]:not([data-interaction-value=""]),
+                    [data-interaction="navigate-to"][data-interaction-value]:not([data-interaction-value=""]),
+                    [data-interaction="download"][data-interaction-value]:not([data-interaction-value=""]),
+                    [data-interaction="zoom"],
+                    [data-interaction="tooltip"],
+                    [data-interaction="popup"] {
+                        cursor: pointer !important;
+                    }
 
-const BookmarkTab = ({ label, color, side, index, spacing = 5.5, onClick, styleIdx = 1, font = 'Poppins' }) => {
-    const topOffset = 10 + (index * spacing);
+                    /* Children pointer events */
+                    [data-interaction="open-link"] *,
+                    [data-interaction="link"] *,
+                    [data-interaction="navigate-to"] *,
+                    [data-interaction="download"] *,
+                    [data-interaction="zoom"] *,
+                    [data-interaction="tooltip"] *,
+                    [data-interaction="popup"] * {
+                        cursor: pointer !important;
+                    }
+                </style>
+                <base href="/">
+                ${getSlideshowScript()}
+                ${getAnimationScript(pageNumber)}
+                ${getInteractionScript(pageNumber)}
+                <script>
+                    (function() {
+                        const isRightPage = ${pageNumber} % 2 !== 0;
+                        document.addEventListener('mousemove', (e) => {
+                            try {
+                                const rect = window.frameElement ? window.frameElement.getBoundingClientRect() : { left: 0, top: 0 };
+                                window.parent.postMessage({
+                                    type: 'IFRAME_MOUSEMOVE',
+                                    clientX: rect.left + e.clientX,
+                                    clientY: rect.top + e.clientY,
+                                    screenX: e.screenX,
+                                    screenY: e.screenY
+                                }, '*');
+
+                                // Dynamic cursor for drag edges inside iframe
+                                const nearEdge = isRightPage 
+                                    ? (window.innerWidth - e.clientX < 50) 
+                                    : (e.clientX < 50);
+                                if (nearEdge) {
+                                    document.documentElement.style.setProperty('cursor', 'grab', 'important');
+                                    document.body.style.setProperty('cursor', 'grab', 'important');
+                                } else {
+                                    document.documentElement.style.removeProperty('cursor');
+                                    document.body.style.removeProperty('cursor');
+                                }
+                            } catch (err) {}
+                        });
+                    })();
+                </script>
+            </head>
+            <body>
+                ${html || ''}
+            </body>
+        </html>
+    `;
+    return content;
+};
+
+const BookmarkTab = ({ label, color, side, index, onClick, styleIdx = 1, font = 'Poppins' }) => {
+    // 4.5vw height + 0.5vw gap = 5vw spacing
+    const topOffsetVW = index * 5;
     const displayLabel = label.length > 12 ? label.substring(0, 11) + '...' : label;
-
-    // Flip the clip-path if it's on the left side
-    let clipPath = getBookmarkClipPath(styleIdx);
-    if (side === 'left' && clipPath !== 'none') {
-        clipPath = clipPath.replace(/([0-9.]+)%/g, (match, p1) => {
-            return (100 - parseFloat(p1)) + '%';
-        });
-    }
-
-    // Flip the border-radius if it's on the left side
-    let borderRadius = getBookmarkBorderRadius(styleIdx);
-    if (side === 'left' && borderRadius !== '0') {
-        const parts = borderRadius.split(' ');
-        if (parts.length === 4) {
-            borderRadius = `${parts[1]} ${parts[0]} ${parts[3]} ${parts[2]}`;
-        }
-    }
 
     return (
         <motion.div
@@ -420,17 +795,12 @@ const BookmarkTab = ({ label, color, side, index, spacing = 5.5, onClick, styleI
                 filter: 'brightness(1.1)',
                 zIndex: 1000
             }}
-            className="absolute flex items-center justify-center p-[0.3vw] cursor-pointer pointer-events-auto origin-center"
+            className="absolute flex items-center justify-center cursor-pointer pointer-events-auto origin-center"
             style={{
-                top: `${topOffset}%`,
-                width: '3.5vw',
-                height: '8.5%',
+                top: `calc(10% + ${topOffsetVW}vw)`,
+                width: '2vw',
+                height: '4.5vw',
                 [side === 'right' ? 'left' : 'right']: 'calc(100% - 1px)',
-                background: color === 'multi-color' ? 'linear-gradient(135deg, #FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF)' : (color || '#D15D6D'),
-                clipPath: clipPath,
-                borderRadius: borderRadius,
-                boxShadow: side === 'right' ? '0.3vw 0 1vw rgba(0,0,0,0.15)' : '-0.3vw 0 1vw rgba(0,0,0,0.15)',
-                transition: 'background 0.3s ease, box-shadow 0.3s ease, clip-path 0.3s ease, border-radius 0.3s ease',
                 zIndex: 50 + index,
                 fontFamily: font
             }}
@@ -439,17 +809,35 @@ const BookmarkTab = ({ label, color, side, index, spacing = 5.5, onClick, styleI
                 e.stopPropagation();
                 if (onClick) onClick(e);
             }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
         >
+            <svg
+                viewBox="0 0 40 98"
+                preserveAspectRatio="none"
+                className="absolute inset-0 w-full h-full drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] transition-all duration-300"
+                style={side === 'left' ? { transform: 'scaleX(-1)' } : {}}
+            >
+                {color === 'multi-color' && (
+                    <defs>
+                        <linearGradient id={`grad-${index}-${side}`} x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor="#FF0000" />
+                            <stop offset="20%" stopColor="#FFFF00" />
+                            <stop offset="40%" stopColor="#00FF00" />
+                            <stop offset="60%" stopColor="#00FFFF" />
+                            <stop offset="80%" stopColor="#0000FF" />
+                            <stop offset="100%" stopColor="#FF00FF" />
+                        </linearGradient>
+                    </defs>
+                )}
+                <path d={getBookmarkSVGPath(styleIdx)} fill={color === 'multi-color' ? `url(#grad-${index}-${side})` : (color || '#C45A5A')} />
+            </svg>
             <span
-                className="text-white text-[0.6vw] font-bold select-none text-center leading-tight drop-shadow-sm"
+                className="relative z-10 text-white font-semibold whitespace-nowrap leading-tight drop-shadow-sm text-center"
                 style={{
-                    whiteSpace: 'normal',
-                    wordBreak: 'break-word',
-                    overflow: 'hidden',
-                    display: '-webkit-box',
-                    WebkitLineClamp: '3',
-                    WebkitBoxOrient: 'vertical',
-                    maxWidth: '100%'
+                    transform: 'rotate(-90deg)',
+                    fontSize: '0.65vw',
+                    display: 'block'
                 }}
             >
                 {displayLabel}
@@ -457,6 +845,300 @@ const BookmarkTab = ({ label, color, side, index, spacing = 5.5, onClick, styleI
         </motion.div>
     );
 };
+
+const TooltipOverlay = React.memo(({ tooltip }) => {
+    if (!tooltip) return null;
+    const { abs, settings } = tooltip;
+    if (!settings || !abs) return null;
+
+    const shape = settings.shape || 'bottom-center';
+    let cx = abs.left + abs.width / 2;
+    let ty = abs.top;
+
+    let containerStyle = {
+        position: 'fixed',
+        zIndex: 99999,
+        pointerEvents: 'none',
+        display: 'flex',
+        alignItems: 'center'
+    };
+
+    let tailStyle = {
+        width: 0,
+        height: 0
+    };
+
+    if (shape.startsWith('bottom')) {
+        ty = abs.top;
+        let transform = 'translate(-50%, -100%)';
+        let tailAlign = { alignSelf: 'center' };
+
+        if (shape === 'bottom-left') {
+            cx = abs.left;
+            transform = 'translate(0%, -100%)';
+            tailAlign = { alignSelf: 'flex-start', marginLeft: '12px' };
+        } else if (shape === 'bottom-right') {
+            cx = abs.left + abs.width;
+            transform = 'translate(-100%, -100%)';
+            tailAlign = { alignSelf: 'flex-end', marginRight: '12px' };
+        } else {
+            cx = abs.left + abs.width / 2;
+        }
+
+        containerStyle = {
+            ...containerStyle,
+            left: cx + 'px',
+            top: ty + 'px',
+            transform,
+            marginTop: '-8px',
+            flexDirection: 'column'
+        };
+        tailStyle = {
+            ...tailStyle,
+            borderLeft: '7px solid transparent',
+            borderRight: '7px solid transparent',
+            borderTop: '9px solid ' + (settings.bgColor || '#1F2937'),
+            order: 2,
+            marginTop: '-1px',
+            ...tailAlign
+        };
+    } else if (shape.startsWith('top')) {
+        ty = abs.top + abs.height;
+        let transform = 'translate(-50%, 0%)';
+        let tailAlign = { alignSelf: 'center' };
+
+        if (shape === 'top-left') {
+            cx = abs.left;
+            transform = 'translate(0%, 0%)';
+            tailAlign = { alignSelf: 'flex-start', marginLeft: '12px' };
+        } else if (shape === 'top-right') {
+            cx = abs.left + abs.width;
+            transform = 'translate(-100%, 0%)';
+            tailAlign = { alignSelf: 'flex-end', marginRight: '12px' };
+        } else {
+            cx = abs.left + abs.width / 2;
+        }
+
+        containerStyle = {
+            ...containerStyle,
+            left: cx + 'px',
+            top: ty + 'px',
+            transform,
+            marginTop: '8px',
+            flexDirection: 'column'
+        };
+        tailStyle = {
+            ...tailStyle,
+            borderLeft: '7px solid transparent',
+            borderRight: '7px solid transparent',
+            borderBottom: '9px solid ' + (settings.bgColor || '#1F2937'),
+            order: 1,
+            marginBottom: '-1px',
+            ...tailAlign
+        };
+    } else if (shape.startsWith('right')) {
+        cx = abs.left;
+        let transform = 'translate(-100%, -50%)';
+        let tailAlign = { alignSelf: 'center' };
+
+        if (shape === 'right-top') {
+            ty = abs.top;
+            transform = 'translate(-100%, 0%)';
+            tailAlign = { alignSelf: 'flex-start', marginTop: '8px' };
+        } else if (shape === 'right-bottom') {
+            ty = abs.top + abs.height;
+            transform = 'translate(-100%, -100%)';
+            tailAlign = { alignSelf: 'flex-end', marginBottom: '8px' };
+        } else {
+            ty = abs.top + abs.height / 2;
+        }
+
+        containerStyle = {
+            ...containerStyle,
+            left: cx + 'px',
+            top: ty + 'px',
+            transform,
+            marginLeft: '-8px',
+            flexDirection: 'row'
+        };
+        tailStyle = {
+            ...tailStyle,
+            borderTop: '7px solid transparent',
+            borderBottom: '7px solid transparent',
+            borderLeft: '9px solid ' + (settings.bgColor || '#1F2937'),
+            order: 2,
+            marginLeft: '-1px',
+            ...tailAlign
+        };
+    } else if (shape.startsWith('left')) {
+        cx = abs.left + abs.width;
+        let transform = 'translate(0%, -50%)';
+        let tailAlign = { alignSelf: 'center' };
+
+        if (shape === 'left-top') {
+            ty = abs.top;
+            transform = 'translate(0%, 0%)';
+            tailAlign = { alignSelf: 'flex-start', marginTop: '8px' };
+        } else if (shape === 'left-bottom') {
+            ty = abs.top + abs.height;
+            transform = 'translate(0%, -100%)';
+            tailAlign = { alignSelf: 'flex-end', marginBottom: '8px' };
+        } else {
+            ty = abs.top + abs.height / 2;
+        }
+
+        containerStyle = {
+            ...containerStyle,
+            left: cx + 'px',
+            top: ty + 'px',
+            transform,
+            marginLeft: '8px',
+            flexDirection: 'row'
+        };
+        tailStyle = {
+            ...tailStyle,
+            borderTop: '7px solid transparent',
+            borderBottom: '7px solid transparent',
+            borderRight: '9px solid ' + (settings.bgColor || '#1F2937'),
+            order: 1,
+            marginRight: '-1px',
+            ...tailAlign
+        };
+    }
+
+    const isReversedOrder = shape.startsWith('top') || shape.startsWith('left');
+
+    const animType = settings.animation || 'Fade In /Out';
+    const speed = (settings.speed || 'Medium').toLowerCase();
+    const durationMap = {
+        'slow': 0.8,
+        'medium': 0.5,
+        'fast': 0.25
+    };
+    const duration = durationMap[speed] || 0.5;
+
+    const outerVariants = {
+        initial: { opacity: 0 },
+        animate: { opacity: 1, transition: { duration, ease: 'easeOut' } },
+        exit: { opacity: 0, transition: { duration: duration * 0.8, ease: 'easeIn' } }
+    };
+
+    let innerVariants = {
+        initial: {},
+        animate: {},
+        exit: {}
+    };
+
+    if (animType === 'Slide Up') {
+        innerVariants = {
+            initial: { y: 24 },
+            animate: { y: 0, transition: { duration, ease: [0.16, 1, 0.3, 1] } },
+            exit: { y: 16, transition: { duration: duration * 0.8, ease: [0.7, 0, 0.84, 0] } }
+        };
+    } else if (animType === 'Zoom In') {
+        innerVariants = {
+            initial: { scale: 0.7 },
+            animate: { scale: 1, transition: { duration, ease: [0.16, 1, 0.3, 1] } },
+            exit: { scale: 0.75, transition: { duration: duration * 0.8, ease: [0.7, 0, 0.84, 0] } }
+        };
+    } else if (animType === 'Bounce In') {
+        const getBounceTransition = (s) => {
+            if (s === 'slow') return { type: 'spring', stiffness: 60, damping: 10, mass: 1.2 };
+            if (s === 'fast') return { type: 'spring', stiffness: 180, damping: 15, mass: 0.8 };
+            return { type: 'spring', stiffness: 100, damping: 12, mass: 1.0 };
+        };
+        innerVariants = {
+            initial: { scale: 0.4 },
+            animate: {
+                scale: 1,
+                transition: getBounceTransition(speed)
+            },
+            exit: { scale: 0.75, transition: { duration: duration * 0.8, ease: 'easeIn' } }
+        };
+    }
+
+    const outerContainerStyle = {
+        position: 'fixed',
+        left: containerStyle.left,
+        top: containerStyle.top,
+        zIndex: 99999,
+        pointerEvents: 'none'
+    };
+
+    const middleWrapperStyle = {
+        transform: containerStyle.transform,
+        marginTop: containerStyle.marginTop || '0px',
+        marginLeft: containerStyle.marginLeft || '0px',
+        display: 'flex',
+        flexDirection: containerStyle.flexDirection,
+        alignItems: 'center'
+    };
+
+    return (
+        <motion.div
+            variants={outerVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            style={outerContainerStyle}
+        >
+            <div style={middleWrapperStyle}>
+                <motion.div
+                    variants={innerVariants}
+                    initial="initial"
+                    animate="animate"
+                    exit="exit"
+                    style={{
+                        display: 'flex',
+                        flexDirection: containerStyle.flexDirection,
+                        alignItems: 'center',
+                        width: '100%',
+                        height: '100%'
+                    }}
+                >
+                    <div
+                        style={{
+                            backgroundColor: settings.bgColor || '#1F2937',
+                            color: settings.textColor || '#FFFFFF',
+                            fontFamily: settings.fontFamily || 'sans-serif',
+                            fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Bold' ? '700' : settings.fontWeight === 'SemiBold' ? '600' : settings.fontWeight === 'Medium' ? '500' : 'normal'),
+                            fontStyle: settings.italic ? 'italic' : 'normal',
+                            fontSize: Math.max(9, (settings.fontSize || 14)) + 'px',
+                            textAlign: settings.align || 'center',
+                            textDecoration: [settings.underline ? 'underline' : '', settings.lineThrough ? 'line-through' : ''].filter(Boolean).join(' ') || 'none',
+                            width: (settings.w || 100) + 'px',
+                            height: (settings.h || 60) + 'px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            wordBreak: 'break-word',
+                            whiteSpace: 'pre-wrap',
+                            padding: '7px 14px',
+                            borderRadius: '7px',
+                            boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                            order: isReversedOrder ? 2 : 1
+                        }}
+                    >
+                        <div
+                            style={{
+                                width: settings.isWidthAuto ? 'auto' : (settings.textW || 80) + 'px',
+                                height: settings.isHeightAuto ? 'auto' : (settings.textH || 40) + 'px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: settings.align === 'left' ? 'flex-start' : settings.align === 'right' ? 'flex-end' : 'center',
+                                wordBreak: 'break-word',
+                                whiteSpace: 'pre-wrap'
+                            }}
+                        >
+                            {settings.text || 'Tooltip'}
+                        </div>
+                    </div>
+                    <div style={tailStyle} />
+                </motion.div>
+            </div>
+        </motion.div>
+    );
+});
 
 const TurnJsBookRenderer = React.memo(({
     augmentedPages,
@@ -487,6 +1169,8 @@ const TurnJsBookRenderer = React.memo(({
     activeLayout,
     singlePage = false,
     onTurning,
+    interactionZoom,
+    activeTooltip,
 }) => {
     const turnOnFlip = useCallback((evt) => {
         const logicalIndex = typeof evt === 'object' && evt !== null ? evt.data : evt;
@@ -498,8 +1182,26 @@ const TurnJsBookRenderer = React.memo(({
         if (onTurning) onTurning({ data: logicalIndex });
     }, [onTurning]);
 
+    const zoomStyle = useMemo(() => {
+        if (!interactionZoom) return {};
+        const { rect, pageNumber, scale } = interactionZoom;
+        const pageRatioX = WIDTH / rect.windowWidth;
+        const pageRatioY = HEIGHT / rect.windowHeight;
+        const centerXInPage = (rect.left + rect.width / 2) * pageRatioX;
+        const centerYInPage = (rect.top + rect.height / 2) * pageRatioY;
+        const bookX = (pageNumber % 2 === 0 || singlePage ? 0 : WIDTH) + centerXInPage;
+        const bookY = centerYInPage;
+        return {
+            transform: `scale(${scale})`,
+            transformOrigin: `${bookX}px ${bookY}px`,
+            transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+        };
+    }, [interactionZoom, WIDTH, HEIGHT, singlePage]);
+
+    const isZoomedIn = interactionZoom && interactionZoom.scale > 1;
+
     return (
-        <div className="relative" style={{ width: singlePage ? WIDTH : WIDTH * 2, height: HEIGHT, opacity: pageOpacity ?? 1 }}>
+        <div className="relative" style={{ width: singlePage ? WIDTH : WIDTH * 2, height: HEIGHT, opacity: pageOpacity ?? 1, ...zoomStyle, zIndex: isZoomedIn ? 50 : 1 }}>
             {shadowActive && (
                 <div
                     className="absolute transition-all duration-700 pointer-events-none"
@@ -539,39 +1241,70 @@ const TurnJsBookRenderer = React.memo(({
                 textureStyle={textureStyle}
                 singlePage={singlePage}
                 pageOpacity={pageOpacity}
+                useMouseEvents={settings?.navigation?.dragToTurn ?? true}
             />
 
             <div
                 className="absolute top-0 pointer-events-none"
-                style={{ width: '100%', height: '100%', left: '0%', zIndex: 10 }}
+                style={{ width: '100%', height: '100%', left: '0%', zIndex: 200 }}
             >
                 {(() => {
-                    if (!bookmarks) return null;
+                    const bmItems = settings?.navigation?.bookmarkSettings?.items;
+                    if (!bmItems || bmItems.length === 0) return null;
                     let leftCount = 0;
                     let rightCount = 0;
-                    return bookmarks.map((bm) => {
-                        const side = (currentPage === 0) ? 'right' : (bm.pageIndex <= currentPage ? 'left' : 'right');
+                    return bmItems.map((bm, idx) => {
+                        // parse 'Pg X' into pageIndex (0-indexed)
+                        const pageNumMatch = bm.page ? bm.page.match(/\d+/) : null;
+                        const pageIndex = pageNumMatch ? parseInt(pageNumMatch[0], 10) - 1 : 0;
+                        const label = bm.title || '';
+                        const color = settings?.navigation?.bookmarkSettings?.color || '#C45A5A';
+
+                        const side = (currentPage === 0) ? 'right' : (pageIndex <= currentPage ? 'left' : 'right');
                         if (currentPage === 0 && side === 'left') return null;
                         if (currentPage === pagesCount - 1 && (pagesCount - 1) % 2 !== 0 && side === 'right') return null;
                         const sideIndex = side === 'left' ? leftCount++ : rightCount++;
                         return (
                             <BookmarkTab
-                                key={`${bm.id}-${side}`}
-                                label={bm.label}
-                                color={bm.color}
+                                key={`bm-${idx}-${side}`}
+                                label={label}
+                                color={color}
                                 side={side}
                                 index={sideIndex}
                                 spacing={bookmarkSpacing}
                                 styleIdx={settings?.navigation?.bookmarkSettings?.style || 1}
                                 font={settings?.navigation?.bookmarkSettings?.font || 'Poppins'}
                                 onClick={() => {
-                                    onPageClick && onPageClick(bm.pageIndex);
+                                    onPageClick && onPageClick(pageIndex);
                                 }}
                             />
                         );
                     });
                 })()}
             </div>
+
+            {/* Cursor hint when zoomed in - pointer-events:none so clicks pass through to iframes */}
+            {isZoomedIn && (
+                <div
+                    style={{
+                        position: 'absolute',
+                        top: 0, left: 0,
+                        width: '100%', height: '100%',
+                        zIndex: 200,
+                        cursor: 'zoom-out',
+                        background: 'transparent',
+                        pointerEvents: 'none'
+                    }}
+                />
+            )}
+            {createPortal(
+                <AnimatePresence>
+                    {activeTooltip && (
+                        <TooltipOverlay key={activeTooltip.elementId || 'tooltip'} tooltip={activeTooltip} />
+                    )}
+                </AnimatePresence>,
+                document.body
+            )}
         </div>
     );
 });
@@ -600,33 +1333,8 @@ const PreviewArea = React.memo(({
     bookmarks = [],
     notes = [],
     setBookmarks,
-    setNotes,
-    baseUrl
+    setNotes
 }) => {
-    const getIframeContent = useCallback((html, pageNumber) => {
-        // Inject scripts
-        const content = `
-            <!DOCTYPE html>
-            <html>
-                <head>
-                    <style>
-                        body { margin: 0; padding: 0; overflow: hidden; background: transparent; width: 100%; height: 100%; }
-                        * { box-sizing: border-box; }
-                        ::-webkit-scrollbar { width: 0px; background: transparent; }
-                    </style>
-                    <base href="${baseUrl || '/'}">
-                    ${getSlideshowScript()}
-                    ${getAnimationScript(pageNumber)}
-                    ${getInteractionScript(pageNumber)}
-                </head>
-                <body>
-                    ${html || ''}
-                </body>
-            </html>
-        `;
-        return content;
-    }, [baseUrl]);
-
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
         const r = parseInt(hex.slice(1, 3), 16);
@@ -700,6 +1408,8 @@ const PreviewArea = React.memo(({
 
     // Responsive scaling logic
     const [manualZoom, setManualZoom] = useState(zoom);
+    const [interactionZoom, setInteractionZoom] = useState(null);
+    const [activeTooltip, setActiveTooltip] = useState(null);
     const [fitScale, setFitScale] = useState(1);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -798,6 +1508,7 @@ const PreviewArea = React.memo(({
     const [showViewBookmarkPopup, setShowViewBookmarkPopup] = useState(false);
     const [showGalleryPopup, setShowGalleryPopup] = useState(false);
     const [showSoundPopup, setShowSoundPopup] = useState(false);
+    const [activePopupInteraction, setActivePopupInteraction] = useState(null);
 
     // Audio Logic (Centralized in Sound.jsx)
     // Audio state (for UI/Layout sync)
@@ -818,6 +1529,7 @@ const PreviewArea = React.memo(({
         setShowTOC(false);
         setShowThumbnailBar(false);
     }, [activeLayout]);
+
 
 
 
@@ -871,7 +1583,7 @@ const PreviewArea = React.memo(({
 
 
     const deviceStyles = {
-        Desktop: { width: '100%', height: '100%', borderRadius: '0', border: 'none', background: 'transparent' },
+        Desktop: { width: '100%', height: '100%', borderRadius: '0', border: 'none', background: 'transparent', display: 'flex', flexDirection: 'column', flex: 1 },
         Tablet: {
             width: 'auto',
             height: '100%',
@@ -892,7 +1604,7 @@ const PreviewArea = React.memo(({
     };
 
     const getScreenWrapperStyle = () => {
-        if (activeDevice === 'Desktop') return { width: '100%', height: '100%', position: 'relative' };
+        if (activeDevice === 'Desktop') return { width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1 };
         if (activeDevice === 'Tablet') return {
             position: 'absolute',
             top: '9.38%',
@@ -900,9 +1612,11 @@ const PreviewArea = React.memo(({
             left: '5.3%',
             right: '6.6%',
             borderRadius: '12px',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
         };
-        return { width: '100%', height: '100%', position: 'relative' };
+        return { width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1 };
     };
 
 
@@ -1047,22 +1761,73 @@ const PreviewArea = React.memo(({
         bookRef.current?.pageFlip()?.turnToPage(index);
     }, []);
 
+    // Listen to page navigation events sent from the page iframe
+    useEffect(() => {
+        const handleMessage = (e) => {
+            if (e.data && e.data.type === 'navigate-to-page') {
+                const targetIdx = e.data.page - 1; // Convert 1-indexed to 0-indexed
+                if (targetIdx >= 0 && targetIdx < pages.length) {
+                    onPageClick(targetIdx);
+                }
+            } else if (e.data && e.data.type === 'zoom-to-element') {
+                const { rect, speed, pageNumber } = e.data;
+                const scale = speed === 'Fast' ? 2.5 : speed === 'Slow' ? 1.5 : 2;
+                setInteractionZoom({ scale, rect, pageNumber });
+            } else if (e.data && e.data.type === 'zoom-out-element') {
+                // Step 1: animate scale back to 1 (smooth, same origin)
+                setInteractionZoom(prev => prev ? { ...prev, scale: 1 } : null);
+                // Step 2: after transition, clear completely
+                setTimeout(() => setInteractionZoom(null), 550);
+            } else if (e.data && e.data.type === 'download-file') {
+                try {
+                    const meta = JSON.parse(e.data.value);
+                    if (meta.data) {
+                        const link = document.createElement('a');
+                        link.href = meta.data;
+                        link.download = meta.name || 'download';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }
+                } catch (err) {
+                    const link = document.createElement('a');
+                    link.href = e.data.value;
+                    link.download = 'download';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                }
+            } else if (e.data && e.data.type === 'show-tooltip') {
+                setActiveTooltip(e.data);
+            } else if (e.data && e.data.type === 'hide-tooltip') {
+                setActiveTooltip(null);
+            } else if (e.data && e.data.type === 'show-popup-interaction') {
+                setActivePopupInteraction(e.data);
+            } else if (e.data && e.data.type === 'hide-popup-interaction') {
+                setActivePopupInteraction(null);
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, [pages, onPageClick]);
+
     const handleZoomIn = useCallback(() => setManualZoom(prev => Math.min(prev + 0.1, 2)), []);
     const handleZoomOut = useCallback(() => setManualZoom(prev => Math.max(prev - 0.1, 0.5)), []);
     const handleFullScreen = useCallback(() => {
-        if (useNativeFullscreen) {
+        if (!isFullscreen) {
+            setIsFullscreen(true);
+        } else if (!document.fullscreenElement && useNativeFullscreen) {
             if (!containerRef.current) return;
-            if (!document.fullscreenElement) {
-                containerRef.current.requestFullscreen().catch(err => {
-                    console.error(`Error attempting to enable full-screen mode: ${err.message}`);
-                });
-            } else {
+            containerRef.current.requestFullscreen().catch(err => {
+                console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+            });
+        } else {
+            if (document.fullscreenElement) {
                 document.exitFullscreen();
             }
-        } else {
-            setIsFullscreen(prev => !prev);
+            setIsFullscreen(false);
         }
-    }, [useNativeFullscreen]);
+    }, [useNativeFullscreen, isFullscreen]);
 
     useEffect(() => {
         if (!useNativeFullscreen) return;
@@ -1076,11 +1841,17 @@ const PreviewArea = React.memo(({
     }, [useNativeFullscreen]);
 
     const handleShare = useCallback(() => {
-        setShowSharePopup(true);
+        // Close export/download popup first
+        setShowExportPopup(false);
+        // Open share popup after the call stack to avoid immediate closure by outside click handlers
+        setTimeout(() => setShowSharePopup(true), 0);
     }, []);
 
     const handleDownload = useCallback(() => {
-        setShowExportPopup(true);
+        // Close share popup first
+        setShowSharePopup(false);
+        // Open export/download popup after the call stack
+        setTimeout(() => setShowExportPopup(true), 0);
     }, []);
 
     const handleQuickSearch = useCallback((query) => {
@@ -1327,6 +2098,27 @@ const PreviewArea = React.memo(({
         }
     }, [currentPage]);
 
+
+    useEffect(() => {
+        const visiblePages = [];
+        if (currentPage === 0) {
+            visiblePages.push(1);
+        } else if (currentPage >= pages.length - 1) {
+            visiblePages.push(pages.length);
+        } else {
+            visiblePages.push(currentPage + 1);
+            if (currentPage + 2 <= pages.length) visiblePages.push(currentPage + 2);
+        }
+
+        if (containerRef.current) {
+            containerRef.current.querySelectorAll('iframe').forEach(iframe => {
+                try {
+                    iframe.contentWindow?.postMessage({ type: 'PAGE_TURNED', visiblePages }, '*');
+                } catch (err) { /* cross-origin iframe – skip */ }
+            });
+        }
+    }, [currentPage, pages.length]);
+
     const bookRendererProps = {
         augmentedPages,
         WIDTH,
@@ -1352,7 +2144,9 @@ const PreviewArea = React.memo(({
         settings,
         setShowViewBookmarkPopup,
         buildPageDoc: getIframeContent,
-        activeLayout
+        activeLayout,
+        interactionZoom,
+        activeTooltip
     };
 
 
@@ -2283,6 +3077,8 @@ const PreviewArea = React.memo(({
                                     activeLayout={activeLayout}
                                     showSoundPopup={showSoundPopup}
                                     setShowSoundPopupMemo={setShowSoundPopupMemo}
+                                    showTOC={showTOC}
+                                    showThumbnailBar={showThumbnailBar}
                                     layoutColors={settings?.layoutColors?.[9] ? {
                                         primary: settings.layoutColors[9].find(c => c.label === 'Icons color')?.hex || '#575C9C',
                                         secondary: settings.layoutColors[9].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
@@ -2371,11 +3167,53 @@ const PreviewArea = React.memo(({
                             )}
                         </div>
                     </div>
+
+                    <AnimatePresence>
+                        {activePopupInteraction && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 p-[2vw]"
+                                onClick={() => setActivePopupInteraction(null)}
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.95, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    className="bg-white rounded-[1vw] shadow-2xl overflow-hidden relative pointer-events-auto"
+                                    style={{
+                                        width: '80%',
+                                        maxWidth: '800px',
+                                        aspectRatio: '4/3',
+                                    }}
+                                    onClick={e => e.stopPropagation()}
+                                >
+                                    <button
+                                        onClick={() => setActivePopupInteraction(null)}
+                                        className="absolute top-[1vw] right-[1vw] z-[100001] bg-white rounded-full p-[0.3vw] shadow-sm hover:bg-gray-100 transition-colors"
+                                    >
+                                        <Icon icon="lucide:x" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
+                                    </button>
+                                    <div className="w-full h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                </motion.div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </>
+            )}
+
+            {interactionZoom?.active && (
+                <div
+                    className="absolute inset-0 z-[9999]"
+                    style={{ cursor: 'zoom-out' }}
+                    onClick={() => setInteractionZoom(null)}
+                />
             )}
         </div>
     );
 });
 
 export default PreviewArea;
-

@@ -12,7 +12,7 @@ import {
 import GalleryImage from './GalleryImage';
 import { Icon } from '@iconify/react';
 import PremiumDropdown from '../CustomizedEditor/PremiumDropdown';
-import NavIconStylesPopup, { NavIconRenderer } from '../CustomizedEditor/NavIconStylesPopup';
+import NavIconStylesPopup, { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
 import axios from 'axios';
 import ColorPicker from './ColorPicker';
 

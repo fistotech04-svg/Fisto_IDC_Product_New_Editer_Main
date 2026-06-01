@@ -861,7 +861,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
     if (!isOpen) return null;
 
-    const publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/share=public/${currentBook.share?.shareId || currentBook.v_id}` : window.location.href);
+    const publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/share=public/${currentBook.shareId || currentBook.share?.shareId || ''}` : window.location.href);
 
     const handleCopy = () => {
         navigator.clipboard.writeText(publicUrl);

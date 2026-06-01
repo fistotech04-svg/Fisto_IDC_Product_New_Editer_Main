@@ -8,6 +8,7 @@ import IconGallery from './icons';
 import VideoEditor from './VideoEditor';
 import GifEditor from './Gif';
 import AnimationPanel from './AnimationPanel';
+import InteractionPanel from './InteractionPanel';
 
 
 const RightSidebar = ({ 
@@ -24,7 +25,11 @@ const RightSidebar = ({
   onPreview,
   activePreviewDevice: activePreviewDeviceProp,
   setActivePreviewDevice: setActivePreviewDeviceProp,
-  flipbookDimensions = { width: 210, height: 297 }
+  flipbookDimensions = { width: 210, height: 297 },
+  isPopupEditor = false,
+  onCustomizePopup,
+  onApplyPopupChanges,
+  onCancelPopupChanges
 }) => {
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
@@ -41,18 +46,11 @@ const RightSidebar = ({
   const [isInteractionMenuOpen, setIsInteractionMenuOpen] = useState(false);
   const interactionMenuRef = useRef(null);
 
-  const convertValue = (internalValue) => {
-     const val = parseFloat(internalValue || 0);
+  const convertValue = (mmValue) => {
+     const val = parseFloat(mmValue || 0);
      if (dimensionUnit === 'px') return Math.round(val * 96 / 25.4);
      if (dimensionUnit === 'cm') return (val / 10).toFixed(2);
      return Math.round(val); // mm
-  };
-
-  const convertToInternal = (displayValue) => {
-     const val = parseFloat(displayValue || 0);
-     if (dimensionUnit === 'px') return (val * 25.4 / 96).toString();
-     if (dimensionUnit === 'cm') return (val * 10).toString();
-     return val.toString(); // mm
   };
 
   // Close unit dropdown on click outside
@@ -206,7 +204,8 @@ const RightSidebar = ({
         let w = '0', h = '0', x = '0', y = '0', r = '0';
         
         // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
-        const actualEl = document.getElementById(selectedLayerId);
+        const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+        const actualEl = editorDoc.getElementById(selectedLayerId);
         if (actualEl && typeof actualEl.getBBox === 'function') {
            try {
               const bbox = actualEl.getBBox();
@@ -215,16 +214,22 @@ const RightSidebar = ({
               x = bbox.x.toString();
               y = bbox.y.toString();
               
-              // Robust transform parsing using SVG DOM API
-              const transformList = actualEl.transform?.baseVal;
-              if (transformList && transformList.numberOfItems > 0) {
-                 const consolidated = transformList.consolidate();
-                 if (consolidated) {
-                    const matrix = consolidated.matrix;
-                    x = (parseFloat(x) + matrix.e).toString();
-                    y = (parseFloat(y) + matrix.f).toString();
-                    w = (parseFloat(w) * Math.abs(matrix.a)).toString();
-                    h = (parseFloat(h) * Math.abs(matrix.d)).toString();
+              // If there's a matrix transform, it usually handles position.
+              // In this editor, interact.js uses matrix transforms for movement.
+              const transform = actualEl.getAttribute('transform');
+              if (transform && transform.includes('matrix')) {
+                 const match = transform.match(/matrix\(([^)]+)\)/);
+                 if (match) {
+                    const m = match[1].split(/[\s,]+/).map(parseFloat);
+                    // matrix(a, b, c, d, e, f) -> e, f are translation
+                    if (m.length === 6) {
+                       x = (parseFloat(x) + m[4]).toString();
+                       y = (parseFloat(y) + m[5]).toString();
+                       // Width/Height are already "local" to the matrix if we use getBBox(),
+                       // but visual width/height should include scaling.
+                       w = (parseFloat(w) * Math.abs(m[0])).toString();
+                       h = (parseFloat(h) * Math.abs(m[3])).toString();
+                    }
                  }
               }
            } catch (e) {
@@ -381,11 +386,36 @@ const RightSidebar = ({
           }}
         />
       )}
+      {/* ================= Popup Apply/Cancel Banner ================= */}
+      {isPopupEditor && (
+        <div className="flex-shrink-0 bg-white border-b border-gray-100 px-[1.5vw] flex items-center justify-between" style={{ height: '8.5vh' }}>
+          <span className="text-[0.75vw] text-gray-500 font-medium flex items-center gap-[0.2vw]">
+            Click <span className="text-[#22C55E] font-bold text-[0.8vw] mx-[0.1vw]">(✓)</span> to apply changes
+          </span>
+          <div className="flex items-center gap-[0.5vw]">
+            <button
+              onClick={onApplyPopupChanges}
+              className="flex items-center justify-center w-[2vw] h-[2vw] bg-[#22C55E] hover:bg-[#16a34a] text-white rounded-[0.4vw] transition-colors shadow-sm cursor-pointer"
+              title="Apply Changes"
+            >
+              <Icon icon="lucide:check" width="1.1vw" strokeWidth={3} />
+            </button>
+            <button
+              onClick={onCancelPopupChanges}
+              className="flex items-center justify-center w-[2vw] h-[2vw] bg-white border border-[#EF4444] hover:bg-red-50 text-[#EF4444] rounded-[0.4vw] transition-colors shadow-sm cursor-pointer"
+              title="Cancel"
+            >
+              <Icon icon="lucide:x" width="1.1vw" />
+            </button>
+          </div>
+        </div>
+      )}
       {/* ================= Display Controls (Header Section) ================= */}
+      {!isPopupEditor && (
       <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8.5vh' }}>
-         {/* Preview & Double Page Toggle Row */}
-          <div className="flex items-center justify-between">
-            {!isPdfProject ? (
+         {/* Double Page Toggle Row */}
+          <div className="flex items-center">
+            {!isPdfProject && (
               <div className="flex items-center gap-[0.6vw]">
                   <div 
                      onClick={() => setIsDoublePage(!isDoublePage)}
@@ -395,11 +425,10 @@ const RightSidebar = ({
                   </div>
                   <span className="text-gray-700 font-medium text-[0.8vw]">Double Page</span>
               </div>
-            ) : (
-              <div /> // Spacer to keep Preview button on the right
             )}
          </div>
       </div>
+      )}
 
       {/* Persistent Dimension Section (Common for all) */}
       {activeTopTool === 'editor' && (
@@ -409,7 +438,7 @@ const RightSidebar = ({
                <div className="relative" ref={unitRef}>
                   <div 
                      onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
-                     className="flex items-center gap-[0.3vw] cursor-pointer hover:bg-gray-200 px-[0.4vw] py-[0.2vw] rounded-[0.3vw] transition-colors"
+                     className="flex items-center gap-[0.3vw] cursor-pointer rounded-[0.3vw] transition-colors"
                   >
                      <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Dimension in {dimensionUnit}</span>
                      <Icon icon="lucide:chevron-down" className={`transition-transform duration-200 ${isUnitDropdownOpen ? 'rotate-180' : ''}`} width="0.8vw" />
@@ -440,7 +469,7 @@ const RightSidebar = ({
                 <div className="flex items-center gap-[0.4vw]">
                    <span className="text-[0.85vw] font-medium text-gray-700 whitespace-nowrap">W :</span>
                    <div className="flex items-center gap-[0.1vw]">
-                      {selectedElementProps && (!selectedElementProps.isPdfBackground && !isPdfProject) && (
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
                          <ChevronLeft 
                             size="0.85vw" 
                             className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors" 
@@ -448,31 +477,28 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'width';
-                               const currentDisplay = convertValue(selectedElementProps.w || 0);
-                               const newValDisplay = parseFloat(currentDisplay) - 1;
-                               const val = parseFloat(convertToInternal(newValDisplay));
+                               const val = parseFloat(selectedElementProps.w || 0) - 1;
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
                       )}
-                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${(!selectedElementProps || isPdfProject) ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
+                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'bg-gray-100' : 'bg-white'}`}>
                          <input 
                             key={`w-${dimensionUnit}`}
-                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || isPdfProject) ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
+                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
                             value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
-                            readOnly={!selectedElementProps || isPdfProject}
+                            readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
                             onChange={(e) => {
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'width';
-                               const internalVal = parseFloat(convertToInternal(e.target.value) || 0);
-                               const finalVal = tag === 'circle' ? (internalVal/2).toString() : internalVal.toString();
+                               const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
                       </div>
-                      {selectedElementProps && (!selectedElementProps.isPdfBackground && !isPdfProject) && (
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
                          <ChevronRight 
                             size="0.85vw" 
                             className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
@@ -480,9 +506,7 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'width';
-                               const currentDisplay = convertValue(selectedElementProps.w || 0);
-                               const newValDisplay = parseFloat(currentDisplay) + 1;
-                               const val = parseFloat(convertToInternal(newValDisplay));
+                               const val = parseFloat(selectedElementProps.w || 0) + 1;
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
@@ -495,7 +519,7 @@ const RightSidebar = ({
                <div className="flex items-center gap-[0.4vw]">
                    <span className="text-[0.85vw] font-medium text-gray-700 whitespace-nowrap">H :</span>
                    <div className="flex items-center gap-[0.1vw]">
-                      {selectedElementProps && (!selectedElementProps.isPdfBackground && !isPdfProject) && (
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
                          <ChevronLeft 
                             size="0.85vw" 
                             className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
@@ -503,31 +527,28 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'height';
-                               const currentDisplay = convertValue(selectedElementProps.h || 0);
-                               const newValDisplay = parseFloat(currentDisplay) - 1;
-                               const val = parseFloat(convertToInternal(newValDisplay));
+                               const val = parseFloat(selectedElementProps.h || 0) - 1;
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
                       )}
-                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${(!selectedElementProps || isPdfProject) ? 'bg-gray-100 pointer-events-none select-none' : 'bg-white'}`}>
+                      <div className={`w-[3.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center shadow-sm ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'bg-gray-100' : 'bg-white'}`}>
                          <input 
                             key={`h-${dimensionUnit}`}
-                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || isPdfProject) ? 'text-gray-500 pointer-events-none select-none' : 'text-[#111827]'}`}
+                            className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
                             value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
-                            readOnly={!selectedElementProps || isPdfProject}
+                            readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
                             onChange={(e) => {
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'height';
-                               const internalVal = parseFloat(convertToInternal(e.target.value) || 0);
-                               const finalVal = tag === 'circle' ? (internalVal/2).toString() : internalVal.toString();
+                               const finalVal = tag === 'circle' ? (parseFloat(e.target.value)/2).toString() : e.target.value;
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
                          />
                       </div>
-                      {selectedElementProps && (!selectedElementProps.isPdfBackground && !isPdfProject) && (
+                      {selectedElementProps && !selectedElementProps.isPdfBackground && (
                          <ChevronRight 
                             size="0.85vw" 
                             className="text-gray-400 cursor-pointer hover:text-[#5145F6] transition-colors"
@@ -535,9 +556,7 @@ const RightSidebar = ({
                                if (!selectedElementProps) return;
                                const tag = selectedElementProps.tagName;
                                const attr = tag === 'circle' ? 'r' : 'height';
-                               const currentDisplay = convertValue(selectedElementProps.h || 0);
-                               const newValDisplay = parseFloat(currentDisplay) + 1;
-                               const val = parseFloat(convertToInternal(newValDisplay));
+                               const val = parseFloat(selectedElementProps.h || 0) + 1;
                                const finalVal = tag === 'circle' ? (val/2).toString() : val.toString();
                                updateElementAttribute(activePageIndex, selectedLayerId, attr, finalVal);
                             }}
@@ -586,185 +605,15 @@ const RightSidebar = ({
           ) : (
             <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
               {isPdfProject ? (
-                <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
-                  {/* Select Free Frame Section */}
-                  <div className="space-y-[1.2vw]">
-                    <div className="flex items-center gap-[0.4vw]">
-                      <span className="text-[0.9vw] font-bold text-gray-900 whitespace-nowrap">Select Free Frame</span>
-                      <div className="h-px flex-grow bg-gray-100"></div>
-                    </div>
-                    <div 
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent('add-free-frame', {
-                          detail: { pageIndex: activePageIndex }
-                        }));
-                      }}
-                      className="w-[18vw] mx-auto h-[6vw] border-[0.15vw] border-dashed border-gray-500 bg-[#E5E7EB]/40 flex flex-col items-center justify-center cursor-pointer hover:bg-[#E5E7EB]/60 transition-all group relative"
-                      style={{ borderDasharray: "10, 15" }}
-                    >
-                      {/* Perfect Corner markers - Top Left */}
-                      <div className="absolute -top-[0.3vw] -left-[0.3vw] w-[1vw] h-[1vw]">
-                        <div className="absolute top-0 left-0 w-full h-[0.3vw] bg-gray-600"></div>
-                        <div className="absolute top-0 left-0 w-[0.3vw] h-full bg-gray-600"></div>
-                      </div>
-                      {/* Perfect Corner markers - Top Right */}
-                      <div className="absolute -top-[0.3vw] -right-[0.3vw] w-[1vw] h-[1vw]">
-                        <div className="absolute top-0 right-0 w-full h-[0.3vw] bg-gray-600"></div>
-                        <div className="absolute top-0 right-0 w-[0.3vw] h-full bg-gray-600"></div>
-                      </div>
-                      {/* Perfect Corner markers - Bottom Left */}
-                      <div className="absolute -bottom-[0.3vw] -left-[0.3vw] w-[1vw] h-[1vw]">
-                        <div className="absolute bottom-0 left-0 w-full h-[0.3vw] bg-gray-600"></div>
-                        <div className="absolute bottom-0 left-0 w-[0.3vw] h-full bg-gray-600"></div>
-                      </div>
-                      {/* Perfect Corner markers - Bottom Right */}
-                      <div className="absolute -bottom-[0.3vw] -right-[0.3vw] w-[1vw] h-[1vw]">
-                        <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-gray-600"></div>
-                        <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-gray-600"></div>
-                      </div>
-                      
-                      <span className="text-[0.8vw] font-medium text-gray-600">Click To Add Free Frame</span>
-                    </div>
-                  </div>
-
-                  {/* Interactions in this Page Section */}
-                  <div className="space-y-[1.2vw] mt-[0.5vw]">
-                    <div className="flex items-center gap-[0.4vw]">
-                      <span className="text-[0.9vw] font-bold text-gray-900 whitespace-nowrap">Interactions in this Page</span>
-                      <div className="h-px flex-grow bg-gray-100"></div>
-                    </div>
-                    
-                    <div className="space-y-[0.8vw]">
-                      {/* Unified Interaction Panel */}
-                      <div className="border border-gray-200 rounded-[1vw] bg-white overflow-hidden shadow-sm">
-                        {/* Header with Custom Type Dropdown */}
-                        <div className="px-[1vw] py-[0.8vw] flex items-center justify-between border-b border-gray-50 overflow-visible">
-                          <div className="flex items-center gap-[1vw]">
-                            <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" className="text-gray-500" />
-                            <div className="relative" ref={interactionMenuRef}>
-                              <div 
-                                onClick={() => setIsInteractionMenuOpen(!isInteractionMenuOpen)}
-                                className="bg-[#F3F4F6] rounded-[0.5vw] px-[0.8vw] py-[0.35vw] flex items-center gap-[0.5vw] cursor-pointer hover:bg-[#E5E7EB] transition-colors"
-                              >
-                                <span className="text-[0.8vw] font-medium text-gray-700 capitalize">
-                                   {(() => {
-                                      const type = selectedElementProps?.['data-interaction'];
-                                      if (!type || type === 'none') return 'None';
-                                      if (type === 'link') return 'Open Link';
-                                      if (type === 'navigate') return 'Navigate';
-                                      return type;
-                                   })()}
-                                </span>
-                                <Icon icon="lucide:chevron-down" className={`text-gray-400 transition-transform ${isInteractionMenuOpen ? 'rotate-180' : ''}`} width="0.8vw" />
-                              </div>
-
-                              {/* Custom Dropdown Menu - More Compact */}
-                              {isInteractionMenuOpen && (
-                                <div className="absolute top-full left-0 mt-[0.4vw] w-[9.5vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-lg z-[100] py-[0.3vw]">
-                                  {[
-                                    { value: 'none', label: 'None', icon: 'lucide:minus' },
-                                    { value: 'link', label: 'Open Link', icon: 'lucide:link-2' },
-                                    { value: 'navigate', label: 'Navigate to', icon: 'lucide:navigation' },
-                                    { value: 'call', label: 'Call', icon: 'lucide:phone' }
-                                  ].map((opt) => (
-                                    <div 
-                                      key={opt.value}
-                                      onClick={() => {
-                                        updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction', opt.value);
-                                        setIsInteractionMenuOpen(false);
-                                      }}
-                                      className="px-[0.8vw] py-[0.4vw] flex items-center gap-[0.6vw] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                    >
-                                      <Icon icon={opt.icon} width="0.85vw" className="text-gray-500 group-hover:text-gray-900" />
-                                      <span className="text-[0.75vw] font-medium text-gray-600 group-hover:text-gray-900">{opt.label}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <Icon icon="lucide:chevron-up" className="text-gray-900" width="1vw" />
-                        </div>
-
-                        {/* Central Mapping Area */}
-                        <div className="px-[1vw] py-[1.5vw] flex items-center justify-between gap-[0.5vw]">
-                          <div className="bg-[#F3F4F6] rounded-[0.6vw] px-[0.8vw] py-[0.6vw] text-[0.85vw] font-medium text-gray-600 whitespace-nowrap">
-                             {selectedElementProps?.isPdfBackground ? 'Page Background' : (selectedElementProps?.dataName || selectedElementProps?.id || 'Image 23')}
-                          </div>
-                          
-                          <div className="flex-1 flex items-center justify-center px-[0.5vw]">
-                             <svg className="w-full h-[0.8vw]" viewBox="0 0 100 10" preserveAspectRatio="none">
-                               <line x1="0" y1="5" x2="95" y2="5" stroke="#111827" strokeWidth="1.5" strokeDasharray="4, 3" />
-                               <path d="M92 2 L97 5 L92 8" stroke="#111827" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                             </svg>
-                          </div>
-
-                          <div className="w-[3.5vw] h-[3.5vw] bg-[#F3F4F6] rounded-[0.6vw] flex items-center justify-center relative group flex-shrink-0">
-                            {selectedElementProps?.['data-interaction'] === 'none' ? (
-                               <span className="text-gray-400 text-[1.2vw] font-medium">?</span>
-                            ) : (
-                               <div className="w-full h-full p-[0.3vw] flex items-center justify-center">
-                                  {selectedElementProps?.['data-interaction'] === 'link' && (
-                                     <input 
-                                       type="text" 
-                                       className="w-full bg-transparent outline-none text-center text-[0.75vw] font-bold text-indigo-600 underline"
-                                       placeholder="URL"
-                                       value={selectedElementProps?.['data-interaction-value'] || ''}
-                                       onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value)}
-                                     />
-                                  )}
-                                  {selectedElementProps?.['data-interaction'] === 'navigate' && (
-                                     <select 
-                                       className="w-full bg-transparent outline-none text-center text-[1vw] font-bold text-indigo-600 appearance-none"
-                                       value={selectedElementProps?.['data-interaction-value'] || '1'}
-                                       onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value)}
-                                     >
-                                        {pages.map((_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
-                                     </select>
-                                  )}
-                                  {(selectedElementProps?.['data-interaction'] === 'call' || selectedElementProps?.['data-interaction'] === 'click') && (
-                                     <input 
-                                       type="text" 
-                                       className="w-full bg-transparent outline-none text-center text-[0.7vw] font-bold text-red-500 underline"
-                                       placeholder="+91..."
-                                       value={selectedElementProps?.['data-phone'] || ''}
-                                       onChange={(e) => {
-                                         updateElementAttribute(activePageIndex, selectedLayerId, 'data-phone', e.target.value);
-                                         updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value);
-                                       }}
-                                     />
-                                  )}
-                               </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="px-[1vw] py-[0.8vw] border-t border-gray-50 flex items-center justify-between">
-                           <div className="flex items-center gap-[0.8vw]">
-                              <div 
-                                onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-highlight', selectedElementProps?.['data-highlight'] === 'true' ? 'false' : 'true')}
-                                className={`w-[1.2vw] h-[1.2vw] rounded-full flex items-center justify-center cursor-pointer transition-all border-2 ${selectedElementProps?.['data-highlight'] === 'true' ? 'border-[#5145F6]' : 'border-gray-300'}`}
-                              >
-                                 <div className={`w-[0.6vw] h-[0.6vw] rounded-full bg-[#5145F6] transition-opacity ${selectedElementProps?.['data-highlight'] === 'true' ? 'opacity-100' : 'opacity-0'}`} />
-                              </div>
-                              <span className="text-[0.85vw] font-medium text-gray-500">Highlight the Component</span>
-                           </div>
-                           <button 
-                             className="p-[0.2vw] hover:bg-red-50 rounded-[0.2vw] transition-colors"
-                             onClick={() => {
-                                updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction', 'none');
-                                updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', '');
-                                updateElementAttribute(activePageIndex, selectedLayerId, 'data-phone', '');
-                             }}
-                           >
-                             <Icon icon="lucide:trash-2" width="1vw" className="text-[#EF4444]" />
-                           </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <InteractionPanel 
+                  selectedElementProps={selectedElementProps}
+                  activePageIndex={activePageIndex}
+                  selectedLayerId={selectedLayerId}
+                  updateElementAttribute={updateElementAttribute}
+                  pages={pages}
+                  flipbookDimensions={flipbookDimensions}
+                  onCustomizePopup={onCustomizePopup}
+                />
               ) : (
                 <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">
                   {(selectedElementProps || activeMainTool === 'grid') ? (
@@ -772,8 +621,8 @@ const RightSidebar = ({
                       {selectedElementProps?.isImage ? (
                         <ImageEditor 
                           selectedElement={(() => {
-                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                            return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                            const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                            return editorDoc.getElementById(selectedLayerId);
                           })()}
                           selectedLayerId={selectedLayerId}
                           activePageIndex={activePageIndex}
@@ -805,8 +654,8 @@ const RightSidebar = ({
                       ) : selectedElementProps?.isText ? (
                         <TextEditor
                           selectedElement={(() => {
-                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                            const el = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                            const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                            const el = editorDoc.getElementById(selectedLayerId);
                             if (!el) return null;
                             const tag = el.tagName?.toLowerCase();
                             // foreignObject wraps the actual HTML text container — drill into it
@@ -841,8 +690,8 @@ const RightSidebar = ({
                       ) : selectedElementProps?.isVideo ? (
                         <VideoEditor
                           selectedElement={(() => {
-                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                            return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                            const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                            return editorDoc.getElementById(selectedLayerId);
                           })()}
                           selectedLayerId={selectedLayerId}
                           activePageIndex={activePageIndex}
@@ -874,8 +723,8 @@ const RightSidebar = ({
                       ) : selectedElementProps?.isGif ? (
                         <GifEditor
                           selectedElement={(() => {
-                            const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-                            return pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId);
+                            const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                            return editorDoc.getElementById(selectedLayerId);
                           })()}
                           selectedLayerId={selectedLayerId}
                           onUpdate={(newHtml) => {
@@ -984,195 +833,32 @@ const RightSidebar = ({
             </div>
           )
         ) : activeTopTool === 'interaction' ? (
-          <div className="flex-1 flex flex-col p-[1.5vw] gap-[2.5vw] overflow-y-auto no-scrollbar">
-            <div className="flex flex-col gap-[1.5vh]">
-              <div className="flex items-center gap-[0.75vw]">
-                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider uppercase">Interaction Settings</span>
-                <div className="h-[0.1vw] flex-1 bg-indigo-100"></div>
-              </div>
-              <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1.5vh]">
-                <div className="text-[0.7vw] text-gray-400 font-medium italic">Configure interactive behaviors for the selected element.</div>
-                
-                {!selectedLayerId ? (
-                   <div className="p-[1vw] text-center text-[0.75vw] text-gray-400 font-medium bg-gray-50 rounded-[0.6vw] border border-dashed">
-                      Select an element to add interactions
-                   </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-2 gap-[0.8vw]">
-                      {[
-                        { id: 'link', label: 'Link', icon: 'lucide:link' },
-                        { id: 'popup', label: 'Popup', icon: 'lucide:external-link' }
-                      ].map(type => {
-                        const isSelected = selectedElementProps?.['data-interaction'] === type.id;
-                        return (
-                          <div 
-                            key={type.id} 
-                            onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction', isSelected ? 'none' : type.id)}
-                            className={`p-[0.8vw] rounded-[0.6vw] border cursor-pointer transition-all flex flex-col items-center gap-[0.5vh] group/type ${isSelected ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'bg-gray-50/50 border-gray-100 hover:border-indigo-300 hover:bg-white'}`}
-                          >
-                            <Icon icon={type.icon} width="1.2vw" className={`${isSelected ? 'text-indigo-600' : 'text-gray-400 group-hover/type:text-indigo-400'}`} />
-                            <span className={`text-[0.7vw] font-bold ${isSelected ? 'text-indigo-700' : 'text-gray-600 group-hover/type:text-indigo-600'}`}>{type.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+          <InteractionPanel 
+            selectedElementProps={selectedElementProps}
+            activePageIndex={activePageIndex}
+            selectedLayerId={selectedLayerId}
+            updateElementAttribute={updateElementAttribute}
+            pages={pages}
+            flipbookDimensions={flipbookDimensions}
+            onCustomizePopup={onCustomizePopup}
+          />
 
-                    {selectedElementProps?.['data-interaction'] && selectedElementProps['data-interaction'] !== 'none' && (
-                      <div className="mt-[1vw] space-y-[0.8vw] animate-in slide-in-from-top-2 duration-300">
-                         <div className="flex flex-col gap-[0.5vh]">
-                            <span className="text-[0.65vw] font-bold text-gray-500 uppercase tracking-tight">
-                               {selectedElementProps['data-interaction'] === 'link' ? 'URL / Address' : 'Message Content'}
-                            </span>
-                            <div className="relative">
-                               <input 
-                                  type="text"
-                                  placeholder={selectedElementProps['data-interaction'] === 'link' ? 'https://google.com' : 'Enter message...'}
-                                  value={selectedElementProps['data-interaction-value'] || ''}
-                                  onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-interaction-value', e.target.value)}
-                                  className="w-full bg-gray-50 border border-gray-200 rounded-[0.5vw] px-[0.8vw] py-[0.6vw] text-[0.8vw] font-medium outline-none focus:border-indigo-500 focus:bg-white transition-all shadow-inner"
-                               />
-                               <Icon 
-                                  icon={selectedElementProps['data-interaction'] === 'link' ? 'lucide:globe' : 'lucide:message-square'} 
-                                  className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-300"
-                                  width="1vw"
-                               />
-                            </div>
-                         </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-[1.5vh]">
-              <div className="flex items-center gap-[0.75vw]">
-                <span className="text-[0.75vw] font-bold text-gray-400 whitespace-nowrap tracking-widest uppercase">Triggers</span>
-                <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
-              </div>
-              {['On Click'].map(trigger => (
-                <div key={trigger} className="flex items-center justify-between p-[0.8vw] bg-white border border-indigo-500/20 rounded-[0.6vw] shadow-sm cursor-default">
-                  <span className="text-[0.8vw] font-bold text-indigo-700">{trigger}</span>
-                  <div className="w-[1.4vw] h-[1.4vw] rounded-full bg-indigo-50 flex items-center justify-center">
-                    <Icon icon="lucide:check" width="0.8vw" className="text-indigo-600" />
-                  </div>
-                </div>
-              ))}
-              <div className="text-[0.65vw] text-gray-400 text-center italic mt-[0.5vh]">More triggers coming soon</div>
-            </div>
-          </div>
         ) : (
           /* Animation Mode */
-          <div className="flex-1 flex flex-col p-[1.5vw] gap-[2.5vw] overflow-y-auto no-scrollbar">
-            <div className="flex flex-col gap-[1.5vh]">
-              <div className="flex items-center gap-[0.75vw]">
-                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider uppercase">Animation Effects</span>
-                <div className="h-[0.1vw] flex-1 bg-purple-100"></div>
-              </div>
-              <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm flex flex-col gap-[1.5vh]">
-                <div className="text-[0.7vw] text-gray-400 font-medium italic">Add motion presets to breathe life into your page.</div>
-                
-                {!selectedLayerId ? (
-                   <div className="p-[1vw] text-center text-[0.75vw] text-gray-400 font-medium bg-gray-50 rounded-[0.6vw] border border-dashed">
-                      Select an element to add animations
-                   </div>
-                ) : (
-                  <div className="space-y-[1vh]">
-                    {[
-                      { id: 'fade-in', label: 'Fade In', desc: 'Smooth opacity transition' },
-                      { id: 'slide-up', label: 'Slide Up', desc: 'Entrance from bottom' },
-                      { id: 'zoom-in', label: 'Zoom In', desc: 'Scale from center' },
-                      { id: 'bounce-in', label: 'Bounce', desc: 'Playful entry effect' }
-                    ].map(anim => {
-                      const isSelected = selectedElementProps?.['data-animation-open-type'] === anim.id;
-                      return (
-                        <div 
-                          key={anim.id} 
-                          onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-type', isSelected ? 'none' : anim.id)}
-                          className={`flex items-center justify-between p-[0.7vw] rounded-[0.6vw] border transition-all cursor-pointer group/anim ${isSelected ? 'border-purple-500 bg-purple-50 shadow-sm' : 'bg-gray-50/50 border-gray-100 hover:bg-white hover:shadow-md hover:border-purple-300'}`}
-                        >
-                          <div className="flex items-center gap-[0.8vw]">
-                            <div className={`w-[1.8vw] h-[1.8vw] rounded-full flex items-center justify-center shadow-sm transition-colors ${isSelected ? 'bg-purple-600 text-white' : 'bg-white text-gray-400 group-hover/anim:text-purple-600'}`}>
-                              <Icon icon="mdi:motion-play-outline" width="1vw" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className={`text-[0.75vw] font-bold ${isSelected ? 'text-purple-900' : 'text-gray-700 group-hover/anim:text-purple-900'}`}>{anim.label}</span>
-                              <span className="text-[0.6vw] text-gray-400">{anim.desc}</span>
-                            </div>
-                          </div>
-                          {isSelected && <Icon icon="lucide:check" width="1vw" className="text-purple-600" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {selectedLayerId && selectedElementProps?.['data-animation-open-type'] && selectedElementProps['data-animation-open-type'] !== 'none' && (
-               <div className="flex flex-col gap-[1.5vh] animate-in slide-in-from-top-2 duration-300">
-                  <div className="flex items-center gap-[0.7vw]">
-                     <span className="text-[0.75vw] font-bold text-gray-400 tracking-widest uppercase">Presets Tuning</span>
-                     <div className="h-[0.1vw] flex-1 bg-gray-100"></div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-[1vw]">
-                     <div className="flex flex-col gap-[0.5vh]">
-                       <span className="text-[0.65vw] font-bold text-gray-500">Duration (s)</span>
-                       <input 
-                          type="number" 
-                          step="0.1" 
-                          min="0"
-                          value={selectedElementProps?.['data-animation-open-duration'] || 0.5}
-                          onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-duration', e.target.value)}
-                          className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none focus:bg-purple-50 focus:ring-1 focus:ring-purple-200"
-                       />
-                     </div>
-                     <div className="flex flex-col gap-[0.5vh]">
-                       <span className="text-[0.65vw] font-bold text-gray-500">Delay (s)</span>
-                       <input 
-                          type="number" 
-                          step="0.1" 
-                          min="0"
-                          value={selectedElementProps?.['data-animation-open-delay'] || 0}
-                          onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-delay', e.target.value)}
-                          className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none focus:bg-purple-50 focus:ring-1 focus:ring-purple-200"
-                       />
-                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-[1vw]">
-                     <div className="flex flex-col gap-[0.5vh]">
-                       <span className="text-[0.65vw] font-bold text-gray-500">Speed (x)</span>
-                       <input 
-                          type="number" 
-                          step="0.1" 
-                          min="0.1"
-                          max="5"
-                          value={selectedElementProps?.['data-animation-open-speed'] || 1}
-                          onChange={(e) => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-speed', e.target.value)}
-                          className="bg-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.3vw] text-[0.75vw] font-semibold text-gray-700 outline-none focus:bg-purple-50 focus:ring-1 focus:ring-purple-200"
-                       />
-                     </div>
-                     <div className="flex flex-col gap-[0.5vh] justify-end">
-                       <button 
-                          onClick={() => updateElementAttribute(activePageIndex, selectedLayerId, 'data-animation-open-every-visit', selectedElementProps?.['data-animation-open-every-visit'] === 'false' ? 'true' : 'false')}
-                          className={`flex items-center justify-between px-[0.6vw] py-[0.3vw] rounded-[0.4vw] border transition-all ${selectedElementProps?.['data-animation-open-every-visit'] !== 'false' ? 'bg-purple-100 border-purple-200 text-purple-700' : 'bg-gray-100 border-gray-200 text-gray-400'}`}
-                       >
-                          <span className="text-[0.65vw] font-bold">Every Visit</span>
-                          <Icon icon={selectedElementProps?.['data-animation-open-every-visit'] !== 'false' ? 'lucide:check-circle-2' : 'lucide:circle'} width="0.8vw" />
-                       </button>
-                     </div>
-                  </div>
-
-                  <div className="mt-[0.5vh] p-[0.8vw] bg-purple-50/50 border border-purple-100 rounded-[0.6vw]">
-                     <div className="flex items-center justify-between">
-                        <span className="text-[0.7vw] font-bold text-purple-700">Trigger</span>
-                        <span className="text-[0.7vw] font-medium text-purple-600 bg-white px-[0.4vw] py-[0.1vw] rounded shadow-sm">While Opening</span>
-                     </div>
-                  </div>
-               </div>
-            )}
+          <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar p-[1.5vw]">
+            <AnimationPanel 
+               selectedElement={(() => {
+                 if (!selectedLayerId) return null;
+                 const container = document.querySelector(`.page-svg-container [id="${selectedLayerId}"]`);
+                 if (container) return container;
+                 return document.getElementById(selectedLayerId) || null;
+               })()}
+               onUpdate={(elementId, attr, value) => {
+                  if (elementId && attr) {
+                      updateElementAttribute(activePageIndex, elementId, attr, value);
+                  }
+               }}
+            />
           </div>
         )}
       </div>

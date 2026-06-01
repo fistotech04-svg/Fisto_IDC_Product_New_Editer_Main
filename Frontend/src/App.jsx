@@ -12,6 +12,7 @@ import Unauthorized from './pages/Unauthorized';
 import NotFound from './pages/NotFound';
 import Editor from './Modules/Editer';
 import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
+import PreviewPage from './pages/PreviewPage';
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
 import ShareViewBook from './pages/shareviewbook';
@@ -23,47 +24,48 @@ function App() {
   return (
     <ToastProvider>
       <ModernToastProvider>
-      <Router>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<Signin />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/unauthorized" element={<Unauthorized />} />
-          <Route path="/share=public/:shareId" element={<ShareViewBook />} />
-          
-          {/* Protected Editor Layout */}
-          <Route path="/editor" element={
-            <ProtectedRoute>
-              <Editor />
-            </ProtectedRoute>
-          }>
-            <Route index element={<MainEditor />} />
-            <Route path="threed_editor" element={<ThreedEditor />} />
-            <Route path="threed_editor/:modelId" element={<ThreedEditor />} />
-            <Route path="customized_editor" element={<CustomizedEditor />} />
-            <Route path="customized_editor/:v_id" element={<CustomizedEditor />} />
-            <Route path="customized_editor/:folder/:v_id" element={<CustomizedEditor />} />
-            <Route path="customized_editor/:folder/:v_id/:page" element={<CustomizedEditor />} />
-            <Route path=":folder/:v_id" element={<MainEditor />} />
-            <Route path=":v_id" element={<MainEditor />} />
-          </Route>
+        <Router>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={<Signin />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/unauthorized" element={<Unauthorized />} />
+            <Route path="/share=public/:shareId" element={<ShareViewBook />} />
+            <Route path="/preview" element={<PreviewPage />} />
 
-          {/* Protected Routes WITH navbar */}
-          <Route element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }>
-            <Route path="/home" element={<Home />} />
-            <Route path="/my-flipbooks" element={<MyFlipbooks />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/about" element={<About />} />
-          </Route>
+            {/* Protected Editor Layout */}
+            <Route path="/editor" element={
+              <ProtectedRoute>
+                <Editor />
+              </ProtectedRoute>
+            }>
+              <Route index element={<MainEditor />} />
+              <Route path="threed_editor" element={<ThreedEditor />} />
+              <Route path="threed_editor/:modelId" element={<ThreedEditor />} />
+              <Route path="customized_editor" element={<CustomizedEditor />} />
+              <Route path="customized_editor/:v_id" element={<CustomizedEditor />} />
+              <Route path="customized_editor/:folder/:v_id" element={<CustomizedEditor />} />
+              <Route path="customized_editor/:folder/:v_id/:page" element={<CustomizedEditor />} />
+              <Route path=":folder/:v_id" element={<MainEditor />} />
+              <Route path=":v_id" element={<MainEditor />} />
+            </Route>
 
-          {/* Catch-all route for wrong URLs */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Router>
+            {/* Protected Routes WITH navbar */}
+            <Route element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }>
+              <Route path="/home" element={<Home />} />
+              <Route path="/my-flipbooks" element={<MyFlipbooks />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/about" element={<About />} />
+            </Route>
+
+            {/* Catch-all route for wrong URLs */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Router>
       </ModernToastProvider>
     </ToastProvider>
   );

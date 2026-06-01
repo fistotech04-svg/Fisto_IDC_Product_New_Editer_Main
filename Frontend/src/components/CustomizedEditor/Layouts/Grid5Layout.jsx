@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ViewBookmarkPopup from '../popups/ViewBookmarkPopup';
+
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -978,7 +978,7 @@ const Grid5Layout = ({
                                                                     : (Array.isArray(propToc?.items) && propToc.items.length > 0)
                                                                         ? propToc.items
                                                                         : (propContent || propItems || propToc?.items || []);
-                                                                        
+
                                                             return content?.length > 0 ? (
                                                                 content
                                                                     .filter(item => {
@@ -988,69 +988,69 @@ const Grid5Layout = ({
                                                                         return matchMain || matchSub;
                                                                     })
                                                                     .map((item, idx) => {
-                                                                    const filteredSubheadings = item.subheadings?.filter(sub =>
-                                                                        !tocSearchQuery || sub.title.toLowerCase().includes(tocSearchQuery.toLowerCase())
-                                                                    ) || [];
+                                                                        const filteredSubheadings = item.subheadings?.filter(sub =>
+                                                                            !tocSearchQuery || sub.title.toLowerCase().includes(tocSearchQuery.toLowerCase())
+                                                                        ) || [];
 
-                                                                    return (
-                                                                        <React.Fragment key={item.id || idx}>
-                                                                            {/* Main Heading */}
-                                                                            <div
-                                                                                className="flex items-center justify-between group cursor-pointer py-[0.1vw]"
-                                                                                onClick={() => { onPageClick(item.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
-                                                                            >
-                                                                                <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw]">
-                                                                                    {settings.tocSettings?.addSerialNumberToHeading !== false && (
-                                                                                        <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-bold opacity-50 tabular-nums shrink-0`} style={{ color: getLayoutColor('toc-text', '#374151') }}>{idx + 1}.</span>
-                                                                                    )}
-                                                                                    <span
-                                                                                        className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-semibold transition-colors truncate`}
-                                                                                        style={{ color: getLayoutColor('toc-text', '#374151') }}
-                                                                                    >
-                                                                                        {item.title}
-                                                                                    </span>
-                                                                                </div>
-                                                                                {settings.tocSettings?.addPageNumber !== false && (
-                                                                                    <span
-                                                                                        className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-semibold transition-colors tabular-nums shrink-0`}
-                                                                                        style={{ color: getLayoutColor('toc-text', '#374151') }}
-                                                                                    >
-                                                                                        {String(item.page).padStart(2, '0')}
-                                                                                    </span>
-                                                                                )}
-                                                                            </div>
-
-                                                                            {/* Child Subheadings */}
-                                                                            {filteredSubheadings.map((sub, sIdx) => (
+                                                                        return (
+                                                                            <React.Fragment key={item.id || idx}>
+                                                                                {/* Main Heading */}
                                                                                 <div
-                                                                                    key={sub.id || sIdx}
                                                                                     className="flex items-center justify-between group cursor-pointer py-[0.1vw]"
-                                                                                    onClick={() => { onPageClick(sub.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
+                                                                                    onClick={() => { onPageClick(item.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
                                                                                 >
-                                                                                    <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw] ml-[0.6vw]">
-                                                                                        {settings.tocSettings?.addSerialNumberToSubheading !== false && (
-                                                                                            <span className="text-[0.75vw] font-bold opacity-30 tabular-nums shrink-0" style={{ color: getLayoutColorRgba('toc-text', '107, 114, 128', '1') }}>{idx + 1}.{sIdx + 1}</span>
+                                                                                    <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw]">
+                                                                                        {settings.tocSettings?.addSerialNumberToHeading !== false && (
+                                                                                            <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-bold opacity-50 tabular-nums shrink-0`} style={{ color: getLayoutColor('toc-text', '#374151') }}>{idx + 1}.</span>
                                                                                         )}
                                                                                         <span
-                                                                                            className="text-[0.75vw] font-medium transition-colors truncate"
-                                                                                            style={{ color: getLayoutColorRgba('toc-text', '107, 114, 128', '0.7') }}
+                                                                                            className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-semibold transition-colors truncate`}
+                                                                                            style={{ color: getLayoutColor('toc-text', '#374151') }}
                                                                                         >
-                                                                                            {sub.title}
+                                                                                            {item.title}
                                                                                         </span>
                                                                                     </div>
                                                                                     {settings.tocSettings?.addPageNumber !== false && (
                                                                                         <span
-                                                                                            className="text-[0.75vw] font-medium transition-colors tabular-nums shrink-0"
-                                                                                            style={{ color: getLayoutColorRgba('toc-text', '107, 114, 128', '0.7') }}
+                                                                                            className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.8vw]'} font-semibold transition-colors tabular-nums shrink-0`}
+                                                                                            style={{ color: getLayoutColor('toc-text', '#374151') }}
                                                                                         >
-                                                                                            {String(sub.page).padStart(2, '0')}
+                                                                                            {String(item.page).padStart(2, '0')}
                                                                                         </span>
                                                                                     )}
                                                                                 </div>
-                                                                            ))}
-                                                                        </React.Fragment>
-                                                                    );
-                                                                })
+
+                                                                                {/* Child Subheadings */}
+                                                                                {filteredSubheadings.map((sub, sIdx) => (
+                                                                                    <div
+                                                                                        key={sub.id || sIdx}
+                                                                                        className="flex items-center justify-between group cursor-pointer py-[0.1vw]"
+                                                                                        onClick={() => { onPageClick(sub.page - 1); setShowTOCMemo?.(false); setTocSearchQuery(''); }}
+                                                                                    >
+                                                                                        <div className="flex items-center gap-[0.3vw] truncate pr-[0.4vw] ml-[0.6vw]">
+                                                                                            {settings.tocSettings?.addSerialNumberToSubheading !== false && (
+                                                                                                <span className="text-[0.75vw] font-bold opacity-30 tabular-nums shrink-0" style={{ color: getLayoutColorRgba('toc-text', '107, 114, 128', '1') }}>{idx + 1}.{sIdx + 1}</span>
+                                                                                            )}
+                                                                                            <span
+                                                                                                className="text-[0.75vw] font-medium transition-colors truncate"
+                                                                                                style={{ color: getLayoutColorRgba('toc-text', '107, 114, 128', '0.7') }}
+                                                                                            >
+                                                                                                {sub.title}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        {settings.tocSettings?.addPageNumber !== false && (
+                                                                                            <span
+                                                                                                className="text-[0.75vw] font-medium transition-colors tabular-nums shrink-0"
+                                                                                                style={{ color: getLayoutColorRgba('toc-text', '107, 114, 128', '0.7') }}
+                                                                                            >
+                                                                                                {String(sub.page).padStart(2, '0')}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ))}
+                                                                            </React.Fragment>
+                                                                        );
+                                                                    })
                                                             ) : (
                                                                 <div className="text-center py-[1.5vw] text-gray-400 text-[0.7vw]">No content</div>
                                                             );
@@ -1183,16 +1183,7 @@ const Grid5Layout = ({
 
                             {showViewBookmarkPopup && (
                                 <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.4vw)] z-[160]">
-                                    <ViewBookmarkPopup
-                                        onClose={() => setShowViewBookmarkPopup(false)}
-                                        bookmarks={bookmarks}
-                                        onDelete={onDeleteBookmark}
-                                        onUpdate={onUpdateBookmark}
-                                        onNavigate={onPageClick}
-                                        activeLayout={5}
-                                        isTablet={isTablet}
-                                        layoutColors={layoutColors}
-                                    />
+
                                 </div>
                             )}
                         </div>

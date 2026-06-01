@@ -31,17 +31,38 @@ export const getBookmarkBorderRadius = (s) => {
     }
 };
 
+/**
+ * Utility to get the SVG path for bookmark shapes (viewBox 0 0 40 98).
+ */
+export const getBookmarkSVGPath = (s) => {
+    switch (s) {
+        case 1: // Normal Rectangle
+            return 'M0,0 L40,0 L40,98 L0,98 Z';
+        case 2: // Rounded Right
+            return 'M0,0 L30,0 Q40,0 40,10 L40,88 Q40,98 30,98 L0,98 Z';
+        case 3: // V-cutout / Swallowtail
+            return 'M0,0 L40,0 L30,49 L40,98 L0,98 Z';
+        case 4: // Rounded Right Rounded
+            return 'M0,0 L20,0 Q40,0 40,20 L40,78 Q40,98 20,98 L0,98 Z';
+        case 5: // Pointed / Chevron
+            return 'M0,0 L30,0 L40,49 L30,98 L0,98 Z';
+        case 6: // Serrated / Jagged
+            return 'M0,0 L40,0 L38.4,4.9 L40,9.8 L38.4,14.7 L40,19.6 L38.4,24.5 L40,29.4 L38.4,34.3 L40,39.2 L38.4,44.1 L40,49 L38.4,53.9 L40,58.8 L38.4,63.7 L40,68.6 L38.4,73.5 L40,78.4 L38.4,83.3 L40,88.2 L38.4,93.1 L40,98 L0,98 Z';
+        default:
+            return 'M0,0 L40,0 L40,98 L0,98 Z';
+    }
+};
+
 const BookmarkStyleOption = ({ style, selected, onClick }) => {
     return (
-        <div 
+        <div
             onClick={onClick}
-            className={`cursor-pointer transition-all duration-300 p-[0.4vw] rounded-[0.5vw] flex items-center justify-center ${
-                selected 
-                ? 'bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.5px] border-[#D1E0FF] ' 
-                : 'hover:bg-gray-50 border-[1.5px] border-transparent'
-            }`}
+            className={`cursor-pointer transition-all duration-300 p-[0.4vw] rounded-[0.5vw] flex items-center justify-center ${selected
+                    ? 'bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.5px] border-[#D1E0FF] '
+                    : 'hover:bg-gray-50 border-[1.5px] border-transparent'
+                }`}
         >
-            <div 
+            <div
                 className="w-full h-[2.5vw] flex items-center justify-center relative shadow-sm transition-transform duration-300 transform active:scale-95"
                 style={{
                     backgroundColor: '#C45A5A',
@@ -78,8 +99,8 @@ const BookmarkStylesPopup = ({ onClose, onSelect, currentStyle }) => {
     };
 
     return (
-        <div 
-            className="fixed z-[1000] bg-white border border-gray-100 rounded-[12px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" 
+        <div
+            className="fixed z-[1000] bg-white border border-gray-100 rounded-[12px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
             style={{ width: '250px', top: '60%', left: '23vw', transform: 'translate(-50%, -50%)' }}
             onClick={(e) => e.stopPropagation()}
         >
@@ -93,25 +114,25 @@ const BookmarkStylesPopup = ({ onClose, onSelect, currentStyle }) => {
                 {/* Grid */}
                 <div className="grid grid-cols-2 gap-[1vw] mb-5">
                     {styles.map((s) => (
-                        <BookmarkStyleOption 
-                            key={s} 
-                            style={s} 
-                            selected={selectedStyle === s} 
-                            onClick={() => handleSelect(s)} 
+                        <BookmarkStyleOption
+                            key={s}
+                            style={s}
+                            selected={selectedStyle === s}
+                            onClick={() => handleSelect(s)}
                         />
                     ))}
                 </div>
 
                 {/* Footer */}
                 <div className="flex items-center justify-center gap-[0.5vw] pt-[0.8vw] border-t border-[#F1F5F9]">
-                    <button 
+                    <button
                         onClick={handleCancel}
                         className="flex-1 flex items-center justify-center gap-[0.3vw] px-[0.5vw] py-[0.4vw] rounded-sm border-[0.1vw] border-gray-500 text-gray-900 font-semibold text-[0.8vw] hover:bg-gray-50 transition-all active:scale-95"
                     >
                         <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw]" />
                         Cancel
                     </button>
-                    <button 
+                    <button
                         onClick={handleReplace}
                         className="flex-1 flex items-center justify-center gap-[0.3vw] px-[0.5vw] py-[0.4vw] rounded-sm border-[0.1vw] border-gray-500 bg-black text-white font-semibold text-[0.8vw] hover:bg-gray-900 transition-all active:scale-95"
                     >

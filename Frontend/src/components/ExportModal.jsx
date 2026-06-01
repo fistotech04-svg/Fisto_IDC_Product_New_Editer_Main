@@ -615,6 +615,12 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
   const [activePosterEditTab, setActivePosterEditTab] = useState('templates');
 
   useEffect(() => {
+    if (isOpen) {
+      window.dispatchEvent(new CustomEvent('switch-to-page-tab'));
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     const el = isEditingPoster ? smallPreviewParentRef.current : previewParentRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
@@ -853,26 +859,27 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     }
   }, [isOpen, pages, currentBook, isLoadingPages, modalPages.length]);
 
-  // Keep currentPage and selectedPages in sync when modalPages updates
+  // Keep currentPage in sync when modalPages updates and initialize selectedPages on open
   React.useEffect(() => {
     if (isOpen && modalPages.length > 0) {
       const expectedPage = Math.min(currentPageIndex + 1, modalPages.length);
       setCurrentPage(prev => prev === expectedPage ? prev : expectedPage);
+      
+      // Only initialize selectedPages if it's empty, meaning modal just opened
       setSelectedPages(prev => {
-        if (prev.size === modalPages.length) {
-          let matches = true;
-          for (let i = 1; i <= modalPages.length; i++) {
-            if (!prev.has(i)) {
-              matches = false;
-              break;
-            }
+        if (prev.size === 0) {
+          if (exportType === 'entire') {
+            return new Set(Array.from({ length: modalPages.length }, (_, i) => i + 1));
+          } else {
+            return new Set([expectedPage]);
           }
-          if (matches) return prev;
         }
-        return new Set(Array.from({ length: modalPages.length }, (_, i) => i + 1));
+        return prev;
       });
+    } else if (!isOpen) {
+      setSelectedPages(new Set());
     }
-  }, [isOpen, modalPages, currentPageIndex]);
+  }, [isOpen, modalPages, currentPageIndex, exportType]);
 
   // Force entire book export type if opened from MyFlipbooks list
   React.useEffect(() => {
@@ -1142,37 +1149,117 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
   /**
    * Rasterise an SVG string (already has explicit px width/height and inlined sub-assets) to a Blob.
    */
-  const svgToBlob = (svgString, mimeType, targetW, targetH) => {
-    return new Promise((resolve, reject) => {
-      if (mimeType === 'image/svg+xml') {
-        resolve(new Blob([svgString], { type: 'image/svg+xml' }));
-        return;
-      }
-      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
-      const url  = URL.createObjectURL(blob);
-      const img  = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth  || targetW;
-        const h = img.naturalHeight || targetH;
-        const canvas = document.createElement('canvas');
-        canvas.width  = w;
-        canvas.height = h;
-        const ctx = canvas.getContext('2d');
-        if (mimeType === 'image/jpeg') {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, w, h);
+  const svgToBlob = async (svgString, mimeType, targetW, targetH) => {
+    if (mimeType === 'image/svg+xml') {
+      return new Blob([svgString], { type: 'image/svg+xml' });
+    }
+    
+    const container = document.createElement('div');
+    container.style.position = 'absolute';
+    container.style.left = '-9999px';
+    container.style.top = '-9999px';
+    container.style.width = `${targetW}px`;
+    container.style.height = `${targetH}px`;
+    container.innerHTML = svgString;
+    document.body.appendChild(container);
+    
+    try {
+      const svgElement = container.firstElementChild;
+      
+      // Inject CSS reset for foreignObject and load Google Fonts explicitly
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;900&family=Montserrat:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+        
+        foreignObject * {
+          color: inherit;
+          font-family: inherit;
+          font-size: inherit;
+          font-weight: inherit;
+          font-style: inherit;
+          text-align: inherit;
+          line-height: inherit;
+          letter-spacing: inherit;
+          text-transform: inherit;
+          text-decoration: inherit;
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
         }
-        ctx.drawImage(img, 0, 0, w, h);
-        URL.revokeObjectURL(url);
-        canvas.toBlob(
-          (b) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')),
-          mimeType,
-          0.92
-        );
+        foreignObject div {
+          width: 100%;
+          height: 100%;
+          word-break: break-word;
+        }
+      `;
+      svgElement.appendChild(styleEl);
+
+      const options = {
+        width: targetW,
+        height: targetH,
+        bgcolor: mimeType === 'image/jpeg' ? '#ffffff' : undefined,
+        style: { margin: 0 }
       };
-      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
-      img.src = url;
-    });
+      
+      // Wait a tick for styles to apply
+      await new Promise(r => setTimeout(r, 50));
+      
+      let dataUrl;
+      if (mimeType === 'image/jpeg') {
+        dataUrl = await domtoimage.toJpeg(svgElement, { ...options, quality: 0.95 });
+      } else {
+        dataUrl = await domtoimage.toPng(svgElement, options);
+      }
+      
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      
+      if (mimeType === 'image/webp' && blob.type !== 'image/webp') {
+        // Convert PNG to webp
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        canvas.getContext('2d').drawImage(img, 0, 0, targetW, targetH);
+        URL.revokeObjectURL(url);
+        return await new Promise((resolve, reject) => {
+          canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Canvas conversion failed')), 'image/webp', 0.95);
+        });
+      }
+      
+      return blob;
+    } catch (err) {
+      console.warn("domtoimage failed, falling back to manual rasterization", err);
+      // Fallback
+      return new Promise((resolve, reject) => {
+        const blob = new Blob([container.innerHTML], { type: 'image/svg+xml;charset=utf-8' });
+        const url  = URL.createObjectURL(blob);
+        const img  = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width  = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (mimeType === 'image/jpeg') {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, targetW, targetH);
+          }
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          URL.revokeObjectURL(url);
+          canvas.toBlob(
+            (b) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')),
+            mimeType,
+            0.95
+          );
+        };
+        img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+        img.src = url;
+      });
+    } finally {
+      document.body.removeChild(container);
+    }
   };
 
   const handleDownloadPoster = async () => {
@@ -1624,14 +1711,19 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
                       <div className="flex flex-col gap-[0.6vw]">
                         <h4 className="text-[0.8vw] font-bold text-gray-800 flex items-center gap-[0.5vw]">Export Type<div className="flex-1 h-[1px] bg-gray-100"></div></h4>
                         <div className="flex flex-col gap-[0.6vw]">
-                          <label className="flex items-center gap-[0.7vw] cursor-pointer group"><input type="radio" name="exportType" className="w-[1vw] h-[1vw] accent-[#4A3AFF] cursor-pointer" checked={exportType === 'entire'} onChange={() => setExportType('entire')} /><span className={`text-[0.8vw] font-semibold transition-colors ${exportType === 'entire' ? 'text-gray-900' : 'text-gray-500'}`}>Export Entire Book</span></label>
+                          <label className="flex items-center gap-[0.7vw] cursor-pointer group"><input type="radio" name="exportType" className="w-[1vw] h-[1vw] accent-[#4A3AFF] cursor-pointer" checked={exportType === 'entire'} onChange={() => { setExportType('entire'); setSelectedPages(new Set(Array.from({ length: modalPages.length }, (_, i) => i + 1))); }} /><span className={`text-[0.8vw] font-semibold transition-colors ${exportType === 'entire' ? 'text-gray-900' : 'text-gray-500'}`}>Export Entire Book</span></label>
                           <label className={`flex items-center gap-[0.7vw] group ${isFromMyFlipbooks ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`} title={isFromMyFlipbooks ? 'Current page context is not available when exporting from the book list.' : ''}>
                             <input 
                               type="radio" 
                               name="exportType" 
                               className={`w-[1vw] h-[1vw] accent-[#4A3AFF] ${isFromMyFlipbooks ? 'cursor-not-allowed' : 'cursor-pointer'}`} 
                               checked={exportType === 'selected'} 
-                              onChange={() => !isFromMyFlipbooks && setExportType('selected')} 
+                              onChange={() => {
+                                if (!isFromMyFlipbooks) {
+                                  setExportType('selected');
+                                  setSelectedPages(new Set([currentPageIndex + 1]));
+                                }
+                              }} 
                               disabled={isFromMyFlipbooks} 
                             />
                             <span className={`text-[0.8vw] font-semibold transition-colors ${exportType === 'selected' ? 'text-gray-900' : 'text-gray-500'}`}>Export Current Pages</span>

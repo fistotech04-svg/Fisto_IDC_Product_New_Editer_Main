@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProfilePopup from '../popups/ProfilePopup';
-import ViewBookmarkPopup from '../popups/ViewBookmarkPopup';
+
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     // Optimization: Strip malicious/heavy scripts

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
+import ShapeProperties from './ShapeProperties';
 
 import { Icon } from '@iconify/react';
 import {
@@ -21,11 +22,14 @@ const fontFamilies = [
 ];
 
 const fontWeights = [
-  { name: 'Thin', value: '200' },
-  { name: 'Light', value: '400' },
-  { name: 'Regular', value: '600' },
-  { name: 'Semi Bold', value: '800' },
-  { name: 'Bold', value: '1000' }
+  { name: 'Thin', value: '50' },
+  { name: 'Extra Light', value: '100' },
+  { name: 'Light', value: '200' },
+  { name: 'Regular', value: '400' },
+  { name: 'Medium', value: '500' },
+  { name: 'Semi Bold', value: '600' },
+  { name: 'Bold', value: '800' }
+  
 ];
 
 // Color conversion helpers
@@ -84,6 +88,226 @@ const hsvToRgb = (h, s, v) => {
 
 
 
+// Shared mapping for CSS properties
+const STYLE_MAP = {
+  fontFamily: 'fontFamily',
+  fontSize: 'fontSize',
+  fontWeight: 'fontWeight',
+  fontStyle: 'fontStyle',
+  textDecoration: 'textDecoration',
+  textAlign: 'textAlign',
+  letterSpacing: 'letterSpacing',
+  lineHeight: 'lineHeight',
+  textTransform: 'textTransform',
+  listStyleType: 'listStyleType',
+  fill: 'fill',
+  stroke: 'stroke'
+};
+
+// Maps React/camelCase property names to SVG presentation attribute names
+const SVG_ATTR_MAP = {
+  fontFamily: 'font-family',
+  fontSize: 'font-size',
+  fontWeight: 'font-weight',
+  fontStyle: 'font-style',
+  textDecoration: 'text-decoration',
+  textAlign: 'text-anchor',
+  letterSpacing: 'letter-spacing',
+  lineHeight: 'line-height',
+  textTransform: 'text-transform',
+  fill: 'fill',
+  stroke: 'stroke'
+};
+
+// Converts textAlign CSS values to SVG text-anchor values
+const TEXT_ALIGN_TO_ANCHOR = {
+  left: 'start',
+  center: 'middle',
+  right: 'end',
+  start: 'start',
+  middle: 'middle',
+  end: 'end',
+};
+
+const syncGradient = (doc, element, baseAttr) => {
+  const type = element.getAttribute(`${baseAttr}-type`);
+  const currentValue = element.getAttribute(baseAttr);
+  const isUrl = currentValue && currentValue.toLowerCase().startsWith('url(#');
+  const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear';
+  const stopsJson = element.getAttribute(`${baseAttr}-stops`);
+  
+  console.log(`[syncGradient] id=${element.id}, type=${type}, isUrl=${isUrl}, attr=${baseAttr}`);
+
+  if (type === 'solid' || type === 'none') return;
+  
+  // If it's a URL, we should at least propagate it to children even if we can't "sync" it from stops
+  if (isUrl && !stopsJson) {
+     console.log(`[syncGradient] Propagating global URL: ${currentValue}`);
+     if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
+        Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+           child.setAttribute(baseAttr, currentValue);
+           if (child.style) child.style.setProperty(baseAttr, currentValue, 'important');
+        });
+     }
+     return;
+  }
+
+  if (!type && !isUrl) return;
+  if (!stopsJson) return;
+
+  let stops = [];
+  try { stops = JSON.parse(stopsJson); } catch (e) { return; }
+
+  const svgRoot = doc.querySelector('svg') || (doc.tagName?.toLowerCase() === 'svg' ? doc : null);
+  if (!svgRoot) return;
+
+  const ownerDoc = doc.ownerDocument || doc;
+
+  let defs = svgRoot.querySelector('defs');
+  if (!defs) {
+    defs = ownerDoc.createElementNS("http://www.w3.org/2000/svg", "defs");
+    svgRoot.insertBefore(defs, svgRoot.firstChild);
+  }
+
+  if (!element.id) {
+    element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  // Cache-busting: Remove any existing gradients for this element to force a fresh render
+  const gradIdPrefix = `grad-${element.id}-${baseAttr}`;
+  Array.from(defs.querySelectorAll(`[id^="${gradIdPrefix}"]`)).forEach(oldGrad => oldGrad.remove());
+
+  const gradId = `${gradIdPrefix}-${Math.random().toString(36).substr(2, 4)}`;
+  let gradEl = null;
+  
+  const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
+
+  if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
+    gradEl.remove();
+    gradEl = null;
+  }
+
+  if (!gradEl) {
+    gradEl = ownerDoc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
+    gradEl.id = gradId;
+    // Calculate angle for linear gradients
+    if (svgGradType === 'linear') {
+      const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
+      // Convert angle to SVG coordinates (0 deg is horizontal left-to-right)
+      const angleRad = (angle * Math.PI) / 180;
+      const x1 = Math.round(50 - Math.cos(angleRad) * 50) + '%';
+      const y1 = Math.round(50 - Math.sin(angleRad) * 50) + '%';
+      const x2 = Math.round(50 + Math.cos(angleRad) * 50) + '%';
+      const y2 = Math.round(50 + Math.sin(angleRad) * 50) + '%';
+      
+      gradEl.setAttribute('x1', x1);
+      gradEl.setAttribute('y1', y1);
+      gradEl.setAttribute('x2', x2);
+      gradEl.setAttribute('y2', y2);
+    } else {
+      const radius = parseFloat(element.getAttribute(`${baseAttr}-radius`) || '50');
+      gradEl.setAttribute('cx', '50%');
+      gradEl.setAttribute('cy', '50%');
+      gradEl.setAttribute('r', radius + '%');
+    }
+    defs.appendChild(gradEl);
+  } else if (svgGradType === 'linear') {
+    // Update existing linear gradient angle
+    const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
+    const angleRad = (angle * Math.PI) / 180;
+    gradEl.setAttribute('x1', Math.round(50 - Math.cos(angleRad) * 50) + '%');
+    gradEl.setAttribute('y1', Math.round(50 - Math.sin(angleRad) * 50) + '%');
+    gradEl.setAttribute('x2', Math.round(50 + Math.cos(angleRad) * 50) + '%');
+    gradEl.setAttribute('y2', Math.round(50 + Math.sin(angleRad) * 50) + '%');
+  } else {
+    const radius = parseFloat(element.getAttribute(`${baseAttr}-radius`) || '50');
+    gradEl.setAttribute('cx', '50%');
+    gradEl.setAttribute('cy', '50%');
+    gradEl.setAttribute('r', radius + '%');
+  }
+
+  while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
+  stops.forEach(s => {
+    const stop = ownerDoc.createElementNS("http://www.w3.org/2000/svg", "stop");
+    stop.setAttribute('offset', `${s.offset}%`);
+    stop.setAttribute('stop-color', s.color);
+    stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
+    gradEl.appendChild(stop);
+  });
+
+  const finalUrl = `url(#${gradId})`;
+  element.setAttribute(baseAttr, finalUrl);
+  if (element.style) {
+    element.style.setProperty(baseAttr, finalUrl, 'important');
+  }
+  
+  // Force inheritance for all nested children
+  if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
+     Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+        child.setAttribute(baseAttr, finalUrl);
+        if (child.style) {
+          child.style.setProperty(baseAttr, finalUrl, 'important');
+        }
+     });
+  }
+};
+
+const syncTextEffect = (doc, element) => {
+  if (!element) return;
+  
+  // Clear any stale filters on children to prevent double-shadowing
+  if (element.tagName.toLowerCase() === 'text' || element.tagName.toLowerCase() === 'g') {
+     Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+        child.style.removeProperty('filter');
+     });
+  }
+  
+  let filterString = "";
+  let backdropFilterString = "";
+  
+  // 1. Drop Shadow
+  if (element.getAttribute('data-effect-drop-shadow') === 'true') {
+    const x = element.getAttribute('data-effect-drop-shadow-x') || '0';
+    const y = element.getAttribute('data-effect-drop-shadow-y') || '4';
+    const blur = element.getAttribute('data-effect-drop-shadow-blur') || '4';
+    const color = element.getAttribute('data-effect-drop-shadow-color') || '#000000';
+    const opacity = parseFloat(element.getAttribute('data-effect-drop-shadow-opacity') || '35') / 100;
+    
+    // Basic hex to rgb
+    let r = 0, g = 0, b = 0;
+    if (color.length === 7) {
+      r = parseInt(color.slice(1, 3), 16);
+      g = parseInt(color.slice(3, 5), 16);
+      b = parseInt(color.slice(5, 7), 16);
+    }
+    
+    filterString += `drop-shadow(${x}px ${y}px ${blur}px rgba(${r}, ${g}, ${b}, ${opacity})) `;
+  }
+  
+  // 2. Blur
+  if (element.getAttribute('data-effect-blur') === 'true') {
+    const blur = element.getAttribute('data-effect-blur-value') || '4';
+    filterString += `blur(${blur}px) `;
+  }
+
+  // 3. Background Blur (backdrop-filter)
+  if (element.getAttribute('data-effect-background-blur') === 'true') {
+    const blur = element.getAttribute('data-effect-background-blur-value') || '4';
+    backdropFilterString = `blur(${blur}px)`;
+  }
+  
+  const finalFilter = filterString.trim() || 'none';
+  element.style.setProperty('filter', finalFilter, 'important');
+  
+  if (backdropFilterString) {
+      element.style.setProperty('backdrop-filter', backdropFilterString, 'important');
+      element.style.setProperty('-webkit-backdrop-filter', backdropFilterString, 'important');
+  } else {
+      element.style.removeProperty('backdrop-filter');
+      element.style.removeProperty('-webkit-backdrop-filter');
+  }
+};
+
 const TextEditor = ({
   selectedElement,
   selectedElementType,
@@ -91,6 +315,7 @@ const TextEditor = ({
   onPopupPreviewUpdate,
   closePanelsSignal,
   pages,
+  setPages,
   activePopupElement,
   onPopupUpdate,
   TextEditorComponent,
@@ -98,101 +323,21 @@ const TextEditor = ({
   VideoEditorComponent,
   GifEditorComponent,
   IconEditorComponent,
-  showInteraction = true
+  showInteraction = true,
+  activePageIndex
 }) => {
   // Accordian State: 'main' or 'interaction' or null
   const [activeSection, setActiveSection] = useState('main');
   const isTextOpen = activeSection === 'main';
   const isInteractionOpen = activeSection === 'interaction';
-  const [isAnimationOpen, setIsAnimationOpen] = useState(false);
-  const [isColorOpen, setIsColorOpen] = useState(false);
-  const [showFillPicker, setShowFillPicker] = useState(false);
-  const [showStrokePicker, setShowStrokePicker] = useState(false);
-  const [showDashedPopup, setShowDashedPopup] = useState(false);
-  const [strokeColor, setStrokeColor] = useState('#');
-  const [colorMode, setColorMode] = useState('fill'); // 'fill' or 'stroke'
-  const [fillOpacity, setFillOpacity] = useState(100);
-  const [strokeOpacity, setStrokeOpacity] = useState(100);
-  const [strokeType, setStrokeType] = useState('solid'); // 'solid' or 'dashed'
-  const [strokePosition, setStrokePosition] = useState('outside'); // 'outside', 'center', 'inside'
-  const [showStrokePositionDropdown, setShowStrokePositionDropdown] = useState(false);
-
-  const [activePanel, setActivePanel] = useState(null);
-  const [showFontDropdown, setShowFontDropdown] = useState(false);
-  const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
-  const [showWeightDropdown, setShowWeightDropdown] = useState(false);
-  const [showBorderStyleDropdown, setShowBorderStyleDropdown] = useState(false);
-  const [showFillTypeDropdown, setShowFillTypeDropdown] = useState(false);
-  const [showGradientTypeDropdown, setShowGradientTypeDropdown] = useState(false);
-  const [showDetailedControls, setShowDetailedControls] = useState(false);
-  const [showDetailedStrokeControls, setShowDetailedStrokeControls] = useState(false);
-  const [fillType, setFillType] = useState('solid'); // 'solid' or 'gradient'
-  const [gradientType, setGradientType] = useState('Linear'); // 'Linear' or 'Radial'
-  const [gradientStops, setGradientStops] = useState([
-    { color: '#63D0CD', offset: 0, opacity: 100 },
-    { color: '#4B3EFE', offset: 100, opacity: 100 }
-  ]);
-  const [strokeFillType, setStrokeFillType] = useState('solid'); // 'solid' or 'gradient'
-  const [strokeGradientType, setStrokeGradientType] = useState('Linear'); // 'Linear' or 'Radial'
-  const [strokeGradientStops, setStrokeGradientStops] = useState([
-    { color: '#6366f1', offset: 0, opacity: 100 },
-    { color: '#a855f7', offset: 100, opacity: 100 }
-  ]);
-  const [gradientMode, setGradientMode] = useState('fill'); // 'fill' or 'stroke'
-  const [showStrokeFillTypeDropdown, setShowStrokeFillTypeDropdown] = useState(false);
-  const [showStrokeGradientTypeDropdown, setShowStrokeGradientTypeDropdown] = useState(false);
-  const [editingGradientStopIndex, setEditingGradientStopIndex] = useState(null);
-  const [textContent, setTextContent] = useState('');
-  const [fontFamily, setFontFamily] = useState('Arial');
-  const [fontSize, setFontSize] = useState(16);
-  const [fontWeight, setFontWeight] = useState('400');
-  const [textAlign, setTextAlign] = useState('left');
-  const [letterSpacing, setLetterSpacing] = useState(0);
-  const [lineHeight, setLineHeight] = useState(1.2);
-  const [fontStyle, setFontStyle] = useState('normal');
-  const [textDecoration, setTextDecoration] = useState('none');
-  const [textTransform, setTextTransform] = useState('none');
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTextareaEditable, setIsTextareaEditable] = useState(false);
+  const [isScrollable, setIsScrollable] = useState(false);
 
-  // Helper to get colors used on the current page
-  const colorsOnPage = useMemo(() => {
-    const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    const elements = doc.querySelectorAll('[data-fill-color], [data-stroke-color]');
-    const colors = new Set();
-    elements.forEach(el => {
-      const fill = el.getAttribute('data-fill-color');
-      const stroke = el.getAttribute('data-stroke-color');
-      if (fill && fill !== 'none' && fill !== '#' && !fill.includes('gradient')) colors.add(fill.toUpperCase());
-      if (stroke && stroke !== 'none' && stroke !== '#' && !stroke.includes('gradient')) colors.add(stroke.toUpperCase());
-    });
-    // Add default white and black if not present
-    colors.add('#FFFFFF');
-    colors.add('#000000');
-    return Array.from(colors).slice(0, 12);
-  }, [selectedElement, pages]);
 
-  // Color State (Fill)
-  const [hsv, setHsv] = useState({ h: 0, s: 0, v: 0 });
-  const [rgb, setRgb] = useState({ r: 0, g: 0, b: 0 });
-  const [hex, setHex] = useState('#000000');
-  const [initialColor, setInitialColor] = useState('#000000');
 
-  // Stroke Color State (separate from fill)
-  const [strokeHsv, setStrokeHsv] = useState({ h: 0, s: 0, v: 0 });
-  const [strokeRgb, setStrokeRgb] = useState({ r: 0, g: 0, b: 0 });
 
-  // Gradient Stop Color State (for editing individual gradient stops)
-  const [gradientStopHsv, setGradientStopHsv] = useState({ h: 0, s: 1, v: 1 });
-  const [gradientStopRgb, setGradientStopRgb] = useState({ r: 255, g: 0, b: 0 });
-  const [gradientStopHex, setGradientStopHex] = useState('#FF0000');
 
-  // Dashed / Border settings
-  const [dashLength, setDashLength] = useState(4);
-  const [dashGap, setDashGap] = useState(4);
-  const [isRoundCorners, setIsRoundCorners] = useState(false);
-  const [borderThickness, setBorderThickness] = useState(0);
-  const strokePositionRef = useRef(null);
 
   // Guard ref to track current syncing status
   const lastSelectedElementRef = useRef(null);
@@ -203,25 +348,37 @@ const TextEditor = ({
   const typingTimerRef = useRef(null);
 
   // Refs
-  const pipetteInputRef = useRef(null);
-  const fillTypeRef = useRef(null);
+  const [activePanel, setActivePanel] = useState(null);
+  const [showFontDropdown, setShowFontDropdown] = useState(false);
+  const [showFontSizeDropdown, setShowFontSizeDropdown] = useState(false);
+  const [showWeightDropdown, setShowWeightDropdown] = useState(false);
+  const [showBorderStyleDropdown, setShowBorderStyleDropdown] = useState(false);
+  const [showStrokePositionDropdown, setShowStrokePositionDropdown] = useState(false);
+
+  const [textContent, setTextContent] = useState('SIPPER GLASS');
+  const [fontFamily, setFontFamily] = useState('Poppins');
+  const [fontSize, setFontSize] = useState(24);
+  const [fontWeight, setFontWeight] = useState('600');
+  const [textAlign, setTextAlign] = useState('left');
+  const [letterSpacing, setLetterSpacing] = useState(0);
+  const [lineHeight, setLineHeight] = useState(1.2);
+  const [fontStyle, setFontStyle] = useState('normal');
+  const [textDecoration, setTextDecoration] = useState('none');
+  const [textTransform, setTextTransform] = useState('none');
+  const [listStyleType, setListStyleType] = useState('none');
+  const textareaRef = useRef(null);
+  const [selectionRange, setSelectionRange] = useState({ start: 0, end: 0 });
+
+  const strokePositionRef = useRef(null);
   const dropdownRef = useRef(null);
   const weightRef = useRef(null);
   const dashedRef = useRef(null);
   const borderStyleRef = useRef(null);
-  const skipNextOnUpdateRef = useRef(false);
-
   const fontSizeRef = useRef(null);
   const alignmentRef = useRef(null);
   const styleRef = useRef(null);
   const caseRef = useRef(null);
   const listRef = useRef(null);
-  const fillPickerRef = useRef(null);
-  const strokePickerRef = useRef(null);
-  const gradientStopPickerRef = useRef(null);
-  const strokeFillTypeRef = useRef(null);
-  const strokeGradientTypeRef = useRef(null);
-  const gradientTypeRef = useRef(null);
 
   // --- HELPER FUNCTIONS ---
 
@@ -239,592 +396,564 @@ const TextEditor = ({
   };
 
   const applyDesign = useCallback((shouldNotify = true) => {
-    const el = selectedElement;
-    if (!el) return;
+    // Logic removed - UI only
+  }, []);
 
-    // --- SVG TEXT ELEMENT HANDLER ---
-    const isSvgText = ['text', 'tspan'].includes(el.tagName?.toLowerCase());
-    if (isSvgText) {
-      const text = textContent || el.textContent || '';
+  const selectedLayerId = useMemo(() => {
+    if (!selectedElement) return null;
+    const elWithId = selectedElement.id ? selectedElement : selectedElement.closest('[id]');
+    return elWithId?.id;
+  }, [selectedElement]);
 
-      // Update text content (handle multi-line tspans)
-      const tspans = Array.from(el.querySelectorAll('tspan'));
-      if (tspans.length > 0) {
-        const lines = text.split('\n');
-        tspans.forEach((tspan, i) => {
-          tspan.textContent = lines[i] !== undefined ? lines[i] : '';
-        });
-      } else {
-        el.textContent = text;
+  // Sync scrollable state from element
+  useEffect(() => {
+    if (selectedElement) {
+      const el = document.getElementById(selectedLayerId);
+      if (el) {
+        setIsScrollable(el.getAttribute('data-scrollable') === 'true');
       }
-
-      // Typography attributes
-      el.setAttribute('font-family', fontFamily);
-      el.setAttribute('font-size', fontSize);
-      el.setAttribute('font-weight', fontWeight);
-      if (letterSpacing !== 0) el.setAttribute('letter-spacing', letterSpacing);
-      else el.removeAttribute('letter-spacing');
-      const anchorMap = { left: 'start', center: 'middle', right: 'end' };
-      el.setAttribute('text-anchor', anchorMap[textAlign] || 'start');
-      // Font style & decoration
-      if (fontStyle && fontStyle !== 'normal') el.setAttribute('font-style', fontStyle);
-      else el.removeAttribute('font-style');
-      if (textDecoration && textDecoration !== 'none') el.setAttribute('text-decoration', textDecoration);
-      else el.removeAttribute('text-decoration');
-      if (textTransform && textTransform !== 'none') el.setAttribute('text-transform', textTransform);
-      else el.removeAttribute('text-transform');
-
-      // Fill color
-      if (hex && hex !== '#') {
-        el.setAttribute('fill', hex);
-        el.setAttribute('data-fill-color', hex);
-        el.setAttribute('data-fill-opacity', fillOpacity);
-      }
-
-      // Stroke
-      if (strokeColor && strokeColor !== '#' && borderThickness > 0) {
-        el.setAttribute('stroke', strokeColor);
-        el.setAttribute('stroke-width', borderThickness);
-      } else {
-        el.removeAttribute('stroke');
-        el.removeAttribute('stroke-width');
-      }
-
-      if (onUpdate && shouldNotify) onUpdate();
-      return;
     }
+  }, [selectedElement, selectedLayerId]);
 
-    const styles = window.getComputedStyle(el);
-    const text = textContent || el.innerText || '';
-    const fontSizeValue = fontSize + 'px';
-    const fontFamilyValue = fontFamily;
-    const fontWeightValue = fontWeight;
-    const textAlignValue = textAlign;
-    const letterSpacingValue = letterSpacing + 'px';
-    const lineHeightValue = lineHeight * fontSize;
+  const selectedElementProps = useMemo(() => {
+    if (!selectedLayerId || !pages[activePageIndex]) return null;
+    
+    // Find the element in the actual DOM to get computed values if needed
+    const el = document.getElementById(selectedLayerId);
+    if (!el) return null;
 
-    const paddingTop = parseFloat(styles.paddingTop) || 0;
-    const paddingLeft = parseFloat(styles.paddingLeft) || 0;
-    const paddingRight = parseFloat(styles.paddingRight) || 0;
-    const width = el.offsetWidth;
-    const height = el.offsetHeight;
+    const props = {
+      id: selectedLayerId,
+      tagName: 'rect', // Force to 'rect' so ShapeProperties shows Corner Radius accordion
+      'data-shape-type': 'rectangle', // Force to 'rectangle' for the same reason
+      fill: el.getAttribute('fill') || (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? window.getComputedStyle(el.firstElementChild).color : null) || '#000000',
+      stroke: el.getAttribute('stroke') || 'none',
+      strokeWidth: el.getAttribute('stroke-width') || '0',
+      strokeDasharray: el.getAttribute('stroke-dasharray') || 'none',
+      opacity: el.getAttribute('opacity') || '1',
+      rx: el.getAttribute('rx') || '0',
+      ry: el.getAttribute('ry') || '0',
+      'data-tl': el.getAttribute('data-tl') || '0',
+      'data-tr': el.getAttribute('data-tr') || '0',
+      'data-bl': el.getAttribute('data-bl') || '0',
+      'data-br': el.getAttribute('data-br') || '0',
+      'data-corner-linked': el.getAttribute('data-corner-linked') || 'true'
+    };
 
-    // --- Fill Prep ---
-    const fillRgb = hexToRgb(hex);
-    const rgbaFill = (hex === 'none' || hex === '#' || !hex || fillOpacity === 0)
-      ? 'rgba(0,0,0,0)'
-      : `rgba(${fillRgb.r}, ${fillRgb.g}, ${fillRgb.b}, ${fillOpacity / 100})`;
+    // Extract all data- attributes and fill/stroke extras
+    Array.from(el.attributes).forEach(attr => {
+      if (attr.name.startsWith('data-') || attr.name.includes('fill-') || attr.name.includes('stroke-')) {
+        props[attr.name] = attr.value;
+      }
+    });
 
-    let gradStr = '';
-    if (fillType === 'gradient') {
-      const stopsStr = gradientStops.map(s => {
-        const rgb = hexToRgb(s.color);
-        const op = (s.opacity || 100) / 100;
-        return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${op}) ${s.offset}%`;
-      }).join(', ');
+    return props;
+  }, [selectedLayerId, pages, activePageIndex]);
+
+  const updateElementAttributeLocal = (pageIdx, elId, attribute, value) => {
+    // Immediate Live Feedback for DOM and Overlay
+    const liveEl = document.getElementById(elId);
+    const styleProp = STYLE_MAP[attribute];
+    const finalVal = attribute === 'fontSize' && !value?.toString().includes('px') ? `${value}px` : value;
+
+    if (liveEl && styleProp) {
+      const liveTag = liveEl.tagName.toLowerCase();
+      console.log(`[TextEditor] Live update: tag=${liveTag}, id=${elId}, attr=${attribute}, val=${value}`);
       
-      if (gradientType === 'Linear') {
-        gradStr = `linear-gradient(to right, ${stopsStr})`;
-      } else if (gradientType === 'Radial' || gradientType === 'Diamond') {
-        gradStr = `radial-gradient(circle, ${stopsStr})`;
-      } else if (gradientType === 'Angular') {
-        gradStr = `conic-gradient(from 0deg, ${stopsStr})`; // Fallback to standard conic
+      if (liveTag === 'foreignobject') {
+        const liveProp = styleProp === 'fill' ? 'color' : styleProp;
+        if (liveEl.firstElementChild) {
+          liveEl.firstElementChild.style.setProperty(liveProp, finalVal, 'important');
+          Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => {
+             child.style.setProperty(liveProp, finalVal, 'important');
+          });
+        }
       } else {
-        gradStr = `linear-gradient(to right, ${stopsStr})`;
-      }
-    }
-
-    // --- Stroke Prep ---
-    const sRgb = hexToRgb(strokeColor);
-    const rgbaStroke = (strokeColor === 'none' || strokeColor === '#' || !strokeColor || strokeOpacity === 0)
-      ? 'rgba(0,0,0,0)'
-      : `rgba(${sRgb.r}, ${sRgb.g}, ${sRgb.b}, ${strokeOpacity / 100})`;
-
-    let strokeSvgFill = rgbaStroke;
-    let strokeGradDef = '';
-    if (strokeFillType === 'gradient') {
-      const stopsXml = strokeGradientStops.map(s => `<stop offset="${s.offset}%" stop-color="${s.color}" stop-opacity="${(s.opacity || 100) / 100}" />`).join('');
-      const id = `tsg-stroke-gradient`;
-      strokeGradDef = strokeGradientType === 'Linear'
-        ? `<linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="0%">${stopsXml}</linearGradient>`
-        : `<radialGradient id="${id}" cx="50%" cy="50%" r="50%">${stopsXml}</radialGradient>`;
-      strokeSvgFill = `url(#${id})`;
-    }
-
-    if (strokeType === 'dashed' || strokeFillType === 'gradient') {
-      // DASHED MODE: All-in-one SVG Background
-      if (width === 0 || height === 0) return;
-
-      const lineCap = isRoundCorners ? 'round' : 'square';
-      let textAnchor = 'start';
-      let x = paddingLeft;
-      if (textAlignValue === 'center') { textAnchor = 'middle'; x = width / 2; }
-      else if (textAlignValue === 'right') { textAnchor = 'end'; x = width - paddingRight; }
-
-      let finalStrokeWidth = borderThickness;
-      let paintOrder = 'fill stroke';
-      if (strokePosition === 'outside') {
-        finalStrokeWidth = borderThickness * 2;
-        paintOrder = 'stroke fill';
-      } else if (strokePosition === 'inside') {
-        finalStrokeWidth = borderThickness * 2;
-        paintOrder = 'fill stroke';
+        liveEl.style.setProperty(styleProp, finalVal, 'important');
+        if (attribute === 'fill' || attribute === 'stroke') {
+          liveEl.setAttribute(attribute, value);
+        }
+        if (liveTag === 'text' || liveTag === 'g') {
+          Array.from(liveEl.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+            child.style.setProperty(styleProp, finalVal, 'important');
+            child.setAttribute(attribute, value);
+          });
+        }
       }
 
-      let svgFill = rgbaFill;
-      let gradDef = '';
-      if (fillType === 'gradient') {
-        const stopsXml = gradientStops.map(s => `<stop offset="${s.offset}%" stop-color="${s.color}" stop-opacity="${(s.opacity || 100) / 100}" />`).join('');
-        const id = `tg-fill-gradient`;
+      // Update active editing overlay
+      const svgRoot = liveEl.ownerSVGElement || liveEl.closest('svg');
+      const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+      if (overlay) {
+        const overlayProp = styleProp === 'fill' ? 'color' : styleProp;
+        overlay.style.setProperty(overlayProp, finalVal, 'important');
+      }
+
+      // --- CUSTOM SCROLLABLE & CORNER RADIUS HANDLING ---
+      if (liveTag === 'foreignobject' && liveEl.firstElementChild) {
+        const isCurrentlyScrollable = liveEl.getAttribute('data-scrollable') === 'true' || attribute === 'data-scrollable' && value === 'true';
         
-        const svgGradType = (gradientType === 'Angular' || gradientType === 'Diamond') ? (gradientType === 'Angular' ? 'Linear' : 'Radial') : gradientType;
-
-        gradDef = svgGradType === 'Linear'
-          ? `<linearGradient id="${id}" x1="0%" y1="0%" x2="100%" y2="0%">${stopsXml}</linearGradient>`
-          : `<radialGradient id="${id}" cx="50%" cy="50%" r="50%">${stopsXml}</radialGradient>`;
-        svgFill = `url(#${id})`;
-      }
-
-      // Helper to wrap text based on width
-      const getWrappedLines = (textContent, maxWidth, fontString) => {
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        context.font = fontString;
-
-        const lines = [];
-        const paragraphs = textContent.split('\n');
-
-        paragraphs.forEach(paragraph => {
-          const words = paragraph.split(' ');
-          let currentLine = words[0];
-
-          for (let i = 1; i < words.length; i++) {
-            const word = words[i];
-            const width = context.measureText(currentLine + " " + word).width;
-            if (width < maxWidth) {
-              currentLine += " " + word;
-            } else {
-              lines.push(currentLine);
-              currentLine = word;
-            }
+        if (attribute === 'data-scrollable') {
+          if (value === 'true') {
+            liveEl.firstElementChild.style.overflowY = 'auto';
+            liveEl.firstElementChild.style.height = '100%';
+            liveEl.firstElementChild.style.overflowX = 'hidden';
+            const rx = liveEl.getAttribute('rx') || '0';
+            liveEl.firstElementChild.style.borderRadius = `${rx}px`;
+            
+            // Apply border to make corner radius visible
+            const stroke = liveEl.getAttribute('stroke') || '#6366F1';
+            const strokeWidth = liveEl.getAttribute('stroke-width') || '1';
+            liveEl.firstElementChild.style.border = `${strokeWidth}px solid ${stroke}`;
+          } else {
+            liveEl.firstElementChild.style.overflowY = 'visible';
+            liveEl.firstElementChild.style.height = 'auto';
+            liveEl.firstElementChild.style.borderRadius = '0';
+            liveEl.firstElementChild.style.border = 'none';
           }
-          lines.push(currentLine);
-        });
-        return lines;
-      };
+        }
 
-      const cleanFontFamily = fontFamilyValue.replace(/['"]/g, "");
-      // Canvas font string requires quotes for multi-word font names (e.g. "Times New Roman")
-      const fontString = `${fontWeightValue} ${fontSizeValue} "${cleanFontFamily}"`;
-
-      const availableWidth = width - paddingLeft - paddingRight;
-      const wrappedLines = getWrappedLines(text, availableWidth, fontString);
-
-      const tspans = wrappedLines.map((line, i) => {
-        const yLine = paddingTop + (i + 1) * lineHeightValue - (lineHeightValue * 0.15);
-        // Use clean font family for SVG attribute (attribute quotes handle the spaces)
-        return `<tspan x="${x}" y="${yLine}">${escapeSvg(line)}</tspan>`;
-      }).join('');
-
-      const fontStyleSvg = (fontStyle && fontStyle !== 'normal') ? fontStyle : 'normal';
-      const textDecoSvg = (textDecoration && textDecoration !== 'none') ? textDecoration : 'none';
-      const textTransformSvg = (textTransform && textTransform !== 'none') ? textTransform : 'none';
-
-      const svg = `
-        <svg width='${width}' height='${height}' viewBox='0 0 ${width} ${height}' xmlns='http://www.w3.org/2000/svg'>
-          <defs>${gradDef}${strokeGradDef}</defs>
-          <text text-anchor='${textAnchor}' font-family='${cleanFontFamily}' font-size='${fontSizeValue}' font-weight='${fontWeightValue}' font-style='${fontStyleSvg}' text-decoration='${textDecoSvg}' letter-spacing='${letterSpacingValue}' fill='${svgFill}' stroke='${strokeSvgFill}' stroke-width='${finalStrokeWidth}' stroke-dasharray='${strokeType === 'dashed' ? `${dashLength},${dashGap}` : 'none'}' stroke-linecap='${lineCap}' style="paint-order: ${paintOrder}; text-transform: ${textTransformSvg};">
-            ${tspans}
-          </text>
-        </svg>
-      `.replace(/\s+/g, ' ');
-
-      el.style.color = 'transparent';
-      el.style.webkitTextFillColor = 'transparent';
-      el.style.webkitTextStrokeWidth = '0px';
-      el.style.backgroundImage = `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
-      el.style.backgroundClip = 'initial';
-      el.style.webkitBackgroundClip = 'initial';
-      el.style.backgroundRepeat = 'no-repeat';
-    } else {
-      // SOLID MODE: Standard CSS Properties
-      // Always sync the element's text content with the textContent state
-      if (text !== undefined && text !== null) {
-        el.innerText = text;
-      }
-
-      // --- Apply ALL typography properties ---
-      el.style.fontFamily = fontFamily;
-      el.style.fontSize = fontSize + 'px';
-      el.style.fontWeight = fontWeight;
-      el.style.textAlign = textAlign;
-      el.style.letterSpacing = letterSpacing + 'px';
-      el.style.lineHeight = lineHeight;
-      el.style.fontStyle = fontStyle || 'normal';
-      el.style.textDecoration = textDecoration || 'none';
-      el.style.textTransform = textTransform || 'none';
-
-      // --- Apply fill color ---
-      el.style.color = rgbaFill;
-      el.style.webkitTextFillColor = fillType === 'gradient' ? 'transparent' : rgbaFill;
-
-      if (fillType === 'gradient') {
-        el.style.backgroundImage = gradStr;
-        el.style.backgroundClip = 'text';
-        el.style.webkitBackgroundClip = 'text';
-      } else {
-        el.style.backgroundImage = 'none';
-        el.style.backgroundClip = 'initial';
-        el.style.webkitBackgroundClip = 'initial';
-      }
-
-      let finalWidth = borderThickness;
-      if (strokePosition === 'outside') {
-        finalWidth = borderThickness * 2;
-        el.style.paintOrder = 'stroke fill';
-      } else if (strokePosition === 'inside') {
-        finalWidth = borderThickness * 2;
-        el.style.paintOrder = 'fill stroke';
-      } else {
-        el.style.paintOrder = 'normal';
-      }
-
-      el.style.webkitTextStrokeWidth = finalWidth + 'px';
-      el.style.webkitTextStrokeColor = rgbaStroke;
-    }
-    el.style.border = 'none';
-
-    // Save metadata for accurate retrieval on re-selection
-    el.setAttribute('data-fill-color', hex);
-    el.setAttribute('data-fill-opacity', fillOpacity);
-    el.setAttribute('data-fill-type', fillType);
-    el.setAttribute('data-stroke-color', strokeColor);
-    el.setAttribute('data-stroke-opacity', strokeOpacity);
-    el.setAttribute('data-stroke-fill-type', strokeFillType);
-    el.setAttribute('data-stroke-gradient-type', strokeGradientType);
-    el.setAttribute('data-dash-length', dashLength);
-    el.setAttribute('data-dash-gap', dashGap);
-    el.setAttribute('data-round-corners', isRoundCorners);
-    el.setAttribute('data-stroke-type', strokeType);
-    el.setAttribute('data-stroke-position', strokePosition);
-    el.setAttribute('data-border-thickness', borderThickness);
-
-    // Skip saving while user is actively typing — avoids stale element ref from canvas re-render
-    if (onUpdate && shouldNotify && !isTypingRef.current) onUpdate();
-  }, [selectedElement, hex, fillOpacity, fillType, gradientStops, gradientType, strokeColor, strokeOpacity, strokeFillType, strokeGradientType, strokeGradientStops, strokeType, strokePosition, borderThickness, dashLength, dashGap, isRoundCorners, textContent, fontFamily, fontSize, fontWeight, textAlign, letterSpacing, lineHeight, fontStyle, textDecoration, textTransform, onUpdate]);
-
-  const applyGradient = useCallback((stops, type = gradientType) => {
-    if (!selectedElement) return;
-    setGradientStops(stops);
-    setGradientType(type);
-  }, [selectedElement, gradientType]);
-
-  const updateFillType = (type) => {
-    setFillType(type);
-    setShowFillTypeDropdown(false);
-    if (type === 'solid' && selectedElement) {
-      selectedElement.style.backgroundImage = 'none';
-      selectedElement.style.webkitBackgroundClip = 'initial';
-      selectedElement.style.webkitTextFillColor = 'initial';
-      selectedElement.style.backgroundClip = 'initial';
-      selectedElement.style.color = hex;
-      if (onUpdate) onUpdate();
-    }
-  };
-
-  const updateGradientStop = (index, updates) => {
-    const newStops = [...gradientStops];
-    newStops[index] = { ...newStops[index], ...updates };
-    setGradientStops(newStops);
-  };
-
-  const removeGradientStop = (index) => {
-    if (gradientStops.length <= 2) return;
-    const newStops = gradientStops.filter((_, i) => i !== index);
-    setGradientStops(newStops);
-  };
-
-  const addGradientStop = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const offset = Math.min(100, Math.max(0, Math.round((x / rect.width) * 100)));
-    const newStop = { color: '#6366f1', offset, opacity: 100 };
-    const newStops = [...gradientStops, newStop].sort((a, b) => a.offset - b.offset);
-    setGradientStops(newStops);
-  };
-
-  const reverseGradient = () => {
-    const newStops = [...gradientStops].map(s => ({ ...s, offset: 100 - s.offset })).sort((a, b) => a.offset - b.offset);
-    setGradientStops(newStops);
-  };
-
-  const updateColorFromHsv = (newHsv) => {
-    const newRgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setHsv(newHsv);
-    setRgb(newRgb);
-    setHex(newHex);
-  };
-
-  const updateColorFromRgb = (newRgb) => {
-    const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setRgb(newRgb);
-    setHsv(newHsv);
-    setHex(newHex);
-  };
-
-  const updateColorFromHex = (newHex) => {
-    setHex(newHex);
-    if (/^#[0-9A-F]{6}$/i.test(newHex)) {
-      const newRgb = hexToRgb(newHex);
-      const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
-      setRgb(newRgb);
-      setHsv(newHsv);
-      setFillOpacity(100);
-      if (fillType === 'gradient') {
-        updateFillType('solid');
-      }
-    }
-  };
-
-  const updateStrokeColorFromHsv = (newHsv) => {
-    const newRgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setStrokeHsv(newHsv);
-    setStrokeRgb(newRgb);
-    setStrokeColor(newHex);
-  };
-
-  const updateStrokeColorFromRgb = (newRgb) => {
-    const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setStrokeRgb(newRgb);
-    setStrokeHsv(newHsv);
-    setStrokeColor(newHex);
-  };
-
-  const updateStrokeColorFromHex = (newHex) => {
-    if (newHex === '#' || newHex === 'none') {
-      setBorderThickness(0);
-      setStrokeColor('#');
-      return;
-    }
-    // Auto-apply thickness 1 if currently 0
-    if (borderThickness === 0) setBorderThickness(1);
-    setStrokeColor(newHex);
-    if (/^#[0-9A-F]{6}$/i.test(newHex)) {
-      const newRgb = hexToRgb(newHex);
-      const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
-      setStrokeRgb(newRgb);
-      setStrokeHsv(newHsv);
-      setStrokeOpacity(100);
-    }
-  };
-
-  const updateGradientStopColorFromHsv = (newHsv) => {
-    const newRgb = hsvToRgb(newHsv.h, newHsv.s, newHsv.v);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setGradientStopHsv(newHsv);
-    setGradientStopRgb(newRgb);
-    setGradientStopHex(newHex);
-    if (editingGradientStopIndex !== null) {
-      updateGradientStop(editingGradientStopIndex, { color: newHex });
-    }
-  };
-
-  const updateGradientStopColorFromRgb = (newRgb) => {
-    const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
-    const newHex = rgbToHex(newRgb.r, newRgb.g, newRgb.b);
-    setGradientStopRgb(newRgb);
-    setGradientStopHsv(newHsv);
-    setGradientStopHex(newHex);
-    if (editingGradientStopIndex !== null) {
-      updateGradientStop(editingGradientStopIndex, { color: newHex });
-    }
-  };
-
-  const updateGradientStopColorFromHex = (newHex) => {
-    setGradientStopHex(newHex);
-    if (/^#[0-9A-F]{6}$/i.test(newHex)) {
-      const newRgb = hexToRgb(newHex);
-      const newHsv = rgbToHsv(newRgb.r, newRgb.g, newRgb.b);
-      setGradientStopRgb(newRgb);
-      setGradientStopHsv(newHsv);
-      if (editingGradientStopIndex !== null) {
-        if (gradientMode === 'fill') {
-          updateGradientStop(editingGradientStopIndex, { color: newHex });
-        } else {
-          updateStrokeGradientStop(editingGradientStopIndex, { color: newHex });
+        if ((attribute === 'rx' || attribute === 'ry') && isCurrentlyScrollable) {
+          liveEl.firstElementChild.style.borderRadius = `${value}px`;
+        }
+        
+        if ((attribute === 'stroke' || attribute === 'stroke-width') && isCurrentlyScrollable) {
+          const s = attribute === 'stroke' ? value : (liveEl.getAttribute('stroke') || '#6366F1');
+          const sw = attribute === 'stroke-width' ? value : (liveEl.getAttribute('stroke-width') || '1');
+          liveEl.firstElementChild.style.border = `${sw}px solid ${s}`;
         }
       }
     }
-  };
 
-  const updateStrokeFillType = (type) => {
-    setStrokeFillType(type);
-    setShowStrokeFillTypeDropdown(false);
-    if (type === 'solid' && selectedElement) {
-      applyDesign();
-    }
-  };
+    // Functional State Update (State of Truth)
+    setPages(prevPages => {
+      const newPages = [...prevPages];
+      const page = { ...newPages[pageIdx] };
+      if (!page || !page.html) return prevPages;
 
-  const applyStrokeGradient = useCallback((stops, type = strokeGradientType) => {
-    if (!selectedElement) return;
-    setStrokeGradientStops(stops);
-    setStrokeGradientType(type);
-  }, [selectedElement, strokeGradientType]);
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      const element = doc.getElementById(elId);
 
-  const updateStrokeGradientStop = (index, updates) => {
-    const newStops = [...strokeGradientStops];
-    newStops[index] = { ...newStops[index], ...updates };
-    setStrokeGradientStops(newStops);
-  };
+      if (element) {
+        // Sync text from DOM first
+        if (liveEl) {
+          const latestContent = getDeepContent(liveEl);
+          const tag = element.tagName.toLowerCase();
+          if (tag === 'text') {
+            // Preserve original tspan x/y so text doesn't drift
+            const origFirstTspan = element.querySelector('tspan');
+            const origTspanX = origFirstTspan ? origFirstTspan.getAttribute('x') : null;
+            const origTspanY = origFirstTspan ? origFirstTspan.getAttribute('y') : null;
+            const origTspanDy = origFirstTspan ? origFirstTspan.getAttribute('dy') : null;
+            element.innerHTML = '';
+            const lines = latestContent.split('\n');
+            const x = origTspanX !== null ? origTspanX : (element.getAttribute('x') || '0');
+            const lh = element.getAttribute('data-line-height') || '1.2';
+            lines.forEach((line, i) => {
+              const tspan = doc.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+              tspan.textContent = line || '\u00A0';
+              tspan.setAttribute('x', x);
+              if (i === 0) {
+                if (origTspanY !== null) tspan.setAttribute('y', origTspanY);
+                if (origTspanDy !== null) tspan.setAttribute('dy', origTspanDy);
+              } else {
+                tspan.setAttribute('dy', `${parseFloat(lh).toFixed(2)}em`);
+              }
+              element.appendChild(tspan);
+            });
+          } else if (tag === 'foreignobject' && element.firstElementChild) {
+            element.firstElementChild.innerHTML = latestContent.replace(/\n/g, '<br/>');
+          }
+        }
 
-  const removeStrokeGradientStop = (index) => {
-    if (strokeGradientStops.length <= 2) return;
-    const newStops = strokeGradientStops.filter((_, i) => i !== index);
-    setStrokeGradientStops(newStops);
-  };
+        const tag = element.tagName.toLowerCase();
+        if (attribute === 'innerText' || attribute === 'innerHTML') {
+            // ... (rest of text update logic same as before) ...
+            if (tag === 'foreignobject' && element.firstElementChild) {
+              element.firstElementChild.innerHTML = value.replace(/\n/g, '<br/>');
+            } else if (tag === 'text') {
+              // Preserve original tspan x/y so text doesn't drift
+              const origFirstTspan2 = element.querySelector('tspan');
+              const origTspanX2 = origFirstTspan2 ? origFirstTspan2.getAttribute('x') : null;
+              const origTspanY2 = origFirstTspan2 ? origFirstTspan2.getAttribute('y') : null;
+              const origTspanDy2 = origFirstTspan2 ? origFirstTspan2.getAttribute('dy') : null;
+              element.innerHTML = '';
+              const lines = value.split('\n');
+              const xVal = origTspanX2 !== null ? origTspanX2 : (element.getAttribute('x') || '0');
+              lines.forEach((line, i) => {
+                const tspan = doc.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                tspan.textContent = line || '\u00A0';
+                tspan.setAttribute('x', xVal);
+                if (i === 0) {
+                  if (origTspanY2 !== null) tspan.setAttribute('y', origTspanY2);
+                  if (origTspanDy2 !== null) tspan.setAttribute('dy', origTspanDy2);
+                } else {
+                  tspan.setAttribute('dy', '1.2em');
+                }
+                element.appendChild(tspan);
+              });
+            }
+        } else if (attribute === 'data-scrollable' && value === 'true' && tag === 'text') {
+           const bbox = liveEl?.getBBox() || { x: 0, y: 0, width: 100, height: 50 };
+           const x = element.getAttribute('x') || bbox.x;
+           const y = element.getAttribute('y') || bbox.y;
+           const w = bbox.width || 100;
+           const h = bbox.height || 50;
+           
+           const newFo = doc.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+           newFo.id = element.id;
+           newFo.setAttribute('x', x);
+           newFo.setAttribute('y', y);
+           newFo.setAttribute('width', w);
+           newFo.setAttribute('height', h);
+           
+           // Copy attributes
+           Array.from(element.attributes).forEach(attr => {
+             if (attr.name !== 'x' && attr.name !== 'y' && attr.name !== 'id') {
+               newFo.setAttribute(attr.name, attr.value);
+             }
+           });
+           newFo.setAttribute('data-scrollable', 'true');
+           
+           const innerDiv = doc.createElement('div');
+           innerDiv.style.width = '100%';
+           innerDiv.style.height = '100%';
+           innerDiv.style.overflowY = 'auto';
+           innerDiv.style.overflowX = 'hidden';
+           innerDiv.style.wordBreak = 'break-word';
+           innerDiv.style.color = element.getAttribute('fill') || '#000000';
+           innerDiv.innerHTML = getDeepContent(liveEl).replace(/\n/g, '<br/>');
+           
+           const rx = element.getAttribute('rx') || '0';
+           if (rx !== '0') innerDiv.style.borderRadius = `${rx}px`;
+           
+           newFo.appendChild(innerDiv);
+           element.replaceWith(newFo);
+        } else if (attribute === 'data-scrollable' && value === 'false' && tag === 'foreignobject') {
+           // Optional: Convert back to text? Usually better to keep as FO for reliability
+           element.setAttribute('data-scrollable', 'false');
+           if (element.firstElementChild) {
+             element.firstElementChild.style.overflowY = 'visible';
+             element.firstElementChild.style.height = 'auto';
+           }
+        } else if (styleProp) {
+          const finalProp = (tag === 'foreignobject' && styleProp === 'fill') ? 'color' : styleProp;
+          if (tag === 'foreignobject') {
+            if (element.firstElementChild) {
+              element.firstElementChild.style.setProperty(finalProp, finalVal, 'important');
+              
+              // --- SCROLLABLE PERSISTENCE ---
+              const isScrollable = element.getAttribute('data-scrollable') === 'true';
+              if (isScrollable) {
+                element.firstElementChild.style.overflowY = 'auto';
+                element.firstElementChild.style.height = '100%';
+                element.firstElementChild.style.overflowX = 'hidden';
+                const rx = element.getAttribute('rx') || '0';
+                element.firstElementChild.style.borderRadius = `${rx}px`;
+              }
+            }
+            element.setAttribute(attribute, value);
+          } else {
+            // For SVG elements (text, g, etc.) set both CSS style and SVG presentation attribute
+            element.style.setProperty(styleProp, finalVal, 'important');
+            // Use SVG attribute name (e.g., font-size, font-family, text-anchor)
+            const svgAttrName = SVG_ATTR_MAP[attribute] || attribute;
+            let svgAttrVal = finalVal;
+            // Convert textAlign CSS values to SVG text-anchor values
+            if (attribute === 'textAlign') {
+              svgAttrVal = TEXT_ALIGN_TO_ANCHOR[value] || 'start';
+              element.setAttribute('text-anchor', svgAttrVal);
+            } else {
+              element.setAttribute(svgAttrName, finalVal);
+            }
+            if (attribute === 'fill' || attribute === 'stroke') {
+              element.setAttribute(attribute, value);
+            }
+            // Propagate to tspan children so they inherit the style
+            if (tag === 'text' || tag === 'g') {
+              Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+                child.style.setProperty(styleProp, finalVal, 'important');
+                if (attribute === 'textAlign') {
+                  child.setAttribute('text-anchor', svgAttrVal);
+                } else {
+                  child.setAttribute(svgAttrName, finalVal);
+                }
+              });
+            }
+          }
+        } else {
+          element.setAttribute(attribute, value);
+          
+          // Handle scrollable updates for virtual doc
+          if (tag === 'foreignobject' && element.firstElementChild) {
+            const isScrollable = element.getAttribute('data-scrollable') === 'true';
+            if (isScrollable) {
+              element.firstElementChild.style.overflowY = 'auto';
+              element.firstElementChild.style.height = '100%';
+              element.firstElementChild.style.overflowX = 'hidden';
+              const rx = element.getAttribute('rx') || '0';
+              element.firstElementChild.style.borderRadius = `${rx}px`;
+            } else {
+              element.firstElementChild.style.overflowY = 'visible';
+              element.firstElementChild.style.height = 'auto';
+              element.firstElementChild.style.borderRadius = '0';
+            }
+          }
+        }
 
-  const addStrokeGradientStop = (e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const offset = Math.min(100, Math.max(0, Math.round((x / rect.width) * 100)));
-    const newStop = { color: '#6366f1', offset, opacity: 100 };
-    const newStops = [...strokeGradientStops, newStop].sort((a, b) => a.offset - b.offset);
-    setStrokeGradientStops(newStops);
-  };
+        // --- GRADIENT SYNC (Virtual Doc) ---
+        const isGradientRelated = attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type');
+        if (attribute.startsWith('fill') || attribute.startsWith('stroke') || isGradientRelated || attribute.includes('stroke-')) {
+          const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
+          syncGradient(doc, element, base);
+          
+          // Apply synced gradient to live DOM too
+          if (liveEl) {
+            const liveSvg = liveEl.ownerSVGElement || liveEl.closest('svg');
+            if (liveSvg) {
+              syncGradient(liveSvg, liveEl, base);
+            }
+          }
+        }
 
-  const reverseStrokeGradient = () => {
-    const newStops = [...strokeGradientStops].map(s => ({ ...s, offset: 100 - s.offset })).sort((a, b) => a.offset - b.offset);
-    setStrokeGradientStops(newStops);
-  };
+        // --- EFFECT SYNC ---
+        const isEffectRelated = attribute.startsWith('data-effect-');
+        if (isEffectRelated) {
+          syncTextEffect(doc, element);
+          
+          // Apply to live DOM too
+          if (liveEl) {
+             const liveSvg = liveEl.ownerSVGElement || liveEl.closest('svg');
+             if (liveSvg) syncTextEffect(liveSvg, liveEl);
+             else syncTextEffect(null, liveEl);
+          }
+        }
 
-  const openGradientStopPicker = (index, mode = 'fill') => {
-    setGradientMode(mode);
-    const stop = mode === 'fill' ? gradientStops[index] : strokeGradientStops[index];
-    const rgbObj = hexToRgb(stop.color);
-    const hsvObj = rgbToHsv(rgbObj.r, rgbObj.g, rgbObj.b);
-    setGradientStopHex(stop.color);
-    setGradientStopRgb(rgbObj);
-    setGradientStopHsv(hsvObj);
-    setEditingGradientStopIndex(index);
-  };
-
-  const resetColor = () => {
-    updateColorFromHex(initialColor);
-  };
-
-  const handleEyeDropper = async () => {
-    if (!window.EyeDropper) {
-      console.warn('EyeDropper API not supported');
-      return;
-    }
-    try {
-      const eyeDropper = new window.EyeDropper();
-      const result = await eyeDropper.open();
-      updateColorFromHex(result.sRGBHex);
-    } catch (e) {
-      console.error(e);
-    }
+        const newHtml = new XMLSerializer().serializeToString(doc.documentElement);
+        page.html = newHtml;
+        newPages[pageIdx] = page;
+        
+        // Notify parent of the update
+        onUpdate(newHtml);
+      }
+      return newPages;
+    });
   };
 
   const updateStyle = useCallback((property, value) => {
-    const el = selectedElement;
-    if (!el) return;
-    const currentVal = window.getComputedStyle(el)[property];
-    let newValue = value;
-
-    if (property === 'fontWeight') {
-      // If value is 'bold' (from B button), toggle. Otherwise (from dropdown), set specific value.
-      if (value === 'bold') {
-        const isCurrentlyBold = currentVal === '700' || currentVal === 'bold' || parseInt(currentVal) >= 700;
-        newValue = isCurrentlyBold ? '400' : '700';
-      } else {
-        newValue = value;
-      }
-    } else if (property === 'fontStyle') {
-      newValue = currentVal === 'italic' ? 'normal' : 'italic';
-    } else if (property === 'textDecorationLine' || property === 'textDecoration') {
-      const isUnderline = currentVal.includes('underline');
-      const isLineThrough = currentVal.includes('line-through');
-      let nextUnderline = isUnderline;
-      let nextLineThrough = isLineThrough;
-
-      if (value === 'underline') nextUnderline = !isUnderline;
-      if (value === 'line-through') nextLineThrough = !isLineThrough;
-
-      const parts = [];
-      if (nextUnderline) parts.push('underline');
-      if (nextLineThrough) parts.push('line-through');
-      newValue = parts.join(' ') || 'none';
-    } else if (property === 'textAlign') {
-      newValue = currentVal === value ? 'left' : value; // Toggle logic if needed
-    } else if (property === 'listStyleType') {
-      newValue = currentVal === value ? 'none' : value;
-      el.style.display = newValue === 'none' ? 'block' : 'list-item';
-      el.style.marginLeft = newValue === 'none' ? '0px' : '20px';
+    if (property === 'fontFamily') setFontFamily(value.replace(/['\"]/g, '').split(',')[0]);
+    if (property === 'fontSize') setFontSize(parseInt(value));
+    if (property === 'fontWeight') setFontWeight(value.toString());
+    if (property === 'fontStyle') setFontStyle(value);
+    if (property === 'textDecorationLine' || property === 'textDecoration') setTextDecoration(value);
+    if (property === 'textAlign') setTextAlign(value);
+    if (property === 'letterSpacing') {
+      const numVal = value === 'Auto' || value === '' ? 0 : parseFloat(value);
+      setLetterSpacing(numVal);
     }
-    // For SVG text elements, apply SVG attributes instead of CSS style properties
-    const isSvgTextEl = ['text', 'tspan'].includes(el.tagName?.toLowerCase());
-    if (isSvgTextEl) {
-      const svgAttrMap = {
-        fontFamily: 'font-family',
-        fontSize: 'font-size',
-        fontWeight: 'font-weight',
-        fontStyle: 'font-style',
-        letterSpacing: 'letter-spacing',
-        textDecoration: 'text-decoration',
-        textDecorationLine: 'text-decoration',
-      };
-      if (property === 'textAlign') {
-        const anchorMap = { left: 'start', center: 'middle', right: 'end' };
-        el.setAttribute('text-anchor', anchorMap[newValue] || 'start');
-      } else if (property === 'fontSize') {
-        el.setAttribute('font-size', parseInt(newValue));
-      } else if (property === 'textTransform') {
-        // SVG text-transform is a CSS property, apply via style
-        el.style.textTransform = newValue;
-      } else if (property === 'lineHeight') {
-        // lineHeight isn't a native SVG attribute; apply via style
-        el.style.lineHeight = newValue;
-      } else if (svgAttrMap[property]) {
-        const attrVal = newValue.toString().replace('px', '');
-        if (attrVal === 'none' || attrVal === 'normal' || attrVal === '') {
-          el.removeAttribute(svgAttrMap[property]);
-        } else {
-          el.setAttribute(svgAttrMap[property], attrVal);
+    if (property === 'lineHeight') {
+      const numVal = value === 'Auto' || value === '' ? 1.2 : parseFloat(value);
+      setLineHeight(numVal);
+      
+      // SVG text: line-height is applied via dy attributes on tspan children
+      if (selectedLayerId) {
+        const el = document.getElementById(selectedLayerId);
+        if (el && el.tagName.toLowerCase() === 'text') {
+          el.setAttribute('data-line-height', numVal.toString());
+          const tspans = Array.from(el.querySelectorAll('tspan'));
+          tspans.forEach((tspan, i) => {
+            if (i > 0) tspan.setAttribute('dy', `${numVal.toFixed(2)}em`);
+          });
+          // Persist to pages state
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-line-height', numVal.toString());
+          // Also re-serialize tspan dy values into page HTML via a DOM sync
+          const svgRoot = el.ownerSVGElement || el.closest('svg');
+          if (svgRoot) {
+            const container = svgRoot.closest('[data-page-index]');
+            if (container) {
+              const pageIdx2 = parseInt(container.getAttribute('data-page-index'));
+              setPages(prev => {
+                const next = [...prev];
+                const page = { ...next[pageIdx2] };
+                if (!page.html) return prev;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(page.html, 'image/svg+xml');
+                const docEl = doc.getElementById(selectedLayerId);
+                if (docEl) {
+                  docEl.setAttribute('data-line-height', numVal.toString());
+                  const docTspans = Array.from(docEl.querySelectorAll('tspan'));
+                  docTspans.forEach((ts, i) => {
+                    if (i > 0) ts.setAttribute('dy', `${numVal.toFixed(2)}em`);
+                  });
+                  page.html = new XMLSerializer().serializeToString(doc.documentElement);
+                  next[pageIdx2] = page;
+                  onUpdate(page.html);
+                }
+                return next;
+              });
+            }
+          }
+        } else if (el) {
+          // For foreignObject / div elements, CSS line-height works fine
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'lineHeight', numVal.toString());
         }
       }
-    } else {
-      el.style[property] = newValue;
+      return;
     }
+    if (property === 'textTransform') setTextTransform(value);
+    
+    if (property === 'listStyleType') {
+      setListStyleType(value);
+      // Transform text content to list
+      let lines = textContent.split('\n').map(l => l.trim());
+      if (value === 'disc') {
+        lines = lines.map(line => {
+          if (line.startsWith('• ')) return line;
+          if (line.match(/^\d+\. /)) return line.replace(/^\d+\. /, '• ');
+          return '• ' + line;
+        });
+      } else if (value === 'decimal') {
+        lines = lines.map((line, i) => {
+          const prefix = `${i + 1}. `;
+          if (line.startsWith('• ')) return line.replace('• ', prefix);
+          if (line.match(/^\d+\. /)) return line.replace(/^\d+\. /, prefix);
+          return prefix + line;
+        });
+      } else if (value === 'none') {
+        lines = lines.map(line => line.replace(/^(• |\d+\. )/, ''));
+      }
+      const newText = lines.join('\n');
+      setTextContent(newText);
+      
+      // Live DOM Update for instant feedback
+      const el = document.getElementById(selectedLayerId);
+      if (el) {
+        if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+          el.firstElementChild.innerHTML = newText.replace(/\n/g, '<br/>');
+        } else if (el.tagName.toLowerCase() === 'text') {
+          // Triggering a local update will rebuild tspans
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
+        }
+      }
+      
+      if (selectedLayerId && el?.tagName.toLowerCase() !== 'text') {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
+      }
+      return; 
+    }
+    
+    if (selectedLayerId) {
+      // Direct DOM manipulation for instant feedback during editing
+      const el = document.getElementById(selectedLayerId);
+      if (el) {
+        const styleProp = STYLE_MAP[property];
+        if (styleProp) {
+          const finalVal = property === 'fontSize' && !value.toString().includes('px') ? `${value}px` : value;
+          
+          if (el.tagName.toLowerCase() === 'foreignobject') {
+            if (el.firstElementChild) {
+              el.firstElementChild.style[styleProp] = finalVal;
+            }
+          } else {
+            // SVG text element — set both CSS style and SVG presentation attribute
+            el.style[styleProp] = finalVal;
+            const svgAttrName = SVG_ATTR_MAP[property] || property;
+            if (property === 'textAlign') {
+              const anchorVal = TEXT_ALIGN_TO_ANCHOR[value] || 'start';
+              el.setAttribute('text-anchor', anchorVal);
+            } else {
+              el.setAttribute(svgAttrName, finalVal);
+            }
+            // Propagate to tspan children
+            const elTag = el.tagName.toLowerCase();
+            if (elTag === 'text' || elTag === 'g') {
+              Array.from(el.querySelectorAll('tspan')).forEach(child => {
+                child.style[styleProp] = finalVal;
+                if (property === 'textAlign') {
+                  child.setAttribute('text-anchor', TEXT_ALIGN_TO_ANCHOR[value] || 'start');
+                } else {
+                  child.setAttribute(svgAttrName, finalVal);
+                }
+              });
+            }
+          }
+          
+          // Also update the editing overlay if it exists!
+          // Search globally within the SVG for the active editing box
+          const svgRoot = el.ownerSVGElement || el.closest('svg');
+          const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+          if (overlay) {
+            overlay.style[styleProp] = finalVal;
+          }
+        }
+      }
 
-    // Sync state
-    if (property === 'fontFamily') setFontFamily(newValue.replace(/['\"]/g, '').split(',')[0]);
-    if (property === 'fontSize') setFontSize(parseInt(newValue));
-    if (property === 'fontWeight') setFontWeight(newValue);
-    if (property === 'fontStyle') setFontStyle(newValue);
-    if (property === 'textDecorationLine' || property === 'textDecoration') setTextDecoration(newValue);
-    if (property === 'textAlign') setTextAlign(newValue);
-    if (property === 'letterSpacing') setLetterSpacing(parseInt(newValue));
-    if (property === 'lineHeight') setLineHeight(parseFloat(newValue));
-    if (property === 'textTransform') setTextTransform(newValue);
+      const { start, end } = selectionRange;
+      if (start !== end && (property === 'fontFamily' || property === 'fontSize')) {
+        // Partial styling: Wrap selection in a span
+        const fullText = textContent;
+        const before = fullText.slice(0, start);
+        const selected = fullText.slice(start, end);
+        const after = fullText.slice(end);
 
-    // For SVG text: always re-apply full design to keep attributes in sync
-    if (isSvgTextEl) {
-      requestAnimationFrame(() => applyDesign(false));
-    } else {
-      // For HTML: if dashed/stroke, regenerate SVG background
-      const typographyProps = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 'lineHeight', 'textAlign'];
-      if (typographyProps.includes(property) && (strokeType === 'dashed' || borderThickness > 0)) {
-        requestAnimationFrame(() => requestAnimationFrame(() => applyDesign(false)));
+        // This is a simplified approach: we rebuild the innerHTML
+        // In a real app, you'd want to handle nested spans properly
+        const cssProp = property === 'fontFamily' ? 'font-family' : 'font-size';
+        const cssVal = property === 'fontSize' ? `${value}px` : value;
+        
+        // Find existing innerHTML and wrap selection
+        // For now, let's just use spans for simplicity
+        const styledText = `${before}<span style="${cssProp}: ${cssVal}">${selected}</span>${after}`;
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerHTML', styledText);
+      } else {
+        // Whole element styling: apply to container and clear child overrides for this property
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, property, value);
+        
+        // If it's a rich text element, we might need to clear internal spans to let parent style through
+        const el = document.getElementById(selectedLayerId);
+        if (el && (el.tagName.toLowerCase() === 'div' || el.tagName.toLowerCase() === 'p')) {
+          const cssProp = property === 'fontFamily' ? 'font-family' : (property === 'fontSize' ? 'font-size' : null);
+          if (cssProp) {
+            const spans = el.querySelectorAll('span');
+            spans.forEach(span => span.style.removeProperty(cssProp));
+            // Sync this change back to the main app
+            onUpdate(new XMLSerializer().serializeToString(el.ownerDocument.documentElement));
+          }
+        }
       }
     }
+  }, [selectedLayerId, activePageIndex, updateElementAttributeLocal, selectionRange, textContent, onUpdate]);
 
-    if (onUpdate) onUpdate();
-  }, [selectedElement, onUpdate, strokeType, borderThickness, applyDesign]);
+  const handleScrub = useCallback((property, startValue, step = 1) => (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const initialVal = property === 'lineHeight' ? (parseFloat(startValue) || 1.2) : (parseFloat(startValue) || 0);
+    
+    const onMouseMove = (moveEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaValue = (deltaX / 10) * step;
+      let newValue = initialVal + deltaValue;
+      
+      if (property === 'lineHeight') {
+        newValue = Math.max(0.1, parseFloat(newValue.toFixed(2)));
+      } else {
+        newValue = Math.round(newValue);
+      }
+      
+      updateStyle(property, newValue);
+    };
+    
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = 'default';
+    };
+    
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    document.body.style.cursor = 'ew-resize';
+  }, [updateStyle]);
 
   const togglePanel = (panelName) => {
     setActivePanel(activePanel === panelName ? null : panelName);
@@ -835,24 +964,40 @@ const TextEditor = ({
     return window.getComputedStyle(selectedElement)[prop] || '';
   };
 
-  const getLineHeight = () => {
-      if (!selectedElement) return 1.2;
-      const inlineLH = selectedElement.style.lineHeight;
-      // If inline is unitless number
-      if (inlineLH && /^[0-9.]+$/.test(inlineLH)) {
-        return parseFloat(inlineLH);
+  const getDeepStyle = useCallback((el, prop) => {
+    if (!el) return '';
+    const style = window.getComputedStyle(el);
+    let val = style[prop];
+    
+    // If the container style seems default/inherited, search children for a more specific style
+    if (val === 'normal' || val === '400' || val.includes('sans-serif') || val === '0px' || val === '16px') {
+      const styledChild = el.querySelector(`span[style*="${prop === 'fontFamily' ? 'font-family' : 'font-size'}"], [style*="${prop}"]`);
+      if (styledChild) {
+        return window.getComputedStyle(styledChild)[prop];
       }
-      
-      const computed = window.getComputedStyle(selectedElement);
-      const fontSize = parseFloat(computed.fontSize);
-      const lh = computed.lineHeight;
-      
-      if (lh === 'normal') return 1.2;
-      const val = parseFloat(lh);
-      
-      // If computed is in px (most likely), convert to multiplier
-      if (fontSize) return val / fontSize;
-      return 1.2;
+    }
+    return val;
+  }, []);
+
+  const calculateLineHeightMultiplier = () => {
+    const el = document.getElementById(selectedLayerId);
+    if (!el) return 1.2;
+    
+    const inlineLH = el.getAttribute('data-line-height');
+    if (inlineLH && /^[0-9.]+$/.test(inlineLH)) {
+      return parseFloat(inlineLH);
+    }
+    
+    const computed = window.getComputedStyle(el);
+    const fontSize = parseFloat(computed.fontSize);
+    const lh = computed.lineHeight;
+    
+    if (lh === 'normal') return 1.2;
+    const val = parseFloat(lh);
+    
+    // If computed is in px (most likely), convert to multiplier
+    if (fontSize) return val / fontSize;
+    return 1.2;
   };
 
   // --- EFFECTS ---
@@ -865,293 +1010,159 @@ const TextEditor = ({
     }
   }, [selectedElement]);
 
-  // Consolidated style sync: Read ALL properties from element or reset to defaults
-  useEffect(() => {
-    if (selectedElement) {
-      // Batch all state updates together
-      const isSvgTextEl = ['text', 'tspan'].includes(selectedElement.tagName?.toLowerCase());
-      const styles = window.getComputedStyle(selectedElement);
-
-      // --- 1. FILL SYNC ---
-      // For SVG text elements, fill comes from the 'fill' attribute, not CSS color
-      const attrFillColor = selectedElement.getAttribute('data-fill-color') ||
-        (isSvgTextEl ? selectedElement.getAttribute('fill') : null);
-      const attrFillOpacity = selectedElement.getAttribute('data-fill-opacity');
-      const attrFillType = selectedElement.getAttribute('data-fill-type');
-
-      let newHex = '#000000';
-      let newRgb = { r: 0, g: 0, b: 0 };
-      let newHsv = { h: 0, s: 0, v: 0 };
-      let newFillOpacity = 100;
-      let newFillType = 'solid';
-      let newGradientType = 'Linear';
-      let newGradientStops = [
-        { color: '#63D0CD', offset: 0, opacity: 100 },
-        { color: '#4B3EFE', offset: 100, opacity: 100 }
-      ];
-
-      if (attrFillColor && attrFillColor !== 'none') {
-        // Strip rgba if needed, otherwise parse hex
-        const hexMatch = attrFillColor.match(/^#[0-9a-fA-F]{3,6}$/);
-        if (hexMatch) {
-          newHex = attrFillColor;
-          const rgbObj = hexToRgb(attrFillColor);
-          newRgb = rgbObj;
-          newHsv = rgbToHsv(rgbObj.r, rgbObj.g, rgbObj.b);
-        } else {
-          const rgbaMatchF = attrFillColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-          if (rgbaMatchF) {
-            const rf = parseInt(rgbaMatchF[1]), gf = parseInt(rgbaMatchF[2]), bf = parseInt(rgbaMatchF[3]);
-            newHex = rgbToHex(rf, gf, bf);
-            newRgb = { r: rf, g: gf, b: bf };
-            newHsv = rgbToHsv(rf, gf, bf);
-          }
-        }
-      } else if (!isSvgTextEl) {
-        const colorStyle = styles.color || 'rgb(0, 0, 0)';
-        if (colorStyle !== 'transparent' && colorStyle !== 'rgba(0, 0, 0, 0)') {
-          let rf = 0, gf = 0, bf = 0;
-          const rgbaMatchF = colorStyle.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-          if (rgbaMatchF) {
-            rf = parseInt(rgbaMatchF[1]); gf = parseInt(rgbaMatchF[2]); bf = parseInt(rgbaMatchF[3]);
-          }
-          newHex = rgbToHex(rf, gf, bf);
-          newRgb = { r: rf, g: gf, b: bf };
-          newHsv = rgbToHsv(rf, gf, bf);
-        }
+  const getDeepContent = useCallback((el) => {
+    if (!el) return '';
+    
+    // 1. Check if there is an active editing overlay for this element
+    // Search the whole SVG because MainEditor appends overlays to the root SVG
+    const svgRoot = el.ownerSVGElement || el.closest('svg');
+    if (svgRoot) {
+      const editingOverlay = svgRoot.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+      // Ensure this overlay actually corresponds to our element (though usually only one exists)
+      if (editingOverlay) {
+        return editingOverlay.innerText || editingOverlay.textContent || '';
       }
-
-      if (attrFillOpacity) {
-        newFillOpacity = parseInt(attrFillOpacity);
-      } else {
-        const colorStyle = styles.color || 'rgb(0, 0, 0)';
-        if (colorStyle !== 'transparent' && colorStyle !== 'rgba(0, 0, 0, 0)') {
-          const rgbaMatchF = colorStyle.match(/rgba?\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
-          const af = rgbaMatchF ? parseFloat(rgbaMatchF[1]) : 1;
-          newFillOpacity = Math.round(af * 100);
-        }
-      }
-
-      const bgStyle = styles.backgroundImage;
-      const parsedGrad = parseGradient(bgStyle);
-      if (attrFillType === 'gradient' || parsedGrad) {
-        newFillType = 'gradient';
-        if (parsedGrad) {
-          newGradientType = parsedGrad.type;
-          newGradientStops = parsedGrad.stops;
-        }
-      }
-
-      // --- 2. STROKE PROPERTIES ---
-      const hasSvgBg = bgStyle && bgStyle.includes('data:image/svg+xml');
-      const attrStrokeType = selectedElement.getAttribute('data-stroke-type');
-      const newStrokeType = attrStrokeType || (hasSvgBg ? 'dashed' : 'solid');
-
-      const strokeWidth = parseFloat(styles.webkitTextStrokeWidth) || parseFloat(styles.borderWidth) || 0;
-      const paintOrder = styles.paintOrder || 'normal';
-      const attrStrokePos = selectedElement.getAttribute('data-stroke-position');
-      const attrThickness = selectedElement.getAttribute('data-border-thickness');
-
-      let newStrokePosition = 'outside';
-      let newBorderThickness = 0;
-
-      if (attrStrokePos) {
-        newStrokePosition = attrStrokePos;
-        newBorderThickness = parseInt(attrThickness) || 0;
-      } else {
-        let bThick = strokeWidth;
-        if (paintOrder.includes('stroke fill')) { newStrokePosition = 'outside'; bThick = strokeWidth / 2; }
-        else if (paintOrder.includes('fill stroke')) { newStrokePosition = 'inside'; bThick = strokeWidth / 2; }
-        else { newStrokePosition = 'center'; bThick = strokeWidth; }
-        newBorderThickness = Math.round(bThick);
-      }
-
-      const newDashLength = parseInt(selectedElement.getAttribute('data-dash-length')) || 4;
-      const newDashGap = parseInt(selectedElement.getAttribute('data-dash-gap')) || 4;
-      const newIsRoundCorners = selectedElement.getAttribute('data-round-corners') === 'true';
-
-      const attrStrokeColor = selectedElement.getAttribute('data-stroke-color');
-      const attrStrokeOpacity = selectedElement.getAttribute('data-stroke-opacity');
-      const attrStrokeFillType = selectedElement.getAttribute('data-stroke-fill-type');
-      const attrStrokeGradientType = selectedElement.getAttribute('data-stroke-gradient-type');
-
-      let newStrokeColor = '#';
-      let newStrokeRgb = { r: 0, g: 0, b: 0 };
-      let newStrokeHsv = { h: 0, s: 0, v: 0 };
-      let newStrokeOpacity = 100;
-      let newStrokeFillType = attrStrokeFillType || 'solid';
-      let newStrokeGradientType = attrStrokeGradientType || 'Linear';
-
-      if (attrStrokeColor && attrStrokeColor !== '#' && attrStrokeColor !== 'none') {
-        newStrokeColor = attrStrokeColor;
-        const sRgb = hexToRgb(attrStrokeColor);
-        newStrokeRgb = sRgb;
-        newStrokeHsv = rgbToHsv(sRgb.r, sRgb.g, sRgb.b);
-      } else if (newBorderThickness > 0) {
-        const sColorStyle = styles.webkitTextStrokeColor || styles.borderColor || 'rgb(0, 0, 0)';
-        if (sColorStyle === 'transparent' || sColorStyle === 'rgba(0, 0, 0, 0)') {
-          newStrokeColor = '#';
-          newBorderThickness = 0;
-        } else {
-          let rs = 0, gs = 0, bs = 0;
-          const rgbaMatchS = sColorStyle.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-          if (rgbaMatchS) {
-            rs = parseInt(rgbaMatchS[1]); gs = parseInt(rgbaMatchS[2]); bs = parseInt(rgbaMatchS[3]);
-          }
-          newStrokeColor = rgbToHex(rs, gs, bs);
-          newStrokeRgb = { r: rs, g: gs, b: bs };
-          newStrokeHsv = rgbToHsv(rs, gs, bs);
-        }
-      }
-
-      if (attrStrokeOpacity) {
-        newStrokeOpacity = parseInt(attrStrokeOpacity);
-      } else if (newBorderThickness > 0) {
-        const sColorStyle = styles.webkitTextStrokeColor || styles.borderColor || 'rgb(0, 0, 0)';
-        if (sColorStyle !== 'transparent' && sColorStyle !== 'rgba(0, 0, 0, 0)') {
-          const rgbaMatchS = sColorStyle.match(/rgba?\(\d+,\s*\d+,\s*\d+,\s*([\d.]+)\)/);
-          const as = rgbaMatchS ? parseFloat(rgbaMatchS[1]) : 1;
-          newStrokeOpacity = Math.round(as * 100);
-        }
-      }
-
-      // Apply all state updates in one batch
-      setHex(newHex);
-      setInitialColor(newHex);
-      setRgb(newRgb);
-      setHsv(newHsv);
-      setFillOpacity(newFillOpacity);
-      setFillType(newFillType);
-      setGradientType(newGradientType);
-      setGradientStops(newGradientStops);
-
-      setStrokeColor(newStrokeColor);
-      setStrokeRgb(newStrokeRgb);
-      setStrokeHsv(newStrokeHsv);
-      setStrokeOpacity(newStrokeOpacity);
-      setStrokeType(newStrokeType);
-      setStrokePosition(newStrokePosition);
-      setStrokeFillType(newStrokeFillType);
-      setStrokeGradientType(newStrokeGradientType);
-      setBorderThickness(newBorderThickness);
-      setDashLength(newDashLength);
-      setDashGap(newDashGap);
-      setIsRoundCorners(newIsRoundCorners);
-      // Text content: SVG elements use textContent, HTML elements use innerText
-      // Also check for an active inline-edit overlay (enterTextEditMode creates a sibling foreignObject)
-      let rawText = '';
-      if (isSvgTextEl) {
-        // Check for sibling foreignObject editing overlay first (it has the live content)
-        const editingOverlay = selectedElement.parentNode?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-        if (editingOverlay) {
-          rawText = editingOverlay.innerText ?? editingOverlay.textContent ?? '';
-        } else {
-          const tspans = Array.from(selectedElement.querySelectorAll('tspan'));
-          rawText = tspans.length > 0
-            ? tspans.map(t => t.textContent).join('\n')
-            : (selectedElement.textContent ?? '');
-        }
-      } else {
-        rawText = selectedElement.innerText ?? selectedElement.textContent ?? '';
-      }
-      setTextContent(rawText);
-
-      // Font sync: SVG text uses attributes; HTML elements use computed styles
-      let syncedFont, syncedSize, syncedWeight, syncedAlign, syncedSpacing, syncedLH;
-      if (isSvgTextEl) {
-        syncedFont = selectedElement.getAttribute('font-family')?.replace(/['"]/g, '') || 'Arial';
-        syncedSize = parseInt(selectedElement.getAttribute('font-size')) || parseInt(styles.fontSize) || 16;
-        syncedWeight = selectedElement.getAttribute('font-weight') || styles.fontWeight || '400';
-        const anchor = selectedElement.getAttribute('text-anchor') || 'start';
-        const anchorToAlign = { start: 'left', middle: 'center', end: 'right' };
-        syncedAlign = anchorToAlign[anchor] || 'left';
-        syncedSpacing = parseInt(selectedElement.getAttribute('letter-spacing')) || 0;
-        syncedLH = 1.2;
-      } else {
-        syncedFont = styles.fontFamily.replace(/['"]/g, '').split(',')[0] || 'Arial';
-        syncedSize = parseInt(styles.fontSize) || 16;
-        syncedWeight = styles.fontWeight || '400';
-        syncedAlign = styles.textAlign || 'left';
-        syncedSpacing = parseInt(styles.letterSpacing) || 0;
-        syncedLH = styles.lineHeight === 'normal' ? 1.2 : (parseFloat(styles.lineHeight) / syncedSize || 1.2);
-      }
-      const syncedStyle = styles.fontStyle || 'normal';
-      const syncedDecoration = styles.textDecoration || 'none';
-      const syncedTransform = styles.textTransform || 'none';
-
-      setFontFamily(syncedFont);
-      setFontSize(syncedSize);
-      setFontWeight(syncedWeight);
-      setTextAlign(syncedAlign);
-      setLetterSpacing(syncedSpacing);
-      setLineHeight(syncedLH);
-      setFontStyle(syncedStyle);
-      setTextDecoration(syncedDecoration);
-      setTextTransform(syncedTransform);
-
-      // Use requestAnimationFrame to ensure all state updates are committed before ending sync
-      requestAnimationFrame(() => {
-        isSyncingRef.current = false;
-        setIsSyncing(false);
-        skipNextOnUpdateRef.current = true;
-      });
     }
+
+    const tag = el.tagName.toLowerCase();
+    // 2. Handle SVG <text> with <tspan> children
+    if (tag === 'text') {
+      const tspans = Array.from(el.querySelectorAll('tspan'));
+      if (tspans.length > 0) return tspans.map(t => t.textContent).join('\n');
+    }
+    
+    // 3. Handle foreignObject child (div/p) - innerText converts <br/> to \n
+    return el.innerText || el.textContent || '';
+  }, []);
+
+  // --- CONSOLIDATED SYNCHRONIZATION EFFECT ---
+  // This effect handles both the initial load of properties and real-time sync from canvas
+  useEffect(() => {
+    if (!selectedLayerId) return;
+
+    const syncFromCanvas = () => {
+      // Don't sync from canvas if the user is currently typing in the property panel
+      if (document.activeElement === textareaRef.current) return;
+
+      const el = document.getElementById(selectedLayerId);
+      if (!el) return;
+
+      // Update text content
+      // GUARD: Do not overwrite the textarea if the user is currently typing in it
+      if (!isTypingRef.current && document.activeElement !== textareaRef.current) {
+        const content = getDeepContent(el);
+        setTextContent(content);
+      }
+
+      // Update styles (only on selection change or if not typing)
+      if (!isTypingRef.current) {
+        const ff = getDeepStyle(el, 'fontFamily');
+        const fs = getDeepStyle(el, 'fontSize');
+        const style = window.getComputedStyle(el);
+
+        if (ff) setFontFamily(ff.replace(/['\"]/g, '').split(',')[0]);
+        if (fs) setFontSize(parseInt(fs));
+        
+        const weight = style.fontWeight;
+        const normalizedWeight = weight === 'bold' ? '700' : (weight === 'normal' ? '400' : weight);
+        if (normalizedWeight) setFontWeight(normalizedWeight.toString());
+        
+        if (style.fontStyle) setFontStyle(style.fontStyle);
+        if (style.textDecoration) setTextDecoration(style.textDecoration);
+        if (style.textAlign) setTextAlign(style.textAlign);
+        if (style.textTransform) setTextTransform(style.textTransform);
+        
+        // Sync Letter Spacing
+        if (style.letterSpacing && style.letterSpacing !== 'normal') {
+          setLetterSpacing(parseFloat(style.letterSpacing));
+        } else {
+          setLetterSpacing(0);
+        }
+
+        // Sync Line Height
+        const lh = calculateLineHeightMultiplier();
+        setLineHeight(lh);
+
+        // Sync Effects
+        syncTextEffect(null, el);
+      }
+    };
+
+    // Initial sync
+    syncFromCanvas();
+
+    // 1. Real-time sync for direct canvas editing (contenteditable)
+    const handleGlobalInput = (e) => {
+      // If the input happened inside an editing overlay, trigger sync
+      if (e.target.closest('foreignObject[data-editing="true"]')) {
+        syncFromCanvas();
+      }
+    };
+    
+    // 2. Observer for DOM changes (like when MainEditor finishes editing and swaps fo for text)
+    const el = document.getElementById(selectedLayerId);
+    let observer = null;
+    if (el) {
+      observer = new MutationObserver((mutations) => {
+        // Optimization: only sync if relevant nodes changed
+        syncFromCanvas();
+      });
+      
+      // Observe the element itself and its parent (for sibling overlays)
+      observer.observe(el, { characterData: true, childList: true, subtree: true });
+      if (el.parentNode) {
+        observer.observe(el.parentNode, { childList: true, subtree: true });
+      }
+    }
+
+    window.addEventListener('input', handleGlobalInput, true);
+    
+    return () => {
+      window.removeEventListener('input', handleGlobalInput, true);
+      observer?.disconnect();
+    };
+  }, [selectedLayerId, getDeepContent, getDeepStyle]);
+
+  const handleTextSelection = useCallback(() => {
+    if (!textareaRef.current || !selectedElement) return;
+    const { selectionStart, selectionEnd } = textareaRef.current;
+    setSelectionRange({ start: selectionStart, end: selectionEnd });
+
+    // Detection logic: Find the node at selectionStart and fetch its style
+    let currentPos = 0;
+    const findStyleAtPos = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const nextPos = currentPos + node.length;
+        if (selectionStart >= currentPos && selectionStart < nextPos) {
+          const style = window.getComputedStyle(node.parentElement);
+          if (style.fontFamily) setFontFamily(style.fontFamily.replace(/['\"]/g, '').split(',')[0]);
+          if (style.fontSize) setFontSize(parseInt(style.fontSize));
+          return true;
+        }
+        currentPos = nextPos;
+      } else {
+        for (const child of node.childNodes) {
+          if (findStyleAtPos(child)) return true;
+        }
+      }
+      return false;
+    };
+
+    findStyleAtPos(selectedElement);
   }, [selectedElement]);
 
 
 
   // Reset panels when selectedElement or closePanelsSignal changes
   useEffect(() => {
-    setActivePanel(null);
-    setShowFontDropdown(false);
-    setShowWeightDropdown(false);
-    setShowBorderStyleDropdown(false);
-    setShowFillTypeDropdown(false);
-    setShowGradientTypeDropdown(false);
-    setShowDashedPopup(false);
-    setShowFillPicker(false);
-    setShowStrokePicker(false);
+    setShowStrokePositionDropdown(false);
   }, [selectedElement, closePanelsSignal]);
 
 
-  // Master Design Update Effect - Only apply when style values change AND sync is complete
+  // Design update logic removed
   useEffect(() => {
-    if (!isSyncingRef.current && !isSyncing && selectedElement) {
-      const shouldNotify = !skipNextOnUpdateRef.current;
-      applyDesign(shouldNotify);
-      skipNextOnUpdateRef.current = false;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    isSyncing,
-    selectedElement,
-    hex,
-    fillOpacity,
-    fillType,
-    gradientStops,
-    gradientType,
-    strokeColor,
-    strokeOpacity,
-    strokeFillType,
-    strokeGradientType,
-    strokeGradientStops,
-    strokeType,
-    strokePosition,
-    borderThickness,
-    dashLength,
-    dashGap,
-    isRoundCorners,
-    textContent,
-    fontFamily,
-    fontSize,
-    fontWeight,
-    textAlign,
-    letterSpacing,
-    lineHeight,
-    fontStyle,
-    textDecoration,
-    textTransform
-  ]);
+    // UI only - no canvas updates
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -1160,10 +1171,8 @@ const TextEditor = ({
       if (weightRef.current && !weightRef.current.contains(event.target)) setShowWeightDropdown(false);
       if (borderStyleRef.current && !borderStyleRef.current.contains(event.target)) setShowBorderStyleDropdown(false);
       if (strokePositionRef.current && !strokePositionRef.current.contains(event.target)) setShowStrokePositionDropdown(false);
-      if (dashedRef.current && !dashedRef.current.contains(event.target)) {
-        if (!event.target.closest('.dashed-selector-trigger')) setShowDashedPopup(false);
-      }
-
+      if (strokePositionRef.current && !strokePositionRef.current.contains(event.target)) setShowStrokePositionDropdown(false);
+      
       // Close panels if clicked outside
       if (activePanel) {
         if (activePanel === 'alignment' && alignmentRef.current && !alignmentRef.current.contains(event.target) && !event.target.closest('.alignment-trigger')) setActivePanel(null);
@@ -1171,29 +1180,20 @@ const TextEditor = ({
         if (activePanel === 'case' && caseRef.current && !caseRef.current.contains(event.target) && !event.target.closest('.case-trigger')) setActivePanel(null);
         if (activePanel === 'list' && listRef.current && !listRef.current.contains(event.target) && !event.target.closest('.list-trigger')) setActivePanel(null);
       }
-      if (fillTypeRef.current && !fillTypeRef.current.contains(event.target)) setShowFillTypeDropdown(false);
-      if (gradientTypeRef.current && !gradientTypeRef.current.contains(event.target)) setShowGradientTypeDropdown(false);
-      if (strokeFillTypeRef.current && !strokeFillTypeRef.current.contains(event.target)) setShowStrokeFillTypeDropdown(false);
-      if (strokeGradientTypeRef.current && !strokeGradientTypeRef.current.contains(event.target)) setShowStrokeGradientTypeDropdown(false);
-      
-      if (fillPickerRef.current && !fillPickerRef.current.contains(event.target) && !event.target.closest('.fill-picker-trigger') && !event.target.closest('.color-picker-container')) setShowFillPicker(false);
-      if (strokePickerRef.current && !strokePickerRef.current.contains(event.target) && !event.target.closest('.stroke-picker-trigger') && !event.target.closest('.color-picker-container')) setShowStrokePicker(false);
-      if (gradientStopPickerRef.current && !gradientStopPickerRef.current.contains(event.target) && !event.target.closest('.color-picker-container')) setEditingGradientStopIndex(null);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activePanel, showFontDropdown, showFontSizeDropdown, showWeightDropdown, showBorderStyleDropdown, showDashedPopup, showFillTypeDropdown, showGradientTypeDropdown, showStrokePositionDropdown, showStrokeFillTypeDropdown, showStrokeGradientTypeDropdown]);
-
-  // Auto-focus and select text when MainEditor enters text edit mode (foreignObject creation)
+  }, [activePanel, showFontDropdown, showFontSizeDropdown, showWeightDropdown, showBorderStyleDropdown, showStrokePositionDropdown]);  // Auto-focus and sync text when MainEditor enters text edit mode (foreignObject creation)
+  // Auto-focus when MainEditor enters text edit mode (foreignObject creation)
   useEffect(() => {
-    if (!selectedElement || !selectedElement.parentNode) return;
+    if (!selectedLayerId) return;
+    const el = document.getElementById(selectedLayerId);
+    if (!el || !el.parentNode) return;
 
-    // Check if it's already editing
     const checkAndFocus = () => {
-      const editingOverlay = selectedElement.parentNode?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+      const editingOverlay = el.parentNode?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
       if (editingOverlay && document.activeElement !== editingOverlay) {
         editingOverlay.focus();
-        // Select all text natively
         const range = document.createRange();
         range.selectNodeContents(editingOverlay);
         const sel = window.getSelection();
@@ -1202,641 +1202,326 @@ const TextEditor = ({
       }
     };
 
-    // Run initially in case it's already open
     checkAndFocus();
-
-    // Observe parent for the foreignObject being added
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-          checkAndFocus();
-        }
-      }
-    });
-
-    observer.observe(selectedElement.parentNode, { childList: true, subtree: true });
+    const observer = new MutationObserver(checkAndFocus);
+    observer.observe(el.parentNode, { childList: true });
 
     return () => observer.disconnect();
-  }, [selectedElement]);
+  }, [selectedLayerId]);
 
   if (!selectedElement) return null;
 
   return (
-    <div className="relative flex items-start gap-4 justify-end font-sans">
+    <div className="w-full space-y-[1vw] font-sans text-gray-800">
+      {/* Header */}
+      <div className="flex items-center gap-[0.75vw]">
+        <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Text Property</h2>
+        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+      </div>
 
-      {/* DASHED POPUP (Redesigned per Screenshot 4) */}
-      {showDashedPopup && (
-        <div ref={dashedRef} className="fixed top-[16vw] w-[15vw] right-[23.5vw] bg-white border border-gray-200 rounded-[1vw] shadow-2xl z-[300] overflow-hidden">
-          <div className="p-[1vw] space-y-[1vw]">
-            <div className="flex items-center gap-[0.75vw]">
-              <span className="font-bold text-[0.9vw] text-gray-800">Dashed</span>
-              <div className="h-[1px] flex-grow bg-gray-200"></div>
+      {/* Scrollable Toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
+        <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
+        <button
+          onClick={() => {
+            const nextValue = !isScrollable;
+            setIsScrollable(nextValue);
+            if (selectedLayerId) {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollable', nextValue.toString());
+            }
+          }}
+          className={`w-[2.2vw] h-[1.1vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
+        >
+          <div className={`w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
+        </button>
+      </div>
+
+      {/* Text Area */}
+      <div className="relative border border-gray-400 rounded-[0.75vw] p-[0.75vw]">
+        <textarea
+          ref={textareaRef}
+          value={textContent}
+          onChange={(e) => {
+            isTypingRef.current = true;
+            const newVal = e.target.value;
+            setTextContent(newVal);
+            
+            // 1. Instant DOM Preview: Update the live element or overlay immediately
+            if (selectedLayerId) {
+              const el = document.getElementById(selectedLayerId);
+              const svgRoot = el?.ownerSVGElement || el?.closest('svg');
+              const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+              
+              if (overlay) {
+                overlay.innerText = newVal;
+              } else if (el) {
+                // If no overlay, we still want a fast preview on the element itself if possible
+                // (Note: updateElementAttributeLocal also does this, but after a React cycle)
+                if (el.tagName.toLowerCase() === 'text') {
+                  // Rebuilding tspans manually is complex, so we'll let the debounced update handle it
+                } else if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+                  el.firstElementChild.innerHTML = newVal.replace(/\n/g, '<br/>');
+                }
+              }
+            }
+
+            // 2. Debounced State Sync: Update the underlying state after typing stops
+            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+            typingTimerRef.current = setTimeout(() => {
+              if (selectedLayerId) {
+                updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newVal);
+              }
+              isTypingRef.current = false;
+            }, 400); // 400ms debounce for performance
+          }}
+          onBlur={() => {
+            // Ensure final content is saved immediately on blur
+            if (selectedLayerId) {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', textContent);
+            }
+            isTypingRef.current = false;
+          }}
+          onSelect={handleTextSelection}
+          onKeyUp={handleTextSelection}
+          onMouseUp={handleTextSelection}
+          onDoubleClick={(e) => e.target.select()}
+          placeholder="Enter text here"
+          className="w-full h-[4vw] bg-transparent resize-none outline-none text-[0.85vw] text-gray-400 placeholder-gray-300 "
+        />
+        <div className="absolute bottom-[0.75vw] right-[0.75vw]">
+          <PencilLine size="1vw" className="text-gray-600" />
+        </div>
+      </div>
+
+      {/* Font Selectors Row 1 */}
+      <div className="flex gap-[0.65vw]">
+        <div className="relative flex-[1.5]" ref={dropdownRef}>
+          <button
+            onClick={() => setShowFontDropdown(!showFontDropdown)}
+            className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
+          >
+            <span className="text-[0.85vw] truncate" style={{ fontFamily }}>{fontFamily}</span>
+            <ChevronDown size="1vw" className="text-gray-500" />
+          </button>
+          {showFontDropdown && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-[0.75vw] shadow-lg max-h-[12vw] overflow-y-auto">
+              {fontFamilies.map(font => (
+                <div key={font} onClick={() => { updateStyle('fontFamily', font); setShowFontDropdown(false); }} className="px-[0.75vw] py-[0.4vw] hover:bg-gray-100 cursor-pointer text-[0.85vw]" style={{ fontFamily: font }}>{font}</div>
+              ))}
             </div>
-
-            <div className="space-y-[1vw]">
-              {/* Position Dropdown */}
-              <div className="flex items-center justify-between">
-                <span className="text-[0.8vw] font-medium text-gray-700">Position :</span>
-                <div className="relative" ref={strokePositionRef}>
-                  <div
-                    onClick={() => setShowStrokePositionDropdown(!showStrokePositionDropdown)}
-                    className="w-[8vw] h-[2.5vw] px-[0.75vw] bg-gray-50 border border-gray-200 rounded-[0.75vw] flex items-center justify-between cursor-pointer hover:border-blue-400 transition-colors shadow-sm"
-                  >
-                    <span className="text-[0.75vw] font-semibold text-gray-700 capitalize">{strokePosition}</span>
-                    <ChevronDown size="0.9vw" className="text-gray-500" />
-                  </div>
-                  {showStrokePositionDropdown && (
-                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 rounded-[0.75vw] shadow-xl z-[310] py-1">
-                      {['outside', 'center', 'inside'].map(pos => (
-                        <div
-                          key={pos}
-                          onClick={() => {
-                            setStrokePosition(pos);
-                            setShowStrokePositionDropdown(false);
-                          }}
-                          className="px-[0.75vw] py-[0.5vw] text-[0.75vw] hover:bg-blue-50 hover:text-blue-600 cursor-pointer capitalize font-medium"
-                        >
-                          {pos}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="h-[1px] w-full bg-gray-100"></div>
-
-              {/* Length Stepper */}
-              <div className="flex items-center justify-between">
-                <span className="text-[0.8vw] font-medium text-gray-700">Length :</span>
-                <div className="flex items-center gap-[0.25vw]">
-                  <button
-                    onClick={() => setDashLength(Math.max(1, dashLength - 1))}
-                    className="w-[1.5vw] h-[1.5vw] flex items-center justify-center hover:text-blue-600 transition-colors text-gray-400"
-                  ><ChevronLeft size="1vw" /></button>
-                  <div className="w-[3.2vw] h-[2.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-center font-bold text-[0.85vw] text-gray-800 bg-white shadow-[inset_0_0.1vw_0.1vw_rgba(0,0,0,0.05)]">
-                    {dashLength}
-                  </div>
-                  <button
-                    onClick={() => setDashLength(dashLength + 1)}
-                    className="w-[1.5vw] h-[1.5vw] flex items-center justify-center hover:text-blue-600 transition-colors text-gray-400"
-                  ><ChevronRight size="1vw" /></button>
-                </div>
-              </div>
-
-              {/* Gap Stepper */}
-              <div className="flex items-center justify-between">
-                <span className="text-[0.8vw] font-medium text-gray-700">Gap :</span>
-                <div className="flex items-center gap-[0.25vw]">
-                  <button
-                    onClick={() => setDashGap(Math.max(1, dashGap - 1))}
-                    className="w-[1.5vw] h-[1.5vw] flex items-center justify-center hover:text-blue-600 transition-colors text-gray-400"
-                  ><ChevronLeft size="1vw" /></button>
-                  <div className="w-[3.2vw] h-[2.5vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-center font-bold text-[0.85vw] text-gray-800 bg-white shadow-[inset_0_0.1vw_0.1vw_rgba(0,0,0,0.05)]">
-                    {dashGap}
-                  </div>
-                  <button
-                    onClick={() => setDashGap(dashGap + 1)}
-                    className="w-[1.5vw] h-[1.5vw] flex items-center justify-center hover:text-blue-600 transition-colors text-gray-400"
-                  ><ChevronRight size="1vw" /></button>
-                </div>
-              </div>
-
-              <div className="h-[1px] w-full bg-gray-100"></div>
-
-              {/* Round Corners Toggle */}
-              <div className="flex items-center justify-between">
-                <span className="text-[0.8vw] font-medium text-gray-700">Round Corners :</span>
-                <div
-                  onClick={() => setIsRoundCorners(!isRoundCorners)}
-                  className={`w-[2.8vw] h-[1.4vw] rounded-full p-[0.2vw] cursor-pointer transition-colors duration-200 ${isRoundCorners ? 'bg-blue-600' : 'bg-gray-200 border border-gray-300'}`}
-                >
-                  <div className={`w-[1vw] h-[1vw] bg-white rounded-full transition-transform duration-200 ${isRoundCorners ? 'translate-x-[1.3vw] shadow-sm' : 'translate-x-0 border border-gray-200'}`}></div>
-                </div>
-              </div>
+          )}
+        </div>
+        <div className="relative flex-1" ref={fontSizeRef}>
+          <button
+            onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)}
+            className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
+          >
+            <span className="text-[0.85vw]">{fontSize}</span>
+            <ChevronDown size="1vw" className="text-gray-500" />
+          </button>
+          {showFontSizeDropdown && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-[0.75vw] shadow-lg max-h-[12vw] overflow-y-auto">
+              {[2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 96, 128].map(size => (
+                <div key={size} onClick={() => { updateStyle('fontSize', size); setShowFontSizeDropdown(false); }} className="px-[0.75vw] py-[0.4vw] hover:bg-gray-100 cursor-pointer text-[0.85vw] text-center">{size}</div>
+              ))}
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Font Selectors Row 2 */}
+      <div className="flex gap-[0.65vw]">
+        <div className="relative flex-1" ref={weightRef}>
+          <button
+            onClick={() => setShowWeightDropdown(!showWeightDropdown)}
+            className="w-[8vw] h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
+          >
+            <span className="text-[0.85vw] truncate">{fontWeights.find(w => w.value === fontWeight.toString())?.name || 'Regular'}</span>
+            <ChevronDown size="1vw" className="text-gray-500" />
+          </button>
+          {showWeightDropdown && (
+            <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-[0.75vw] shadow-lg max-h-[12vw] overflow-y-auto">
+              {fontWeights.map(w => (
+                <div key={w.value} onClick={() => { updateStyle('fontWeight', w.value); setShowWeightDropdown(false); }} className="px-[0.75vw] py-[0.4vw] hover:bg-gray-100 cursor-pointer text-[0.85vw]">{w.name}</div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="flex-1 flex items-center justify-between border border-gray-400 rounded-[0.75vw] px-[0.6vw] h-[2.5vw] bg-white focus-within:border-indigo-500 transition-colors">
+          <input 
+            type="text"
+            value={letterSpacing === 0 ? 'Auto' : letterSpacing}
+            onChange={(e) => {
+              const val = e.target.value === 'Auto' || e.target.value === '' ? 0 : parseFloat(e.target.value);
+              if (!isNaN(val)) updateStyle('letterSpacing', val);
+            }}
+            onFocus={(e) => { if(e.target.value === 'Auto') e.target.value = ''; }}
+            onBlur={(e) => { if(e.target.value === '') e.target.value = 'Auto'; }}
+            className="w-full bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium"
+          />
+          <div 
+            className="flex items-center border-l border-gray-300 pl-[0.4vw] ml-[0.4vw] cursor-ew-resize active:text-indigo-600"
+            onMouseDown={handleScrub('letterSpacing', letterSpacing, 1)}
+          >
+            <Icon icon="solar:paragraph-spacing-bold" className="w-[1.2vw] h-[1.2vw] text-gray-600 rotate-90 pointer-events-none" />
           </div>
         </div>
-      )}
-
-      {/* UNIFIED COLOR PICKER PORTAL */}
-      {(showFillPicker || showStrokePicker) && createPortal(
-        <>
-          <div 
-            className="fixed inset-0 z-[299] bg-transparent" 
-            onClick={() => {
-              setShowFillPicker(false);
-              setShowStrokePicker(false);
-              setShowDetailedControls(false);
-              setShowDetailedStrokeControls(false);
+        <div className="flex-1 flex items-center justify-between border border-gray-400 rounded-[0.75vw] px-[0.6vw] h-[2.5vw] bg-white focus-within:border-indigo-500 transition-colors">
+          <input 
+            type="text"
+            value={lineHeight === 1.2 ? 'Auto' : lineHeight}
+            onChange={(e) => {
+              const val = e.target.value === 'Auto' || e.target.value === '' ? 1.2 : parseFloat(e.target.value);
+              if (!isNaN(val)) updateStyle('lineHeight', val);
             }}
-          ></div>
+            onFocus={(e) => { if(e.target.value === 'Auto') e.target.value = ''; }}
+            onBlur={(e) => { if(e.target.value === '') e.target.value = 'Auto'; }}
+            className="w-full bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium"
+          />
           <div 
-            className="fixed z-[300] animate-in fade-in zoom-in-95 duration-200"
-            style={{ 
-              top: '50%',
-              right: '22vw', 
-              transform: 'translateY(-50%)'
-            }}
+            className="flex items-center border-l border-gray-300 pl-[0.4vw] ml-[0.4vw] cursor-ew-resize active:text-indigo-600"
+            onMouseDown={handleScrub('lineHeight', lineHeight, 0.1)}
           >
-            <ColorPicker 
-              color={(() => {
-                if (showFillPicker) {
-                  if (fillType === 'gradient') {
-                    return generateGradientString(gradientType, gradientStops.map(s => ({ ...s, opacity: s.opacity })), 0, 100);
-                  }
-                  return hex;
-                }
-                if (showStrokePicker) {
-                  if (strokeFillType === 'gradient') {
-                    return generateGradientString(strokeGradientType, strokeGradientStops.map(s => ({ ...s, opacity: s.opacity })), 0, 100);
-                  }
-                  return strokeColor;
-                }
-                return '#000000';
-              })()}
-              onChange={(newVal) => {
-                if (showFillPicker) {
-                  if (newVal.includes('gradient')) {
-                    const parsed = parseGradient(newVal);
-                    if (parsed) {
-                      setFillType('gradient');
-                      setGradientType(parsed.type);
-                      setGradientStops(parsed.stops.map(s => ({
-                        color: s.color,
-                        offset: s.offset,
-                        opacity: s.opacity
-                      })));
-                      applyGradient(parsed.stops);
-                    }
-                  } else {
-                    updateColorFromHex(newVal);
-                    setFillType('solid');
-                  }
-                } else if (showStrokePicker) {
-                  if (newVal.includes('gradient')) {
-                    const parsed = parseGradient(newVal);
-                    if (parsed) {
-                      setStrokeFillType('gradient');
-                      setStrokeGradientType(parsed.type);
-                      setStrokeGradientStops(parsed.stops.map(s => ({
-                        color: s.color,
-                        offset: s.offset,
-                        opacity: s.opacity
-                      })));
-                      applyStrokeGradient(parsed.stops);
-                    }
-                  } else {
-                    updateStrokeColorFromHex(newVal);
-                    setStrokeFillType('solid');
-                  }
-                }
-              }}
-              opacity={showFillPicker ? fillOpacity : (showStrokePicker ? strokeOpacity : 100)}
-              onOpacityChange={(newOpacity) => {
-                if (showFillPicker) {
-                  setFillOpacity(newOpacity);
-                  if (fillType === 'solid') {
-                    // Update solid fill opacity on canvas if needed
-                  }
-                } else if (showStrokePicker) {
-                  setStrokeOpacity(newOpacity);
-                }
-              }}
-              onClose={() => {
-                setShowFillPicker(false);
-                setShowStrokePicker(false);
-              }}
-              colorsOnPage={colorsOnPage}
-            />
+            <Icon icon="solar:paragraph-spacing-bold" className="w-[1.2vw] h-[1.2vw] text-gray-600 pointer-events-none" /> 
           </div>
-        </>,
-        document.body
-      )}
+        </div>
+      </div>
 
-      <div className="w-full max-w-[25vw] space-y-4 z-10 text-[#333]">
-
-        {/* TEXT SECTION */}
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
-          <div className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${activeSection === 'main' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`} onClick={() => setActiveSection(activeSection === 'main' ? null : 'main')}>
-            <div className="flex items-center gap-[0.5vw]">
-              <Type  size="1vw" className="text-gray-600"/>
-              <span className="font-semibold text-gray-900 text-[0.85vw]">Text</span>
-            </div>
-            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${activeSection === 'main' ? '' : 'rotate-180'}`} />
-          </div>
-
-          {activeSection === 'main' && (
-            <div className="p-[1.25vw] pt-0 space-y-[1.25vw] pt-4">
-
-              {/* Text Area */}
-              <div className="relative group">
-                <textarea
-                  value={textContent}
-                  onFocus={() => setIsTextareaEditable(true)}
-                  onBlur={() => {
-                    setIsTextareaEditable(false);
-                    // Save to pages[] when user stops typing and leaves the field
-                    isTypingRef.current = false;
-                    clearTimeout(typingTimerRef.current);
-                    if (onUpdate) onUpdate();
-                  }}
-                  onChange={(e) => {
-                    const newText = e.target.value;
-                    // 1. Update React state (keeps textarea controlled)
-                    setTextContent(newText);
-                    // 2. Write DIRECTLY to live DOM — instant visual update on canvas
-                    if (selectedElement) {
-                      const isSvgEl = ['text', 'tspan'].includes(selectedElement.tagName?.toLowerCase());
-                      if (isSvgEl) {
-                        const tspans = Array.from(selectedElement.querySelectorAll('tspan'));
-                        if (tspans.length > 0) {
-                          const lines = newText.split('\n');
-                          tspans.forEach((tspan, i) => {
-                            tspan.textContent = lines[i] !== undefined ? lines[i] : '';
-                          });
-                        } else {
-                          selectedElement.textContent = newText;
-                        }
-                      } else {
-                        selectedElement.innerText = newText;
-                      }
-                    }
-                    // 3. Debounce save — 600ms after last keystroke
-                    isTypingRef.current = true;
-                    clearTimeout(typingTimerRef.current);
-                    typingTimerRef.current = setTimeout(() => {
-                      isTypingRef.current = false;
-                      if (onUpdate) onUpdate();
-                    }, 600);
-                  }}
-                  placeholder="Enter your text here..."
-                  className={`w-full h-[6vw] p-[0.9vw] pr-[2.5vw] bg-white border-[0.1vw] ${isTextareaEditable ? 'border-indigo-400 ring-1 ring-indigo-200' : 'border-gray-400'} rounded-[0.75vw] resize-none outline-none text-gray-700 text-[0.85vw] focus:border-indigo-400 transition-all placeholder-gray-400 cursor-text`}
-                />
-                <div className="absolute right-[0.75vw] bottom-[0.75vw] w-[1.5vw] h-[1.5vw] rounded-[0.35vw] bg-gray-100 flex items-center justify-center pointer-events-none">
-                  <PencilLine size={12} className={`transition-colors ${isTextareaEditable ? 'text-indigo-500' : 'text-gray-400'}`} />
-                </div>
-              </div>
-
-              {/* Typography Header */}
-              <div className="flex items-center gap-2.5">
-                <span className="font-semibold text-[0.85vw] text-gray-900">Typography</span>
-                <div className="h-px flex-grow bg-gradient-to-r from-gray-200 via-gray-100 to-transparent"></div>
-              </div>
-
-              {/* Font Controls */}
-              <div className="space-y-[0.75vw]">
-                {/* Row 1: Font Family & Size */}
-                <div className="flex items-center gap-[0.65vw]">
-                  <div className="relative flex-grow h-[2.5vw]" ref={dropdownRef}>
-                    <button onClick={() => setShowFontDropdown(!showFontDropdown)} className="w-full h-full flex items-center justify-between px-[0.9vw] bg-white border-[0.1vw] border-gray-400 rounded-[0.75vw] text-[0.85vw] font-medium hover:border-indigo-300 focus:border-indigo-400 focus:ring-0 transition-all">
-                      <span className="truncate mr-2 text-gray-700" style={{ fontFamily: fontFamily }}>{fontFamily}</span>
-                      <ChevronDown size="0.9vw" className="text-gray-400 flex-shrink-0" />
-                    </button>
-                    {showFontDropdown && (
-                      <div className="absolute z-[300] mt-[0.5vw] w-full bg-white border border-gray-200 rounded-xl shadow-2xl max-h-[12vw] overflow-y-auto custom-scrollbar">
-                        {fontFamilies.map((font) => (
-                          <button 
-                            key={font} 
-                            type="button"
-                            onClick={() => { updateStyle('fontFamily', font); setShowFontDropdown(false); }} 
-                            className="w-full text-left px-[1vw] py-[0.6vw] cursor-pointer hover:bg-indigo-50 text-[0.85vw] font-medium text-gray-700 hover:text-indigo-600 transition-colors" 
-                            style={{ fontFamily: font }}
-                          >
-                            {font}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="relative w-[6.1vw] h-[2.5vw]" ref={fontSizeRef}>
-                    <div className="w-full h-full flex items-center bg-white border-[0.1vw] border-gray-400 rounded-[0.75vw] hover:border-indigo-300 focus-within:border-indigo-400 focus-within:ring-0 transition-all">
-                      <input 
-                        type="number" 
-                        className="w-full h-full pl-[0.75vw] pr-[2vw] bg-transparent text-[0.85vw] font-semibold text-gray-700 outline-none appearance-none no-spin"
-                        value={fontSize || ''}
-                        onChange={(e) => {
-                           const val = e.target.value === '' ? '' : parseInt(e.target.value);
-                           setFontSize(val);
-                           if (val !== '' && !isNaN(val) && val > 0) updateStyle('fontSize', val + 'px');
-                        }}
-                      />
-                      <button 
-                        onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)}
-                        className="absolute right-0 top-0 h-full px-[0.6vw] flex items-center justify-center text-gray-400 hover:text-indigo-500 transition-colors"
-                      >
-                        <ChevronDown size="0.9vw" />
-                      </button>
-                    </div>
-                    
-                    {showFontSizeDropdown && (
-                      <div className="absolute z-[300] mt-[0.5vw] w-full bg-white border border-gray-200 rounded-xl shadow-2xl max-h-[12vw] overflow-y-auto custom-scrollbar">
-                        {[12, 14, 16, 18, 20, 24, 32, 48, 64, 72, 96].map(size => (
-                          <button
-                            key={size}
-                            type="button"
-                            onClick={() => {
-                              updateStyle('fontSize', size + 'px');
-                              setShowFontSizeDropdown(false);
-                            }}
-                            className="w-full text-left px-[1vw] py-[0.6vw] hover:bg-indigo-50 text-[0.85vw] font-medium text-gray-700 hover:text-indigo-600 transition-colors"
-                          >
-                            {size}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Row 2: Weight, Spacing, LineHeight */}
-                <div className="flex items-center gap-[0.65vw]">
-                  <div className="relative w-[6.5vw] h-[2.5vw]" ref={weightRef}>
-                    <button onClick={() => setShowWeightDropdown(!showWeightDropdown)} className="w-full h-full flex items-center justify-between px-[0.9vw] bg-white border-[0.1vw] border-gray-400 rounded-[0.75vw] text-[0.85vw] font-medium hover:border-indigo-300 focus:border-indigo-400 focus:ring-0 transition-all">
-                      <span className="truncate text-gray-700">{fontWeights.find(w => w.value === fontWeight)?.name || 'Regular'}</span>
-                      <ChevronDown size="0.9vw" className="text-gray-400 flex-shrink-0" />
-                    </button>
-                    {showWeightDropdown && (
-                      <div className="absolute z-[300] mt-[0.5vw] w-[9vw] bg-white border border-gray-200 rounded-xl shadow-2xl max-h-[12vw] overflow-y-auto custom-scrollbar">
-                        {fontWeights.map((w) => {
-                          const isSelected = fontWeight === w.value || (w.value === '400' && fontWeight === 'normal');
-                          return (
-                            <button
-                              key={w.value}
-                              type="button"
-                              onClick={() => { updateStyle('fontWeight', w.value); setShowWeightDropdown(false); }}
-                              className={`w-full text-left px-[1vw] py-[0.6vw] cursor-pointer text-[0.85vw] font-medium transition-colors ${isSelected ? 'bg-indigo-50 text-indigo-600' : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'}`}
-                            >
-                              {w.name}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Spacing - Styled as Image (Input + Icon) */}
-                  <div className="relative w-[7.4vw] h-[2.5vw] border-[0.1vw] border-gray-400 rounded-[0.75vw] bg-white flex items-center px-[0.75vw] hover:border-indigo-300 transition-colors group">
-                     <input
-                        type="number"
-                        className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none bg-transparent appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        value={letterSpacing}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (!isNaN(val)) updateStyle('letterSpacing', val + 'px');
-                        }}
-                     />
-
-                     <Icon
-                        icon="solar:paragraph-spacing-linear"
-                        width="1.5vw"
-                        height="1.5vw"
-                        rotate={1}
-                     />
-
-                  </div>
-
-                  {/* Line Height - Styled as Image (Input + Icon) */}
-                  <div className="relative w-[7.4vw] h-[2.5vw] border-[0.1vw] border-gray-400 rounded-[0.75vw] bg-white flex items-center px-[0.75vw] hover:border-indigo-300 transition-colors group">
-                     <input
-                        type="number"
-                        step="0.1"
-                        className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none bg-transparent appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                        value={lineHeight ? lineHeight.toFixed(1) : '1.2'}
-                        onChange={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (!isNaN(val) && val > 0) updateStyle('lineHeight', val);
-                        }}
-                     />
-                     <Icon icon="solar:paragraph-spacing-linear" width="1.5vw" height="1.5vw" />
-                  </div>
-                </div>
-
-                {/* Row 3: Buttons with Popups */}
-                <div className="flex items-center gap-2 pt-0.5 relative">
-
-                  {/* Alignment */}
-                  <div className="relative" ref={alignmentRef}>
-                    <button
-                      className={`alignment-trigger w-[2.5vw] h-[2.5vw] flex items-center justify-center rounded-[0.75vw] transition-all bg-gray-200 text-gray-800 hover:bg-gray-300`}
-                      onClick={() => togglePanel('alignment')}
-                    >
-                      {textAlign === 'center' ? <AlignCenter size="1.2vw" /> : 
-                       textAlign === 'right' ? <AlignRight size="1.2vw" /> : 
-                       textAlign === 'justify' ? <AlignJustify size="1.2vw" /> : 
-                       <AlignLeft size="1.2vw" />}
-                    </button>
-                    {activePanel === 'alignment' && (
-                      <div className="absolute top-[2.8vw] left-0 z-[300] p-[0.5vw] bg-[#373d8a] rounded-[0.6vw] flex gap-[0.5vw] shadow-xl whitespace-nowrap">
-                        <button onClick={() => updateStyle('textAlign', 'left')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-gray-800 transition-colors ${textAlign === 'left' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><AlignLeft size="1.2vw" /></button>
-                        <button onClick={() => updateStyle('textAlign', 'center')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-gray-800 transition-colors ${textAlign === 'center' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><AlignCenter size="1.2vw" /></button>
-                        <button onClick={() => updateStyle('textAlign', 'right')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-gray-800 transition-colors ${textAlign === 'right' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><AlignRight size="1.2vw" /></button>
-                        <button onClick={() => updateStyle('textAlign', 'justify')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-gray-800 transition-colors ${textAlign === 'justify' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><AlignJustify size="1.2vw" /></button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Style */}
-                  <div className="relative" ref={styleRef}>
-                    <button
-                      className={`style-trigger w-[2.5vw] h-[2.5vw] flex items-center justify-center rounded-[0.75vw] transition-all bg-gray-200 text-gray-800 hover:bg-gray-300`}
-                      onClick={() => togglePanel('style')}
-                    >
-                      <Bold size="1.2vw" className={fontWeight === '700' || fontWeight === 'bold' ? 'text-indigo-600' : ''} />
-                    </button>
-                    {activePanel === 'style' && (
-                      <div className="absolute top-[2.8vw] left-[-3vw] z-[300] p-[0.5vw] bg-[#373d8a] rounded-[0.6vw] flex gap-[0.5vw] shadow-xl whitespace-nowrap">
-                        <button onClick={() => updateStyle('fontWeight', 'bold')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] font-bold text-gray-800 transition-colors ${fontWeight === '700' || fontWeight === 'bold' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}>B</button>
-                        <button onClick={() => updateStyle('fontStyle', 'italic')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] italic font-serif text-gray-800 transition-colors ${fontStyle === 'italic' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}>I</button>
-                        <button onClick={() => updateStyle('textDecoration', 'underline')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] underline text-gray-800 transition-colors ${textDecoration?.includes('underline') ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}>U</button>
-                        <button onClick={() => updateStyle('textDecoration', 'line-through')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] line-through text-gray-800 transition-colors ${textDecoration?.includes('line-through') ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><span className="line-through">S</span></button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Case */}
-                  <div className="relative" ref={caseRef}>
-                    <button
-                      className={`case-trigger w-[2.5vw] h-[2.5vw] flex items-center justify-center rounded-[0.75vw] transition-all bg-gray-200 text-gray-800 hover:bg-gray-300`}
-                      onClick={() => togglePanel('case')}
-                    >
-                      <Minus size="1.2vw" />
-                    </button>
-                    {activePanel === 'case' && (
-                      <div className="absolute top-[2.8vw] left-[-6vw] z-[300] p-[0.5vw] bg-[#373d8a] rounded-[0.6vw] flex gap-[0.5vw] shadow-xl whitespace-nowrap">
-                        <button onClick={() => updateStyle('textTransform', 'none')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] text-gray-800 transition-colors ${textTransform === 'none' || !textTransform ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><Minus size="1.2vw" /></button>
-                        <button onClick={() => updateStyle('textTransform', 'capitalize')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] font-medium text-gray-800 transition-colors ${textTransform === 'capitalize' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}>Aa</button>
-                        <button onClick={() => updateStyle('textTransform', 'uppercase')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] font-medium text-gray-800 transition-colors ${textTransform === 'uppercase' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}>AB</button>
-                        <button onClick={() => updateStyle('textTransform', 'lowercase')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] font-medium text-gray-800 transition-colors ${textTransform === 'lowercase' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}>ab</button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* List */}
-                  <div className="relative" ref={listRef}>
-                    <button
-                      className={`list-trigger w-[2.5vw] h-[2.5vw] flex items-center justify-center rounded-[0.75vw] transition-all bg-gray-200 text-gray-800 hover:bg-gray-300`}
-                      onClick={() => togglePanel('list')}
-                    >
-                      <List size="1.2vw" />
-                    </button>
-                    {activePanel === 'list' && (
-                      <div className="absolute top-[2.8vw] right-0 z-[300] p-[0.5vw] bg-[#373d8a] rounded-[0.6vw] flex gap-[0.5vw] shadow-xl whitespace-nowrap">
-                        <button type="button" onClick={() => updateStyle('listStyleType', 'disc')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] text-gray-800 transition-colors ${selectedElement?.style.listStyleType === 'disc' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><List size="1.2vw" /></button>
-                        <button type="button" onClick={() => updateStyle('listStyleType', 'square')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] text-gray-800 transition-colors ${selectedElement?.style.listStyleType === 'square' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><List size="1.2vw" /></button>
-                        <button type="button" onClick={() => updateStyle('listStyleType', 'decimal')} className={`w-[2.5vw] h-[2.5vw] rounded-[0.5vw] flex items-center justify-center text-[1.1vw] text-gray-800 transition-colors ${selectedElement?.style.listStyleType === 'decimal' ? 'bg-gray-300' : 'bg-white hover:bg-gray-100'}`}><ListOrdered size="1.2vw" /></button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Color Section */}
-              <div className="border border-gray-200 rounded-[0.75vw] overflow-hidden bg-white shadow-sm font-sans mb-3">
-                <div 
-                  className="w-full flex items-center justify-between px-[1vw] py-[1vw] cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-50" 
-                  onClick={() => setIsColorOpen(!isColorOpen)}
-                >
-                  <span className="text-[0.85vw] font-semibold text-gray-900">Color</span>
-                  <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${isColorOpen ? '' : 'rotate-180'}`} />
-                </div>
-
-                {isColorOpen && (
-                  <div className="p-[1vw] space-y-[1vw] bg-white">
-                     {/* Fill */}
-                     <div className="flex items-center gap-[0.75vw]">
-                       <span className="text-[0.85vw] font-semibold text-gray-700 min-w-[3vw]">Fill :</span>
-                       <div 
-                         onClick={() => { setShowFillPicker(!showFillPicker); setShowStrokePicker(false); setColorMode('fill'); }} 
-                         className="w-[2.5vw] h-[2.5vw] rounded-[0.5vw] border border-gray-200 cursor-pointer flex-shrink-0 shadow-sm relative overflow-hidden" 
-                         style={{ background: (hex === 'none' || hex === '#' || !hex || fillOpacity === 0) ? 'black' : (fillType === 'gradient' ? `linear-gradient(to right, ${gradientStops.map(s => s.color).join(', ')})` : hex) }}
-                       >
-                         {(hex === 'none' || hex === '#' || !hex || fillOpacity === 0) && (
-                            /* Assuming default black as per image 'Fill : [BlackBox]' */
-                           <div className="absolute inset-0 bg-black"></div>
-                         )}
-                       </div>
-                       
-                       <div className="flex-grow flex items-center border-[0.1vw] border-gray-400 rounded-[0.75vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.75vw]">
-                         <input
-                           type="text"
-                           value={hex.toUpperCase()}
-                           onChange={(e) => updateColorFromHex(e.target.value)}
-                           className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw]"
-                           maxLength={7}
-                           placeholder="#000000"
-                         />
-                         <div className="flex items-center gap-[0.1vw] ml-[0.5vw]">
-                           <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={fillOpacity}
-                              onChange={(e) => setFillOpacity(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                              className="w-[1.5vw] text-right text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                           />
-                           <span className="text-[0.75vw] font-medium text-gray-500">%</span>
-                         </div>
-                       </div>
-                     </div>
-
-                    {/* Stroke */}
-                    <div className="flex items-center gap-[0.75vw]">
-                      <span className="text-[0.85vw] font-semibold text-gray-700 min-w-[3vw]">Stoke :</span>
-                      <div
-                        onClick={() => {
-                          setShowStrokePicker(!showStrokePicker);
-                          setShowFillPicker(false);
-                          setColorMode('stroke');
-                        }}
-                        className="w-[2.5vw] h-[2.5vw] rounded-[0.5vw] border border-gray-200 cursor-pointer flex-shrink-0 shadow-sm relative overflow-hidden bg-white"
-                        style={{ background: (strokeColor === 'none' || strokeColor === '#' || !strokeColor || strokeOpacity === 0) ? 'white' : (strokeFillType === 'gradient' ? `linear-gradient(to right, ${strokeGradientStops.map(s => s.color).join(', ')})` : strokeColor) }}
-                      >
-                        {(strokeColor === 'none' || strokeColor === '#' || !strokeColor || strokeOpacity === 0) && (
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
-                        )}
-                      </div>
-                      
-                       <div className="flex-grow flex items-center border-[0.1vw] border-gray-400 rounded-[0.75vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.75vw]">
-                         <input
-                           type="text"
-                           value={strokeColor.toUpperCase()}
-                           onChange={(e) => updateStrokeColorFromHex(e.target.value)}
-                           className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw]"
-                           maxLength={7}
-                           placeholder="#"
-                         />
-                         <div className="flex items-center gap-[0.1vw] ml-[0.5vw]">
-                           <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={strokeOpacity}
-                              onChange={(e) => setStrokeOpacity(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
-                              className="w-[1.5vw] text-right text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                           />
-                           <span className="text-[0.75vw] font-medium text-gray-500">%</span>
-                         </div>
-                       </div>
-                    </div>
-
-                    {/* Settings / Dashed */}
-                    {!(strokeColor === 'none' || strokeColor === '#' || !strokeColor) && (
-                      <div className="flex items-center justify-end gap-[0.75vw] pt-[0.25vw]">
-                        <div 
-                          className="flex items-center justify-center h-[2vw] w-[2vw] hover:bg-gray-100 rounded-[0.5vw] cursor-pointer transition-colors"
-                          onClick={() => setShowDashedPopup(!showDashedPopup)}
-                        >
-                          <SlidersHorizontal size="1.2vw" className={`transition-colors ${showDashedPopup ? 'text-blue-600' : 'text-gray-600'}`} />
-                        </div>
-
-                        <div className="relative" ref={borderStyleRef}>
-                          <div className="h-[2vw] px-[0.5vw] border-[0.1vw] border-gray-400 rounded-[0.5vw] flex items-center gap-[0.5vw] cursor-pointer min-w-[7vw] justify-between group hover:border-indigo-400 transition-all font-medium bg-white" onClick={() => setShowBorderStyleDropdown(!showBorderStyleDropdown)}>
-                            <span className="text-[0.75vw] text-gray-700 ">{strokeType === 'dashed' ? 'Dashed' : 'Solid'}</span>
-                            <ChevronDown size="0.9vw" className="text-gray-500" />
-                          </div>
-                          {showBorderStyleDropdown && (
-                            <div className="absolute right-0 bottom-full mb-[0.25vw] w-[7vw] bg-white border border-gray-200 rounded-lg shadow-xl z-[300] overflow-hidden py-[0.25vw]">
-                              <div onClick={() => {
-                                setStrokeType('solid');
-                                setShowBorderStyleDropdown(false);
-                              }} className="px-[0.75vw] py-[0.5vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">Solid</div>
-                              <div onClick={() => {
-                                setStrokeType('dashed');
-                                setShowBorderStyleDropdown(false);
-                              }} className="px-[0.75vw] py-[0.5vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">Dashed</div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Dashed Settings or Thickness */}
-                        <div className="h-[2vw] min-w-[4vw] border-[0.1vw] border-gray-400 rounded-[0.5vw] flex items-center px-[0.5vw] gap-[0.5vw] bg-white hover:border-indigo-400 transition-colors">
-                            <Icon icon="material-symbols:line-weight" width="0.9vw" height="0.9vw" className="text-gray-500 flex-shrink-0" />
-                            <input
-                              type="number"
-                              value={borderThickness}
-                              onChange={(e) => setBorderThickness(Math.max(0, parseInt(e.target.value) || 0))}
-                              className="w-full text-[0.75vw] font-medium outline-none text-right bg-transparent text-gray-700 appearance-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                            />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
+      {/* Toolbar Buttons */}
+      <div className="flex gap-[0.8vw] relative">
+        {/* Alignment */}
+        <div className="relative" ref={alignmentRef}>
+          <button
+            onClick={() => togglePanel('alignment')}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
+              activePanel === 'alignment' 
+                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
+                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+            }`}
+          >
+            {textAlign === 'center' ? <AlignCenter size="1.3vw" strokeWidth={2.5} /> :
+             textAlign === 'right' ? <AlignRight size="1.3vw" strokeWidth={2.5} /> :
+             textAlign === 'justify' ? <AlignJustify size="1.3vw" strokeWidth={2.5} /> :
+             <AlignLeft size="1.3vw" strokeWidth={2.5} />}
+          </button>
+          {activePanel === 'alignment' && (
+            <div className="absolute top-[3.5vw] left-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
+              <button onClick={() => { updateStyle('textAlign', 'left'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textAlign === 'left' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><AlignLeft size="1.2vw" /></button>
+              <button onClick={() => { updateStyle('textAlign', 'center'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textAlign === 'center' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><AlignCenter size="1.2vw" /></button>
+              <button onClick={() => { updateStyle('textAlign', 'right'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textAlign === 'right' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><AlignRight size="1.2vw" /></button>
+              <button onClick={() => { updateStyle('textAlign', 'justify'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textAlign === 'justify' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><AlignJustify size="1.2vw" /></button>
             </div>
           )}
         </div>
 
-        
+        {/* Style (Bold/Italic/etc) */}
+        <div className="relative" ref={styleRef}>
+          <button
+            onClick={() => togglePanel('style')}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
+              activePanel === 'style' 
+                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
+                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+            }`}
+          >
+            <Bold size="1.3vw" strokeWidth={2.5} />
+          </button>
+          {activePanel === 'style' && (
+            <div className="absolute top-[3.5vw] left-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
+              <button onClick={() => updateStyle('fontWeight', fontWeight === '700' ? '400' : '700')} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center font-semibold transition-all ${fontWeight === '700' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>B</button>
+              <button onClick={() => updateStyle('fontStyle', fontStyle === 'italic' ? 'normal' : 'italic')} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center italic transition-all ${fontStyle === 'italic' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>I</button>
+              <button onClick={() => updateStyle('textDecoration', textDecoration === 'underline' ? 'none' : 'underline')} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center underline transition-all ${textDecoration === 'underline' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>U</button>
+              <button onClick={() => updateStyle('textDecoration', textDecoration === 'line-through' ? 'none' : 'line-through')} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textDecoration === 'line-through' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><span className="line-through">S</span></button>
+            </div>
+          )}
+        </div>
 
+        {/* Case */}
+        <div className="relative" ref={caseRef}>
+          <button
+            onClick={() => togglePanel('case')}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
+              activePanel === 'case' 
+                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
+                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+            }`}
+          >
+            <Minus size="1.3vw" strokeWidth={3} />
+          </button>
+          {activePanel === 'case' && (
+            <div className="absolute top-[3.5vw] left-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
+              <button onClick={() => { updateStyle('textTransform', 'none'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><Minus size="1.1vw" strokeWidth={3}/></button>
+              <button onClick={() => { updateStyle('textTransform', 'capitalize'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'capitalize' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>Aa</button>
+              <button onClick={() => { updateStyle('textTransform', 'uppercase'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'uppercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>AB</button>
+              <button onClick={() => { updateStyle('textTransform', 'lowercase'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'lowercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>ab</button>
+            </div>
+          )}
+        </div>
 
-
+        {/* List */}
+        <div className="relative" ref={listRef}>
+          <button
+            onClick={() => togglePanel('list')}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
+              activePanel === 'list' 
+                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
+                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+            }`}
+          >
+            {listStyleType === 'decimal' ? <ListOrdered size="1.3vw" strokeWidth={2.5} /> : <List size="1.3vw" strokeWidth={2.5} />}
+          </button>
+          {activePanel === 'list' && (
+            <div className="absolute top-[3.5vw] right-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
+              <button 
+                onClick={() => { updateStyle('listStyleType', listStyleType === 'disc' ? 'none' : 'disc'); togglePanel(null); }} 
+                className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${listStyleType === 'disc' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+              >
+                <List size="1.2vw" />
+              </button>
+              <button 
+                onClick={() => { updateStyle('listStyleType', listStyleType === 'decimal' ? 'none' : 'decimal'); togglePanel(null); }} 
+                className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${listStyleType === 'decimal' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+              >
+                <ListOrdered size="1.2vw" />
+              </button>
+              <button 
+                onClick={() => { updateStyle('listStyleType', 'none'); togglePanel(null); }} 
+                className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${listStyleType === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
+              >
+                <Minus size="1.2vw" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </div >
-  );
 
+      {/* Accordions */}
+      <div className="space-y-[0.65vw] mt-[-1vw]">
+      {/* Accordions from ShapeProperties */}
+      <div className="shape-properties-container">
+        <ShapeProperties 
+          selectedElementProps={selectedElementProps || { 
+            fill: '#000000', 
+            opacity: '1', 
+            stroke: 'none', 
+            strokeWidth: '0', 
+            tagName: 'text' 
+          }}
+          activePageIndex={activePageIndex}
+          selectedLayerId={selectedLayerId}
+          updateElementAttribute={updateElementAttributeLocal}
+        />
+      </div>
+
+      <style>{`
+        .shape-properties-container > div > div:first-child {
+          display: none !important;
+        }
+      `}</style>
+      </div>
+    </div>
+  );
 };
 
 export default TextEditor;

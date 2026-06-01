@@ -1,2255 +1,1547 @@
-import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
-import {
-  MousePointerClick,
-  Sparkles,
-  ChevronUp,
-  ChevronDown,
-  Trash2,
-  ArrowRightLeft,
-  ChevronLeft,
-  ChevronRight,
-  ExternalLink,
-  Phone,
-  ZoomIn,
-  MessageSquare,
-  Download,
-  Info,
-  Check,
-  FileText,
-  Type,
-  Maximize,
-  Edit2,
-  Zap,
-  Eye,
-  Upload,
-  Video as VideoIcon,
-  Image as ImageIcon,
-  Compass as IconIcon,
-  X,
-  RotateCcw,
-  Pipette,
-  ScanEye,
-  SlidersHorizontal,
-  Box,
-  Layers
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
-import { createPortal } from 'react-dom';
-import PopupTemplateSelection from './PopupTemplateSelection';
-import PopupPreview from './PopupPreview';
-import ColorPicker, { parseGradient } from './ColorPicker';
-import { generateGradientString } from '../CustomizedEditor/AppearanceShared';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
+import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
 
-// Helper: Hex to RGB
-const hexToRgb = (hex) => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : { r: 0, g: 0, b: 0 };
-};
+// Helper for international phone validation
+const validatePhoneNumber = (value) => {
+  if (!value) return true; // Empty is treated as valid (not yet filled)
+  // Strip non-digits
+  const clean = value.replace(/\D/g, '');
+  if (clean.length === 0) return true;
 
-// Helper: RGB to Hex
-const rgbToHex = (r, g, b) => {
-  const toHex = (n) => {
-    const hex = Math.max(0, Math.min(255, n)).toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  };
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
-};
-
-// Helper: RGB to HSV
-const rgbToHsv = (r, g, b) => {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h, s, v = max;
-  const d = max - min;
-  s = max === 0 ? 0 : d / max;
-  if (max === min) {
-    h = 0;
-  } else {
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-    }
-    h /= 6;
+  // Custom validation rules based on dial code
+  if (clean.startsWith('91')) {
+    // India: +91 followed by exactly 10 digits
+    return clean.length === 12;
   }
-  return { h: h * 360, s: s * 100, v: v * 100 };
+  if (clean.startsWith('1')) {
+    // US/Canada: +1 followed by exactly 10 digits
+    return clean.length === 11;
+  }
+  if (clean.startsWith('44')) {
+    // UK: +44 followed by exactly 10 digits
+    return clean.length === 12;
+  }
+
+  // Generic validation rule: international numbers must be between 10 and 15 digits total
+  return clean.length >= 10 && clean.length <= 15;
 };
 
-// Helper: HSV to RGB
-const hsvToRgb = (h, s, v) => {
-  h /= 360; s /= 100; v /= 100;
-  let r, g, b;
-  const i = Math.floor(h * 6);
-  const f = h * 6 - i;
-  const p = v * (1 - s);
-  const q = v * (1 - f * s);
-  const t = v * (1 - (1 - f) * s);
-  switch (i % 6) {
-    case 0: r = v; g = t; b = p; break;
-    case 1: r = q; g = v; b = p; break;
-    case 2: r = p; g = v; b = t; break;
-    case 3: r = p; g = q; b = v; break;
-    case 4: r = t; g = p; b = v; break;
-    case 5: r = v; g = p; b = q; break;
-  }
-  return { r: Math.round(r * 255), g: Math.round(g * 255), b: Math.round(b * 255) };
+
+const CallInteractionInput = ({ initialValue, onSave }) => {
+  const [localValue, setLocalValue] = useState(initialValue || '');
+  
+  const hasDigits = localValue.replace(/\D/g, '').length > 0;
+  const isInvalid = !validatePhoneNumber(localValue);
+  const isValidAndFilled = validatePhoneNumber(localValue) && hasDigits;
+
+  const borderColor = isValidAndFilled ? '#22C55E' : (isInvalid ? '#EF4444' : '#D1D5DB');
+  const textColor = isValidAndFilled ? '#22C55E' : (isInvalid ? '#EF4444' : '#374151');
+  const bgColor = isValidAndFilled ? '#F0FDF4' : (isInvalid ? '#FEF2F2' : '#F3F4F6');
+
+  useEffect(() => {
+    setLocalValue(initialValue || '');
+  }, [initialValue]);
+
+  return (
+    <div className="w-full h-full relative">
+      <PhoneInput
+        country={'in'}
+        preferredCountries={['in', 'us', 'gb']}
+        value={localValue.replace(/^\+/, '')}
+        onChange={(phone) => {
+          const formatted = phone.startsWith('+') ? phone : '+' + phone;
+          setLocalValue(formatted);
+        }}
+        onBlur={() => {
+          if (localValue !== initialValue) {
+            onSave(localValue);
+          }
+        }}
+        placeholder="1234567890"
+        containerStyle={{
+          width: '100%',
+          height: '100%'
+        }}
+        inputStyle={{
+          width: '100%',
+          height: '100%',
+          border: `1px solid ${borderColor}`,
+          borderRadius: '0.5vw',
+          fontSize: '0.8vw',
+          color: textColor,
+          fontWeight: '500',
+          paddingLeft: '3.4vw',
+          backgroundColor: '#FFFFFF',
+          outline: 'none',
+          boxShadow: 'none',
+          transition: 'border-color 0.2s'
+        }}
+        buttonStyle={{
+          backgroundColor: bgColor,
+          border: `1px solid ${borderColor}`,
+          borderRight: 'none',
+          borderRadius: '0.5vw 0 0 0.5vw',
+          width: '2.8vw',
+          height: '100%',
+          top: '0',
+          left: '0',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0'
+        }}
+        dropdownStyle={{
+          width: '14vw',
+          maxHeight: '20vh',
+          fontSize: '0.75vw',
+          borderRadius: '0.4vw',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          textAlign: 'left'
+        }}
+      />
+      {isInvalid && (
+        <div className="absolute left-[0.2vw] -bottom-[1.8vh] text-[#EF4444] text-[0.6vw] font-medium whitespace-nowrap z-10">
+          Please enter the valid number *
+        </div>
+      )}
+      {isValidAndFilled && (
+        <div className="absolute right-0 -bottom-[4vh] z-10">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSave(localValue);
+            }}
+            className="flex items-center gap-[0.3vw] bg-[#22C55E] hover:bg-[#16A34A] text-white px-[0.8vw] py-[0.5vh] rounded-[0.3vw] shadow-sm transition-colors"
+          >
+            <Icon icon="lucide:check" className="text-[0.9vw]" />
+            <span className="text-[0.7vw] font-medium">Done</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 
 const InteractionPanel = ({
-  selectedElement,
-  onUpdate,
-  onPopupPreviewUpdate,
-  isOpen,
-  onToggle,
-
-  activePopupElement,
-  onPopupUpdate,
-  TextEditorComponent,
-  ImageEditorComponent,
-  VideoEditorComponent,
-  GifEditorComponent,
-  IconEditorComponent,
+  selectedElementProps,
+  activePageIndex,
+  selectedLayerId,
+  updateElementAttribute,
   pages,
-  isFrame,
-  frameLabel,
-  forceHidden
+  flipbookDimensions = { width: 210, height: 297 },
+  onCustomizePopup
 }) => {
-  const popupFileInputRef = React.useRef(null);
-  const downloadFileInputRef = React.useRef(null);
-  const updateDebounceRef = React.useRef(null);
-  const previewDebounceRef = React.useRef(null);
-  const [internalIsOpen, setInternalIsOpen] = useState(false);
-  const [isTemplateSelectionOpen, setTemplateSelectionOpen] = useState(false);
+  const [activeTemplateSelectionId, setActiveTemplateSelectionId] = useState(null);
+  const [dimensionUnit, setDimensionUnit] = useState('px');
+  const [openCardIds, setOpenCardIds] = useState({});
+  const [isInteractionCardExpanded, setIsInteractionCardExpanded] = useState(true);
+  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
+  const [activeLayerId, setActiveLayerId] = useState(selectedLayerId || null);
+  const [urlValue, setUrlValue] = useState('');
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+  const [collapsedCardIds, setCollapsedCardIds] = useState({});
+  // Immediate local override for action type so card header updates without waiting for pages re-sync
+  const [cardActionOverrides, setCardActionOverrides] = useState({});
 
-  // Determine if open based on prop or internal state
-  const isInteractionsOpen = isOpen !== undefined ? isOpen : internalIsOpen;
-  const [interactionType, setInteractionType] = useState('none');
-  const [interactionTrigger, setInteractionTrigger] = useState('click');
-  const [zoomLevel, setZoomLevel] = useState(2);
-  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const [showTriggerDropdown, setShowTriggerDropdown] = useState(false);
-  const [showFitDropdown, setShowFitDropdown] = useState(false);
-  const [dropdownRect, setDropdownRect] = useState(null);
-  const dropdownRef = React.useRef(null);
+  // Immediate local overrides for input values and triggers to eliminate dropdown lag and system hang
+  const [itemValueOverrides, setItemValueOverrides] = useState({});
+  const [itemTriggerOverrides, setItemTriggerOverrides] = useState({});
+  const [localInputValues, setLocalInputValues] = useState({});
 
-  // Values for inputs
-  const [linkUrl, setLinkUrl] = useState('');
-  const [navPage, setNavPage] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [downloadUrl, setDownloadUrl] = useState('');
-  const [downloadCustomImage, setDownloadCustomImage] = useState(null);
+  // Audio playback state
+  const [playingAudioId, setPlayingAudioId] = useState(null);
+  const [audioPlaybackTimes, setAudioPlaybackTimes] = useState({});
+  const [audioProgressPercent, setAudioProgressPercent] = useState({});
+  const activeAudioRef = useRef(null);
 
-  // Advanced State for Popup & Tooltip
-  const [popupText, setPopupText] = useState('');
-  const [popupFont, setPopupFont] = useState('Poppins');
-  const [popupSize, setPopupSize] = useState('24');
-  const [popupWeight, setPopupWeight] = useState('Semi Bold');
-  const [popupFillColor, setPopupFillColor] = useState('#ffffff');
-  const [popupFillOpacity, setPopupFillOpacity] = useState(100);
-  const [popupStrokeColor, setPopupStrokeColor] = useState('none');
-  const [popupStrokeOpacity, setPopupStrokeOpacity] = useState(100);
-  const [popupStrokeType, setPopupStrokeType] = useState('dashed');
-  const [popupStrokeWidth, setPopupStrokeWidth] = useState(1);
-  const [showFillPicker, setShowFillPicker] = useState(false);
-  const [showStrokePicker, setShowStrokePicker] = useState(false);
-  const [popupFit, setPopupFit] = useState('Fit');
-  const [popupAutoWidth, setPopupAutoWidth] = useState(true);
-  const [popupAutoHeight, setPopupAutoHeight] = useState(true);
-  const [popupImageSrc, setPopupImageSrc] = useState('');
-  const [isHighlighted, setIsHighlighted] = useState(true);
-
-  // Dashed Settings
-  const [popupStrokeDashLength, setPopupStrokeDashLength] = useState(4);
-  const [popupStrokeDashGap, setPopupStrokeDashGap] = useState(4);
-  const [popupStrokePosition, setPopupStrokePosition] = useState('center');
-  const [popupStrokeRoundCorners, setPopupStrokeRoundCorners] = useState(false);
-  const [showDashedSettings, setShowDashedSettings] = useState(false);
-  const [showStrokePositionDropdown, setShowStrokePositionDropdown] = useState(false);
-  const dashedRef = React.useRef(null);
-  const strokePositionRef = React.useRef(null);
-  const typeTriggerRef = React.useRef(null);
-  const triggerTriggerRef = React.useRef(null);
-  // New States for Redesigned Fill/Stroke Pickers
-  const [showDetailedFillControls, setShowDetailedFillControls] = useState(false);
-  const [showDetailedStrokeControls, setShowDetailedStrokeControls] = useState(false);
-  const fillPickerRef = React.useRef(null);
-  const strokePickerRef = React.useRef(null);
-
-  // Helper to get colors used on the current page
-  const colorsOnPage = React.useMemo(() => {
-    const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    const elements = doc.querySelectorAll('[data-fill-color], [data-stroke-color], [data-popup-fill], [data-popup-stroke]');
-    const colors = new Set();
-    elements.forEach(el => {
-      const fill = el.getAttribute('data-fill-color') || el.getAttribute('data-popup-fill');
-      const stroke = el.getAttribute('data-stroke-color') || el.getAttribute('data-popup-stroke');
-      if (fill && fill !== 'none' && fill !== '#' && !fill.includes('gradient')) colors.add(fill.toUpperCase());
-      if (stroke && stroke !== 'none' && stroke !== '#' && !stroke.includes('gradient')) colors.add(stroke.toUpperCase());
-    });
-    // Add default white and black if not present
-    colors.add('#FFFFFF');
-    colors.add('#000000');
-    return Array.from(colors).slice(0, 12);
-  }, [selectedElement, pages]);
-
-  const handleToggleTypeDropdown = (e) => {
-    e.stopPropagation();
-    if (!showTypeDropdown && typeTriggerRef.current) {
-      setDropdownRect(typeTriggerRef.current.getBoundingClientRect());
-    }
-    setShowTypeDropdown(!showTypeDropdown);
-    setShowTriggerDropdown(false);
-  };
-
-  const handleToggleTriggerDropdown = (e) => {
-    e.stopPropagation();
-    if (!showTriggerDropdown && triggerTriggerRef.current) {
-      setDropdownRect(triggerTriggerRef.current.getBoundingClientRect());
-    }
-    setShowTriggerDropdown(!showTriggerDropdown);
-    setShowTypeDropdown(false);
-  };
-
-
-  const [tooltipText, setTooltipText] = useState('');
-  const [tooltipTextColor, setTooltipTextColor] = useState('#ffffff');
-  const [tooltipFillColor, setTooltipFillColor] = useState('#000000'); // Default black background for tooltip
-
-  // Frames state (for when selectedElement is an image/container)
-  const [frames, setFrames] = useState([]);
-
+  // Clean up audio on unmount
   useEffect(() => {
-    if (!selectedElement || isFrame) return;
-
-    const scanFrames = () => {
-      const doc = selectedElement.ownerDocument;
-      if (!doc) return;
-      const frameEls = doc.querySelectorAll('[data-interaction-type="frame"]');
-      setFrames(Array.from(frameEls).map(el => ({
-        id: el.id,
-        label: el.getAttribute('data-frame-label') || `Frame ${el.id.slice(-2)}`,
-        interaction: el.getAttribute('data-interaction') || 'none',
-        element: el
-      })));
-    };
-
-    scanFrames();
-    const observer = new MutationObserver(scanFrames);
-    observer.observe(selectedElement.ownerDocument.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['data-interaction', 'id']
-    });
-
-    return () => observer.disconnect();
-  }, [selectedElement, isFrame]);
-
-  // Sync state with selected element attributes on mount/change
-  useEffect(() => {
-    if (selectedElement) {
-      const type = selectedElement.getAttribute('data-interaction') || 'none';
-      const val = selectedElement.getAttribute('data-interaction-value') || '';
-      let content = selectedElement.getAttribute('data-interaction-content') || '';
-
-      // Support legacy attribute-based encoding or new prefix-based encoding
-      if (
-        selectedElement.getAttribute('data-interaction-content-encoded') === 'true' ||
-        content.startsWith('ENCODED:::')
-      ) {
-        try {
-          const raw = content.startsWith('ENCODED:::') ? content.substring(10) : content;
-          content = decodeURIComponent(raw);
-        } catch (e) {
-          console.warn('Failed to decode interaction content', e);
-          if (content.startsWith('ENCODED:::')) {
-            content = content.substring(10);
-          }
-        }
-      }
-
-      setInteractionType(type);
-      setInteractionTrigger(selectedElement.getAttribute('data-interaction-trigger') || 'click');
-      setIsHighlighted(selectedElement.getAttribute('data-interaction-highlight') !== 'false');
-
-      // Set specific input based on type
-      if (type === 'link') setLinkUrl(val);
-      else setLinkUrl('');
-
-      if (type === 'navigation') setNavPage(val || '1');
-      else setNavPage('');
-
-      if (type === 'call') setPhoneNumber(val);
-      else setPhoneNumber('');
-
-      if (type === 'zoom') setZoomLevel(Number(val) || 2);
-      else setZoomLevel(2);
-
-      if (type === 'download') {
-        setDownloadUrl(val || '');
-        setDownloadCustomImage(selectedElement.getAttribute('data-download-custom-image') || null);
-      } else {
-        setDownloadUrl('');
-        setDownloadCustomImage(null);
-      }
-
-      if (type === 'popup') {
-        setPopupText(content);
-        setPopupFont(selectedElement.getAttribute('data-popup-font') || 'Poppins');
-        setPopupSize(selectedElement.getAttribute('data-popup-size') || '24');
-        setPopupWeight(selectedElement.getAttribute('data-popup-weight') || 'Semi Bold');
-        setPopupFillColor(selectedElement.getAttribute('data-popup-fill') || '#ffffff');
-        setPopupFillOpacity(parseInt(selectedElement.getAttribute('data-popup-fill-opacity')) || 100);
-        setPopupStrokeColor(selectedElement.getAttribute('data-popup-stroke') || 'none');
-        setPopupStrokeOpacity(parseInt(selectedElement.getAttribute('data-popup-stroke-opacity')) || 100);
-        setPopupStrokeType(selectedElement.getAttribute('data-popup-stroke-type') || 'dashed');
-        setPopupStrokeWidth(parseInt(selectedElement.getAttribute('data-popup-stroke-width')) || 1);
-        setPopupStrokeDashLength(parseInt(selectedElement.getAttribute('data-popup-stroke-dash-length')) || 4);
-        setPopupStrokeDashGap(parseInt(selectedElement.getAttribute('data-popup-stroke-dash-gap')) || 4);
-        setPopupStrokePosition(selectedElement.getAttribute('data-popup-stroke-position') || 'center');
-        setPopupStrokeRoundCorners(selectedElement.getAttribute('data-popup-stroke-round-corners') === 'true');
-        setPopupFit(selectedElement.getAttribute('data-popup-fit') || 'Fit');
-        setPopupAutoWidth(selectedElement.getAttribute('data-popup-auto-width') !== 'false');
-        setPopupAutoHeight(selectedElement.getAttribute('data-popup-auto-height') !== 'false');
-        setPopupImageSrc(selectedElement.getAttribute('data-popup-image-src') || (selectedElement.tagName.toLowerCase() === 'img' ? selectedElement.src : ''));
-      } else {
-        setPopupText('');
-      }
-
-      if (type === 'tooltip') {
-        setTooltipText(content);
-        setTooltipTextColor(selectedElement.getAttribute('data-tooltip-text-color') || '#ffffff');
-        setTooltipFillColor(selectedElement.getAttribute('data-tooltip-fill-color') || '#000000');
-      } else {
-        setTooltipText('');
-      }
-    }
-  }, [selectedElement]);
-
-  // Memoized element type information to avoid expensive getComputedStyle on every render
-  const activeElementInfo = React.useMemo(() => {
-    if (!activePopupElement || typeof activePopupElement === 'string') return null;
-
-    const tagName = activePopupElement.tagName.toUpperCase();
-    const style = window.getComputedStyle(activePopupElement);
-    const hasBgImage = style?.backgroundImage && style.backgroundImage !== 'none';
-
-    const isText = ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'SPAN', 'A', 'LI', 'B', 'STRONG', 'I', 'EM', 'BUTTON'].includes(tagName)
-      || (tagName === 'DIV' && activePopupElement.children?.length === 0 && activePopupElement.textContent.trim().length > 0);
-
-    const isGif = (tagName === 'IMG' || tagName === 'IMAGE') && (activePopupElement.dataset?.mediaType === 'gif' || activePopupElement.src?.toLowerCase().endsWith('.gif') || activePopupElement.getAttribute('xlink:href')?.toLowerCase().endsWith('.gif'));
-    const isImage = ((tagName === 'IMG' || tagName === 'IMAGE') && !isGif) || (tagName === 'DIV' && hasBgImage && !isText);
-    const isVideo = tagName === 'VIDEO';
-    const isIcon = tagName === 'SVG' || tagName === 'PATH' || tagName === 'G' || tagName === 'CIRCLE' || tagName === 'RECT' || (tagName === 'DIV' && activePopupElement.children?.length === 0 && !isText && !isImage && !isGif && !isVideo);
-
-    return { isText, isImage, isGif, isVideo, isIcon };
-  }, [activePopupElement]);
-
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      // Ignore clicks on triggers
-      if (typeTriggerRef.current && typeTriggerRef.current.contains(event.target)) return;
-      if (triggerTriggerRef.current && triggerTriggerRef.current.contains(event.target)) return;
-      if (dashedRef.current && dashedRef.current.contains(event.target)) return;
-
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowTypeDropdown(false);
-        setShowTriggerDropdown(false);
-        setShowFitDropdown(false);
-      }
-      if (dashedRef.current && !dashedRef.current.contains(event.target) && !event.target.closest('.dashed-selector-trigger')) {
-        setShowDashedSettings(false);
-      }
-      if (strokePositionRef.current && !strokePositionRef.current.contains(event.target)) {
-        setShowStrokePositionDropdown(false);
-      }
-      // Close new pickers
-      if (fillPickerRef.current && !fillPickerRef.current.contains(event.target) && !event.target.closest('.fill-picker-trigger') && !event.target.closest('.color-picker-container')) setShowFillPicker(false);
-      if (strokePickerRef.current && !strokePickerRef.current.contains(event.target) && !event.target.closest('.stroke-picker-trigger') && !event.target.closest('.color-picker-container')) setShowStrokePicker(false);
-    };
-    document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      if (activeAudioRef.current) {
+        activeAudioRef.current.pause();
+      }
     };
   }, []);
 
-  if (!selectedElement) return null;
+  const actionTypes = [
+    { id: 'open-link', label: 'Open Link', icon: 'gg:link' },
+    { id: 'navigate-to', label: 'Navigate to', icon: 'famicons:navigate-circle-outline' },
+    { id: 'call', label: 'Call', icon: 'fluent:call-24-regular' },
+    { id: 'zoom', label: 'Zoom', icon: 'tabler:zoom-in-area' },
+    { id: 'download', label: 'Download', icon: 'mynaui:download' },
+    { id: 'popup', label: 'Popup', icon: 'carbon:popup' },
+    { id: 'tooltip', label: 'Tooltip', icon: 'fluent:tooltip-quote-12-regular' },
+    { id: '3d-viewer', label: '3D Viewer', icon: 'gis:cube-3d' },
+    { id: 'audio', label: 'Audio', icon: 'iconoir:sound-high-solid' }
+  ];
+  const [selectedActionType, setSelectedActionType] = useState(actionTypes[0]);
 
-  // Helper to get element display name
-  const getElementLabel = () => {
-    if (!selectedElement) return 'Element';
-    const tag = selectedElement.tagName.toLowerCase();
+  const panelStateRef = useRef({ updateElementAttribute, activePageIndex, pages, actionTypes });
+  useEffect(() => {
+    panelStateRef.current = { updateElementAttribute, activePageIndex, pages, actionTypes };
+  });
 
-    // Check if it's text-like
-    if (['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'strong', 'em'].includes(tag)) {
-      return 'Text';
+  // Cached DOMParser DOMs for all pages to avoid expensive re-parsing on every render
+  const parsedPagesDOMsRef = useRef({});
+
+  // Keep track of the previously selected layer ID to prevent override flashes
+  const prevLayerIdRef = useRef(selectedLayerId);
+
+  // Sync activeLayerId on canvas selection
+  useEffect(() => {
+    if (selectedLayerId) {
+      setActiveLayerId(selectedLayerId);
+      if (selectedElementProps) {
+        const savedVal = selectedElementProps['data-interaction-value'] || '';
+        setUrlValue(savedVal);
+
+        const interactionType = selectedElementProps['data-interaction'];
+        if (interactionType) {
+          setOpenCardIds(prev => {
+            if (!prev[selectedLayerId]) {
+              return { ...prev, [selectedLayerId]: true };
+            }
+            return prev;
+          });
+        }
+      }
+
+      setCollapsedCardIds(prev => {
+        const next = { ...prev };
+        setOpenCardIds(openPrev => {
+          Object.keys(openPrev).forEach(id => {
+            next[id] = true;
+          });
+          next[selectedLayerId] = false;
+          return openPrev;
+        });
+        return next;
+      });
+    } else {
+      setActiveLayerId(null);
+      setUrlValue('');
     }
 
-    if (tag === 'img') return 'Image';
-    if (tag === 'button') return 'Button';
-    if (tag === 'a') return 'Link';
-    if (tag === 'div') return 'Container';
+    // ONLY clear temporary local overrides if the user actually clicked a DIFFERENT element
+    if (prevLayerIdRef.current !== selectedLayerId) {
+      setItemValueOverrides({});
+      setItemTriggerOverrides({});
+      setLocalInputValues({});
+      prevLayerIdRef.current = selectedLayerId;
+    }
+  }, [selectedLayerId, selectedElementProps]);
+
+  // Listen for the event fired by the "Add Interaction" badge on the canvas
+  useEffect(() => {
+    const handleAddInteraction = (e) => {
+      const elementId = e.detail?.elementId;
+      if (elementId) {
+        setOpenCardIds(prev => {
+          setCollapsedCardIds(prevCollapsed => {
+            const nextCollapsed = { ...prevCollapsed };
+            Object.keys(prev).forEach(id => {
+              if (id !== elementId) {
+                nextCollapsed[id] = true;
+              }
+            });
+            nextCollapsed[elementId] = false;
+            return nextCollapsed;
+          });
+          return {
+            ...prev,
+            [elementId]: true
+          };
+        });
+        setActiveLayerId(elementId);
+
+        const { updateElementAttribute, activePageIndex, pages, actionTypes } = panelStateRef.current;
+        if (updateElementAttribute) {
+          let existingType = 'open-link';
+          let existingVal = '';
+          const page = pages?.[activePageIndex];
+          if (page && page.html) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(page.html, 'image/svg+xml');
+            const el = doc.getElementById(elementId);
+            if (el) {
+              existingType = el.getAttribute('data-interaction') || 'open-link';
+              existingVal = el.getAttribute('data-interaction-value') || '';
+            }
+          }
+
+          updateElementAttribute(activePageIndex, elementId, {
+            'data-interaction': existingType,
+            'data-interaction-value': existingVal
+          });
+
+          const foundAction = actionTypes.find(a => a.id === existingType);
+          if (foundAction) {
+            window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+              detail: {
+                elementId: elementId,
+                actionType: foundAction
+              }
+            }));
+          }
+        }
+      }
+    };
+    window.addEventListener('add-free-frame', handleAddInteraction);
+    return () => window.removeEventListener('add-free-frame', handleAddInteraction);
+  }, []);
+
+  // Broadcast visual badge state (icon/checkmark) updates to MainEditor canvas whenever elements exist, page changes, or selection changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+      const elements = Array.from(editorDoc.querySelectorAll('[data-interaction]'));
+      elements.forEach(el => {
+        const actionId = el.getAttribute('data-interaction');
+        if (actionId) {
+          const found = actionTypes.find(a => a.id === actionId);
+          if (found) {
+            window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+              detail: {
+                elementId: el.id,
+                actionType: found
+              }
+            }));
+          }
+        }
+      });
+    }, 40);
+
+    return () => clearTimeout(timer);
+  }, [pages, activePageIndex, selectedLayerId]);
+
+  // Close action dropdown when clicking anywhere outside it (including canvas area)
+  useEffect(() => {
+    if (!openDropdownId) return;
+    const handleGlobalMouseDown = (e) => {
+      // If the click is NOT inside a dropdown trigger or the dropdown menu, close it
+      if (!e.target.closest('[data-dropdown-trigger]') && !e.target.closest('[data-dropdown-menu]')) {
+        setOpenDropdownId(null);
+      }
+    };
+    // Use window + mousedown + capture:true so it fires before any canvas stopPropagation
+    window.addEventListener('mousedown', handleGlobalMouseDown, true);
+    return () => window.removeEventListener('mousedown', handleGlobalMouseDown, true);
+  }, [openDropdownId]);
+
+  // Dynamic element type and ID extraction helper
+  const detectElementDisplayInfo = (id, targetPageIndex = null) => {
+    if (!id) return { type: 'Element', number: '432', name: 'Element 432' };
+
+    // 1. Try to find the element in the live DOM first (fastest and most accurate!)
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    let el = editorDoc.getElementById(id);
+
+    // 2. If not found in live DOM, use our super fast cached parsed DOMs
+    if (!el) {
+      if (targetPageIndex !== null) {
+        const cached = parsedPagesDOMsRef.current[targetPageIndex];
+        if (cached && cached.doc) {
+          el = cached.doc.getElementById(id);
+        } else {
+          const page = pages[targetPageIndex];
+          if (page && page.html) {
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(page.html, 'image/svg+xml');
+              parsedPagesDOMsRef.current[targetPageIndex] = { html: page.html, doc };
+              el = doc.getElementById(id);
+            } catch (e) {
+              console.error("DOM Parsing failed", e);
+            }
+          }
+        }
+      } else {
+        // Search all pages
+        for (let i = 0; i < pages.length; i++) {
+          const cached = parsedPagesDOMsRef.current[i];
+          if (cached && cached.doc) {
+            const found = cached.doc.getElementById(id);
+            if (found) {
+              el = found;
+              break;
+            }
+          } else {
+            const page = pages[i];
+            if (page && page.html) {
+              try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(page.html, 'image/svg+xml');
+                parsedPagesDOMsRef.current[i] = { html: page.html, doc };
+                const found = doc.getElementById(id);
+                if (found) {
+                  el = found;
+                  break;
+                }
+              } catch (e) {
+                console.error("DOM Parsing failed", e);
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback number from id
+    const idNum = id.match(/\d+/)?.[0] || id.substring(Math.max(0, id.length - 3));
+
+    if (!el) {
+      return { type: 'Element', number: idNum, name: `Element ${idNum}` };
+    }
+
+    const tagName = el.tagName.toLowerCase();
+    const dataType = (el.getAttribute('data-type') || '').toLowerCase();
+    const dataName = (el.getAttribute('data-name') || '').toLowerCase();
+    const idLower = el.id.toLowerCase();
+    const href = el.getAttribute('href') || el.getAttribute('xlink:href') || '';
+
+    let detectedType = 'Element';
+    if (tagName === 'g' || tagName === 'svg') {
+      const deepType = deepDetectType(el);
+      if (deepType) {
+        detectedType = deepType;
+      } else {
+        detectedType = 'Group';
+      }
+    } else {
+      if (dataType === 'gif' || dataName.includes('gif') || idLower.includes('gif') || href.toLowerCase().endsWith('.gif')) {
+        detectedType = 'GIF';
+      } else if (dataType === 'video' || tagName === 'video' || idLower.includes('video')) {
+        detectedType = 'Video';
+      } else if (dataType === 'icon' || idLower.includes('icon') || el.classList?.contains('iconify')) {
+        detectedType = 'Icon';
+      } else if (tagName === 'image' || tagName === 'img' || dataType === 'image' || idLower.includes('image')) {
+        detectedType = 'Image';
+      } else if (tagName === 'text' || tagName === 'tspan' || dataType === 'text' || idLower.includes('text')) {
+        detectedType = 'Text';
+      } else if (tagName === 'rect' || tagName === 'circle' || tagName === 'ellipse' || tagName === 'path' || tagName === 'polygon' || tagName === 'polyline') {
+        detectedType = 'Shape';
+      }
+    }
+
+    return {
+      type: detectedType,
+      number: idNum,
+      name: `${detectedType} ${idNum}`
+    };
+  };
+
+  function detectTypeFromElement(el, id) {
+    const idNum = id.match(/\d+/)?.[0] || id.substring(Math.max(0, id.length - 3));
+    if (!el) return { type: 'Element', number: idNum, name: `Element ${idNum}` };
+
+    const tagName = el.tagName.toLowerCase();
+    const dataType = (el.getAttribute('data-type') || '').toLowerCase();
+    const dataName = (el.getAttribute('data-name') || '').toLowerCase();
+    const idLower = el.id.toLowerCase();
+    const href = el.getAttribute('href') || el.getAttribute('xlink:href') || '';
+
+    let detectedType = 'Element';
+    if (tagName === 'g' || tagName === 'svg') {
+      const deepType = deepDetectType(el);
+      if (deepType) {
+        detectedType = deepType;
+      } else {
+        detectedType = 'Group';
+      }
+    } else {
+      if (dataType === 'gif' || dataName.includes('gif') || idLower.includes('gif') || href.toLowerCase().endsWith('.gif')) {
+        detectedType = 'GIF';
+      } else if (dataType === 'video' || tagName === 'video' || idLower.includes('video')) {
+        detectedType = 'Video';
+      } else if (dataType === 'icon' || idLower.includes('icon') || el.classList?.contains('iconify')) {
+        detectedType = 'Icon';
+      } else if (tagName === 'image' || tagName === 'img' || dataType === 'image' || idLower.includes('image')) {
+        detectedType = 'Image';
+      } else if (tagName === 'text' || tagName === 'tspan' || dataType === 'text' || idLower.includes('text')) {
+        detectedType = 'Text';
+      } else if (tagName === 'rect' || tagName === 'circle' || tagName === 'ellipse' || tagName === 'path' || tagName === 'polygon' || tagName === 'polyline') {
+        detectedType = 'Shape';
+      }
+    }
+
+    return {
+      type: detectedType,
+      number: idNum,
+      name: `${detectedType} ${idNum}`
+    };
+  }
+
+  // Scans all SVG DOMs across all pages to retrieve all active/added interaction cards
+  const interactiveElementsList = React.useMemo(() => {
+    if (!pages || pages.length === 0) return [];
+
+    const openCardKeys = Object.keys(openCardIds).filter(id => openCardIds[id]);
+    if (openCardKeys.length === 0) return [];
+
+    const list = [];
+
+    // Pre-populate/update the cache for all pages that changed
+    pages.forEach((page, i) => {
+      if (page && page.html) {
+        const cached = parsedPagesDOMsRef.current[i];
+        if (!cached || cached.html !== page.html) {
+          try {
+            const parser = new DOMParser();
+            parsedPagesDOMsRef.current[i] = {
+              html: page.html,
+              doc: parser.parseFromString(page.html, 'image/svg+xml')
+            };
+          } catch (e) {
+            console.error("DOM Cache Parse failed", e);
+          }
+        }
+      }
+    });
+
+    openCardKeys.forEach(id => {
+      let foundEl = null;
+      let foundPageIndex = -1;
+
+      // 1. ALWAYS check live DOM first (super fast, O(1))
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+      const liveEl = editorDoc.getElementById(id);
+      if (liveEl) {
+        foundEl = liveEl;
+        foundPageIndex = activePageIndex;
+      } else {
+        // 2. Only if not in live DOM, use cached DOMs
+        for (let i = 0; i < pages.length; i++) {
+          const cached = parsedPagesDOMsRef.current[i];
+          if (cached && cached.doc) {
+            const el = cached.doc.getElementById(id);
+            if (el) {
+              foundEl = el;
+              foundPageIndex = i;
+              break;
+            }
+          }
+        }
+      }
+
+      if (foundEl) {
+        const info = detectTypeFromElement(foundEl, id);
+
+        list.push({
+          id: foundEl.id,
+          tagName: foundEl.tagName,
+          label: info.name,
+          actionId: foundEl.getAttribute('data-interaction') || 'open-link',
+          value: foundEl.getAttribute('data-interaction-value') || '',
+          tooltipSettings: foundEl.getAttribute('data-tooltip-settings') || '',
+          trigger: foundEl.getAttribute('data-interaction-trigger') || 'click',
+          pageIndex: foundPageIndex
+        });
+      }
+    });
+
+    return list;
+  }, [pages, openCardIds, activePageIndex]);
+
+  const convertValue = (mmValue) => {
+    const val = parseFloat(mmValue || 0);
+    if (dimensionUnit === 'px') return Math.round(val * 96 / 25.4);
+    if (dimensionUnit === 'cm') return (val / 10).toFixed(2);
+    return Math.round(val); // mm
+  };
+
+  const handleDimensionChange = (attr, rawValue) => {
+    if (!selectedElementProps) return;
+    const tag = selectedElementProps.tagName;
+    const finalAttr = tag === 'circle' ? 'r' : attr;
+
+    let finalVal = rawValue;
+    if (tag === 'circle') {
+      finalVal = (parseFloat(rawValue) / 2).toString();
+    }
+
+    updateElementAttribute(activePageIndex, selectedLayerId, finalAttr, finalVal);
+  };
+
+  const groupId = selectedElementProps?.['data-group-id'] || '432';
+
+  // Deep recursive helper: scan all descendants for dominant type
+  function deepDetectType(el) {
+    if (!el) return null;
+    const tag = el.tagName?.toLowerCase() || '';
+    const dt = el.getAttribute('data-type') || '';
+    const dn = (el.getAttribute('data-name') || '').toLowerCase();
+    const id = (el.id || '').toLowerCase();
+    const href = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || '';
+
+    // Direct type checks on this element
+    if (dt === 'gif' || dn.includes('gif') || id.includes('gif') || href.toLowerCase().endsWith('.gif')) return 'GIF';
+    if (dt === 'video' || tag === 'video' || tag === 'iframe' || dn.includes('video')) return 'Video';
+    if (dt === 'icon' || dn.includes('icon') || el.classList?.contains('iconify')) return 'Icon';
+    if (tag === 'image' || tag === 'img' || dt === 'image' || dn.includes('image') || id.includes('image') || (href && !href.toLowerCase().endsWith('.gif'))) return 'Image';
+    if (tag === 'text' || tag === 'tspan' || dt === 'text' || dn.includes('text') || id.includes('text')) return 'Text';
+    if (tag === 'rect') return 'Rectangle';
+    if (tag === 'circle') return 'Circle';
+    if (tag === 'ellipse') return 'Ellipse';
+    if (tag === 'path' || tag === 'polygon' || tag === 'polyline') return 'Shape';
+    if (tag === 'line') return 'Line';
+
+    // Recurse into children — prioritize specific types over generic
+    const typePriority = ['GIF', 'Video', 'Icon', 'Image', 'Text', 'Rectangle', 'Circle', 'Ellipse', 'Shape', 'Line'];
+    let found = null;
+    for (const child of Array.from(el.children || [])) {
+      const childType = deepDetectType(child);
+      if (childType) {
+        const ci = typePriority.indexOf(childType);
+        const fi = found ? typePriority.indexOf(found) : 999;
+        if (ci < fi) found = childType;
+      }
+    }
+    return found;
+  }
+
+  // Detect element type label from props and DOM attributes
+  const getElementLabel = (props) => {
+    if (!props) return 'Element';
+
+    // Try parsed active page DOM element first (most accurate and scoped to prevent duplicates!)
+    let el = null;
+    if (activeLayerId) {
+      const cached = parsedPagesDOMsRef.current[activePageIndex];
+      if (cached && cached.doc) {
+        el = cached.doc.getElementById(activeLayerId);
+      } else {
+        const page = pages[activePageIndex];
+        if (page && page.html) {
+          try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(page.html, 'image/svg+xml');
+            parsedPagesDOMsRef.current[activePageIndex] = { html: page.html, doc };
+            el = doc.getElementById(activeLayerId);
+          } catch (e) {
+            console.error("DOM label Parsing failed", e);
+          }
+        }
+      }
+    }
+    // Fallback to live DOM if not parsed
+    if (!el && activeLayerId) {
+      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+      el = editorDoc.getElementById(activeLayerId);
+    }
+
+    const tagName = (props.tagName || el?.tagName || '').toLowerCase();
+    const dataType = (el?.getAttribute('data-type') || '').toLowerCase();
+    const dataName = (el?.getAttribute('data-name') || '').toLowerCase();
+
+    // Quick wins from props flags (set in RightSidebar)
+    if (props.isText) return 'Text';
+    if (props.isGif) return 'GIF';
+    if (props.isVideo) return 'Video';
+    if (props.isIcon) return 'Icon';
+    if (props.isImage) return 'Image';
+
+    // Check data-type/data-name on the element itself
+    if (dataType === 'text' || dataName.includes('text')) return 'Text';
+    if (dataType === 'gif' || dataName.includes('gif')) return 'GIF';
+    if (dataType === 'video' || dataName.includes('video')) return 'Video';
+    if (dataType === 'icon' || dataName.includes('icon')) return 'Icon';
+    if (dataType === 'image' || dataName.includes('image')) return 'Image';
+
+    // For groups: deep-scan all descendants
+    if (tagName === 'g' || tagName === 'svg') {
+      const deepType = deepDetectType(el);
+      if (deepType) {
+        // If group contains a single dominant type, label it as "Type Group"
+        if (['Image', 'Text', 'Icon', 'GIF', 'Video'].includes(deepType)) return `${deepType} Group`;
+        return deepType;
+      }
+      return 'Group';
+    }
+
+    // Single element fallback
+    if (tagName === 'image' || tagName === 'img') return 'Image';
+    if (tagName === 'text' || tagName === 'tspan') return 'Text';
+    if (tagName === 'rect') return 'Rectangle';
+    if (tagName === 'circle') return 'Circle';
+    if (tagName === 'ellipse') return 'Ellipse';
+    if (tagName === 'path' || tagName === 'polygon' || tagName === 'polyline') return 'Shape';
+    if (tagName === 'line') return 'Line';
+    if (tagName === 'foreignobject') return props.isVideo ? 'Video' : 'Text';
+
     return 'Element';
   };
 
-  const formattedElementName = getElementLabel();
-
-
-  // ================= APPLY INTERACTIONS =================
-
-  const applyInteraction = (type, value, content = '', triggerOverride = null, highlightOverride = null, styleOverrides = {}, forceRefresh = false) => {
-    setInteractionType(type);
-    const trigger = triggerOverride || interactionTrigger;
-    const highlight = highlightOverride !== null ? highlightOverride : isHighlighted;
-
-
-
-    if (type === 'none') {
-      selectedElement.removeAttribute('data-interaction');
-      selectedElement.removeAttribute('data-interaction-value');
-      selectedElement.removeAttribute('data-interaction-content');
-      selectedElement.removeAttribute('data-interaction-trigger');
-      selectedElement.removeAttribute('data-interaction-highlight');
-      selectedElement.removeAttribute('data-filename');
-
-      // Remove extra attributes
-      selectedElement.removeAttribute('data-popup-font');
-      selectedElement.removeAttribute('data-popup-size');
-      selectedElement.removeAttribute('data-popup-weight');
-      selectedElement.removeAttribute('data-popup-fill');
-      selectedElement.removeAttribute('data-tooltip-text-color');
-      selectedElement.removeAttribute('data-tooltip-fill-color');
-      selectedElement.removeAttribute('data-popup-auto-width');
-      selectedElement.removeAttribute('data-popup-auto-height');
-      selectedElement.removeAttribute('data-popup-fit');
-      selectedElement.removeAttribute('data-popup-fit');
-      selectedElement.removeAttribute('data-popup-image-src');
-      selectedElement.removeAttribute('data-popup-image-src');
-      selectedElement.removeAttribute('data-interaction-content-encoded');
-      selectedElement.removeAttribute('data-download-custom-image'); // Cleanup custom download image
-
-      selectedElement.style.cursor = '';
-    } else {
-      selectedElement.setAttribute('data-interaction', type);
-      selectedElement.setAttribute('data-interaction-trigger', trigger);
-      selectedElement.setAttribute('data-interaction-highlight', highlight);
-
-      if (value) selectedElement.setAttribute('data-interaction-value', value);
-      else selectedElement.removeAttribute('data-interaction-value');
-
-      if (content) {
-        // For popups, we encode with a prefix to ensure persistence across save/load
-        if (type === 'popup') {
-          const encoded = 'ENCODED:::' + encodeURIComponent(content);
-          selectedElement.setAttribute('data-interaction-content', encoded);
-          // Clean up legacy attribute if present
-          selectedElement.removeAttribute('data-interaction-content-encoded');
-        } else {
-          selectedElement.setAttribute('data-interaction-content', content);
-          selectedElement.removeAttribute('data-interaction-content-encoded');
-        }
-      } else {
-        selectedElement.removeAttribute('data-interaction-content');
-        selectedElement.removeAttribute('data-interaction-content-encoded');
-      }
-
-      // Save filename if it's a download
-      if (type === 'download' && value) {
-        // Only allow image downloads (ignore text data URLs)
-        const isTextDataUrl = typeof value === 'string' && value.startsWith('data:text/plain');
-
-        if (!isTextDataUrl) {
-          const isImage = selectedElement.tagName.toLowerCase() === 'img';
-          const hasCustom = !!selectedElement.getAttribute('data-download-custom-image');
-          let fname = 'image.png';
-
-          if (isImage && !hasCustom) {
-            const src = selectedElement.src || '';
-            fname = src.startsWith('data:') ? 'image.png' : (src.split('/').pop().split('?')[0] || 'image.png');
-          } else if (hasCustom || (typeof value === 'string' && value.startsWith('data:image'))) {
-            fname = 'downloaded_image.png';
-          }
-
-          selectedElement.setAttribute('data-filename', fname);
-          selectedElement.setAttribute('data-interaction-value', value);
-        } else {
-          // If it was text, remove the values
-          selectedElement.removeAttribute('data-interaction-value');
-          selectedElement.removeAttribute('data-filename');
-        }
-      } else if (type === 'download') {
-        selectedElement.removeAttribute('data-filename');
-      }
-
-      // Save extra attributes for specific types
-      if (type === 'popup') {
-        selectedElement.setAttribute('data-popup-font', styleOverrides.font || popupFont);
-        selectedElement.setAttribute('data-popup-size', styleOverrides.size || popupSize);
-        selectedElement.setAttribute('data-popup-weight', styleOverrides.weight || popupWeight);
-        selectedElement.setAttribute('data-popup-fill', styleOverrides.fill || popupFillColor);
-        selectedElement.setAttribute('data-popup-fill-opacity', styleOverrides.fillOpacity !== undefined ? styleOverrides.fillOpacity : popupFillOpacity);
-        selectedElement.setAttribute('data-popup-stroke', styleOverrides.stroke || popupStrokeColor);
-        selectedElement.setAttribute('data-popup-stroke-opacity', styleOverrides.strokeOpacity !== undefined ? styleOverrides.strokeOpacity : popupStrokeOpacity);
-        selectedElement.setAttribute('data-popup-stroke-type', styleOverrides.strokeType || popupStrokeType);
-        selectedElement.setAttribute('data-popup-stroke-width', styleOverrides.strokeWidth !== undefined ? styleOverrides.strokeWidth : popupStrokeWidth);
-        selectedElement.setAttribute('data-popup-stroke-dash-length', styleOverrides.strokeDashLength !== undefined ? styleOverrides.strokeDashLength : popupStrokeDashLength);
-        selectedElement.setAttribute('data-popup-stroke-dash-gap', styleOverrides.strokeDashGap !== undefined ? styleOverrides.strokeDashGap : popupStrokeDashGap);
-        selectedElement.setAttribute('data-popup-stroke-position', styleOverrides.strokePosition || popupStrokePosition);
-        selectedElement.setAttribute('data-popup-stroke-round-corners', styleOverrides.strokeRoundCorners !== undefined ? styleOverrides.strokeRoundCorners : popupStrokeRoundCorners);
-        selectedElement.setAttribute('data-popup-fit', styleOverrides.fit || popupFit);
-        selectedElement.setAttribute('data-popup-auto-width', styleOverrides.autoWidth !== undefined ? styleOverrides.autoWidth : popupAutoWidth);
-        selectedElement.setAttribute('data-popup-auto-height', styleOverrides.autoHeight !== undefined ? styleOverrides.autoHeight : popupAutoHeight);
-
-        if (styleOverrides.imageSrc || popupImageSrc) {
-          selectedElement.setAttribute('data-popup-image-src', styleOverrides.imageSrc || popupImageSrc);
-        }
-
-        if (styleOverrides.templateType) {
-          selectedElement.setAttribute('data-popup-type', styleOverrides.templateType);
-        } else {
-          selectedElement.removeAttribute('data-popup-type');
-        }
-
-        if (styleOverrides.templateData) {
-          selectedElement.setAttribute('data-popup-template-data', JSON.stringify(styleOverrides.templateData));
-        } else {
-          selectedElement.removeAttribute('data-popup-template-data');
-        }
-      }
-      if (type === 'tooltip') {
-        selectedElement.setAttribute('data-tooltip-text-color', tooltipTextColor);
-        selectedElement.setAttribute('data-tooltip-fill-color', tooltipFillColor);
-      }
-
-      selectedElement.style.cursor = 'pointer';
-    }
-
-    // Debounce the parent state update (heavy)
-    if (updateDebounceRef.current) clearTimeout(updateDebounceRef.current);
-    updateDebounceRef.current = setTimeout(() => {
-      onUpdate(selectedElement.id, {
-        interactions: {
-          type,
-          value,
-          content: (type === 'popup' && content) ? ('ENCODED:::' + encodeURIComponent(content)) : content,
-          trigger: trigger,
-          highlight: highlight
-        }
-      });
-    }, 200);
-
-    // If it's a popup, also update the preview state if it's already open
-    if (type === 'popup') {
-      const popupStyles = {
-        font: styleOverrides.font || popupFont,
-        size: styleOverrides.size || popupSize,
-        weight: styleOverrides.weight || popupWeight,
-        fill: styleOverrides.fill || popupFillColor,
-        fillOpacity: styleOverrides.fillOpacity !== undefined ? styleOverrides.fillOpacity : popupFillOpacity,
-        stroke: styleOverrides.stroke || popupStrokeColor,
-        strokeOpacity: styleOverrides.strokeOpacity !== undefined ? styleOverrides.strokeOpacity : popupStrokeOpacity,
-        strokeType: styleOverrides.strokeType || popupStrokeType,
-        strokeWidth: styleOverrides.strokeWidth !== undefined ? styleOverrides.strokeWidth : popupStrokeWidth,
-        strokeDashLength: styleOverrides.strokeDashLength !== undefined ? styleOverrides.strokeDashLength : popupStrokeDashLength,
-        strokeDashGap: styleOverrides.strokeDashGap !== undefined ? styleOverrides.strokeDashGap : popupStrokeDashGap,
-        strokePosition: styleOverrides.strokePosition || popupStrokePosition,
-        strokeRoundCorners: styleOverrides.strokeRoundCorners !== undefined ? styleOverrides.strokeRoundCorners : popupStrokeRoundCorners,
-        fit: styleOverrides.fit || popupFit,
-        autoWidth: styleOverrides.autoWidth !== undefined ? styleOverrides.autoWidth : popupAutoWidth,
-        autoHeight: styleOverrides.autoHeight !== undefined ? styleOverrides.autoHeight : popupAutoHeight
-      };
-
-      if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current);
-      previewDebounceRef.current = setTimeout(() => {
-        onPopupPreviewUpdate({
-          content: content || popupText,
-          elementSource: styleOverrides.imageSrc || popupImageSrc,
-          styles: popupStyles,
-          ...(forceRefresh ? { renderId: Date.now() } : {})
-        });
-      }, 50); // Small 50ms debounce for smoother preview updates
-    }
-  };
-
-  // Wrapper to trigger updates when advanced inputs change
-  const updateAdvanced = (type, styleOverrides = {}, forceRefresh = false) => {
-    let value = null;
-    let content = '';
-    if (type === 'popup') content = popupText;
-    if (type === 'tooltip') content = tooltipText;
-
-    applyInteraction(type, value, content, null, null, styleOverrides, forceRefresh);
-  };
-
-  // ================= HANDLE ACTIONS =================
-
-  const handleReset = () => {
-    applyInteraction('none');
-  };
-
-  const handleDelete = () => {
-    if (!selectedElement) return;
-    const id = selectedElement.id;
-    selectedElement.remove();
-    // Use onUpdate to notify parent that the element is gone
-    if (onUpdate) onUpdate(id, { deleted: true });
-  };
-
-
-  const handleTypeChange = (newType) => {
-    // If we are changing types, we should clear stale state for the NEW type
-    // to ensures we start fresh (e.g., empty popup template).
-    if (newType !== interactionType) {
-      if (newType === 'popup') {
-        // UNCONDITIONALLY clear popup state when switching to Popup.
-        // This ensures we always show "Choose Template" initially.
-        setPopupText('');
-        setPopupImageSrc('');
-      }
-      if (newType === 'tooltip') {
-        if (selectedElement.getAttribute('data-interaction') !== 'tooltip') {
-          setTooltipText('');
-        }
-      }
-      // We can also clear others if needed, but Popup is the main issue.
-    }
-
-    setInteractionType(newType);
-    let finalTrigger = interactionTrigger;
-
-    // Reset trigger if switching to restricted types and currently on hover
-    if (['link', 'navigation', 'call', 'zoom', 'popup', 'download'].includes(newType) && interactionTrigger === 'hover') {
-      finalTrigger = 'click';
-      setInteractionTrigger('click');
-    }
-    if (newType === 'none') {
-      // When explicitly setting to None, clear the interaction-specific states for cleanliness
-      setPopupText('');
-      setTooltipText('');
-      setLinkUrl('');
-      setNavPage('');
-      setPhoneNumber('');
-      setDownloadUrl('');
-
-      applyInteraction('none', null);
-    } else {
-      let currentValue =
-        newType === 'link' ? linkUrl :
-          newType === 'navigation' ? navPage :
-            newType === 'call' ? phoneNumber :
-              newType === 'zoom' ? zoomLevel :
-                newType === 'download' ? downloadUrl : null;
-
-      // Automatically set download URL if missing
-      if (newType === 'download' && !currentValue) {
-        if (selectedElement.tagName.toLowerCase() === 'img') {
-          currentValue = selectedElement.src;
-        } else {
-          const textContent = selectedElement.innerText || selectedElement.textContent || '';
-          currentValue = 'data:text/plain;charset=utf-8,' + encodeURIComponent(textContent);
-        }
-        setDownloadUrl(currentValue);
-        // Immediately apply the interaction with the generated value
-        applyInteraction(newType, currentValue, '', null, null, {});
-        return;
-      }
-
-      // Determine content using the fresh logic
-      let currentContent = '';
-
-      if (newType === 'popup') {
-        // If we are switching types, FORCE empty content.
-        if (newType !== interactionType) {
-          currentContent = '';
-        } else {
-          // If staying on popup (e.g. attribute update or re-click), use current state
-          currentContent = popupText;
-        }
-      } else if (newType === 'tooltip') {
-        if (selectedElement.getAttribute('data-interaction') === 'tooltip') {
-          currentContent = tooltipText;
-        } else {
-          currentContent = '';
-        }
-      }
-
-      const styleOverrides = {};
-
-      if (newType === 'popup') {
-        // Auto-inherit styles if not already set
-        if (!selectedElement.getAttribute('data-popup-font')) {
-          const compStyle = window.getComputedStyle(selectedElement);
-          const fFamily = compStyle.fontFamily.split(',')[0].replace(/['"]/g, '').trim();
-          const fSize = parseInt(compStyle.fontSize) || 24;
-          const fWeight = compStyle.fontWeight;
-
-          // Convert weight number or name to label
-          let weightLabel = 'Regular';
-          const weightVal = String(fWeight).toLowerCase();
-          if (weightVal === 'bold' || parseInt(fWeight) >= 700) weightLabel = 'Bold';
-          else if (weightVal === 'semibold' || weightVal === '600' || parseInt(fWeight) >= 600) weightLabel = 'Semi Bold';
-
-          const validFonts = ['Poppins', 'Roboto', 'Open Sans'];
-          const matchedFont = validFonts.find(f => fFamily.includes(f)) || 'Poppins';
-
-          setPopupFont(matchedFont);
-          setPopupSize(String(fSize));
-          setPopupWeight(weightLabel);
-          setPopupFillColor('#ffffff'); // Default to white for popups
-
-          styleOverrides.font = matchedFont;
-          styleOverrides.size = String(fSize);
-          styleOverrides.weight = weightLabel;
-          styleOverrides.fill = '#ffffff';
-        }
-      }
-
-      applyInteraction(newType, currentValue, currentContent, 'click', null, styleOverrides, true);
-    }
-  };
-
-  const handleImageReplace = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const newSrc = event.target.result;
-      setPopupImageSrc(newSrc);
-      applyInteraction('popup', null, popupText, null, null, { imageSrc: newSrc });
-
-      // Clear input so same file can be uploaded again
-      e.target.value = '';
-    };
-    reader.readAsDataURL(file);
-  };
-
-
-
-  const handleDownloadImageReplace = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const newSrc = event.target.result;
-      setDownloadCustomImage(newSrc);
-      setDownloadUrl(newSrc);
-
-      // Persist the custom image override
-      selectedElement.setAttribute('data-download-custom-image', newSrc);
-
-      // Update interaction value to point to new image
-      // We pass the newSrc as the 'value' which becomes the download href
-      applyInteraction('download', newSrc, '', null, null, {});
-
-      // Clear input so same file can be uploaded again
-      e.target.value = '';
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleTriggerChange = (newTrigger) => {
-    setInteractionTrigger(newTrigger);
-    // Explicitly update the attribute and trigger a full apply
-    selectedElement.setAttribute('data-interaction-trigger', newTrigger);
-
-    const currentValue =
-      interactionType === 'link' ? linkUrl :
-        interactionType === 'navigation' ? navPage :
-          interactionType === 'call' ? phoneNumber :
-            interactionType === 'zoom' ? zoomLevel :
-              interactionType === 'download' ? downloadUrl : null;
-
-    const currentContent =
-      interactionType === 'popup' ? popupText :
-        interactionType === 'tooltip' ? tooltipText : '';
-
-    applyInteraction(interactionType, currentValue, currentContent, newTrigger, null, {}, true);
-  };
-
-  const handleOpenTemplateSelection = () => {
-    setTemplateSelectionOpen(true);
-  };
-
-  const handleTemplateSelect = (template) => {
-    if (template.type === 'html') {
-      setPopupText(template.html);
-      setPopupImageSrc('');
-      setPopupFillColor('#ffffff');
-      // Apply HTML template interaction
-      applyInteraction('popup', null, template.html, 'click', null, {
-        fit: 'Fill',
-        autoWidth: false,
-        autoHeight: false,
-        fill: '#ffffff',
-        templateType: 'html'
-      }, true);
-
-      onPopupPreviewUpdate({
-        isOpen: true,
-        content: template.html,
-        elementSource: null,
-        elementType: 'image',
-        mode: 'edit',
-        styles: {
-          fit: 'Fill',
-          autoWidth: false,
-          autoHeight: false,
-          fill: '#ffffff',
-          templateType: 'html'
-        }
-      });
-    } else if (template.type === 'automotive') {
-      const defaultText = template.name;
-      setPopupText(defaultText);
-      setPopupImageSrc(template.image || '');
-      setPopupFillColor('#ffffff');
-
-      const tData = {
-        description: template.description,
-        strengths: template.strengths,
-        subImages: template.subImages,
-        logo: template.logo
-      };
-
-      const automotiveHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
-            body { margin: 0; padding: 0; font-family: 'Poppins', sans-serif; color: #333; height: 100vh; display: flex; overflow: hidden; background: transparent; }
-            .container { display: flex; width: 100%; height: 100%; }
-            
-            /* Left Sidebar */
-            .sidebar {
-              width: 40%;
-              background-color: #A83232; /* Deep Red from screenshot */
-              padding: 40px 30px;
-              display: flex;
-              flex-direction: column;
-              gap: 15px;
-              justify-content: center;
-              position: relative;
-            }
-            .sidebar::after {
-              content: '';
-              position: absolute;
-              top: 20px;
-              bottom: 20px;
-              right: -10px; /* Slight overlap illusion if needed */
-              width: 20px;
-              background: transparent; /* Placeholder for potential depth effects */
-            }
-
-            .main-image-wrapper {
-              width: 100%;
-              aspect-ratio: 16/9;
-              background: #000;
-              border-radius: 8px;
-              overflow: hidden;
-              box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-              position: relative;
-              border: 2px solid rgba(255,255,255,0.1);
-            }
-            .main-image { width: 100%; height: 100%; object-fit: cover; }
-            
-            /* Video Play Button Overlay */
-            .play-overlay {
-              position: absolute;
-              inset: 0;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              background: rgba(0,0,0,0.2);
-            }
-            .play-icon {
-              width: 48px;
-              height: 48px;
-              background: rgba(255,255,255,0.2);
-              backdrop-filter: blur(4px);
-              border-radius: 50%;
-              border: 2px solid #fff;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .play-triangle {
-              width: 0; 
-              height: 0; 
-              border-top: 8px solid transparent;
-              border-bottom: 8px solid transparent;
-              border-left: 14px solid #fff;
-              margin-left: 4px;
-            }
-
-            .sub-images-grid {
-              display: flex;
-              gap: 15px;
-              height: 120px;
-            }
-            .sub-img-box {
-              flex: 1;
-              background: #000;
-              border-radius: 8px;
-              overflow: hidden;
-              box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-              border: 2px solid rgba(255,255,255,0.1);
-            }
-            .sub-img-box img { width: 100%; height: 100%; object-fit: cover; }
-
-            /* Right Content */
-            .content {
-              width: 60%;
-              padding: 50px 60px;
-              display: flex;
-              flex-direction: column;
-              justify-content: center;
-              background: var(--popup-fill, #fff);
-              position: relative;
-            }
-
-            h1 {
-              font-size: 36px;
-              font-weight: 700;
-              color: #A83232; /* Matching Red */
-              margin: 0 0 20px 0;
-              line-height: 1.2;
-            }
-
-            p {
-              font-size: 14px;
-              line-height: 1.8;
-              color: #444;
-              margin-bottom: 30px;
-              max-width: 95%;
-            }
-
-            .section-title {
-              font-size: 20px;
-              font-weight: 700;
-              color: #A83232;
-              margin-bottom: 15px;
-            }
-
-            ul {
-              list-style: none;
-              padding: 0;
-              margin: 0;
-            }
-            
-            li {
-              display: flex;
-              align-items: center;
-              gap: 12px;
-              margin-bottom: 12px;
-              font-size: 14px;
-              color: #333;
-              font-weight: 500;
-            }
-
-            .bullet-icon {
-              width: 20px;
-              height: 20px;
-              min-width: 20px;
-              border: 2px solid #A83232;
-              border-radius: 50%;
-              position: relative;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }
-            .bullet-icon::after {
-              content: '';
-              width: 10px;
-              height: 10px;
-              background: #A83232;
-              border-radius: 50%;
-            }
-
-            .footer-logo {
-              position: absolute;
-              bottom: 30px;
-              right: 40px;
-              width: 50px;
-              height: 50px;
-              opacity: 0.9;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <!-- Sidebar -->
-            <div class="sidebar">
-              <div class="main-image-wrapper">
-                <img src="${template.image}" class="main-image element-selector" data-media-type="image" />
-                <div class="play-overlay">
-                   <div class="play-icon"><div class="play-triangle"></div></div>
-                </div>
-              </div>
-              <div class="sub-images-grid">
-                ${template.subImages.map(img => `
-                  <div class="sub-img-box">
-                    <img src="${img}" class="element-selector" />
-                  </div>
-                `).join('')}
-              </div>
-            </div>
-
-            <!-- Content -->
-            <div class="content">
-              <h1>${template.name || 'About Our Company'}</h1>
-              <p>${template.description || 'We provide premium quality automotive parts and dedicated service for modern vehicles.'}</p>
-              
-              <div class="section-title">Our Strengths</div>
-              <ul>
-                ${template.strengths.map(s => `
-                  <li><div class="bullet-icon"></div>${s}</li>
-                `).join('')}
-              </ul>
-
-              <img src="${template.logo}" class="footer-logo" />
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      applyInteraction('popup', null, automotiveHtml, 'click', null, {
-        imageSrc: template.image,
-        templateType: 'automotive',
-        templateData: tData,
-        fill: '#ffffff'
-      }, true);
-
-      onPopupPreviewUpdate({
-        isOpen: true,
-        content: automotiveHtml,
-        elementSource: template.image || null,
-        elementType: 'image',
-        renderId: Date.now(),
-        mode: 'edit',
-        styles: {
-          font: popupFont,
-          size: popupSize,
-          weight: popupWeight,
-          fill: popupFillColor,
-          fit: popupFit,
-          autoWidth: popupAutoWidth,
-          autoHeight: popupAutoHeight,
-          templateType: 'automotive',
-          templateData: tData
-        }
-      });
-    } else {
-      // Standard template logic
-      const defaultText = template.name || "About Our Company";
-      setPopupText(defaultText);
-      setPopupImageSrc(template.image || '');
-      setPopupFillColor('#ffffff');
-      applyInteraction('popup', null, defaultText, 'click', null, {
-        imageSrc: template.image,
-        fill: '#ffffff'
-      }, true);
-
-      onPopupPreviewUpdate({
-        isOpen: true,
-        content: defaultText,
-        elementSource: template.image || null,
-        elementType: 'image',
-        renderId: Date.now(),
-        mode: 'edit',
-        styles: {
-          font: popupFont,
-          size: popupSize,
-          weight: popupWeight,
-          fill: popupFillColor,
-          fit: popupFit,
-          autoWidth: popupAutoWidth,
-          autoHeight: popupAutoHeight,
-          templateType: 'standard'
-        }
-      });
-    }
-    setTemplateSelectionOpen(false);
-  };
-
-  const handleCloseTemplateSelection = () => {
-    setTemplateSelectionOpen(false);
-  };
-
-  // ================= RENDER INTERFACE =================
-
-  const renderTargetInput = () => {
-    // This renders the RIGHT side of the flow (the target input OR visual representation)
-    switch (interactionType) {
-      case 'none':
-        return (
-          <div className={`w-[2.5vw] h-[2.5vw] flex items-center justify-center text-gray-400 font-medium bg-white rounded-full border border-gray-300 shadow-sm ${isFrame ? 'scale-110' : ''}`}>
-            ?
-          </div>
-        );
-
-      case 'zoom':
-        return (
-          <div className="flex items-center gap-[0.5vw]">
-            <button
-              className="w-[2vw] h-[2vw] flex items-center justify-center text-gray-500 hover:text-indigo-600 rounded hover:bg-gray-100"
-              onClick={() => {
-                const newZoom = Math.max(1.1, zoomLevel - 0.1);
-                setZoomLevel(newZoom);
-                applyInteraction('zoom', newZoom);
-              }}
-            >
-              <ChevronLeft size="1.2vw" />
-            </button>
-
-            <div className="border border-gray-400 rounded-[0.25vw] px-[0.75vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-900 min-w-[2.6vw] text-center bg-white cursor-default">
-              {Number(zoomLevel).toFixed(0)}X
-            </div>
-
-            <button
-              className="w-[2vw] h-[2vw] flex items-center justify-center text-gray-500 hover:text-indigo-600 rounded hover:bg-gray-100"
-              onClick={() => {
-                const newZoom = Math.min(5, zoomLevel + 0.1);
-                setZoomLevel(newZoom);
-                applyInteraction('zoom', newZoom);
-              }}
-            >
-              <ChevronRight size="1.2vw" />
-            </button>
-          </div>
-        );
-
-      case 'link':
-        return (
-          <div className={`flex flex-col items-end gap-[0.5vw] flex-grow ${isFrame ? 'min-w-[8vw]' : 'min-w-[10.5vw]'}`}>
-            <div className="relative w-full">
-              <input
-                type="text"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                onBlur={() => applyInteraction('link', linkUrl)}
-                placeholder="https://example.com"
-                className={`w-full border border-gray-400 rounded-[0.4vw] text-[0.75vw] text-gray-700 placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 outline-none ${isFrame ? 'px-[0.6vw] py-[0.3vw]' : 'px-[0.8vw] py-[0.4vw]'}`}
-              />
-            </div>
-          </div>
-        );
-
-      case 'navigation':
-        return (
-          <div className={`border border-gray-400 rounded-[0.4vw] bg-white flex items-center gap-[0.5vw] ${isFrame ? 'pl-[0.8vw] pr-[0.4vw] py-[0.4vw] min-w-[6vw]' : 'px-[0.5vw] py-[0.4vw] min-w-[5.2vw]'}`}>
-            <select
-              value={navPage}
-              onChange={(e) => {
-                setNavPage(e.target.value);
-                applyInteraction('navigation', e.target.value);
-              }}
-              className={`appearance-none bg-transparent text-gray-700 font-medium outline-none w-full ${isFrame ? 'text-[0.7vw] pr-[0.2vw]' : 'text-[0.75vw] pr-[1vw]'}`}
-              style={{ backgroundImage: 'none' }}
-            >
-              <option value="" disabled>Select Page</option>
-              {pages && pages.length > 0 ? (
-                pages.map((page, index) => (
-                  <option key={page.id || index} value={index + 1}>
-                    {page.name ? (page.name.length > 20 ? page.name.substring(0, 18) + '...' : page.name) : `Page ${index + 1}`}
-                  </option>
-                ))
-              ) : (
-                <>
-                  <option value="1">Page 1</option>
-                  <option value="2">Page 2</option>
-                  <option value="3">Page 3</option>
-                  <option value="4">Page 4</option>
-                </>
-              )}
-            </select>
-            <ChevronDown size="0.9vw" className="text-gray-500 flex-shrink-0" />
-          </div>
-        );
-
-      case 'call':
-        return (
-          <div className="flex flex-col items-end gap-[0.5vw]">
-            <div className="border border-gray-400 rounded-[0.4vw] flex items-center bg-white overflow-hidden p-[0.25vw]">
-              <div className="flex items-center gap-[0.2vw] px-[0.5vw] border-r border-gray-200 bg-gray-50 rounded-[0.2vw] mx-[0.25vw] py-[0.15vw]">
-                <span className="text-[0.65vw] text-gray-600 font-medium">+91</span>
-                <ChevronDown size="0.7vw" className="text-gray-400" />
-              </div>
-              <input
-                type="tel"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                onBlur={() => applyInteraction('call', phoneNumber)}
-                placeholder="1234567890"
-                className="w-[6vw] px-[0.5vw] py-[0.25vw] text-[0.75vw] text-gray-700 outline-none"
-              />
-            </div>
-            <button
-              className="bg-black text-white text-[0.65vw] font-semibold px-[1vw] py-[0.4vw] rounded-[0.4vw] flex items-center gap-[0.3vw] hover:bg-gray-800 transition-colors"
-              onClick={() => applyInteraction('call', phoneNumber)}
-            >
-              <Check size="0.8vw" strokeWidth={3} />
-              Done
-            </button>
-          </div>
-        );
-
-      case 'popup':
-        // Show template preview if selected, otherwise show placeholder
-        return (
-          <div className="flex flex-col items-center justify-center">
-            <div
-              onClick={handleOpenTemplateSelection}
-              className="border border-gray-300 rounded-[0.8vw] bg-white shadow-sm overflow-hidden mb-[0.2vw] flex flex-col items-center cursor-pointer hover:bg-gray-50 transition-colors group relative w-[8.5vw] h-[6vw]"
-            >
-              {popupText ? (
-                // Template Preview
-                <div className="w-full h-full relative overflow-hidden bg-gray-50">
-                  <div className="absolute inset-0 pointer-events-none transform origin-top-left scale-[0.25] group-hover:blur-sm transition-all duration-200" style={{ width: '400%', height: '400%' }}>
-                    <iframe
-                      srcDoc={popupText}
-                      className="w-full h-full border-none bg-white"
-                      title="Template Preview"
-                      scrolling="no"
-                    />
-                  </div>
-                  {/* Hover Overlay with Icon in Top-Right */}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors">
-                    <ArrowRightLeft size="1.5vw" className="opacity-0 group-hover:opacity-100 text-white transition-opacity bg-black p-[0.4vw] rounded-[0.4vw] shadow-md absolute top-[0.4vw] right-[0.4vw]" />
-                  </div>
-                </div>
-              ) : (
-                // Placeholder
-                <div className="flex flex-col items-center justify-center w-full h-full p-[0.5vw]">
-                  <MessageSquare size="2vw" className="text-gray-400 mb-[0.4vw]" />
-                  <span className="text-[0.7vw] text-gray-500 font-medium text-center leading-tight">Choose Template</span>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-
-      case 'download':
-        // Download File Card UI - Matching Screenshot + Image Replace
-        const isImage = selectedElement.tagName.toLowerCase() === 'img';
-        let filename = 'Document.txt';
-
-        if (isImage) {
-          const src = selectedElement.src || '';
-          if (src.startsWith('data:')) {
-            filename = 'image.png';
-          } else {
-            filename = src.split('/').pop().split('?')[0] || 'image.png';
-          }
-        } else {
-          filename = 'Upload Image';
-        }
-
-        const previewSrc = downloadCustomImage || (isImage ? selectedElement.src : null);
-        const hasCustom = !!downloadCustomImage;
-
-        return (
-          <div className="flex flex-col items-center gap-[0.3vw]">
-            <div
-              className="border border-gray-400 border-dashed rounded-[0.6vw] p-[0.4vw] bg-white shadow-sm overflow-hidden mb-[0.2vw] flex flex-col items-center cursor-pointer hover:border-indigo-400 group relative transition-colors"
-              onClick={() => downloadFileInputRef.current?.click()}
-              title="Click to replace download image"
-            >
-              <div className="w-[3.5vw] h-[3.5vw] bg-gray-50 rounded-[0.4vw] flex items-center justify-center overflow-hidden relative">
-                {previewSrc ? (
-                  <>
-                    <img src={previewSrc} alt="Preview" className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="flex flex-col items-center text-white">
-                        <Upload size="1vw" />
-                        <span className="text-[0.6vw] font-medium mt-[0.1vw]">Replace</span>
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="w-full h-full bg-indigo-50 flex items-center justify-center p-[0.3vw] group-hover:bg-indigo-100 transition-colors">
-                    <div className="flex flex-col items-center justify-center">
-                      <FileText size="1.3vw" className="text-indigo-400 mb-[0.1vw]" />
-                      <span className="text-[0.55vw] text-indigo-600 font-medium opacity-0 group-hover:opacity-100 absolute bottom-[0.1vw]">Upload</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <input
-                type="file"
-                ref={downloadFileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handleDownloadImageReplace}
-              />
-            </div>
-
-            <span className="text-[0.65vw] text-gray-500 font-medium uppercase tracking-wider max-w-[5.2vw] truncate" title={hasCustom ? "Custom Image Selected" : filename}>
-              {hasCustom ? 'Override' : filename}
-            </span>
-
-            {hasCustom && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDownloadCustomImage(null);
-                  if (downloadFileInputRef.current) downloadFileInputRef.current.value = '';
-
-                  const defaultVal = isImage ? selectedElement.src : '';
-                  const finalVal = defaultVal;
-
-                  setDownloadUrl(finalVal);
-                  selectedElement.removeAttribute('data-download-custom-image');
-                  applyInteraction('download', finalVal, '', null, null, {});
-                }}
-                className="text-[0.6vw] text-red-500 hover:text-red-700 font-medium flex items-center gap-[0.1vw] mt-[0.1vw]"
-              >
-                <X size="0.6vw" /> Reset
-              </button>
-            )}
-          </div>
-        );
-
-      case 'tooltip':
-        // Tooltip Visual
-        return (
-          <div className="border border-gray-400 rounded-[0.4vw] p-[0.75vw] min-w-[5.2vw] h-[4.2vw] flex items-center justify-center bg-white relative">
-            <div className="relative">
-              <MessageSquare size="2vw" className="text-gray-400 fill-gray-100" />
-              <div className="absolute top-[0.1vw] right-[0.1vw] w-[0.4vw] h-[0.4vw] bg-gray-400 rounded-full"></div>
-            </div>
-          </div>
-        )
-
-      default:
-        return null;
-    }
-  };
-
-  const renderAdvancedEditor = () => {
-    if (interactionType === 'popup') {
-      if (activeElementInfo) {
-        const { isText, isImage, isGif, isVideo, isIcon } = activeElementInfo;
-
-        if (isText && TextEditorComponent) {
-          return (
-            <div className="mt-[1vw] border-t border-gray-200 pt-[0.8vw]">
-              <div className="flex items-center gap-[0.5vw] mb-[0.8vw]">
-                <span className="text-[0.8vw] font-bold text-gray-900">Text Properties</span>
-                <div className="h-[0.05vw] flex-grow bg-gray-200"></div>
-                <Edit2 size="1vw" className="text-gray-400" />
-              </div>
-              <TextEditorComponent
-                selectedElement={activePopupElement}
-                onUpdate={onPopupUpdate}
-                onPopupPreviewUpdate={onPopupPreviewUpdate}
-                showInteraction={false}
-                TextEditorComponent={TextEditorComponent}
-                ImageEditorComponent={ImageEditorComponent}
-                VideoEditorComponent={VideoEditorComponent}
-                GifEditorComponent={GifEditorComponent}
-                IconEditorComponent={IconEditorComponent}
-              />
-            </div>
-          );
-        } else if (isImage && ImageEditorComponent) {
-          return (
-            <div className="mt-[1vw] border-t border-gray-200 pt-[0.8vw]">
-              <div className="flex items-center gap-[0.5vw] mb-[0.8vw]">
-                <span className="text-[0.8vw] font-bold text-gray-900">Image Properties</span>
-                <div className="h-[0.05vw] flex-grow bg-gray-200"></div>
-                <ImageIcon size="1vw" className="text-gray-400" />
-              </div>
-              <ImageEditorComponent
-                selectedElement={activePopupElement}
-                onUpdate={onPopupUpdate}
-                onPopupPreviewUpdate={onPopupPreviewUpdate}
-                showInteraction={false}
-                TextEditorComponent={TextEditorComponent}
-                ImageEditorComponent={ImageEditorComponent}
-                VideoEditorComponent={VideoEditorComponent}
-                GifEditorComponent={GifEditorComponent}
-                IconEditorComponent={IconEditorComponent}
-              />
-            </div>
-          );
-        } else if (isGif && GifEditorComponent) {
-          return (
-            <div className="mt-[1vw] border-t border-gray-200 pt-[0.8vw]">
-              <div className="flex items-center gap-[0.5vw] mb-[0.8vw]">
-                <span className="text-[0.8vw] font-bold text-gray-900">Gif Properties</span>
-                <div className="h-[0.05vw] flex-grow bg-gray-200"></div>
-                <Zap size="1vw" className="text-gray-400" />
-              </div>
-              <GifEditorComponent
-                selectedElement={activePopupElement}
-                onUpdate={onPopupUpdate}
-                onPopupPreviewUpdate={onPopupPreviewUpdate}
-                showInteraction={false}
-                TextEditorComponent={TextEditorComponent}
-                ImageEditorComponent={ImageEditorComponent}
-                VideoEditorComponent={VideoEditorComponent}
-                GifEditorComponent={GifEditorComponent}
-                IconEditorComponent={IconEditorComponent}
-              />
-            </div>
-          );
-        } else if (isVideo && VideoEditorComponent) {
-          return (
-            <div className="mt-[1vw] border-t border-gray-200 pt-[0.8vw]">
-              <div className="flex items-center gap-[0.5vw] mb-[0.8vw]">
-                <span className="text-[0.8vw] font-bold text-gray-900">Video Properties</span>
-                <div className="h-[0.05vw] flex-grow bg-gray-200"></div>
-                <VideoIcon size="1vw" className="text-gray-400" />
-              </div>
-              <VideoEditorComponent
-                selectedElement={activePopupElement}
-                onUpdate={onPopupUpdate}
-                onPopupPreviewUpdate={onPopupPreviewUpdate}
-                showInteraction={false}
-                TextEditorComponent={TextEditorComponent}
-                ImageEditorComponent={ImageEditorComponent}
-                GifEditorComponent={GifEditorComponent}
-                IconEditorComponent={IconEditorComponent}
-                VideoEditorComponent={VideoEditorComponent}
-              />
-            </div>
-          );
-        } else if (isIcon && IconEditorComponent) {
-          return (
-            <div className="mt-[1vw] border-t border-gray-200 pt-[0.8vw]">
-              <IconEditorComponent
-                selectedElement={activePopupElement}
-                onUpdate={onPopupUpdate}
-                showInteraction={false}
-              />
-            </div>
-          );
-        }
-      }
-      return null;
-    }
-
-    if (interactionType === 'tooltip') {
-      return (
-        <div className="mt-[1vw] pt-[1vw] border-t border-gray-100 animate-fadeIn">
-          <div className="flex items-center justify-between mb-[0.8vw]">
-            <label className="text-[0.8vw] font-bold text-gray-800">Edit Tooltip</label>
-          </div>
-
-          {/* Preview Box */}
-          <div className="bg-gray-50 border border-gray-200 rounded-[0.8vw] h-[6vw] flex items-center justify-center mb-[1vw] relative">
-            {/* Simulated Tooltip */}
-            <div className="relative">
-              <div
-                className="px-[0.8vw] py-[0.4vw] rounded-[0.2vw] text-[0.7vw] whitespace-nowrap"
-                style={{
-                  backgroundColor: tooltipFillColor,
-                  color: tooltipTextColor
-                }}
-              >
-                {tooltipText || 'Centered Tooltip'}
-              </div>
-              {/* Triangle pointer */}
-              <div
-                className="w-0 h-0 border-l-[0.4vw] border-l-transparent border-r-[0.4vw] border-r-transparent border-t-[0.6vw] absolute left-1/2 -translate-x-1/2 top-full"
-                style={{ borderTopColor: tooltipFillColor }}
-              ></div>
-            </div>
-          </div>
-
-          {/* Text Input */}
-          <div className="relative mb-[0.8vw]">
-            <input
-              type="text"
-              value={tooltipText}
-              onChange={(e) => setTooltipText(e.target.value)}
-              onBlur={() => updateAdvanced('tooltip')}
-              placeholder="Centered Tooltip"
-              className="w-full border border-gray-400 rounded-[0.6vw] px-[0.8vw] py-[0.5vw] text-[0.75vw] text-gray-600 outline-none"
-            />
-            <Edit2 size="0.9vw" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400" />
-          </div>
-
-          {/* Colors */}
-          <div className="space-y-[0.8vw]">
-            {/* Text Color */}
-            <div className="flex items-center gap-[0.8vw]">
-              <span className="text-[0.75vw] font-medium text-gray-800 w-[3vw]">Text :</span>
-              <div className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 relative overflow-hidden">
-                <input
-                  type="color"
-                  value={tooltipTextColor}
-                  onChange={(e) => { setTooltipTextColor(e.target.value); }}
-                  onBlur={() => updateAdvanced('tooltip')}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <div className="w-full h-full" style={{ backgroundColor: tooltipTextColor }}></div>
-              </div>
-              <div className="flex-grow border border-gray-400 rounded-[0.6vw] px-[0.8vw] py-[0.4vw] flex items-center justify-between bg-white">
-                <span className="text-[0.75vw] text-gray-500 uppercase">{tooltipTextColor}</span>
-                <span className="text-[0.75vw] text-gray-500">100%</span>
-              </div>
-            </div>
-
-            {/* Fill Color */}
-            <div className="flex items-center gap-[0.8vw]">
-              <span className="text-[0.75vw] font-medium text-gray-800 w-[3vw]">Fill :</span>
-              <div className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 relative overflow-hidden">
-                <input
-                  type="color"
-                  value={tooltipFillColor}
-                  onChange={(e) => { setTooltipFillColor(e.target.value); }}
-                  onBlur={() => updateAdvanced('tooltip')}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <div className="w-full h-full" style={{ backgroundColor: tooltipFillColor }}></div>
-              </div>
-              <div className="flex-grow border border-gray-400 rounded-[0.6vw] px-[0.8vw] py-[0.4vw] flex items-center justify-between bg-white">
-                <span className="text-[0.75vw] text-gray-500 uppercase">{tooltipFillColor}</span>
-                <span className="text-[0.75vw] text-gray-500">80%</span>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )
-    }
-    return null;
-  }
-
-  const getInteractionLabel = () => {
-    switch (interactionType) {
-      case 'none': return 'None';
-      case 'link': return 'Open Link';
-      case 'navigation': return 'Navigate to';
-      case 'call': return 'Call';
-      case 'zoom': return 'Zoom';
-      case 'popup': return 'PopUp';
-      case 'tooltip': return 'Tooltip';
-      case 'download': return 'Download';
-      case '3dviewer': return '3D Viewer';
-      case 'slideshow': return 'Slideshow';
-      default: return 'None';
-    }
-  }
-
-
-
-  const getIconForType = (type) => {
-    switch (type) {
-      case 'link': return <ExternalLink size="1vw" className="text-gray-600" />;
-      case 'navigation': return <Zap size="1vw" className="text-gray-600" />;
-      case 'call': return <Phone size="1vw" className="text-gray-600" />;
-      case 'zoom': return <ZoomIn size="1vw" className="text-gray-600" />;
-      case 'popup': return <MessageSquare size="1vw" className="text-gray-600" />;
-      case 'tooltip': return <Info size="1vw" className="text-gray-600" />;
-      case 'download': return <Download size="1vw" className="text-gray-600" />;
-      case '3dviewer': return <Box size="1vw" className="text-gray-600" />;
-      case 'slideshow': return <Layers size="1vw" className="text-gray-600" />;
-      default: return <MousePointerClick size="1vw" className="text-gray-600" />;
-    }
-  }
-
-  const getTriggerLabel = () => {
-    return interactionTrigger === 'click' ? 'On Click' : 'On Hover';
-  }
-
-
-  if (forceHidden) return null;
-
-
   return (
-    <div className={`bg-white border ${isFrame ? 'border-gray-100 shadow-md' : 'border-gray-200 shadow-sm'} ${isFrame ? 'rounded-[0.8vw]' : 'rounded-[0.8vw]'} relative transition-all duration-300 overflow-hidden`}>
+    <div className="flex flex-col gap-[3vh] p-[1.5vw] bg-[#fbfbfb] h-full overflow-y-auto no-scrollbar">
 
-      {/* ================= HEADER ================= */}
-      <div
-        className={`flex items-center justify-between px-[1vw] py-[1vw] cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-50 group/header ${isInteractionsOpen ? (isFrame ? 'rounded-t-[0.8vw]' : 'rounded-t-[0.8vw]') : (isFrame ? 'rounded-[0.8vw]' : 'rounded-[0.8vw]')}`}
-        onClick={() => {
-          if (onToggle) onToggle();
-          else setInternalIsOpen(!internalIsOpen);
-        }}
-      >
-        <div className="flex items-center gap-[0.5vw]">
-          <Sparkles size="1vw" className="text-gray-600" />
-          <span className="text-[0.85vw] font-medium text-gray-700">Interaction</span>
+      {/* Select Free Frame Section */}
+      <div className="space-y-[1.5vh]">
+        <div className="flex items-center gap-[0.75vw]">
+          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Select Free Frame</span>
+          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
         </div>
 
-        <div className="flex items-center gap-[0.5vw]">
-          {isFrame && (
-            <button
-              onClick={(e) => { e.stopPropagation(); handleReset(); }}
-              className="p-[0.35vw] text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-[0.4vw] transition-all"
-              title="Reset Interaction"
-            >
-              <RotateCcw size="0.85vw" />
-            </button>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onToggle) onToggle();
-              else setInternalIsOpen(!internalIsOpen);
-            }}
-            className="rounded-[0.3vw] hover:bg-gray-100 transition-colors"
-            aria-label={isInteractionsOpen ? "Collapse" : "Expand"}
-          >
-            <ChevronUp
-              size="1vw"
-              className={`text-gray-500 transition-transform duration-200 ${isInteractionsOpen ? '' : 'rotate-180'}`}
-            />
-          </button>
+        <div
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent('add-free-frame', {
+              detail: { pageIndex: activePageIndex }
+            }));
+          }}
+          className="w-[92%] mx-auto h-[11.5vh] bg-[#E5E7EB]/50 flex flex-col items-center justify-center cursor-pointer hover:bg-[#E5E7EB]/70 transition-all group relative rounded-[0.1vw] overflow-visible"
+          style={{
+            backgroundImage: `linear-gradient(to right, #4B5563 60%, transparent 40%), linear-gradient(to right, #4B5563 60%, transparent 40%), linear-gradient(to bottom, #4B5563 60%, transparent 40%), linear-gradient(to bottom, #4B5563 60%, transparent 40%)`,
+            backgroundPosition: 'left top, left bottom, left top, right top',
+            backgroundRepeat: 'repeat-x, repeat-x, repeat-y, repeat-y',
+            backgroundSize: '1vw 0.1vw, 1vw 0.1vw, 0.1vw 1vw, 0.1vw 1vw'
+          }}
+        >
+          {/* Sharp L-corners with Black Fill */}
+
+          {/* Top Left */}
+          <div className="absolute -top-[0.15vw] -left-[0.15vw] w-[0.9vw] h-[0.9vw]">
+            <div className="absolute top-0 left-0 w-full h-[0.3vw] bg-black border border-black"></div>
+            <div className="absolute top-0 left-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          </div>
+
+          {/* Top Right */}
+          <div className="absolute -top-[0.15vw] -right-[0.15vw] w-[0.9vw] h-[0.9vw]">
+            <div className="absolute top-0 right-0 w-full h-[0.3vw] bg-black border border-black"></div>
+            <div className="absolute top-0 right-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          </div>
+
+          {/* Bottom Left */}
+          <div className="absolute -bottom-[0.15vw] -left-[0.15vw] w-[0.9vw] h-[0.9vw]">
+            <div className="absolute bottom-0 left-0 w-full h-[0.3vw] bg-black border border-black"></div>
+            <div className="absolute bottom-0 left-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          </div>
+
+          {/* Bottom Right */}
+          <div className="absolute -bottom-[0.15vw] -right-[0.15vw] w-[0.9vw] h-[0.9vw]">
+            <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-black border border-black"></div>
+            <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          </div>
+
+          <span className="text-[0.9vw] font-medium text-[#4B5563] tracking-tight">Click To Add Free Frame</span>
         </div>
       </div>
 
-      {isInteractionsOpen && (
-        <div className="p-[1vw] pt-0 animate-fadeIn space-y-[1vw]">
+      {/* Add Interaction Button */}
+      {activeLayerId && !openCardIds[activeLayerId] && (
+        <div className="mt-[0.5vh] flex justify-center">
+          <button
+            onClick={() => { }}
+            className="w-[92%] mx-auto h-[5.8vh] bg-[#3F3F46] rounded-[0.5vw] flex items-center justify-center text-white shadow-sm hover:bg-[#27272A] transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <span className="text-[0.85vw] font-semibold tracking-wide flex items-center gap-[0.4vw]">
+              <span className="text-[1.2vw] font-light leading-[1]">+</span> Add Interaction to {activeLayerId ? detectElementDisplayInfo(activeLayerId).name : 'Group 432'}
+            </span>
+          </button>
+        </div>
+      )}      {/* Interactions in this Page Section */}
+      <div className="space-y-[1.5vh] mt-[2vh]">
+        <div className="flex items-center gap-[0.75vw]">
+          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Interactions in this Page</span>
+          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+        </div>
 
-          {/* ================= TOP SELECTORS ================= */}
-          <div className="flex items-center justify-between gap-[0.8vw] mb-[0.25vw] pt-[1vw]">
-            {/* Type Selector (Inside Panel Body) */}
-            <div className="relative">
-              <button
-                ref={typeTriggerRef}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleTypeDropdown(e);
-                }}
-                className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-gray-100 hover:bg-gray-200 rounded-[0.5vw] transition-all group relative border border-gray-200"
-              >
-                <span className="text-[0.75vw] font-semibold text-gray-700">{getInteractionLabel()}</span>
-                <ChevronDown size="0.85vw" className={`text-gray-500 transition-transform duration-300 ${showTypeDropdown ? 'rotate-180' : ''}`} />
-              </button>
+        {/* Interaction List */}
+        <div className="flex flex-col gap-[1.5vh] pb-[2vh]">
 
-              {showTypeDropdown && dropdownRect && ReactDOM.createPortal(
-                <>
-                  <div className="fixed inset-0 z-[100000] cursor-default" onClick={(e) => {
-                    e.stopPropagation();
-                    setShowTypeDropdown(false);
-                  }} />
-                  <div
-                    ref={dropdownRef}
-                    style={{
-                      position: 'fixed',
-                      left: Math.min(dropdownRect.left, window.innerWidth - 180),
-                      zIndex: 100001,
-                      ...(dropdownRect.bottom + 8 + 300 > window.innerHeight
-                        ? { bottom: window.innerHeight - dropdownRect.top + 8 }
-                        : { top: dropdownRect.bottom + 8 })
-                    }}
-                      className="w-[10vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-2xl overflow-y-auto max-h-[20vw] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
-                    onClick={e => e.stopPropagation()}
-                  >
-                    {[
-                      { id: 'none', label: 'None', icon: X },
-                      { id: 'link', label: 'Open Link', icon: ExternalLink },
-                      { id: 'navigation', label: 'Navigate to', icon: Zap },
-                      { id: 'call', label: 'Call', icon: Phone },
-                      { id: 'zoom', label: 'Zoom', icon: ZoomIn },
-                      { id: 'popup', label: 'Popup', icon: MessageSquare },
-                      { id: 'tooltip', label: 'Tooltip', icon: Info },
-                      { id: 'download', label: 'Download', icon: Download }
-                    ].map((opt) => {
-                      const IconComp = opt.icon;
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTypeChange(opt.id);
-                            setShowTypeDropdown(false);
-                          }}
-                          className={`px-[0.8vw] py-[0.5vw] text-[0.75vw] font-medium transition-colors text-left w-full flex items-center gap-[0.6vw] ${interactionType === opt.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'}`}
-                        >
-                          <IconComp size="0.85vw" className={interactionType === opt.id ? 'text-indigo-600' : 'text-gray-400'} />
-                          {opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>,
-                document.body
-              )}
-            </div>
+          {interactiveElementsList.length > 0 ? (
+            interactiveElementsList.map(item => {
+              const isCollapsed = !!collapsedCardIds[item.id];
+              const isDropdownOpen = openDropdownId === item.id;
+              // Use local override (immediate) if available, else fall back to item.actionId from pages
+              const resolvedActionId = cardActionOverrides[item.id] || item.actionId;
+              const currentAction = actionTypes.find(a => a.id === resolvedActionId) || actionTypes[0];
+              // Respect trigger and value local overrides to bypass DOM parsing lag
+              const resolvedTrigger = itemTriggerOverrides[item.id] !== undefined ? itemTriggerOverrides[item.id] : (item.trigger || 'click');
+              const resolvedValue = itemValueOverrides[item.id] !== undefined ? itemValueOverrides[item.id] : item.value;
 
-            {/* Trigger Selector */}
-            {['tooltip'].includes(interactionType) && (
-              <div className="relative">
-                <button
-                  ref={triggerTriggerRef}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleTriggerDropdown(e);
-                  }}
-                  className="flex items-center gap-[0.4vw] px-[0.75vw] py-[0.4vw] bg-gray-100 hover:bg-gray-200 rounded-[0.5vw] transition-all group relative border border-gray-200"
-                >
-                  <span className="text-[0.75vw] font-semibold text-gray-700">{getTriggerLabel()}</span>
-                  <ChevronDown size="0.85vw" className={`text-gray-500 transition-transform duration-300 ${showTriggerDropdown ? 'rotate-180' : ''}`} />
-                </button>
+              const isSelected = activeLayerId === item.id;
 
-                {showTriggerDropdown && dropdownRect && ReactDOM.createPortal(
-                  <>
-                    <div className="fixed inset-0 z-[100000] cursor-default" onClick={(e) => {
-                      e.stopPropagation();
-                      setShowTriggerDropdown(false);
-                    }} />
-                    <div
-                      ref={dropdownRef}
-                      style={{
-                        position: 'fixed',
-                        left: Math.min(dropdownRect.left, window.innerWidth - 180),
-                        zIndex: 100001,
-                        ...(dropdownRect.bottom + 8 + 300 > window.innerHeight
-                          ? { bottom: window.innerHeight - dropdownRect.top + 8 }
-                          : { top: dropdownRect.bottom + 8 })
-                      }}
-                      className="w-[10vw] bg-white border border-gray-100 rounded-[0.6vw] shadow-2xl overflow-y-auto max-h-[20vw] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150 pointer-events-auto"
-                      onClick={e => e.stopPropagation()}
-                    >
-                      {[
-                        { id: 'click', label: 'On Click', icon: MousePointerClick },
-                        { id: 'hover', label: 'On Hover', icon: Eye }
-                      ].map((opt) => {
-                        const IconComp = opt.icon;
-                        return (
-                          <button
-                            key={opt.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleTriggerChange(opt.id);
-                              setShowTriggerDropdown(false);
-                            }}
-                            className={`px-[0.8vw] py-[0.5vw] text-[0.75vw] font-medium transition-colors text-left w-full flex items-center gap-[0.6vw] ${interactionTrigger === opt.id ? 'bg-indigo-50 text-indigo-600' : 'text-gray-600 hover:bg-gray-50'}`}
-                          >
-                            <IconComp size="0.85vw" className={interactionTrigger === opt.id ? 'text-indigo-600' : 'text-gray-400'} />
-                            {opt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </>,
-                  document.body
-                )}
-              </div>
-            )}
+              let tooltipSettings = {
+                text: 'Tooltip',
+                textColor: '#ffffff',
+                bgColor: '#1a1a1a',
+                fontFamily: 'Poppins',
+                fontWeight: 'Regular',
+                fontSize: 14,
+                align: 'center',
+                bold: false,
+                italic: false
+              };
+              if (item.tooltipSettings) {
+                try {
+                  tooltipSettings = { ...tooltipSettings, ...JSON.parse(item.tooltipSettings) };
+                } catch (e) { }
+              }
 
-            {/* Show Preview Button */}
-              {interactionType === 'popup' && popupText && (
-                <button
+              return (
+                <div
+                  key={item.id}
                   onClick={() => {
-                    // Decode content if it's encoded
-                    let content = selectedElement.getAttribute('data-interaction-content') || '';
-                    if (
-                      selectedElement.getAttribute('data-interaction-content-encoded') === 'true' ||
-                      content.startsWith('ENCODED:::')
-                    ) {
-                      try {
-                        const raw = content.startsWith('ENCODED:::') ? content.substring(10) : content;
-                        content = decodeURIComponent(raw);
-                      } catch (e) {
-                        console.warn('Failed to decode interaction content', e);
-                        if (content.startsWith('ENCODED:::')) {
-                          content = content.substring(10);
-                        }
-                      }
-                    }
-
-                    onPopupPreviewUpdate({
-                      isOpen: true,
-                      content: content,
-                      elementSource: (selectedElement.tagName.toLowerCase() === 'img' ? selectedElement.src : null),
-                      elementType: 'image',
-                      renderId: Date.now(),
-                      mode: 'preview',
-                      styles: {
-                        font: popupFont,
-                        size: popupSize,
-                        weight: popupWeight,
-                        fill: popupFillColor,
-                        fillOpacity: popupFillOpacity,
-                        stroke: popupStrokeColor,
-                        strokeOpacity: popupStrokeOpacity,
-                        strokeType: popupStrokeType,
-                        strokeWidth: popupStrokeWidth,
-                        strokeDashLength: popupStrokeDashLength,
-                        strokeDashGap: popupStrokeDashGap,
-                        strokePosition: popupStrokePosition,
-                        strokeRoundCorners: popupStrokeRoundCorners,
-                        fit: popupFit,
-                        autoWidth: popupAutoWidth,
-                        autoHeight: popupAutoHeight
-                      }
+                    setActiveLayerId(item.id);
+                    setCollapsedCardIds(prev => {
+                      const next = { ...prev };
+                      Object.keys(openCardIds).forEach(id => {
+                        next[id] = true;
+                      });
+                      next[item.id] = false;
+                      return next;
                     });
+                    window.dispatchEvent(new CustomEvent('select-layer', {
+                      detail: { layerId: item.id }
+                    }));
                   }}
-                  className="flex items-center justify-center w-[2.5vw] h-[2.5vw] bg-indigo-50 border border-indigo-100 rounded-[0.8vw] text-indigo-600 hover:bg-indigo-100 transition-all ml-auto"
-                  title="Preview"
+                  className={`w-full mx-auto bg-white border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative cursor-pointer transition-all duration-200 ${isSelected
+                    ? 'border-[#4A3AFF] ring-2 ring-[#4A3AFF]/15 shadow-[0_4px_16px_rgba(74,58,255,0.08)]'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
-                  <ScanEye size="1.2vw" />
-                </button>
-              )}
-            </div>
 
+                  {/* Card Header / Settings */}
+                  <div className={`flex flex-col ${isCollapsed ? 'py-[1.5vh] px-[1.6vw]' : 'p-[1.6vw]'}`}>
+                    {/* Top Row: Icon + Dropdowns */}
+                    <div className="flex items-center justify-between gap-[0.8vw]">
+                      <div className="flex items-center gap-[0.8vw]">
+                        {/* Touch Icon */}
+                        <div className="flex-shrink-0 text-gray-500 flex items-center">
+                          <svg width="1.4vw" height="1.4vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" />
+                            <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934" />
+                          </svg>
+                        </div>
 
+                        {/* Expanded state pills directly in header */}
+                        {!isCollapsed ? (
+                          <div className="flex items-center gap-[0.6vw]">
+                            {/* Action selector dropdown styled as a pill */}
+                            <div
+                              data-dropdown-trigger="true"
+                              className="h-[3.6vh] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer hover:bg-gray-200 transition-colors relative select-none"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenDropdownId(isDropdownOpen ? null : item.id);
+                              }}
+                            >
+                              <span className="text-[0.8vw] text-gray-700 font-semibold">{currentAction.label}</span>
+                              <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
+                              </svg>
+                              {isDropdownOpen && (
+                                <div data-dropdown-menu="true" className="absolute bottom-[calc(100%+0.5vh)] left-0 w-[11vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl flex flex-col py-[0.5vh] z-[100] max-h-[39vh] overflow-y-auto no-scrollbar">
+                                  {actionTypes.map(action => (
+                                    <div
+                                      key={action.id}
+                                      className="flex items-center gap-[0.8vw] px-[1vw] py-[1vh] hover:bg-gray-50 cursor-pointer transition-colors"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDropdownId(null);
+                                        // Immediately update card display via local override
+                                        setCardActionOverrides(prev => ({ ...prev, [item.id]: action.id }));
 
-          {/* ================= SOURCE -> TARGET PREVIEW ================= */}
-          <div className={`flex items-center justify-between gap-[1vw] ${isFrame ? 'py-[1vw] mb-[0.5vw] border-b border-gray-50 border-t border-gray-50' : 'py-[0.8vw] mb-[0.5vw]'}`}>
-            {/* Source */}
-            <div className={`${isFrame ? 'bg-[#F2F4F7] text-[#667085] px-[0.8vw] py-[0.4vw] rounded-[0.5vw] text-[0.8vw] font-medium shadow-sm' : 'bg-gray-100 text-gray-600 px-[0.6vw] py-[0.3vw] rounded-[0.4vw] text-[0.6vw] font-bold uppercase tracking-widest border border-gray-200/50 shadow-sm'} flex-shrink-0`}>
-              {isFrame ? (frameLabel || 'Frame') : formattedElementName}
-            </div>
-
-            {/* Arrow */}
-            <div className="flex-1 flex items-center justify-center pointer-events-none px-[0.5vw]">
-              {isFrame ? (
-                <div className="w-full h-[0.05vw] border-t border-dashed border-gray-300 relative">
-                  <div className="absolute right-[-0.05vw] top-[-0.18vw] border-t-[0.2vw] border-l-[0.3vw] border-b-[0.2vw] border-t-transparent border-b-transparent border-l-gray-300"></div>
-                </div>
-              ) : (
-                <div className="w-full relative py-[1vw]">
-                  <div className="w-full h-0 border-t border-dashed border-gray-300"></div>
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[0.4vw] h-[0.4vw] border-t-[0.1vw] border-r-[0.1vw] border-gray-300 rotate-45"></div>
-                </div>
-              )}
-            </div>
-
-            {/* Target */}
-            <div className="flex-shrink-0">
-              {renderTargetInput()}
-            </div>
-          </div>
-
-
-          {interactionType === 'popup' && activePopupElement === 'background' && (
-            <div className="space-y-[1vw] animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="flex items-center gap-[0.8vw]">
-                <h3 className="text-[0.8vw] font-bold text-gray-900 whitespace-nowrap">Background Color</h3>
-                <div className="h-[0.05vw] flex-grow bg-gray-200"></div>
-              </div>
-
-              {/* Background Color - Fill Row */}
-              <div className="flex items-center gap-[0.8vw] relative">
-                <span className="text-[0.75vw] font-medium text-gray-600 w-[2vw]">Fill</span>
-                <span className="text-[0.75vw] font-medium text-gray-600">:</span>
-                <div
-                  onClick={() => { setShowFillPicker(!showFillPicker); setShowStrokePicker(false); }}
-                  className="w-[2.5vw] h-[2.5vw] rounded-[0.5vw] border border-gray-200 cursor-pointer shadow-sm relative color-picker-trigger fill-picker-trigger"
-                  style={{ backgroundColor: popupFillColor }}
-                >
-                  {popupFillColor === 'none' && <div className="absolute inset-0 bg-white flex items-center justify-center overflow-hidden"><div className="w-[140%] h-[0.05vw] bg-red-500 rotate-45" /></div>}
-                </div>
-                <div className="flex-1 flex items-center border border-gray-300 rounded-[0.8vw] px-[0.8vw] py-[0.5vw] bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
-                  <input
-                    type="text"
-                    value={popupFillColor}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPopupFillColor(val);
-                      if (/^#[0-9A-F]{6}$/i.test(val)) {
-                        applyInteraction('popup', null, popupText, null, null, { fill: val });
-                      }
-                    }}
-                    className="w-full bg-transparent text-[0.75vw] font-medium text-gray-700 outline-none uppercase"
-                  />
-                  <span
-                    className="text-[0.7vw] font-medium text-gray-400 ml-[0.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startVal = popupFillOpacity;
-                      const handleMove = (moveEvent) => {
-                        const diff = Math.round((moveEvent.clientX - startX) / 2);
-                        const newVal = Math.min(100, Math.max(0, startVal + diff));
-                        setPopupFillOpacity(newVal);
-                        applyInteraction('popup', null, popupText, null, null, { fillOpacity: newVal });
-                      };
-                      const handleUp = () => {
-                        window.removeEventListener('mousemove', handleMove);
-                        window.removeEventListener('mouseup', handleUp);
-                      };
-                      window.addEventListener('mousemove', handleMove);
-                      window.addEventListener('mouseup', handleUp);
-                    }}
-                  >{popupFillOpacity}%</span>
-                </div>
-
-                {/* UNIFIED COLOR PICKER PORTAL */}
-                {(showFillPicker || showStrokePicker) && createPortal(
-                  <>
-                    <div 
-                      className="fixed inset-0 z-[100000] bg-transparent" 
-                      onClick={() => {
-                        setShowFillPicker(false);
-                        setShowStrokePicker(false);
-                        setShowDetailedFillControls(false);
-                        setShowDetailedStrokeControls(false);
-                      }}
-                    />
-                    <div 
-                      className="fixed z-[100001] animate-in fade-in zoom-in-95 duration-200"
-                      style={{ 
-                        top: '50%',
-                        right: '22vw', 
-                        transform: 'translateY(-50%)'
-                      }}
-                    >
-                      <ColorPicker 
-                        color={showFillPicker ? popupFillColor : popupStrokeColor}
-                        onChange={(newVal) => {
-                          if (showFillPicker) {
-                            setPopupFillColor(newVal);
-                            applyInteraction('popup', null, popupText, null, null, { fill: newVal });
-                          } else {
-                            setPopupStrokeColor(newVal);
-                            applyInteraction('popup', null, popupText, null, null, { stroke: newVal });
-                          }
-                        }}
-                        opacity={showFillPicker ? popupFillOpacity : popupStrokeOpacity}
-                        onOpacityChange={(newOpacity) => {
-                          if (showFillPicker) {
-                            setPopupFillOpacity(newOpacity);
-                            applyInteraction('popup', null, popupText, null, null, { fillOpacity: newOpacity });
-                          } else {
-                            setPopupStrokeOpacity(newOpacity);
-                            applyInteraction('popup', null, popupText, null, null, { strokeOpacity: newOpacity });
-                          }
-                        }}
-                        onClose={() => {
-                          setShowFillPicker(false);
-                          setShowStrokePicker(false);
-                        }}
-                        colorsOnPage={colorsOnPage}
-                      />
-                    </div>
-                  </>,
-                  document.body
-                )}
-              </div>
-
-              {/* Background Color - Stroke Row */}
-              <div className="flex items-center gap-[0.8vw] relative">
-                <span className="text-[0.75vw] font-medium text-gray-600 w-[2vw]">Stroke</span>
-                <span className="text-[0.75vw] font-medium text-gray-600">:</span>
-                <div
-                  onClick={() => { setShowStrokePicker(!showStrokePicker); setShowFillPicker(false); }}
-                  className="w-[2.5vw] h-[2.5vw] rounded-[0.5vw] border border-gray-300 cursor-pointer shadow-sm relative overflow-hidden flex items-center justify-center color-picker-trigger stroke-picker-trigger"
-                  style={{ backgroundColor: popupStrokeColor === 'none' ? 'transparent' : popupStrokeColor }}
-                >
-                  {popupStrokeColor === 'none' && <div className="absolute inset-0 bg-white"><div className="w-[140%] h-[0.08vw] bg-red-500 rotate-[-45deg] opacity-80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" /></div>}
-                </div>
-                <div className="flex-1 flex items-center border border-gray-300 rounded-[0.8vw] px-[0.8vw] py-[0.5vw] bg-white focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
-                  <input
-                    type="text"
-                    value={popupStrokeColor === 'none' ? '#' : popupStrokeColor}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPopupStrokeColor(val);
-                      if (/^#[0-9A-F]{6}$/i.test(val)) {
-                        applyInteraction('popup', null, popupText, null, null, { stroke: val });
-                      }
-                    }}
-                    className="w-full bg-transparent text-[0.75vw] font-medium text-gray-700 outline-none uppercase"
-                  />
-                  <span
-                    className="text-[0.7vw] font-medium text-gray-400 ml-[0.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startVal = popupStrokeOpacity;
-                      const handleMove = (moveEvent) => {
-                        const diff = Math.round((moveEvent.clientX - startX) / 2);
-                        const newVal = Math.min(100, Math.max(0, startVal + diff));
-                        setPopupStrokeOpacity(newVal);
-                        applyInteraction('popup', null, popupText, null, null, { strokeOpacity: newVal });
-                      };
-                      const handleUp = () => {
-                        window.removeEventListener('mousemove', handleMove);
-                        window.removeEventListener('mouseup', handleUp);
-                      };
-                      window.addEventListener('mousemove', handleMove);
-                      window.addEventListener('mouseup', handleUp);
-                    }}
-                  >{popupStrokeOpacity}%</span>
-                </div>
-
-
-              </div>
-
-              {/* Stroke Options */}
-              <div className="flex items-center gap-[0.8vw]">
-                <div
-                  className="p-[0.5vw] rounded-[0.5vw] hover:bg-indigo-50 transition-colors cursor-pointer group dashed-selector-trigger"
-                  onClick={() => setShowDashedSettings(!showDashedSettings)}
-                >
-                  <SlidersHorizontal size="1.1vw" className={`transition-colors ${showDashedSettings ? 'text-indigo-600' : 'text-gray-400 group-hover:text-indigo-600'}`} />
-                </div>
-                <div className="flex-1 relative">
-                  <select
-                    value={popupStrokeType}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setPopupStrokeType(val);
-                      applyInteraction('popup', null, popupText, null, null, { strokeType: val });
-                    }}
-                    className="w-full h-[2.5vw] bg-white border border-gray-300 rounded-[0.8vw] px-[0.8vw] text-[0.75vw] font-medium text-gray-700 appearance-none outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="dashed">Dashed</option>
-                    <option value="solid">Solid</option>
-                  </select>
-                  <ChevronDown size="0.9vw" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400" />
-                </div>
-                <div
-                  className="w-[4vw] h-[2.5vw] border border-gray-300 rounded-[0.8vw] flex items-center px-[0.5vw] gap-[0.5vw] bg-white hover:border-indigo-400 transition-all cursor-ew-resize select-none shadow-sm"
-                  onMouseDown={(e) => {
-                    if (e.target.tagName === 'INPUT') return;
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startVal = popupStrokeWidth || 0;
-                    const handleMove = (moveEvent) => {
-                      const diff = Math.round((moveEvent.clientX - startX) / 10);
-                      const newVal = Math.max(0, startVal + diff);
-                      setPopupStrokeWidth(newVal);
-                      applyInteraction('popup', null, popupText, null, null, { strokeWidth: newVal });
-                    };
-                    const handleUp = () => {
-                      window.removeEventListener('mousemove', handleMove);
-                      window.removeEventListener('mouseup', handleUp);
-                    };
-                    window.addEventListener('mousemove', handleMove);
-                    window.addEventListener('mouseup', handleUp);
-                  }}
-                >
-                  <Icon icon="material-symbols:line-weight" className="text-gray-400 flex-shrink-0" width="1.1vw" />
-                  <input
-                    type="number"
-                    value={popupStrokeWidth}
-                    onChange={(e) => {
-                      const val = Math.max(0, parseInt(e.target.value) || 0);
-                      setPopupStrokeWidth(val);
-                      applyInteraction('popup', null, popupText, null, null, { strokeWidth: val });
-                    }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    className="w-full bg-transparent text-[0.75vw] font-medium text-gray-700 outline-none text-center cursor-text [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
-                </div>
-              </div>
-
-              {/* Advanced Dashed Settings Portal */}
-              {showDashedSettings && ReactDOM.createPortal(
-                <div
-                  ref={dashedRef}
-                  className="fixed right-[22vw] top-[40%] translate-y-0 w-[18vw] bg-white border border-gray-100 rounded-[2vw] shadow-[0_1.5vw_4vw_rgba(0,0,0,0.2)] z-[100002] overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-                  style={{ transform: 'translateX(-1.5vw)' }}
-                >
-                  <div className="p-[1.5vw] space-y-[1.2vw]">
-                    <div className="flex items-center gap-[0.8vw]">
-                      <span className="font-bold text-[0.9vw] text-[#2D3748]">Dashed</span>
-                      <div className="h-[0.05vw] flex-grow bg-gray-100"></div>
-                    </div>
-
-                    <div className="space-y-[1vw]">
-                      {/* Position */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[0.85vw] font-medium text-[#4A5568]">Position :</span>
-                        <div className="relative" ref={strokePositionRef}>
-                          <div
-                            onClick={() => setShowStrokePositionDropdown(!showStrokePositionDropdown)}
-                            className="w-[8vw] h-[2.5vw] px-[0.8vw] bg-white border border-gray-200 rounded-[0.8vw] flex items-center justify-between cursor-pointer hover:border-indigo-300 transition-all shadow-sm"
-                          >
-                            <span className="text-[0.8vw] font-bold text-[#2D3748] capitalize">{popupStrokePosition}</span>
-                            <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showStrokePositionDropdown ? 'rotate-180' : ''}`} />
-                          </div>
-                          {showStrokePositionDropdown && (
-                            <div className="absolute top-full left-0 w-full mt-[0.2vw] bg-white border border-gray-100 rounded-[0.8vw] shadow-xl z-50 py-[0.2vw] overflow-hidden">
-                              {['outside', 'center', 'inside'].map(pos => (
-                                <div
-                                  key={pos}
-                                  onClick={() => {
-                                    setPopupStrokePosition(pos);
-                                    applyInteraction('popup', null, popupText, null, null, { strokePosition: pos });
-                                    setShowStrokePositionDropdown(false);
-                                  }}
-                                  className={`px-[1vw] py-[0.5vw] text-[0.8vw] hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer capitalize font-bold transition-colors ${popupStrokePosition === pos ? 'text-indigo-600 bg-indigo-50' : 'text-[#4A5568]'}`}
-                                >
-                                  {pos}
+                                        // Defer the heavy DOM update so the dropdown closes instantly and lag is eliminated
+                                        setTimeout(() => {
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, 'data-interaction', action.id);
+                                          }
+                                          window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                                            detail: {
+                                              elementId: item.id,
+                                              actionType: action
+                                            }
+                                          }));
+                                        }, 50);
+                                      }}
+                                    >
+                                      <Icon icon={action.icon} className="text-gray-600 text-[1.2vw]" />
+                                      <span className="text-[0.85vw] text-gray-700 font-medium">{action.label}</span>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="h-[0.05vw] w-full bg-gray-50"></div>
-
-                      {/* Length */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[0.85vw] font-medium text-[#4A5568]">Length :</span>
-                        <div className="flex items-center gap-[0.2vw]">
-                          <button
-                            onClick={() => {
-                              const newVal = Math.max(1, popupStrokeDashLength - 1);
-                              setPopupStrokeDashLength(newVal);
-                              applyInteraction('popup', null, popupText, null, null, { strokeDashLength: newVal });
-                            }}
-                            className="w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:text-indigo-600 transition-colors text-gray-400"
-                          ><ChevronLeft size="1vw" /></button>
-                          <div className="w-[3vw] h-[2.2vw] border border-gray-200 rounded-[0.6vw] flex items-center justify-center font-bold text-[0.85vw] text-[#2D3748] bg-white shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.05)]">
-                            {popupStrokeDashLength}
+                            {/* Trigger Pill */}
+                            {resolvedActionId === 'tooltip' ? (
+                              <div className="h-[3.6vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-pointer select-none relative pr-[1.6vw]">
+                                <select
+                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                  value={resolvedTrigger}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setItemTriggerOverrides(prev => ({ ...prev, [item.id]: val }));
+                                    setTimeout(() => {
+                                      if (updateElementAttribute) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        updateElementAttribute(targetIdx, item.id, {
+                                          'data-interaction-trigger': val
+                                        });
+                                      }
+                                    }, 50);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <option value="click">Click</option>
+                                  <option value="hover">Hover</option>
+                                </select>
+                                <span className="text-[0.8vw] text-gray-700 font-semibold capitalize pointer-events-none">{item.trigger || 'click'}</span>
+                                <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] absolute right-[0.4vw] pointer-events-none" />
+                              </div>
+                            ) : (
+                              <div className="h-[3.6vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-default select-none">
+                                <span className="text-[0.8vw] text-gray-700 font-semibold">Click</span>
+                              </div>
+                            )}
                           </div>
-                          <button
-                            onClick={() => {
-                              const newVal = popupStrokeDashLength + 1;
-                              setPopupStrokeDashLength(newVal);
-                              applyInteraction('popup', null, popupText, null, null, { strokeDashLength: newVal });
-                            }}
-                            className="w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:text-indigo-600 transition-colors text-gray-400"
-                          ><ChevronRight size="1vw" /></button>
-                        </div>
+                        ) : (
+                          <span className="text-[0.95vw] font-medium text-gray-800 select-none">{currentAction.label}</span>
+                        )}
                       </div>
 
-                      {/* Gap */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[0.85vw] font-medium text-[#4A5568]">Gap :</span>
-                        <div className="flex items-center gap-[0.2vw]">
-                          <button
-                            onClick={() => {
-                              const newVal = Math.max(1, popupStrokeDashGap - 1);
-                              setPopupStrokeDashGap(newVal);
-                              applyInteraction('popup', null, popupText, null, null, { strokeDashGap: newVal });
-                            }}
-                            className="w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:text-indigo-600 transition-colors text-gray-400"
-                          ><ChevronLeft size="1vw" /></button>
-                          <div className="w-[3vw] h-[2.2vw] border border-gray-200 rounded-[0.6vw] flex items-center justify-center font-bold text-[0.85vw] text-[#2D3748] bg-white shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.05)]">
-                            {popupStrokeDashGap}
-                          </div>
-                          <button
-                            onClick={() => {
-                              const newVal = popupStrokeDashGap + 1;
-                              setPopupStrokeDashGap(newVal);
-                              applyInteraction('popup', null, popupText, null, null, { strokeDashGap: newVal });
-                            }}
-                            className="w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:text-indigo-600 transition-colors text-gray-400"
-                          ><ChevronRight size="1vw" /></button>
-                        </div>
-                      </div>
-
-                      <div className="h-[0.05vw] w-full bg-gray-50"></div>
-
-                      {/* Round Corners */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-[0.85vw] font-medium text-[#4A5568]">Round Corners :</span>
-                        <div
-                          onClick={() => {
-                            const newVal = !popupStrokeRoundCorners;
-                            setPopupStrokeRoundCorners(newVal);
-                            applyInteraction('popup', null, popupText, null, null, { strokeRoundCorners: newVal });
-                          }}
-                          className={`w-[2.8vw] h-[1.5vw] rounded-full p-[0.2vw] cursor-pointer transition-colors duration-200 ${popupStrokeRoundCorners ? 'bg-indigo-600' : 'bg-gray-200 shadow-inner'}`}
-                        >
-                          <div className={`w-[1.1vw] h-[1.1vw] bg-white rounded-full transition-transform duration-200 shadow-sm ${popupStrokeRoundCorners ? 'translate-x-[1.3vw]' : 'translate-x-0'}`}></div>
-                        </div>
+                      {/* Collapse/Expand Toggle Chevron */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCollapsedCardIds(prev => {
+                            const isNowCollapsed = !prev[item.id];
+                            if (isNowCollapsed && resolvedActionId === 'tooltip') {
+                              window.dispatchEvent(new CustomEvent('hide-tooltip-customization'));
+                            }
+                            return { ...prev, [item.id]: isNowCollapsed };
+                          });
+                        }}
+                        className={`flex-shrink-0 cursor-pointer text-gray-800 hover:text-black transition-transform duration-200 p-[0.2vw] ${isCollapsed ? 'rotate-180' : ''}`}
+                      >
+                        <svg width="1.2vw" height="1.2vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="18 15 12 9 6 15"></polyline>
+                        </svg>
                       </div>
                     </div>
+
+                    {/* Input Row */}
+                    {!isCollapsed && (
+                      <div className="flex flex-col gap-[1.5vh] w-full mt-[2vh]">
+                        {/* Label + Arrow row */}
+                        <div className="flex items-center gap-[0.5vw] w-full">
+                          <div className="h-[4vh] px-[0.6vw] bg-[#F3F4F6] rounded-[0.4vw] flex items-center justify-center flex-shrink-0 max-w-[5vw] overflow-hidden">
+                            <span className="text-[0.7vw] text-gray-600 font-medium truncate">{item.label}</span>
+                          </div>
+
+                          <span className="text-gray-400 shrink-0 select-none tracking-widest font-mono">---&gt;</span>
+
+                            {resolvedActionId === 'navigate-to' ? (
+                              <div className="w-[8.5vw] flex-shrink-0 h-[4vh] border border-gray-300 rounded-[0.4vw] flex items-center px-[0.6vw] bg-white overflow-hidden relative">
+                                <select
+                                  value={resolvedValue || '1'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
+                                    setTimeout(() => {
+                                      if (updateElementAttribute) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        updateElementAttribute(targetIdx, item.id, {
+                                          'data-interaction': 'navigate-to',
+                                          'data-interaction-value': val
+                                        });
+                                      }
+                                    }, 50);
+                                  }}
+                                  onClick={(e) => e.stopPropagation()} // Prevent card selection click trigger
+                                  className="w-full h-full text-[0.8vw] text-gray-700 bg-transparent outline-none cursor-pointer appearance-none pr-[1.8vw] font-medium"
+                                >
+                                  {Array.from({ length: pages?.length || 0 }, (_, i) => (
+                                    <option key={i + 1} value={(i + 1).toString()}>
+                                      Page {i + 1}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                                  <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                  </svg>
+                                </div>
+                              </div>
+                            ) : resolvedActionId === 'download' ? (
+                              (() => {
+                                let fileMeta = null;
+                                try {
+                                  if (item.value && item.value.startsWith('{')) {
+                                    fileMeta = JSON.parse(item.value);
+                                  }
+                                } catch (e) { }
+
+                                return (
+                                  <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
+                                    {/* Hidden file input */}
+                                    <input
+                                      type="file"
+                                      id={`download-upload-${item.id}`}
+                                      className="hidden"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && file.type.startsWith('image/') && updateElementAttribute) {
+                                          const reader = new FileReader();
+                                          reader.onload = () => {
+                                            const base64Data = reader.result;
+                                            const storedVal = JSON.stringify({
+                                              name: file.name,
+                                              type: file.type,
+                                              size: file.size,
+                                              data: base64Data
+                                            });
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': 'download',
+                                              'data-interaction-value': storedVal
+                                            });
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                    />
+
+                                    {/* Dropzone Area */}
+                                    <div
+                                      onClick={() => document.getElementById(`download-upload-${item.id}`)?.click()}
+                                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+                                      onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+                                      onDrop={(e) => {
+                                        e.preventDefault();
+                                        e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5');
+                                        const file = e.dataTransfer.files?.[0];
+                                        if (file && file.type.startsWith('image/') && updateElementAttribute) {
+                                          const reader = new FileReader();
+                                          reader.onload = () => {
+                                            const storedVal = JSON.stringify({
+                                              name: file.name,
+                                              type: file.type,
+                                              size: file.size,
+                                              data: reader.result
+                                            });
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': 'download',
+                                              'data-interaction-value': storedVal
+                                            });
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      className={
+                                        fileMeta
+                                          ? "w-[7.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all overflow-hidden p-[0.3vw]"
+                                          : "w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.8vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all gap-[0.5vh] px-[0.5vw]"
+                                      }
+                                    >
+                                      {fileMeta ? (
+                                        (() => {
+                                          const isImage = fileMeta.type?.startsWith('image/') || fileMeta.name?.match(/\.(jpg|jpeg|png|gif)$/i);
+                                          if (isImage && fileMeta.data) {
+                                            return <img src={fileMeta.data} alt={fileMeta.name} className="w-full h-full object-contain" />;
+                                          }
+                                          return (
+                                            <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />
+                                          );
+                                        })()
+                                      ) : (
+                                        <>
+                                          <Icon icon="solar:upload-linear" className="text-gray-400 text-[1.5vw]" />
+                                          <span className="text-[0.7vw] text-[#4A5568] font-medium text-center">
+                                            Drag & Drop or <span className="text-[#5145F6] font-bold">Upload</span>
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+
+                                    {/* Subtext */}
+                                    <span className={`text-[0.6vw] font-medium text-gray-500 mt-[0.2vh] truncate text-center ${fileMeta ? 'w-[7.5vw]' : 'w-full'}`} title={fileMeta?.name}>
+                                      {fileMeta ? fileMeta.name : 'File Format : JPG, PNG'}
+                                    </span>
+                                  </div>
+                                );
+                              })()
+                            ) : resolvedActionId === 'call' ? (
+                              (() => {
+                                const val = item.value || '';
+                                return (
+                                  <div
+                                    className="w-[9.2vw] flex-shrink-0 h-[4.2vh] relative"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <CallInteractionInput
+                                      initialValue={val}
+                                      onSave={(newValue) => {
+                                        if (updateElementAttribute) {
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction': 'call',
+                                            'data-interaction-value': newValue
+                                          });
+                                        }
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              })()
+                            ) : resolvedActionId === 'tooltip' ? (
+                              <div
+                                className="flex-grow flex items-center justify-end"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveLayerId(item.id);
+                                  window.dispatchEvent(new CustomEvent('select-layer', {
+                                    detail: { layerId: item.id }
+                                  }));
+                                }}
+                              >
+                                <div className="w-[8.2vw] h-[7.2vh] border border-gray-400 rounded-[0.4vw] bg-white flex items-center justify-center relative cursor-pointer hover:border-indigo-400 transition-all duration-200">
+                                  <div className="flex flex-col items-center select-none w-[80%]">
+                                    <div className="w-full h-[3.2vh] bg-[#262626] rounded-[0.2vw] flex items-center justify-center text-white text-[0.8vw] font-normal leading-none">
+                                      Tooltip
+                                    </div>
+                                    <div
+                                      style={{
+                                        width: 0,
+                                        height: 0,
+                                        borderLeft: '5px solid transparent',
+                                        borderRight: '5px solid transparent',
+                                        borderTop: '6px solid #262626',
+                                        marginTop: '-1px'
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : resolvedActionId === 'audio' ? (
+                              (() => {
+                                let audioMeta = null;
+                                try {
+                                  if (resolvedValue && resolvedValue.startsWith('{')) {
+                                    audioMeta = JSON.parse(resolvedValue);
+                                  }
+                                } catch (e) { }
+                                const hasAudio = !!resolvedValue;
+                                const audioName = audioMeta ? audioMeta.name : (resolvedValue ? resolvedValue.split('/').pop() : 'Audio File');
+                                return (
+                                  <div className="flex-grow flex flex-col items-end justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="file"
+                                      id={`audio-upload-${item.id}`}
+                                      className="hidden"
+                                      accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && updateElementAttribute) {
+                                          const reader = new FileReader();
+                                          reader.onload = () => {
+                                            const base64Data = reader.result;
+                                            const tempAudio = new Audio(base64Data);
+                                            const saveAudioMetadata = (durationStr) => {
+                                              const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
+                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
+                                            };
+                                            tempAudio.onloadedmetadata = () => {
+                                              const durationSec = tempAudio.duration;
+                                              let durationStr = '3:15';
+                                              if (!isNaN(durationSec) && isFinite(durationSec)) {
+                                                const mins = Math.floor(durationSec / 60);
+                                                const secs = Math.floor(durationSec % 60);
+                                                durationStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                                              }
+                                              saveAudioMetadata(durationStr);
+                                            };
+                                            tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                    />
+                                    {hasAudio ? (
+                                      <div className="flex items-center" title={audioName}>
+                                        {(() => {
+                                          const isPlaying = playingAudioId === item.id;
+                                          return (
+                                            <div
+                                              className="relative w-[5.6vw] h-[5.6vw] flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95 transition-transform duration-200"
+                                              onClick={() => {
+                                                if (isPlaying) {
+                                                  if (activeAudioRef.current) activeAudioRef.current.pause();
+                                                  setPlayingAudioId(null);
+                                                } else {
+                                                  if (activeAudioRef.current) activeAudioRef.current.pause();
+                                                  const audioSrc = audioMeta?.data || resolvedValue;
+                                                  if (audioSrc) {
+                                                    try {
+                                                      const audio = new Audio(audioSrc);
+                                                      activeAudioRef.current = audio;
+                                                      setPlayingAudioId(item.id);
+                                                      setAudioPlaybackTimes(prev => ({ ...prev, [item.id]: '0:00' }));
+                                                      setAudioProgressPercent(prev => ({ ...prev, [item.id]: 0 }));
+                                                      audio.ontimeupdate = () => {
+                                                        const cur = audio.currentTime;
+                                                        const tot = audio.duration || 1;
+                                                        const mins = Math.floor(cur / 60);
+                                                        const secs = Math.floor(cur % 60);
+                                                        setAudioPlaybackTimes(prev => ({ ...prev, [item.id]: `${mins}:${secs < 10 ? '0' : ''}${secs}` }));
+                                                        setAudioProgressPercent(prev => ({ ...prev, [item.id]: (cur / tot) * 100 }));
+                                                      };
+                                                      audio.play().catch(err => { console.error("Audio playback failed", err); setPlayingAudioId(null); });
+                                                      audio.onended = () => { setPlayingAudioId(null); setAudioPlaybackTimes(prev => ({ ...prev, [item.id]: '0:00' })); setAudioProgressPercent(prev => ({ ...prev, [item.id]: 0 })); };
+                                                    } catch (err) { console.error("Failed to construct Audio", err); }
+                                                  }
+                                                }
+                                              }}
+                                            >
+                                              <svg className="absolute inset-0 w-full h-full transform -rotate-90 pointer-events-none drop-shadow-sm" viewBox="0 0 100 100">
+                                                <circle cx="50" cy="50" r="46" stroke="#D1D5DB" strokeWidth="4.5" fill="none" />
+                                                <circle cx="50" cy="50" r="46" stroke={isPlaying ? "#4A3AFF" : "#818CF8"} strokeWidth="4.5" fill="none" strokeDasharray="289.02" strokeDashoffset={289.02 - ((audioProgressPercent[item.id] || 0) / 100) * 289.02} strokeLinecap="round" className="transition-all duration-300 ease-linear" />
+                                              </svg>
+                                              <div className="absolute inset-0 m-[4px] bg-white rounded-full flex flex-col items-center justify-center pointer-events-none">
+                                                <Icon icon="iconoir:sound-high-solid" className="text-black text-[1.6vw] mb-[0.3vh]" />
+                                                <span className="text-[0.6vw] text-gray-600 font-medium tracking-wide leading-none select-none">
+                                                  {audioPlaybackTimes[item.id] || '0:00'} / {audioMeta?.duration || '3:15'}
+                                                </span>
+                                              </div>
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    ) : (
+                                      <div className="flex flex-col items-center justify-center">
+                                        <div
+                                          onClick={() => document.getElementById(`audio-upload-${item.id}`)?.click()}
+                                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+                                          onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+                                          onDrop={(e) => {
+                                            e.preventDefault();
+                                            e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5');
+                                            const file = e.dataTransfer.files?.[0];
+                                            const isAudio = file && (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav') || file.name.toLowerCase().endsWith('.m4a') || file.name.toLowerCase().endsWith('.ogg'));
+                                            if (isAudio && updateElementAttribute) {
+                                              const reader = new FileReader();
+                                              reader.onload = () => {
+                                                const base64Data = reader.result;
+                                                const tempAudio = new Audio(base64Data);
+                                                const saveAudioMetadata = (durationStr) => {
+                                                  const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
+                                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                  updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
+                                                };
+                                                tempAudio.onloadedmetadata = () => {
+                                                  const durationSec = tempAudio.duration;
+                                                  let durationStr = '3:15';
+                                                  if (!isNaN(durationSec) && isFinite(durationSec)) { const mins = Math.floor(durationSec / 60); const secs = Math.floor(durationSec % 60); durationStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`; }
+                                                  saveAudioMetadata(durationStr);
+                                                };
+                                                tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
+                                              };
+                                              reader.readAsDataURL(file);
+                                            }
+                                          }}
+                                          className="w-[10.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all gap-[0.5vh] p-[0.3vw]"
+                                        >
+                                          <Icon icon="material-symbols:audio-file" className="text-gray-500 text-[1.8vw]" />
+                                          <span className="text-[0.75vw] text-gray-600 font-normal text-center leading-none select-none">
+                                            Drag &amp; Drop or <span className="text-[#4A3AFF] font-semibold">Upload</span>
+                                          </span>
+                                        </div>
+                                        <span className="text-[0.65vw] text-gray-500 font-normal mt-[0.5vh] text-center select-none">File Format : MP3,</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()
+                            ) : resolvedActionId === 'popup' ? (
+                              <div
+                                onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                className="flex-1 h-[7vh] border-[1.5px] border-dashed border-[#A0AEC0] rounded-[0.6vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group relative overflow-hidden"
+                              >
+                                {resolvedValue ? (
+                                  <div className="relative w-full h-full rounded-[0.4vw] overflow-hidden group">
+                                    <img
+                                      src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
+                                      alt="Selected Template"
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-[0.5vw] z-10 backdrop-blur-sm">
+                                      <button
+                                        className="p-[0.3vw] bg-white rounded-[0.3vw] hover:bg-gray-100 transition-colors shadow-sm"
+                                        title="Change Template"
+                                        onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                      >
+                                        <svg width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="#4A3AFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M12 20h9" />
+                                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                                        </svg>
+                                      </button>
+                                      <button
+                                        className="p-[0.3vw] bg-white rounded-[0.3vw] hover:bg-red-50 transition-colors shadow-sm"
+                                        title="Delete Template"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                          if (updateElementAttribute) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
+                                          }
+                                        }}
+                                      >
+                                        <svg width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                          <path d="M3 6h18" />
+                                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <svg width="1.4vw" height="1.4vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 group-hover:text-[#4A3AFF] transition-colors mb-[0.2vh]">
+                                      <rect x="3" y="4" width="18" height="4" rx="1" />
+                                      <rect x="3" y="10" width="7" height="10" rx="1" />
+                                      <line x1="13" y1="11" x2="21" y2="11" />
+                                      <line x1="13" y1="15" x2="21" y2="15" />
+                                      <line x1="13" y1="19" x2="18" y2="19" />
+                                    </svg>
+                                    <span className="text-[0.6vw] text-[#4B5563] font-medium group-hover:text-gray-700 transition-colors select-none text-center leading-tight">
+                                      Click to Choose <span className="text-[#4A3AFF] font-semibold">Template</span>
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            ) : resolvedActionId === 'zoom' ? (
+                              <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh] w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.8vw] bg-[#F9FAFB] cursor-pointer hover:bg-gray-50 transition-all">
+                                <Icon icon="tabler:zoom-in-area" className="text-gray-500 text-[1.8vw] mb-[0.2vh]" />
+                                <span className="text-[0.7vw] text-[#4A5568] font-medium text-center">
+                                  Customize <span className="text-[#5145F6] font-bold">Zoom Frame</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex-1 h-[4vh] border border-gray-300 rounded-[0.4vw] flex items-center px-[0.6vw] bg-white overflow-hidden">
+                                <input
+                                  type="text"
+                                  placeholder="Enter URL..."
+                                  value={localInputValues[item.id] !== undefined ? localInputValues[item.id] : (resolvedValue || '')}
+                                  className="w-full text-[0.8vw] text-gray-700 placeholder-gray-400 bg-transparent outline-none truncate"
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setLocalInputValues(prev => ({ ...prev, [item.id]: val }));
+                                  }}
+                                  onBlur={() => {
+                                    const val = localInputValues[item.id];
+                                    if (val !== undefined && val !== item.value) {
+                                      if (updateElementAttribute) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        updateElementAttribute(targetIdx, item.id, {
+                                          'data-interaction': resolvedActionId,
+                                          'data-interaction-value': val
+                                        });
+                                      }
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      e.target.blur();
+                                    }
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                        {/* Popup extra options */}
+                        {resolvedActionId === 'popup' && (
+                          <div className="flex flex-col gap-[1.5vh] w-full mt-[0.5vh]">
+                            {/* Animation Section Header */}
+                            <div className="flex items-center gap-[0.5vw] w-full">
+                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Animation</span>
+                              <div className="h-[0.1vh] flex-1 bg-gray-200"></div>
+                            </div>
+
+                            {/* Animation Dropdown */}
+                            <div className="relative w-full">
+                              <select
+                                value={item.popupAnimation || 'Fade In /Out'}
+                                onChange={(e) => {
+                                  if (updateElementAttribute) {
+                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                    updateElementAttribute(targetIdx, item.id, {
+                                      'data-interaction-popup-animation': e.target.value
+                                    });
+                                  }
+                                }}
+                                className="w-full h-[4.5vh] px-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] appearance-none pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
+                              >
+                                <option value="Fade In /Out">Fade In /Out</option>
+                                <option value="Slide Up">Slide Up</option>
+                                <option value="Slide Down">Slide Down</option>
+                                <option value="Zoom In">Zoom In</option>
+                              </select>
+                              <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                              </div>
+                            </div>
+
+                            {/* Animation Speed Dropdown */}
+                            <div className="flex items-center justify-between w-full">
+                              <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap">Animation Speed :</span>
+                              <div className="relative w-[9vw]">
+                                <select
+                                  className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
+                                  value={item.popupSpeed || 'Medium'}
+                                  onChange={(e) => {
+                                    if (updateElementAttribute) {
+                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                      updateElementAttribute(targetIdx, item.id, {
+                                        'data-interaction-popup-speed': e.target.value
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <option value="Slow">Slow</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="Fast">Fast</option>
+                                </select>
+                                <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                  <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                  </svg>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {/* Zoom speed row */}
+                        {resolvedActionId === 'zoom' && (
+                          <div className="flex items-center justify-between w-full mt-[1vh]">
+                            <span className="text-[0.85vw] text-gray-600 font-medium whitespace-nowrap">Zoom Speed :</span>
+                            <div className="relative w-[12vw]">
+                              <select
+                                className="w-full appearance-none h-[4vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-300 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6]"
+                                value={resolvedValue || 'Medium'}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
+                                  setTimeout(() => {
+                                    if (updateElementAttribute) {
+                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                      updateElementAttribute(targetIdx, item.id, {
+                                        'data-interaction': 'zoom',
+                                        'data-interaction-value': val
+                                      });
+                                    }
+                                  }, 50);
+                                }}
+                              >
+                                <option value="Slow">Slow</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Fast">Fast</option>
+                              </select>
+                              <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 text-[1vw] pointer-events-none" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>,
-                document.body
-              )}
-            </div>
-          )}
 
-          {/* ================= ADVANCED EDITOR ================= */}
-          {renderAdvancedEditor()}
+                  {/* Card Footer (Highlight Component) */}
+                  {!isCollapsed && (
+                    <div className="bg-[#F9FAFB] border-t border-gray-100 p-[1.6vw] flex items-center justify-between rounded-b-[0.8vw]">
+                      <div className="flex items-center gap-[0.6vw]">
+                        {/* Custom Radio Button */}
+                        <div className="w-[1.2vw] h-[1.2vw] rounded-full border-2 border-[#5145F6] flex items-center justify-center bg-white">
+                          <div className="w-[0.6vw] h-[0.6vw] rounded-full bg-[#5145F6]"></div>
+                        </div>
+                        <span className="text-[0.8vw] text-gray-600 font-medium">Highlight the Component</span>
+                      </div>
 
-          {/* ================= FOOTER ================= */}
-          {!isFrame ? (
-            <div className="pt-[1.5vw] mt-[1vw] border-t border-gray-100 flex items-center gap-[0.8vw]">
-              <span className="text-[0.8vw] text-gray-600 font-semibold">
-                Highlight the Component
-              </span>
-              <div
-                onClick={() => {
-                  const newVal = !isHighlighted;
-                  setIsHighlighted(newVal);
-                  const currentValue =
-                    interactionType === 'link' ? linkUrl :
-                      interactionType === 'navigation' ? navPage :
-                        interactionType === 'call' ? phoneNumber :
-                          interactionType === 'zoom' ? zoomLevel :
-                            interactionType === 'download' ? downloadUrl : null;
+                      {/* Trash Icon */}
+                      <button
+                        onClick={() => {
+                          setOpenCardIds(prev => {
+                            const next = { ...prev };
+                            delete next[item.id];
+                            return next;
+                          });
+                          if (updateElementAttribute) {
+                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                            updateElementAttribute(targetIdx, item.id, {
+                              'data-interaction': null,
+                              'data-interaction-value': null
+                            });
+                          }
+                          // Fire event to reset canvas badge visual state
+                          window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                            detail: {
+                              elementId: item.id,
+                              actionType: null
+                            }
+                          }));
+                        }}
+                        className="text-red-400 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center w-[1.5vw] h-[1.5vw] rounded-full hover:bg-red-50"
+                      >
+                        <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  )}
 
-                  const currentContent =
-                    interactionType === 'popup' ? popupText :
-                      interactionType === 'tooltip' ? tooltipText : '';
-
-                  setTimeout(() => applyInteraction(interactionType, currentValue, currentContent, null, newVal), 0);
-                }}
-                className={`relative w-[2vw] h-[1vw] rounded-full transition-colors duration-200 cursor-pointer ${isHighlighted ? 'bg-indigo-600' : 'bg-gray-300'}`}
-              >
-                <div className={`absolute top-[0.1vw] left-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 shadow-sm ${isHighlighted ? 'translate-x-[1vw]' : 'translate-x-0'}`} />
-              </div>
-            </div>
-          ) : (
-            <div className="pt-[1vw] flex items-center justify-between">
-              <div
-                className="flex items-center gap-[0.8vw] cursor-pointer group"
-                onClick={() => {
-                  const newVal = !isHighlighted;
-                  setIsHighlighted(newVal);
-                  const currentValue =
-                    interactionType === 'link' ? linkUrl :
-                      interactionType === 'navigation' ? navPage :
-                        interactionType === 'call' ? phoneNumber :
-                          interactionType === 'zoom' ? zoomLevel :
-                            interactionType === 'download' ? downloadUrl : null;
-
-                  const currentContent =
-                    interactionType === 'popup' ? popupText :
-                      interactionType === 'tooltip' ? tooltipText : '';
-
-                  setTimeout(() => applyInteraction(interactionType, currentValue, currentContent, null, newVal), 0);
-                }}
-              >
-                <div className={`w-[1.2vw] h-[1.2vw] rounded-full border-[0.15vw] flex items-center justify-center transition-all ${isHighlighted ? 'border-indigo-600' : 'border-gray-300'}`}>
-                  {isHighlighted && <div className="w-[0.6vw] h-[0.6vw] bg-indigo-600 rounded-full" />}
                 </div>
-                <span className="text-[0.85vw] font-medium text-gray-700">Highlight the Component</span>
-              </div>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (selectedElement && selectedElement.remove) {
-                    selectedElement.remove();
-                    if (onUpdate) onUpdate(selectedElement.id, { isDeleted: true });
-                  }
-                }}
-                className="p-[0.5vw] text-red-500 hover:bg-red-50 rounded-[0.5vw] transition-all"
-                title="Delete Frame"
-              >
-                <Trash2 size="1.2vw" strokeWidth={2.5} />
-              </button>
+              );
+            })
+          ) : (
+            <div className="text-center text-[0.8vw] text-gray-400 py-[2vh]">
+              Select an element to configure interactions
             </div>
           )}
 
         </div>
-      )}
+      </div>
 
-      {isTemplateSelectionOpen && (
-        <PopupTemplateSelection
-          onClose={handleCloseTemplateSelection}
-          onSelect={handleTemplateSelect}
-        />
-      )}
+      {/* Popup Template Selection Gallery Modal */}
+      <PopupTemplateSelection
+        isOpen={activeTemplateSelectionId !== null}
+        onClose={() => setActiveTemplateSelectionId(null)}
+        onCustomize={(templateId) => {
+          if (onCustomizePopup) {
+            onCustomizePopup(templateId, activeTemplateSelectionId, activePageIndex);
+          }
+          setActiveTemplateSelectionId(null);
+        }}
+        onSelect={(templateId) => {
+          if (updateElementAttribute && activeTemplateSelectionId) {
+            setItemValueOverrides(prev => ({ ...prev, [activeTemplateSelectionId]: templateId }));
+            updateElementAttribute(activePageIndex, activeTemplateSelectionId, {
+              'data-interaction': 'popup',
+              'data-interaction-value': templateId
+            });
+          }
+        }}
+        selectedTemplateId={
+          activeTemplateSelectionId
+            ? (itemValueOverrides[activeTemplateSelectionId] !== undefined
+              ? itemValueOverrides[activeTemplateSelectionId]
+              : interactiveElementsList.find(item => item.id === activeTemplateSelectionId)?.value)
+            : ''
+        }
+      />
+
     </div>
   );
 };

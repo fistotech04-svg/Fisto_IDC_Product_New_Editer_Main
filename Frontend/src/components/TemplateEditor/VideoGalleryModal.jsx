@@ -212,7 +212,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
     >
       {/* Header */}
       <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
-        <h2 className="text-[0.9vw] font-bold text-gray-900">Video Gallery</h2>
+        <h2 className="text-[0.9vw] font-semibold text-gray-900">Video Gallery</h2>
         <button 
           onClick={onClose}
           className="w-[2vw] h-[2vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
@@ -224,7 +224,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {/* Upload Section */}
         <div className="px-[1vw] py-[0.5vw] mt-[0.5vw]">
-          <h3 className="text-[0.8vw] font-bold text-gray-900 mb-[0.25vw]">Upload your Video</h3>
+          <h3 className="text-[0.8vw] font-semibold text-gray-900 mb-[0.25vw]">Upload your Video</h3>
           <p className="text-[0.65vw] text-gray-400 mb-[1vw]"><span>You Can Reuse The File Which Is Uploaded In Gallery</span><span className="text-red-500">*</span></p>
           
           <div
@@ -249,7 +249,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
         </div>
 
         <div className="px-[1.25vw] py-[1vw]">
-          <h3 className="text-[0.8vw] font-bold text-gray-900 mb-[1vw]">Your Uploads</h3>
+          <h3 className="text-[0.8vw] font-semibold text-gray-900 mb-[1vw]">Your Uploads</h3>
 
           {/* Grid View */}
           <div className="grid grid-cols-2 gap-[0.75vw] pb-[1vw]">

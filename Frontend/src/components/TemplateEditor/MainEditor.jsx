@@ -42,8 +42,6 @@ const svgGlobalStyles = `
 
   .page-svg-container svg * {
     cursor: default;
-  }
-  .page-svg-container svg *:not(image) {
     vector-effect: non-scaling-stroke !important;
   }
 
@@ -171,40 +169,325 @@ const svgGlobalStyles = `
   body.resizing-active * {
     cursor: var(--resizing-cursor, inherit) !important;
   }
+
+  /* Hide intrinsic stroke of existing Free Frames unless they are actively being drawn */
+  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
+    stroke: transparent !important;
+    stroke-width: 0 !important;
+  }
+  .page-svg-container svg rect[data-name="Free Frame"][data-drawing="true"] {
+    stroke: #000000 !important;
+    stroke-width: 1 !important;
+    stroke-dasharray: 4,4 !important;
+  }
 `;
 import TopToolbar from './TopToolbar';
 
-const CurveIcon = ({ width, height, className }) => (
-  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={`${className} overflow-visible`}>
-    <path d="M2.5 22.9995C4 17.5007 10.5 26.5 11.5 22" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-    <path d="M15.6926 4.29545H7.30629M15.6926 4.29545L17.0904 1.5H5.90856L7.30629 4.29545M15.6926 4.29545L18.954 10.8182L11.4995 22L4.04492 10.8182L7.30629 4.29545" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinejoin="round"/>
-    <path d="M11.5 21.9989V12.2148" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round"/>
-    <path d="M12.897 10.8196L11.4993 9.42188L10.1016 10.8196L11.4993 12.2164L12.897 10.8196Z" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinejoin="round"/>
-  </svg>
-);
+const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool, pageIndex, activePageIndex, updateElementAttribute, activeTopTool }) => {
+  const [pos, setPos] = useState(null);
+  const [hasAnimation, setHasAnimation] = useState(false);
+  const [hasInteraction, setHasInteraction] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
 
-const processSvgHtmlForRender = (html) => {
-  if (!html) return html;
-  // Apply the scaling trick dynamically to fix blurry PDFs on zoom
-  if (html.includes('data-name="PDF Scale Wrapper"')) return html;
-  
-  return html.replace(
-      /(<image[^>]*data-name="PDF Background"[^>]*width=")([\d.]+)"\s+height="([\d.]+)"([^>]*>)/i,
-      (match, p1, widthStr, heightStr, p4) => {
-          const w = parseFloat(widthStr) * 5;
-          const h = parseFloat(heightStr) * 5;
-          return `<g transform="scale(0.2)" data-name="PDF Scale Wrapper">${p1}${w}" height="${h}"${p4}</g>`;
+  useEffect(() => {
+    let animationFrame;
+    const update = () => {
+      const container = document.querySelector(`[data-page-index="${pageIndex}"]`);
+      if (!container) { setPos(null); return; }
+
+      const el = container.querySelector(`[id="${selectedId}"], [data-name="${selectedId}"]`) ||
+        document.getElementById(selectedId) ||
+        document.querySelector(`[data-name="${selectedId}"]`);
+
+      if (!el) { setPos(null); return; }
+
+      const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
+        el.getAttribute('data-type') === 'background';
+      if (isOverlay) { setPos(null); return; }
+
+      try {
+        const animations = el.getAnimations ? el.getAnimations() : [];
+        const activeAnims = animations.filter(a => a.playState !== 'finished');
+
+        let rect;
+        if (activeAnims.length > 0) {
+          // Temporarily revert to base state to get the static bounding box
+          const originalTimes = activeAnims.map(a => a.currentTime);
+          activeAnims.forEach(a => {
+            a.pause();
+            a.currentTime = 0;
+          });
+          rect = el.getBoundingClientRect();
+          // Restore animation state
+          activeAnims.forEach((a, i) => {
+            a.currentTime = originalTimes[i];
+            a.play();
+          });
+        } else {
+          rect = el.getBoundingClientRect();
+        }
+
+        const containerRect = container.getBoundingClientRect();
+
+        const scale = zoom / 100;
+        const x = (rect.right - containerRect.left) / scale;
+        // Position it at the top, but slightly offset upwards to avoid resize handles
+        const y = (rect.top - containerRect.top) / scale;
+
+        // If it's too close to the top edge, it will be clipped by overflow-hidden
+        const isTooCloseToTop = y < 40;
+
+        setPos({ x, y, isTooCloseToTop });
+
+        const animType = el.getAttribute('data-animation-open-type');
+        const interactType = el.getAttribute('data-animation-interact-type');
+        const hasIntent = el.getAttribute('data-animation-intent') === 'true';
+        // If it has ANY active animation type or has explicit intent, it's "Managed"
+        const isManaged = (animType && animType !== 'none') || (interactType && interactType !== 'none') || hasIntent;
+        setHasAnimation(isManaged);
+
+        const interaction = el.getAttribute('data-interaction');
+        const hasInteract = (interaction && interaction !== 'none') || el.getAttribute('data-interaction-intent') === 'true';
+        setHasInteraction(!!hasInteract);
+
+        // If multi-selection, only show yellow if ALL have animation (or just keep it simple)
+        if (multiSelectedIds && multiSelectedIds.size > 1) {
+          let allHave = true;
+          let allInteract = true;
+          multiSelectedIds.forEach(id => {
+            const selEl = document.getElementById(id) || document.querySelector(`[data-name="${id}"]`);
+            if (selEl) {
+              const t1 = selEl.getAttribute('data-animation-open-type');
+              const t2 = selEl.getAttribute('data-animation-interact-type');
+              if ((!t1 || t1 === 'none') && (!t2 || t2 === 'none')) allHave = false;
+
+              const interact = selEl.getAttribute('data-interaction');
+              if (!interact || interact === 'none') allInteract = false;
+            }
+          });
+          setHasAnimation(allHave);
+          setHasInteraction(allInteract);
+        }
+      } catch (e) {
+        setPos(null);
       }
+      animationFrame = requestAnimationFrame(update);
+    };
+
+    update();
+    return () => cancelAnimationFrame(animationFrame);
+  }, [selectedId, zoom, pageIndex]);
+
+  if (activeTopTool !== 'animation') return null;
+  if (!pos) return null;
+
+  return (
+    <div
+      className="absolute z-[1001] pointer-events-auto"
+      style={{
+        left: Math.round(pos.x - 4),
+        top: Math.round(pos.y + (pos.isTooCloseToTop ? 10 : -4)),
+        transform: `translate(-100%, ${pos.isTooCloseToTop ? '0%' : '-100%'})`
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="relative flex items-center" onMouseDown={(e) => e.stopPropagation()}>
+        {/* The Tooltip Button Box */}
+        {(() => {
+          const handleTooltipClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            const ids = (multiSelectedIds && multiSelectedIds.size > 0) ? Array.from(multiSelectedIds) : [selectedId];
+            if (!ids.length || !ids[0]) return;
+
+            if (activeTopTool === 'interaction') {
+              // ─── Interaction Mode Click Behavior ───
+              ids.forEach(id => {
+                if (!id) return;
+                const safeId = id.replace(/(:|\.|\[|\]|,|=|@)/g, "\\$1");
+                const el = document.getElementById(id) || document.querySelector(`[id="${safeId}"]`) || document.querySelector(`[data-name="${id}"]`);
+
+                if (el) {
+                  const existingInteraction = el.getAttribute('data-interaction');
+                  if (!existingInteraction || existingInteraction === 'none') {
+                    // Update DOM attributes instantly
+                    el.setAttribute('data-interaction', 'open-link');
+                    el.setAttribute('data-interaction-value', '');
+                    el.setAttribute('data-interaction-intent', 'true');
+
+                    if (updateElementAttribute) {
+                      updateElementAttribute(pageIndex, id, 'data-interaction', 'open-link');
+                      updateElementAttribute(pageIndex, id, 'data-interaction-value', '');
+                      updateElementAttribute(pageIndex, id, 'data-interaction-intent', 'true');
+                    }
+                  } else {
+                    if (updateElementAttribute) {
+                      updateElementAttribute(pageIndex, id, 'data-interaction-intent', 'true');
+                    }
+                  }
+                }
+              });
+
+              // Dispatch the event to InteractionPanel to open the card
+              setTimeout(() => {
+                ids.forEach(id => {
+                  if (id) {
+                    window.dispatchEvent(new CustomEvent('add-free-frame', {
+                      detail: { elementId: id, pageIndex }
+                    }));
+                  }
+                });
+              }, 100);
+
+            } else {
+              // ─── Animation Mode Click Behavior ───
+              // Grouping logic: if multiple elements, assign a shared group name
+              let sharedGroupId = null;
+              if (ids.length > 1) {
+                const allGroups = Array.from(document.querySelectorAll('[data-animation-group]')).map(el => el.getAttribute('data-animation-group'));
+                const groupNums = allGroups.map(g => parseInt(g.replace('Group ', ''))).filter(n => !isNaN(n));
+                const nextNum = groupNums.length > 0 ? Math.max(...groupNums) + 1 : 1;
+                sharedGroupId = `Group ${nextNum}`;
+              }
+
+              ids.forEach(id => {
+                if (!id) return;
+                // Escape ID for selector safety if it contains special characters
+                const safeId = id.replace(/(:|\.|\[|\]|,|=|@)/g, "\\$1");
+                const el = document.getElementById(id) || document.querySelector(`[id="${safeId}"]`) || document.querySelector(`[data-name="${id}"]`);
+
+                if (el) {
+                  const alreadyHasAnim = (el.getAttribute('data-animation-open-type') && el.getAttribute('data-animation-open-type') !== 'none') ||
+                    (el.getAttribute('data-animation-interact-type') && el.getAttribute('data-animation-interact-type') !== 'none');
+                  if (!alreadyHasAnim) {
+                    // Direct DOM update for instant feedback
+                    el.setAttribute('data-animation-open-type', 'fade-in');
+                    el.setAttribute('data-animation-open-duration', '1');
+                    el.setAttribute('data-animation-open-delay', '0');
+                    el.setAttribute('data-animation-open-easing', 'ease');
+                    el.setAttribute('data-animation-intent', 'true');
+                    if (sharedGroupId) el.setAttribute('data-animation-group', sharedGroupId);
+
+                    // Persist to state - focus on the intent and type first to minimize batching issues
+                    if (updateElementAttribute) {
+                      updateElementAttribute(pageIndex, id, 'data-animation-open-type', 'fade-in');
+                      if (sharedGroupId) updateElementAttribute(pageIndex, id, 'data-animation-group', sharedGroupId);
+
+                      // Use a slightly larger timeout or skip secondary attributes for bulk to prevent hang
+                      if (ids.length < 5) {
+                        setTimeout(() => updateElementAttribute(pageIndex, id, 'data-animation-open-duration', '1'), 100);
+                        setTimeout(() => updateElementAttribute(pageIndex, id, 'data-animation-intent', 'true'), 200);
+                      } else {
+                        updateElementAttribute(pageIndex, id, 'data-animation-intent', 'true');
+                      }
+                    }
+                  } else {
+                    if (updateElementAttribute) {
+                      updateElementAttribute(pageIndex, id, 'data-animation-intent', 'true');
+                    }
+                  }
+                }
+              });
+
+              if (setActiveTopTool) setActiveTopTool('animation');
+
+              setTimeout(() => {
+                ids.forEach(id => {
+                  if (id) window.dispatchEvent(new CustomEvent('animation-force-add', { detail: id }));
+                });
+              }, 100);
+            }
+          };
+
+          return (
+            <div
+              onMouseEnter={() => setIsHovered(true)}
+              onMouseLeave={() => setIsHovered(false)}
+              onClick={handleTooltipClick}
+              className="relative w-[2vw] h-[1.8vw] bg-[#333333] rounded-[0.4vw] flex items-center justify-center cursor-pointer shadow-xl group hover:bg-[#444444] transition-all border border-white/10"
+            >
+              {activeTopTool === 'interaction' ? (
+                <Icon
+                  icon="hugeicons:touch-interaction-01"
+                  width="1.2vw"
+                  height="1.2vw"
+                  className={`pointer-events-none ${hasInteraction ? "text-[#818CF8]" : "text-white"}`}
+                />
+              ) : (
+                <Icon
+                  icon="solar:star-fall-minimalistic-bold"
+                  width="1.2vw"
+                  height="1.2vw"
+                  className={`pointer-events-none ${hasAnimation ? "text-[#FFB800]" : "text-white"}`}
+                />
+              )}
+
+              {/* Status Badge — explicit onClick so both main button and + are clickable */}
+              <div
+                onClick={handleTooltipClick}
+                className={`absolute -top-[0.4vw] -right-[0.4vw] w-[0.9vw] h-[0.9vw] rounded-full flex items-center justify-center border-[0.1vw] border-[#F6F6F6] shadow-sm transition-colors duration-300 cursor-pointer z-10 pointer-events-auto ${activeTopTool === 'interaction'
+                  ? (hasInteraction ? 'bg-[#22C55E]' : 'bg-[#5145F6]')
+                  : (hasAnimation ? 'bg-[#22C55E]' : 'bg-[#5145F6]')
+                  }`}
+              >
+                <Icon
+                  icon={activeTopTool === 'interaction' ? (hasInteraction ? "lucide:check" : "lucide:plus") : (hasAnimation ? "lucide:check" : "lucide:plus")}
+                  width="0.5vw"
+                  height="0.5vw"
+                  className="text-white pointer-events-none"
+                />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* Speech Bubble Tooltip - Only show on hover */}
+        <AnimatePresence>
+          {isHovered && (
+            <motion.div
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 10 }}
+              className="absolute right-full mr-[0.6vw] flex items-center"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="absolute right-[-0.25vw] w-0 h-0 border-t-[0.3vw] border-t-transparent border-l-[0.3vw] border-l-[#333333] border-b-[0.3vw] border-b-transparent"></div>
+              <div className="bg-[#333333] text-white px-[0.3vw] py-[0.2vw] rounded-[0.2vw] shadow-xl border border-white/5 whitespace-nowrap">
+                <span className="text-[0.55vw] font-semibold tracking-tight">
+                  {activeTopTool === 'interaction'
+                    ? (hasInteraction ? "Interaction Added" : "Click To Add Interaction")
+                    : (hasAnimation ? "Animation Added" : "Click To Add Animation")}
+                </span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 };
 
 
-const MainEditor = ({ 
+
+
+
+const CurveIcon = ({ width, height, className }) => (
+  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className={`${className} overflow-visible`}>
+    <path d="M2.5 22.9995C4 17.5007 10.5 26.5 11.5 22" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M15.6926 4.29545H7.30629M15.6926 4.29545L17.0904 1.5H5.90856L7.30629 4.29545M15.6926 4.29545L18.954 10.8182L11.4995 22L4.04492 10.8182L7.30629 4.29545" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinejoin="round" />
+    <path d="M11.5 21.9989V12.2148" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M12.897 10.8196L11.4993 9.42188L10.1016 10.8196L11.4993 12.2164L12.897 10.8196Z" stroke="currentColor" strokeWidth="1" strokeMiterlimit="10" strokeLinejoin="round" />
+  </svg>
+);
+
+
+const MainEditor = ({
   isPdfProject,
-  isDoublePage, 
-  pages = [], 
-  activePageIndex, 
-  setActivePageIndex, 
+  isDoublePage,
+  pages = [],
+  activePageIndex,
+  setActivePageIndex,
   insertPageAfter,
   duplicatePage,
   clearPage,
@@ -226,7 +509,9 @@ const MainEditor = ({
   setActiveMainTool,
   activeTopTool,
   setActiveTopTool,
-  flipbookDimensions = null
+  updateElementAttribute,
+  flipbookDimensions = null,
+  isPopupEditor = false
 }) => {
   const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
   const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
@@ -235,25 +520,13 @@ const MainEditor = ({
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
   const [isEditingText, setIsEditingText] = useState(false);
-  
+
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
   const [selectedShapeTool, setSelectedShapeTool] = useState('rectangle'); // 'rectangle', 'circle', 'polygon', 'line', 'star'
   const [zoom, setZoom] = useState(90);
-  const [isSpacePressed, setIsSpacePressed] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
-  const panXRef = useRef(0);
-  const panYRef = useRef(0);
-  const isSpacePressedRef = useRef(false);
-  const isPanningRef = useRef(false);
-  const zoomRef = useRef(90);
-  const rafIdRef = useRef(null);
-  const pendingDyRef = useRef(0);
-  const panOverlayRef = useRef(null); // direct DOM ref for the pan overlay
-  const [isWheeling, setIsWheeling] = useState(false);
-  const wheelTimeoutRef = useRef(null);
-  const canvasWrapperRef = useRef(null);
-  const zoomableCanvasRef = useRef(null);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isSpaceDown, setIsSpaceDown] = useState(false);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
 
@@ -272,6 +545,11 @@ const MainEditor = ({
   const suppressClickRef = useRef(false);
   const activeMainToolRef = useRef(activeMainTool);
   const selectedSelectToolRef = useRef(selectedSelectTool);
+  const isSpaceDownRef = useRef(false);
+  const isPanningRef = useRef(false);
+  const lastPanPointRef = useRef({ x: 0, y: 0 });
+  const currentPanRef = useRef({ x: 0, y: 0 });
+  const zoomContainerRef = useRef(null);
   const selectedPenToolRef = useRef(selectedPenTool);
   const drawingPathRef = useRef(null);
   const drawingPointsRef = useRef([]);
@@ -284,8 +562,8 @@ const MainEditor = ({
   const lastClickRef = useRef({ time: 0, target: null });
   const draggedNodeIndexRef = useRef({ pIdx: -1, ptIdx: -1 });
   const bendingStateRef = useRef(null);
-  const drawingSubPathsRef = useRef([]); 
-  const drawingSubPathElsRef = useRef([]); 
+  const drawingSubPathsRef = useRef([]);
+  const drawingSubPathElsRef = useRef([]);
   const activeBendingSegmentRef = useRef(null);
   const handleDraggingStateRef = useRef(null);
   const updatePageHtmlRef = useRef(updatePageHtml);
@@ -297,17 +575,25 @@ const MainEditor = ({
 
     const handleKeyDown = (e) => {
       // 1. Skip shortcuts if user is typing
-      if (document.activeElement.tagName === 'INPUT' || 
-          document.activeElement.tagName === 'TEXTAREA' || 
-          isEditingText || 
-          document.activeElement.isContentEditable) return;
+      if (document.activeElement.tagName === 'INPUT' ||
+        document.activeElement.tagName === 'TEXTAREA' ||
+        isEditingText ||
+        document.activeElement.isContentEditable) return;
 
       const key = e.key.toLowerCase();
-      
+
       // ── Restrict shortcuts in non-editor modes ─────────────────
       if (activeTopTool !== 'editor') {
         const isSelectionKey = key === 'v' || key === 'a';
         if (!isSelectionKey) return;
+      }
+
+      // ── Spacebar Pan ─────────────
+      if (key === ' ' && !isSpaceDownRef.current) {
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || isEditingText || document.activeElement.isContentEditable) return;
+        e.preventDefault();
+        isSpaceDownRef.current = true;
+        setIsSpaceDown(true);
       }
 
       // ── Tool Shortcuts ─────────────
@@ -317,14 +603,14 @@ const MainEditor = ({
         setSelectedSelectTool('select');
         closeAllDropdowns();
       }
-      
+
       // A for direct tool
       if (key === 'a' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         setActiveMainTool('select');
         setSelectedSelectTool('direct');
         closeAllDropdowns();
       }
-      
+
       // P or Shift+P for pen tool
       if (key === 'p' && !e.ctrlKey && !e.altKey && !e.metaKey) {
         setActiveMainTool('pen');
@@ -344,35 +630,16 @@ const MainEditor = ({
         isCtrlPressedRef.current = true;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('ctrl-down'));
       }
-      if ((e.code === 'Space' || e.key === ' ') && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) && document.activeElement.contentEditable !== 'true') {
-        e.preventDefault();
-        if (isSpacePressedRef.current) return; // already held, avoid repeat
-        isSpacePressedRef.current = true;
-        setIsSpacePressed(true);
-        document.body.classList.add('space-panning');
-        
-        // Clear selections so elements don't show highlight/resize handles and can't be moved
-        if (setSelectedLayerId) setSelectedLayerId(null);
-        if (setMultiSelectedIds) setMultiSelectedIds(new Set());
-        if (typeof selectedLayerIdRef !== 'undefined' && selectedLayerIdRef) selectedLayerIdRef.current = null;
-
-        // Clear all SVG hover/selection overlays manually
-        document.querySelectorAll('.selection-overlay-layer polygon').forEach(el => el.remove());
-        document.querySelectorAll('[id^="highlight-overlay-html-"]').forEach(el => { el.innerHTML = ''; });
-      }
     };
     const handleKeyUp = (e) => {
+      if (e.key === ' ') {
+        isSpaceDownRef.current = false;
+        setIsSpaceDown(false);
+        isPanningRef.current = false;
+      }
       if (e.key === 'Control') {
         isCtrlPressedRef.current = false;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.remove('ctrl-down'));
-      }
-      if (e.code === 'Space' || e.key === ' ') {
-        isSpacePressedRef.current = false;
-        isPanningRef.current = false;
-        setIsSpacePressed(false);
-        setIsPanning(false);
-        document.body.classList.remove('space-panning');
-        document.body.classList.remove('is-grabbing');
       }
     };
 
@@ -393,37 +660,37 @@ const MainEditor = ({
       const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
       slideshows.forEach(el => {
         // Skip if manual control/overlay is active or if user is hovering (prevents conflicts)
-        if (el.getAttribute('data-slideshow-manual') === 'true' || 
-            el.getAttribute('data-is-hovering') === 'true' || 
-            el.matches(':hover')) return;
-        
+        if (el.getAttribute('data-slideshow-manual') === 'true' ||
+          el.getAttribute('data-is-hovering') === 'true' ||
+          el.matches(':hover')) return;
+
         try {
           const dataStr = el.getAttribute('data-slideshow');
           if (!dataStr) return;
           const data = JSON.parse(dataStr);
           const settings = data.settings || {};
-          
+
           // Only auto-slide if enabled in settings
           if (!settings.autoPlay && !settings.autoSlide) return;
-          
+
           const images = data.images || [];
           if (images.length <= 1) return;
-          
+
           const speed = (settings.speed || 3) * 1000;
           const now = Date.now();
           const lastTime = parseInt(el.getAttribute('data-last-slide-time') || '0');
-          
+
           if (now - lastTime >= speed) {
             let currentIndex = parseInt(el.getAttribute('data-active-index') || '0');
             let nextIndex = (currentIndex + 1) % images.length;
-            
+
             // If not infinite and reached end, stop
             if (nextIndex === 0 && settings.infiniteLoop === false && currentIndex !== 0) return;
 
             // Update DOM attributes
             el.setAttribute('data-active-index', nextIndex.toString());
             el.setAttribute('data-last-slide-time', now.toString());
-            
+
             // ── Resolve the actual <image>/<img>, including SVG pattern fills ──
             const _findImgInPattern = (node) => {
               const fill = node.getAttribute?.('fill') || '';
@@ -472,7 +739,7 @@ const MainEditor = ({
               const imgTag = imgEl.tagName?.toLowerCase();
               if (imgTag === 'image') {
                 imgEl.setAttribute('href', url);
-                try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch(e) {}
+                try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
               } else if (imgTag === 'img') {
                 imgEl.src = url;
               } else {
@@ -494,7 +761,7 @@ const MainEditor = ({
         });
       }
     }, 1000); // Check every second
-    
+
     return () => clearInterval(globalSlideshowInterval);
   }, []);
 
@@ -566,7 +833,7 @@ const MainEditor = ({
         const imgTag = imgEl.tagName?.toLowerCase();
         if (imgTag === 'image') {
           imgEl.setAttribute('href', url);
-          try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch(err) {}
+          try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (err) { }
         } else if (imgTag === 'img') {
           imgEl.src = url;
         } else {
@@ -636,41 +903,41 @@ const MainEditor = ({
 
       // Unique ID
       const newId = `icon-${Date.now()}`;
-      
+
       // Create element
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.id = newId;
       g.setAttribute('data-type', 'icon');
       // Place centered (accounting for an assumed icon size of ~50x50 for better initial visual balance)
-      g.setAttribute('transform', `translate(${centerX - 25}, ${centerY - 25})`); 
-      g.setAttribute('fill', '#ffffff'); 
+      g.setAttribute('transform', `translate(${centerX - 25}, ${centerY - 25})`);
+      g.setAttribute('fill', '#ffffff');
       g.setAttribute('stroke', '#000000');
       g.setAttribute('stroke-width', '2');
-      
-      
+
+
       if (icon.Component) {
-          // If it's a lucide icon component, we can't easily render it to a string here 
-          // without react-dom/server or similar. 
-          // But I'll try to find a way to get its SVG path.
-          // For now, let's assume we use the data if available.
-          if (icon.html) g.innerHTML = icon.html;
-          else if (icon.d) {
-             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-             path.setAttribute('d', icon.d);
-             g.appendChild(path);
-          }
+        // If it's a lucide icon component, we can't easily render it to a string here 
+        // without react-dom/server or similar. 
+        // But I'll try to find a way to get its SVG path.
+        // For now, let's assume we use the data if available.
+        if (icon.html) g.innerHTML = icon.html;
+        else if (icon.d) {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', icon.d);
+          g.appendChild(path);
+        }
       } else {
-         if (icon.html) g.innerHTML = icon.html;
-         else if (icon.d) {
-           const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-           path.setAttribute('d', icon.d);
-           g.appendChild(path);
-         }
+        if (icon.html) g.innerHTML = icon.html;
+        else if (icon.d) {
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', icon.d);
+          g.appendChild(path);
+        }
       }
 
       const targetContainer = svg.querySelector('[data-type="frame"]') || svg.querySelector('[data-name="Overlay"]') || svg;
       targetContainer.appendChild(g);
-      
+
       updatePageHtml(targetPageIndex, svg.outerHTML);
       setSelectedLayerId(newId);
     };
@@ -678,21 +945,21 @@ const MainEditor = ({
     const handleUploadVideo = (e) => {
       const { videoUrl, pageIndex, file } = e.detail;
       const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
-      
+
       // 1. Find the SVG of the target page in the actual DOM for accurate centering
       const container = document.querySelector(`.page-svg-container[data-page-index="${targetPageIndex}"]`);
       const svg = container?.querySelector('svg');
       if (!svg) return;
 
       const newId = `video-${Date.now()}`;
-      
+
       // We use foreignObject to host the video element in SVG
       const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
       fo.id = newId;
-      
+
       const displayWidth = 150;
       const displayHeight = 100;
-      
+
       fo.setAttribute('width', displayWidth.toString());
       fo.setAttribute('height', displayHeight.toString());
       fo.setAttribute('data-type', 'video');
@@ -705,48 +972,48 @@ const MainEditor = ({
       video.setAttribute('height', '100%');
       video.setAttribute('controls', 'true');
       video.style.objectFit = 'contain';
-      
+
       fo.appendChild(video);
 
       // 2. Append to root frame or page container and center it
       const topFrames = getTopLevelFrames(svg);
       const rootFrame = topFrames[0] || svg.querySelector('g') || svg;
-      
+
       if (rootFrame) {
+        try {
+          let cx = baseWidth / 2, cy = baseHeight / 2;
+
           try {
-              let cx = baseWidth / 2, cy = baseHeight / 2;
-              
-              try {
-                  const bbox = rootFrame.getBBox();
-                  if (bbox.width > 0 && bbox.height > 0) {
-                      cx = bbox.x + bbox.width / 2;
-                      cy = bbox.y + bbox.height / 2;
-                  }
-              } catch (e) {
-                  // Fallback to SVG center if BBox fails
-                  const svgW = parseFloat(svg.getAttribute('width') || baseWidth.toString());
-                  const svgH = parseFloat(svg.getAttribute('height') || baseHeight.toString());
-                  cx = svgW / 2;
-                  cy = svgH / 2;
-              }
-              
-              fo.setAttribute('x', (cx - displayWidth / 2).toString());
-              fo.setAttribute('y', (cy - displayHeight / 2).toString());
-              
-              rootFrame.appendChild(fo);
-              
-              // 3. Synchronize changes
-              if (updatePageHtml) {
-                  saveModifiedPageHtml(targetPageIndex, svg);
-              }
-              
-              if (setSelectedLayerId) setSelectedLayerId(newId);
-              if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
-              if (setActiveMainTool) setActiveMainTool('select');
-              
-          } catch (err) {
-              console.error("[MainEditor] Failed to insert video into SVG frame:", err);
+            const bbox = rootFrame.getBBox();
+            if (bbox.width > 0 && bbox.height > 0) {
+              cx = bbox.x + bbox.width / 2;
+              cy = bbox.y + bbox.height / 2;
+            }
+          } catch (e) {
+            // Fallback to SVG center if BBox fails
+            const svgW = parseFloat(svg.getAttribute('width') || baseWidth.toString());
+            const svgH = parseFloat(svg.getAttribute('height') || baseHeight.toString());
+            cx = svgW / 2;
+            cy = svgH / 2;
           }
+
+          fo.setAttribute('x', (cx - displayWidth / 2).toString());
+          fo.setAttribute('y', (cy - displayHeight / 2).toString());
+
+          rootFrame.appendChild(fo);
+
+          // 3. Synchronize changes
+          if (updatePageHtml) {
+            saveModifiedPageHtml(targetPageIndex, svg);
+          }
+
+          if (setSelectedLayerId) setSelectedLayerId(newId);
+          if (setMultiSelectedIds) setMultiSelectedIds(new Set([newId]));
+          if (setActiveMainTool) setActiveMainTool('select');
+
+        } catch (err) {
+          console.error("[MainEditor] Failed to insert video into SVG frame:", err);
+        }
       }
     };
 
@@ -765,7 +1032,7 @@ const MainEditor = ({
     const loadedUrls = new Set();
     pages.forEach(page => {
       if (!page.html) return;
-      
+
       // Extract data URLs, Blob URLs, and external URLs from href and src
       const regex = /(?:src|href)="([^"]+)"/g;
       let match;
@@ -776,12 +1043,12 @@ const MainEditor = ({
           img.src = url;
           // Force browser to decode the image into memory immediately
           if (img.decode) {
-            img.decode().catch(() => {});
+            img.decode().catch(() => { });
           }
           loadedUrls.add(url);
         }
       }
-      
+
       // Also check for CSS background-images
       const styleRegex = /url\(["']?([^"']+)["']?\)/g;
       while ((match = styleRegex.exec(page.html)) !== null) {
@@ -790,7 +1057,7 @@ const MainEditor = ({
           const img = new Image();
           img.src = url;
           if (img.decode) {
-            img.decode().catch(() => {});
+            img.decode().catch(() => { });
           }
           loadedUrls.add(url);
         }
@@ -800,7 +1067,7 @@ const MainEditor = ({
 
   // ── Marquee Selection State ───────────────────────────────────────────────
   const [marquee, setMarquee] = useState(null); // { pageIndex }
-  
+
   useEffect(() => { marqueeRef.current = marquee; }, [marquee]);
 
   const setsAreEqual = (a, b) => a.size === b.size && [...a].every(v => b.has(v));
@@ -824,7 +1091,7 @@ const MainEditor = ({
     // Map base directions to their local angles (0 is East/Right)
     const baseAngles = { 'e': 0, 'se': 45, 's': 90, 'sw': 135, 'w': 180, 'nw': 225, 'n': 270, 'ne': 315 };
     const angle = (baseAngles[dir] + rotation + 360) % 180;
-    
+
     if (angle >= 22.5 && angle < 67.5) return 'nwse-resize';
     if (angle >= 67.5 && angle < 112.5) return 'ns-resize';
     if (angle >= 112.5 && angle < 157.5) return 'nesw-resize';
@@ -833,166 +1100,364 @@ const MainEditor = ({
 
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
-    
+
     const overlay = getOverlayForElement(el);
     if (!overlay) return;
 
     // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
-    const isOverlay = el.getAttribute('data-name') === 'Overlay' || 
-                      el.getAttribute('data-type') === 'background' ||
-                      el.getAttribute('data-type') === 'frame' ||
-                      el.getAttribute('data-locked') === 'true';
-                      
+    const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
+      el.getAttribute('data-type') === 'background' ||
+      el.getAttribute('data-type') === 'frame' ||
+      el.getAttribute('data-locked') === 'true';
+
     if (el.style.visibility === 'hidden' || el.style.opacity === '0' || isOverlay) {
-       const existingPoly = overlay.querySelector(`[id="overlay-poly-${type}-${el.id}"]`);
-       if (existingPoly) existingPoly.remove();
-       const htmlOverlay = getHtmlOverlayForElement(el);
-       if (htmlOverlay) {
-           const existingHandles = htmlOverlay.querySelectorAll(`[id^="resize-handle-${el.id}-"]`);
-           existingHandles.forEach(h => h.remove());
-       }
-       return;
+      const existingPoly = overlay.querySelector(`[id="overlay-poly-${type}-${el.id}"]`);
+      if (existingPoly) existingPoly.remove();
+      const htmlOverlay = getHtmlOverlayForElement(el);
+      if (htmlOverlay) {
+        const existingHandles = htmlOverlay.querySelectorAll(`[id^="resize-handle-${el.id}-"]`);
+        existingHandles.forEach(h => h.remove());
+      }
+      return;
     }
-    
+
     try {
-        const bbox = el.getBBox();
-        if (bbox.width === 0 && bbox.height === 0) return;
-        const ctm = el.getScreenCTM();
-        const overlayCtm = overlay.getScreenCTM();
-        if (!ctm || !overlayCtm) return;
+      let bbox = el.getBBox();
+      const ctm = el.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return;
 
-        const svgMatrix = overlayCtm.inverse().multiply(ctm);
-        
+      // Fallback for elements where getBBox() returns 0 or suspiciously small dimensions (e.g. foreignObjects, nested SVGs, percentages)
+      // ALSO fallback for frames, because getBBox() ignores percentage-sized children (like width="100%" backgrounds in popup templates)
+      const isFrame = el.getAttribute('data-type') === 'frame';
+      if (isFrame || ((bbox.width < 5 || bbox.height < 5) && el.tagName.toLowerCase() !== 'line')) {
+        const clientRect = el.getBoundingClientRect();
+        // Only apply if the screen size is actually significantly larger than the getBBox size or if it's a frame
+        // (to prevent inflating bounding boxes of legitimately small elements)
         const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
-        const screenOffset = 0; // Use zero offset for tightest fitting selection
-        const localOffset = screenOffset / scale;
-        
-        const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
-        const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
-        const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
-        const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+        if (isFrame || clientRect.width / scale > 10 || clientRect.height / scale > 10 || el.tagName.toLowerCase() === 'svg' || el.tagName.toLowerCase() === 'foreignobject') {
+          if (clientRect.width > 0 && clientRect.height > 0) {
+            const elInverse = ctm.inverse();
+            const pt = overlay.createSVGPoint();
 
-        const pts = [pt1, pt2, pt3, pt4];
-        const mapped = pts.map(p => p.matrixTransform(svgMatrix));
-        const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
+            pt.x = clientRect.left; pt.y = clientRect.top;
+            const localTL = pt.matrixTransform(elInverse);
 
-        // Compute stroke sizes that counter the CSS zoom scale so they
-        // always appear the same physical pixel size on screen
-        const zs = zoomRef.current / 100; // zoom scale factor
+            pt.x = clientRect.right; pt.y = clientRect.bottom;
+            const localBR = pt.matrixTransform(elInverse);
 
-        let polyId = `overlay-poly-${type}-${el.id}`;
-        let polygon = overlay.querySelector(`[id="${polyId}"]`);
-        if (!polygon) {
-            polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
-            polygon.id = polyId;
-            polygon.setAttribute('class', `overlay-type-${type}`);
-            polygon.setAttribute('fill', 'none');
-            polygon.setAttribute('stroke', '#6366F1');
-            polygon.setAttribute('pointer-events', 'none');
-            overlay.appendChild(polygon);
+            bbox = {
+              x: Math.min(localTL.x, localBR.x),
+              y: Math.min(localTL.y, localBR.y),
+              width: Math.abs(localBR.x - localTL.x),
+              height: Math.abs(localBR.y - localTL.y)
+            };
+          }
         }
+      }
 
-        // Always update stroke attributes so zoom changes take effect immediately
-        if (type === 'hover') {
-            polygon.setAttribute('stroke-width', (1 / zs).toFixed(3));
-            polygon.removeAttribute('stroke-dasharray');
-        } else if (type === 'child-hover') {
-            polygon.setAttribute('stroke-width', (1 / zs).toFixed(3));
-            const d = (2 / zs).toFixed(3);
-            polygon.setAttribute('stroke-dasharray', `${d},${d}`);
-        } else if (type === 'selected') {
-            polygon.setAttribute('stroke-width', (1.5 / zs).toFixed(3));
-            polygon.removeAttribute('stroke-dasharray');
-        } else if (type === 'child-selected') {
-            polygon.setAttribute('stroke-width', (1.2 / zs).toFixed(3));
-            polygon.removeAttribute('stroke-dasharray');
+      if (bbox.width === 0 && bbox.height === 0) return;
+
+      const svgMatrix = overlayCtm.inverse().multiply(ctm);
+
+      const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
+      const screenOffset = 0; // Use zero offset for tightest fitting selection
+      const localOffset = screenOffset / scale;
+
+      const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
+      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
+      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
+      const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+
+      const pts = [pt1, pt2, pt3, pt4];
+      const mapped = pts.map(p => p.matrixTransform(svgMatrix));
+      const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
+
+      let polyId = `overlay-poly-${type}-${el.id}`;
+      let polygon = overlay.querySelector(`[id="${polyId}"]`);
+      if (!polygon) {
+        polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        polygon.id = polyId;
+        polygon.setAttribute('class', `overlay-type-${type}`);
+        polygon.setAttribute('fill', 'none');
+
+        if (el.getAttribute('data-name') === 'Free Frame') {
+          polygon.setAttribute('stroke', '#000000');
+        } else if (activeTopTool === 'interaction' && (type === 'selected' || type === 'child-selected')) {
+          polygon.setAttribute('stroke', '#4B5563');
+        } else if (type === 'hover' || type === 'child-hover') {
+          polygon.setAttribute('stroke', '#6366F1');
+        } else if (type === 'selected' || type === 'child-selected') {
+          polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'entered') {
-            polygon.setAttribute('stroke-width', (1 / zs).toFixed(3));
-            const d = (4 / zs).toFixed(3);
-            polygon.setAttribute('stroke-dasharray', `${d},${d}`);
+          polygon.setAttribute('stroke', '#6366F1');
         }
 
-        polygon.setAttribute('points', pointsStr);
+        polygon.setAttribute('pointer-events', 'none');
+        overlay.appendChild(polygon);
+      }
+      polygon.setAttribute('points', pointsStr);
 
-        
-        // ── RESIZE HANDLES (8 handles) ──
-        // Only show handles if exactly ONE element is selected
-        const selectionCount = multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0);
-        if (selectionCount === 1 && (type === 'selected' || type === 'child-selected')) {
-            const htmlOverlay = getHtmlOverlayForElement(el);
-            // Counter-scale handle size so it stays the same on screen regardless of zoom
-            const zoomScale = zoomRef.current / 100;
-            const handleSize = Math.round(9 / zoomScale); // always 9px on screen
-            const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
-            
-            // Define all 8 points in world space
-            const worldPts = [...mapped]; // Corners
+      const zoomScale = zoom / 100;
+      if (el.getAttribute('data-name') === 'Free Frame') {
+        polygon.setAttribute('stroke-width', String(1 / zoomScale));
+        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+      } else if (activeTopTool === 'interaction' && (type === 'selected' || type === 'child-selected')) {
+        polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+        polygon.setAttribute('stroke-dasharray', `${6 / zoomScale},${3 / zoomScale}`);
+      } else if (type === 'hover' || type === 'child-hover') {
+        polygon.setAttribute('stroke-width', String(1 / zoomScale));
+        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+        else polygon.removeAttribute('stroke-dasharray');
+      } else if (type === 'selected' || type === 'child-selected') {
+        polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
+        polygon.removeAttribute('stroke-dasharray');
+      } else if (type === 'entered') {
+        polygon.setAttribute('stroke-width', String(1 / zoomScale));
+        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+      }
+
+      // ── RESIZE HANDLES (8 handles) ──
+      // Only show handles if exactly ONE element is selected
+      const selectionCount = multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0);
+      if (selectionCount === 1 && (type === 'selected' || type === 'child-selected')) {
+        const htmlOverlay = getHtmlOverlayForElement(el);
+        const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
+        const useLBrackets = activeTopTool === 'interaction' || isFreeFrame;
+        const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
+        const handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+
+        // Define all points in world space
+        const worldPts = [...mapped]; // Corners
+        const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
+        const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
+        const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
+        const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
+
+        const allPts = useLBrackets ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+
+        // Detect current rotation for cursor mapping
+        const matrix = getElementMatrix(el);
+        const rotation = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
+
+        allPts.forEach((p, i) => {
+          const name = handleNames[i];
+          const isSide = ['n', 'e', 's', 'w'].includes(name);
+          const handleId = `resize-handle-${el.id}-${name}`;
+          let handle = htmlOverlay?.querySelector(`[id="${handleId}"]`);
+
+          if (!handle && htmlOverlay) {
+            handle = document.createElement('div');
+            handle.id = handleId;
+            handle.className = `resize-handle overlay-type-${type} absolute transition-all duration-150`;
+
+            if (useLBrackets) {
+              // Special L-corner for Interaction Mode and Free Frame
+              handle.style.backgroundColor = 'transparent';
+              handle.style.border = 'none';
+              handle.style.boxShadow = 'none';
+
+              // Create the L-shape using inner divs
+              const hBar = document.createElement('div');
+              const vBar = document.createElement('div');
+              [hBar, vBar].forEach(bar => {
+                bar.style.position = 'absolute';
+                if (isFreeFrame) {
+                  bar.style.backgroundColor = '#000000';
+                  bar.style.border = 'none';
+                } else {
+                  bar.style.backgroundColor = '#FFFFFF';
+                  bar.style.border = '1px solid #1F2937';
+                }
+                bar.style.boxSizing = 'border-box';
+              });
+
+              const barThickness = isFreeFrame ? 3 : 4;
+              hBar.style.width = '100%';
+              hBar.style.height = `${barThickness}px`;
+              vBar.style.width = `${barThickness}px`;
+              vBar.style.height = '100%';
+
+              // Align bars based on corner
+              if (name === 'nw') { hBar.style.top = '0'; hBar.style.left = '0'; vBar.style.top = '0'; vBar.style.left = '0'; }
+              if (name === 'ne') { hBar.style.top = '0'; hBar.style.right = '0'; vBar.style.top = '0'; vBar.style.right = '0'; }
+              if (name === 'se') { hBar.style.bottom = '0'; hBar.style.right = '0'; vBar.style.bottom = '0'; vBar.style.right = '0'; }
+              if (name === 'sw') { hBar.style.bottom = '0'; hBar.style.left = '0'; vBar.style.bottom = '0'; vBar.style.left = '0'; }
+
+              handle.appendChild(hBar);
+              handle.appendChild(vBar);
+            } else if (isSide) {
+              // Edge-handle: Invisible, but large hit area
+              handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
+            } else {
+              // Corner-handle: Professional white square
+              handle.style.backgroundColor = '#FFFFFF';
+              handle.style.border = '1.5px solid #6366F1';
+              handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+              handle.style.borderRadius = '2px';
+            }
+
+            handle.style.boxSizing = 'border-box';
+            handle.style.pointerEvents = 'auto';
+            handle.style.zIndex = isSide ? '999' : '1000';
+            htmlOverlay.appendChild(handle);
+          }
+
+          if (handle) {
+            if (isSide && !useLBrackets) {
+              const zoomScale = zoom / 100;
+              const isHorizontal = (name === 'n' || name === 's');
+              const rawLength = (isHorizontal ? bbox.width : bbox.height) * scale;
+              const length = Math.max(rawLength, 20);
+              const thickness = 16 / zoomScale;
+
+              handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
+              handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
+              handle.style.left = `${p.x}px`;
+              handle.style.top = `${p.y}px`;
+              handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+            } else {
+              const zoomScale = zoom / 100;
+              // Standard corner handle positioning
+              handle.style.width = `${handleSize}px`;
+              handle.style.height = `${handleSize}px`;
+
+              // Move handles slightly inward
+              let posX = p.x;
+              let posY = p.y;
+              if (useLBrackets) {
+                const inwardOffset = (isFreeFrame ? (handleSize / 3.5) : 4) / zoomScale;
+                if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
+                if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
+                if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
+                if (name === 'sw') { posX += inwardOffset; posY -= inwardOffset; }
+              }
+
+              handle.style.left = `${posX}px`;
+              handle.style.top = `${posY}px`;
+              handle.style.transform = `translate(-50%, -50%) scale(${1 / zoomScale})`;
+            }
+            handle.style.cursor = getRotatingCursor(name, rotation);
+          }
+        });
+
+        // ── INTERACTION BADGE (Floating above the top-middle) ──
+        if (activeTopTool === 'interaction') {
+          const badgeId = `interaction-badge-${el.id}`;
+          let badge = htmlOverlay?.querySelector(`[id="${badgeId}"]`);
+
+          if (!badge && htmlOverlay) {
+            badge = document.createElement('div');
+            badge.id = badgeId;
+            badge.className = 'absolute z-[2000] cursor-pointer flex flex-col items-center group/badge pointer-events-auto';
+
+            // Main Badge Container (Dark gray box)
+            const mainBox = document.createElement('div');
+            mainBox.setAttribute('data-badge-mainbox', 'true');
+            mainBox.className = 'relative bg-[#3F3F46] rounded-[0.3vw] p-[0.2vw] shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border border-dashed border-black';
+            mainBox.style.width = '1.6vw';
+            mainBox.style.height = '1.6vw';
+
+            // Touch Interaction Icon (Further reduced size)
+            mainBox.innerHTML = `
+                        <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934M6.54475 16.3864C6.81275 16.7104 7.08375 17.0884 7.42375 17.5184M9.52975 21.9994V21.0534C9.60275 19.8904 8.54675 18.9574 7.42375 17.5184M7.42375 17.5184C7.34275 17.4144 7.49975 17.6154 7.42375 17.5184ZM7.42375 17.5184L8.53075 18.8724" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    `;
+
+            // Plus Icon Badge (Further reduced size)
+            const plusBadge = document.createElement('div');
+            plusBadge.setAttribute('data-badge-plus', 'true');
+            plusBadge.className = 'absolute -top-1 -right-1 flex items-center justify-center';
+            plusBadge.style.width = '0.75vw';
+            plusBadge.style.height = '0.75vw';
+            plusBadge.innerHTML = `
+                        <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
+                            <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
+                            <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
+                        </svg>
+                    `;
+            mainBox.appendChild(plusBadge);
+
+            // Permanent Label (Speech bubble style - Further reduced)
+            const label = document.createElement('div');
+            label.setAttribute('data-badge-label', 'true');
+            label.className = 'absolute top-1/2 -translate-y-1/2 bg-black text-white text-[0.5vw] font-medium px-[0.5vw] py-[0.25vw] shadow-lg whitespace-nowrap flex items-center opacity-0 group-hover/badge:opacity-100 transition-opacity duration-200 pointer-events-none';
+            label.style.left = '100%';
+            label.style.marginLeft = '0.5vw';
+            label.innerHTML = 'Click To Add Interaction';
+
+            // Small triangle arrow for the speech bubble
+            const arrow = document.createElement('div');
+            arrow.setAttribute('data-badge-arrow', 'true');
+            arrow.className = 'absolute w-0 h-0';
+            arrow.style.cssText = 'position:absolute; left:-5px; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black;';
+            label.appendChild(arrow);
+            label.appendChild(document.createTextNode(''));
+            badge.appendChild(mainBox);
+            badge.appendChild(label);
+
+            // Click Event
+            const triggerEvent = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              // Dispatch the event that the InteractionPanel listens to
+              const event = new CustomEvent('add-free-frame', {
+                detail: {
+                  elementId: el.id,
+                  bbox: bbox
+                }
+              });
+              window.dispatchEvent(event);
+            };
+            badge.onpointerdown = triggerEvent;
+            badge.onclick = triggerEvent;
+
+            htmlOverlay.appendChild(badge);
+          }
+
+          if (badge) {
             const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
-            const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
-            const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
-            const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
-            
-            const allPts = [...worldPts, midN, midE, midS, midW];
+            const vwOffset = window.innerWidth * 0.006;
+            badge.style.left = `${midN.x}px`;
 
-            // Detect current rotation for cursor mapping
-            const matrix = getElementMatrix(el);
-            const rotation = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
+            // If the top edge of the selection bounding box is too close to the top of the page (e.g. less than 35px),
+            // position the badge inside the top edge instead of above it, to prevent clipping.
+            if (midN.y < 35) {
+              badge.style.top = `${midN.y + vwOffset}px`;
+              badge.style.transform = 'translate(-50%, 0%)';
+            } else {
+              badge.style.top = `${midN.y - vwOffset}px`;
+              badge.style.transform = 'translate(-50%, -100%)';
+            }
 
-            allPts.forEach((p, i) => {
-                const name = handleNames[i];
-                const isSide = ['n', 'e', 's', 'w'].includes(name);
-                const handleId = `resize-handle-${el.id}-${name}`;
-                let handle = htmlOverlay?.querySelector(`[id="${handleId}"]`);
-                
-                if (!handle && htmlOverlay) {
-                    handle = document.createElement('div');
-                    handle.id = handleId;
-                    handle.className = `resize-handle overlay-type-${type} absolute transition-colors duration-150`;
-                    
-                    if (isSide) {
-                        // Edge-handle: Invisible, but large hit area
-                        handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)'; // Use 0.01 instead of 0 for perfect hit detection
-                    } else {
-                        // Corner-handle: Professional white square
-                        handle.style.backgroundColor = '#FFFFFF';
-                        handle.style.border = '1.5px solid #6366F1';
-                        handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                        handle.style.borderRadius = '2px';
-                    }
-                    
-                    handle.style.boxSizing = 'border-box';
-                    handle.style.pointerEvents = 'auto';
-                    handle.style.zIndex = isSide ? '999' : '1000'; // Corners always stay on top
-                    htmlOverlay.appendChild(handle);
-                }
-
-                if (handle) {
-                    if (isSide) {
-                        const isHorizontal = (name === 'n' || name === 's');
-                        // Calculate length of the side including current scaling/zoom
-                        const rawLength = (isHorizontal ? bbox.width : bbox.height) * scale;
-                        const length = Math.max(rawLength, 20);
-                        const thickness = Math.round(16 / zoomScale); // constant screen size
-                        
-                        handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
-                        handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
-                        handle.style.left = `${p.x}px`;
-                        handle.style.top = `${p.y}px`;
-                        handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
-                    } else {
-                        // Corner handle — counter-scaled to stay same screen size
-                        handle.style.width = `${handleSize}px`;
-                        handle.style.height = `${handleSize}px`;
-                        handle.style.left = `${p.x}px`;
-                        handle.style.top = `${p.y}px`;
-                        handle.style.transform = 'translate(-50%, -50%)';
-                    }
-                    // Dynamically update cursor based on handle orientation relative to viewport
-                    handle.style.cursor = getRotatingCursor(name, rotation);
-                }
-            });
+            // Flip label to left if badge is near the right edge of the overlay
+            const containerWidth = htmlOverlay?.getBoundingClientRect?.()?.width || 9999;
+            const labelEl = badge.querySelector('[data-badge-label]');
+            const arrowEl = badge.querySelector('[data-badge-arrow]');
+            if (labelEl && arrowEl) {
+              if (midN.x > containerWidth * 0.55) {
+                // Flip: label appears to the LEFT of the badge
+                labelEl.style.left = 'auto';
+                labelEl.style.right = '100%';
+                labelEl.style.marginLeft = '0';
+                labelEl.style.marginRight = '0.5vw';
+                arrowEl.style.cssText = 'position:absolute; right:-5px; left:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:5px solid black; border-right:none;';
+              } else {
+                // Default: label appears to the RIGHT of the badge
+                labelEl.style.left = '100%';
+                labelEl.style.right = 'auto';
+                labelEl.style.marginLeft = '0.5vw';
+                labelEl.style.marginRight = '0';
+                arrowEl.style.cssText = 'position:absolute; left:-5px; right:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black; border-left:none;';
+              }
+            }
+          }
         }
-    } catch(e) {}
+      }
+    } catch (e) { }
   };
 
   // ── Synchronize rotation with DOM selection ──────────────────────────────────
@@ -1020,14 +1485,14 @@ const MainEditor = ({
 
       const matrix = getElementMatrix(el);
       const bbox = el.getBBox();
-      
+
       // Calculate local center
       const localCx = bbox.x + bbox.width / 2;
       const localCy = bbox.y + bbox.height / 2;
-      
+
       // Transform local center by current matrix to get world center
       const worldCenter = new DOMPoint(localCx, localCy).matrixTransform(matrix);
-      
+
       const currentAngle = (Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
       const diff = newAngle - currentAngle;
 
@@ -1036,7 +1501,7 @@ const MainEditor = ({
         .translate(worldCenter.x, worldCenter.y)
         .rotate(diff)
         .translate(-worldCenter.x, -worldCenter.y);
-      
+
       const nextMatrix = rotateMatrix.multiply(matrix);
       el.setAttribute('transform', matrixToTransform(nextMatrix));
 
@@ -1064,7 +1529,7 @@ const MainEditor = ({
 
       const matrix = getElementMatrix(el);
       const bbox = el.getBBox();
-      
+
       // Calculate local center
       const localCx = bbox.x + bbox.width / 2;
       const localCy = bbox.y + bbox.height / 2;
@@ -1080,7 +1545,7 @@ const MainEditor = ({
         .translate(worldCenter.x, worldCenter.y)
         .scale(scaleX, scaleY)
         .translate(-worldCenter.x, -worldCenter.y);
-      
+
       const nextMatrix = flipMatrix.multiply(matrix);
       el.setAttribute('transform', matrixToTransform(nextMatrix));
 
@@ -1090,9 +1555,9 @@ const MainEditor = ({
     });
 
     if (updatePageHtml) {
-        const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-        const svg = activeContainer?.querySelector('svg');
-        if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
+      const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      const svg = activeContainer?.querySelector('svg');
+      if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
     }
   };
 
@@ -1107,7 +1572,7 @@ const MainEditor = ({
 
     // Allow right click on overlay, but block pure svg background clicks if any
     if (e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'svg') {
-        return;
+      return;
     }
 
     const frameId = currentFrameIdRef.current;
@@ -1152,22 +1617,16 @@ const MainEditor = ({
 
     const layerEl = svg.querySelector(`[id="${layerId}"]`);
     const isOverlay = layerEl ? layerEl.getAttribute('data-name') === 'Overlay' : false;
-    const isPdfBackground = layerEl ? (layerEl.getAttribute('data-name')?.includes('PDF Background') || layerEl.getAttribute('data-type') === 'pdf-background') : false;
-
-    // Disable right click menu on the PDF background itself
-    if (isPdfProject && (isPdfBackground || isOverlay)) {
-        return;
-    }
 
     // 2. Select the layer if not already part of multi-selection
     if (!multiSelectedIds.has(layerId)) {
-        setSelectedLayerId(layerId);
-        setMultiSelectedIds(new Set([layerId]));
+      setSelectedLayerId(layerId);
+      setMultiSelectedIds(new Set([layerId]));
     }
 
     // 3. Dispatch event to trigger the Layer.jsx menu
-    window.dispatchEvent(new CustomEvent('show-layer-context-menu', { 
-        detail: { e, layerId, pageIndex, isOverlay } 
+    window.dispatchEvent(new CustomEvent('show-layer-context-menu', {
+      detail: { e, layerId, pageIndex, isOverlay }
     }));
   };
 
@@ -1180,10 +1639,74 @@ const MainEditor = ({
   useEffect(() => { updatePageHtmlRef.current = updatePageHtml; }, [updatePageHtml]);
   useEffect(() => { currentFrameIdRef.current = currentFrameId; }, [currentFrameId]);
 
+  // ── Listen for interaction badge icon update events ───────────────────────
+  useEffect(() => {
+    const handleBadgeUpdate = (e) => {
+      const { elementId, actionType } = e.detail || {};
+      if (!elementId || !actionType) return;
+
+      const badge = document.getElementById(`interaction-badge-${elementId}`);
+      if (!badge) return;
+
+      const mainBox = badge.querySelector('[data-badge-mainbox]');
+      if (!mainBox) return;
+
+      // Swap touch icon → selected action icon via Iconify CDN
+      const [prefix, iconName] = actionType.icon.split(':');
+      const iconUrl = `https://api.iconify.design/${prefix}/${iconName}.svg?color=white&width=16&height=16`;
+      mainBox.innerHTML = `<img src="${iconUrl}" alt="${actionType.label}" style="width:1vw;height:1vw;min-width:12px;min-height:12px;display:block;" />`;
+      mainBox.style.position = 'relative';
+      mainBox.style.overflow = 'visible';
+
+      // Remove old plus badge
+      badge.querySelectorAll('[data-badge-plus]').forEach(p => p.remove());
+
+      // Remove old tick if exists (re-create fresh each time so it re-renders correctly)
+      badge.querySelectorAll('[data-badge-tick]').forEach(t => t.remove());
+
+      // Create green tick — appended to mainBox, positioned absolutely at top-right corner
+      const tick = document.createElement('div');
+      tick.setAttribute('data-badge-tick', 'true');
+      tick.style.cssText = [
+        'position:absolute',
+        'top:-6px',
+        'right:-6px',
+        'width:13px',
+        'height:13px',
+        'background:#22C55E',
+        'border-radius:50%',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'z-index:20',
+        'border:1.5px solid #ffffff',
+        'box-shadow:0 1px 3px rgba(0,0,0,0.3)',
+        'pointer-events:none'
+      ].join(';');
+      tick.innerHTML = `<svg viewBox="0 0 24 24" fill="none" style="width:7px;height:7px;"><polyline points="20 6 9 17 4 12" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      mainBox.appendChild(tick);
+    };
+    window.addEventListener('update-interaction-badge', handleBadgeUpdate);
+    return () => window.removeEventListener('update-interaction-badge', handleBadgeUpdate);
+  }, []);
+
+  // ── Listen for add-free-frame to start drawing ─────────────────────────────
+  useEffect(() => {
+    const handleAddFreeFrame = (e) => {
+      // Differentiate from the badge click which passes elementId
+      if (e.detail && e.detail.pageIndex !== undefined && !e.detail.elementId) {
+        if (setActiveMainTool) setActiveMainTool('shapes');
+        setSelectedShapeTool('free-frame');
+      }
+    };
+    window.addEventListener('add-free-frame', handleAddFreeFrame);
+    return () => window.removeEventListener('add-free-frame', handleAddFreeFrame);
+  }, [setActiveMainTool, setSelectedShapeTool]);
+
   useEffect(() => {
     if (activeBendingSegmentRef.current) {
-        clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
-        activeBendingSegmentRef.current = null;
+      clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
+      activeBendingSegmentRef.current = null;
     }
   }, [activeMainTool]);
 
@@ -1206,18 +1729,18 @@ const MainEditor = ({
       }
 
       // Ignore if typing in an input, textarea or contenteditable element
-      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) || 
-          document.activeElement.contentEditable === 'true') {
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName) ||
+        document.activeElement.contentEditable === 'true') {
         return;
       }
 
       if (e.key === 'Escape') {
         const isPenDrawing = activeMainTool === 'pen' && drawingPathRef.current;
-        
+
         if (isPenDrawing) {
           const subPaths = drawingSubPathsRef.current;
           const currentPts = subPaths[subPaths.length - 1];
-          
+
           // If the group is totally empty (first segment has 1 or 0 points), cancel the whole group
           if (subPaths.length === 1 && (!currentPts || currentPts.length <= 1)) {
             const path = drawingPathRef.current;
@@ -1232,7 +1755,7 @@ const MainEditor = ({
           // Otherwise, just finish the current segment (allow starting next path in same group)
           drawingPathRef.current.isFinished = true;
           drawPenToolNodes(activePageIndex, drawingPathRef.current, subPaths);
-          
+
           const currentIdx = subPaths.length - 1;
           if (drawingSubPathElsRef.current[currentIdx]) {
             drawingSubPathElsRef.current[currentIdx].setAttribute('d', generatePathData(subPaths[currentIdx], false, selectedPenTool));
@@ -1262,37 +1785,37 @@ const MainEditor = ({
         */
       } else if (e.key.toLowerCase() === 'a' || e.key === 'Enter') {
         if (activeMainTool === 'pen' && drawingPathRef.current) {
-            const group = drawingPathRef.current;
-            const pageIdx = drawingPageIndexRef.current;
-            const svgEl = group?.ownerSVGElement;
+          const group = drawingPathRef.current;
+          const pageIdx = drawingPageIndexRef.current;
+          const svgEl = group?.ownerSVGElement;
 
-            drawingPathRef.current = null;
-            drawingSubPathsRef.current = [];
-            drawingSubPathElsRef.current = [];
-            draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
-            clearPenToolNodes(pageIdx);
+          drawingPathRef.current = null;
+          drawingSubPathsRef.current = [];
+          drawingSubPathElsRef.current = [];
+          draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
+          clearPenToolNodes(pageIdx);
 
-            if (svgEl && updatePageHtml) {
-                updatePageHtml(pageIdx, svgEl.outerHTML);
-                
-                // Auto-select and switch to selection tool
-                if (group && group.id) {
-                    if (setSelectedLayerId) {
-                        setSelectedLayerId(group.id);
-                        selectedLayerIdRef.current = group.id;
-                    }
-                    if (setMultiSelectedIds) {
-                        setMultiSelectedIds(new Set([group.id]));
-                        multiSelectedIdsRef.current = new Set([group.id]);
-                    }
-                    drawOverlayHighlight(group, 'selected');
-                }
-                skipClearSelectionRef.current = true;
-                setTimeout(() => {
-                    if (setActiveMainTool) setActiveMainTool('select');
-                }, 100);
+          if (svgEl && updatePageHtml) {
+            updatePageHtml(pageIdx, svgEl.outerHTML);
+
+            // Auto-select and switch to selection tool
+            if (group && group.id) {
+              if (setSelectedLayerId) {
+                setSelectedLayerId(group.id);
+                selectedLayerIdRef.current = group.id;
+              }
+              if (setMultiSelectedIds) {
+                setMultiSelectedIds(new Set([group.id]));
+                multiSelectedIdsRef.current = new Set([group.id]);
+              }
+              drawOverlayHighlight(group, 'selected');
             }
-            return;
+            skipClearSelectionRef.current = true;
+            setTimeout(() => {
+              if (setActiveMainTool) setActiveMainTool('select');
+            }, 100);
+          }
+          return;
         }
       } else if (e.key === 'P' && e.shiftKey) {
         setActiveMainTool('pen');
@@ -1307,10 +1830,10 @@ const MainEditor = ({
         else if (e.key === 'ArrowLeft') dx = -step;
         else if (e.key === 'ArrowRight') dx = step;
 
-        const ids = multiSelectedIdsRef.current.size > 0 
-          ? Array.from(multiSelectedIdsRef.current) 
+        const ids = multiSelectedIdsRef.current.size > 0
+          ? Array.from(multiSelectedIdsRef.current)
           : (selectedLayerIdRef.current ? [selectedLayerIdRef.current] : []);
-        
+
         if (ids.length === 0) return;
 
         ids.forEach(id => {
@@ -1322,11 +1845,11 @@ const MainEditor = ({
           const elType = el.getAttribute('data-type') || '';
           const isLocked = el.getAttribute('data-locked') === 'true';
 
-          if (isLocked || 
-              elName.includes('PDF Background') || 
-              elName.includes('Overlay') || 
-              elType === 'frame' || 
-              elType === 'background') {
+          if (isLocked ||
+            elName.includes('PDF Background') ||
+            elName.includes('Overlay') ||
+            elType === 'frame' ||
+            elType === 'background') {
             return;
           }
 
@@ -1376,7 +1899,7 @@ const MainEditor = ({
       clearOverlayType('child-selected');
       // Clear pen tool nodes on tool switch
       document.querySelectorAll('.pen-tool-node').forEach(n => n.remove());
-      
+
       document.querySelectorAll('[data-selected="true"]').forEach(el => el.removeAttribute('data-selected'));
       document.querySelectorAll('[data-child-selected="true"]').forEach(el => el.removeAttribute('data-child-selected'));
     }
@@ -1389,180 +1912,20 @@ const MainEditor = ({
     }
   }, [multiSelectedIds]);
 
-  const handleZoomIn = () => { setZoom(prev => Math.min(prev + 10, 200)); };
-  const handleZoomOut = () => { setZoom(prev => Math.max(prev - 10, 10)); };
+  const handleZoomIn = () => setZoom(prev => Math.min(prev + 10, 250));
+  const handleZoomOut = () => setZoom(prev => Math.max(prev - 10, 10));
 
-  useEffect(() => {
-    if (canvasWrapperRef.current && zoomableCanvasRef.current) {
-      const containerHeight = canvasWrapperRef.current.clientHeight;
-      const unscaledHeight = zoomableCanvasRef.current.offsetHeight;
-      const scaledHeight = unscaledHeight * (zoom / 100);
-      const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2);
-      
-      const containerWidth = canvasWrapperRef.current.clientWidth;
-      const unscaledWidth = zoomableCanvasRef.current.offsetWidth;
-      const scaledWidth = unscaledWidth * (zoom / 100);
-      const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2);
-      
-      const clampedPanY = Math.max(-maxPanY, Math.min(panYRef.current, maxPanY));
-      const clampedPanX = Math.max(-maxPanX, Math.min(panXRef.current, maxPanX));
-      panYRef.current = clampedPanY;
-      panXRef.current = clampedPanX;
-      zoomableCanvasRef.current.style.transform = `translate(${clampedPanX}px, ${clampedPanY}px) scale(${zoom / 100})`;
-    }
-  }, [zoom]);
-
-  // Keep zoomRef in sync so native listeners can read it without closure stale values
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-
-  // Redraw all visible selection/hover overlays when zoom changes so stroke sizes update
-  useEffect(() => {
-    // Re-draw selected element highlight
-    const selId = selectedLayerIdRef.current;
-    if (selId) {
-      const svgs = document.querySelectorAll('.page-svg-container svg');
-      svgs.forEach(svg => {
-        const el = svg.querySelector(`[id="${selId}"]`);
-        if (el) drawOverlayHighlight(el, 'selected');
-      });
-    }
-    // Re-draw multi-selected elements
-    if (multiSelectedIdsRef.current && multiSelectedIdsRef.current.size > 0) {
-      const svgs = document.querySelectorAll('.page-svg-container svg');
-      svgs.forEach(svg => {
-        multiSelectedIdsRef.current.forEach(id => {
-          const el = svg.querySelector(`[id="${id}"]`);
-          if (el) drawOverlayHighlight(el, 'child-selected');
-        });
-      });
-    }
-  }, [zoom]);
-
-  // Reset pan to default when navigating to a different page, but retain zoom
-  useEffect(() => {
-    panXRef.current = 0;
-    panYRef.current = 0;
-    if (zoomableCanvasRef.current) {
-      zoomableCanvasRef.current.style.transform = `translate(0px, 0px) scale(${zoomRef.current / 100})`;
-    }
-  }, [activePageIndex]);
-
-  // ── Native DOM pan listeners — ZERO React state changes during drag ──
-  useEffect(() => {
-    const wrapper = canvasWrapperRef.current;
-    if (!wrapper) return;
-
-    const showOverlay = (grabbing) => {
-      if (panOverlayRef.current) {
-        panOverlayRef.current.style.display = 'block';
-        panOverlayRef.current.style.cursor = grabbing ? 'grabbing' : 'grab';
-      }
-    };
-    const hideOverlay = () => {
-      if (panOverlayRef.current) panOverlayRef.current.style.display = 'none';
-    };
-
-    const onMouseDown = (e) => {
-      if (!isSpacePressedRef.current || e.button !== 0) return;
-      e.preventDefault();
-      isPanningRef.current = true;
-      document.body.classList.add('is-grabbing');
-      showOverlay(true);
-      if (zoomableCanvasRef.current) {
-        zoomableCanvasRef.current.style.transition = 'none';
-      }
-    };
-
-    const onMouseMove = (e) => {
-      if (!isSpacePressedRef.current || !isPanningRef.current) return;
-      e.preventDefault();
-
-      let newPanX = panXRef.current + e.movementX;
-      let newPanY = panYRef.current + e.movementY;
-      let maxPanY = zoomRef.current * 15;
-      let maxPanX = zoomRef.current * 15;
-      if (canvasWrapperRef.current && zoomableCanvasRef.current) {
-        const containerHeight = canvasWrapperRef.current.clientHeight;
-        const unscaledHeight = zoomableCanvasRef.current.offsetHeight;
-        const scaledHeight = unscaledHeight * (zoomRef.current / 100);
-        maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2);
-        
-        const containerWidth = canvasWrapperRef.current.clientWidth;
-        const unscaledWidth = zoomableCanvasRef.current.offsetWidth;
-        const scaledWidth = unscaledWidth * (zoomRef.current / 100);
-        maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2);
-      }
-      newPanX = Math.max(-maxPanX, Math.min(newPanX, maxPanX));
-      newPanY = Math.max(-maxPanY, Math.min(newPanY, maxPanY));
-      panXRef.current = newPanX;
-      panYRef.current = newPanY;
-      // Direct DOM write — no React, no RAF, no batching delay
-      if (zoomableCanvasRef.current) {
-        zoomableCanvasRef.current.style.transform =
-          `translate(${newPanX}px, ${newPanY}px) scale(${zoomRef.current / 100})`;
-      }
-    };
-
-    const onMouseUp = () => {
-      if (!isPanningRef.current) return;
-      isPanningRef.current = false;
-      document.body.classList.remove('is-grabbing');
-      showOverlay(false); // keep overlay up (space still held) but switch to grab cursor
-      if (zoomableCanvasRef.current) {
-        zoomableCanvasRef.current.style.transition = '';
-      }
-    };
-
-    wrapper.addEventListener('mousedown', onMouseDown, { capture: true });
-    window.addEventListener('mousemove', onMouseMove, { passive: false });
-    window.addEventListener('mouseup', onMouseUp);
-
-    return () => {
-      wrapper.removeEventListener('mousedown', onMouseDown, { capture: true });
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-    };
-  }, []);
-
-  // Sync overlay visibility with isSpacePressed (React state) via ref
-  useEffect(() => {
-    if (panOverlayRef.current) {
-      panOverlayRef.current.style.display = isSpacePressed ? 'block' : 'none';
-      panOverlayRef.current.style.cursor = 'grab';
-    }
-  }, [isSpacePressed]);
-
-  const handlePanStart = useCallback(() => {}, []);
-  const handlePanMove = useCallback(() => {}, []);
-  const handlePanEnd = useCallback(() => {}, []);
-
-  const handleWheelZoom = useCallback((e) => {
-    // Only zoom when mouse is inside the canvas container
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
-    setIsWheeling(true);
-    clearTimeout(wheelTimeoutRef.current);
-    wheelTimeoutRef.current = setTimeout(() => setIsWheeling(false), 150);
-
-    const zoomDelta = e.deltaY > 0 ? -10 : 10;
-    
-    setZoom(prevZoom => Math.min(Math.max(prevZoom + zoomDelta, 10), 200));
-  }, []);
-  
   const handleAutoFitZoom = useCallback(() => {
     if (!editorContainerRef.current) return;
-    
+
     const container = editorContainerRef.current;
     const { width: containerWidth, height: containerHeight } = container.getBoundingClientRect();
-    
+
     // Account for padding (p-[1vw])
     const padding = window.innerWidth * 0.01;
     // Reserve space for left and right navigation arrows (approx 4vw each side)
-    const arrowSpace = window.innerWidth * 0.08; 
-    
+    const arrowSpace = window.innerWidth * 0.08;
+
     const availWidth = containerWidth - (padding * 2) - arrowSpace;
     const availHeight = containerHeight - (padding * 2);
 
@@ -1571,8 +1934,8 @@ const MainEditor = ({
     // Total width and height of the flipbook pages at 100% zoom
     // Note: The canvas has height: 78vh in the CSS
     const baseVhHeight = window.innerHeight * 0.78;
-    
-    const spreadStartIndex = (isDoublePage && activePageIndex > 0) 
+
+    const spreadStartIndex = (isDoublePage && activePageIndex > 0)
       ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
       : activePageIndex;
     const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
@@ -1592,42 +1955,68 @@ const MainEditor = ({
 
     // Use a safety margin (95%) of the arrow-adjusted space
     let autoZoom = Math.min(scaleX, scaleY) * 95;
-    
+
     // Clamp to reasonable values
-    autoZoom = Math.max(10, Math.min(500, autoZoom));
+    autoZoom = Math.max(10, Math.min(250, autoZoom));
 
     setZoom(Math.round(autoZoom));
   }, [baseWidth, baseHeight, activePageIndex, isDoublePage, pages.length]);
 
   const handleResetZoom = () => {
     if (isPdfProject) {
-        handleAutoFitZoom();
+      handleAutoFitZoom();
     } else {
-        setZoom(90);
+      setZoom(90);
     }
+    setPan({ x: 0, y: 0 });
   };
 
-  const prevLayoutModeRef = useRef(null);
-  // ── Auto-Fit Zoom on Project Load or Layout Change ───────────────────────
+  // ── Auto-Fit Zoom on Page/Spread Change ──────────────────────────────────
   useEffect(() => {
-    if (!isPdfProject || pages.length === 0) return;
-    
-    const spreadStartIndex = (isDoublePage && activePageIndex > 0) 
-      ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
-      : activePageIndex;
-    const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-    
-    if (prevLayoutModeRef.current !== isCurrentlySpread) {
-        handleAutoFitZoom();
-        prevLayoutModeRef.current = isCurrentlySpread;
+    if (isPdfProject) {
+      handleAutoFitZoom();
     }
   }, [activePageIndex, isDoublePage, pages.length, isPdfProject, handleAutoFitZoom]);
+
+  // ── Bound Panning ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    currentPanRef.current = pan;
+  }, [pan]);
+
+  useEffect(() => {
+    if (!editorContainerRef.current) return;
+    const containerWidth = editorContainerRef.current.clientWidth;
+    const containerHeight = editorContainerRef.current.clientHeight;
+    
+    const spreadStartIndex = (isDoublePage && activePageIndex > 0)
+      ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+      : activePageIndex;
+    const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+    
+    const baseVhHeight = window.innerHeight * 0.78;
+    const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+    const baseCanvasHeight = baseVhHeight;
+    const baseCanvasWidth = baseCanvasHeight * (totalWidth / baseHeight);
+    const currentScale = zoom / 100;
+    const scaledWidth = baseCanvasWidth * currentScale;
+    const scaledHeight = baseCanvasHeight * currentScale;
+    
+    const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2 + (window.innerWidth * 0.08));
+    const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2 + (window.innerHeight * 0.05));
+    
+    setPan(prev => {
+      const boundedX = Math.min(Math.max(prev.x, -maxPanX), maxPanX);
+      const boundedY = Math.min(Math.max(prev.y, -maxPanY), maxPanY);
+      if (boundedX === prev.x && boundedY === prev.y) return prev;
+      return { x: boundedX, y: boundedY };
+    });
+  }, [zoom, activePageIndex, isDoublePage, pages.length, baseWidth, baseHeight]);
 
   // ── Maintain Fit on Window/Sidebar Resize ────────────────────────────────
   useEffect(() => {
     if (!editorContainerRef.current) return;
     const observer = new ResizeObserver(() => {
-        if (isPdfProject) handleAutoFitZoom();
+      if (isPdfProject) handleAutoFitZoom();
     });
     observer.observe(editorContainerRef.current);
     return () => observer.disconnect();
@@ -1652,7 +2041,7 @@ const MainEditor = ({
     newImg.setAttribute('data-type', dataType || 'image');
     newImg.setAttribute('data-name', 'Image'); // Ensure it shows up clearly in layers
     newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-    
+
     // Load image to get dimensions
     const i = new Image();
     i.onload = () => {
@@ -1665,52 +2054,52 @@ const MainEditor = ({
 
       // Ensure it's not taller than the page
       if (displayHeight > 250) {
-          displayHeight = 250;
-          displayWidth = (imgWidth / imgHeight) * displayHeight;
+        displayHeight = 250;
+        displayWidth = (imgWidth / imgHeight) * displayHeight;
       }
 
       // Append to root frame
       const topFrames = getTopLevelFrames(svg);
       const rootFrame = topFrames[0] || svg.querySelector('g');
-      
+
       if (rootFrame) {
+        try {
+          // Try to center in the root frame (usually the A4 page container)
+          let cx = 105, cy = 148.5; // Default A4 center
+
           try {
-              // Try to center in the root frame (usually the A4 page container)
-              let cx = 105, cy = 148.5; // Default A4 center
-              
-              try {
-                const bbox = rootFrame.getBBox();
-                if (bbox.width > 0 && bbox.height > 0) {
-                  cx = bbox.x + bbox.width / 2;
-                  cy = bbox.y + bbox.height / 2;
-                }
-              } catch (e) {
-                // If getBBox fails (e.g. detached node), keep defaults
-              }
-              
-              newImg.setAttribute('x', (cx - displayWidth / 2).toString());
-              newImg.setAttribute('y', (cy - displayHeight / 2).toString());
-              newImg.setAttribute('width', displayWidth.toString());
-              newImg.setAttribute('height', displayHeight.toString());
-              
-              rootFrame.appendChild(newImg);
-              
-              // CRITICAL: Synchronize changes back to the state
-              if (updatePageHtml) {
-                  saveModifiedPageHtml(pageIdx, svg);
-              }
-              
-              // Select the newly added image
-              if (setSelectedLayerId) setSelectedLayerId(imgId);
-              if (setMultiSelectedIds) setMultiSelectedIds(new Set([imgId]));
-              if (setActiveMainTool) setActiveMainTool('select');
-              
-              console.log(`[MainEditor] Image ${imgId} uploaded and inserted into page ${pageIdx}`);
-          } catch (err) {
-              console.error("[MainEditor] Failed to insert image into SVG frame:", err);
+            const bbox = rootFrame.getBBox();
+            if (bbox.width > 0 && bbox.height > 0) {
+              cx = bbox.x + bbox.width / 2;
+              cy = bbox.y + bbox.height / 2;
+            }
+          } catch (e) {
+            // If getBBox fails (e.g. detached node), keep defaults
           }
+
+          newImg.setAttribute('x', (cx - displayWidth / 2).toString());
+          newImg.setAttribute('y', (cy - displayHeight / 2).toString());
+          newImg.setAttribute('width', displayWidth.toString());
+          newImg.setAttribute('height', displayHeight.toString());
+
+          rootFrame.appendChild(newImg);
+
+          // CRITICAL: Synchronize changes back to the state
+          if (updatePageHtml) {
+            saveModifiedPageHtml(pageIdx, svg);
+          }
+
+          // Select the newly added image
+          if (setSelectedLayerId) setSelectedLayerId(imgId);
+          if (setMultiSelectedIds) setMultiSelectedIds(new Set([imgId]));
+          if (setActiveMainTool) setActiveMainTool('select');
+
+          console.log(`[MainEditor] Image ${imgId} uploaded and inserted into page ${pageIdx}`);
+        } catch (err) {
+          console.error("[MainEditor] Failed to insert image into SVG frame:", err);
+        }
       } else {
-          console.error("[MainEditor] No root frame found to append image.");
+        console.error("[MainEditor] No root frame found to append image.");
       }
     };
     i.onerror = (err) => {
@@ -1760,9 +2149,9 @@ const MainEditor = ({
 
     // IF drawing session active, draw ALL pen points first
     if (drawingPathRef.current) {
-        drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
+      drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
     } else {
-        clearPenToolNodes(pageIndex);
+      clearPenToolNodes(pageIndex);
     }
 
     try {
@@ -1776,7 +2165,7 @@ const MainEditor = ({
 
       // Draw the Indigo highlight for ONLY the active segment
       const highlight = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      
+
       const map = (x, y) => new DOMPoint(x, y).matrixTransform(svgMatrix);
       const p1 = map(curve.point1.x, curve.point1.y);
       const p2 = map(curve.point2.x, curve.point2.y);
@@ -1784,7 +2173,7 @@ const MainEditor = ({
       const h2 = map(curve.point2.x + curve.segment2.handleIn.x, curve.point2.y + curve.segment2.handleIn.y);
 
       highlight.setAttribute('d', `M ${p1.x} ${p1.y} C ${h1.x} ${h1.y} ${h2.x} ${h2.y} ${p2.x} ${p2.y}`);
-      
+
       highlight.setAttribute('stroke', '#6366F1');
       highlight.setAttribute('stroke-width', '2.5');
       highlight.setAttribute('fill', 'none');
@@ -1794,7 +2183,7 @@ const MainEditor = ({
 
       segments.forEach(seg => {
         const pt = seg.point;
-        
+
         // Draw Nodes
         const mappedPt = new DOMPoint(pt.x, pt.y).matrixTransform(svgMatrix);
         const node = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
@@ -1812,7 +2201,7 @@ const MainEditor = ({
           if (!h || h.isZero()) return;
           const absH = pt.add(h);
           const mappedH = new DOMPoint(absH.x, absH.y).matrixTransform(svgMatrix);
-          
+
           const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
           line.setAttribute('x1', mappedPt.x);
           line.setAttribute('y1', mappedPt.y);
@@ -1839,17 +2228,17 @@ const MainEditor = ({
         drawHandle(seg.handleIn);
         drawHandle(seg.handleOut);
       });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const generatePathData = (pts, isClosed = false, toolType = 'pen', activePoint = null) => {
     let subPts = [...pts];
     if (activePoint) subPts.push(activePoint);
     if (subPts.length === 0) return "";
-    
+
     const subIsClosed = isClosed || (pts && pts.isZ);
     const isCurve = toolType === 'curve';
-    
+
     if (!isCurve) {
       return subPts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ') + (subIsClosed ? ' Z' : '');
     }
@@ -1862,11 +2251,11 @@ const MainEditor = ({
 
     let d = `M ${subPts[0].x.toFixed(1)} ${subPts[0].y.toFixed(1)}`;
     const count = subIsClosed ? subPts.length : subPts.length - 1;
-    
+
     for (let i = 0; i < count; i++) {
       const p1 = subPts[i];
       const p2 = subPts[(i + 1) % subPts.length];
-      
+
       // Support manual Bézier handles (from bending tool)
       if (p1.handleOut || p2.handleIn) {
         const h1 = p1.handleOut || { x: 0, y: 0 };
@@ -1886,12 +2275,12 @@ const MainEditor = ({
 
       const p0 = subPts[i === 0 ? (subIsClosed ? subPts.length - 1 : 0) : i - 1] || p1;
       const p3 = subPts[(i + 2) % subPts.length] || p2;
-      
+
       const cp1x = p1.x + (p2.x - p0.x) / 6;
       const cp1y = p1.y + (p2.y - p0.y) / 6;
       const cp2x = p2.x - (p3.x - p1.x) / 6;
       const cp2y = p2.y - (p3.y - p1.y) / 6;
-      
+
       d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
     }
     if (subIsClosed) d += " Z";
@@ -1935,25 +2324,25 @@ const MainEditor = ({
             node.setAttribute('cy', mapped.y);
             node.setAttribute('r', '4');
           }
-          
+
           node.setAttribute('class', 'pen-tool-node');
           node.setAttribute('stroke', '#6366F1');
           node.setAttribute('stroke-width', '1.5');
-          
+
           const isLast = isCurrentPath && i === allPts.length - 1 && !pts.isZ;
           node.setAttribute('fill', isLast ? '#6366F1' : '#FFFFFF');
-          
+
           overlay.appendChild(node);
         });
       });
-    } catch (e) {}
+    } catch (e) { }
   };
 
   // Helper: Get the starting index (left page) of the spread containing activePageIndex
-  const spreadStartIndex = (isDoublePage && activePageIndex > 0) 
+  const spreadStartIndex = (isDoublePage && activePageIndex > 0)
     ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
     : activePageIndex;
-    
+
   const isCurrentlySpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
 
 
@@ -1963,7 +2352,22 @@ const MainEditor = ({
     clearOverlayType('selected');
     clearOverlayType('entered');
     clearOverlayType('child-selected');
-    
+
+    // Clean up HTML-based UI elements (interaction badges)
+    document.querySelectorAll('[id^="interaction-badge-"]').forEach(badge => {
+      if (activeTopTool !== 'interaction') {
+        badge.remove();
+      } else {
+        const id = badge.id.replace('interaction-badge-', '');
+        const idsToHighlight = multiSelectedIds.size > 0
+          ? multiSelectedIds
+          : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
+        if (!idsToHighlight.has(id)) {
+          badge.remove();
+        }
+      }
+    });
+
     // Highlights across all visible pages in the spread
     const pageIndices = [activePageIndex];
     if (isCurrentlySpread) {
@@ -1993,11 +2397,11 @@ const MainEditor = ({
         drawOverlayHighlight(el, 'entered');
       });
     }
-  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, isEditingText]);
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, isEditingText, activeTopTool]);
 
   // Sync refs
-  useEffect(() => { 
-    currentFrameIdRef.current = currentFrameId; 
+  useEffect(() => {
+    currentFrameIdRef.current = currentFrameId;
   }, [currentFrameId]);
 
   // Helper: get direct children of SVG root that have IDs (top-level frames)
@@ -2046,16 +2450,16 @@ const MainEditor = ({
             // Calculate scale from CTM to convert screen buffer into local coordinate units
             const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
             const localBuffer = buffer / scale;
-            
+
             return localPt.x >= (bbox.x - localBuffer) && localPt.x <= (bbox.x + bbox.width + localBuffer) &&
-                   localPt.y >= (bbox.y - localBuffer) && localPt.y <= (bbox.y + bbox.height + localBuffer);
+              localPt.y >= (bbox.y - localBuffer) && localPt.y <= (bbox.y + bbox.height + localBuffer);
           }
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     const rect = el.getBoundingClientRect();
     return clientX >= rect.left - buffer && clientX <= rect.right + buffer &&
-           clientY >= rect.top - buffer && clientY <= rect.bottom + buffer;
+      clientY >= rect.top - buffer && clientY <= rect.bottom + buffer;
   };
 
   // Helper to get all valid SVG elements at a point (z-index ordered, top to bottom)
@@ -2157,7 +2561,7 @@ const MainEditor = ({
         listeners: {
           start(event) {
             let target = event.target;
-            
+
             const svgElement = target.ownerSVGElement || (target.tagName.toLowerCase() === 'svg' ? target : null);
             if (!svgElement) return;
 
@@ -2213,95 +2617,95 @@ const MainEditor = ({
 
             // In Direct mode, the elementToDrag is the deep target
             if (selectedSelectToolRef.current === 'direct') {
-               const directTarget = getDraggableElement(event.target, svgElement);
-               if (directTarget) elementToDrag = directTarget;
+              const directTarget = getDraggableElement(event.target, svgElement);
+              if (directTarget) elementToDrag = directTarget;
             } else {
-               // 1. Check current selection first (Selection Priority)
-               // Priority: if clicking inside any element already part of the multi-selection, 
-               // let's assume the user wants to drag the group (including clicking gaps inside or descendants).
-               const currentMultiIds = multiSelectedIdsRef.current;
-               if (currentMultiIds.size > 0 && selectedSelectToolRef.current !== 'direct') {
-                 const entries = Array.from(currentMultiIds);
-                 for (const id of entries) {
-                   const selEl = container?.querySelector(`[id="${id}"]`);
-                   if (selEl && selEl !== svgElement) {
-                     // Check if we hit the element's bounding box OR one of its descendants
-                     const isHit = hitTest(selEl, event.clientX, event.clientY, 2);
-                     const isMemberHit = target && selEl.contains(target);
-                     
-                     if (isHit || isMemberHit) {
-                        // Only allow dragging if it's NOT the root page-level frame
-                        const topFrames = getTopLevelFrames(svgElement);
-                        const isMainPageFrame = topFrames.length === 1 && selEl.id === topFrames[0].id;
-                        
-                        if (!isMainPageFrame) {
-                          elementToDrag = selEl;
-                          break; // Found it!
-                        }
-                     }
-                   }
-                 }
-               }
+              // 1. Check current selection first (Selection Priority)
+              // Priority: if clicking inside any element already part of the multi-selection, 
+              // let's assume the user wants to drag the group (including clicking gaps inside or descendants).
+              const currentMultiIds = multiSelectedIdsRef.current;
+              if (currentMultiIds.size > 0 && selectedSelectToolRef.current !== 'direct') {
+                const entries = Array.from(currentMultiIds);
+                for (const id of entries) {
+                  const selEl = container?.querySelector(`[id="${id}"]`);
+                  if (selEl && selEl !== svgElement) {
+                    // Check if we hit the element's bounding box OR one of its descendants
+                    const isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                    const isMemberHit = target && selEl.contains(target);
+
+                    if (isHit || isMemberHit) {
+                      // Only allow dragging if it's NOT the root page-level frame
+                      const topFrames = getTopLevelFrames(svgElement);
+                      const isMainPageFrame = topFrames.length === 1 && selEl.id === topFrames[0].id;
+
+                      if (!isMainPageFrame) {
+                        elementToDrag = selEl;
+                        break; // Found it!
+                      }
+                    }
+                  }
+                }
+              }
 
               // 2. If nothing selected or selection not hit, find a new candidate
               // 2. Identify candidate from hit-test (Drill-down support)
               if (!elementToDrag) {
-                  const frameId = currentFrameIdRef.current;
-                  let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
-                  
-                  // Auto-Enter logic for single-page root frames (matching mousedown behavior)
-                  const topFrames = getTopLevelFrames(svgElement);
-                  if (!frameId && topFrames.length === 1) {
-                      if (hitTest(topFrames[0], event.clientX, event.clientY)) {
-                          context = topFrames[0];
-                          if (setCurrentFrameId) {
-                            setCurrentFrameId(topFrames[0].id);
-                            currentFrameIdRef.current = topFrames[0].id;
-                          }
-                      }
+                const frameId = currentFrameIdRef.current;
+                let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
+
+                // Auto-Enter logic for single-page root frames (matching mousedown behavior)
+                const topFrames = getTopLevelFrames(svgElement);
+                if (!frameId && topFrames.length === 1) {
+                  if (hitTest(topFrames[0], event.clientX, event.clientY)) {
+                    context = topFrames[0];
+                    if (setCurrentFrameId) {
+                      setCurrentFrameId(topFrames[0].id);
+                      currentFrameIdRef.current = topFrames[0].id;
+                    }
+                  }
+                }
+
+                // Find deepest hit leaf
+                const leafTarget = getDraggableElement(event.target, svgElement);
+                if (leafTarget) {
+                  // Drill UP from leaf to find the child of our active context
+                  let candidate = leafTarget;
+                  while (candidate.parentNode && candidate.parentNode !== context && candidate.parentNode !== svgElement) {
+                    candidate = candidate.parentNode;
                   }
 
-                  // Find deepest hit leaf
-                  const leafTarget = getDraggableElement(event.target, svgElement);
-                  if (leafTarget) {
-                      // Drill UP from leaf to find the child of our active context
-                      let candidate = leafTarget;
-                      while (candidate.parentNode && candidate.parentNode !== context && candidate.parentNode !== svgElement) {
-                          candidate = candidate.parentNode;
-                      }
-
-                      // Validate if candidate is draggable (not the base frame background)
-                      const isBaseFrame = topFrames.some(f => f.id === candidate.id);
-                      if (!isBaseFrame && candidate.id && candidate.getAttribute('data-name') !== 'Overlay') {
-                          elementToDrag = candidate;
-                      }
+                  // Validate if candidate is draggable (not the base frame background)
+                  const isBaseFrame = topFrames.some(f => f.id === candidate.id);
+                  if (!isBaseFrame && candidate.id && candidate.getAttribute('data-name') !== 'Overlay') {
+                    elementToDrag = candidate;
                   }
+                }
               }
             }
 
             // Safety check for metadata-based 'locked' or 'hidden'
-            if (!elementToDrag || 
-                elementToDrag.getAttribute('data-hidden') === 'true' || 
-                elementToDrag.getAttribute('data-locked') === 'true' ||
-                elementToDrag.getAttribute('data-name') === 'Overlay') {
+            if (!elementToDrag ||
+              elementToDrag.getAttribute('data-hidden') === 'true' ||
+              elementToDrag.getAttribute('data-locked') === 'true' ||
+              elementToDrag.getAttribute('data-name') === 'Overlay') {
               event.interaction.stop();
               return;
             }
 
             // 2. AUTO-SELECT if not already selected
-            const isSelected = (selectedLayerIdRef.current === elementToDrag.id) || 
-                               (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(elementToDrag.id));
-            
+            const isSelected = (selectedLayerIdRef.current === elementToDrag.id) ||
+              (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(elementToDrag.id));
+
             if (!isSelected) {
               if (setSelectedLayerId) {
-                  setSelectedLayerId(elementToDrag.id);
-                  if (setMultiSelectedIds) setMultiSelectedIds(new Set([elementToDrag.id]));
-                  // Force update ref so it's visible to subsequent drag steps
-                  selectedLayerIdRef.current = elementToDrag.id;
-                  multiSelectedIdsRef.current = new Set([elementToDrag.id]);
-                  
-                  // Visualize selection immediately
-                  drawOverlayHighlight(elementToDrag, currentFrameIdRef.current && elementToDrag.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+                setSelectedLayerId(elementToDrag.id);
+                if (setMultiSelectedIds) setMultiSelectedIds(new Set([elementToDrag.id]));
+                // Force update ref so it's visible to subsequent drag steps
+                selectedLayerIdRef.current = elementToDrag.id;
+                multiSelectedIdsRef.current = new Set([elementToDrag.id]);
+
+                // Visualize selection immediately
+                drawOverlayHighlight(elementToDrag, currentFrameIdRef.current && elementToDrag.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
               }
             }
 
@@ -2313,8 +2717,8 @@ const MainEditor = ({
               for (const id of multiIds) {
                 const el = container?.querySelector(`[id="${id}"]`);
                 if (el && el !== svgElement &&
-                    el.getAttribute('data-hidden') !== 'true' &&
-                    el.getAttribute('data-locked') !== 'true') {
+                  el.getAttribute('data-hidden') !== 'true' &&
+                  el.getAttribute('data-locked') !== 'true') {
                   el.setAttribute('data-dragging', 'true');
                   multiDragItems.push({
                     element: el,
@@ -2369,7 +2773,7 @@ const MainEditor = ({
             const dx = currentPoint.x - dragState.startPoint.x;
             const dy = currentPoint.y - dragState.startPoint.y;
 
-              if (dragState.multiDragItems) {
+            if (dragState.multiDragItems) {
               // Move ALL multi-selected elements
               for (const item of dragState.multiDragItems) {
                 const translation = new DOMMatrix().translate(dx, dy);
@@ -2417,10 +2821,10 @@ const MainEditor = ({
             const svgEl = dragState.svgElement;
             const pageIndex = dragState.pageIndex;
             delete event.interaction.dragState;
-            
+
             // Single reliable update call
             if (updatePageHtmlRef.current && svgEl) {
-               updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
+              updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
             }
           }
         }
@@ -2443,7 +2847,7 @@ const MainEditor = ({
             const handleId = handle.id;
             const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw|n|e|s|w)/);
             if (!match) return;
-            
+
             const elId = match[1];
             const dir = match[2];
             const el = document.getElementById(elId);
@@ -2466,10 +2870,10 @@ const MainEditor = ({
             else if (dir === 'sw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y };
             else if (dir === 'ne') localAnchor = { x: bbox.x, y: bbox.y + bbox.height };
             else if (dir === 'nw') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
-            else if (dir === 'n') localAnchor = { x: bbox.x + bbox.width/2, y: bbox.y + bbox.height };
-            else if (dir === 's') localAnchor = { x: bbox.x + bbox.width/2, y: bbox.y };
-            else if (dir === 'e') localAnchor = { x: bbox.x, y: bbox.y + bbox.height/2 };
-            else if (dir === 'w') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height/2 };
+            else if (dir === 'n') localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height };
+            else if (dir === 's') localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y };
+            else if (dir === 'e') localAnchor = { x: bbox.x, y: bbox.y + bbox.height / 2 };
+            else if (dir === 'w') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height / 2 };
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
@@ -2490,38 +2894,38 @@ const MainEditor = ({
 
             // Reinforce cursor during move to prevent flicker from other handlers or React re-renders
             if (state.cursor && document.body.style.cursor !== state.cursor) {
-               document.body.style.cursor = state.cursor;
-               document.documentElement.style.setProperty('--resizing-cursor', state.cursor);
-               if (!document.body.classList.contains('resizing-active')) {
-                  document.body.classList.add('resizing-active');
-               }
+              document.body.style.cursor = state.cursor;
+              document.documentElement.style.setProperty('--resizing-cursor', state.cursor);
+              if (!document.body.classList.contains('resizing-active')) {
+                document.body.classList.add('resizing-active');
+              }
             }
 
             const currentPoint = getSvgPoint(state.svg, event.clientX, event.clientY);
             if (!currentPoint) return;
 
             const { el, bbox, worldAnchor, matrix, dir } = state;
-            
+
             // Vector from anchor to current cursor position
             const vCurrent = { x: currentPoint.x - worldAnchor.x, y: currentPoint.y - worldAnchor.y };
-            
+
             // Vector from anchor to original handle position in world space
             let localHandle;
             if (dir === 'se') localHandle = { x: bbox.x + bbox.width, y: bbox.y + bbox.height };
             else if (dir === 'sw') localHandle = { x: bbox.x, y: bbox.y + bbox.height };
             else if (dir === 'ne') localHandle = { x: bbox.x + bbox.width, y: bbox.y };
             else if (dir === 'nw') localHandle = { x: bbox.x, y: bbox.y };
-            else if (dir === 'n') localHandle = { x: bbox.x + bbox.width/2, y: bbox.y };
-            else if (dir === 's') localHandle = { x: bbox.x + bbox.width/2, y: bbox.y + bbox.height };
-            else if (dir === 'e') localHandle = { x: bbox.x + bbox.width, y: bbox.y + bbox.height/2 };
-            else if (dir === 'w') localHandle = { x: bbox.x, y: bbox.y + bbox.height/2 };
-            
+            else if (dir === 'n') localHandle = { x: bbox.x + bbox.width / 2, y: bbox.y };
+            else if (dir === 's') localHandle = { x: bbox.x + bbox.width / 2, y: bbox.y + bbox.height };
+            else if (dir === 'e') localHandle = { x: bbox.x + bbox.width, y: bbox.y + bbox.height / 2 };
+            else if (dir === 'w') localHandle = { x: bbox.x, y: bbox.y + bbox.height / 2 };
+
             const worldHandle = new DOMPoint(localHandle.x, localHandle.y).matrixTransform(matrix);
             const vOriginal = { x: worldHandle.x - worldAnchor.x, y: worldHandle.y - worldAnchor.y };
 
             // Transform vectors to local space of the element (ignoring its translation component)
             const invMatrix = matrix.inverse();
-            invMatrix.e = 0; invMatrix.f = 0; 
+            invMatrix.e = 0; invMatrix.f = 0;
 
             const vCurrentLocal = new DOMPoint(vCurrent.x, vCurrent.y).matrixTransform(invMatrix);
             const vOriginalLocal = new DOMPoint(vOriginal.x, vOriginal.y).matrixTransform(invMatrix);
@@ -2537,16 +2941,16 @@ const MainEditor = ({
             const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image';
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
             if (isCorner && (event.shiftKey || isImage)) {
-                const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-                scaleX = s;
-                scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
+              const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
+              scaleX = s;
+              scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
             }
 
             const scaleMatrix = new DOMMatrix()
               .translate(worldAnchor.x, worldAnchor.y)
               .scale(scaleX, scaleY)
               .translate(-worldAnchor.x, -worldAnchor.y);
-            
+
             const nextMatrix = scaleMatrix.multiply(matrix);
             el.setAttribute('transform', matrixToTransform(nextMatrix));
 
@@ -2559,12 +2963,12 @@ const MainEditor = ({
             document.body.style.cursor = '';
             document.body.classList.remove('resizing-active');
             document.documentElement.style.removeProperty('--resizing-cursor');
-            
+
             const state = event.interaction.resizeState;
             if (state && updatePageHtmlRef.current) {
-               const container = state.el.closest('.page-svg-container');
-               const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
-               saveModifiedPageHtml(pageIdx, state.svg);
+              const container = state.el.closest('.page-svg-container');
+              const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+              saveModifiedPageHtml(pageIdx, state.svg);
             }
             delete event.interaction.resizeState;
             setTimeout(() => {
@@ -2588,44 +2992,43 @@ const MainEditor = ({
   };
 
   const saveModifiedPageHtml = (targetPageIndex, targetSvg) => {
-      if (!updatePageHtmlRef.current) return;
-      let finalHtml = targetSvg.outerHTML;
-      if (isDoublePage && pages && pages[targetPageIndex]) {
-          const groupWrap = targetSvg.querySelector(`#page-group-${targetPageIndex}`);
-          if (groupWrap) {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(pages[targetPageIndex].html, 'image/svg+xml');
-              const cleanSvg = doc.querySelector('svg');
-              if (cleanSvg) {
-                  cleanSvg.innerHTML = '';
-                  Array.from(groupWrap.children).forEach(c => cleanSvg.appendChild(c.cloneNode(true)));
-                  finalHtml = cleanSvg.outerHTML;
-              }
-          }
+    if (!updatePageHtmlRef.current) return;
+    let finalHtml = targetSvg.outerHTML;
+    if (isDoublePage && pages && pages[targetPageIndex]) {
+      const groupWrap = targetSvg.querySelector(`#page-group-${targetPageIndex}`);
+      if (groupWrap) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(pages[targetPageIndex].html, 'image/svg+xml');
+        const cleanSvg = doc.querySelector('svg');
+        if (cleanSvg) {
+          cleanSvg.innerHTML = '';
+          Array.from(groupWrap.children).forEach(c => cleanSvg.appendChild(c.cloneNode(true)));
+          finalHtml = cleanSvg.outerHTML;
+        }
       }
-      updatePageHtml(targetPageIndex, finalHtml);
+    }
+    updatePageHtml(targetPageIndex, finalHtml);
   };
 
   const resolveTargetParentForCreation = (svg, clientX, clientY) => {
-      let activeId = currentFrameIdRef.current;
-      const topFrames = getTopLevelFrames(svg);
-      const hitRoot = topFrames.find(f => hitTest(f, clientX, clientY));
-      
-      if (activeId) {
-          const activeEl = svg.querySelector(`[id="${activeId}"]`);
-          if (activeEl && !hitTest(activeEl, clientX, clientY) && hitRoot) {
-              activeId = hitRoot.id;
-              setCurrentFrameId(hitRoot.id);
-              currentFrameIdRef.current = hitRoot.id;
-          }
-      } else if (hitRoot) {
-          activeId = hitRoot.id;
+    let activeId = currentFrameIdRef.current;
+    const topFrames = getTopLevelFrames(svg);
+    const hitRoot = topFrames.find(f => hitTest(f, clientX, clientY));
+
+    if (activeId) {
+      const activeEl = svg.querySelector(`[id="${activeId}"]`);
+      if (activeEl && !hitTest(activeEl, clientX, clientY) && hitRoot) {
+        activeId = hitRoot.id;
+        setCurrentFrameId(hitRoot.id);
+        currentFrameIdRef.current = hitRoot.id;
       }
-      return activeId ? svg.querySelector(`[id="${activeId}"]`) : (hitRoot || svg.querySelector('g[data-type="frame"]') || svg.querySelector('g'));
+    } else if (hitRoot) {
+      activeId = hitRoot.id;
+    }
+    return activeId ? svg.querySelector(`[id="${activeId}"]`) : (hitRoot || svg.querySelector('g[data-type="frame"]') || svg.querySelector('g'));
   };
 
   const handleSvgMouseDown = (pageIndex, e) => {
-    if (isSpacePressed) return;
     if (e.button !== 0 || e.target.closest('.resize-handle')) return;
 
     const container = e.currentTarget;
@@ -2634,59 +3037,59 @@ const MainEditor = ({
 
     // ── Universal cleanup for Bending State ──
     if (activeBendingSegmentRef.current && !e.ctrlKey) {
-        clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
-        activeBendingSegmentRef.current = null;
+      clearPenToolNodes(activeBendingSegmentRef.current.pageIndex);
+      activeBendingSegmentRef.current = null;
     }
 
     // ── Ctrl + Click Bending Detection (Pen Tools Only) ──────────────────────────
     if (e.ctrlKey && (activeMainToolRef.current === 'pen' || activeMainTool === 'pen')) {
-        const targetPath = e.target.closest('path');
-        if (targetPath && targetPath.id && targetPath.getAttribute('data-type') !== 'Overlay') {
-            const pt = getLocalPoint(svg, targetPath, e.clientX, e.clientY);
-            paperScopeRef.current.activate();
-            const paperPath = new paperScopeRef.current.Path(targetPath.getAttribute('d'));
-            const location = paperPath.getNearestLocation(new paperScopeRef.current.Point(pt.x, pt.y));
-            
-            // Check for hits on existing handles first (prioritize handle dragging)
-            const curves = paperPath.curves;
-            for (let i = 0; i < curves.length; i++) {
-                const c = curves[i];
-                const hOut = c.point1.add(c.segment1.handleOut);
-                const hIn = c.point2.add(c.segment2.handleIn);
-                
-                if (hOut.subtract(pt).length < 15) {
-                    handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'out', pageIndex };
-                    suppressClickRef.current = true;
-                    return;
-                }
-                if (hIn.subtract(pt).length < 15) {
-                    handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'in', pageIndex };
-                    suppressClickRef.current = true;
-                    return;
-                }
-            }
+      const targetPath = e.target.closest('path');
+      if (targetPath && targetPath.id && targetPath.getAttribute('data-type') !== 'Overlay') {
+        const pt = getLocalPoint(svg, targetPath, e.clientX, e.clientY);
+        paperScopeRef.current.activate();
+        const paperPath = new paperScopeRef.current.Path(targetPath.getAttribute('d'));
+        const location = paperPath.getNearestLocation(new paperScopeRef.current.Point(pt.x, pt.y));
 
-            // If no handle hit, check for segment bending
-            if (location && location.distance < 40) {
-                bendingStateRef.current = {
-                    pathEl: targetPath,
-                    paperPath,
-                    curveIndex: location.curve.index,
-                    startPoint: pt,
-                    pageIndex
-                };
-                drawBendingNodes(pageIndex, targetPath, paperPath, location.curve.index);
-                suppressClickRef.current = true;
-                return;
-            }
+        // Check for hits on existing handles first (prioritize handle dragging)
+        const curves = paperPath.curves;
+        for (let i = 0; i < curves.length; i++) {
+          const c = curves[i];
+          const hOut = c.point1.add(c.segment1.handleOut);
+          const hIn = c.point2.add(c.segment2.handleIn);
+
+          if (hOut.subtract(pt).length < 15) {
+            handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'out', pageIndex };
+            suppressClickRef.current = true;
+            return;
+          }
+          if (hIn.subtract(pt).length < 15) {
+            handleDraggingStateRef.current = { pathEl: targetPath, paperPath, curveIndex: i, handleSide: 'in', pageIndex };
+            suppressClickRef.current = true;
+            return;
+          }
         }
+
+        // If no handle hit, check for segment bending
+        if (location && location.distance < 40) {
+          bendingStateRef.current = {
+            pathEl: targetPath,
+            paperPath,
+            curveIndex: location.curve.index,
+            startPoint: pt,
+            pageIndex
+          };
+          drawBendingNodes(pageIndex, targetPath, paperPath, location.curve.index);
+          suppressClickRef.current = true;
+          return;
+        }
+      }
     }
 
     // ── Creation Tool: Text (Type) Tool ─────────────────────────────────────────
     if (activeMainTool === 'type') {
       let parentEl = resolveTargetParentForCreation(svg, e.clientX, e.clientY);
       if (!parentEl) return;
-      
+
       const pt = getLocalPoint(svg, parentEl, e.clientX, e.clientY);
 
       if (parentEl) {
@@ -2700,36 +3103,36 @@ const MainEditor = ({
         newText.setAttribute('font-size', '16');
 
         // Satisfying user requirement: precisely populate dummy text and let user double-click manually
-        newText.textContent = 'Text'; 
-        
+        newText.textContent = 'Text';
+
         parentEl.appendChild(newText);
-        
+
         if (updatePageHtml) {
-            saveModifiedPageHtml(pageIndex, svg);
-            window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: id } }));
+          saveModifiedPageHtml(pageIndex, svg);
+          window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: id } }));
         }
 
         skipClearSelectionRef.current = true;
-        
+
         setTimeout(() => {
-            if (setActiveMainTool) setActiveMainTool('select');
-            
-            if (setSelectedLayerId) {
-                setSelectedLayerId(id);
-                selectedLayerIdRef.current = id;
-            }
-            if (setMultiSelectedIds) {
-                setMultiSelectedIds(new Set([id]));
-                multiSelectedIdsRef.current = new Set([id]);
-            }
-            
-            // Highlight it instantly
-            const mountedText = container.querySelector(`[id="${id}"]`);
-            if (mountedText) {
-                drawOverlayHighlight(mountedText, 'selected');
-            }
-            
-            suppressClickRef.current = false;
+          if (setActiveMainTool) setActiveMainTool('select');
+
+          if (setSelectedLayerId) {
+            setSelectedLayerId(id);
+            selectedLayerIdRef.current = id;
+          }
+          if (setMultiSelectedIds) {
+            setMultiSelectedIds(new Set([id]));
+            multiSelectedIdsRef.current = new Set([id]);
+          }
+
+          // Highlight it instantly
+          const mountedText = container.querySelector(`[id="${id}"]`);
+          if (mountedText) {
+            drawOverlayHighlight(mountedText, 'selected');
+          }
+
+          suppressClickRef.current = false;
         }, 100);
 
         suppressClickRef.current = true;
@@ -2771,52 +3174,52 @@ const MainEditor = ({
       if (parentEl) {
         // If already drawing, add point or close path
         if (drawingPathRef.current) {
-            const nestedPoints = drawingSubPathsRef.current;
-            const currentSubIdx = nestedPoints.length - 1;
-            const currentPts = nestedPoints[currentSubIdx];
+          const nestedPoints = drawingSubPathsRef.current;
+          const currentSubIdx = nestedPoints.length - 1;
+          const currentPts = nestedPoints[currentSubIdx];
 
-            // Hit test nodes
-            let hitPIdx = -1, hitPtIdx = -1;
-            nestedPoints.forEach((pts, pi) => {
-                const idx = pts.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 8);
-                if (idx !== -1) { hitPIdx = pi; hitPtIdx = idx; }
-            });
+          // Hit test nodes
+          let hitPIdx = -1, hitPtIdx = -1;
+          nestedPoints.forEach((pts, pi) => {
+            const idx = pts.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 8);
+            if (idx !== -1) { hitPIdx = pi; hitPtIdx = idx; }
+          });
 
-            if (hitPIdx !== -1) {
-                if (hitPIdx === currentSubIdx && hitPtIdx === 0 && currentPts.length > 2 && !currentPts.isZ) {
-                    currentPts.isZ = true;
-                    drawingPathRef.current.isFinished = true;
-                    const pathData = generatePathData(currentPts, true, selectedPenTool);
-                    drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
-                    drawPenToolNodes(pageIndex, drawingPathRef.current, nestedPoints);
-                    suppressClickRef.current = true;
-                    return;
-                }
-                draggedNodeIndexRef.current = { pIdx: hitPIdx, ptIdx: hitPtIdx };
-                suppressClickRef.current = true;
-                return;
+          if (hitPIdx !== -1) {
+            if (hitPIdx === currentSubIdx && hitPtIdx === 0 && currentPts.length > 2 && !currentPts.isZ) {
+              currentPts.isZ = true;
+              drawingPathRef.current.isFinished = true;
+              const pathData = generatePathData(currentPts, true, selectedPenTool);
+              drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
+              drawPenToolNodes(pageIndex, drawingPathRef.current, nestedPoints);
+              suppressClickRef.current = true;
+              return;
             }
-
-            if (drawingPathRef.current.isFinished) {
-               drawingPathRef.current.isFinished = false;
-                const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
-                newPath.setAttribute('id', pathId);
-                newPath.setAttribute('data-type', 'vector-path');
-                newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
-                drawingPathRef.current.appendChild(newPath);
-               drawingSubPathsRef.current.push([{ x: pt.x, y: pt.y, isCorner: false }]);
-               drawingSubPathElsRef.current.push(newPath);
-               draggedNodeIndexRef.current = { pIdx: drawingSubPathsRef.current.length - 1, ptIdx: 0 };
-            } else {
-               currentPts.push({ x: pt.x, y: pt.y, isCorner: false });
-               draggedNodeIndexRef.current = { pIdx: currentSubIdx, ptIdx: currentPts.length - 1 };
-               const pathData = generatePathData(currentPts, false, selectedPenTool);
-               drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
-            }
-            drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
+            draggedNodeIndexRef.current = { pIdx: hitPIdx, ptIdx: hitPtIdx };
             suppressClickRef.current = true;
             return;
+          }
+
+          if (drawingPathRef.current.isFinished) {
+            drawingPathRef.current.isFinished = false;
+            const newPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
+            newPath.setAttribute('id', pathId);
+            newPath.setAttribute('data-type', 'vector-path');
+            newPath.setAttribute('d', `M ${pt.x} ${pt.y}`);
+            drawingPathRef.current.appendChild(newPath);
+            drawingSubPathsRef.current.push([{ x: pt.x, y: pt.y, isCorner: false }]);
+            drawingSubPathElsRef.current.push(newPath);
+            draggedNodeIndexRef.current = { pIdx: drawingSubPathsRef.current.length - 1, ptIdx: 0 };
+          } else {
+            currentPts.push({ x: pt.x, y: pt.y, isCorner: false });
+            draggedNodeIndexRef.current = { pIdx: currentSubIdx, ptIdx: currentPts.length - 1 };
+            const pathData = generatePathData(currentPts, false, selectedPenTool);
+            drawingSubPathElsRef.current[currentSubIdx].setAttribute('d', pathData);
+          }
+          drawPenToolNodes(pageIndex, drawingPathRef.current, drawingSubPathsRef.current);
+          suppressClickRef.current = true;
+          return;
         }
 
         // Start new group
@@ -2831,7 +3234,7 @@ const MainEditor = ({
         group.setAttribute('stroke-width', '2');
         group.setAttribute('stroke-linecap', 'round');
         group.setAttribute('stroke-linejoin', 'round');
-        
+
         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
         const pathId = `vpath-${Math.random().toString(36).substr(2, 9)}`;
         path.setAttribute('id', pathId);
@@ -2846,7 +3249,7 @@ const MainEditor = ({
         draggedNodeIndexRef.current = { pIdx: 0, ptIdx: 0 };
         drawingPageIndexRef.current = pageIndex;
         drawingSvgRef.current = svg;
-        
+
         drawPenToolNodes(pageIndex, group, drawingSubPathsRef.current);
         suppressClickRef.current = true;
       }
@@ -2865,6 +3268,7 @@ const MainEditor = ({
 
         switch (selectedShapeTool) {
           case 'rectangle':
+          case 'free-frame':
             shape = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             shape.setAttribute('x', pt.x);
             shape.setAttribute('y', pt.y);
@@ -2902,12 +3306,19 @@ const MainEditor = ({
             shape.setAttribute('fill', 'none');
             shape.setAttribute('stroke', '#000000');
             shape.setAttribute('stroke-width', '2');
+          } else if (selectedShapeTool === 'free-frame') {
+            shape.setAttribute('fill', 'transparent');
+            shape.setAttribute('stroke', 'transparent');
+            shape.setAttribute('stroke-width', '0');
+            shape.setAttribute('data-interaction', 'open-link');
+            shape.setAttribute('data-interaction-value', '');
+            shape.setAttribute('data-drawing', 'true');
           } else {
             shape.setAttribute('fill', '#d0ccff');
             shape.setAttribute('stroke', 'none');
             shape.setAttribute('stroke-width', '0');
           }
-          shape.setAttribute('data-name', `${selectedShapeTool} ${id.substr(0, 4)}`);
+          shape.setAttribute('data-name', selectedShapeTool === 'free-frame' ? 'Free Frame' : `${selectedShapeTool} ${id.substr(0, 4)}`);
           shape.setAttribute('data-type', 'shape');
 
           parentEl.appendChild(shape);
@@ -2932,44 +3343,44 @@ const MainEditor = ({
     // 1. Identify level candidates and check if click hit any (including gaps)
     let candidates = [];
     let effectiveFrameId = currentFrameIdRef.current;
-    
+
     // Auto-enter root frame context on mouse down for double pageview
     if (isDoublePage) {
-        const topLevels = getTopLevelFrames(svg);
-        const hitRoot = topLevels.find(f => hitTest(f, e.clientX, e.clientY));
-        if (hitRoot && topLevels.length === 1 && effectiveFrameId !== hitRoot.id) {
-            effectiveFrameId = hitRoot.id;
-            setCurrentFrameId(hitRoot.id);
-            currentFrameIdRef.current = hitRoot.id;
-        }
+      const topLevels = getTopLevelFrames(svg);
+      const hitRoot = topLevels.find(f => hitTest(f, e.clientX, e.clientY));
+      if (hitRoot && topLevels.length === 1 && effectiveFrameId !== hitRoot.id) {
+        effectiveFrameId = hitRoot.id;
+        setCurrentFrameId(hitRoot.id);
+        currentFrameIdRef.current = hitRoot.id;
+      }
     }
 
     if (effectiveFrameId) {
-        const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
-        candidates = frameEl ? getDirectChildFrames(frameEl) : [];
+      const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
+      candidates = frameEl ? getDirectChildFrames(frameEl) : [];
     } else {
-        candidates = getTopLevelFrames(svg);
+      candidates = getTopLevelFrames(svg);
     }
-    
+
     let hitCandidate = null;
     for (let i = candidates.length - 1; i >= 0; i--) {
-        if (hitTest(candidates[i], e.clientX, e.clientY, 2)) {
-            hitCandidate = candidates[i];
-            break;
-        }
+      if (hitTest(candidates[i], e.clientX, e.clientY, 2)) {
+        hitCandidate = candidates[i];
+        break;
+      }
     }
 
     // ── NEW: Check if we hit ANY already-selected element's bounding box ──────────
     let hitAnySelected = false;
     const currentMultiIds = multiSelectedIdsRef.current;
     if (currentMultiIds.size > 0) {
-        for (const id of currentMultiIds) {
-            const el = svg.querySelector(`[id="${id}"]`);
-            if (el && hitTest(el, e.clientX, e.clientY, 2)) {
-                hitAnySelected = true;
-                break;
-            }
+      for (const id of currentMultiIds) {
+        const el = svg.querySelector(`[id="${id}"]`);
+        if (el && hitTest(el, e.clientX, e.clientY, 2)) {
+          hitAnySelected = true;
+          break;
         }
+      }
     }
 
     const topFrames = getTopLevelFrames(svg);
@@ -2979,7 +3390,7 @@ const MainEditor = ({
     // If we hit any valid child candidate OR any already-selected element, 
     // don't start a marquee. Return early to allow interactjs to handle dragging.
     if ((hitCandidate && !hitBaseFrame || hitAnySelected) && !e.ctrlKey && selectedSelectToolRef.current !== 'direct') {
-        return; 
+      return;
     }
 
     // 3. Marquee Start Detection
@@ -2991,43 +3402,43 @@ const MainEditor = ({
       const scale = zoom / 100;
       const startX = (e.clientX - rect.left) / scale;
       const startY = (e.clientY - rect.top) / scale;
-      
+
       marqueeDataRef.current = { startX, startY, containerRect: rect, scale };
-      
+
       // Cache candidates and their bounding boxes for the marquee operation
       let marqueeCandidates = candidates.filter(el => {
-          const isOverlay = el.getAttribute('data-name') === 'Overlay';
-          const isBasePage = topFrames.some(f => f.id === el.id);
-          return !isOverlay && !isBasePage;
+        const isOverlay = el.getAttribute('data-name') === 'Overlay';
+        const isBasePage = topFrames.some(f => f.id === el.id);
+        return !isOverlay && !isBasePage;
       });
 
       marqueeCandidatesRef.current = marqueeCandidates.map(el => ({
-          id: el.id,
-          rect: el.getBoundingClientRect()
+        id: el.id,
+        rect: el.getBoundingClientRect()
       }));
 
       setMarquee({ pageIndex });
-      
+
       let activeRef;
       if (isDoublePage) {
-          if (activePageIndex === 0 && pageIndex === 0) {
-              activeRef = marqueeOverlayRef2; // Cover is on the right
-          } else if (pageIndex === spreadStartIndex) {
-              activeRef = marqueeOverlayRef1; // Left side of spread
-          } else {
-              activeRef = marqueeOverlayRef2; // Right side of spread
-          }
+        if (activePageIndex === 0 && pageIndex === 0) {
+          activeRef = marqueeOverlayRef2; // Cover is on the right
+        } else if (pageIndex === spreadStartIndex) {
+          activeRef = marqueeOverlayRef1; // Left side of spread
+        } else {
+          activeRef = marqueeOverlayRef2; // Right side of spread
+        }
       } else {
-          activeRef = marqueeOverlayRef1; // Single page is always container 1
+        activeRef = marqueeOverlayRef1; // Single page is always container 1
       }
       if (activeRef.current) {
-          Object.assign(activeRef.current.style, {
-              display: 'block',
-              left: `${startX}px`,
-              top: `${startY}px`,
-              width: '0px',
-              height: '0px'
-          });
+        Object.assign(activeRef.current.style, {
+          display: 'block',
+          left: `${startX}px`,
+          top: `${startY}px`,
+          width: '0px',
+          height: '0px'
+        });
       }
       return;
     }
@@ -3035,186 +3446,186 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE MOVE: hover highlight & Marquee update ─────────────────
   const handleSvgMouseMove = (pageIndex, e) => {
-    if (isSpacePressed) return;
     // ── Ctrl + Click Bending Update ──
     if (bendingStateRef.current) {
-        const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
-        const svg = pathEl.ownerSVGElement;
-        const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
-        
-        paperScopeRef.current.activate();
-        const curve = paperPath.curves[curveIndex];
-        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
-        
-        // Symmetrical bending logic: point handles towards mouse
-        const p1 = curve.segment1.point;
-        const p2 = curve.segment2.point;
-        
-        // Factor of 0.45 creates a natural-looking bow that passes near the cursor
-        curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
-        curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
-        
-        pathEl.setAttribute('d', paperPath.pathData);
-        drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+      const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
+      const svg = pathEl.ownerSVGElement;
+      const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
 
-        // ── SYNC WITH PEN TOOL STATE ──
-        // If this path is part of an active drawing session, we must update the handles in drawingSubPathsRef
-        // otherwise finalize/redraw (like pressing Enter) will recalculate automated curves and lose the bend.
-        const subPathIdx = drawingSubPathElsRef.current.indexOf(pathEl);
-        if (subPathIdx !== -1) {
-            const subPath = drawingSubPathsRef.current[subPathIdx];
-            const p1Ref = subPath[curveIndex];
-            const p2Ref = subPath[(curveIndex + 1) % subPath.length];
-            
-            p1Ref.handleOut = { x: curve.segment1.handleOut.x, y: curve.segment1.handleOut.y };
-            p2Ref.handleIn = { x: curve.segment2.handleIn.x, y: curve.segment2.handleIn.y };
-        }
+      paperScopeRef.current.activate();
+      const curve = paperPath.curves[curveIndex];
+      const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
 
-        suppressClickRef.current = true;
-        return;
+      // Symmetrical bending logic: point handles towards mouse
+      const p1 = curve.segment1.point;
+      const p2 = curve.segment2.point;
+
+      // Factor of 0.45 creates a natural-looking bow that passes near the cursor
+      curve.segment1.handleOut = mousePoint.subtract(p1).multiply(0.45);
+      curve.segment2.handleIn = mousePoint.subtract(p2).multiply(0.45);
+
+      pathEl.setAttribute('d', paperPath.pathData);
+      drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+
+      // ── SYNC WITH PEN TOOL STATE ──
+      // If this path is part of an active drawing session, we must update the handles in drawingSubPathsRef
+      // otherwise finalize/redraw (like pressing Enter) will recalculate automated curves and lose the bend.
+      const subPathIdx = drawingSubPathElsRef.current.indexOf(pathEl);
+      if (subPathIdx !== -1) {
+        const subPath = drawingSubPathsRef.current[subPathIdx];
+        const p1Ref = subPath[curveIndex];
+        const p2Ref = subPath[(curveIndex + 1) % subPath.length];
+
+        p1Ref.handleOut = { x: curve.segment1.handleOut.x, y: curve.segment1.handleOut.y };
+        p2Ref.handleIn = { x: curve.segment2.handleIn.x, y: curve.segment2.handleIn.y };
+      }
+
+      suppressClickRef.current = true;
+      return;
     }
 
     // ── Handle Dragging Logic ───────────────────────────────────────────────
     if (handleDraggingStateRef.current) {
-        const { pathEl, paperPath, curveIndex, handleSide, pageIndex: activePageIdx } = handleDraggingStateRef.current;
-        const svg = pathEl.ownerSVGElement;
-        const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
-        
-        paperScopeRef.current.activate();
-        const curve = paperPath.curves[curveIndex];
-        const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
-        
+      const { pathEl, paperPath, curveIndex, handleSide, pageIndex: activePageIdx } = handleDraggingStateRef.current;
+      const svg = pathEl.ownerSVGElement;
+      const pt = getLocalPoint(svg, pathEl, e.clientX, e.clientY);
+
+      paperScopeRef.current.activate();
+      const curve = paperPath.curves[curveIndex];
+      const mousePoint = new paperScopeRef.current.Point(pt.x, pt.y);
+
+      if (handleSide === 'out') {
+        curve.segment1.handleOut = mousePoint.subtract(curve.segment1.point);
+      } else {
+        curve.segment2.handleIn = mousePoint.subtract(curve.segment2.point);
+      }
+
+      pathEl.setAttribute('d', paperPath.pathData);
+      drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+
+      // Sync with Pen session points
+      const subPathIdx = drawingSubPathElsRef.current.indexOf(pathEl);
+      if (subPathIdx !== -1) {
+        const subPath = drawingSubPathsRef.current[subPathIdx];
         if (handleSide === 'out') {
-            curve.segment1.handleOut = mousePoint.subtract(curve.segment1.point);
+          subPath[curveIndex].handleOut = { x: curve.segment1.handleOut.x, y: curve.segment1.handleOut.y };
         } else {
-            curve.segment2.handleIn = mousePoint.subtract(curve.segment2.point);
+          subPath[(curveIndex + 1) % subPath.length].handleIn = { x: curve.segment2.handleIn.x, y: curve.segment2.handleIn.y };
         }
-        
-        pathEl.setAttribute('d', paperPath.pathData);
-        drawBendingNodes(activePageIdx, pathEl, paperPath, curveIndex);
+      }
 
-        // Sync with Pen session points
-        const subPathIdx = drawingSubPathElsRef.current.indexOf(pathEl);
-        if (subPathIdx !== -1) {
-            const subPath = drawingSubPathsRef.current[subPathIdx];
-            if (handleSide === 'out') {
-                subPath[curveIndex].handleOut = { x: curve.segment1.handleOut.x, y: curve.segment1.handleOut.y };
-            } else {
-                subPath[(curveIndex + 1) % subPath.length].handleIn = { x: curve.segment2.handleIn.x, y: curve.segment2.handleIn.y };
-            }
-        }
-
-        suppressClickRef.current = true;
-        return;
+      suppressClickRef.current = true;
+      return;
     }
 
     // ── Freehand Pencil Update (During Drag) ──────────
     if (isFreehandDrawingRef.current && drawingPathRef.current) {
-        const svg = drawingSvgRef.current || (e.currentTarget.closest('.page-svg-container')?.querySelector('svg'));
-        if (!svg) return;
-        const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
-        
-        const lastPt = drawingPointsRef.current[drawingPointsRef.current.length - 1];
-        if (lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 2) return;
+      const svg = drawingSvgRef.current || (e.currentTarget.closest('.page-svg-container')?.querySelector('svg'));
+      if (!svg) return;
+      const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
 
-        drawingPointsRef.current.push(pt);
-        const d = drawingPointsRef.current.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-        drawingPathRef.current.setAttribute('d', d);
-        suppressClickRef.current = true;
-        return;
+      const lastPt = drawingPointsRef.current[drawingPointsRef.current.length - 1];
+      if (lastPt && Math.hypot(pt.x - lastPt.x, pt.y - lastPt.y) < 2) return;
+
+      drawingPointsRef.current.push(pt);
+      const d = drawingPointsRef.current.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+      drawingPathRef.current.setAttribute('d', d);
+      suppressClickRef.current = true;
+      return;
     }
 
     // ── Pen/Curve/Click-to-Click Drawing Preview ────────────────────────────────────────────────
     if (drawingPathRef.current && !isFreehandDrawingRef.current) {
-        const svg = drawingSvgRef.current;
-        // Use getLocalPoint relative to the parentEl of the path
-        const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
-        if (pt) {
-            const subPaths = drawingSubPathsRef.current;
-            const activePIdx = subPaths.length - 1;
-            const dNode = draggedNodeIndexRef.current;
+      const svg = drawingSvgRef.current;
+      // Use getLocalPoint relative to the parentEl of the path
+      const pt = getLocalPoint(svg, drawingPathRef.current.parentElement, e.clientX, e.clientY);
+      if (pt) {
+        const subPaths = drawingSubPathsRef.current;
+        const activePIdx = subPaths.length - 1;
+        const dNode = draggedNodeIndexRef.current;
 
-            if (dNode.pIdx !== -1) {
-              // Update existing node in any subpath
-              const targetPt = subPaths[dNode.pIdx][dNode.ptIdx];
-              targetPt.x = pt.x;
-              targetPt.y = pt.y;
-              
-              const pathData = generatePathData(subPaths[dNode.pIdx], false, selectedPenTool);
-              drawingSubPathElsRef.current[dNode.pIdx].setAttribute('d', pathData);
-              drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths);
-            } else if (!drawingPathRef.current.isFinished) {
-              // Preview: only rubber-band for current subpath if not closed
-              const currentPts = subPaths[activePIdx];
-              const pathData = generatePathData(currentPts, false, selectedPenTool, pt);
-              drawingSubPathElsRef.current[activePIdx].setAttribute('d', pathData);
-              drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths, pt);
-            }
-            suppressClickRef.current = true;
+        if (dNode.pIdx !== -1) {
+          // Update existing node in any subpath
+          const targetPt = subPaths[dNode.pIdx][dNode.ptIdx];
+          targetPt.x = pt.x;
+          targetPt.y = pt.y;
+
+          const pathData = generatePathData(subPaths[dNode.pIdx], false, selectedPenTool);
+          drawingSubPathElsRef.current[dNode.pIdx].setAttribute('d', pathData);
+          drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths);
+        } else if (!drawingPathRef.current.isFinished) {
+          // Preview: only rubber-band for current subpath if not closed
+          const currentPts = subPaths[activePIdx];
+          const pathData = generatePathData(currentPts, false, selectedPenTool, pt);
+          drawingSubPathElsRef.current[activePIdx].setAttribute('d', pathData);
+          drawPenToolNodes(pageIndex, drawingPathRef.current, subPaths, pt);
         }
-        return;
+        suppressClickRef.current = true;
+      }
+      return;
     }
 
     // ── Shapes Drawing Update ────────────────────────────────────────────────
     if (drawingShapeRef.current) {
-        const svg = drawingSvgRef.current;
-        const pt = getSvgPoint(svg, e.clientX, e.clientY);
-        const start = shapeStartPointRef.current;
-        
-        if (pt && start) {
-            const shape = drawingShapeRef.current;
-            const dx = pt.x - start.x;
-            const dy = pt.y - start.y;
-            
-            switch (selectedShapeTool) {
-              case 'rectangle':
-                shape.setAttribute('x', Math.min(start.x, pt.x));
-                shape.setAttribute('y', Math.min(start.y, pt.y));
-                shape.setAttribute('width', Math.abs(dx));
-                shape.setAttribute('height', Math.abs(dy));
-                break;
-              case 'circle':
-                const radius = Math.sqrt(dx * dx + dy * dy);
-                shape.setAttribute('r', radius);
-                break;
-              case 'line':
-                shape.setAttribute('x2', pt.x);
-                shape.setAttribute('y2', pt.y);
-                break;
-              case 'polygon': {
-                const radius = Math.sqrt(dx * dx + dy * dy);
-                const sides = parseInt(shape.getAttribute('data-count') || 3);
-                const points = [];
-                for (let i = 0; i < sides; i++) {
-                    const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
-                    points.push(`${start.x + radius * Math.cos(angle)},${start.y + radius * Math.sin(angle)}`);
-                }
-                shape.setAttribute('d', `M ${points.join(' L ')} Z`);
-                shape.setAttribute('data-rx', radius);
-                shape.setAttribute('data-ry', radius);
-                break;
-              }
-              case 'star': {
-                const rOuter = Math.sqrt(dx * dx + dy * dy);
-                const ratio = parseFloat(shape.getAttribute('data-ratio') || 40) / 100;
-                const rInner = rOuter * ratio;
-                const count = parseInt(shape.getAttribute('data-count') || 5);
-                const sides = count * 2;
-                const points = [];
-                for (let i = 0; i < sides; i++) {
-                    const r = (i % 2 === 0) ? rOuter : rInner;
-                    const angle = (Math.PI / count) * i - Math.PI / 2;
-                    points.push(`${start.x + r * Math.cos(angle)},${start.y + r * Math.sin(angle)}`);
-                }
-                shape.setAttribute('d', `M ${points.join(' L ')} Z`);
-                shape.setAttribute('data-rx', rOuter);
-                shape.setAttribute('data-ry', rOuter);
-                break;
-              }
+      const svg = drawingSvgRef.current;
+      const pt = getSvgPoint(svg, e.clientX, e.clientY);
+      const start = shapeStartPointRef.current;
+
+      if (pt && start) {
+        const shape = drawingShapeRef.current;
+        const dx = pt.x - start.x;
+        const dy = pt.y - start.y;
+
+        switch (selectedShapeTool) {
+          case 'rectangle':
+          case 'free-frame':
+            shape.setAttribute('x', Math.min(start.x, pt.x));
+            shape.setAttribute('y', Math.min(start.y, pt.y));
+            shape.setAttribute('width', Math.abs(dx));
+            shape.setAttribute('height', Math.abs(dy));
+            break;
+          case 'circle':
+            const radius = Math.sqrt(dx * dx + dy * dy);
+            shape.setAttribute('r', radius);
+            break;
+          case 'line':
+            shape.setAttribute('x2', pt.x);
+            shape.setAttribute('y2', pt.y);
+            break;
+          case 'polygon': {
+            const radius = Math.sqrt(dx * dx + dy * dy);
+            const sides = parseInt(shape.getAttribute('data-count') || 3);
+            const points = [];
+            for (let i = 0; i < sides; i++) {
+              const angle = (i * 2 * Math.PI) / sides - Math.PI / 2;
+              points.push(`${start.x + radius * Math.cos(angle)},${start.y + radius * Math.sin(angle)}`);
             }
-            suppressClickRef.current = true;
+            shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+            shape.setAttribute('data-rx', radius);
+            shape.setAttribute('data-ry', radius);
+            break;
+          }
+          case 'star': {
+            const rOuter = Math.sqrt(dx * dx + dy * dy);
+            const ratio = parseFloat(shape.getAttribute('data-ratio') || 40) / 100;
+            const rInner = rOuter * ratio;
+            const count = parseInt(shape.getAttribute('data-count') || 5);
+            const sides = count * 2;
+            const points = [];
+            for (let i = 0; i < sides; i++) {
+              const r = (i % 2 === 0) ? rOuter : rInner;
+              const angle = (Math.PI / count) * i - Math.PI / 2;
+              points.push(`${start.x + r * Math.cos(angle)},${start.y + r * Math.sin(angle)}`);
+            }
+            shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+            shape.setAttribute('data-rx', rOuter);
+            shape.setAttribute('data-ry', rOuter);
+            break;
+          }
         }
-        return;
+        suppressClickRef.current = true;
+      }
+      return;
     }
 
     const isPenToolActive = activeMainTool === 'pen';
@@ -3228,38 +3639,38 @@ const MainEditor = ({
 
     // ── MARQUEE UPDATE ──
     if (marqueeRef.current) {
-        const { startX, startY, containerRect, scale } = marqueeDataRef.current;
-        const curX = (e.clientX - containerRect.left) / scale;
-        const curY = (e.clientY - containerRect.top) / scale;
-        
-        const x = Math.min(curX, startX);
-        const y = Math.min(curY, startY);
-        const width = Math.abs(curX - startX);
-        const height = Math.abs(curY - startY);
-        
-        // Direct DOM update for marquee box - avoids React re-render lag
-        let activeRef;
-        if (isDoublePage) {
-            if (activePageIndex === 0 && marqueeRef.current.pageIndex === 0) {
-                activeRef = marqueeOverlayRef2;
-            } else if (marqueeRef.current.pageIndex === spreadStartIndex) {
-                activeRef = marqueeOverlayRef1;
-            } else {
-                activeRef = marqueeOverlayRef2;
-            }
+      const { startX, startY, containerRect, scale } = marqueeDataRef.current;
+      const curX = (e.clientX - containerRect.left) / scale;
+      const curY = (e.clientY - containerRect.top) / scale;
+
+      const x = Math.min(curX, startX);
+      const y = Math.min(curY, startY);
+      const width = Math.abs(curX - startX);
+      const height = Math.abs(curY - startY);
+
+      // Direct DOM update for marquee box - avoids React re-render lag
+      let activeRef;
+      if (isDoublePage) {
+        if (activePageIndex === 0 && marqueeRef.current.pageIndex === 0) {
+          activeRef = marqueeOverlayRef2;
+        } else if (marqueeRef.current.pageIndex === spreadStartIndex) {
+          activeRef = marqueeOverlayRef1;
         } else {
-            activeRef = marqueeOverlayRef1;
+          activeRef = marqueeOverlayRef2;
         }
-        if (activeRef.current) {
-            activeRef.current.style.left = `${x}px`;
-            activeRef.current.style.top = `${y}px`;
-            activeRef.current.style.width = `${width}px`;
-            activeRef.current.style.height = `${height}px`;
-            activeRef.current.style.display = 'block';
-        }
-        
-        updateMarqueeSelection(x, y, width, height, containerRect, scale);
-        return;
+      } else {
+        activeRef = marqueeOverlayRef1;
+      }
+      if (activeRef.current) {
+        activeRef.current.style.left = `${x}px`;
+        activeRef.current.style.top = `${y}px`;
+        activeRef.current.style.width = `${width}px`;
+        activeRef.current.style.height = `${height}px`;
+        activeRef.current.style.display = 'block';
+      }
+
+      updateMarqueeSelection(x, y, width, height, containerRect, scale);
+      return;
     }
 
     const svg = container.querySelector('svg');
@@ -3284,19 +3695,19 @@ const MainEditor = ({
     }
 
     const frameId = currentFrameIdRef.current;
-    
+
     // ── DYNAMIC CONTEXT (Double Page): Auto-adjust target level for easy edit ─────
     // If we're on a spread, always try to "enter" the page we are hovering
     let effectiveFrameId = frameId;
     if (isDoublePage) {
-        const tops = getTopLevelFrames(svg);
-        const hitRoot = tops.find(f => hitTest(f, e.clientX, e.clientY));
-        if (hitRoot && tops.length === 1 && effectiveFrameId !== hitRoot.id) {
-            effectiveFrameId = hitRoot.id;
-            // No need to set state via setCurrentFrameId here, 
-            // the handleClick will finalize it. 
-            // Just use local effectiveFrameId for hover highlighting.
-        }
+      const tops = getTopLevelFrames(svg);
+      const hitRoot = tops.find(f => hitTest(f, e.clientX, e.clientY));
+      if (hitRoot && tops.length === 1 && effectiveFrameId !== hitRoot.id) {
+        effectiveFrameId = hitRoot.id;
+        // No need to set state via setCurrentFrameId here, 
+        // the handleClick will finalize it. 
+        // Just use local effectiveFrameId for hover highlighting.
+      }
     }
 
     if (effectiveFrameId) {
@@ -3317,17 +3728,17 @@ const MainEditor = ({
 
         // Falling outside current frame context: highlight top-level elements
         if (!hitTest(frameEl, e.clientX, e.clientY)) {
-           const topLevelEls = getTopLevelFrames(svg);
-           for (let i = topLevelEls.length - 1; i >= 0; i--) {
-             if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-               // Only hover if not already selected
-               if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
-                 topLevelEls[i].setAttribute('data-hovered', 'true');
-                 drawOverlayHighlight(topLevelEls[i], 'hover');
-               }
-               return;
-             }
-           }
+          const topLevelEls = getTopLevelFrames(svg);
+          for (let i = topLevelEls.length - 1; i >= 0; i--) {
+            if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+              // Only hover if not already selected
+              if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+                topLevelEls[i].setAttribute('data-hovered', 'true');
+                drawOverlayHighlight(topLevelEls[i], 'hover');
+              }
+              return;
+            }
+          }
         }
       }
     } else {
@@ -3351,32 +3762,32 @@ const MainEditor = ({
     const newSelectedIds = new Set();
 
     marqueeCandidatesRef.current.forEach(item => {
-        const { id, rect: elRect } = item;
-        
-        const relElRect = {
-            left: (elRect.left - containerRect.left) / scale,
-            top: (elRect.top - containerRect.top) / scale,
-            right: (elRect.right - containerRect.left) / scale,
-            bottom: (elRect.bottom - containerRect.top) / scale
-        };
+      const { id, rect: elRect } = item;
 
-        const intersects = !(
-            mx > relElRect.right || 
-            mx + mw < relElRect.left || 
-            my > relElRect.bottom || 
-            my + mh < relElRect.top
-        );
+      const relElRect = {
+        left: (elRect.left - containerRect.left) / scale,
+        top: (elRect.top - containerRect.top) / scale,
+        right: (elRect.right - containerRect.left) / scale,
+        bottom: (elRect.bottom - containerRect.top) / scale
+      };
 
-        if (intersects) {
-            newSelectedIds.add(id);
-        }
+      const intersects = !(
+        mx > relElRect.right ||
+        mx + mw < relElRect.left ||
+        my > relElRect.bottom ||
+        my + mh < relElRect.top
+      );
+
+      if (intersects) {
+        newSelectedIds.add(id);
+      }
     });
 
     // Avoid state updates if selection is identical
     if (!setsAreEqual(newSelectedIds, multiSelectedIdsRef.current)) {
-        setMultiSelectedIds(newSelectedIds);
-        const primary = Array.from(newSelectedIds)[newSelectedIds.size - 1];
-        setSelectedLayerId(primary || null);
+      setMultiSelectedIds(newSelectedIds);
+      const primary = Array.from(newSelectedIds)[newSelectedIds.size - 1];
+      setSelectedLayerId(primary || null);
     }
   };
 
@@ -3387,15 +3798,15 @@ const MainEditor = ({
       // ── Bending/Handle Dragging Finalization ──
       const activeState = (bendingStateRef.current || handleDraggingStateRef.current);
       if (activeState) {
-          const { pathEl, paperPath, curveIndex, pageIndex } = activeState;
-          const svgEl = pathEl.ownerSVGElement;
-          if (svgEl && updatePageHtml) {
-              saveModifiedPageHtml(pageIndex, svgEl);
-          }
-          activeBendingSegmentRef.current = { pathEl, paperPath, curveIndex, pageIndex };
-          bendingStateRef.current = null;
-          handleDraggingStateRef.current = null;
-          return;
+        const { pathEl, paperPath, curveIndex, pageIndex } = activeState;
+        const svgEl = pathEl.ownerSVGElement;
+        if (svgEl && updatePageHtml) {
+          saveModifiedPageHtml(pageIndex, svgEl);
+        }
+        activeBendingSegmentRef.current = { pathEl, paperPath, curveIndex, pageIndex };
+        bendingStateRef.current = null;
+        handleDraggingStateRef.current = null;
+        return;
       }
 
       // Termination for drag-based pen tools (Pencil)
@@ -3403,33 +3814,33 @@ const MainEditor = ({
         const points = drawingPointsRef.current;
         const tool = selectedPenTool;
 
-          draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
+        draggedNodeIndexRef.current = { pIdx: -1, ptIdx: -1 };
 
         if (tool === 'pencil') {
           const path = drawingPathRef.current;
           const pageIdx = drawingPageIndexRef.current;
           const svgEl = path?.ownerSVGElement;
-          
+
           if (points.length <= 1 && path) {
             const pt = points[0] || { x: 0, y: 0 };
             path.setAttribute('d', `M ${pt.x.toFixed(1)} ${pt.y.toFixed(1)} L ${(pt.x + 0.1).toFixed(1)} ${pt.y.toFixed(1)}`);
           } else if (points.length > 5 && path) {
             // Path Simplification: node reduction for performance
             const simplified = points.filter((_, i) => i % 2 === 0 || i === points.length - 1);
-            
+
             let pathData = '';
             if (tool === 'curve') {
-                // Smoothing logic for Curve tool
-                pathData = `M ${simplified[0].x.toFixed(1)} ${simplified[0].y.toFixed(1)}`;
-                for (let i = 1; i < simplified.length - 2; i++) {
-                    const xc = (simplified[i].x + simplified[i + 1].x) / 2;
-                    const yc = (simplified[i].y + simplified[i + 1].y) / 2;
-                    pathData += ` Q ${simplified[i].x.toFixed(1)} ${simplified[i].y.toFixed(1)}, ${xc.toFixed(1)} ${yc.toFixed(1)}`;
-                }
-                const last = simplified.length - 1;
-                pathData += ` Q ${simplified[last-1].x.toFixed(1)} ${simplified[last-1].y.toFixed(1)}, ${simplified[last].x.toFixed(1)} ${simplified[last].y.toFixed(1)}`;
+              // Smoothing logic for Curve tool
+              pathData = `M ${simplified[0].x.toFixed(1)} ${simplified[0].y.toFixed(1)}`;
+              for (let i = 1; i < simplified.length - 2; i++) {
+                const xc = (simplified[i].x + simplified[i + 1].x) / 2;
+                const yc = (simplified[i].y + simplified[i + 1].y) / 2;
+                pathData += ` Q ${simplified[i].x.toFixed(1)} ${simplified[i].y.toFixed(1)}, ${xc.toFixed(1)} ${yc.toFixed(1)}`;
+              }
+              const last = simplified.length - 1;
+              pathData += ` Q ${simplified[last - 1].x.toFixed(1)} ${simplified[last - 1].y.toFixed(1)}, ${simplified[last].x.toFixed(1)} ${simplified[last].y.toFixed(1)}`;
             } else {
-                pathData = simplified.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+              pathData = simplified.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
             }
             path.setAttribute('d', pathData);
           }
@@ -3438,7 +3849,7 @@ const MainEditor = ({
             updatePageHtml(pageIdx, svgEl.outerHTML);
             if (path && path.id) {
               window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: path.id } }));
-              
+
               // Auto-select newly created path
               if (setSelectedLayerId) {
                 setSelectedLayerId(path.id);
@@ -3455,8 +3866,8 @@ const MainEditor = ({
           // Switch back to selection tool
           skipClearSelectionRef.current = true;
           setTimeout(() => {
-              if (setActiveMainTool) setActiveMainTool('select');
-              suppressClickRef.current = false;
+            if (setActiveMainTool) setActiveMainTool('select');
+            suppressClickRef.current = false;
           }, 100);
 
           drawingPathRef.current = null;
@@ -3466,7 +3877,7 @@ const MainEditor = ({
           isFreehandDrawingRef.current = false;
           clearPenToolNodes(pageIdx);
         }
-        
+
         return;
       }
 
@@ -3475,6 +3886,10 @@ const MainEditor = ({
         const shape = drawingShapeRef.current;
         const pageIdx = drawingPageIndexRef.current;
         const svgEl = shape?.ownerSVGElement;
+
+        if (shape.getAttribute('data-name') === 'Free Frame') {
+          shape.removeAttribute('data-drawing');
+        }
 
         drawingShapeRef.current = null;
         shapeStartPointRef.current = null;
@@ -3537,11 +3952,11 @@ const MainEditor = ({
       setSelectedLayerId(id);
       selectedLayerIdRef.current = id;
     }
-    
+
     // In double page mode, if we are selecting a root folder, 
     // we should try to keep both root folders in the multi-selection set.
     const newSet = id ? new Set([id]) : new Set();
-    
+
     if (isDoublePage && id && pages.length > 0) {
       // Find the page index this ID belongs to
       const pgIdx = pages.findIndex(p => p.layers?.[0]?.id === id);
@@ -3549,7 +3964,7 @@ const MainEditor = ({
         // If it's a root folder, check if its spread-mate should stay selected
         const lIdx = pgIdx % 2 === 1 ? pgIdx : pgIdx - 1;
         const rIdx = pgIdx % 2 === 1 ? pgIdx + 1 : pgIdx;
-        
+
         if (lIdx >= 0 && lIdx < pages.length && rIdx < pages.length) {
           const rootL = pages[lIdx]?.layers?.[0]?.id;
           const rootR = pages[rIdx]?.layers?.[0]?.id;
@@ -3571,42 +3986,42 @@ const MainEditor = ({
       const bbox = target.getBBox();
       const style = window.getComputedStyle(target);
       const transform = target.getAttribute('transform');
-      
+
       // Hide original text to create illusion of editing in-place
       target.style.opacity = '0';
       target.style.visibility = 'hidden';
-      
+
       // Create foreignObject directly inside the SVG
       const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-      const padX = 1; 
+      const padX = 1;
       const padY = 1;
-      
+
       // Initial calculated dimensions
       const initialWidth = Math.max(bbox.width + padX * 2, 4);
       const initialHeight = Math.max(bbox.height + padY * 2, 20);
-      
+
       const isNewCreation = target.textContent.length === 0;
-      
+
       fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || bbox.x) - padX);
-      
+
       if (isNewCreation) {
-          // For new creation, bounding box is empty, derive exact top-left from baseline 'y' manually
-          fo.setAttribute('y', (parseFloat(target.getAttribute('y')) || bbox.y) - 16);
+        // For new creation, bounding box is empty, derive exact top-left from baseline 'y' manually
+        fo.setAttribute('y', (parseFloat(target.getAttribute('y')) || bbox.y) - 16);
       } else {
-          // For existing text, use the actual visual top (bbox.y)
-          // Add a tiny -2px offset to perfectly match strict HTML line-height rendering vs SVG baseline
-          fo.setAttribute('y', bbox.y - padY - 2);
+        // For existing text, use the actual visual top (bbox.y)
+        // Add a tiny -2px offset to perfectly match strict HTML line-height rendering vs SVG baseline
+        fo.setAttribute('y', bbox.y - padY - 2);
       }
-      
+
       fo.setAttribute('width', initialWidth + 100); // Leave room for growth initially
       fo.setAttribute('height', initialHeight + 50);
       if (transform) fo.setAttribute('transform', transform);
-      
+
       // Mark it so interact.js ignores dragging while editing
       fo.setAttribute('data-editing', 'true');
       fo.style.cursor = TYPE_CURSOR;
       fo.style.overflow = 'visible';
-      
+
       const div = document.createElement('div');
       div.setAttribute('contenteditable', 'true');
       div.className = 'text-edit-box';
@@ -3621,36 +4036,36 @@ const MainEditor = ({
       div.style.cursor = TYPE_CURSOR;
       div.style.userSelect = 'text';
       div.style.overflow = 'visible';
-      
+
       // Copy exact styles over to make it look identical to original text
       div.style.fontFamily = target.getAttribute('font-family') || style.fontFamily;
       let fSize = target.getAttribute('font-size') || style.fontSize;
       if (!fSize.toString().includes('px') && !fSize.toString().includes('em') && !fSize.toString().includes('rem')) {
-          fSize += 'px';
+        fSize += 'px';
       }
       div.style.fontSize = fSize;
       div.style.fontWeight = target.getAttribute('font-weight') || style.fontWeight;
-      
+
       let color = target.getAttribute('fill') || style.fill;
       if (color === 'none') color = target.getAttribute('stroke') || style.stroke || '#000';
       div.style.color = color;
       div.style.letterSpacing = target.getAttribute('letter-spacing') || style.letterSpacing;
-      
+
       div.style.lineHeight = '1.2';
       div.style.whiteSpace = 'pre';
       div.style.wordWrap = 'normal';
-      
-      div.style.padding = `${padY}px ${padX}px`; 
+
+      div.style.padding = `${padY}px ${padX}px`;
       div.style.margin = '0';
       div.style.display = 'inline-block';
       div.style.webkitFontSmoothing = 'antialiased';
       div.style.mozOsxFontSmoothing = 'grayscale';
-      
+
       // Alignment mapping
       const textAnchor = target.getAttribute('text-anchor') || style.textAnchor;
       if (textAnchor === 'middle') {
         div.style.textAlign = 'center';
-        fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || (bbox.x + bbox.width/2)) - padX);
+        fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || (bbox.x + bbox.width / 2)) - padX);
         div.style.transform = 'translateX(-50%)';
       } else if (textAnchor === 'end') {
         div.style.textAlign = 'right';
@@ -3663,24 +4078,24 @@ const MainEditor = ({
       // Initialize content: Convert tspans to newlines if present, otherwise use textContent
       const tspans = Array.from(target.querySelectorAll('tspan'));
       if (tspans.length > 0) {
-          div.innerText = tspans.map(t => t.textContent).join('\n');
+        div.innerText = tspans.map(t => t.textContent).join('\n');
       } else {
-          div.innerText = target.textContent;
+        div.innerText = target.textContent;
       }
       fo.appendChild(div);
-      
+
       // Insert in exact DOM position next to target to inherit proper z-index and scaling context
       target.parentNode.insertBefore(fo, target.nextSibling);
 
       // Function to sync foreignObject size to content dynamically
       const syncSize = () => {
-          // Inside foreignObject, 1 CSS pixel matches 1 SVG user unit
-          // scrollWidth/Height gives us the content size without browser zoom scaling issues
-          const w = Math.max(div.scrollWidth, 10);
-          const h = Math.max(div.scrollHeight, 20);
-          
-          fo.setAttribute('width', w + 40); // Breathing room for the caret and outline
-          fo.setAttribute('height', h + 20);
+        // Inside foreignObject, 1 CSS pixel matches 1 SVG user unit
+        // scrollWidth/Height gives us the content size without browser zoom scaling issues
+        const w = Math.max(div.scrollWidth, 10);
+        const h = Math.max(div.scrollHeight, 20);
+
+        fo.setAttribute('width', w + 40); // Breathing room for the caret and outline
+        fo.setAttribute('height', h + 20);
       };
 
       div.addEventListener('input', syncSize);
@@ -3689,33 +4104,33 @@ const MainEditor = ({
       setTimeout(() => {
         div.focus();
         syncSize();
-        
+
         // Select all text natively if it's not a new creation
         if (target.textContent.length > 0) {
-            const selection = window.getSelection();
-            const range = document.createRange();
-            range.selectNodeContents(div);
-            selection.removeAllRanges();
-            selection.addRange(range);
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(div);
+          selection.removeAllRanges();
+          selection.addRange(range);
         }
       }, 0);
 
       const initialInnerHTML = target.innerHTML;
-      
+
       const cleanup = () => {
         setIsEditingText(false);
         target.style.removeProperty('opacity');
         target.style.removeProperty('visibility');
         if (target.getAttribute('style') === '') target.removeAttribute('style');
-        
+
         div.removeEventListener('blur', handleBlur);
         div.removeEventListener('keydown', handleKeyDown);
         div.removeEventListener('input', syncSize);
-        
+
         if (fo.parentNode) {
           fo.parentNode.removeChild(fo);
         }
-        
+
         const sel = window.getSelection();
         if (sel) sel.removeAllRanges();
       };
@@ -3728,7 +4143,7 @@ const MainEditor = ({
             target.parentNode.removeChild(target);
           }
           cleanup();
-          
+
           if (setSelectedLayerId) {
             setSelectedLayerId(null);
             selectedLayerIdRef.current = null;
@@ -3751,16 +4166,16 @@ const MainEditor = ({
         const lines = div.innerText.trimEnd().split(/\r?\n/);
         target.innerHTML = '';
         const x = target.getAttribute('x') || '0';
-        
+
         // Read existing line height if set, fallback to 1.2
         const computedStyle = window.getComputedStyle(target);
         const lhStr = computedStyle.lineHeight;
         let dy = 1.2;
-        
+
         if (lhStr && lhStr !== 'normal') {
-            const lhPx = parseFloat(lhStr);
-            const fsPx = parseFloat(computedStyle.fontSize) || 24;
-            if (fsPx > 0) dy = lhPx / fsPx;
+          const lhPx = parseFloat(lhStr);
+          const fsPx = parseFloat(computedStyle.fontSize) || 24;
+          if (fsPx > 0) dy = lhPx / fsPx;
         }
 
         lines.forEach((line, i) => {
@@ -3772,18 +4187,18 @@ const MainEditor = ({
         });
 
         cleanup();
-        
+
         // Auto-select and redraw highlight after exit
         if (target.id) {
-            if (setSelectedLayerId) setSelectedLayerId(target.id);
-            selectedLayerIdRef.current = target.id;
-            if (setMultiSelectedIds) {
-                setMultiSelectedIds(new Set([target.id]));
-                multiSelectedIdsRef.current = new Set([target.id]);
-            }
-            drawOverlayHighlight(target, 'selected');
+          if (setSelectedLayerId) setSelectedLayerId(target.id);
+          selectedLayerIdRef.current = target.id;
+          if (setMultiSelectedIds) {
+            setMultiSelectedIds(new Set([target.id]));
+            multiSelectedIdsRef.current = new Set([target.id]);
+          }
+          drawOverlayHighlight(target, 'selected');
         }
-        
+
         const container = target.closest('.page-svg-container');
         if (container) {
           const pageIdx = parseInt(container.getAttribute('data-page-index'));
@@ -3793,17 +4208,17 @@ const MainEditor = ({
 
       const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
-            // Check if it's empty - if so, blur to remove
-            if (div.innerText.trim() === '') {
-                e.preventDefault();
-                div.blur();
-            }
+          // Check if it's empty - if so, blur to remove
+          if (div.innerText.trim() === '') {
+            e.preventDefault();
+            div.blur();
+          }
         }
         if (e.key === 'Escape') {
           e.preventDefault();
           target.innerHTML = initialInnerHTML;
           if (target.textContent.trim().length === 0) {
-             if (target.parentNode) target.parentNode.removeChild(target);
+            if (target.parentNode) target.parentNode.removeChild(target);
           }
           cleanup();
         }
@@ -3816,10 +4231,10 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE CLICK: hierarchical frame drill-down selection ─────────────────
   const handleSvgClick = (e) => {
-      if (isSpacePressed) return;
     if (e.target.closest('.resize-handle')) return;
-    
+
     e.stopPropagation();
+    e.preventDefault(); // Prevent default browser actions (like following <a> links or downloading) on the canvas
 
     const now = Date.now();
     const timeSinceLast = now - lastClickRef.current.time;
@@ -3829,38 +4244,38 @@ const MainEditor = ({
 
     if (isDoubleClick) {
       if (activeMainTool === 'pen' && selectedPenTool === 'pen' && drawingPathRef.current) {
-         // Finish pen path on double click
-         const path = drawingPathRef.current;
-         const pageIdx = drawingPageIndexRef.current;
-         const svgEl = path.ownerSVGElement;
-         
-         drawingPathRef.current = null;
-         drawingPointsRef.current = [];
-         drawingPageIndexRef.current = null;
-         drawingSvgRef.current = null;
-         
-         if (svgEl && updatePageHtml) {
-             updatePageHtml(pageIdx, svgEl.outerHTML);
-             if (path && path.id) {
-                 window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: path.id } }));
-                 
-                 // Auto-select
-                 if (setSelectedLayerId) {
-                    setSelectedLayerId(path.id);
-                    selectedLayerIdRef.current = path.id;
-                    drawOverlayHighlight(path, 'selected');
-                 }
-             }
-         }
-         
-         // Switch tool
-         skipClearSelectionRef.current = true;
-         setTimeout(() => {
-             // if (setActiveMainTool) setActiveMainTool('select');
+        // Finish pen path on double click
+        const path = drawingPathRef.current;
+        const pageIdx = drawingPageIndexRef.current;
+        const svgEl = path.ownerSVGElement;
 
-             suppressClickRef.current = false;
-         }, 100);
-         return;
+        drawingPathRef.current = null;
+        drawingPointsRef.current = [];
+        drawingPageIndexRef.current = null;
+        drawingSvgRef.current = null;
+
+        if (svgEl && updatePageHtml) {
+          updatePageHtml(pageIdx, svgEl.outerHTML);
+          if (path && path.id) {
+            window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: path.id } }));
+
+            // Auto-select
+            if (setSelectedLayerId) {
+              setSelectedLayerId(path.id);
+              selectedLayerIdRef.current = path.id;
+              drawOverlayHighlight(path, 'selected');
+            }
+          }
+        }
+
+        // Switch tool
+        skipClearSelectionRef.current = true;
+        setTimeout(() => {
+          // if (setActiveMainTool) setActiveMainTool('select');
+
+          suppressClickRef.current = false;
+        }, 100);
+        return;
       }
       handleSvgDoubleClick(e);
       return;
@@ -3900,7 +4315,7 @@ const MainEditor = ({
     const allowClick = isSelectionTool || (isDrawingTool && pageIdx !== activePageIndex);
 
     if (!allowClick && !getDraggableElement(e.target, e.currentTarget)) {
-        return;
+      return;
     }
 
     // ── Ctrl + Shift + Click OR Direct selection tool: deep selection ────────
@@ -4006,12 +4421,12 @@ const MainEditor = ({
     const hitRoot = topFrames.find(f => hitTest(f, e.clientX, e.clientY));
 
     if (isDoublePage && hitRoot) {
-        // Always enter the context of the page we click, even if another was entered
-        effectiveFrameId = hitRoot.id;
-        if (frameId !== hitRoot.id) {
-          setCurrentFrameId(hitRoot.id);
-          currentFrameIdRef.current = hitRoot.id;
-        }
+      // Always enter the context of the page we click, even if another was entered
+      effectiveFrameId = hitRoot.id;
+      if (frameId !== hitRoot.id) {
+        setCurrentFrameId(hitRoot.id);
+        currentFrameIdRef.current = hitRoot.id;
+      }
     }
 
     // ── Case 1: We are INSIDE an entered frame — INFINITE RECURSIVE DRILL-DOWN ─
@@ -4055,11 +4470,11 @@ const MainEditor = ({
         } else {
           // Check if we hit a non-frame element (text, shape, path) inside this entered frame
           let target = getDraggableElement(e.target, e.currentTarget);
-          
+
           if (e.target.tagName.toLowerCase() === 'polygon' && e.target.id?.includes('overlay-poly-')) {
-              const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
-              const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
-              if (underlyingEl) target = underlyingEl;
+            const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
+            const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
+            if (underlyingEl) target = underlyingEl;
           }
 
           if (target && target !== frameEl && frameEl.contains(target)) {
@@ -4074,21 +4489,21 @@ const MainEditor = ({
           // 1. STICKY SELECTION PRIORITY: If clicking near the already-selected element, keep it selected!
           const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
           if (activeSel && frameEl.contains(activeSel) && hitTest(activeSel, e.clientX, e.clientY, 15)) {
-              setSingleSelection(activeSel.id);
-              return;
+            setSingleSelection(activeSel.id);
+            return;
           }
 
           // 2. Fallback: hit testing to catch clicks between text letters or transparent shape bounds
-          const normalElements = Array.from(frameEl.children).filter(el => 
-             el.id && el.getAttribute('data-type') !== 'frame' &&
-             el.getAttribute('data-name') !== 'Overlay' &&
-             el.getAttribute('data-hidden') !== 'true'
+          const normalElements = Array.from(frameEl.children).filter(el =>
+            el.id && el.getAttribute('data-type') !== 'frame' &&
+            el.getAttribute('data-name') !== 'Overlay' &&
+            el.getAttribute('data-hidden') !== 'true'
           );
           for (let i = normalElements.length - 1; i >= 0; i--) {
-             if (hitTest(normalElements[i], e.clientX, e.clientY, 5)) {
-                 setSingleSelection(normalElements[i].id);
-                 return;
-             }
+            if (hitTest(normalElements[i], e.clientX, e.clientY, 5)) {
+              setSingleSelection(normalElements[i].id);
+              return;
+            }
           }
 
           // ── Clicked the entered frame's empty gap → behavior depends on level
@@ -4097,9 +4512,13 @@ const MainEditor = ({
 
           if (isRootFolder) {
             // ── Root Folder Gap (Canvas Background): Deselect everything
-            setSingleSelection(null);
-            setCurrentFrameId(null);
-            currentFrameIdRef.current = null;
+            if (isPopupEditor && topFrames.length > 0) {
+              setSingleSelection(topFrames[0].id);
+            } else {
+              setSingleSelection(null);
+              setCurrentFrameId(null);
+              currentFrameIdRef.current = null;
+            }
           } else {
             // ── Deeper Frame Gap: exit one level (select frame, keep entered)
             setSingleSelection(frameId);
@@ -4130,7 +4549,11 @@ const MainEditor = ({
           currentFrameIdRef.current = hitTopFrame.id;
         } else {
           // Hit nothing? Deselect everything
-          setSingleSelection(null);
+          if (isPopupEditor && topLevelEls.length > 0) {
+            setSingleSelection(topLevelEls[0].id);
+          } else {
+            setSingleSelection(null);
+          }
         }
         return;
       }
@@ -4151,46 +4574,46 @@ const MainEditor = ({
     if (hitFrame) {
       // Check if we hit an element inside this frame directly (lifted out of selId check to capture any hit!)
       let target = getDraggableElement(e.target, e.currentTarget);
-      
+
       if (e.target.tagName.toLowerCase() === 'polygon' && e.target.id?.includes('overlay-poly-')) {
-          const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
-          const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
-          if (underlyingEl) target = underlyingEl;
+        const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
+        const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
+        if (underlyingEl) target = underlyingEl;
       }
 
       if (target && target !== hitFrame && hitFrame.contains(target)) {
-          setCurrentFrameId(hitFrame.id);
-          currentFrameIdRef.current = hitFrame.id;
-          setSingleSelection(target.id);
-          // Persist auto-assigned ids (e.g. template text with no id) immediately
-          if (target.tagName?.toLowerCase() === 'text') {
-            saveModifiedPageHtml(pageIdx, svg);
-          }
-          return;
+        setCurrentFrameId(hitFrame.id);
+        currentFrameIdRef.current = hitFrame.id;
+        setSingleSelection(target.id);
+        // Persist auto-assigned ids (e.g. template text with no id) immediately
+        if (target.tagName?.toLowerCase() === 'text') {
+          saveModifiedPageHtml(pageIdx, svg);
+        }
+        return;
       }
 
       // STICKY SELECTION PRIORITY (Case 2)
       const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
       if (activeSel && hitFrame.contains(activeSel) && hitTest(activeSel, e.clientX, e.clientY, 15)) {
-          setCurrentFrameId(hitFrame.id);
-          currentFrameIdRef.current = hitFrame.id;
-          setSingleSelection(activeSel.id);
-          return;
+        setCurrentFrameId(hitFrame.id);
+        currentFrameIdRef.current = hitFrame.id;
+        setSingleSelection(activeSel.id);
+        return;
       }
 
       // Hit testing fallback for elements within hitFrame (text gaps)
-      const normalEls = Array.from(hitFrame.children).filter(el => 
-         el.id && el.getAttribute('data-type') !== 'frame' &&
-         el.getAttribute('data-name') !== 'Overlay' &&
-         el.getAttribute('data-hidden') !== 'true'
+      const normalEls = Array.from(hitFrame.children).filter(el =>
+        el.id && el.getAttribute('data-type') !== 'frame' &&
+        el.getAttribute('data-name') !== 'Overlay' &&
+        el.getAttribute('data-hidden') !== 'true'
       );
       for (let i = normalEls.length - 1; i >= 0; i--) {
-         if (hitTest(normalEls[i], e.clientX, e.clientY, 5)) {
-             setCurrentFrameId(hitFrame.id);
-             currentFrameIdRef.current = hitFrame.id;
-             setSingleSelection(normalEls[i].id);
-             return;
-         }
+        if (hitTest(normalEls[i], e.clientX, e.clientY, 5)) {
+          setCurrentFrameId(hitFrame.id);
+          currentFrameIdRef.current = hitFrame.id;
+          setSingleSelection(normalEls[i].id);
+          return;
+        }
       }
 
       if (selId === hitFrame.id) {
@@ -4222,9 +4645,13 @@ const MainEditor = ({
       }
     } else {
       // 2. Clicked canvas background — deselect everything
-      setSingleSelection(null);
-      setCurrentFrameId(null);
-      currentFrameIdRef.current = null;
+      if (isPopupEditor && topLevelEls.length > 0) {
+        setSingleSelection(topLevelEls[0].id);
+      } else {
+        setSingleSelection(null);
+        setCurrentFrameId(null);
+        currentFrameIdRef.current = null;
+      }
     }
   };
 
@@ -4240,41 +4667,41 @@ const MainEditor = ({
     // Text editing on double-click
     // 1. First check if we directly hit text
     let target = getDraggableElement(e.target, e.currentTarget);
-    
+
     // 2. Proactively check if we are double-clicking while a text is selected
     const selIdContext = selectedLayerIdRef.current;
     if (selIdContext && (!target || !['text', 'tspan'].includes(target.tagName?.toLowerCase()))) {
-        let activeSelEls = svg.querySelectorAll(`[id="${selIdContext}"]`);
-        // If there are duplicates due to temporary template saving leaks, find the visible one
-        const activeSelEl = Array.from(activeSelEls).find(el => el.getBoundingClientRect().width > 0) || activeSelEls[0];
-        
-        if (activeSelEl && ['text', 'tspan'].includes(activeSelEl.tagName.toLowerCase())) {
-            // Bypass strict hitTest if the target was the overlay polygon (meaning they clicked inside the blue box exactly)
-            const clickedPolygon = e.target.tagName.toLowerCase() === 'polygon';
-            if (clickedPolygon || hitTest(activeSelEl, e.clientX, e.clientY, 10)) {
-                target = activeSelEl; 
-            }
+      let activeSelEls = svg.querySelectorAll(`[id="${selIdContext}"]`);
+      // If there are duplicates due to temporary template saving leaks, find the visible one
+      const activeSelEl = Array.from(activeSelEls).find(el => el.getBoundingClientRect().width > 0) || activeSelEls[0];
+
+      if (activeSelEl && ['text', 'tspan'].includes(activeSelEl.tagName.toLowerCase())) {
+        // Bypass strict hitTest if the target was the overlay polygon (meaning they clicked inside the blue box exactly)
+        const clickedPolygon = e.target.tagName.toLowerCase() === 'polygon';
+        if (clickedPolygon || hitTest(activeSelEl, e.clientX, e.clientY, 10)) {
+          target = activeSelEl;
         }
+      }
     }
 
     if (!target) {
-        // If in curve tool, check for double click on a node to toggle corner/smooth
-        if (activeMainTool === 'pen' && selectedPenTool === 'curve' && drawingPathRef.current) {
-            const svgEl = svg;
-            const containerBox = container.getBoundingClientRect();
-            const scale = zoom / 100;
-            const pt = getSvgPoint(svgEl, e.clientX, e.clientY);
-            
-            const points = drawingPointsRef.current;
-            const hitIdx = points.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 10 / scale);
-            if (hitIdx !== -1) {
-                points[hitIdx].isCorner = !points[hitIdx].isCorner;
-                drawingPathRef.current.setAttribute('d', generatePathData(points, false, 'curve'));
-                drawPenToolNodes(activePageIndex, drawingPathRef.current.parentNode, points);
-                return;
-            }
+      // If in curve tool, check for double click on a node to toggle corner/smooth
+      if (activeMainTool === 'pen' && selectedPenTool === 'curve' && drawingPathRef.current) {
+        const svgEl = svg;
+        const containerBox = container.getBoundingClientRect();
+        const scale = zoom / 100;
+        const pt = getSvgPoint(svgEl, e.clientX, e.clientY);
+
+        const points = drawingPointsRef.current;
+        const hitIdx = points.findIndex(p => Math.hypot(p.x - pt.x, p.y - pt.y) < 10 / scale);
+        if (hitIdx !== -1) {
+          points[hitIdx].isCorner = !points[hitIdx].isCorner;
+          drawingPathRef.current.setAttribute('d', generatePathData(points, false, 'curve'));
+          drawPenToolNodes(activePageIndex, drawingPathRef.current.parentNode, points);
+          return;
         }
-        return;
+      }
+      return;
     }
 
     const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
@@ -4341,11 +4768,11 @@ const MainEditor = ({
         if (pages.length > 1) setActivePageIndex(1);
         return;
       }
-      
+
       // Jump to the start of the next spread/page after the current spread
       const currentSpreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
       const nextIdx = currentSpreadStart + 2;
-      
+
       if (nextIdx < pages.length) {
         setActivePageIndex(nextIdx);
       }
@@ -4367,15 +4794,15 @@ const MainEditor = ({
 
 
   return (
-    <div 
-      className="bg-white flex-1 flex flex-col overflow-hidden h-[92vh]"
+    <div
+      className={`flex-1 flex flex-col overflow-hidden h-[92vh] ${isPopupEditor ? 'bg-[#E5E7EB]' : 'bg-white'}`}
       onClick={closeAllDropdowns}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <TopToolbar 
-        zoom={zoom} 
-        onZoomIn={handleZoomIn} 
-        onZoomOut={handleZoomOut} 
+      <TopToolbar
+        zoom={zoom}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
         onReset={handleResetZoom}
         onUndo={onUndo}
         onRedo={onRedo}
@@ -4406,14 +4833,93 @@ const MainEditor = ({
           return ids.some(id => id && !baseIds.has(id));
         })()}
       />
-      <div 
+      <div
         ref={editorContainerRef}
-        className="flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden bg-[#FBFBFB]"
+        className={`flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
+        style={{ cursor: isSpaceDown ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
+        onWheel={(e) => {
+          if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? -10 : 10;
+          setZoom(prev => Math.max(10, Math.min(prev + delta, 250)));
+        }}
+        onMouseDown={(e) => {
+          if (isSpaceDownRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            isPanningRef.current = true;
+            lastPanPointRef.current = { x: e.clientX, y: e.clientY };
+            setIsSpaceDown(true);
+            return;
+          }
+        }}
+        onMouseMove={(e) => {
+          if (isPanningRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            const dx = e.clientX - lastPanPointRef.current.x;
+            const dy = e.clientY - lastPanPointRef.current.y;
+            lastPanPointRef.current = { x: e.clientX, y: e.clientY };
+            
+            const prev = currentPanRef.current;
+            const newX = prev.x + dx;
+            const newY = prev.y + dy;
+            
+            if (!editorContainerRef.current) return;
+            
+            const containerWidth = editorContainerRef.current.clientWidth;
+            const containerHeight = editorContainerRef.current.clientHeight;
+            
+            const spreadStartIndex = (isDoublePage && activePageIndex > 0)
+              ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+              : activePageIndex;
+            const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+            
+            const baseVhHeight = window.innerHeight * 0.78;
+            const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+            const baseCanvasHeight = baseVhHeight;
+            const baseCanvasWidth = baseCanvasHeight * (totalWidth / baseHeight);
+            const currentScale = zoom / 100;
+            const scaledWidth = baseCanvasWidth * currentScale;
+            const scaledHeight = baseCanvasHeight * currentScale;
+            
+            const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2 + (window.innerWidth * 0.08));
+            const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2 + (window.innerHeight * 0.05));
+            
+            const boundedX = Math.min(Math.max(newX, -maxPanX), maxPanX);
+            const boundedY = Math.min(Math.max(newY, -maxPanY), maxPanY);
+            
+            currentPanRef.current = { x: boundedX, y: boundedY };
+            
+            if (zoomContainerRef.current) {
+              zoomContainerRef.current.style.transform = `translate(${boundedX}px, ${boundedY}px) scale(${currentScale})`;
+            }
+          }
+        }}
+        onMouseUp={(e) => {
+          if (isPanningRef.current) {
+            isPanningRef.current = false;
+            setIsSpaceDown(isSpaceDownRef.current);
+            setPan(currentPanRef.current);
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (isPanningRef.current) {
+            isPanningRef.current = false;
+            setIsSpaceDown(isSpaceDownRef.current);
+            setPan(currentPanRef.current);
+          }
+        }}
         onClick={(e) => {
+          if (isPanningRef.current || isSpaceDownRef.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           // ── Background Click: Deselect everything ─────────────────
           const container = e.target.closest('.page-svg-container');
           const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
-          
+
           if (setActivePageIndex && activePageIndex !== pageIdx) {
             setActivePageIndex(pageIdx);
           }
@@ -4427,29 +4933,33 @@ const MainEditor = ({
         }}
 
       >
-        
+        {/* Invisible Overlay for Panning */}
+        {isSpaceDown && (
+          <div className="absolute inset-0 z-[9999]" style={{ cursor: isPanningRef.current ? 'grabbing' : 'grab' }} />
+        )}
+
         {/* Top Group: Selection & Primary Tools - Independent Position */}
-        {!isPdfProject && (
+        {!isPdfProject && !isPopupEditor && (
           <div className="absolute right-[1.05vw] top-[1.9vh] z-50">
             <div className="bg-[#F1F3F4] rounded-[0.5vw] border border-gray-300 p-[0.3vw] flex flex-col items-center w-[2.7vw] gap-[0.7vh] shadow-sm">
               {/* Black Edit Icon Button */}
-              <button 
+              <button
                 onClick={() => setActiveTopTool('editor')}
                 className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all my-[0.1vh] ${activeTopTool === 'editor' ? 'bg-[#000000]' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
               >
                 <Icon icon="tabler:edit" width="1.1vw" height="1.1vw" className={activeTopTool === 'editor' ? 'text-white' : ''} />
               </button>
-              
+
               {/* Hand / Pan Tool */}
-              <button 
+              <button
                 onClick={() => setActiveTopTool('interaction')}
                 className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'interaction' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
               >
                 <Icon icon="hugeicons:touch-interaction-01" width="1.2vw" height="1.2vw" />
               </button>
-              
+
               {/* Star / Special Tool */}
-              <button 
+              <button
                 onClick={() => setActiveTopTool('animation')}
                 className={`w-[2.1vw] h-[2.1vw] cursor-pointer rounded-[0.4vw] flex items-center justify-center transition-all ${activeTopTool === 'animation' ? 'bg-[#000000] text-white' : 'hover:bg-white text-[#9EA1A7] hover:text-[#111827]'}`}
               >
@@ -4497,30 +5007,99 @@ const MainEditor = ({
           </div>
         )}
 
-        {/* Bottom Group: Creation & Widgets - HIDDEN for PDF projects */}
-        {!isPdfProject && activeTopTool === 'editor' && (
-          <div className="absolute right-0 top-[20vh] z-50">
+        {/* Floating Menu Button (Top Right Edge for Popup Editor) */}
+        {!isPdfProject && isPopupEditor && (
+          <div className="absolute right-0 top-[2.5vh] z-50">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
-              
               {/* Perfect Inverted Corner Top */}
               <div className="absolute -top-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] border-gray-300 pointer-events-none">
                 <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4"/>
-                  <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#acb0b6ff" strokeWidth="3"/>
+                  <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4" />
+                  <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#acb0b6ff" strokeWidth="3" />
                 </svg>
               </div>
 
               {/* Perfect Inverted Corner Bottom */}
               <div className="absolute -bottom-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] pointer-events-none">
                 <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4"/>
-                  <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#acb0b6ff" strokeWidth="3"/>
+                  <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4" />
+                  <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#acb0b6ff" strokeWidth="3" />
+                </svg>
+              </div>
+
+              <div className="flex items-center justify-start group">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const displayIdx = activePageIndex;
+                    setOpenMenuIndex(openMenuIndex === displayIdx ? null : displayIdx);
+                  }}
+                  className="w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer bg-white shadow-sm hover:bg-gray-50"
+                >
+                  <Icon icon="ci:hamburger-md" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                </button>
+              </div>
+
+              <AnimatePresence>
+                {openMenuIndex === activePageIndex && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 10, scale: 0.95 }}
+                    className="absolute top-0 right-[3.5vw] w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MenuOption
+                      icon={<TemplateIcon />}
+                      label="Change Template"
+                      onClick={() => {
+                        onOpenTemplateModal(activePageIndex);
+                        setOpenMenuIndex(null);
+                      }}
+                    />
+                    <MenuOption
+                      icon={<ClearIcon />}
+                      label="Clear"
+                      onClick={() => { clearPage(activePageIndex); setOpenMenuIndex(null); }}
+                    />
+                    <MenuOption
+                      icon={<DeleteIcon />}
+                      label="Delete"
+                      color="text-red-500"
+                      hoverColor="hover:bg-red-50"
+                      onClick={() => { deletePage(activePageIndex); setOpenMenuIndex(null); }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Group: Creation & Widgets - HIDDEN for PDF projects */}
+        {!isPdfProject && activeTopTool === 'editor' && (
+          <div className="absolute right-0 top-[20vh] z-50">
+            <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
+
+              {/* Perfect Inverted Corner Top */}
+              <div className="absolute -top-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] border-gray-300 pointer-events-none">
+                <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 100 V0 C100 55.2285 55.2285 100 0 100 H100Z" fill="#F1F3F4" />
+                  <path d="M0 100 C55.2285 100 100 55.2285 100 0" stroke="#acb0b6ff" strokeWidth="3" />
+                </svg>
+              </div>
+
+              {/* Perfect Inverted Corner Bottom */}
+              <div className="absolute -bottom-[0.8vw] right-0 w-[0.8vw] h-[0.8vw] pointer-events-none">
+                <svg width="100%" height="100%" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M100 0 V100 C100 44.7715 55.2285 0 0 0 H100Z" fill="#F1F3F4" />
+                  <path d="M0 0 C55.2285 0 100 44.7715 100 100" stroke="#acb0b6ff" strokeWidth="3" />
                 </svg>
               </div>
 
               {/* White Upload Button - matching top group size */}
               <div className="pt-[0.1vh] mb-[0.8vh] flex items-center justify-start group gap-[0.3vw]">
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveMainTool('upload');
@@ -4538,7 +5117,7 @@ const MainEditor = ({
                 {/* Select Tool Options Dropdown */}
                 {showSelectOptions && (
                   <div className="absolute right-[4.2vw] top-[-1.5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'select' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4550,8 +5129,8 @@ const MainEditor = ({
                       <Icon icon="clarity:cursor-arrow-line" width="1.1vw" height="1.1vw" className={`${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
                       <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedSelectTool === 'select' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Select</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedSelectTool === 'direct' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4566,7 +5145,7 @@ const MainEditor = ({
                   </div>
                 )}
 
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveMainTool('select');
@@ -4581,14 +5160,14 @@ const MainEditor = ({
                   }}
                   className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'select' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
                 >
-                  <Icon 
-                    icon={selectedSelectTool === 'select' ? 'clarity:cursor-arrow-line' : 'clarity:cursor-arrow-solid'} 
-                    width="1.2vw" 
-                    height="1.2vw" 
-                    className="text-[#111827]" 
+                  <Icon
+                    icon={selectedSelectTool === 'select' ? 'clarity:cursor-arrow-line' : 'clarity:cursor-arrow-solid'}
+                    width="1.2vw"
+                    height="1.2vw"
+                    className="text-[#111827]"
                   />
                 </button>
-                <div 
+                <div
                   className="w-[0.7vw] flex justify-center"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -4607,7 +5186,7 @@ const MainEditor = ({
                 {/* Pen Tool Options Dropdown */}
                 {showPenOptions && (
                   <div className="absolute right-[4.2vw] top-[-5vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[1vh] shadow-lg z-50 w-[2.7vw]">
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pen' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4619,8 +5198,8 @@ const MainEditor = ({
                       <Icon icon="streamline-cyber:pen-tool" width="1.1vw" height="1.1vw" className={`${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
                       <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'pen' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Pen</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.3vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'curve' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4633,7 +5212,7 @@ const MainEditor = ({
                       <span className={`text-[0.5vw] font-medium mt-[0.2vh] ${selectedPenTool === 'curve' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Curve</span>
                     </button>
 
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedPenTool === 'pencil' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4648,7 +5227,7 @@ const MainEditor = ({
                   </div>
                 )}
 
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveMainTool('pen');
@@ -4672,7 +5251,7 @@ const MainEditor = ({
                     <Icon icon="streamline-cyber:pen-tool" width="1.2vw" height="1.2vw" className="text-[#111827]" />
                   )}
                 </button>
-                <div 
+                <div
                   className="w-[0.7vw] flex justify-center"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -4688,7 +5267,7 @@ const MainEditor = ({
 
               {/* Type Tool Row */}
               <div className="flex items-center justify-start group gap-[0.3vw] mb-[0.8vh] cursor-pointer">
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveMainTool('type');
@@ -4706,7 +5285,7 @@ const MainEditor = ({
                 {/* Shapes Tool Options Dropdown */}
                 {showShapesOptions && (
                   <div className="absolute right-[4.2vw] top-[-12vh] bg-[#F1F3F4] rounded-[0.6vw] border border-gray-300 p-[0.3vw] flex flex-col items-center gap-[0.8vh] shadow-lg z-50 w-[2.7vw]">
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'rectangle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4718,8 +5297,8 @@ const MainEditor = ({
                       <Icon icon="lucide:square" width="1vw" height="1vw" className={`${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#4B5563]'} group-hover/opt:text-[#111827]`} />
                       <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'rectangle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Rectangle</span>
                     </button>
-                    
-                    <button 
+
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'circle' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4732,7 +5311,7 @@ const MainEditor = ({
                       <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'circle' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Circle</span>
                     </button>
 
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'polygon' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4745,7 +5324,7 @@ const MainEditor = ({
                       <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'polygon' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Polygon</span>
                     </button>
 
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'line' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4758,7 +5337,7 @@ const MainEditor = ({
                       <span className={`text-[0.45vw] font-medium mt-[0.1vh] ${selectedShapeTool === 'line' ? 'text-[#111827]' : 'text-[#6B7280]'} group-hover/opt:text-[#111827]`}>Line</span>
                     </button>
 
-                    <button 
+                    <button
                       className={`w-[2.1vw] h-[2.1vw] p-[0.2vw] flex flex-col items-center justify-center rounded-[0.4vw] transition-all group/opt ${selectedShapeTool === 'star' ? 'bg-white shadow-sm' : 'hover:bg-white/50'}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4773,7 +5352,7 @@ const MainEditor = ({
                   </div>
                 )}
 
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveMainTool('shapes');
@@ -4789,19 +5368,19 @@ const MainEditor = ({
                   }}
                   className={`w-[2.1vw] h-[2.1vw] flex items-center justify-center rounded-[0.4vw] transition-all cursor-pointer ${activeMainTool === 'shapes' ? 'bg-[#FFFFFF] shadow-sm' : 'hover:bg-white/50'}`}
                 >
-                  <Icon 
+                  <Icon
                     icon={
-                      selectedShapeTool === 'rectangle' ? 'lucide:square' : 
-                      selectedShapeTool === 'circle' ? 'lucide:circle' : 
-                      selectedShapeTool === 'polygon' ? 'lucide:triangle' : 
-                      selectedShapeTool === 'line' ? 'tabler:line' : 'lucide:star'
-                    } 
-                    width="1.2vw" 
-                    height="1.2vw" 
-                    className={`text-[#111827] ${selectedShapeTool === 'line' ? 'rotate-[-45deg]' : ''}`} 
+                      selectedShapeTool === 'rectangle' ? 'lucide:square' :
+                        selectedShapeTool === 'circle' ? 'lucide:circle' :
+                          selectedShapeTool === 'polygon' ? 'lucide:triangle' :
+                            selectedShapeTool === 'line' ? 'tabler:line' : 'lucide:star'
+                    }
+                    width="1.2vw"
+                    height="1.2vw"
+                    className={`text-[#111827] ${selectedShapeTool === 'line' ? 'rotate-[-45deg]' : ''}`}
                   />
                 </button>
-                <div 
+                <div
                   className="w-[0.7vw] flex justify-center"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -4817,7 +5396,7 @@ const MainEditor = ({
 
               {/* Grid Tool Row */}
               <div className="flex items-center justify-start group gap-[0.3vw] cursor-pointer">
-                <button 
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     setActiveMainTool('grid');
@@ -4834,43 +5413,17 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
-        <div 
-          ref={canvasWrapperRef}
-          className="w-full h-full flex items-center justify-center relative overflow-hidden bg-white"
-          onWheel={handleWheelZoom}
-          onMouseDown={handlePanStart}
-          onMouseMove={handlePanMove}
-          onMouseUp={handlePanEnd}
-          onMouseLeave={handlePanEnd}
-          style={{ 
-            cursor: isSpacePressed ? (isPanning ? 'grabbing' : 'grab') : 'default',
-            userSelect: isSpacePressed ? 'none' : 'auto',
-            WebkitUserSelect: isSpacePressed ? 'none' : 'auto'
-          }}
-        >
-          {/* Invisible pan-lock overlay: controlled directly via panOverlayRef — no React re-renders */}
-          <div
-            ref={panOverlayRef}
-            style={{
-              display: 'none',
-              position: 'absolute',
-              inset: 0,
-              zIndex: 9999,
-              cursor: 'grab',
-              background: 'transparent',
-            }}
-          />
+        <div className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}>
           {/* Left Navigation-Button */}
-          <button 
+          <button
             disabled={activePageIndex === 0}
             onClick={handlePrevPage}
             className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${activePageIndex === 0 ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'}`}
-            style={{ 
-              left: `calc(50% - ${
-                isCurrentlySpread
-                  ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)` 
-                  : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
-              } * (${zoom / 100}) - 3.2vw)`,
+            style={{
+              left: `calc(50% - ${isCurrentlySpread
+                ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)`
+                : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
+                } * (${zoom / 100}) - 3.2vw)`,
               top: '50%',
               transform: 'translate(-50%, -50%)'
             }}
@@ -4879,13 +5432,12 @@ const MainEditor = ({
           </button>
 
           {/* Zoomable Canvas Container with Perimeter Shadow */}
-          <div 
-            ref={zoomableCanvasRef}
-            className={`flex items-center justify-center origin-center gap-[0] bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]`}
-            style={{ 
-              transform: `translate3d(${panXRef.current}px, ${panYRef.current}px, 0) scale(${zoom / 100})`,
-              transition: (isWheeling || isPanning) ? 'none' : 'transform 0.3s ease',
-              willChange: 'transform',
+          <div
+            ref={zoomContainerRef}
+            className={`flex items-center justify-center origin-center gap-[0] ${isPopupEditor ? 'bg-transparent border-none shadow-[0_30px_100px_-10px_rgba(0,0,0,0.3),_0_0_50px_rgba(0,0,0,0.05)]' : 'bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]'} ${!isSpaceDown ? 'transition-all duration-300' : ''}`}
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100})`,
+              borderRadius: isPopupEditor ? '1.2vw' : '0'
             }}
           >
             {/* A4 Canvas Page 1 (Left Page in Spread or Hidden if Cover) */}
@@ -4893,86 +5445,91 @@ const MainEditor = ({
 
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top) */}
-                {!isPdfProject && ((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
-                <div className="absolute top-[-2.5vw] z-30" style={{ [isCurrentlySpread ? 'left' : 'right']: '0vw' }}>
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const displayIdx = isDoublePage ? spreadStartIndex : activePageIndex;
-                      setOpenMenuIndex(openMenuIndex === displayIdx ? null : displayIdx);
-                    }}
+                {!isPdfProject && !isPopupEditor && ((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
+                  <div className="absolute top-[-2.5vw] z-30" style={{ [isCurrentlySpread ? 'left' : 'right']: '0vw' }}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const displayIdx = isDoublePage ? spreadStartIndex : activePageIndex;
+                        setOpenMenuIndex(openMenuIndex === displayIdx ? null : displayIdx);
+                      }}
 
-                    className={`cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200`}
-                  >
-                    <Icon icon={isCurrentlySpread ? "ri:menu-fold-4-fill" : "ri:menu-unfold-4-fill"} width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                  </button>
+                      className={`cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200`}
+                    >
+                      <Icon icon="ci:hamburger-md" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                    </button>
 
-                  <AnimatePresence>
-                    {(() => {
-                      const displayIdx = isDoublePage ? spreadStartIndex : activePageIndex;
-                      return openMenuIndex === displayIdx && (
+                    <AnimatePresence>
+                      {(() => {
+                        const displayIdx = isDoublePage ? spreadStartIndex : activePageIndex;
+                        return openMenuIndex === displayIdx && (
 
-                      <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                        className="absolute top-full mt-[0.5vw] left-0 w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {!isPdfProject && (
-                          <MenuOption 
-                            icon={<PlusIcon />} 
-                            label="Add Page" 
-                            onClick={() => { insertPageAfter(activePageIndex); setOpenMenuIndex(null); }}
-                          />
-                        )}
-                        <MenuOption 
-                          icon={<FilePlusIcon />} 
-                          label="Add File" 
-                          onClick={() => { onAddFile && onAddFile(activePageIndex); setOpenMenuIndex(null); }}
-                        />
-                        <MenuOption 
-                          icon={<DuplicateIcon />} 
-                          label="Duplicate" 
-                          onClick={() => { duplicatePage(activePageIndex); setOpenMenuIndex(null); }}
-                        />
-                        {!isPdfProject && (
-                          <MenuOption 
-                            icon={<TemplateIcon />} 
-                            label="Template" 
-                            onClick={() => {
-                              onOpenTemplateModal(activePageIndex);
-                              setOpenMenuIndex(null);
-                            }}
-                          />
-                        )}
-                        <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
-                        {!isPdfProject && (
-                          <MenuOption 
-                            icon={<ClearIcon />} 
-                            label="Clear" 
-                            onClick={() => { clearPage(activePageIndex); setOpenMenuIndex(null); }}
-                          />
-                        )}
-                        <MenuOption 
-                          icon={<DeleteIcon />} 
-                          label="Delete" 
-                          color="text-red-500" 
-                          hoverColor="hover:bg-red-50"
-                          onClick={() => { deletePage(activePageIndex); setOpenMenuIndex(null); }}
-                        />
-                      </motion.div>
-                      );
-                    })()}
-                  </AnimatePresence>
-                </div>
+                          <motion.div
+                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                            className="absolute top-full mt-[0.5vw] left-0 w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {!isPdfProject && (
+                              <MenuOption
+                                icon={<PlusIcon />}
+                                label="Add Page"
+                                onClick={() => { insertPageAfter(activePageIndex); setOpenMenuIndex(null); }}
+                              />
+                            )}
+                            <MenuOption
+                              icon={<FilePlusIcon />}
+                              label="Add File"
+                              onClick={() => { onAddFile && onAddFile(activePageIndex); setOpenMenuIndex(null); }}
+                            />
+                            <MenuOption
+                              icon={<DuplicateIcon />}
+                              label="Duplicate"
+                              onClick={() => { duplicatePage(activePageIndex); setOpenMenuIndex(null); }}
+                            />
+                            {!isPdfProject && (
+                              <MenuOption
+                                icon={<TemplateIcon />}
+                                label="Template"
+                                onClick={() => {
+                                  onOpenTemplateModal(activePageIndex);
+                                  setOpenMenuIndex(null);
+                                }}
+                              />
+                            )}
+                            <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
+                            {!isPdfProject && (
+                              <MenuOption
+                                icon={<ClearIcon />}
+                                label="Clear"
+                                onClick={() => { clearPage(activePageIndex); setOpenMenuIndex(null); }}
+                              />
+                            )}
+                            <MenuOption
+                              icon={<DeleteIcon />}
+                              label="Delete"
+                              color="text-red-500"
+                              hoverColor="hover:bg-red-50"
+                              onClick={() => { deletePage(activePageIndex); setOpenMenuIndex(null); }}
+                            />
+                          </motion.div>
+                        );
+                      })()}
+                    </AnimatePresence>
+                  </div>
                 )}
 
                 {/* A4 Canvas Page 1 Inner */}
-                <div 
+                <div
                   className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${isDoublePage && spreadStartIndex === activePageIndex ? 'active-page-outline' : ''}`}
-                  style={{ 
-                    height: '78vh', 
+                  style={isPopupEditor ? {
+                    width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
+                    height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
+                    borderRadius: '1.2vw',
+                    backgroundColor: '#ffffff'
+                  } : {
+                    height: '78vh',
                     aspectRatio: canvasAspectRatio,
                     minHeight: '400px',
                   }}
@@ -4981,61 +5538,76 @@ const MainEditor = ({
                   <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
-                        const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
-                        const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
-                        const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
-                        const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
-                        const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
+                      const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
+                      const isShapeActive = activeMainTool === 'shapes' && displayIndex === activePageIndex;
+                      const isPencilActive = activeMainTool === 'pen' && selectedPenTool === 'pencil' && displayIndex === activePageIndex;
+                      const isPenToolActive = activeMainTool === 'pen' && displayIndex === activePageIndex;
+                      const isTypeActive = activeMainTool === 'type' && displayIndex === activePageIndex;
 
-                        return pages[displayIndex]?.html ? (
-                        <div 
-                          className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
+                      return pages[displayIndex]?.html ? (
+                        <div
+                          className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
                           style={{ cursor: isEditingText ? 'text' : (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
                         >
-                         <div 
-                           className="w-full h-full flex items-center justify-center"
-                           dangerouslySetInnerHTML={{ __html: typeof processSvgHtmlForRender !== 'undefined' ? processSvgHtmlForRender(pages[displayIndex]?.html) : pages[displayIndex]?.html }}
-                           onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                           onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                           onMouseLeave={handleSvgMouseLeave}
-                           onClick={handleSvgClick}
-                           // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                           onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                         />
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            dangerouslySetInnerHTML={{ __html: pages[displayIndex]?.html }}
+                            onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                            onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
+                            onMouseLeave={handleSvgMouseLeave}
+                            onClick={handleSvgClick}
+                            // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
+                            onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
+                          />
                           {/* Selection Overlay (Overlay rotated element perfectly) */}
-                          <svg 
+                          <svg
                             id={`highlight-overlay-${displayIndex}`}
-                            className="absolute inset-0 w-full h-full selection-overlay-layer" style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
                           />
 
                           {/* HTML Overlay for Resize Handles (Clickable) */}
-                          <div 
+                          <div
                             id={`highlight-overlay-html-${displayIndex}`}
-                            className="absolute inset-0 w-full h-full" style={{ overflow: 'visible', pointerEvents: 'none' }}
+                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
                           />
+                          <AnimatePresence>
+                            {selectedLayerId && !isEditingText && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                              <SelectionTooltip
+                                selectedId={selectedLayerId}
+                                multiSelectedIds={multiSelectedIds}
+                                zoom={zoom}
+                                setActiveTopTool={setActiveTopTool}
+                                pageIndex={displayIndex}
+                                activePageIndex={activePageIndex}
+                                updateElementAttribute={updateElementAttribute}
+                                activeTopTool={activeTopTool}
+                              />
+                            )}
+                          </AnimatePresence>
 
 
-                           {/* Marquee Selection Box */}
-                           <div 
-                             ref={marqueeOverlayRef1}
-                             style={{
-                               position: 'absolute',
-                               border: '1px solid #6366F1',
-                               backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                               pointerEvents: 'none',
-                               zIndex: 1000,
-                               display: 'none'
-                             }}
-                           />
-                      </div>
-                    ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-                        <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">Base sheet ({baseWidth.toFixed(2)} x {baseHeight.toFixed(2)} mm)</span>
-                        {displayIndex === activePageIndex && (
-                          <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
-                        )}
-                      </div>
-                    );
+
+                          {/* Marquee Selection Box */}
+                          <div
+                            ref={marqueeOverlayRef1}
+                            style={{
+                              position: 'absolute',
+                              border: '1px solid #6366F1',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              pointerEvents: 'none',
+                              zIndex: 1000,
+                              display: 'none'
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
+                          <span className="text-[1.1vw] text-gray-300 font-medium mb-[0.4vw]">Base sheet ({baseWidth.toFixed(2)} x {baseHeight.toFixed(2)} mm)</span>
+                          {displayIndex === activePageIndex && (
+                            <span className="text-[1.5vw] text-gray-300 font-medium">Choose Templets to Edit page</span>
+                          )}
+                        </div>
+                      );
                     })()}
 
 
@@ -5043,7 +5615,7 @@ const MainEditor = ({
                     {(() => {
                       const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
                       return !pages[displayIndex]?.html && displayIndex === activePageIndex && (
-                        <div 
+                        <div
                           className="absolute inset-0 z-10"
                           onClick={() => onOpenTemplateModal(displayIndex)}
                           onContextMenu={(e) => e.preventDefault()}
@@ -5067,86 +5639,91 @@ const MainEditor = ({
 
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top - Right Side) */}
-                {!isPdfProject && ((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
-                <div className="absolute top-[-2.5vw] right-0 z-30">
-                  <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
-                      setOpenMenuIndex(openMenuIndex === displayIndex ? null : displayIndex);
-                    }}
+                {!isPdfProject && !isPopupEditor && ((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
+                  <div className="absolute top-[-2.5vw] right-0 z-30">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
+                        setOpenMenuIndex(openMenuIndex === displayIndex ? null : displayIndex);
+                      }}
 
-                    className="cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200"
-                  >
-                    <Icon icon="ri:menu-unfold-4-fill" width="1.2vw" height="1.2vw" className="text-[#111827]" />
-                  </button>
+                      className="cursor-pointer rounded-[0.5vw] bg-[#F3F4F6] transition-all duration-300 flex items-center justify-center w-[2vw] h-[2vw] shadow-sm hover:bg-gray-200"
+                    >
+                      <Icon icon="ci:hamburger-md" width="1.2vw" height="1.2vw" className="text-[#111827]" />
+                    </button>
 
-                  <AnimatePresence>
-                    {(() => {
-                      const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
-                      return openMenuIndex === displayIndex && (
+                    <AnimatePresence>
+                      {(() => {
+                        const displayIndex = activePageIndex === 0 ? 0 : spreadStartIndex + 1;
+                        return openMenuIndex === displayIndex && (
 
-                        <motion.div
-                          initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                          className="absolute top-full mt-[0.5vw] right-0 w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          {!isPdfProject && (
-                            <MenuOption 
-                              icon={<PlusIcon />} 
-                              label="Add Page" 
-                              onClick={() => { insertPageAfter(displayIndex); setOpenMenuIndex(null); }}
+                          <motion.div
+                            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                            className="absolute top-full mt-[0.5vw] right-0 w-[12vw] bg-white rounded-[0.8vw] shadow-xl border border-gray-100 p-[0.5vw] z-[9999] flex flex-col gap-[0.2vw]"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {!isPdfProject && (
+                              <MenuOption
+                                icon={<PlusIcon />}
+                                label="Add Page"
+                                onClick={() => { insertPageAfter(displayIndex); setOpenMenuIndex(null); }}
+                              />
+                            )}
+                            <MenuOption
+                              icon={<FilePlusIcon />}
+                              label="Add File"
+                              onClick={() => { onAddFile && onAddFile(displayIndex); setOpenMenuIndex(null); }}
                             />
-                          )}
-                          <MenuOption 
-                            icon={<FilePlusIcon />} 
-                            label="Add File" 
-                            onClick={() => { onAddFile && onAddFile(displayIndex); setOpenMenuIndex(null); }}
-                          />
-                          <MenuOption 
-                            icon={<DuplicateIcon />} 
-                            label="Duplicate" 
-                            onClick={() => { duplicatePage(displayIndex); setOpenMenuIndex(null); }}
-                          />
-                          {!isPdfProject && (
-                            <MenuOption 
-                              icon={<TemplateIcon />} 
-                              label="Template" 
-                              onClick={() => {
-                                onOpenTemplateModal(displayIndex);
-                                setOpenMenuIndex(null);
-                              }}
+                            <MenuOption
+                              icon={<DuplicateIcon />}
+                              label="Duplicate"
+                              onClick={() => { duplicatePage(displayIndex); setOpenMenuIndex(null); }}
                             />
-                          )}
-                          <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
-                          {!isPdfProject && (
-                            <MenuOption 
-                              icon={<ClearIcon />} 
-                              label="Clear" 
-                              onClick={() => { clearPage(displayIndex); setOpenMenuIndex(null); }}
+                            {!isPdfProject && (
+                              <MenuOption
+                                icon={<TemplateIcon />}
+                                label="Template"
+                                onClick={() => {
+                                  onOpenTemplateModal(displayIndex);
+                                  setOpenMenuIndex(null);
+                                }}
+                              />
+                            )}
+                            <div className="h-[0.1vw] bg-gray-100 my-[0.2vw] mx-[0.4vw]" />
+                            {!isPdfProject && (
+                              <MenuOption
+                                icon={<ClearIcon />}
+                                label="Clear"
+                                onClick={() => { clearPage(displayIndex); setOpenMenuIndex(null); }}
+                              />
+                            )}
+                            <MenuOption
+                              icon={<DeleteIcon />}
+                              label="Delete"
+                              color="text-red-500"
+                              hoverColor="hover:bg-red-50"
+                              onClick={() => { deletePage(displayIndex); setOpenMenuIndex(null); }}
                             />
-                          )}
-                          <MenuOption 
-                            icon={<DeleteIcon />} 
-                            label="Delete" 
-                            color="text-red-500" 
-                            hoverColor="hover:bg-red-50"
-                            onClick={() => { deletePage(displayIndex); setOpenMenuIndex(null); }}
-                          />
-                        </motion.div>
-                      );
-                    })()}
-                  </AnimatePresence>
-                </div>
+                          </motion.div>
+                        );
+                      })()}
+                    </AnimatePresence>
+                  </div>
                 )}
 
                 {/* A4 Canvas Page 2 Inner */}
-                <div 
+                <div
                   className={`relative z-0 flex flex-col overflow-hidden bg-white group/inner transition-all duration-300 ${(activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex ? 'active-page-outline' : ''}`}
-                  style={{ 
-                    height: '78vh', 
+                  style={isPopupEditor ? {
+                    width: `min(55vw, 72vh * (${canvasAspectRatio}))`,
+                    height: `min(72vh, 55vw / (${canvasAspectRatio}))`,
+                    borderRadius: '1.2vw',
+                    backgroundColor: '#ffffff'
+                  } : {
+                    height: '78vh',
                     aspectRatio: canvasAspectRatio,
                     minHeight: '400px',
                   }}
@@ -5165,43 +5742,58 @@ const MainEditor = ({
 
                       return page?.html ? (
                         <div
-                          className="absolute inset-0 w-full h-full overflow-visible flex items-center justify-center bg-white"
+                          className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
                           style={{ cursor: isEditingText ? 'text' : ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
                         >
-                           <div
-                             className="w-full h-full flex items-center justify-center"
-                             dangerouslySetInnerHTML={{ __html: typeof processSvgHtmlForRender !== 'undefined' ? processSvgHtmlForRender(page.html) : page.html }}
-                             onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
-                             onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
-                             onMouseLeave={handleSvgMouseLeave}
-                             onClick={handleSvgClick}
-                             // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
-                             onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
-                           />
-                           {/* Selection Overlay (Overlay rotated element perfectly) */}
-                           <svg 
-                             id={`highlight-overlay-${displayIndex}`}
-                             className="absolute inset-0 w-full h-full selection-overlay-layer" style={{ overflow: 'visible', pointerEvents: 'none' }}
-                           />
-                           
-                           {/* HTML Overlay for Resize Handles (Clickable) */}
-                           <div 
-                             id={`highlight-overlay-html-${displayIndex}`}
-                             className="absolute inset-0 w-full h-full" style={{ overflow: 'visible', pointerEvents: 'none' }}
-                           />
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            dangerouslySetInnerHTML={{ __html: page.html }}
+                            onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
+                            onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
+                            onMouseLeave={handleSvgMouseLeave}
+                            onClick={handleSvgClick}
+                            // onDoubleClick={handleSvgDoubleClick} // replaced by manual detection in handleSvgClick
+                            onContextMenu={(e) => handleSvgContextMenu(displayIndex, e)}
+                          />
+                          {/* Selection Overlay (Overlay rotated element perfectly) */}
+                          <svg
+                            id={`highlight-overlay-${displayIndex}`}
+                            className={`absolute inset-0 w-full h-full selection-overlay-layer transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                          />
 
-                           {/* Marquee Selection Box */}
-                           <div 
-                             ref={marqueeOverlayRef2}
-                             style={{
-                               position: 'absolute',
-                               border: '1px solid #6366F1',
-                               backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                               pointerEvents: 'none',
-                               zIndex: 1000,
-                               display: 'none'
-                             }}
-                           />
+                          {/* HTML Overlay for Resize Handles (Clickable) */}
+                          <div
+                            id={`highlight-overlay-html-${displayIndex}`}
+                            className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
+                          />
+                          <AnimatePresence>
+                            {selectedLayerId && !isEditingText && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                              <SelectionTooltip
+                                selectedId={selectedLayerId}
+                                multiSelectedIds={multiSelectedIds}
+                                zoom={zoom}
+                                setActiveTopTool={setActiveTopTool}
+                                pageIndex={displayIndex}
+                                activePageIndex={activePageIndex}
+                                updateElementAttribute={updateElementAttribute}
+                                activeTopTool={activeTopTool}
+                              />
+                            )}
+                          </AnimatePresence>
+
+
+                          {/* Marquee Selection Box */}
+                          <div
+                            ref={marqueeOverlayRef2}
+                            style={{
+                              position: 'absolute',
+                              border: '1px solid #6366F1',
+                              backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                              pointerEvents: 'none',
+                              zIndex: 1000,
+                              display: 'none'
+                            }}
+                          />
                         </div>
                       ) : (
                         <>
@@ -5213,7 +5805,7 @@ const MainEditor = ({
                           </div>
                           {/* Click Overlay to open gallery */}
                           {displayIndex === activePageIndex && (
-                            <div 
+                            <div
                               className="absolute inset-0 cursor-pointer z-10"
                               onClick={() => onOpenTemplateModal(displayIndex)}
                               onContextMenu={(e) => e.preventDefault()}
@@ -5221,7 +5813,7 @@ const MainEditor = ({
                           )}
                         </>
                       );
-                  })()}
+                    })()}
                   </div>
                 </div>
               </div>
@@ -5229,35 +5821,39 @@ const MainEditor = ({
           </div>
 
           {/* Right Navigation Button */}
-          <button 
-            disabled={isDoublePage 
-              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length)) 
+          <button
+            disabled={isDoublePage
+              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length))
               : activePageIndex + 1 >= pages.length
             }
             onClick={handleNextPage}
-            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${ 
-              (isDoublePage 
-                ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length)) 
-                : activePageIndex + 1 >= pages.length
-              ) ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'
-            }`}
-            style={{ 
-              right: `calc(50% - ${
-                isCurrentlySpread
-                  ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)` 
-                  : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
-              } * (${zoom / 100}) - 3.2vw)`,
+            className={`absolute rounded-full hover:bg-black/5 transition-all duration-300 group z-30 shrink-0 flex items-center justify-center w-[2.2vw] h-[2.2vw] hover:w-[3.2vw] hover:h-[3.2vw] ${(isDoublePage
+              ? (activePageIndex === 0 ? pages.length <= 1 : (isCurrentlySpread ? spreadStartIndex + 2 >= pages.length : spreadStartIndex + 1 >= pages.length))
+              : activePageIndex + 1 >= pages.length
+            ) ? 'opacity-20 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+            style={{
+              right: `calc(50% - ${isCurrentlySpread
+                ? `((78vh / (${baseHeight} / ${baseWidth})) * 1.0)`
+                : `((78vh / (${baseHeight} / ${baseWidth})) / 2)`
+                } * (${zoom / 100}) - 3.2vw)`,
               top: '50%',
               transform: 'translate(50%, -50%)'
             }}
           >
             <Icon icon="ion:caret-up" width="1.8vw" height="1.8vw" className="text-[#6B7280] group-hover:text-[#111827] rotate-[90deg]" />
           </button>
-        </div>
 
-        {/* Page Counter */}
-        <div className="absolute bottom-[2vh] right-[2vw] z-50 bg-white/80 backdrop-blur-sm px-[1vw] py-[0.5vh] rounded-full shadow-md border border-gray-200 text-[#4B5563] text-[0.9vw] font-medium pointer-events-none">
-          {activePageIndex + 1} / {pages.length}
+          {/* Page Number Indicator */}
+          {pages.length > 0 && (
+            <div className="absolute bottom-[0.5vw] right-[0.3vw] bg-white border border-gray-200 shadow-sm rounded-full px-[1vw] py-[0.4vw] flex items-center justify-center z-40 select-none pointer-events-none">
+              <span className="text-[#4B5563] text-[0.85vw] font-medium tracking-wide">
+                {isDoublePage && isCurrentlySpread
+                  ? `${spreadStartIndex + 1}-${Math.min(spreadStartIndex + 2, pages.length)} / ${pages.length}`
+                  : `${activePageIndex + 1} / ${pages.length}`}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -5281,10 +5877,10 @@ const PlusIcon = () => (
 
 const FilePlusIcon = () => (
   <svg width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="12" y1="18" x2="12" y2="12"/>
-    <line x1="9" y1="15" x2="15" y2="15"/>
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="12" y1="18" x2="12" y2="12" />
+    <line x1="9" y1="15" x2="15" y2="15" />
   </svg>
 );
 
@@ -5318,7 +5914,7 @@ const DeleteIcon = () => (
 );
 
 const MenuOption = ({ icon, label, onClick, color = "text-gray-700", hoverColor = "hover:bg-gray-50" }) => (
-  <button 
+  <button
     onClick={onClick}
     className={`w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] text-[0.75vw] font-medium transition-colors rounded-[0.4vw] text-left cursor-pointer ${color} ${hoverColor}`}
   >
@@ -5328,4 +5924,3 @@ const MenuOption = ({ icon, label, onClick, color = "text-gray-700", hoverColor 
 );
 
 export default MainEditor;
- 

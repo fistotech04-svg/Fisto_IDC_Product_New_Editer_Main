@@ -266,11 +266,20 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
             <Download size="1.2vw" />
           </button>
 
+          {/* Profile */}
+          <button 
+            onClick={() => setIsProfileOpen(true)}
+            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
+            title="Profile"
+          >
+            <User size="1.2vw" />
+          </button>
+
           {/* Preview Button - Hidden on 3D Editor */}
           {!isThreedEditor && (
             <button 
               onClick={onPreview}
-              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0 ml-[0.2vw] cursor-pointer"
+              className="w-[2.5vw] h-[2.5vw] flex items-center justify-center bg-[#4A3AFF] border border-indigo-600 rounded-[0.75vw] text-white shadow-sm hover:bg-indigo-400 transition-colors flex-shrink-0 ml-[0.2vw]"
               title="Preview Book"
             >
               <Icon icon="ic:baseline-preview" className="w-[1.25vw] h-[1.25vw]" />
@@ -336,15 +345,6 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
               </>
             )}
           </div>
-
-          {/* Profile */}
-          <button 
-            onClick={() => setIsProfileOpen(true)}
-            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
-            title="Profile"
-          >
-            <User size="1.2vw" />
-          </button>
         </div>
       </nav>
 

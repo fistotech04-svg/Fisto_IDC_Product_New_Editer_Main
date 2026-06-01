@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { 
-  ArrowLeft, MoreVertical, Layers, Plus, Copy, Edit2, 
-  Layout, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine, 
-  Ban, Trash2, FilePlus, GripVertical, 
-  Folder, Type, Image as ImageIcon, Square, Circle, Triangle, Star, Minus, 
+import {
+  ArrowLeft, MoreVertical, Layers, Plus, Copy, Edit2,
+  Layout, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine,
+  Ban, Trash2, FilePlus, GripVertical,
+  Folder, Type, Image as ImageIcon, Square, Circle, Triangle, Star, Minus,
   ChevronRight, ChevronDown, Eye, EyeOff, Lock, Unlock,
   Scissors, Clipboard, ArrowUpRight
 } from 'lucide-react';
@@ -14,14 +14,14 @@ import axios from 'axios';
 import AlertModal from '../AlertModal';
 import FileReplaceIcon from '@iconify-react/mdi/file-replace';
 
-const LayerItem = ({ 
-  layer, 
-  depth = 0, 
-  onToggleVisibility, 
-  onToggleLock, 
-  selectedLayerId, 
-  setSelectedLayerId, 
-  multiSelectedIds = new Set(), 
+const LayerItem = ({
+  layer,
+  depth = 0,
+  onToggleVisibility,
+  onToggleLock,
+  selectedLayerId,
+  setSelectedLayerId,
+  multiSelectedIds = new Set(),
   setMultiSelectedIds,
   renameLayer,
   pageIndex,
@@ -37,7 +37,7 @@ const LayerItem = ({
   const inputRef = useRef(null);
   const isGroup = layer.type === 'g' || (layer.children && layer.children.length > 0);
   const itemRef = useRef(null);
-  
+
   // Listen for custom trigger to start editing from context menu
   useEffect(() => {
     const handleTriggerRename = (e) => {
@@ -53,7 +53,7 @@ const LayerItem = ({
   // Determine if this item should be styled as "Selected"
   // In spread mode, we treat both root folders as "selected" if they are both in the set
   const isSelected = selectedLayerId === layer.id || (multiSelectedIds.size > 1 && multiSelectedIds.has(layer.id) && depth === 0);
-  
+
   // Is it part of multi-selection but not the primary?
   const isMultiOnly = multiSelectedIds.has(layer.id) && !isSelected && multiSelectedIds.size > 1;
 
@@ -73,7 +73,7 @@ const LayerItem = ({
   useEffect(() => {
     const handleExpandChain = (e) => {
       if (!isGroup) return;
-      
+
       const hasDescendant = (node, id) => {
         if (!node.children) return false;
         for (const child of node.children) {
@@ -111,7 +111,7 @@ const LayerItem = ({
   // Auto-collapse if selection is cleared (click outside workspace)
   useEffect(() => {
     if (!selectedLayerId && multiSelectedIds.size === 0 && isOpen) {
-       setIsOpen(false);
+      setIsOpen(false);
     }
   }, [selectedLayerId, multiSelectedIds]);
 
@@ -126,7 +126,7 @@ const LayerItem = ({
       case 'g': return <Folder size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'text': return <Type size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'rect': return <Square size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
-      case 'circle': 
+      case 'circle':
       case 'ellipse': return <Circle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'triangle':
       case 'path': return <Triangle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
@@ -210,24 +210,22 @@ const LayerItem = ({
 
   return (
     <div className="flex flex-col select-none">
-      <div 
+      <div
         ref={itemRef}
         draggable={!isEditing}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] group/layer transition-all border-l-2 ${
-          isDragOver ? 'border-l-[#6366F1] bg-[#EEF2FF]' : 'border-l-transparent'
-        } ${
-          isSelected
+        className={`flex items-center gap-[0.4vw] py-[0.5vh] pr-[0.5vw] rounded-[0.3vw] group/layer transition-all border-l-2 ${isDragOver ? 'border-l-[#6366F1] bg-[#EEF2FF]' : 'border-l-transparent'
+          } ${isSelected
             ? 'bg-[#E0E7FF] ring-1 ring-[#6366F1]/30'   // primary selection — solid indigo tint
             : layer.id === currentFrameId
-            ? 'bg-[#F5F3FF] border-l-[#A78BFA] ring-1 ring-dashed ring-[#A78BFA]/50' // Entered Frame style
-            : isMultiOnly
-            ? 'bg-[#EEF2FF]'                             // part of multi-set — lighter tint
-            : 'hover:bg-[#F3F4F6]'
-        }`}
+              ? 'bg-[#F5F3FF] border-l-[#A78BFA] ring-1 ring-dashed ring-[#A78BFA]/50' // Entered Frame style
+              : isMultiOnly
+                ? 'bg-[#EEF2FF]'                             // part of multi-set — lighter tint
+                : 'hover:bg-[#F3F4F6]'
+          }`}
         style={{ paddingLeft: `${depth * 0.8 + 0.5}vw` }}
         onClick={handleItemClick}
         onContextMenu={handleContextMenu}
@@ -271,22 +269,22 @@ const LayerItem = ({
 
         {/* Secondary Visibility/Lock Status (Small) */}
         <div className="flex items-center gap-[0.3vw] opacity-0 group-hover/layer:opacity-100 transition-opacity">
-          <button 
+          <button
             className="text-gray-400 hover:text-indigo-600"
-            onClick={(e) => { 
-                e.stopPropagation(); 
-                const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
-                onToggleVisibility && onToggleVisibility(ids); 
+            onClick={(e) => {
+              e.stopPropagation();
+              const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
+              onToggleVisibility && onToggleVisibility(ids);
             }}
           >
             {layer.visible === false ? <EyeOff size="0.7vw" /> : <Eye size="0.7vw" />}
           </button>
-          <button 
+          <button
             className="text-gray-400 hover:text-indigo-600"
-            onClick={(e) => { 
-                e.stopPropagation(); 
-                const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
-                onToggleLock && onToggleLock(ids); 
+            onClick={(e) => {
+              e.stopPropagation();
+              const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
+              onToggleLock && onToggleLock(ids);
             }}
           >
             {layer.locked === true ? <Lock size="0.7vw" /> : <Unlock size="0.7vw" />}
@@ -296,7 +294,7 @@ const LayerItem = ({
 
       <AnimatePresence>
         {isGroup && isOpen && layer.children && (
-          <motion.div 
+          <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -304,10 +302,10 @@ const LayerItem = ({
             className="flex flex-col overflow-hidden"
           >
             {[...layer.children].reverse().map((child, idx) => (
-              <LayerItem 
-                key={child.id || idx} 
-                layer={child} 
-                depth={depth + 1} 
+              <LayerItem
+                key={child.id || idx}
+                layer={child}
+                depth={depth + 1}
                 onToggleVisibility={onToggleVisibility}
                 onToggleLock={onToggleLock}
                 selectedLayerId={selectedLayerId}
@@ -330,10 +328,10 @@ const LayerItem = ({
 };
 
 // --- Main Layer Component ---
-const Layer = ({ 
-  pages, 
-  activePageIndex, 
-  setActivePageIndex, 
+const Layer = ({
+  pages,
+  activePageIndex,
+  setActivePageIndex,
   isDoublePage,
   insertPageAfter,
   duplicatePage,
@@ -369,7 +367,8 @@ const Layer = ({
   setCurrentBook,
   onSave,
   onAddFile,
-  onReplaceFile
+  onReplaceFile,
+  isExportModalOpen
 }) => {
   const navigate = useNavigate();
   const { folder, v_id } = useParams();
@@ -378,35 +377,7 @@ const Layer = ({
   const [isVisible, setIsVisible] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [activeTab, setActiveTab] = useState(pages.some(p => p.html && p.html.includes('data-name="PDF Background"')) ? 'pages' : 'layers');
-  const switchedByExportRef = useRef(false);
-  const activeTabRef = useRef(activeTab);
 
-  useEffect(() => {
-    activeTabRef.current = activeTab;
-  }, [activeTab]);
-
-  useEffect(() => {
-    const handleExportModalState = (e) => {
-      const { isOpen } = e.detail;
-      if (isOpen) {
-        if (activeTabRef.current === 'layers') {
-          switchedByExportRef.current = true;
-          setActiveTab('pages');
-        }
-      } else {
-        if (switchedByExportRef.current) {
-          setActiveTab('layers');
-          switchedByExportRef.current = false;
-        }
-      }
-    };
-
-    window.addEventListener('export-modal-state', handleExportModalState);
-    return () => {
-      window.removeEventListener('export-modal-state', handleExportModalState);
-    };
-  }, []);
-  
   // Menu State
   const [activeMenuPageId, setActiveMenuPageId] = useState(null);
   const menuRef = useRef(null);
@@ -419,7 +390,7 @@ const Layer = ({
   // Drag Reorder State
   const [draggedPageIndex, setDraggedPageIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
-  
+
   // Use a motion value for persistent Y
   const y = useMotionValue(0);
 
@@ -427,14 +398,14 @@ const Layer = ({
   const [allBooks, setAllBooks] = useState([]);
   const [isNameDuplicate, setIsNameDuplicate] = useState(false);
   const [alertState, setAlertState] = useState({
-      isOpen: false,
-      title: '',
-      message: '',
-      type: 'error'
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'error'
   });
-  
+
   const handleGoToCustomize = () => {
-    const path = folder 
+    const path = folder
       ? `/editor/customized_editor/${folder}/${v_id}`
       : `/editor/customized_editor/${v_id}`;
     navigate(path);
@@ -442,6 +413,38 @@ const Layer = ({
 
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const nameInputRef = useRef(null);
+
+  // Listen for export modal opening to switch to page tab and back
+  const [previousTab, setPreviousTab] = useState(null);
+
+  useEffect(() => {
+    if (isExportModalOpen) {
+      setPreviousTab(activeTab);
+      setActiveTab('pages');
+      setIsVisible(true);
+    } else if (previousTab) {
+      setActiveTab(previousTab);
+      setPreviousTab(null);
+    }
+  }, [isExportModalOpen]);
+
+  // Auto-scroll to active page
+  const activePageId = pages[activePageIndex]?.id;
+  useEffect(() => {
+    if (activePageId && isVisible) {
+      const elementId = activeTab === 'layers' 
+        ? `page-card-${activePageId}` 
+        : `page-card-preview-${activePageId}`;
+      
+      const el = document.getElementById(elementId);
+      if (el) {
+        // Small timeout for layout stabilization
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
+      }
+    }
+  }, [activePageId, activeTab, isVisible]);
 
   // Fetch all books for uniqueness validation
   useEffect(() => {
@@ -466,8 +469,8 @@ const Layer = ({
 
   const checkDuplicate = (name) => {
     if (!name.trim()) return false;
-    const isDup = allBooks.some(b => 
-      b.title.toLowerCase() === name.trim().toLowerCase() && 
+    const isDup = allBooks.some(b =>
+      b.title.toLowerCase() === name.trim().toLowerCase() &&
       (currentBook?.v_id ? b.v_id !== currentBook.v_id : b.realName !== currentBook?.flipbookName)
     );
     setIsNameDuplicate(isDup);
@@ -480,24 +483,6 @@ const Layer = ({
       setActivePageIndex(0);
     }
   }, [pages, activePageIndex]);
-
-  // Auto-scroll to the active page preview in the center
-  useEffect(() => {
-    if (pages && pages.length > 0 && isVisible) {
-      const page = pages[activePageIndex];
-      if (page) {
-        // Small timeout to ensure DOM is updated and visible
-        const timer = setTimeout(() => {
-          const elementId = activeTab === 'layers' ? `page-card-${page.id}` : `page-card-preview-${page.id}`;
-          const element = document.getElementById(elementId);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }
-        }, 100);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [activePageIndex, activeTab, pages, isVisible]);
 
   // Force activeTab to 'pages' if it's a PDF project and user somehow switches (though UI is hidden)
   useEffect(() => {
@@ -538,16 +523,16 @@ const Layer = ({
   const checkIsExpanded = (index) => {
     if (!isDoublePage) return activePageIndex === index;
     if (activePageIndex === 0) return index === 0;
-    
+
     // Spread Logic: Odd index is Left, Even index is Right
     // Find the left-side index of the current spread
     const spreadStart = activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex;
-    
+
     // Check if both sides of the spread exist
     if (spreadStart > 0 && spreadStart + 1 < pages.length) {
       return index === spreadStart || index === spreadStart + 1;
     }
-    
+
     return activePageIndex === index;
   };
 
@@ -559,7 +544,7 @@ const Layer = ({
   const handleRenameStart = (e, page) => {
     setEditingPageId(page.id);
     setEditingName(page.name);
-    setActiveMenuPageId(null); 
+    setActiveMenuPageId(null);
   };
 
   const handleRenameSubmit = (pageId) => {
@@ -608,7 +593,7 @@ const Layer = ({
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={false}
       animate={{ width: isVisible ? '16vw' : '0vw' }}
       className="relative h-[92vh] bg-white border-r border-[#EEEEEE] overflow-visible flex-shrink-0"
@@ -618,7 +603,7 @@ const Layer = ({
         <div className="absolute left-0 top-1/2 -translate-y-1/2 h-[85vh] w-[2.5vw] z-50 pointer-events-none flex items-center justify-center">
           <motion.div
             drag="y"
-            dragConstraints={{ top: -300, bottom: 300 }} 
+            dragConstraints={{ top: -300, bottom: 300 }}
             dragElastic={0}
             dragMomentum={false}
             style={{ y }}
@@ -636,9 +621,9 @@ const Layer = ({
             className="pointer-events-auto cursor-pointer group select-none relative"
           >
             <svg width="2.5vw" height="auto" viewBox="0 0 60 82" fill="none" xmlns="http://www.w3.org/2000/svg" className="drop-shadow-lg filter transition-transform duration-300">
-              <path d="M0 0C0 11.5 10 11.5 10 11.5H48C54.6274 11.5 60 16.8726 60 23.5V59.5C60 66.1274 54.6274 71.5 48 71.5H10C10 71.5 0 71.5 0 82C0 80 0 1.5 0 0Z" fill="black"/>
-              <path d="M22.979 35.315C20.993 36.109 20 36.506 20 37C20 37.4925 20.987 37.8876 22.961 38.6778L22.979 38.685L25.787 39.809C27.773 40.603 28.767 41 30 41C31.233 41 32.227 40.603 34.213 39.809L37.021 38.685C39.007 37.891 40 37.494 40 37C40 36.5075 39.013 36.1124 37.039 35.3222L37.021 35.315L34.213 34.192C32.227 33.397 31.233 33 30 33C29.046 33 28.236 33.237 27 33.712L22.979 35.315Z" fill="white"/>
-              <path d="M40 41C40 41 39.007 41.89 37.021 42.685L34.213 43.809C32.227 44.603 31.233 45 30 45C28.767 45 27.773 44.603 25.787 43.809L22.98 42.685C20.993 41.891 20 41 20 41M20 45C20 45 20.993 45.89 22.979 46.685L25.787 47.809C27.773 48.603 28.767 49 30 49C30.954 49 31.764 48.763 33 48.288M37.021 46.685C39.007 45.891 40 45 40 45M22.979 38.685L25.787 39.809C27.773 40.603 28.767 41 30 41C31.233 41 32.227 40.603 34.213 39.809L37.021 38.685C39.007 37.891 40 37.494 40 37C40 36.5075 39.013 36.1124 37.039 35.3222M22.979 38.685L22.961 38.6778M22.979 38.685C22.973 38.6826 22.967 38.6802 22.961 38.6778M37.021 35.315L34.213 34.192C32.227 33.397 31.233 33 30 33C29.046 33 28.236 33.237 27 33.712L22.979 35.315C20.993 36.109 20 36.506 20 37C20 37.4925 20.987 37.8876 22.961 38.6778M37.021 35.315L37.039 35.3222M37.021 35.315C37.027 35.3174 37.033 35.3198 37.039 35.3222" stroke="white" stroke-width="1.125" stroke-linecap="round"/>
+              <path d="M0 0C0 11.5 10 11.5 10 11.5H48C54.6274 11.5 60 16.8726 60 23.5V59.5C60 66.1274 54.6274 71.5 48 71.5H10C10 71.5 0 71.5 0 82C0 80 0 1.5 0 0Z" fill="black" />
+              <path d="M22.979 35.315C20.993 36.109 20 36.506 20 37C20 37.4925 20.987 37.8876 22.961 38.6778L22.979 38.685L25.787 39.809C27.773 40.603 28.767 41 30 41C31.233 41 32.227 40.603 34.213 39.809L37.021 38.685C39.007 37.891 40 37.494 40 37C40 36.5075 39.013 36.1124 37.039 35.3222L37.021 35.315L34.213 34.192C32.227 33.397 31.233 33 30 33C29.046 33 28.236 33.237 27 33.712L22.979 35.315Z" fill="white" />
+              <path d="M40 41C40 41 39.007 41.89 37.021 42.685L34.213 43.809C32.227 44.603 31.233 45 30 45C28.767 45 27.773 44.603 25.787 43.809L22.98 42.685C20.993 41.891 20 41 20 41M20 45C20 45 20.993 45.89 22.979 46.685L25.787 47.809C27.773 48.603 28.767 49 30 49C30.954 49 31.764 48.763 33 48.288M37.021 46.685C39.007 45.891 40 45 40 45M22.979 38.685L25.787 39.809C27.773 40.603 28.767 41 30 41C31.233 41 32.227 40.603 34.213 39.809L37.021 38.685C39.007 37.891 40 37.494 40 37C40 36.5075 39.013 36.1124 37.039 35.3222M22.979 38.685L22.961 38.6778M22.979 38.685C22.973 38.6826 22.967 38.6802 22.961 38.6778M37.021 35.315L34.213 34.192C32.227 33.397 31.233 33 30 33C29.046 33 28.236 33.237 27 33.712L22.979 35.315C20.993 36.109 20 36.506 20 37C20 37.4925 20.987 37.8876 22.961 38.6778M37.021 35.315L37.039 35.3222M37.021 35.315C37.027 35.3174 37.033 35.3198 37.039 35.3222" stroke="white" stroke-width="1.125" stroke-linecap="round" />
             </svg>
           </motion.div>
         </div>
@@ -647,7 +632,7 @@ const Layer = ({
       {/* Layer Context Menu (createPortal) */}
       {activeLayerMenu && createPortal(
         <AnimatePresence>
-          <motion.div 
+          <motion.div
             key="layer-context-menu"
             ref={layerMenuRef}
             initial={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -655,179 +640,177 @@ const Layer = ({
             exit={{ opacity: 0, scale: 0.95, y: -5 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             style={(() => {
-               // Safely clamp the menu within the viewport
-               // Menu width is roughly 10vw, height is estimated at 350px
-               const menuWidth = window.innerWidth * 0.11; 
-               const menuHeight = 350; 
-               return {
-                 position: 'fixed',
-                 left: `${Math.min(activeLayerMenu.x, window.innerWidth - menuWidth)}px`,
-                 top: `${Math.min(activeLayerMenu.y, window.innerHeight - menuHeight)}px`
-               };
+              // Safely clamp the menu within the viewport
+              // Menu width is roughly 10vw, height is estimated at 350px
+              const menuWidth = window.innerWidth * 0.11;
+              const menuHeight = 350;
+              return {
+                position: 'fixed',
+                left: `${Math.min(activeLayerMenu.x, window.innerWidth - menuWidth)}px`,
+                top: `${Math.min(activeLayerMenu.y, window.innerHeight - menuHeight)}px`
+              };
             })()}
             className="w-[10vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
             onClick={(e) => e.stopPropagation()}
           >
-          {(() => {
-            const targetIds = multiSelectedIds.has(activeLayerMenu.layerId) 
-              ? Array.from(multiSelectedIds) 
-              : [activeLayerMenu.layerId];
+            {(() => {
+              const targetIds = multiSelectedIds.has(activeLayerMenu.layerId)
+                ? Array.from(multiSelectedIds)
+                : [activeLayerMenu.layerId];
 
-            const page = pages[activePageIndex];
-            const isRootLayer = activeLayerMenu.isOverlay || 
-                                (page && page.layers && page.layers.some(l => l.id === activeLayerMenu.layerId));
+              const page = pages[activePageIndex];
+              const isRootLayer = activeLayerMenu.isOverlay ||
+                (page && page.layers && page.layers.some(l => l.id === activeLayerMenu.layerId));
 
-            if (isRootLayer) {
+              if (isRootLayer) {
                 return (
                   <>
-                    <button 
-                      onClick={() => { 
+                    <button
+                      onClick={() => {
                         cutLayer(activePageIndex, targetIds);
-                        setActiveLayerMenu(null); 
-                      }} 
+                        setActiveLayerMenu(null);
+                      }}
                       className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
                     >
                       <Scissors size="0.9vw" /> Cut
                     </button>
-                    <button 
-                      onClick={() => { 
+                    <button
+                      onClick={() => {
                         copyLayer(activePageIndex, targetIds);
-                        setActiveLayerMenu(null); 
-                      }} 
+                        setActiveLayerMenu(null);
+                      }}
                       className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
                     >
                       <Copy size="0.9vw" /> Copy
                     </button>
-                    <button 
+                    <button
                       disabled={!clipboard || (Array.isArray(clipboard) && clipboard.length === 0)}
-                      onClick={() => { 
+                      onClick={() => {
                         pasteLayer(activePageIndex);
-                        setActiveLayerMenu(null); 
-                      }} 
-                      className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${
-                        (!clipboard || (Array.isArray(clipboard) && clipboard.length === 0))
-                          ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60' 
-                          : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
-                      }`}
+                        setActiveLayerMenu(null);
+                      }}
+                      className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${(!clipboard || (Array.isArray(clipboard) && clipboard.length === 0))
+                        ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60'
+                        : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                        }`}
                     >
                       <Clipboard size="0.9vw" /> Paste
                     </button>
                   </>
                 );
-            }
+              }
 
-            return (
-              <>
-                {multiSelectedIds.size <= 1 && (
-                  <>
-                    <button 
-                      onClick={() => { 
+              return (
+                <>
+                  {multiSelectedIds.size <= 1 && (
+                    <>
+                      <button
+                        onClick={() => {
                           window.dispatchEvent(new CustomEvent('trigger-rename-layer', { detail: { layerId: activeLayerMenu.layerId } }));
-                          setActiveLayerMenu(null); 
-                      }} 
-                      className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                    >
-                      <Edit2 size="0.9vw" /> Rename
-                    </button>
-                    <div className="h-px bg-gray-100 my-[0.2vw]"></div>
-                  </>
-                )}
+                          setActiveLayerMenu(null);
+                        }}
+                        className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                      >
+                        <Edit2 size="0.9vw" /> Rename
+                      </button>
+                      <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                    </>
+                  )}
 
-                <button 
-                  onClick={() => { 
-                    moveLayerForward(activePageIndex, targetIds); 
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <ArrowUp size="0.9vw" /> Move Front
-                </button>
-                <button 
-                  onClick={() => { 
-                    moveLayerBackward(activePageIndex, targetIds); 
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <ArrowDown size="0.9vw" /> Move Back
-                </button>
-                <button 
-                  onClick={() => { 
-                    bringLayerToFront(activePageIndex, targetIds); 
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <ArrowUpToLine size="0.9vw" /> Bring to front
-                </button>
-                <button 
-                  onClick={() => { 
-                    sendLayerToBack(activePageIndex, targetIds); 
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <ArrowDownToLine size="0.9vw" /> Send to back
-                </button>
+                  <button
+                    onClick={() => {
+                      moveLayerForward(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <ArrowUp size="0.9vw" /> Move Front
+                  </button>
+                  <button
+                    onClick={() => {
+                      moveLayerBackward(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <ArrowDown size="0.9vw" /> Move Back
+                  </button>
+                  <button
+                    onClick={() => {
+                      bringLayerToFront(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <ArrowUpToLine size="0.9vw" /> Bring to front
+                  </button>
+                  <button
+                    onClick={() => {
+                      sendLayerToBack(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <ArrowDownToLine size="0.9vw" /> Send to back
+                  </button>
 
-                <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                  <div className="h-px bg-gray-100 my-[0.2vw]"></div>
 
-                <button 
-                  onClick={() => { 
-                    cutLayer(activePageIndex, targetIds);
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <Scissors size="0.9vw" /> Cut
-                </button>
-                <button 
-                  onClick={() => { 
-                    copyLayer(activePageIndex, targetIds);
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <Copy size="0.9vw" /> Copy
-                </button>
-                <button 
-                  disabled={!clipboard || (Array.isArray(clipboard) && clipboard.length === 0)}
-                  onClick={() => { 
-                    pasteLayer(activePageIndex);
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${
-                    (!clipboard || (Array.isArray(clipboard) && clipboard.length === 0))
-                      ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60' 
+                  <button
+                    onClick={() => {
+                      cutLayer(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <Scissors size="0.9vw" /> Cut
+                  </button>
+                  <button
+                    onClick={() => {
+                      copyLayer(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <Copy size="0.9vw" /> Copy
+                  </button>
+                  <button
+                    disabled={!clipboard || (Array.isArray(clipboard) && clipboard.length === 0)}
+                    onClick={() => {
+                      pasteLayer(activePageIndex);
+                      setActiveLayerMenu(null);
+                    }}
+                    className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${(!clipboard || (Array.isArray(clipboard) && clipboard.length === 0))
+                      ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60'
                       : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
-                  }`}
-                >
-                  <Clipboard size="0.9vw" /> Paste
-                </button>
+                      }`}
+                  >
+                    <Clipboard size="0.9vw" /> Paste
+                  </button>
 
-                <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                  <div className="h-px bg-gray-100 my-[0.2vw]"></div>
 
-                <button 
-                  onClick={() => { 
-                    deleteLayer(activePageIndex, targetIds);
-                    setActiveLayerMenu(null); 
-                  }} 
-                  className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"
-                >
-                  <Trash2 size="0.9vw" /> Delete
-                </button>
-              </>
-            );
-          })()}
-        </motion.div>
-      </AnimatePresence>,
-      document.body
+                  <button
+                    onClick={() => {
+                      deleteLayer(activePageIndex, targetIds);
+                      setActiveLayerMenu(null);
+                    }}
+                    className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-red-500 hover:bg-red-50 rounded-[0.4vw] text-left cursor-pointer"
+                  >
+                    <Trash2 size="0.9vw" /> Delete
+                  </button>
+                </>
+              );
+            })()}
+          </motion.div>
+        </AnimatePresence>,
+        document.body
       )}
 
       {/* Sidebar Content */}
       <AnimatePresence>
         {isVisible && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
@@ -836,9 +819,8 @@ const Layer = ({
           >
             {/* Sidebar Header */}
             <div className="flex items-center justify-between px-[0.2vw] flex-shrink-0" style={{ height: '8vh', gap: '0.8vw' }}>
-              <div className={`flex-1 min-w-0 flex items-center bg-[#F1F3F4] px-[0.6vw] py-[0.5vh] rounded-[0.5vw] border transition-all ${
-                isNameDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus-within:border-indigo-400 focus-within:bg-white'
-              }`}>
+              <div className={`flex-1 min-w-0 flex items-center bg-[#F1F3F4] px-[0.6vw] py-[0.5vh] rounded-[0.5vw] border transition-all ${isNameDuplicate ? 'border-red-500 bg-red-50' : 'border-transparent focus-within:border-indigo-400 focus-within:bg-white'
+                }`}>
                 <input
                   ref={nameInputRef}
                   type="text"
@@ -851,40 +833,39 @@ const Layer = ({
                   }}
                   onBlur={() => {
                     if (isNameDuplicate) {
-                       setAlertState({
-                           isOpen: true,
-                           title: 'Duplicate Name',
-                           message: 'Book name already exists. Please choose a different name.',
-                           type: 'error'
-                       });
-                       if (nameInputRef.current) nameInputRef.current.select();
+                      setAlertState({
+                        isOpen: true,
+                        title: 'Duplicate Name',
+                        message: 'Book name already exists. Please choose a different name.',
+                        type: 'error'
+                      });
+                      if (nameInputRef.current) nameInputRef.current.select();
                     } else if (onSave) {
-                       onSave(false);
+                      onSave(false);
                     }
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       if (isNameDuplicate) {
-                         setAlertState({
-                              isOpen: true,
-                              title: 'Duplicate Name',
-                              message: 'Book name already exists. Please choose a different name.',
-                              type: 'error'
-                          });
-                          if (nameInputRef.current) nameInputRef.current.select();
-                       } else {
-                         e.target.blur();
-                         if (onSave) onSave(true);
-                       }
+                        setAlertState({
+                          isOpen: true,
+                          title: 'Duplicate Name',
+                          message: 'Book name already exists. Please choose a different name.',
+                          type: 'error'
+                        });
+                        if (nameInputRef.current) nameInputRef.current.select();
+                      } else {
+                        e.target.blur();
+                        if (onSave) onSave(true);
+                      }
                     }
                   }}
-                  className={`w-full bg-transparent border-none outline-none text-[0.75vw] font-bold truncate ${
-                    isNameDuplicate ? 'text-red-600 placeholder-red-300' : 'text-[#374151] placeholder-gray-400'
-                  }`}
+                  className={`w-full bg-transparent border-none outline-none text-[0.75vw] font-bold truncate ${isNameDuplicate ? 'text-red-600 placeholder-red-300' : 'text-[#374151] placeholder-gray-400'
+                    }`}
                   placeholder="Flipbook Name..."
                 />
               </div>
-              <button 
+              <button
                 onClick={() => setIsVisible(false)}
                 className="text-[#374151] hover:bg-gray-100 p-[0.4vw] rounded-full transition-colors flex items-center justify-center cursor-pointer"
               >
@@ -897,21 +878,19 @@ const Layer = ({
               <div className="flex bg-gray-100/50 p-[0.4vw] rounded-[0.8vw] mb-[2vh] gap-[0.4vw]">
                 <button
                   onClick={() => setActiveTab('pages')}
-                  className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${
-                    activeTab === 'pages' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-400 hover:text-gray-600'
-                  }`}
+                  className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${activeTab === 'pages'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                    }`}
                 >
                   Pages
                 </button>
                 <button
                   onClick={() => setActiveTab('layers')}
-                  className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${
-                    activeTab === 'layers' 
-                      ? 'bg-white text-gray-900 shadow-sm' 
-                      : 'text-gray-400 hover:text-gray-600'
-                  }`}
+                  className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${activeTab === 'layers'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-400 hover:text-gray-600'
+                    }`}
                 >
                   Layers
                 </button>
@@ -920,18 +899,18 @@ const Layer = ({
             <div className="h-[1px] bg-[#EEEEEE] mx-[-0.8vw] mb-[2vh]"></div>
 
             {/* Scrollable Area for Pages and Layers */}
-            <div 
+            <div
               className="flex-1 overflow-y-auto pr-[0.2vw] space-y-[1.2vh] no-scrollbar pb-[2vh]"
               onClick={() => setActiveMenuPageId(null)}
             >
               {activeTab === 'layers' ?
                 pages.map((page, index) => {
                   const isExpanded = checkIsExpanded(index);
-                  
+
                   return (
-                    <div 
-                      key={page.id} 
-                      className="flex flex-col relative" 
+                    <div
+                      key={page.id}
+                      className="flex flex-col relative"
                       id={`page-card-${page.id}`}
                       onDragOver={(e) => handleDragOver(e, index)}
                       onDragLeave={handleDragLeave}
@@ -943,17 +922,17 @@ const Layer = ({
                         <div className="absolute -top-[0.4vh] left-0 right-0 h-[0.2vw] bg-indigo-500 rounded-full z-10" />
                       )}
 
-                      <motion.div 
+                      <motion.div
                         layout="position"
                         className={`flex flex-col rounded-[0.6vw] transition-all duration-300 relative group 
                           ${draggedPageIndex === index ? 'opacity-40 scale-[0.98]' : ''} 
-                          ${isExpanded 
-                            ? 'bg-white border border-[#E5E7EB] shadow-sm' 
+                          ${isExpanded
+                            ? 'bg-white border border-[#E5E7EB] shadow-sm'
                             : 'bg-[#E5E7EB] hover:bg-[#DADADA]'
-                        }`}
+                          }`}
                       >
                         {/* Page Header (Collapsible) */}
-                        <div 
+                        <div
                           draggable={!editingPageId}
                           onDragStart={(e) => handleDragStart(e, index)}
                           onClick={() => {
@@ -987,7 +966,7 @@ const Layer = ({
 
                           <div className={`flex-1 min-w-0 flex items-center transition-all duration-300 ${!editingPageId ? 'group-hover/pageitem:pl-[0.8vw]' : ''}`}>
                             {editingPageId === page.id ? (
-                              <input 
+                              <input
                                 ref={renameInputRef}
                                 type="text"
                                 value={editingName}
@@ -1008,7 +987,7 @@ const Layer = ({
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="flex items-center gap-[0.4vw] flex-shrink-0">
                             <Layers size="1.1vw" className={isExpanded ? 'text-[#6366F1]' : 'text-[#6B7280]'} strokeWidth={isExpanded ? 2.5 : 2} />
                             {!editingPageId && (
@@ -1034,10 +1013,10 @@ const Layer = ({
                               <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
                                 {page.layers && page.layers.length > 0 ? (
                                   [...page.layers].reverse().map((layer, idx) => (
-                                    <LayerItem 
-                                      key={layer.id || idx} 
-                                      layer={layer} 
-                                      depth={0} 
+                                    <LayerItem
+                                      key={layer.id || idx}
+                                      layer={layer}
+                                      depth={0}
                                       onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
                                       onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
                                       selectedLayerId={selectedLayerId}
@@ -1069,114 +1048,111 @@ const Layer = ({
                     </div>
                   );
                 })
-              : (
-                <div className="flex flex-col gap-[2.5vh]">
-                  {pages.map((page, index) => {
-                    const viewBoxMatch = page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/);
-                    const aspectRatio = viewBoxMatch ? parseFloat(viewBoxMatch[1]) / parseFloat(viewBoxMatch[3]) : 1 / 1.414;
-                    
-                    const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]+data-name="PDF Background"/);
-                    const pdfImgUrl = pdfImgMatch ? pdfImgMatch[1] : null;
+                : (
+                  <div className="flex flex-col gap-[2.5vh]">
+                    {pages.map((page, index) => {
+                      const viewBoxMatch = page.html.match(/viewBox=["']\d+ \d+ (\d+(\.\d+)?) (\d+(\.\d+)?)["']/);
+                      const aspectRatio = viewBoxMatch ? parseFloat(viewBoxMatch[1]) / parseFloat(viewBoxMatch[3]) : 1 / 1.414;
 
-                    return (
-                      <div 
-                        key={page.id} 
-                        className="flex flex-col relative"
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragLeave={handleDragLeave}
-                        onDragEnd={handleDragEnd}
-                        onDrop={(e) => handleDrop(e, index)}
-                      >
-                        {/* Drag Indicator Top */}
-                        {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex > index && (
-                          <div className="absolute -top-[1.25vh] left-0 right-0 h-[0.25vw] bg-indigo-500 rounded-full z-20 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
-                        )}
+                      const pdfImgMatch = page.html.match(/<image[^>]+(?:href|xlink:href)=["']([^"']+)["'][^>]+data-name="PDF Background"/);
+                      const pdfImgUrl = pdfImgMatch ? pdfImgMatch[1] : null;
 
-                        <div 
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, index)}
-                          className={`flex flex-col rounded-[1vw] overflow-hidden bg-white shadow-sm transition-all cursor-pointer relative border-[0.15vw] ${
-                            activePageIndex === index ? 'border-indigo-500 shadow-md' : 'border-gray-200 hover:border-gray-300'
-                          } ${draggedPageIndex === index ? 'opacity-40 grayscale-[0.5]' : ''}`}
-                          id={`page-card-preview-${page.id}`}
-                          onClick={() => setActivePageIndex(index)}
+                      return (
+                        <div
+                          key={page.id}
+                          className="flex flex-col relative"
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDragLeave={handleDragLeave}
+                          onDragEnd={handleDragEnd}
+                          onDrop={(e) => handleDrop(e, index)}
                         >
-                        {/* Page Header */}
-                        <div className={`flex items-center justify-between px-[1vw] py-[1vh] border-b transition-colors ${
-                          activePageIndex === index ? 'border-indigo-100 bg-[#EEF2FF]/50' : 'border-gray-100'
-                        }`}>
-                          <div className="flex-1 min-w-0 mr-[0.5vw]">
-                            {editingPageId === page.id ? (
-                              <input 
-                                ref={renameInputRef}
-                                type="text"
-                                value={editingName}
-                                onChange={(e) => setEditingName(e.target.value)}
-                                onBlur={() => handleRenameSubmit(page.id)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleRenameSubmit(page.id);
-                                  if (e.key === 'Escape') handleRenameCancel();
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                onFocus={(e) => e.target.select()}
-                                autoFocus
-                                className="w-full text-left text-[0.8vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
-                              />
-                            ) : (
-                              <span className="text-[0.8vw] font-semibold text-gray-900 truncate block">
-                                {page.name}
-                              </span>
-                            )}
-                          </div>
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); handleMenuClick(e, page.id); }}
-                            className="p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors"
+                          {/* Drag Indicator Top */}
+                          {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex > index && (
+                            <div className="absolute -top-[1.25vh] left-0 right-0 h-[0.25vw] bg-indigo-500 rounded-full z-20 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                          )}
+
+                          <div
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            className={`flex flex-col rounded-[1vw] overflow-hidden bg-white shadow-sm transition-all cursor-pointer relative border-[0.15vw] ${activePageIndex === index ? 'border-indigo-500 shadow-md' : 'border-gray-200 hover:border-gray-300'
+                              } ${draggedPageIndex === index ? 'opacity-40 grayscale-[0.5]' : ''}`}
+                            id={`page-card-preview-${page.id}`}
+                            onClick={() => setActivePageIndex(index)}
                           >
-                            <MoreVertical size="1vw" className="text-gray-500" />
-                          </button>
-                        </div>
-                        
-                        {/* Page Preview */}
-                        <div 
-                          className={`relative flex items-center justify-center p-[1vw] overflow-hidden transition-all ${
-                            activePageIndex === index ? 'bg-[#EEF2FF]' : 'bg-gray-50'
-                          }`}
-                          style={{ aspectRatio: `${aspectRatio}` }}
-                        >
-                          <div className="w-full h-full bg-white shadow-sm overflow-hidden origin-top flex items-center justify-center relative">
-                            {pdfImgUrl ? (
-                              <img 
-                                src={pdfImgUrl} 
-                                alt={page.name}
-                                className="w-full h-full object-contain pointer-events-none"
-                                loading="lazy"
-                              />
-                            ) : (
-                              <div 
-                                className="w-full h-full flex items-center justify-center"
-                                dangerouslySetInnerHTML={{ 
-                                  __html: page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"') 
-                                }}
-                              />
-                            )}
-                          </div>
-                        </div>
-                      </div>
+                            {/* Page Header */}
+                            <div className={`flex items-center justify-between px-[1vw] py-[1vh] border-b transition-colors ${activePageIndex === index ? 'border-indigo-100 bg-[#EEF2FF]/50' : 'border-gray-100'
+                              }`}>
+                              <div className="flex-1 min-w-0 mr-[0.5vw]">
+                                {editingPageId === page.id ? (
+                                  <input
+                                    ref={renameInputRef}
+                                    type="text"
+                                    value={editingName}
+                                    onChange={(e) => setEditingName(e.target.value)}
+                                    onBlur={() => handleRenameSubmit(page.id)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleRenameSubmit(page.id);
+                                      if (e.key === 'Escape') handleRenameCancel();
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onFocus={(e) => e.target.select()}
+                                    autoFocus
+                                    className="w-full text-left text-[0.8vw] font-semibold border-b border-indigo-600 py-[0.1vw] focus:outline-none bg-transparent"
+                                  />
+                                ) : (
+                                  <span className="text-[0.8vw] font-semibold text-gray-900 truncate block">
+                                    {page.name}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(e, page.id); }}
+                                className="p-[0.4vw] hover:bg-gray-100 rounded-full transition-colors"
+                              >
+                                <MoreVertical size="1vw" className="text-gray-500" />
+                              </button>
+                            </div>
 
-                        {/* Drag Indicator Bottom */}
-                        {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex < index && (
-                          <div className="absolute -bottom-[1.25vh] left-0 right-0 h-[0.25vw] bg-indigo-500 rounded-full z-20 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                            {/* Page Preview */}
+                            <div
+                              className={`relative flex items-center justify-center p-[1vw] overflow-hidden transition-all ${activePageIndex === index ? 'bg-[#EEF2FF]' : 'bg-gray-50'
+                                }`}
+                              style={{ aspectRatio: `${aspectRatio}` }}
+                            >
+                              <div className="w-full h-full bg-white shadow-sm overflow-hidden origin-top flex items-center justify-center relative">
+                                {pdfImgUrl ? (
+                                  <img
+                                    src={pdfImgUrl}
+                                    alt={page.name}
+                                    className="w-full h-full object-contain pointer-events-none"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <div
+                                    className="w-full h-full flex items-center justify-center"
+                                    dangerouslySetInnerHTML={{
+                                      __html: page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"')
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Drag Indicator Bottom */}
+                          {dragOverIndex === index && draggedPageIndex !== index && draggedPageIndex < index && (
+                            <div className="absolute -bottom-[1.25vh] left-0 right-0 h-[0.25vw] bg-indigo-500 rounded-full z-20 shadow-[0_0_8px_rgba(99,102,241,0.5)]" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
               {/* Shared Page Context Menu */}
               {activeMenuPageId && createPortal(
                 <AnimatePresence mode="wait">
-                  <motion.div 
+                  <motion.div
                     key={`page-menu-${activeMenuPageId}`}
                     ref={menuRef}
                     initial={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -1185,14 +1161,14 @@ const Layer = ({
                     transition={{ duration: 0.15, ease: "easeOut" }}
                     style={(() => {
                       // Try both ID types (Layer view and Preview view)
-                      const element = document.getElementById(`page-card-${activeMenuPageId}`) || 
-                                      document.getElementById(`page-card-preview-${activeMenuPageId}`);
+                      const element = document.getElementById(`page-card-${activeMenuPageId}`) ||
+                        document.getElementById(`page-card-preview-${activeMenuPageId}`);
                       if (!element) return { display: 'none' };
                       const rect = element.getBoundingClientRect();
-                      return { 
-                        position: 'fixed', 
-                        left: `calc(${rect.right}px + 0.6vw)`, 
-                        top: `${Math.min(rect.top, window.innerHeight - 450)}px` 
+                      return {
+                        position: 'fixed',
+                        left: `calc(${rect.right}px + 0.6vw)`,
+                        top: `${Math.min(rect.top, window.innerHeight - 450)}px`
                       };
                     })()}
                     className="w-[12vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
@@ -1215,13 +1191,13 @@ const Layer = ({
                           {!isPdfProject && (
                             <button onClick={() => { setActivePageIndex(index); onOpenTemplateModal(); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Layout size="0.9vw" /> Template</button>
                           )}
-                          
+
                           <div className="px-[0.5vw] py-[0.2vw] mt-[0.2vw] text-[0.6vw] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-[0.5vw]">Page Order <div className="h-px bg-gray-100 flex-1"></div></div>
-                          <button disabled={pages.length <= 1} onClick={() => { movePageUp(index); setActiveMenuPageId(null); }} className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left ${pages.length <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}><ArrowUp size="0.9vw" /> Move Up</button>
-                          <button disabled={pages.length <= 1} onClick={() => { movePageDown(index); setActiveMenuPageId(null); }} className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left ${pages.length <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}><ArrowDown size="0.9vw" /> Move Down</button>
-                          <button disabled={pages.length <= 1} onClick={() => { movePageToFirst(index); setActiveMenuPageId(null); }} className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left ${pages.length <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}><ArrowUpToLine size="0.9vw" /> Move to First</button>
-                          <button disabled={pages.length <= 1} onClick={() => { movePageToLast(index); setActiveMenuPageId(null); }} className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left ${pages.length <= 1 ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}><ArrowDownToLine size="0.9vw" /> Move to Last</button>
-                          
+                          <button onClick={() => { movePageUp(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUp size="0.9vw" /> Move Up</button>
+                          <button onClick={() => { movePageDown(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDown size="0.9vw" /> Move Down</button>
+                          <button onClick={() => { movePageToFirst(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowUpToLine size="0.9vw" /> Move to First</button>
+                          <button onClick={() => { movePageToLast(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><ArrowDownToLine size="0.9vw" /> Move to Last</button>
+
                           <div className="h-px bg-gray-100 my-[0.2vw]"></div>
                           {!isPdfProject && (
                             <button onClick={() => { clearPage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Ban size="0.9vw" /> Clear</button>
@@ -1239,7 +1215,7 @@ const Layer = ({
             {/* Footer Buttons */}
             <div className="pt-[1vh] bg-white flex flex-col gap-[1vh] flex-shrink-0">
               {isPdfProject ? (
-                <button 
+                <button
                   onClick={() => onAddFile(pages.length - 1)}
                   className="w-full bg-white border border-gray-200 text-gray-900 py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-50 transition-all shadow-sm cursor-pointer"
                 >
@@ -1247,7 +1223,7 @@ const Layer = ({
                   <span>Add File</span>
                 </button>
               ) : (
-                <button 
+                <button
                   onClick={() => insertPageAfter(pages.length - 1)}
                   className="w-full bg-white border border-gray-200 text-gray-900 py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[0.8vw] hover:bg-gray-50 transition-all shadow-sm cursor-pointer"
                 >
@@ -1255,10 +1231,10 @@ const Layer = ({
                   <span>Add Pages</span>
                 </button>
               )}
-              
-              <button 
+
+              <button
                 onClick={handleGoToCustomize}
-                className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-xl cursor-pointer"
+                className="w-full bg-black text-white py-[1.2vh] rounded-[0.6vw] text-[0.8vw] font-semibold flex items-center justify-center gap-[1vw] hover:bg-gray-900 transition-all shadow-[0_8px_30px_rgb(0,0,0,0.4)] cursor-pointer"
               >
                 <ArrowUpRight size="1.2vw" className="rotate-0" />
                 <span>Go to Customize</span>
@@ -1268,11 +1244,11 @@ const Layer = ({
         )}
       </AnimatePresence>
       <AlertModal
-          isOpen={alertState.isOpen}
-          title={alertState.title}
-          message={alertState.message}
-          type={alertState.type}
-          onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        isOpen={alertState.isOpen}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+        onConfirm={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
       />
     </motion.div>
   );

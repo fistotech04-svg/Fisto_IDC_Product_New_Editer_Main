@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AddBookmarkPopup from '../popups/AddBookmarkPopup';
-import AddNotesPopup from '../popups/AddNotesPopup';
-import ViewBookmarkPopup from '../popups/ViewBookmarkPopup';
+
+
+
 import ProfilePopup from '../popups/ProfilePopup';
 import TableOfContentsPopup from '../popups/TableOfContentsPopup';
 
@@ -530,12 +530,12 @@ const Grid2Layout = ({
                                         className={`absolute top-[50%] left-0 w-full animate-in fade-in slide-in-from-top-1 duration-200 transition-all z-10`}
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        <div 
+                                        <div
                                             className={`${isMobileLandscape ? 'rounded-b-[0.8vw] px-[0.4vw] pb-[0.2vw] pt-[1.8vw]' : isTablet ? 'rounded-b-[0.8vw] px-[0.5vw] pb-[0.25vw] pt-[1.8vw]' : 'rounded-b-[1.3vw] px-[0.7vw] pb-[0.4vw] pt-[2.8vw]'} border border-white/20 relative overflow-hidden`}
                                             style={{ background: `linear-gradient(to bottom, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.6) ${isMobileLandscape || isTablet ? '1.8vw' : '2.8vw'}, rgba(255,255,255,0.6) 100%)` }}
                                         >
                                             {/* Blur layer - only for the results area, not the top bar touched area */}
-                                            <div 
+                                            <div
                                                 className="absolute inset-0 z-0 backdrop-blur-xl"
                                                 style={{ top: isMobileLandscape || isTablet ? '1.8vw' : '2.8vw' }}
                                             />

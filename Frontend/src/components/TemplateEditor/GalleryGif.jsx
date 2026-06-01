@@ -209,7 +209,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
     >
       {/* Header */}
       <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
-        <h2 className="text-[0.9vw] font-bold text-gray-900">Gif Gallery</h2>
+        <h2 className="text-[0.9vw] font-semibold text-gray-900">Gif Gallery</h2>
         <button 
           onClick={onClose}
           className="w-[2vw] h-[2vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
@@ -221,7 +221,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {/* Upload Section */}
         <div className="px-[1vw] py-[0.5vw] mt-[0.5vw]">
-          <h3 className="text-[0.8vw] font-bold text-gray-900 mb-[0.25vw]">Upload your Gif</h3>
+          <h3 className="text-[0.8vw] font-semibold text-gray-900 mb-[0.25vw]">Upload your Gif</h3>
           <p className="text-[0.65vw] text-gray-400 mb-[1vw]"><span>You Can Reuse The File Which Is Uploaded In Gallery</span><span className="text-red-500">*</span></p>
           
           <div
@@ -247,7 +247,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
 
         <div className="px-[1.25vw] py-[1vw]">
           <div className="flex items-center justify-between mb-[1vw]">
-            <h3 className="text-[0.8vw] font-bold text-gray-900">Your Uploads</h3>
+            <h3 className="text-[0.8vw] font-semibold text-gray-900">Your Uploads</h3>
           </div>
 
           {/* Grid View */}
@@ -282,7 +282,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
               <div className="w-[3vw] h-[3vw] bg-gray-50 rounded-full flex items-center justify-center mb-[0.75vw]">
                 <Upload size="1.25vw" className="opacity-20" />
               </div>
-              <p className="text-[0.8vw] font-bold text-gray-600">No GIFs uploaded</p>
+              <p className="text-[0.8vw] font-semibold text-gray-600">No GIFs uploaded</p>
               <p className="text-[0.65vw] mt-[0.2vw]">Upload your first GIF to the gallery</p>
             </div>
           )}

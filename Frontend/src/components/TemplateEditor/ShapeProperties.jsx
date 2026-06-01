@@ -159,7 +159,7 @@ const NumberInput = ({ value, onChange }) => (
      </button>
      <div className="w-[3.5vw] h-[2vw] border border-gray-200 rounded-[0.4vw] bg-white flex items-center justify-center shadow-sm">
         <input 
-           className="w-full text-center bg-transparent outline-none text-[0.8vw] font-bold text-gray-700"
+           className="w-full text-center bg-transparent outline-none text-[0.8vw] font-semibold text-gray-700"
            value={value}
            onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
         />
@@ -185,11 +185,11 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
            style={{ 
               background: (color === 'none' || color === '#' || !color) 
                 ? 'white' 
-                : (color.toString().includes('url(#') 
-                  ? (selectedElementProps && selectedElementProps[`${baseAttr}-stops`] 
-                      ? `linear-gradient(to right, ${JSON.parse(selectedElementProps[`${baseAttr}-stops`]).map(s => s.color).join(', ')})`
-                      : '#ccc')
-                  : color)
+                 : (color.toString().toLowerCase().includes('url(#') 
+                   ? (selectedElementProps && selectedElementProps[`${baseAttr}-stops`] 
+                       ? `linear-gradient(to right, ${JSON.parse(selectedElementProps[`${baseAttr}-stops`]).map(s => s.color).join(', ')})`
+                       : '#ccc')
+                   : color)
            }}
         />
        {(color === 'none' || color === '#' || !color) && (
@@ -360,7 +360,7 @@ const ShapeProperties = ({
       {/* HEADER SECTION */}
       <div className="flex items-center gap-[0.75vw] mb-[0.2vw]">
         <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Shape Property</span>
-        <div className="h-px flex-grow bg-gray-200"></div>
+        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
       </div>
 
       {/* TOP LEVEL SLIDERS */}
@@ -411,7 +411,6 @@ const ShapeProperties = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'color' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <Palette size="1vw" className="text-gray-600" />
             <span className="font-semibold text-gray-900 text-[0.85vw]">Color</span>
           </div>
           <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'color' ? '' : 'rotate-180'}`} />
@@ -555,7 +554,6 @@ const ShapeProperties = ({
             className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
           >
             <div className="flex items-center gap-[0.5vw]">
-               <Icon icon="material-symbols:rounded-corner" width="1vw" height="1vw" className="text-gray-600" />
                <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
             </div>
             <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'corner' ? '' : 'rotate-180'}`} />
@@ -651,7 +649,6 @@ const ShapeProperties = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'effect' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <Eye size="1vw" className="text-gray-600" />
             <span className="font-semibold text-gray-900 text-[0.85vw]">Effect</span>
           </div>
           <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'effect' ? '' : 'rotate-180'}`} />
@@ -744,7 +741,7 @@ const ShapeProperties = ({
                     <div className="flex items-center gap-[1.2vw]">
                         {/* 1. Extra Compact Color Preview Box */}
                         <div 
-                            className={`w-[3.8vw] h-[3.2vw] rounded-[0.5vw] border relative overflow-hidden flex items-center justify-center text-[0.65vw] font-bold text-white shadow-inner cursor-pointer transition-all hover:scale-105 active:scale-95 flex-shrink-0 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-gray-100 hover:border-gray-300'}`}
+                            className={`w-[3.8vw] h-[3.2vw] rounded-[0.5vw] border relative overflow-hidden flex items-center justify-center text-[0.65vw] font-semibold text-white shadow-inner cursor-pointer transition-all hover:scale-105 active:scale-95 flex-shrink-0 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-gray-100 hover:border-gray-300'}`}
                             style={{ 
                                 backgroundColor: 'white',
                                 backgroundImage: `linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee), linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee)`,
@@ -779,7 +776,7 @@ const ShapeProperties = ({
                                         type="text" 
                                         value={(selectedElementProps[`data-effect-${activeEffectPopupId}-color`] || '#000000').toUpperCase()} 
                                         onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-color`, e.target.value)}
-                                        className="w-full bg-transparent outline-none text-[0.75vw] font-mono font-bold text-gray-700 min-w-0"
+                                        className="w-full bg-transparent outline-none text-[0.75vw] font-mono font-semibold text-gray-700 min-w-0"
                                     />
                                     <Pipette size="0.9vw" className="text-gray-400 rotate-90 flex-shrink-0" />
                                 </div>
@@ -804,7 +801,7 @@ const ShapeProperties = ({
                                         onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
                                         className="flex-grow h-[0.35vw] bg-gray-100 rounded-full appearance-none accent-indigo-500 cursor-pointer min-w-[2vw]"
                                     />
-                                    <span className="text-[0.75vw] font-bold text-gray-800 min-w-[2.2vw] text-right whitespace-nowrap">
+                                    <span className="text-[0.75vw] font-semibold text-gray-800 min-w-[2.2vw] text-right whitespace-nowrap">
                                         {selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
                                     </span>
                                 </div>
@@ -837,12 +834,20 @@ const ShapeProperties = ({
                                             updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
                                         }}
                                     />
-                                    <div className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all">
+                                    <div 
+                                        className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                                        onPointerDown={(e) => {
+                                            if (e.target.tagName === 'INPUT') return;
+                                            const currentVal = selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                                            handleScrubHelper(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                                        }}
+                                    >
                                         <input 
                                             type="number"
                                             value={selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default}
                                             onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
-                                            className="w-full text-center text-[0.85vw] font-bold text-gray-800 outline-none no-spin bg-transparent"
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
                                         />
                                     </div>
                                     <ChevronRight 
@@ -886,12 +891,20 @@ const ShapeProperties = ({
                                         updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
                                     }}
                                 />
-                                <div className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all">
+                                <div 
+                                    className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                                    onPointerDown={(e) => {
+                                        if (e.target.tagName === 'INPUT') return;
+                                        const currentVal = selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                                        handleScrubHelper(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                                    }}
+                                >
                                     <input 
                                         type="number"
                                         value={selectedElementProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default}
                                         onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
-                                        className="w-full text-center text-[0.85vw] font-bold text-gray-800 outline-none no-spin bg-transparent"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
                                     />
                                 </div>
                                 <ChevronRight 
@@ -926,7 +939,7 @@ const ShapeProperties = ({
         >
           {/* Header */}
           <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.85vw] font-bold text-gray-800">Dashed</span>
+            <span className="text-[0.85vw] font-semibold text-gray-800">Dashed</span>
             <div className="h-px flex-grow bg-gray-100"></div>
             <button 
               onClick={() => {
@@ -944,13 +957,13 @@ const ShapeProperties = ({
 
           {/* Position Selection */}
           <div className="flex items-center justify-between">
-             <span className="text-[0.75vw] font-bold text-gray-600">Position :</span>
+             <span className="text-[0.75vw] font-semibold text-gray-600">Position :</span>
              <div className="relative flex-grow ml-[1vw]">
                 <div 
                    className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white min-w-[5.5vw]"
                    onClick={() => setIsDashPosOpen(!isDashPosOpen)}
                 >
-                   <span className="text-[0.7vw] font-bold text-gray-700 capitalize">{selectedElementProps['data-stroke-position'] || 'Center'}</span>
+                   <span className="text-[0.7vw] font-semibold text-gray-700 capitalize">{selectedElementProps['data-stroke-position'] || 'Center'}</span>
                    <ChevronDown size="0.8vw" className="text-gray-400" />
                 </div>
                 {isDashPosOpen && (
@@ -962,7 +975,7 @@ const ShapeProperties = ({
                                updateAttr('data-stroke-position', pos);
                                setIsDashPosOpen(false);
                             }}
-                            className="px-[1vw] py-[0.4vw] text-[0.7vw] font-bold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                            className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
                          >
                             {pos}
                          </div>
@@ -993,7 +1006,7 @@ const ShapeProperties = ({
                 return (
                    <div key={item.key} className="flex items-center justify-between">
                       <span 
-                        className="text-[0.75vw] font-bold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                        className="text-[0.75vw] font-semibold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                         onPointerDown={(e) => handleScrub(e, val, (v) => updateValue(parseInt(v)))}
                       >{item.label} :</span>
                       <div 
@@ -1010,7 +1023,7 @@ const ShapeProperties = ({
                                value={val} 
                                onChange={(e) => updateValue(parseInt(e.target.value) || 0)}
                                onClick={(e) => e.stopPropagation()}
-                               className="w-full text-center text-[0.75vw] font-bold text-gray-700 outline-none no-spin bg-transparent cursor-text"
+                               className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
                             />
                          </div>
                          <button onClick={() => updateValue(val + 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronRight size="0.9vw"/></button>
@@ -1024,7 +1037,7 @@ const ShapeProperties = ({
 
           {/* Round Corners Toggle */}
           <div className="flex items-center justify-between">
-             <span className="text-[0.75vw] font-bold text-gray-600">Round Corners :</span>
+             <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
              <div 
                 className={`w-[2.4vw] h-[1.2vw] rounded-full relative cursor-pointer transition-colors ${selectedElementProps.strokeLinecap === 'round' || selectedElementProps['stroke-linecap'] === 'round' ? 'bg-indigo-500' : 'bg-gray-200'}`}
                 onClick={() => {
@@ -1057,15 +1070,17 @@ const ShapeProperties = ({
                 return selectedElementProps[activeColorPicker] || '#000000';
               }
               const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
-              if (type === 'gradient') {
-                const stops = JSON.parse(selectedElementProps[`${activeColorPicker}-stops`] || JSON.stringify(defaultStops));
+              const currentVal = selectedElementProps[activeColorPicker] || '#000000';
+              const stopsJson = selectedElementProps[`${activeColorPicker}-stops`];
+              if ((type === 'gradient' || currentVal.toLowerCase().includes('url(#')) && stopsJson) {
+                const stops = JSON.parse(stopsJson || JSON.stringify(defaultStops));
                 const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
                 // Convert back to CSS string for the picker
                 return generateGradientString(
                   gType.charAt(0).toUpperCase() + gType.slice(1),
-                  stops.map(s => ({ ...s, opacity: s.opacity * 100 })),
-                  0, // angle not stored separately in old model
-                  100 // radius not stored separately in old model
+                  stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
+                  parseInt(selectedElementProps[`${activeColorPicker}-angle`] || '0'),
+                  parseInt(selectedElementProps[`${activeColorPicker}-radius`] || '100')
                 );
               }
               return selectedElementProps[activeColorPicker] || '#000000';
@@ -1086,6 +1101,8 @@ const ShapeProperties = ({
                     offset: s.offset,
                     opacity: s.opacity / 100
                   }))));
+                  updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
+                  updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
                 }
               } else {
                 updateAttr(activeColorPicker, newVal);

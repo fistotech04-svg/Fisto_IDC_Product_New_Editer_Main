@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import AddBookmarkPopup from '../../popups/AddBookmarkPopup';
-import AddNotesPopup from '../../popups/AddNotesPopup';
-import NotesViewerPopup from '../../popups/NotesViewerPopup';
-import ViewBookmarkPopup from '../../popups/ViewBookmarkPopup';
+
+
+
+
 import ProfilePopup from '../../popups/ProfilePopup';
 import Sound from '../../popups/Sound';
 import Export from '../../popups/Export';
@@ -397,52 +397,10 @@ const MobileLayout6 = ({
                 )}
             </AnimatePresence>
 
-            {showAddNotesPopup && (
-                <AddNotesPopup
-                    onClose={() => setShowAddNotesPopup(false)}
-                    currentPageIndex={currentPage}
-                    totalPages={pages.length}
-                    onAddNote={onAddNote}
-                    isSidebarOpen={false}
-                    isMobile={true}
-                    activeLayout={activeLayout}
-                    isLandscape={isLandscape}
-                />
-            )}
-            {showNotesViewer && (
-                <NotesViewerPopup
-                    onClose={() => setShowNotesViewer(false)}
-                    notes={notes}
-                    isSidebarOpen={false}
-                    isMobile={true}
-                />
-            )}
-            {showAddBookmarkPopup && (
-                <AddBookmarkPopup
-                    onClose={() => setShowAddBookmarkPopup(false)}
-                    currentPageIndex={currentPage}
-                    totalPages={pages.length}
-                    onAddBookmark={onAddBookmark}
-                    isSidebarOpen={false}
-                    bookmarkSettings={bookmarkSettings}
-                    isMobile={true}
-                    activeLayout={activeLayout}
-                />
-            )}
-            {showViewBookmarkPopup && (
-                <ViewBookmarkPopup
-                    onClose={() => setShowViewBookmarkPopup(false)}
-                    bookmarks={bookmarks}
-                    onDelete={onDeleteBookmark}
-                    onUpdate={onUpdateBookmark}
-                    onNavigate={(pageIndex) => {
-                        onPageClick(pageIndex);
-                        setShowViewBookmarkPopup(false);
-                    }}
-                    activeLayout={activeLayout}
-                    isMobile={true}
-                />
-            )}
+            
+            
+            
+            
             {showProfilePopup && (
                 <ProfilePopup
                     onClose={() => setShowProfilePopup(false)}
