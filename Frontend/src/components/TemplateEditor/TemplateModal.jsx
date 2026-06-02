@@ -1,6 +1,6 @@
 // TemplateModal.jsx - HTML Template Selection
 import React, { useState, useMemo } from 'react';
-import { Search, X, Upload } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 // Import SVG templates as URLs
 import TemplateSVG1 from "../../assets/Templates/Template_1.svg?url";
@@ -9,12 +9,14 @@ import TemplateSVG3 from "../../assets/Templates/Template_3.svg?url";
 import TemplateSVG4 from "../../assets/Templates/Template_4.svg?url"; 
 import TemplateSVG5 from "../../assets/Templates/Template_5.svg?url"; 
 import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
+import TemplateSVG7 from "../../assets/Templates/Template_7.svg?url";
+import TemplateSVG8 from "../../assets/Templates/Template_8.svg?url";
+
 
 const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, loadTemplate }) => {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [customTemplates, setCustomTemplates] = useState([]);
-  const fileInputRef = React.useRef(null);
+
 
   // SVG Template data
   const templates = [
@@ -65,21 +67,37 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       src: TemplateSVG6, 
       type: 'svg',
       description: 'Professional A4 marketing template'
+    },
+    { 
+      id: 7, 
+      name: 'Template 7', 
+      category: 'Business', 
+      src: TemplateSVG7, 
+      type: 'svg',
+      description: 'Professional A4 business template'
+    },
+    {
+      id: 8,
+      name: 'Template 8',
+      category: 'Business',
+      src: TemplateSVG8,
+      type: 'svg',
+      description: 'Professional A4 business template'
     }
   ];
 
   const categories = [
-    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio', 'Custom'
+    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio'
   ];
 
   // Filter templates
   const filteredTemplates = useMemo(() => {
-    const allTemplates = [...templates, ...customTemplates];
+    const allTemplates = [...templates];
     return allTemplates.filter(t => 
       (activeTab === 'All' || t.category === activeTab) &&
       t.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [activeTab, searchQuery, customTemplates]);
+  }, [activeTab, searchQuery]);
 
   // Load HTML template
   const handleLoadTemplate = async (template) => {
@@ -93,34 +111,7 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
     setShowTemplateModal(false);
   };
 
-  // Handle Custom SVG Upload (Instant use, not stored)
-  const handleCustomUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg'))) {
-      // Warn user about very large SVGs that might cause save issues
-      if (file.size > 30 * 1024 * 1024) {
-        alert("This SVG is exceptionally large (over 30MB). It may cause performance issues or fail to save due to network limits. Please optimize it if possible.");
-      }
-      
-      const url = URL.createObjectURL(file);
-      const newTemplate = {
-        id: `custom-${Date.now()}`,
-        name: file.name.replace(/\.[^/.]+$/, ""),
-        category: 'Custom',
-        src: url,
-        type: 'svg',
-        description: 'User uploaded custom template'
-      };
-      
-      setCustomTemplates(prev => [newTemplate, ...prev]);
-      setActiveTab('Custom');
-      
-      // Reset input
-      e.target.value = '';
-    } else if (file) {
-      alert("Please upload a valid SVG file.");
-    }
-  };
+
 
   // Helper Component for Template Card
   const TemplateCard = ({ template, onClick }) => {
@@ -141,6 +132,47 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         });
     }, [template.src]);
 
+    const detectedFonts = React.useMemo(() => {
+      if (!htmlContent) return [];
+      const fonts = new Set();
+      const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+      let match;
+      while ((match = cssRegex.exec(htmlContent)) !== null) {
+        let f = match[1] || match[2];
+        f = f.split(',')[0].replace(/['"]/g, '').trim();
+        if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fonts.add(f);
+      }
+      const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+      while ((match = attrRegex.exec(htmlContent)) !== null) {
+        let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+        if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fonts.add(f);
+      }
+      return Array.from(fonts);
+    }, [htmlContent]);
+
+    const dynamicFontLinks = detectedFonts.map(f => 
+      `<link href="https://fonts.googleapis.com/css?family=${f.replace(/\s+/g, '+')}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`
+    ).join('\n          ');
+
+    const iframeHtml = htmlContent ? `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;900&family=Montserrat:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Nunito+Sans:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+          ${dynamicFontLinks}
+          <style>
+            body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: white; overflow: hidden; }
+            svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+        </body>
+      </html>
+    ` : '';
+
     return (
       <div
         onClick={onClick}
@@ -149,14 +181,14 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         {/* Aspect Ratio Container (A4) */}
         <div className="relative w-full pt-[141.4%] bg-gray-50 overflow-hidden">
           
-          {/* SVG Preview Image */}
-          {!loading ? (
+          {/* SVG Preview Iframe */}
+          {!loading && htmlContent ? (
             <div className="absolute inset-0 flex items-center justify-center p-[1vw] bg-gray-100">
-               <img 
-                 src={template.src} 
-                 alt={template.name}
-                 className="w-full h-full object-contain shadow-sm bg-white"
-                 onLoad={() => setLoading(false)}
+               <iframe 
+                 srcDoc={iframeHtml}
+                 title={template.name}
+                 className="w-full h-full border-0 pointer-events-none shadow-sm bg-white"
+                 scrolling="no"
                />
             </div>
           ) : (
@@ -211,21 +243,7 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
                 />
               </div>
 
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-[0.5vw] px-[1.2vw] py-[0.6vw] bg-black text-white rounded-[0.8vw] text-[0.8vw] font-medium hover:bg-gray-800 transition-all shadow-md hover:shadow-gray-200"
-              >
-                <Upload size="1.1vw" />
-                <span>Upload SVG</span>
-              </button>
-              
-              <input 
-                type="file"
-                ref={fileInputRef}
-                onChange={handleCustomUpload}
-                accept=".svg"
-                className="hidden"
-              />
+
             </div>
             <button
               onClick={() => setShowTemplateModal(false)}
@@ -256,23 +274,7 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         <div className="flex-1 overflow-y-auto p-[2vw] bg-gray-50/50">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[2vw] pb-[2.5vw]">
 
-            {/* Upload Custom Template Card (Always visible in Custom tab or when searching in All) */}
-            {(activeTab === 'Custom' || (activeTab === 'All' && !searchQuery)) && (
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="group bg-white/50 rounded-[0.8vw] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer transition-all duration-300 hover:border-black/30 hover:bg-white hover:shadow-lg aspect-[1/1.414]"
-              >
-                <div className="flex flex-col items-center gap-[1.2vw] p-[2vw]">
-                  <div className="w-[3.5vw] h-[3.5vw] bg-gray-50 rounded-full flex items-center justify-center group-hover:bg-black group-hover:scale-110 transition-all duration-300">
-                    <Upload size="1.5vw" className="text-gray-400 group-hover:text-white" />
-                  </div>
-                  <div className="text-center">
-                    <h4 className="font-bold text-gray-900 text-[0.85vw]">Upload Custom</h4>
-                    <p className="text-[0.7vw] text-gray-500 mt-[0.4vw] leading-relaxed">Import your own SVG<br/>as a template</p>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {/* Dynamic Template Cards */}
             {filteredTemplates.map((template) => (

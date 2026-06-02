@@ -1,146 +1,284 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
+import PremiumDropdown from './PremiumDropdown';
+import { Trash2 } from 'lucide-react';
 
-/**
- * Utility to get the clip-path for bookmark shapes.
- */
+export const getBookmarkSVGPath = (s) => {
+    switch (s) {
+        case 2: return 'M0 0H28C34.6274 0 40 5.37258 40 12V86C40 92.6274 34.6274 98 28 98H0V0Z';
+        case 3: return 'M0 0H40L33.8298 49L40 98H0V0Z';
+        case 4: return 'M0 0C22.0914 0 40 17.9086 40 40V58C40 80.0914 22.0914 98 0 98V0Z';
+        case 5: return 'M0 0H34.0691C34.6219 0 35.0849 0.418537 35.1405 0.968522L40 49L35.0426 98H0V0Z';
+        case 6: return 'M40 0H0V98H38L40.0002 95.1L37.8726 91.7L40.0002 88.3L37.8726 84.9L40.0002 81.5L37.8726 78.1L40.0002 74.7L37.8726 71.3L40.0002 67.9L37.8726 64.5L40.0002 61.1L37.8726 57.7L40.0002 54.3L37.8726 50.9L40 47.6L37.8723 44.2L40 40.8L37.8723 37.4L40 34L37.8723 30.6L40 27.2L37.8723 23.8L40 20.4L37.8723 17L40 13.6L37.8723 10.2L40 6.8L37.8723 3.4L40 0Z';
+        case 1:
+        default: return 'M0 0H40V98H0V0Z';
+    }
+};
+
 export const getBookmarkClipPath = (s) => {
     switch (s) {
-        case 3: // V-cutout / Swallowtail
+        case 3:
             return 'polygon(0% 0%, 100% 0%, 75% 50%, 100% 100%, 0% 100%)';
-        case 5: // Pointed / Chevron
+        case 5:
             return 'polygon(0% 0%, 75% 0%, 100% 50%, 75% 100%, 0% 100%)';
-        case 6: // Serrated / Jagged
+        case 6:
             return 'polygon(0% 0%, 100% 0%, 96% 5%, 100% 10%, 96% 15%, 100% 20%, 96% 25%, 100% 30%, 96% 35%, 100% 40%, 96% 45%, 100% 50%, 96% 55%, 100% 60%, 96% 65%, 100% 70%, 96% 75%, 100% 80%, 96% 85%, 100% 90%, 96% 95%, 100% 100%, 0% 100%)';
         default:
             return 'none';
     }
 };
 
-/**
- * Utility to get the border-radius for bookmark shapes.
- */
 export const getBookmarkBorderRadius = (s) => {
     switch (s) {
-        case 2: // Rounded Right 
+        case 2:
             return '0 1vw 1vw 0';
-        case 4: // Rounded Right Rounded
+        case 4:
             return '0 2vw 2vw 0';
         default:
             return '0';
     }
 };
 
-/**
- * Utility to get the SVG path for bookmark shapes (viewBox 0 0 40 98).
- */
-export const getBookmarkSVGPath = (s) => {
-    switch (s) {
-        case 1: // Normal Rectangle
-            return 'M0,0 L40,0 L40,98 L0,98 Z';
-        case 2: // Rounded Right
-            return 'M0,0 L30,0 Q40,0 40,10 L40,88 Q40,98 30,98 L0,98 Z';
-        case 3: // V-cutout / Swallowtail
-            return 'M0,0 L40,0 L30,49 L40,98 L0,98 Z';
-        case 4: // Rounded Right Rounded
-            return 'M0,0 L20,0 Q40,0 40,20 L40,78 Q40,98 20,98 L0,98 Z';
-        case 5: // Pointed / Chevron
-            return 'M0,0 L30,0 L40,49 L30,98 L0,98 Z';
-        case 6: // Serrated / Jagged
-            return 'M0,0 L40,0 L38.4,4.9 L40,9.8 L38.4,14.7 L40,19.6 L38.4,24.5 L40,29.4 L38.4,34.3 L40,39.2 L38.4,44.1 L40,49 L38.4,53.9 L40,58.8 L38.4,63.7 L40,68.6 L38.4,73.5 L40,78.4 L38.4,83.3 L40,88.2 L38.4,93.1 L40,98 L0,98 Z';
-        default:
-            return 'M0,0 L40,0 L40,98 L0,98 Z';
-    }
-};
-
-const BookmarkStyleOption = ({ style, selected, onClick }) => {
-    return (
-        <div
-            onClick={onClick}
-            className={`cursor-pointer transition-all duration-300 p-[0.4vw] rounded-[0.5vw] flex items-center justify-center ${selected
-                    ? 'bg-white shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.5px] border-[#D1E0FF] '
-                    : 'hover:bg-gray-50 border-[1.5px] border-transparent'
-                }`}
-        >
-            <div
-                className="w-full h-[2.5vw] flex items-center justify-center relative shadow-sm transition-transform duration-300 transform active:scale-95"
+const BookmarkShape = ({ styleId, color, width, height, textClass, vertical = false }) => (
+    <div className="relative flex items-center justify-center" style={{ width, height }}>
+        {vertical ? (
+            <svg viewBox="0 0 40 98" preserveAspectRatio="none" className="absolute inset-0 w-full h-full drop-shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
+                <path d={getBookmarkSVGPath(styleId)} fill={color || '#C45A5A'} />
+            </svg>
+        ) : (
+            <div 
+                className="absolute top-1/2 left-1/2"
                 style={{
-                    backgroundColor: '#C45A5A',
-                    clipPath: getBookmarkClipPath(style),
-                    borderRadius: getBookmarkBorderRadius(style)
+                    width: height,
+                    height: width,
+                    transform: 'translate(-50%, -50%) rotate(-90deg)'
                 }}
             >
-                <span className="text-white text-[0.6vw] font-semibold">Bookmark</span>
+                <svg viewBox="0 0 40 98" preserveAspectRatio="none" className="w-full h-full drop-shadow-[0_1px_2px_rgba(0,0,0,0.1)]">
+                    <path d={getBookmarkSVGPath(styleId)} fill={color || '#C45A5A'} />
+                </svg>
             </div>
-        </div>
-    );
-};
+        )}
+        <span 
+            className={`relative z-10 text-white font-semibold whitespace-nowrap ${textClass || ''}`}
+            style={vertical ? { transform: 'rotate(-90deg)' } : {}}
+        >
+            Bookmark
+        </span>
+    </div>
+);
 
-const BookmarkStylesPopup = ({ onClose, onSelect, currentStyle }) => {
-    const [selectedStyle, setSelectedStyle] = React.useState(currentStyle || 1);
+const BookmarkStylesPopup = ({ onClose, settings = {}, onUpdate, pages = [] }) => {
+    const updateSectionField = (section, subSection, field, value) => {
+        if (!onUpdate) return;
+        onUpdate(prev => ({
+            ...prev,
+            [section]: {
+                ...(prev?.[section] || {}),
+                [subSection]: {
+                    ...(prev?.[section]?.[subSection] || {}),
+                    [field]: value
+                }
+            }
+        }));
+    };
+
+    const bookmarkSettings = settings?.navigation?.bookmarkSettings || {};
+    const items = bookmarkSettings.items || [
+        { title: 'Home', page: 'Pg 1' },
+        { title: 'Features', page: 'Pg 3' },
+        { title: '3D View', page: 'Pg 5' },
+        { title: 'Contact', page: 'Pg 6' }
+    ];
+
+    const fontFamilies = [
+        'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
+        'Helvetica', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
+        'Inter', 'Playfair Display', 'Oswald', 'Merriweather'
+    ];
+
+    const [showStyleGrid, setShowStyleGrid] = useState(false);
+    const [tempStyle, setTempStyle] = useState(bookmarkSettings.style || 1);
     const styles = [1, 2, 3, 4, 5, 6];
+    const popupAnchorRef = useRef(null);
+    const [popupStyle, setPopupStyle] = useState({});
 
-    // Track original style for canceling
-    const originalStyle = React.useRef(currentStyle || 1);
-
-    const handleSelect = (s) => {
-        setSelectedStyle(s);
-        onSelect(s, true); // Pass 'true' to indicate temporary/preview update
+    const handleOpenGrid = () => {
+        setTempStyle(bookmarkSettings.style || 1);
+        setShowStyleGrid(true);
     };
 
-    const handleCancel = () => {
-        onSelect(originalStyle.current);
-        onClose();
-    };
-
-    const handleReplace = () => {
-        onSelect(selectedStyle);
-        onClose();
-    };
+    useEffect(() => {
+        if (showStyleGrid && popupAnchorRef.current) {
+            const rect = popupAnchorRef.current.getBoundingClientRect();
+            setPopupStyle({
+                top: `${rect.top}px`,
+                left: `${rect.left}px`,
+                transform: 'translate(2vw, -1vw)',
+            });
+        }
+    }, [showStyleGrid]);
 
     return (
-        <div
-            className="fixed z-[1000] bg-white border border-gray-100 rounded-[12px] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
-            style={{ width: '250px', top: '60%', left: '23vw', transform: 'translate(-50%, -50%)' }}
-            onClick={(e) => e.stopPropagation()}
-        >
-            <div className="bg-white rounded-[1.2vw] w-full p-6">
-                {/* Header */}
-                <div className="flex items-center gap-[0.1vw] mb-4">
-                    <h3 className="text-[0.85vw] font-semibold text-gray-800">Bookmark Styles</h3>
-                    <div className="flex-1 h-[0.1px] bg-[#E2E8F0]"></div>
-                </div>
+        <div className="w-full space-y-[1.25vw] pt-[0.5vw]" onClick={(e) => e.stopPropagation()} ref={popupAnchorRef}>
+            {showStyleGrid && typeof document !== 'undefined' && createPortal(
+                <div 
+                    className="fixed w-[26vw] z-[9999] bg-white rounded-[0.8vw] shadow-[0_4px_30px_rgba(0,0,0,0.2)] border border-gray-200 overflow-hidden"
+                    style={popupStyle}
+                >
+                    <div className="p-[1vw] space-y-[1vw]">
+                        <div className="flex items-center gap-[0.5vw]">
+                            <h4 className="text-[1.1vw] font-semibold text-black whitespace-nowrap">Bookmark Styles</h4>
+                            <div className="h-[1px] bg-gray-200 flex-1"></div>
+                        </div>
+                        <div className="flex justify-between items-center px-[0.5vw]">
+                            {styles.map(s => (
+                                <div 
+                                    key={s}
+                                    onClick={() => setTempStyle(s)}
+                                    className={`cursor-pointer transition-all duration-300 rounded-[0.5vw] p-[0.3vw] flex items-center justify-center ${
+                                        tempStyle === s 
+                                        ? 'bg-gray-100/50 shadow-inner scale-105' 
+                                        : 'hover:bg-gray-50 scale-100 hover:scale-105'
+                                    }`}
+                                >
+                                    <BookmarkShape 
+                                        styleId={s} 
+                                        color={bookmarkSettings.color} 
+                                        width="2vw" 
+                                        height="4.5vw" 
+                                        textClass="text-[0.55vw]" 
+                                        vertical={true}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="h-[1px] bg-gray-200 w-full mt-[0.5vw]"></div>
+                        <div className="flex items-center justify-end gap-[0.8vw] pt-[0.2vw]">
+                            <button 
+                                onClick={() => setShowStyleGrid(false)}
+                                className="flex items-center gap-[0.4vw] px-[1.2vw] py-[0.5vw] border border-black rounded-[0.4vw] text-black text-[0.8vw] hover:bg-gray-50 transition-colors font-medium bg-white"
+                            >
+                                <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw]" />
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={() => {
+                                    updateSectionField('navigation', 'bookmarkSettings', 'style', tempStyle);
+                                    setShowStyleGrid(false);
+                                }}
+                                className="flex items-center gap-[0.4vw] px-[1.2vw] py-[0.5vw] bg-black text-white rounded-[0.4vw] text-[0.8vw] hover:bg-gray-800 transition-colors font-medium border border-black"
+                            >
+                                <Icon icon="qlementine-icons:replace-16" className="w-[0.9vw] h-[0.9vw]" />
+                                Change
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+            
+                    <>
+                        {/* Styles Section */}
+                        <div className="space-y-[0.75vw]">
+                            <div className="flex items-center gap-[0.5vw] mb-[0.5vw]">
+                                <h4 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.2vw]">Styles</h4>
+                                <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
+                            </div>
 
-                {/* Grid */}
-                <div className="grid grid-cols-2 gap-[1vw] mb-5">
-                    {styles.map((s) => (
-                        <BookmarkStyleOption
-                            key={s}
-                            style={s}
-                            selected={selectedStyle === s}
-                            onClick={() => handleSelect(s)}
-                        />
-                    ))}
-                </div>
+                            <div className="flex items-center gap-[2vw] px-[0.5vw]">
+                                <div className="w-[4.5vw] h-[4.5vw] p-[0.5vw] flex flex-col items-center justify-center bg-white shadow-sm border border-gray-200 rounded-[0.5vw] relative group">
+                                    <button 
+                                        onClick={handleOpenGrid}
+                                        className="absolute top-[0.2vw] right-[0.2vw] z-20 w-[1.2vw] h-[1.2vw] flex items-center justify-center cursor-pointer hover:bg-gray-100 transition-all rounded-[0.2vw]"
+                                    >
+                                        <Icon icon="lucide:arrow-left-right" className="w-[0.8vw] h-[0.8vw] text-gray-800" />
+                                    </button>
+                                    <div className="flex items-center justify-center w-[4.5vw] h-[4.5vw]">
+                                        <BookmarkShape 
+                                            styleId={bookmarkSettings.style || 1} 
+                                            color={bookmarkSettings.color} 
+                                            width="1.8vw" 
+                                            height="3.6vw" 
+                                            textClass="text-[0.45vw]" 
+                                            vertical={true}
+                                        />
+                                    </div>
+                                </div>
 
-                {/* Footer */}
-                <div className="flex items-center justify-center gap-[0.5vw] pt-[0.8vw] border-t border-[#F1F5F9]">
-                    <button
-                        onClick={handleCancel}
-                        className="flex-1 flex items-center justify-center gap-[0.3vw] px-[0.5vw] py-[0.4vw] rounded-sm border-[0.1vw] border-gray-500 text-gray-900 font-semibold text-[0.8vw] hover:bg-gray-50 transition-all active:scale-95"
-                    >
-                        <Icon icon="lucide:x" className="w-[0.9vw] h-[0.9vw]" />
-                        Cancel
-                    </button>
-                    <button
-                        onClick={handleReplace}
-                        className="flex-1 flex items-center justify-center gap-[0.3vw] px-[0.5vw] py-[0.4vw] rounded-sm border-[0.1vw] border-gray-500 bg-black text-white font-semibold text-[0.8vw] hover:bg-gray-900 transition-all active:scale-95"
-                    >
-                        <Icon icon="qlementine-icons:replace-16" className="w-[0.9vw] h-[0.9vw]" />
-                        Replace
-                    </button>
-                </div>
-            </div>
+                                <div className="flex flex-col gap-[0.5vw]">
+                                    <span className="text-[0.75vw] font-semibold text-gray-800 pt-[0.1vw]">Select Text :</span>
+                                    <PremiumDropdown 
+                                        options={fontFamilies} 
+                                        value={bookmarkSettings.font || 'Poppins'}
+                                        onChange={(val) => updateSectionField('navigation', 'bookmarkSettings', 'font', val)}
+                                        width="10vw"
+                                        isFont={true}
+                                        buttonClassName="!border-gray-300 !rounded-[0.4vw]"
+                                        align="right"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Add Bookmark Section */}
+                        <div className="space-y-[0.75vw] mt-[1.5vw]">
+                            <div className="flex items-center gap-[0.5vw] mb-[0.5vw]">
+                                <h4 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.2vw]">Add Bookmark</h4>
+                                <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
+                            </div>
+                            
+                            <div className="space-y-[0.5vw] pr-[0.5vw]">
+                                {items.map((item, index) => (
+                                    <div key={index} className="flex items-center gap-[0.5vw]">
+                                        <input 
+                                            type="text" 
+                                            value={item.title} 
+                                            onChange={(e) => {
+                                                const newItems = [...items];
+                                                newItems[index].title = e.target.value;
+                                                updateSectionField('navigation', 'bookmarkSettings', 'items', newItems);
+                                            }}
+                                            placeholder="Bookmark Title" 
+                                            className="text-[0.75vw] h-[2.2vw] px-[0.5vw] border border-gray-300 rounded-[0.4vw] outline-none focus:border-gray-500 transition-colors bg-white text-gray-700" style={{width: '8vw'}}
+                                        />
+                                        <PremiumDropdown 
+                                            options={pages && pages.length > 0 ? Array.from({length: pages.length}, (_, i) => `Pg ${i+1}`) : Array.from({length: 24}, (_, i) => `Pg ${i+1}`)}
+                                            value={item.page}
+                                            onChange={(val) => {
+                                                const newItems = [...items];
+                                                newItems[index].page = val;
+                                                updateSectionField('navigation', 'bookmarkSettings', 'items', newItems);
+                                            }}
+                                            width="8.5vw"
+                                            buttonClassName="!h-[2.2vw] !border-gray-300 !rounded-[0.4vw] text-[0.75vw] [&>span]:whitespace-nowrap"
+                                        />
+                                        <button 
+                                            onClick={() => {
+                                                const newItems = items.filter((_, i) => i !== index);
+                                                updateSectionField('navigation', 'bookmarkSettings', 'items', newItems);
+                                            }}
+                                            className="text-red-400 hover:text-red-600 transition-colors p-[0.3vw] flex items-center justify-center"
+                                        >
+                                            <Trash2 size="1vw" strokeWidth={2} />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="pr-[0.5vw] mt-[1vw]">
+                                <button 
+                                    onClick={() => {
+                                        updateSectionField('navigation', 'bookmarkSettings', 'items', [...items, { title: '', page: 'Pg 1' }]);
+                                    }}
+                                    className="w-full flex items-center justify-center gap-[0.4vw] h-[2.5vw] border border-gray-200 bg-white rounded-[0.4vw] text-[0.75vw] text-gray-600 font-medium hover:bg-gray-50 transition-colors shadow-sm"
+                                >
+                                    <Icon icon="lucide:plus" className="w-[0.9vw] h-[0.9vw]" strokeWidth={2} />
+                                    Add Bookmark
+                                </button>
+                            </div>
+                        </div>
+                    </>
         </div>
     );
 };

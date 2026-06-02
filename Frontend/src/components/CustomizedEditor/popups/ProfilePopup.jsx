@@ -1243,7 +1243,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                     className={`absolute z-[120] pointer-events-auto shadow-2xl flex flex-col overflow-hidden border border-[#575C9C]
                         ${isLayout7
                             ? isTablet ? "right-[3.1vw] top-[1.5vh] bottom-0 w-[16vw] backdrop-blur-xl rounded-none" : "right-[4.5vw] bottom-0 w-[18vw] h-[75vh] backdrop-blur-xl rounded-none"
-                            : isTablet ? "right-[4.5vw] top-[6vh] bottom-[5vh] w-[11vw] border-[#575C9C]/10" : "right-[5vw] top-[7vh] bottom-[7.5vh] w-[17.5vw] border-[#575C9C]/10"
+                            : isTablet ? "right-[4.5vw] top-[6vh] bottom-[5vh] w-[11vw] border-[#575C9C]/10" : (isFullscreen ? "right-[5vw] top-[7vh] bottom-[7vh] w-[17.5vw]" : "right-[3.5vw] top-[6vh] bottom-[6vh] w-[17.5vw]") + " border-[#575C9C]/10"
                         }`}
                     style={isLayout7 ? { backgroundColor: "rgba(var(--dropdown-bg-rgb, 87, 92, 156), var(--dropdown-bg-opacity, 0.8))" } : { backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                     onClick={(e) => e.stopPropagation()}
@@ -1334,7 +1334,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
             return 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2';
         }
         if (layoutId === 2) return `top-[8.5vh] left-[calc(50%_+_12.5vw)] -translate-x-1/2 rounded-[0.2vw]`;
-        if (layoutId === 3) return 'top-[5.5vh] left-[calc(50%_+_3vw)] -translate-x-1/2';
+        if (layoutId === 3) return 'top-[7.5vh] left-[calc(50%_+_3vw)] -translate-x-1/2';
         if (layoutId === 5) return 'bottom-[9vh] left-[calc(50%_+_12vw)] -translate-x-1/2';
         if (layoutId === 4) return 'top-[44vh] left-[6vw]';
         if (layoutId === 6) return 'top-[48vh] right-[4vw]';
@@ -1365,7 +1365,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                     }}
                 >
                     <div
-                        className={isLayout2 ? `rounded-[0.65vw] ${isTablet ? 'p-[0.8vw] w-[9.5vw] min-h-[13vw]' : 'p-[1vw] w-[15.5vw] min-h-[18vw]'} relative` : (isLayout4 || isLayout5 || isLayout6 || isLayout7 || isLayout8 || isLayout9 ? 'rounded-[0.7vw] p-[0.8vw] w-full' : `rounded-[0.7vw] ${isLayout1 ? 'pt-[0.05vw] pb-[0.8vw] px-[0.8vw]' : (isLayout3 ? 'pt-[0.3vw] pb-[0.8vw] px-[0.8vw]' : 'p-[0.8vw]')} w-full`)}
+                        className={isLayout2 ? `rounded-[0.65vw] ${isTablet ? 'p-[0.8vw] w-[9.5vw]' : 'p-[1vw] w-[15.5vw]'} ${hasData ? (isTablet ? 'min-h-[13vw]' : 'min-h-[18vw]') : ''} relative` : (isLayout4 || isLayout5 || isLayout6 || isLayout7 || isLayout8 || isLayout9 ? 'rounded-[0.7vw] p-[0.8vw] w-full' : `rounded-[0.7vw] ${isLayout1 ? 'pt-[0.05vw] pb-[0.8vw] px-[0.8vw]' : (isLayout3 ? 'pt-[0.3vw] pb-[0.8vw] px-[0.8vw]' : 'p-[0.8vw]')} w-full`)}
                         style={{ backgroundColor: (isLayout2 || isLayout3) ? `rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.4 + var(--dropdown-bg-opacity, 1) * 0.6))` : (isLayout1 ? 'transparent' : getLayoutColor('dropdown-bg', '#FFFFFF')) }}
                     >
                         <div className={isLayout3 ? (isMobile ? 'relative z-10 p-[10px] flex-1 flex flex-col justify-between' : 'relative z-10 pt-[0.2vw] pb-[0.8vw] px-[0.8vw]') : 'w-full'}>
@@ -1454,7 +1454,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                                         <button
                                                             key={contact.id}
                                                             onClick={(e) => handleContactClick(e, contact)}
-                                                            className={`${(isLayout2) ? (isMobile ? (style.isLarge ? 'w-9 h-9' : style.isMedium ? 'w-8 h-8' : 'w-7 h-7') : (style.isLarge ? 'w-[2.7vw] h-[2.7vw]' : style.isMedium ? 'w-[2.5vw] h-[2.5vw]' : 'w-[2.2vw] h-[2.2vw]')) : (isMobile ? (isLayout3 ? 'w-6 h-6' : 'w-7 h-7') : (isLayout3 ? `w-[2.2vw] ${ (contact.type === 'linkedin' || contact.type === 'x') ? 'h-[2vw]' : 'h-[2.2vw]'}` : 'w-[2.2vw] h-[2.2vw]'))} ${style.isFull ? 'p-0' : (isMobile ? (isLayout3 ? 'p-[4px]' : 'p-[6px]') : (isLayout3 && (contact.type === 'email' || contact.type === 'phone') ? 'p-[0.35vw]' : (isLayout3 ? 'p-[0.5vw]' : 'p-[0.5vw]')))} ${style.isFull ? '' : style.bg} rounded-[0.5vw] flex items-center justify-center hover:scale-110 active:scale-95 transition-all ${style.isFull ? '' : 'shadow-lg border border-white/10'}`}
+                                                            className={`${(isLayout2) ? (isMobile ? (style.isLarge ? 'w-9 h-9' : style.isMedium ? 'w-8 h-8' : 'w-7 h-7') : (style.isLarge ? 'w-[2.7vw] h-[2.7vw]' : style.isMedium ? 'w-[2.5vw] h-[2.5vw]' : 'w-[2.2vw] h-[2.2vw]')) : (isMobile ? (isLayout3 ? 'w-6 h-6' : 'w-7 h-7') : (isLayout3 ? `w-[2.2vw] ${(contact.type === 'linkedin' || contact.type === 'x') ? 'h-[2vw]' : 'h-[2.2vw]'}` : 'w-[2.2vw] h-[2.2vw]'))} ${style.isFull ? 'p-0' : (isMobile ? (isLayout3 ? 'p-[4px]' : 'p-[6px]') : (isLayout3 && (contact.type === 'email' || contact.type === 'phone') ? 'p-[0.35vw]' : (isLayout3 ? 'p-[0.5vw]' : 'p-[0.5vw]')))} ${style.isFull ? '' : style.bg} rounded-[0.5vw] flex items-center justify-center hover:scale-110 active:scale-95 transition-all ${style.isFull ? '' : 'shadow-lg border border-white/10'}`}
                                                             title={contact.value}
                                                         >
                                                             <Icon

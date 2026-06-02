@@ -57,6 +57,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
 });
 
 const Grid9Layout = ({
+    offset,
     children,
     settings,
     bookName,
@@ -106,7 +107,8 @@ const Grid9Layout = ({
     isTablet,
     otherSetupSettings,
     isFlipMuted,
-    setIsFlipMuted
+    setIsFlipMuted,
+    isFullscreen: isFullscreenProp
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
@@ -138,14 +140,9 @@ const Grid9Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        // Shift left to center the front cover, shift right to center the back cover
-        if (currentPage === 0) {
-            return -(dimWidth / 2);
-        } else if (currentPage >= pages.length - 1) {
-            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
-        }
-        return 0;
-    }, [currentPage, pages.length, dimWidth]);
+        if (typeof offset === 'undefined' || !offset) return 0;
+        return offset * (dimWidth / initialWidth);
+    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -167,12 +164,14 @@ const Grid9Layout = ({
         });
     }, [children, dimWidth, dimHeight, localBuildPageDoc]);
 
+    const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
     const totalPages = pagesCount;
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
 
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
-    const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
+    const isFullscreen = isFullscreenProp || false;
+    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
     const thumbScrollRef = useRef(null);
     const showThumbnails = showThumbnailBar;
     const setShowThumbnails = setShowThumbnailBarMemo;
@@ -222,19 +221,6 @@ const Grid9Layout = ({
         }
         setter(next);
     };
-
-
-    useEffect(() => {
-        const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
-        };
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-        };
-    }, []);
 
     // Scroll active thumbnail into view when panel opens
     useEffect(() => {
@@ -380,118 +366,123 @@ const Grid9Layout = ({
             )}
 
             {/* ═══════════ Top Overlay Area ═══════════ */}
-            <div className="absolute top-[2vh] left-[2vw] right-[2vw] flex items-center justify-between z-50 pointer-events-none">
+            <div
+                className="absolute top-[2vh] left-[2vw] right-[2vw] flex items-center justify-between z-[100] pointer-events-none transition-all duration-500 ease-in-out"
+                style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
+            >
 
                 {/* Left: Quick Search */}
                 <div className="flex-1 flex justify-start pointer-events-auto">
-                    <div className="relative z-50" onClick={(e) => e.stopPropagation()}>
-                        {/* Purple Background & Dropdown Container */}
-                        <AnimatePresence>
-                            {recommendations.length > 0 && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: -5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -5 }}
-                                    className={`absolute left-0 z-0 shadow-2xl flex flex-col w-full ${isTablet ? 'top-[1.8vh]' : 'top-[2.1vh]'}`}
-                                    style={{
-                                        backgroundColor: getLayoutColor('dropdown-bg', primaryColor),
-                                        borderBottomLeftRadius: '1.2vw',
-                                        borderBottomRightRadius: '1.2vw',
-                                        paddingBottom: '0.6vw'
-                                    }}
-                                >
-                                    {/* Invisible spacer to push suggestions below the input */}
-                                    <div className={`${isTablet ? 'h-[1.8vh]' : 'h-[2.1vh]'} shrink-0`} />
+                    {settings?.interaction?.search !== false && !isPdfProject && (
+                        <div className="relative z-50" onClick={(e) => e.stopPropagation()}>
+                            {/* Purple Background & Dropdown Container */}
+                            <AnimatePresence>
+                                {recommendations.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -5 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -5 }}
+                                        className={`absolute left-0 z-0 shadow-2xl flex flex-col w-full ${isTablet ? 'top-[1.8vh]' : 'top-[2.1vh]'}`}
+                                        style={{
+                                            backgroundColor: getLayoutColor('dropdown-bg', primaryColor),
+                                            borderBottomLeftRadius: '1.2vw',
+                                            borderBottomRightRadius: '1.2vw',
+                                            paddingBottom: '0.6vw'
+                                        }}
+                                    >
+                                        {/* Invisible spacer to push suggestions below the input */}
+                                        <div className={`${isTablet ? 'h-[1.8vh]' : 'h-[2.1vh]'} shrink-0`} />
 
-                                    {/* Suggestions White Box */}
-                                    <div className="mx-[0.6vw] mt-[0.6vw] bg-white flex flex-col py-[0.5vh] overflow-hidden" style={{ borderRadius: '0.8vw' }}>
-                                        {recommendations.map((rec, idx) => (
-                                            <button
-                                                key={`${rec.word}-${rec.pageNumber}-${idx}`}
-                                                className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-gray-50 transition-colors group"
-                                                style={{ color: getLayoutColor('dropdown-bg', primaryColor) }}
-                                                onClick={() => {
-                                                    onPageClick(rec.pageNumber - 1);
-                                                    const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
-                                                    setLocalSearchQuery(fullQuery);
-                                                    setSearchQuery(fullQuery);
-                                                    setRecommendations([]);
-                                                }}
-                                            >
-                                                <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
-                                                        <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 600 }}>{rec.word}</span>
-                                                        {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
-                                                    </span>
-                                                </div>
-                                                <span className="text-[0.8vw] font-medium opacity-50 tabular-nums shrink-0">Pg {rec.pageNumber}</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
+                                        {/* Suggestions White Box */}
+                                        <div className="mx-[0.6vw] mt-[0.6vw] bg-white flex flex-col py-[0.5vh] overflow-hidden" style={{ borderRadius: '0.8vw' }}>
+                                            {recommendations.map((rec, idx) => (
+                                                <button
+                                                    key={`${rec.word}-${rec.pageNumber}-${idx}`}
+                                                    className="flex items-center justify-between px-[1.2vw] py-[0.8vh] hover:bg-gray-50 transition-colors group"
+                                                    style={{ color: getLayoutColor('dropdown-bg', primaryColor) }}
+                                                    onClick={() => {
+                                                        onPageClick(rec.pageNumber - 1);
+                                                        const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
+                                                        setLocalSearchQuery(fullQuery);
+                                                        setSearchQuery(fullQuery);
+                                                        setRecommendations([]);
+                                                    }}
+                                                >
+                                                    <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
+                                                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
+                                                            <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 600 }}>{rec.word}</span>
+                                                            {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
+                                                        </span>
+                                                    </div>
+                                                    <span className="text-[0.8vw] font-medium opacity-50 tabular-nums shrink-0">Pg {rec.pageNumber}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
-                        <div
-                            className={`relative z-10 flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'} transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[10vw]' : 'w-[12vw]') : (isTablet ? 'w-[11vw]' : 'w-[14vw]')}`}
-                            style={{
-                                backgroundColor: recommendations.length > 0 ? '#ffffff' : getLayoutColor('search-bg-v2', '#ffffff'),
-                                border: recommendations.length > 0 ? 'none' : `1px solid ${getLayoutColor('search-text-v1', primaryColor)}30`
-                            }}
-                        >
-                            <Icon icon="lucide:search" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.0vw] h-[1.0vw]') : (isTablet ? 'w-[1.0vw] h-[1.0vw]' : 'w-[1.1vw] h-[1.1vw]')}`} color={getLayoutColor('search-text-v1', primaryColor)} />
-                            <input
-                                type="text"
-                                value={localSearchQuery}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setLocalSearchQuery(val);
-                                    if (val.length >= 1) {
-                                        const results = [];
-                                        const lowerQuery = val.toLowerCase();
-                                        const uniqueMatches = new Set();
-                                        pages.forEach((page, index) => {
-                                            const text = (page.html || page.content || '').replace(/<[^>]*>/g, ' ');
-                                            const words = text.split(/\s+/).filter(w => w.trim().length > 0);
+                            <div
+                                className={`relative z-10 flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'} transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[10vw]' : 'w-[12vw]') : (isTablet ? 'w-[11vw]' : 'w-[14vw]')}`}
+                                style={{
+                                    backgroundColor: recommendations.length > 0 ? '#ffffff' : getLayoutColor('search-bg-v2', '#ffffff'),
+                                    border: recommendations.length > 0 ? 'none' : `1px solid ${getLayoutColor('search-text-v1', primaryColor)}30`
+                                }}
+                            >
+                                <Icon icon="lucide:search" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.0vw] h-[1.0vw]') : (isTablet ? 'w-[1.0vw] h-[1.0vw]' : 'w-[1.1vw] h-[1.1vw]')}`} color={getLayoutColor('search-text-v1', primaryColor)} />
+                                <input
+                                    type="text"
+                                    value={localSearchQuery}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLocalSearchQuery(val);
+                                        if (val.length >= 1) {
+                                            const results = [];
+                                            const lowerQuery = val.toLowerCase();
+                                            const uniqueMatches = new Set();
+                                            pages.forEach((page, index) => {
+                                                const text = (page.html || page.content || '').replace(/<[^>]*>/g, ' ');
+                                                const words = text.split(/\s+/).filter(w => w.trim().length > 0);
 
-                                            for (let i = 0; i < words.length; i++) {
-                                                const word = words[i];
-                                                const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '');
-                                                if (cleanWord.length > 2 && cleanWord.toLowerCase().startsWith(lowerQuery)) {
-                                                    const contextWords = words.slice(i + 1, i + 3).join(' ');
-                                                    const matchKey = `${cleanWord.toLowerCase()}|${contextWords.toLowerCase()}`;
+                                                for (let i = 0; i < words.length; i++) {
+                                                    const word = words[i];
+                                                    const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '');
+                                                    if (cleanWord.length > 2 && cleanWord.toLowerCase().startsWith(lowerQuery)) {
+                                                        const contextWords = words.slice(i + 1, i + 3).join(' ');
+                                                        const matchKey = `${cleanWord.toLowerCase()}|${contextWords.toLowerCase()}`;
 
-                                                    if (!uniqueMatches.has(matchKey)) {
-                                                        results.push({
-                                                            word: word,
-                                                            context: contextWords,
-                                                            pageNumber: index + 1
-                                                        });
-                                                        uniqueMatches.add(matchKey);
+                                                        if (!uniqueMatches.has(matchKey)) {
+                                                            results.push({
+                                                                word: word,
+                                                                context: contextWords,
+                                                                pageNumber: index + 1
+                                                            });
+                                                            uniqueMatches.add(matchKey);
+                                                        }
                                                     }
+                                                    if (results.length > 15) break;
                                                 }
-                                                if (results.length > 15) break;
-                                            }
-                                            if (results.length > 15) return;
-                                        });
-                                        setRecommendations(results.slice(0, 6));
-                                    } else {
-                                        setRecommendations([]);
-                                    }
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        setSearchQuery(localSearchQuery);
-                                        handleQuickSearch(localSearchQuery);
-                                        setRecommendations([]);
-                                    }
-                                }}
-                                placeholder="Quick Search..."
-                                className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
-                                style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
-                            />
+                                                if (results.length > 15) return;
+                                            });
+                                            setRecommendations(results.slice(0, 6));
+                                        } else {
+                                            setRecommendations([]);
+                                        }
+                                    }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            setSearchQuery(localSearchQuery);
+                                            handleQuickSearch(localSearchQuery);
+                                            setRecommendations([]);
+                                        }
+                                    }}
+                                    placeholder="Quick Search..."
+                                    className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
+                                    style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
+                                />
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* ═══════════ Center: Top Toolbar ═══════════ */}
@@ -511,167 +502,7 @@ const Grid9Layout = ({
                             onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowThumbnailBarMemo, showThumbnails); }}
                             isActive={showThumbnails}
                         />
-                        {/* Notes */}
-                        <div className="relative">
-                            <AnimatePresence>
-                                {showTopNotesOptions && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                        className={`absolute right-1/2 ${isTablet ? 'translate-x-[1.35vw]' : 'translate-x-[1.5vw]'} top-[-10%] ${isTablet ? 'w-[9vw]' : 'w-[10vw]'} z-[100] cursor-default group`}
-                                        style={{ aspectRatio: '250/270', filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))' }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        {/* Unified SVG Background */}
-                                        <div className="absolute inset-0 z-0 pointer-events-none">
-                                            <svg width="100%" height="100%" viewBox="0 0 250 270" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-                                                <defs>
-                                                    <clipPath id="notes-shape-clip" clipPathUnits="objectBoundingBox">
-                                                        <path
-                                                            transform="scale(0.004, 0.0037037)"
-                                                            d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
-                                                        />
-                                                    </clipPath>
-                                                </defs>
-                                                <path
-                                                    d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
-                                                    fill={getLayoutColor('dropdown-bg', primaryColor)}
-                                                    fillOpacity="0.6"
-                                                    stroke="rgba(255,255,255,0.1)"
-                                                    strokeWidth="1.5"
-                                                />
-                                            </svg>
-                                        </div>
 
-                                        {/* Popup Body Content */}
-                                        <div
-                                            className="w-full h-full relative z-10 backdrop-blur-md flex flex-col gap-[0.5vw] justify-center pt-[3.6vw] px-[0.8vw]"
-                                            style={{ clipPath: 'url(#notes-shape-clip)', WebkitClipPath: 'url(#notes-shape-clip)' }}
-                                        >
-                                            <button
-                                                className="w-full flex items-center justify-start gap-[0.6vw] px-[1vw] py-[0.8vh] bg-white rounded-full transition-all hover:scale-[1.04] active:scale-[0.97] text-left group shadow-lg"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowAddNotesPopupMemo(true);
-                                                    setShowTopNotesOptions(false);
-                                                }}
-                                            >
-                                                <div className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full bg-gray-50 group-hover:bg-white transition-colors shrink-0">
-                                                    <Icon icon="solar:notes-bold" className={`${isTablet ? 'w-[1vw]' : 'w-[1.1vw]'} transition-transform group-hover:scale-110`} style={{ color: bodyTextColor }} />
-                                                </div>
-                                                <div className="flex flex-col leading-[1.1]">
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>Add</span>
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>Notes</span>
-                                                </div>
-                                            </button>
-                                            <button
-                                                className="w-full flex items-center justify-start gap-[0.6vw] px-[1vw] py-[0.8vh] bg-white rounded-full transition-all hover:scale-[1.04] active:scale-[0.97] text-left group shadow-lg"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowNotesViewerMemo(true);
-                                                    setShowTopNotesOptions(false);
-                                                }}
-                                            >
-                                                <div className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full bg-gray-50 group-hover:bg-white transition-colors shrink-0">
-                                                    <Icon icon="lets-icons:view-duotone" className={`${isTablet ? 'w-[1vw]' : 'w-[1.1vw]'} transition-transform group-hover:scale-110`} style={{ color: bodyTextColor }} />
-                                                </div>
-                                                <div className="flex flex-col leading-[1.1]">
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>View</span>
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>Notes</span>
-                                                </div>
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                            <ToolbarBtn
-                                icon="material-symbols-light:add-notes"
-                                onClick={() => handleMenuClick(setShowTopNotesOptions, showTopNotesOptions)}
-                                isActive={showTopNotesOptions}
-                                className="relative z-[200]"
-                            />
-                        </div>
-                        <div className="relative">
-                            <AnimatePresence>
-                                {showTopBookmarkOptions && (
-                                    <motion.div
-                                        initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                                        className={`absolute right-1/2 ${isTablet ? 'translate-x-[1.35vw]' : 'translate-x-[1.5vw]'} top-[-10%] ${isTablet ? 'w-[9vw]' : 'w-[10vw]'} z-[100] cursor-default group`}
-                                        style={{ aspectRatio: '250/270', filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))' }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        {/* Unified SVG Background */}
-                                        <div className="absolute inset-0 z-0 pointer-events-none">
-                                            <svg width="100%" height="100%" viewBox="0 0 250 270" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-                                                <defs>
-                                                    <clipPath id="bookmarks-shape-clip" clipPathUnits="objectBoundingBox">
-                                                        <path
-                                                            transform="scale(0.004, 0.0037037)"
-                                                            d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
-                                                        />
-                                                    </clipPath>
-                                                </defs>
-                                                <path
-                                                    d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
-                                                    fill={getLayoutColor('dropdown-bg', primaryColor)}
-                                                    fillOpacity="0.6"
-                                                    stroke="rgba(255,255,255,0.1)"
-                                                    strokeWidth="1.5"
-                                                />
-                                            </svg>
-                                        </div>
-
-                                        {/* Popup Body Content */}
-                                        <div
-                                            className="w-full h-full relative z-10 backdrop-blur-md flex flex-col gap-[0.5vw] justify-center pt-[3.6vw] px-[0.8vw]"
-                                            style={{ clipPath: 'url(#bookmarks-shape-clip)', WebkitClipPath: 'url(#bookmarks-shape-clip)' }}
-                                        >
-                                            <button
-                                                className="w-full flex items-center justify-start gap-[0.6vw] px-[1vw] py-[0.8vh] bg-white rounded-full transition-all hover:scale-[1.04] active:scale-[0.97] text-left group shadow-lg"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowAddBookmarkPopupMemo(true);
-                                                    setShowTopBookmarkOptions(false);
-                                                }}
-                                            >
-                                                <div className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full bg-gray-50 group-hover:bg-white transition-colors shrink-0">
-                                                    <Icon icon="fluent:bookmark-add-24-filled" className={`${isTablet ? 'w-[1vw]' : 'w-[1.1vw]'} transition-transform group-hover:scale-110`} style={{ color: bodyTextColor }} />
-                                                </div>
-                                                <div className="flex flex-col leading-[1.1]">
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>Add</span>
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>Bookmark</span>
-                                                </div>
-                                            </button>
-                                            <button
-                                                className="w-full flex items-center justify-start gap-[0.6vw] px-[1vw] py-[0.8vh] bg-white rounded-full transition-all hover:scale-[1.04] active:scale-[0.97] text-left group shadow-lg"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowViewBookmarkPopup(true);
-                                                    setShowTopBookmarkOptions(false);
-                                                }}
-                                            >
-                                                <div className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full bg-gray-50 group-hover:bg-white transition-colors shrink-0">
-                                                    <Icon icon="fluent:eye-24-filled" className={`${isTablet ? 'w-[1vw]' : 'w-[1.1vw]'} transition-transform group-hover:scale-110`} style={{ color: bodyTextColor }} />
-                                                </div>
-                                                <div className="flex flex-col leading-[1.1]">
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>View</span>
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.75vw]'} font-bold`} style={{ color: bodyTextColor }}>Bookmark</span>
-                                                </div>
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                            <ToolbarBtn
-                                icon="fluent:bookmark-24-filled"
-                                onClick={() => handleMenuClick(setShowTopBookmarkOptions, showTopBookmarkOptions)}
-                                isActive={showTopBookmarkOptions}
-                                className="relative z-[200]"
-                            />
-                        </div>
                         {/* Play/Pause */}
                         <ToolbarBtn
                             icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"}
@@ -842,7 +673,19 @@ const Grid9Layout = ({
             </div>
 
             {/* ═══════════ Main Book Canvas ═══════════ */}
-            <div className="flex-1 flex justify-center items-center w-full z-10 pt-[8vh] pb-[12vh]">
+            <div className="flex-1 flex justify-center items-center w-full z-10 pt-[8vh] pb-[12vh]"
+                onMouseMove={(e) => {
+                    if (!isFullscreen) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const EDGE_ZONE = 72;
+                    // Near edge: left edge, top edge, bottom edge, right edge
+                    const nearEdge = x < EDGE_ZONE || y < EDGE_ZONE || y > rect.height - EDGE_ZONE || x > rect.width - EDGE_ZONE;
+                    setIsCanvasHovered(!nearEdge);
+                }}
+                onMouseLeave={() => isFullscreen && setIsCanvasHovered(false)}
+            >
                 <div
                     className="transition-all duration-600 ease-in-out"
                     style={{
@@ -855,7 +698,10 @@ const Grid9Layout = ({
             </div>
 
             {/* ═══════════ Page Numbers Below Pages ═══════════ */}
-            <div className="absolute bottom-[13vh] left-1/2 -translate-x-1/2 flex items-center gap-[22vw] z-20 pointer-events-none">
+            <div
+                className="absolute bottom-[13vh] left-1/2 -translate-x-1/2 flex items-center gap-[22vw] z-[100] pointer-events-none transition-all duration-500 ease-in-out"
+                style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
+            >
                 <span className="text-[0.85vw] font-medium" style={{ color: getLayoutColor('toolbar-bg', primaryColor), opacity: 0.7 }}>
                     {currentPage + 1}
                 </span>
@@ -985,7 +831,10 @@ const Grid9Layout = ({
             </AnimatePresence>
 
             {/* ═══════════ Bottom Navigation Bar ═══════════ */}
-            <div className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex flex-col justify-center items-center z-40 pointer-events-auto`}>
+            <div
+                className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex flex-col justify-center items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
+            >
                 <div className="flex items-center gap-[1.2vw]">
                     {/* First Page */}
                     <button

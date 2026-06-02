@@ -22,6 +22,7 @@ const RightSidebar = ({
   updatePageBackground,
   selectedLayerId,
   updateElementAttribute,
+  deleteLayer,
   onPreview,
   activePreviewDevice: activePreviewDeviceProp,
   setActivePreviewDevice: setActivePreviewDeviceProp,
@@ -610,6 +611,7 @@ const RightSidebar = ({
                   activePageIndex={activePageIndex}
                   selectedLayerId={selectedLayerId}
                   updateElementAttribute={updateElementAttribute}
+                  deleteLayer={deleteLayer}
                   pages={pages}
                   flipbookDimensions={flipbookDimensions}
                   onCustomizePopup={onCustomizePopup}
@@ -838,6 +840,7 @@ const RightSidebar = ({
             activePageIndex={activePageIndex}
             selectedLayerId={selectedLayerId}
             updateElementAttribute={updateElementAttribute}
+            deleteLayer={deleteLayer}
             pages={pages}
             flipbookDimensions={flipbookDimensions}
             onCustomizePopup={onCustomizePopup}

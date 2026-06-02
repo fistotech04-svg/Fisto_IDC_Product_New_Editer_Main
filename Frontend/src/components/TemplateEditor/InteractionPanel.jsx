@@ -132,6 +132,7 @@ const InteractionPanel = ({
   activePageIndex,
   selectedLayerId,
   updateElementAttribute,
+  deleteLayer,
   pages,
   flipbookDimensions = { width: 210, height: 297 },
   onCustomizePopup
@@ -534,6 +535,7 @@ const InteractionPanel = ({
         list.push({
           id: foundEl.id,
           tagName: foundEl.tagName,
+          dataName: foundEl.getAttribute('data-name'),
           label: info.name,
           actionId: foundEl.getAttribute('data-interaction') || 'open-link',
           value: foundEl.getAttribute('data-interaction-value') || '',
@@ -1477,20 +1479,31 @@ const InteractionPanel = ({
                             delete next[item.id];
                             return next;
                           });
-                          if (updateElementAttribute) {
-                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                            updateElementAttribute(targetIdx, item.id, {
-                              'data-interaction': null,
-                              'data-interaction-value': null
-                            });
-                          }
-                          // Fire event to reset canvas badge visual state
-                          window.dispatchEvent(new CustomEvent('update-interaction-badge', {
-                            detail: {
-                              elementId: item.id,
-                              actionType: null
+                          
+                          if (item.dataName === 'Free Frame') {
+                             if (deleteLayer) {
+                               const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                               deleteLayer(targetIdx, item.id);
+                             }
+                             // Manually remove badge since element is destroyed
+                             const badge = document.getElementById(`interaction-badge-${item.id}`);
+                             if (badge) badge.remove();
+                          } else {
+                            if (updateElementAttribute) {
+                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                              updateElementAttribute(targetIdx, item.id, {
+                                'data-interaction': null,
+                                'data-interaction-value': null
+                              });
                             }
-                          }));
+                            // Fire event to reset canvas badge visual state
+                            window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                              detail: {
+                                elementId: item.id,
+                                actionType: null
+                              }
+                            }));
+                          }
                         }}
                         className="text-red-400 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center w-[1.5vw] h-[1.5vw] rounded-full hover:bg-red-50"
                       >

@@ -673,20 +673,22 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         if (activeLayout === 1 || activeLayout === 'Layout1') return isTablet ? { bottom: '3.8vw', left: '2.2vw' } : { bottom: '8vh', left: '1vw' };
         if (activeLayout === 2 || activeLayout === 'Layout2') {
             if (!isEditor || isFullscreen) {
-                return { top: '8.5vh', left: 'calc(50% - 14vw)', transform: 'translateX(-50%)' };
+                return { top: '8.5vh', left: 'calc(50% - 11vw)', transform: 'translateX(-50%)' };
             }
-            const leftPos = isSidebarOpen ? 'calc(50% + 5vw)' : 'calc(50% - 7.5vw)';
-            return isTablet ? { top: '15.5vh', left: 'calc(50% - 12vw)', transform: 'translateX(-50%)' } : { top: '15.5vh', left: leftPos, transform: 'translateX(-50%)' };
+            const leftPos = isSidebarOpen ? 'calc(50% + 8vw)' : 'calc(50% - 4.5vw)';
+            return isTablet ? { top: '15.5vh', left: 'calc(50% - 9vw)', transform: 'translateX(-50%)' } : { top: '15.5vh', left: leftPos, transform: 'translateX(-50%)' };
         }
         if (activeLayout === 3 || activeLayout === 'Layout3') {
             if (isMobilePortraitOverride) {
                 return { top: '23vh', left: 'calc(50% - 6.5vw)', transform: 'translateX(-50%) scale(0.85)', transformOrigin: 'top center' };
             }
-            if (!isEditor || isFullscreen) {
-                return { top: '6.5vh', left: 'calc(50% - 8vw)', transform: 'translateX(-50%)' };
+            const isNativeFullscreen = !!document.fullscreenElement;
+            if (!isEditor || isNativeFullscreen) {
+                return { top: '7.5vh', left: 'calc(50% - 7vw)', transform: 'translateX(-50%)' };
             }
-            const leftPos = isSidebarOpen ? 'calc(50% + 5.5vw)' : 'calc(50% - 4.5vw)';
-            return { top: isTablet ? '15vh' : '14.5vh', left: leftPos, transform: 'translateX(-50%)' };
+            const leftPos = isSidebarOpen ? 'calc(50% + 8.5vw)' : 'calc(50% - 1.5vw)';
+            const topPos = isTablet ? '15vh' : '15.8vh';
+            return { top: topPos, left: leftPos, transform: 'translateX(-50%)' };
         }
         if (activeLayout === 6 || activeLayout === 'Layout6') return { top: '8.5vh', left: '2.2vw' };
         if (activeLayout === 5) return { bottom: '11.5vh', left: 'calc(50% - 1vw)', transform: 'translateX(-50%)' };
@@ -935,12 +937,12 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                     style={getPositionStyle()}
                 >
                     <div
-                        className={`bg-white ${isTablet ? 'rounded-[0.3vw] w-[12vw]' : 'rounded-[0.5vw] w-[14vw]'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200`}
+                        className={`bg-white ${isTablet ? 'rounded-[0.3vw] w-[12vw]' : 'rounded-[0.5vw] w-[14vw]'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] overflow-hidden animate-in fade-in slide-in-from-top-4 duration-200 scale-90 origin-top`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div
                             className={`${isTablet ? 'rounded-[0.3vw] p-[0.4vw]' : 'rounded-[0.5vw] p-[0.4vw]'} w-full flex flex-col`}
-                            style={{ backgroundColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '1'), fontFamily: "'Poppins', sans-serif" }}
+                            style={{ backgroundColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '1') }}
                         >
                             {/* Header */}
                             <div className={`flex items-center ${isTablet ? 'gap-[0.6vw] mb-[0.6vw] px-[0.4vw] pt-[0.2vw]' : 'gap-[0.8vw] mb-[0.8vw] px-[0.6vw] pt-[0.4vw]'}`}>
@@ -1049,13 +1051,13 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                         <div className={`${isMobile ? 'p-3.5' : 'p-[1vw]'} w-full relative h-full`}>
                             {/* Header */}
                             <div className={`text-center ${isMobile ? 'mb-2.5' : 'mb-[0.8vw]'} px-[0.5vw]`}>
-                                <h2 className={`${isMobile ? 'text-[17px]' : 'text-[1.1vw]'} font-light tracking-tight ${isMobile ? 'mb-1.5' : 'mb-[0.5vw]'}`}
-                                    style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
+                                <h2 className={`${isMobile ? 'text-[15px]' : 'text-[1vw]'} font-semibold ${isMobile ? 'mb-1.5' : 'mb-[0.5vw]'}`}
+                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                 >
                                     Table of Contents
                                 </h2>
                                 <div className={`h-[0.5px] ${isMobile ? 'w-[calc(100%+28px)] ml-[-14px]' : 'w-[calc(100%+2vw)] ml-[-1vw]'}`}
-                                    style={{ backgroundColor: '#FFFFFF', opacity: 0.8 }}
+                                    style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 0.2 }}
                                 />
                             </div>
 
@@ -1196,15 +1198,15 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 {/* Header Section */}
                                 {(isLayout2 || (isMobile && isLandscape && !isLayout1)) ? (
                                     <div className={`flex items-center gap-2 ${isMobile && isLandscape ? 'mb-[0.5vw]' : isMobile ? 'mb-2.5 mr-[-0.625rem]' : 'mb-3 mr-[-0.75rem]'}`}>
-                                        <h2 className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[14px]' : 'text-[1vw]'} font-light whitespace-nowrap`} style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
+                                        <h2 className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[14px]' : 'text-[1vw]'} font-semibold whitespace-nowrap`} style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}>
                                             Table of Contents
                                         </h2>
                                         <div className="h-[1px] flex-1" style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.3)' }} />
                                     </div>
                                 ) : (
                                     <div className={`text-center ${isMobile ? 'mb-2 px-2' : 'mb-[0.8vw] px-[0.5vw]'}`}>
-                                        <h2 className={`${isMobile ? 'text-[14px]' : 'text-[1.1vw]'} font-light tracking-tight ${isMobile ? 'mb-1' : 'mb-[0.5vw]'}`}
-                                            style={{ fontFamily: "'Poppins', sans-serif", color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
+                                        <h2 className={`${isMobile ? 'text-[14px]' : 'text-[0.95vw]'} font-semibold ${isMobile ? 'mb-1' : 'mb-[0.5vw]'}`}
+                                            style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                         >
                                             Table of Contents
                                         </h2>
@@ -1242,7 +1244,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
                                 <div
                                     ref={scrollContainerRef}
-                                    className={`flex flex-col gap-0.5 overflow-y-auto custom-scrollbar pr-1 ${isMobile ? (isLandscape ? 'max-h-[13vh]' : 'max-h-[155px]') : (isLayout2 ? 'max-h-[25vh]' : 'max-h-[12vw]')}`}
+                                    className={`flex flex-col gap-0.5 overflow-y-auto custom-scrollbar pr-1 ${isMobile ? (isLandscape ? 'max-h-[13vh]' : 'max-h-[155px]') : (isLayout2 ? 'max-h-[25vh]' : Number(activeLayout) === 6 ? 'h-[75vh] max-h-[75vh]' : 'max-h-[12vw]')}`}
                                     style={{
                                         scrollbarWidth: 'thin',
                                         scrollbarColor: 'rgba(255,255,255,0.3) transparent',
@@ -1275,7 +1277,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                         >
                                                             <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                                 <span className={`${isMobile && isLandscape ? 'text-[0.7vw]' : isMobile ? 'text-[11px]' : 'text-[0.85vw]'} ${isLayout2 ? 'font-light' : 'font-bold'} truncate`}
-                                                                    style={{ fontFamily: isLayout2 ? "'Poppins', sans-serif" : undefined, color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
+                                                                    style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'var(--toc-text-opacity, 1)' }}
                                                                 >
                                                                     {addSerialNumberHeading && (
                                                                         <span className="mr-1">{hIdx + 1}.</span>
@@ -1300,7 +1302,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                                             >
                                                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0">
                                                                     <span className={`${isMobile && isLandscape ? 'text-[0.65vw]' : isMobile ? 'text-[10px]' : 'text-[10px]'} ${isLayout2 ? 'font-light' : 'font-medium'} truncate flex items-center`}
-                                                                        style={{ fontFamily: isLayout2 ? "'Poppins', sans-serif" : undefined, color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
+                                                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 'calc(var(--toc-text-opacity, 1) * 0.9)' }}
                                                                     >
                                                                         {addSerialNumberSubheading && (
                                                                             <span className="mr-1">{hIdx + 1}.{sIdx + 1}</span>

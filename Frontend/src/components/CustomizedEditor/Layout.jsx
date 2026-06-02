@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import LayoutColorCustomizer from './LayoutColorCustomizer';
 import ColorPicker from './ColorPallet';
+import AlertModal from '../AlertModal';
 
 import layout1 from '../../assets/layout/Layout1.jpg';
 import layout2 from '../../assets/layout/Layout2.jpg';
@@ -174,6 +175,7 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
     const [inlinePickerOpen, setInlinePickerOpen] = useState(null); // { colorId: string }
     const [inlineHexDrafts, setInlineHexDrafts] = useState({});
     const dropdownRef = useRef(null);
+    const [layoutChangeAlert, setLayoutChangeAlert] = useState({ isOpen: false, index: null });
 
     // ── Merge saved with defaults ──────────────────────────────────────────
     const [colors, setColors] = useState(() => {
@@ -350,7 +352,14 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
 
     // ── Handlers ──────────────────────────────────────────────────────────
     const handleLayoutClick = (index) => {
-        onUpdateLayout(index);
+        setLayoutChangeAlert({ isOpen: true, index });
+    };
+
+    const confirmLayoutChange = () => {
+        if (layoutChangeAlert.index !== null) {
+            onUpdateLayout(layoutChangeAlert.index);
+        }
+        setLayoutChangeAlert({ isOpen: false, index: null });
     };
 
     const openPopup = (layoutIdx) => {
@@ -617,6 +626,18 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 colors={colors}
                 setColors={setColors}
                 onUpdateLayoutColors={onUpdateLayoutColors}
+            />
+
+            <AlertModal
+                isOpen={layoutChangeAlert.isOpen}
+                onClose={() => setLayoutChangeAlert({ isOpen: false, index: null })}
+                onConfirm={confirmLayoutChange}
+                type="info"
+                title="Layout Change"
+                message="Changing the layout may affect toolbar alignments and positions. Are you sure you want to proceed?"
+                showCancel={true}
+                confirmText="Change Layout"
+                cancelText="Cancel"
             />
         </div>
     );

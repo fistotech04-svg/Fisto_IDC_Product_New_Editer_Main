@@ -1171,6 +1171,8 @@ const TurnJsBookRenderer = React.memo(({
     onTurning,
     interactionZoom,
     activeTooltip,
+    isTurnJs,
+    physicalZoom,
 }) => {
     const turnOnFlip = useCallback((evt) => {
         const logicalIndex = typeof evt === 'object' && evt !== null ? evt.data : evt;
@@ -1183,7 +1185,25 @@ const TurnJsBookRenderer = React.memo(({
     }, [onTurning]);
 
     const zoomStyle = useMemo(() => {
-        if (!interactionZoom) return {};
+        if (!interactionZoom) {
+            if (!isTurnJs && physicalZoom && physicalZoom !== 1) {
+                let originX = '50%';
+                if (!singlePage) {
+                    if (currentPage === 0) {
+                        originX = '75%';
+                    } else if (currentPage === pagesCount - 1 && pagesCount % 2 === 0) {
+                        originX = '25%';
+                    }
+                }
+                return {
+                    transform: `scale(${physicalZoom})`,
+                    transformOrigin: `${originX} 50%`,
+                    transition: 'transform 0.3s ease'
+                };
+            }
+            return { transition: 'transform 0.3s ease' };
+        }
+
         const { rect, pageNumber, scale } = interactionZoom;
         const pageRatioX = WIDTH / rect.windowWidth;
         const pageRatioY = HEIGHT / rect.windowHeight;
@@ -1192,11 +1212,11 @@ const TurnJsBookRenderer = React.memo(({
         const bookX = (pageNumber % 2 === 0 || singlePage ? 0 : WIDTH) + centerXInPage;
         const bookY = centerYInPage;
         return {
-            transform: `scale(${scale})`,
             transformOrigin: `${bookX}px ${bookY}px`,
-            transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)'
+            transform: `scale(${scale})`,
+            transition: 'transform 0.3s ease'
         };
-    }, [interactionZoom, WIDTH, HEIGHT, singlePage]);
+    }, [interactionZoom, WIDTH, HEIGHT, singlePage, isTurnJs, physicalZoom]);
 
     const isZoomedIn = interactionZoom && interactionZoom.scale > 1;
 
@@ -1241,7 +1261,7 @@ const TurnJsBookRenderer = React.memo(({
                 textureStyle={textureStyle}
                 singlePage={singlePage}
                 pageOpacity={pageOpacity}
-                useMouseEvents={settings?.navigation?.dragToTurn ?? true}
+                useMouseEvents={true}
             />
 
             <div
@@ -1333,7 +1353,8 @@ const PreviewArea = React.memo(({
     bookmarks = [],
     notes = [],
     setBookmarks,
-    setNotes
+    setNotes,
+    isPublishedPreview = false
 }) => {
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
@@ -1408,11 +1429,40 @@ const PreviewArea = React.memo(({
 
     // Responsive scaling logic
     const [manualZoom, setManualZoom] = useState(zoom);
+    const manualZoomRef = useRef(manualZoom);
+    useEffect(() => { manualZoomRef.current = manualZoom; }, [manualZoom]);
     const [interactionZoom, setInteractionZoom] = useState(null);
     const [activeTooltip, setActiveTooltip] = useState(null);
     const [fitScale, setFitScale] = useState(1);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const baseDimensions = useMemo(() => {
+        if (pages && pages.length > 0 && pages[0].html) {
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(pages[0].html, 'image/svg+xml');
+                const viewBox = doc.documentElement.getAttribute('viewBox');
+                if (viewBox) {
+                    const parts = viewBox.split(/[\s,]+/);
+                    if (parts.length === 4) {
+                        return { width: parseFloat(parts[2]), height: parseFloat(parts[3]) };
+                    }
+                }
+                const w = doc.documentElement.getAttribute('width');
+                const h = doc.documentElement.getAttribute('height');
+                if (w && h && !w.includes('%') && !h.includes('%')) {
+                    return { width: parseFloat(w), height: parseFloat(h) };
+                }
+            } catch (e) {
+                console.error("Failed to parse page dimensions", e);
+            }
+        }
+        return { width: 400, height: 566 }; // Fallback
+    }, [pages]);
+
+    const isTurnJs = !bookAppearanceSettings?.hardCover;
+    const [actualPhysicalZoom, setActualPhysicalZoom] = useState(1);
     const currentZoom = useMemo(() => manualZoom * (activeDevice === 'Desktop' ? 1 : fitScale), [manualZoom, fitScale, activeDevice]);
 
     useEffect(() => {
@@ -1420,7 +1470,95 @@ const PreviewArea = React.memo(({
     }, [zoom]);
 
     useEffect(() => {
-        if (!screenRef.current || activeDevice === 'Desktop') {
+        // ── Scroll wheel: zoom directly (no Ctrl needed for turn.js) ──────────
+        const handleWheel = (e) => {
+            const isInsideFlipbook = e.target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book');
+            if (!isInsideFlipbook) return;
+            e.preventDefault();
+            e.stopPropagation();
+            setManualZoom(prev => {
+                const delta = e.deltaY < 0 ? 0.05 : -0.05;
+                return Math.max(0.5, Math.min(prev + delta, 4));
+            });
+        };
+
+        // ── Keyboard: Ctrl+= / Ctrl+- ──────────────────────────────────────────
+        const handleKeyDown = (e) => {
+            if (e.ctrlKey && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0')) {
+                e.preventDefault();
+                setManualZoom(prev => {
+                    if (e.key === '0') return 1; // Ctrl+0 reset
+                    const newZoom = (e.key === '=' || e.key === '+') ? prev + 0.05 : prev - 0.05;
+                    return Math.max(0.5, Math.min(newZoom, 4));
+                });
+            }
+        };
+
+        // ── Double-click: zoom in / reset ─────────────────────────────────────
+        const handleDblClick = (e) => {
+            const isInsideFlipbook = e.target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book');
+            if (!isInsideFlipbook) return;
+            e.preventDefault();
+            setManualZoom(prev => prev > 1.1 ? 1 : 1.8);
+        };
+
+        // ── Pinch-to-zoom (touch) ─────────────────────────────────────────────
+        let pinchStartDist = null;
+        let pinchStartZoom = 1;
+
+        const getPinchDist = (touches) => {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.hypot(dx, dy);
+        };
+
+        const handleTouchStart = (e) => {
+            if (e.touches.length === 2) {
+                const isInsideFlipbook = e.target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book');
+                if (!isInsideFlipbook) return;
+                pinchStartDist = getPinchDist(e.touches);
+                pinchStartZoom = manualZoomRef.current ?? 1;
+            }
+        };
+
+        const handleTouchMove = (e) => {
+            if (e.touches.length === 2 && pinchStartDist !== null) {
+                e.preventDefault();
+                const dist = getPinchDist(e.touches);
+                const ratio = dist / pinchStartDist;
+                const newZoom = Math.max(0.5, Math.min(pinchStartZoom * ratio, 4));
+                setManualZoom(newZoom);
+            }
+        };
+
+        const handleTouchEnd = () => {
+            pinchStartDist = null;
+        };
+
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel, { passive: false });
+            container.addEventListener('dblclick', handleDblClick);
+            container.addEventListener('touchstart', handleTouchStart, { passive: true });
+            container.addEventListener('touchmove', handleTouchMove, { passive: false });
+            container.addEventListener('touchend', handleTouchEnd);
+        }
+        window.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+                container.removeEventListener('dblclick', handleDblClick);
+                container.removeEventListener('touchstart', handleTouchStart);
+                container.removeEventListener('touchmove', handleTouchMove);
+                container.removeEventListener('touchend', handleTouchEnd);
+            }
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!screenRef.current) {
             setFitScale(1);
             return;
         }
@@ -1430,27 +1568,39 @@ const PreviewArea = React.memo(({
             if (!screen) return;
 
             const { clientWidth, clientHeight } = screen;
-            const isCurrentlyFullscreen = !!document.fullscreenElement;
+            const isCurrentlyFullscreen = !!document.fullscreenElement || isFullscreen;
 
-            const wFactor = isCurrentlyFullscreen ? 1.0 : 0.98;
-            const hFactor = isCurrentlyFullscreen ? 0.90 : 0.82;
+            const wFactor = isCurrentlyFullscreen ? 0.70 : 0.70;
+            const hFactor = isCurrentlyFullscreen ? 0.80 : 0.80;
 
             const availableW = clientWidth * wFactor;
             const availableH = clientHeight * hFactor;
 
-            // Target size for a spread is 800x566
-            const scaleX = availableW / 800;
-            const scaleY = availableH / 566;
+            // Calculate effective zoom (interactionZoom or manualZoom)
+            // The user wants NO CSS scaling, meaning we apply the scale directly to the physical dimensions
+            let baseZoom = interactionZoom && interactionZoom.scale > 1 ? interactionZoom.scale : manualZoom;
 
-            let scale = Math.min(scaleX, scaleY);
-
-            // All layout components internally multiply currentZoom by 1.3 when fullscreen is active.
-            // We pre-divide by 1.3 to compensate and maintain a perfect fit. 
+            // In fullscreen we might have a scaling factor applied externally
             if (isCurrentlyFullscreen) {
-                scale = scale / 1.3;
+                baseZoom = baseZoom / 1.3;
             }
 
-            setFitScale(scale);
+            // Use the template editor height and width ratio
+            const isSinglePage = activeDevice === 'Mobile';
+            const availablePageW = isSinglePage ? availableW : availableW / 2;
+            const availablePageH = availableH;
+
+            const scaleX = availablePageW / baseDimensions.width;
+            const scaleY = availablePageH / baseDimensions.height;
+            const scale = Math.min(scaleX, scaleY);
+
+            const physicalZoom = baseZoom;
+
+            const physicalZoomForDimensions = isTurnJs ? physicalZoom : 1;
+
+            setWIDTH(Math.round(baseDimensions.width * scale * physicalZoomForDimensions));
+            setHEIGHT(Math.round(baseDimensions.height * scale * physicalZoomForDimensions));
+            setActualPhysicalZoom(physicalZoom);
         };
 
         const observer = new ResizeObserver(computeFitScale);
@@ -1471,7 +1621,7 @@ const PreviewArea = React.memo(({
             document.removeEventListener('fullscreenchange', onFSChange);
             document.removeEventListener('webkitfullscreenchange', onFSChange);
         };
-    }, [activeDevice, isSidebarOpen, isFullscreen]);
+    }, [activeDevice, isSidebarOpen, isFullscreen, zoom, manualZoom, interactionZoom, baseDimensions, isTurnJs]);
 
     const setCurrentZoom = useCallback((val) => {
         if (typeof val === 'function') {
@@ -1486,9 +1636,9 @@ const PreviewArea = React.memo(({
     const [isAutoFlipping, setIsAutoFlipping] = useState(false);
     const [countdown, setCountdown] = useState(null);
 
-    // Page dimensions (A4 ratio)
-    const WIDTH = 400;
-    const HEIGHT = 566;
+    // Page dimensions (A4 ratio) dynamically scaled
+    const [WIDTH, setWIDTH] = useState(400);
+    const [HEIGHT, setHEIGHT] = useState(566);
 
     const [currentPage, setCurrentPage] = useState(targetPage);
     const [offset, setOffset] = useState(() => {
@@ -1536,21 +1686,15 @@ const PreviewArea = React.memo(({
     // Augmented pages for turn.js centering logic
     const augmentedPages = useMemo(() => {
         if (!pages || pages.length === 0) return [];
-        let result = [...pages];
-
-        // Ensure even number of pages for turn.js double display mode
-        if (result.length % 2 !== 0) {
-            result.push({ isPad: true });
-        }
-        return result;
+        return [...pages];
     }, [pages]);
 
     useEffect(() => {
-        if (otherSetupSettings?.gallery?.previewOpen && otherSetupSettings.gallery.previewOpen !== lastPreviewOpen.current) {
+        if (!isPublishedPreview && otherSetupSettings?.gallery?.previewOpen && otherSetupSettings.gallery.previewOpen !== lastPreviewOpen.current) {
             setShowGalleryPopup(true);
             lastPreviewOpen.current = otherSetupSettings.gallery.previewOpen;
         }
-    }, [otherSetupSettings?.gallery?.previewOpen]);
+    }, [otherSetupSettings?.gallery?.previewOpen, isPublishedPreview]);
 
     // Sync current page with targetPage prop (from TemplateEditor's activePageIndex)
     useEffect(() => {
@@ -1811,8 +1955,8 @@ const PreviewArea = React.memo(({
         return () => window.removeEventListener('message', handleMessage);
     }, [pages, onPageClick]);
 
-    const handleZoomIn = useCallback(() => setManualZoom(prev => Math.min(prev + 0.1, 2)), []);
-    const handleZoomOut = useCallback(() => setManualZoom(prev => Math.max(prev - 0.1, 0.5)), []);
+    const handleZoomIn = useCallback(() => setManualZoom(prev => Math.min(prev + 0.05, 2)), []);
+    const handleZoomOut = useCallback(() => setManualZoom(prev => Math.max(prev - 0.05, 0.5)), []);
     const handleFullScreen = useCallback(() => {
         if (!isFullscreen) {
             setIsFullscreen(true);
@@ -1868,29 +2012,7 @@ const PreviewArea = React.memo(({
         }
     }, [pages, onPageClick]);
 
-    const handleDoubleTap = useCallback((e) => {
-        if (!settings.toolbar?.twoClickToZoom) return;
 
-        // Skip if clicking on UI elements like buttons, inputs etc.
-        if (e.target.closest('button, input, textarea, select, a, [role="button"]')) return;
-
-        const now = Date.now();
-        const DOUBLE_TAP_THRESHOLD = 300;
-
-        if (now - lastTapRef.current < DOUBLE_TAP_THRESHOLD) {
-            // Double tap detected
-            const mz = settings.toolbar?.maximumZoom;
-            const maxZoom = (mz && mz > 1.1) ? mz : 2;
-
-            setManualZoom(prev => {
-                // If current zoom is already at or near maximum, reset to 1
-                return (prev >= maxZoom - 0.1) ? 1 : maxZoom;
-            });
-            lastTapRef.current = 0; // Reset to prevent triple-tap double triggers
-        } else {
-            lastTapRef.current = now;
-        }
-    }, [settings.toolbar, setManualZoom]);
 
     // Click inside preview area (background) to close menus
     useEffect(() => {
@@ -2089,7 +2211,7 @@ const PreviewArea = React.memo(({
 
         // Signal a flip to the Sound component
         setFlipTrigger(prev => prev + 1);
-    }, [pages.length, WIDTH]);
+    }, [pages.length, WIDTH, useHardCover]);
 
     const onTurning = useCallback((e) => {
         const logicalIndex = e.data;
@@ -2123,6 +2245,7 @@ const PreviewArea = React.memo(({
         augmentedPages,
         WIDTH,
         HEIGHT,
+        baseDimensions,
         flipTime,
         flipStyle, // Pass flipStyle to TurnJsBookRenderer
         useHardCover,
@@ -2146,7 +2269,9 @@ const PreviewArea = React.memo(({
         buildPageDoc: getIframeContent,
         activeLayout,
         interactionZoom,
-        activeTooltip
+        activeTooltip,
+        isTurnJs,
+        physicalZoom: actualPhysicalZoom
     };
 
 
@@ -2206,7 +2331,7 @@ const PreviewArea = React.memo(({
             return;
         }
 
-        // Logic: Shift left to center the front cover, shift right to center the back cover
+        // Soft cover (turn.js): Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             setOffset(-(WIDTH / 2));
         } else if (currentPage >= pages.length - 1) {
@@ -2214,7 +2339,7 @@ const PreviewArea = React.memo(({
         } else {
             setOffset(0);
         }
-    }, [currentPage, pages.length, WIDTH]);
+    }, [currentPage, pages.length, WIDTH, useHardCover]);
 
     const layoutBackgroundSettings = React.useMemo(() => ({
         ...backgroundSettings,
@@ -2526,7 +2651,6 @@ const PreviewArea = React.memo(({
         <div
             ref={containerRef}
             id="preview-area-root"
-            onPointerDown={handleDoubleTap}
             className={`flex-1 flex flex-col relative min-h-0 select-none overflow-hidden ${activeDevice !== 'Desktop' ? 'items-center justify-center p-[2vw]' : ''}`}
             style={{
                 width: activeDevice !== 'Desktop' ? '100%' : 'auto',

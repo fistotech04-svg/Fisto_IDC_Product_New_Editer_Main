@@ -3,10 +3,10 @@ import { Icon } from '@iconify/react';
 import PremiumDropdown from './PremiumDropdown';
 import ColorPicker from './ColorPallet';
 import axios from 'axios';
-import { 
-  ChevronDown, 
-  ChevronLeft, 
-  ChevronRight, 
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Image as ImageIcon,
   ArrowRightLeft,
   MoreVertical,
@@ -20,9 +20,9 @@ import {
   Edit2
 } from 'lucide-react';
 import NavIconStylesPopup, { NavIconRenderer } from './popups/NavIconStylesPopup';
-import { EffectControlRow, ImageCropOverlay, CustomColorPicker } from './AppearanceShared';
+import { EffectControlRow, ImageCropOverlay } from './AppearanceShared';
 import CoverPicturePopup from './CoverPicturePopup';
-
+import BookmarkStylesPopup from './BookmarkStylesPopup';
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
   'Helvetica', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
@@ -64,18 +64,16 @@ const Switch = ({ enabled, onChange }) => (
       e.stopPropagation();
       onChange(!enabled);
     }}
-    className={`group relative inline-flex items-center h-[1vw] w-[2vw] shrink-0 cursor-pointer rounded-[1vw] transition-all duration-200 ease-in-out border outline-none ${
-              enabled ? 'bg-[#4A3AFF] border-[#4A3AFF]' : 'bg-transparent border-[#4A3AFF]'
-            }`}
-          >
-            <div
-              className={`pointer-events-none flex items-center justify-center h-[1.1vw] w-[1.1vw] rounded-full bg-[#4A3AFF] shadow-sm transition-all duration-200 ease-in-out absolute  ${
-                enabled ? 'left-[1.1vw]' : 'right-[1.1vw]'
-              }`}
-            >
-              {enabled && (
-                <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-white " />
-              )}
+    className={`group relative inline-flex items-center h-[1vw] w-[2vw] shrink-0 cursor-pointer rounded-[1vw] transition-all duration-200 ease-in-out border outline-none ${enabled ? 'bg-[#4A3AFF] border-[#4A3AFF]' : 'bg-transparent border-[#4A3AFF]'
+      }`}
+  >
+    <div
+      className={`pointer-events-none flex items-center justify-center h-[1.1vw] w-[1.1vw] rounded-full bg-[#4A3AFF] shadow-sm transition-all duration-200 ease-in-out absolute  ${enabled ? 'left-[1.1vw]' : 'right-[1.1vw]'
+        }`}
+    >
+      {enabled && (
+        <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-white " />
+      )}
     </div>
   </button>
 );
@@ -86,8 +84,8 @@ const RadioGroup = ({ options, value, onChange }) => (
     {options.map((opt) => (
       <label key={opt.id} className="text-[0.75vw] font-semibold text-gray-700">
         <div className="relative flex items-center justify-center">
-          <input 
-            type="radio" 
+          <input
+            type="radio"
             name="radio-group"
             checked={value === opt.id}
             onChange={() => onChange(opt.id)}
@@ -102,36 +100,39 @@ const RadioGroup = ({ options, value, onChange }) => (
 );
 
 const SectionHeader = ({ title }) => (
-  <div className="flex items-center gap-[0.5vw] mb-[0.5vw] mt-[0.8vw]">
-    <h4 className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">{title}</h4>
+  <div className="flex items-center gap-[0.5vw] mb-[1vw] mt-[0.8vw]">
+    <h4 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">{title}</h4>
     <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.3vw' }}> </div>
   </div>
 );
 
-const ColorPickerItem = ({ label, color, opacity = 100, onChange, onOpacityChange, onClick }) => (
-  <div className="flex items-center justify-between mb-[0.6vw] gap-[0.5vw] px-[0.5vw]">
-    <div className="flex items-center justify-between w-[4vw] shrink-0">
-      <span className="text-[0.75vw] font-medium text-gray-700">{label}</span>
-      <span className="text-[0.75vw] font-medium text-gray-700">:</span>
-    </div>
+const ColorPickerItem = ({ label, color, opacity = 100, onChange, onOpacityChange }) => (
+  <div className="flex items-center justify-between mb-[0.75vw] gap-[1vw]">
+    <span className="text-[0.75vw] font-semibold text-gray-700">{label} :</span>
     <div className="flex items-center gap-[0.4vw] flex-1">
-      <div 
-        className="w-[2vw] h-[2vw] rounded-[0.5vw] border border-gray-700 cursor-pointer overflow-hidden relative shadow-sm shrink-0 transition-shadow hover:shadow-md"
+      <div
+        className="w-[2.2vw] h-[1.8vw] rounded-[0.4vw] border border-gray-300 cursor-pointer overflow-hidden relative shadow-sm shrink-0"
         style={{ backgroundColor: color === '#' || !color || color === 'transparent' ? 'white' : color }}
-        onClick={onClick}
       >
         {(color === '#' || !color || color === 'transparent') && (
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-red-400 rotate-45"></div>
         )}
+        <input
+          type="color"
+          value={color && color.startsWith('#') && color.length === 7 ? color : '#ffffff'}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+        />
       </div>
-      <div className="flex-1 flex items-center bg-white border border-gray-700 rounded-[0.5vw] px-[0.6vw] py-[0.1vw] h-[2vw]">
-        <input 
+      <div className="flex-1 flex items-center bg-white border border-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.2vw] h-[1.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
+        <input
           type="text"
           value={color && color.length > 1 ? color.toUpperCase() : '#'}
           onChange={(e) => onChange(e.target.value)}
-          className="text-[0.7vw] font-medium text-gray-600 flex-1 bg-transparent outline-none uppercase w-full"
+          className="text-[0.75vw] font-medium text-gray-600 flex-1 bg-transparent outline-none uppercase w-full"
         />
-        <div className="text-[0.7vw] font-medium text-gray-600 w-[2.5vw] text-right shrink-0">{opacity}%</div>
+        <div className="w-[1px] h-[70%] bg-gray-100 mx-[0.4vw] shrink-0"></div>
+        <div className="text-[0.8vw] font-semibold text-gray-800 w-[2.5vw] text-right shrink-0">{opacity}%</div>
       </div>
     </div>
   </div>
@@ -141,28 +142,26 @@ const ColorPickerItem = ({ label, color, opacity = 100, onChange, onOpacityChang
 const SettingRow = ({ label, children, className = "" }) => (
   <div className={`flex items-center justify-between mb-[0.8vw] gap-[0.5vw] ${className}`}>
     <span className="text-[0.75vw] pl-[0.5vw] font-medium text-gray-700 whitespace-nowrap">{label} :</span>
-        {children}
-      </div>
+    {children}
+  </div>
 );
 
 const AccordionItem = ({ title, isOpen, onToggle, children }) => (
   <div className={`bg-white rounded-[0.8vw] shadow-[0_0.9vw_1.2vw_rgba(0,0,0,0.05)] mb-[0.75vw] transition-all duration-300 relative ${isOpen ? 'z-50 ring-1 ring-gray-200' : 'z-0'}`}>
     <button
       onClick={onToggle}
-      className={`w-full flex items-center justify-between px-[0.5vw] py-[0.8vw] pl-[1vw] pr-[1vw] shadow-sm transition-all duration-300 ${
-        isOpen ? 'bg-gray-50/50 rounded-t-[0.8vw] border-b-transparent' : 'bg-white rounded-[0.8vw]'
-      }`}
+      className={`w-full flex items-center justify-between px-[0.5vw] py-[0.8vw] pl-[1vw] pr-[1vw] shadow-sm transition-all duration-300 ${isOpen ? 'bg-gray-50/50 rounded-t-[0.8vw] border-b-transparent' : 'bg-white rounded-[0.8vw]'
+        }`}
     >
-      <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap">{title}</span>
-      <Icon 
-        icon="lucide:chevron-down" 
-        className={`w-[1.2vw] h-[1.2vw] text-gray-400 transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180' : ''}`} 
+      <span className="text-[0.85vw] font-medium text-gray-800 whitespace-nowrap">{title}</span>
+      <Icon
+        icon="lucide:chevron-down"
+        className={`w-[1.2vw] h-[1.2vw] text-gray-400 transition-transform duration-300 shrink-0 ${isOpen ? 'rotate-180' : ''}`}
       />
     </button>
-    <div 
-      className={`transition-all duration-500 ${isOpen ? 'ease-out' : 'ease-in'} ${
-        isOpen ? 'max-h-[150vw] opacity-100 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden'
-      }`}
+    <div
+      className={`transition-all duration-500 ${isOpen ? 'ease-out' : 'ease-in'} ${isOpen ? 'max-h-[150vw] opacity-100 overflow-visible' : 'max-h-0 opacity-0 overflow-hidden'
+        }`}
     >
       <div className="px-[1.25vw] pb-[1vw] pt-0 border-t border-gray-50 bg-gray-50/50 rounded-b-[0.8vw]">
         {children}
@@ -183,13 +182,13 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
       try {
         const parsed = JSON.parse(saved);
         if (parsed.appearance) setBookAppearance(parsed.appearance);
-      } catch (e) {}
+      } catch (e) { }
     }
   }, []);
 
   const isHardCoverEnabled = bookAppearance.hardCover || bookAppearance.makeFirstLastPageHard || bookAppearance.selectCustomHardPages;
 
-  
+
   // Gallery Logic State
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [showFitDropdown, setShowFitDropdown] = useState(false);
@@ -198,16 +197,6 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const [openContextMenu, setOpenContextMenu] = useState(null);
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   // showGalleryPreview: triggers the inline gallery popup in preview (passed up via gallery.previewOpen)
-  
-  const [activeColorPicker, setActiveColorPicker] = useState(null);
-  const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
-
-  const openPicker = (type, e) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setColorPickerPos({ x: rect.left - 0, y: rect.top - 0 });
-    setActiveColorPicker(type);
-  };
-  const closePicker = () => setActiveColorPicker(null);
 
   const fileInputRef = useRef(null);
   const replaceInputRef = useRef(null);
@@ -224,10 +213,11 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const [navPickerPos, setNavPickerPos] = useState({ x: 0, y: 0 });
   const [showNavStylesPopup, setShowNavStylesPopup] = useState(false);
   const [showCoverPopup, setShowCoverPopup] = useState(false);
+  const [showBookmarkPopup, setShowBookmarkPopup] = useState(false);
   const [isCropping, setIsCropping] = useState(false);
   const [cropTargetIndex, setCropTargetIndex] = useState(null);
   const originalCoverRef = useRef(null);
-  
+
   const updateNested = (section, field, value) => {
     onUpdate(prev => ({
       ...prev,
@@ -264,7 +254,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const visibleSlotCount = Math.min(MAX_GALLERY_IMAGES, slideshowImages.length + 1);
 
   const updateGallery = (field, value) => {
-      updateNested('gallery', field, value);
+    updateNested('gallery', field, value);
   };
 
   const uploadFile = async (file, replacingVideoId = null) => {
@@ -274,33 +264,33 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     const user = JSON.parse(storedUser);
     const formData = new FormData();
     formData.append('emailId', user.emailId);
-    
+
     // Provide defaults for unsaved books
     formData.append('folderName', folderName || 'My Flipbooks');
     formData.append('flipbookName', bookName || 'Untitled Document');
-    
+
     formData.append('type', 'image');
     formData.append('assetType', 'Image');
     formData.append('page_v_id', 'popup_gallery'); // Using a fixed ID for popup gallery
-    
+
     if (replacingVideoId) {
-        formData.append('replacing_file_v_id', replacingVideoId);
+      formData.append('replacing_file_v_id', replacingVideoId);
     }
     formData.append('file', file);
 
     try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-        if (res.data.url) {
-            const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`;
-            return {
-                url: fullUrl,
-                file_v_id: res.data.file_v_id,
-                name: res.data.filename
-            };
-        }
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+      if (res.data.url) {
+        const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`;
+        return {
+          url: fullUrl,
+          file_v_id: res.data.file_v_id,
+          name: res.data.filename
+        };
+      }
     } catch (err) {
-        console.error("Slideshow image upload failed:", err);
+      console.error("Slideshow image upload failed:", err);
     }
     return null;
   };
@@ -308,13 +298,13 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const handleFileUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const remainingSlots = MAX_GALLERY_IMAGES - slideshowImages.length;
     const filesToUpload = Array.from(files).slice(0, remainingSlots);
-    
+
     const optimisticImages = filesToUpload.filter(file => file.type.startsWith('image/')).map((file, idx) => ({
-      id: Date.now() + idx + Math.random(), 
-      url: URL.createObjectURL(file), 
+      id: Date.now() + idx + Math.random(),
+      url: URL.createObjectURL(file),
       name: file.name,
       isUploading: true,
       file_orig: file
@@ -328,57 +318,57 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
 
     // Upload in Background and Update State
     for (const img of optimisticImages) {
-        const uploadedData = await uploadFile(img.file_orig);
-        
-        updateGallery('images', current => 
-            current.map(item => {
-                if (item.id === img.id) {
-                    if (uploadedData) {
-                        return { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false };
-                    }
-                    return { ...item, isUploading: false };
-                }
-                return item;
-            })
-        );
+      const uploadedData = await uploadFile(img.file_orig);
+
+      updateGallery('images', current =>
+        current.map(item => {
+          if (item.id === img.id) {
+            if (uploadedData) {
+              return { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false };
+            }
+            return { ...item, isUploading: false };
+          }
+          return item;
+        })
+      );
     }
     updateGallery('previewOpen', Date.now());
   };
 
   const handleReplaceFileChange = async (e) => {
-      const file = e.target.files?.[0];
-      if (!file || replaceTargetIndex === null) return;
-      
-      const targetImg = slideshowImages[replaceTargetIndex];
-      if (!targetImg) return;
+    const file = e.target.files?.[0];
+    if (!file || replaceTargetIndex === null) return;
 
-      // Optimistic update
-      const optimisticUrl = URL.createObjectURL(file);
-      updateGallery('images', current => {
-          const updated = [...current];
-          if (updated[replaceTargetIndex]) {
-              updated[replaceTargetIndex] = { ...updated[replaceTargetIndex], url: optimisticUrl, isUploading: true };
-          }
-          return updated;
-      });
-      
-      e.target.value = '';
+    const targetImg = slideshowImages[replaceTargetIndex];
+    if (!targetImg) return;
 
-      // Upload
-      const uploadedData = await uploadFile(file, targetImg.file_v_id);
-      
-      // Final update
-      updateGallery('images', current => 
-          current.map((img, idx) => {
-              if (idx === replaceTargetIndex) {
-                  return uploadedData 
-                      ? { ...img, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false }
-                      : { ...img, isUploading: false };
-              }
-              return img;
-          })
-      );
-      setReplaceTargetIndex(null);
+    // Optimistic update
+    const optimisticUrl = URL.createObjectURL(file);
+    updateGallery('images', current => {
+      const updated = [...current];
+      if (updated[replaceTargetIndex]) {
+        updated[replaceTargetIndex] = { ...updated[replaceTargetIndex], url: optimisticUrl, isUploading: true };
+      }
+      return updated;
+    });
+
+    e.target.value = '';
+
+    // Upload
+    const uploadedData = await uploadFile(file, targetImg.file_v_id);
+
+    // Final update
+    updateGallery('images', current =>
+      current.map((img, idx) => {
+        if (idx === replaceTargetIndex) {
+          return uploadedData
+            ? { ...img, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false }
+            : { ...img, isUploading: false };
+        }
+        return img;
+      })
+    );
+    setReplaceTargetIndex(null);
   };
 
   const uploadAudioFile = async (file) => {
@@ -392,22 +382,22 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     formData.append('flipbookName', bookName || 'Untitled Document');
     formData.append('type', 'audio');
     formData.append('assetType', 'Audio');
-    formData.append('page_v_id', 'background_audio'); 
+    formData.append('page_v_id', 'background_audio');
     formData.append('file', file);
 
     try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-        if (res.data.url) {
-            const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`;
-            return {
-                url: fullUrl,
-                file_v_id: res.data.file_v_id,
-                name: res.data.filename
-            };
-        }
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+      if (res.data.url) {
+        const fullUrl = res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`;
+        return {
+          url: fullUrl,
+          file_v_id: res.data.file_v_id,
+          name: res.data.filename
+        };
+      }
     } catch (err) {
-        console.error("Audio upload failed:", err);
+      console.error("Audio upload failed:", err);
     }
     return null;
   };
@@ -415,42 +405,42 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
   const handleBgSoundUpload = async (e) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const file = files[0];
     if (file.type.startsWith('audio/')) {
-       updateNested('sound', 'isUploadingBg', true);
-       const uploadedData = await uploadAudioFile(file);
-       if (uploadedData) {
-           onUpdate(prev => {
-               const currentCustom = prev.sound?.customBgSounds || [];
-               
-               // Find the maximum number among existing custom sound labels to ensure sequential naming
-               const usedNumbers = currentCustom.map(s => {
-                   const match = s.label.match(/BG Sound (\d+)/);
-                   return match ? parseInt(match[1]) : 0;
-               });
-               const maxNum = Math.max(0, 3, ...usedNumbers);
-               const nextIdNumber = maxNum + 1;
+      updateNested('sound', 'isUploadingBg', true);
+      const uploadedData = await uploadAudioFile(file);
+      if (uploadedData) {
+        onUpdate(prev => {
+          const currentCustom = prev.sound?.customBgSounds || [];
 
-               const newCustomSound = {
-                   id: `BG Sound ${nextIdNumber}`,
-                   label: `BG Sound ${nextIdNumber}`,
-                   url: uploadedData.url,
-                   name: uploadedData.name
-               };
-                return {
-                    ...prev,
-                    sound: {
-                        ...(prev.sound || {}),
-                        customBgSounds: [...currentCustom, newCustomSound],
-                        bgSound: newCustomSound.id,
-                        isUploadingBg: false
-                    }
-                };
-            });
-        } else {
-           updateNested('sound', 'isUploadingBg', false);
-        }
+          // Find the maximum number among existing custom sound labels to ensure sequential naming
+          const usedNumbers = currentCustom.map(s => {
+            const match = s.label.match(/BG Sound (\d+)/);
+            return match ? parseInt(match[1]) : 0;
+          });
+          const maxNum = Math.max(0, 3, ...usedNumbers);
+          const nextIdNumber = maxNum + 1;
+
+          const newCustomSound = {
+            id: `BG Sound ${nextIdNumber}`,
+            label: `BG Sound ${nextIdNumber}`,
+            url: uploadedData.url,
+            name: uploadedData.name
+          };
+          return {
+            ...prev,
+            sound: {
+              ...(prev.sound || {}),
+              customBgSounds: [...currentCustom, newCustomSound],
+              bgSound: newCustomSound.id,
+              isUploadingBg: false
+            }
+          };
+        });
+      } else {
+        updateNested('sound', 'isUploadingBg', false);
+      }
     }
     e.target.value = '';
   };
@@ -465,41 +455,41 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
 
     // Backend delete
     if (img.file_v_id) {
-        try {
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                await axios.post(`${backendUrl}/api/flipbook/delete-asset`, {
-                    emailId: user.emailId,
-                    file_v_id: img.file_v_id,
-                    assetType: 'Image',
-                    folderName: folderName || 'My Flipbooks',
-                    bookName: bookName || 'Untitled Document'
-                });
-            }
-        } catch (error) {
-            console.error("Failed to delete asset from backend:", error);
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          await axios.post(`${backendUrl}/api/flipbook/delete-asset`, {
+            emailId: user.emailId,
+            file_v_id: img.file_v_id,
+            assetType: 'Image',
+            folderName: folderName || 'My Flipbooks',
+            bookName: bookName || 'Untitled Document'
+          });
         }
+      } catch (error) {
+        console.error("Failed to delete asset from backend:", error);
+      }
     }
   };
 
   const handleDeleteCustomSound = (id) => {
     onUpdate(prev => {
-        const currentCustom = prev.sound?.customBgSounds || [];
-        const nextCustom = currentCustom.filter(s => s.id !== id);
-        let nextSelected = prev.sound?.bgSound;
-        if (nextSelected === id) {
-            nextSelected = 'BG Sound 1'; // Fallback to default
+      const currentCustom = prev.sound?.customBgSounds || [];
+      const nextCustom = currentCustom.filter(s => s.id !== id);
+      let nextSelected = prev.sound?.bgSound;
+      if (nextSelected === id) {
+        nextSelected = 'BG Sound 1'; // Fallback to default
+      }
+      return {
+        ...prev,
+        sound: {
+          ...prev.sound,
+          customBgSounds: nextCustom,
+          bgSound: nextSelected
         }
-        return {
-            ...prev,
-            sound: {
-                ...prev.sound,
-                customBgSounds: nextCustom,
-                bgSound: nextSelected
-            }
-        };
+      };
     });
   };
 
@@ -517,7 +507,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
 
   const handlePlaceFromLibrary = () => {
     if (!localLibrarySelected) return;
-    
+
     // If we have a specific target (from context menu)
     if (libraryTargetIndex !== null) {
       updateGallery('images', current => {
@@ -536,7 +526,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         updateGallery('images', current => [...(current || []), { id: Date.now(), url: localLibrarySelected.url, name: localLibrarySelected.name || 'Library Image' }]);
       }
     }
-    
+
     setShowLibrary(false);
     setLocalLibrarySelected(null);
     setLibraryTargetIndex(null);
@@ -545,7 +535,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
 
   return (
     <div className="flex flex-col h-full bg-white relative overflow-visible">
-       <style>{`
+      <style>{`
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }
@@ -554,7 +544,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
           scrollbar-width: none;
         }
       `}</style>
-      
+
       {/* Sub-header */}
       <div className="h-[8vh] flex items-center justify-between px-[1vw] border-b border-gray-100">
         <div className="flex items-center gap-[0.5vw]">
@@ -566,14 +556,14 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
         </button>
       </div>
 
-      <div 
+      <div
         className="flex-1 overflow-y-auto p-[1.25vw] hide-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {/* Layout Settings */}
-        <AccordionItem 
-          title="Layout Settings" 
-          isOpen={openAccordion === 'layout'} 
+        <AccordionItem
+          title="Layout Settings"
+          isOpen={openAccordion === 'layout'}
           onToggle={() => setOpenAccordion(openAccordion === 'layout' ? null : 'layout')}
         >
           <div className="space-y-[0.5vw] ">
@@ -581,9 +571,9 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
               <SectionHeader title="Toolbar Display Mode" />
               <div className="space-y-[0.5vw]">
                 <SettingRow label="Add Text Below Icons">
-                  <Switch 
-                    enabled={settings.toolbar?.addTextBelowIcons ?? false} 
-                    onChange={(val) => updateNested('toolbar', 'addTextBelowIcons', val)} 
+                  <Switch
+                    enabled={settings.toolbar?.addTextBelowIcons ?? false}
+                    onChange={(val) => updateNested('toolbar', 'addTextBelowIcons', val)}
                   />
                 </SettingRow>
               </div>
@@ -592,7 +582,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
             <div>
               <SectionHeader title="Text Properties" />
               <SettingRow label="Text style">
-                <PremiumDropdown 
+                <PremiumDropdown
                   options={fontFamilies}
                   value={settings.toolbar?.textProperties?.font || 'Arial'}
                   onChange={(val) => updateSectionField('toolbar', 'textProperties', 'font', val)}
@@ -621,6 +611,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
               <SectionHeader title="Flip Sound" />
               <div className="space-y-[1vw] pl-[1vw]">
                 {[
+                  { id: 'None', label: 'None' },
                   { id: 'Hard Cover Flip', label: 'Classic Book Flip' },
                   { id: 'Soft Paper Flip', label: 'Soft cover page' },
                   { id: 'Classic Book Flip', label: 'Hard Cover Page' }
@@ -636,10 +627,33 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                     className={`w-full flex items-center gap-[1.25vw] bg-transparent transition-all group ${settings.sound?.pageSpecificSound ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className={`w-[1.5vw] h-[1.5vw] flex items-center justify-center rounded-full transition-all ${settings.sound?.flipSound === s.id
-                        ? 'bg-[#4A3AFF] text-white shadow-md border-transparent'
-                        : 'bg-white border-[1.5px] border-black text-white shadow-sm group-hover:border-[#4A3AFF]'
+                      ? 'bg-gray-300 text-black shadow-md border-transparent'
+                      : 'bg-white border-[1.5px] border-black text-black shadow-sm group-hover:border-[#4A3AFF]'
                       }`}>
-                      <Icon icon={settings.sound?.flipSound === s.id ? 'icon-park:music-rhythm' : 'mdi:music'} className="w-[1.2vw] h-[1.2vw]" color={settings.sound?.flipSound === s.id ? 'white' : 'black'} />
+                      {settings.sound?.flipSound === s.id && s.id !== 'None' ? (
+                        <div className="w-[1vw] h-[1vw] text-black">
+                          <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="4" y="10" width="3" height="10" rx="1" fill="currentColor">
+                              <animate attributeName="y" values="10;6;10;14;10" dur="0.8s" repeatCount="indefinite" />
+                              <animate attributeName="height" values="10;14;10;6;10" dur="0.8s" repeatCount="indefinite" />
+                            </rect>
+                            <rect x="9" y="6" width="3" height="14" rx="1" fill="currentColor">
+                              <animate attributeName="y" values="6;10;14;10;6" dur="1s" repeatCount="indefinite" />
+                              <animate attributeName="height" values="14;10;6;10;14" dur="1s" repeatCount="indefinite" />
+                            </rect>
+                            <rect x="14" y="12" width="3" height="8" rx="1" fill="currentColor">
+                              <animate attributeName="y" values="12;8;12;16;12" dur="0.7s" repeatCount="indefinite" />
+                              <animate attributeName="height" values="8;12;8;4;8" dur="0.7s" repeatCount="indefinite" />
+                            </rect>
+                            <rect x="19" y="8" width="3" height="12" rx="1" fill="currentColor">
+                              <animate attributeName="y" values="8;12;8;4;8" dur="0.9s" repeatCount="indefinite" />
+                              <animate attributeName="height" values="12;8;12;16;12" dur="0.9s" repeatCount="indefinite" />
+                            </rect>
+                          </svg>
+                        </div>
+                      ) : (
+                        <Icon icon={s.id === 'None' ? 'mdi:music-off' : 'mdi:music'} className="w-[1.2vw] h-[1.2vw]" color={settings.sound?.flipSound === s.id ? 'black' : 'black'} />
+                      )}
                     </div>
                     <span className={`text-[0.75vw] font-semibold ${settings.sound?.flipSound === s.id ? 'text-gray-900' : 'text-gray-500'
                       }`}>{s.label}</span>
@@ -665,59 +679,80 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
             <div>
               <SectionHeader title="Background Sound" />
               <input type="file" ref={bgSoundInputRef} onChange={handleBgSoundUpload} accept=".mp3, .wav, .m4a" className="hidden" />
-                <div 
-                  className={`rounded-[0.5vw] p-[0.8vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 4 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}
-                  style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-                  onClick={() => bgSoundInputRef.current?.click()}
-                >
-                  <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw]" />
-                  
-                  {settings.sound?.isUploadingBg ? (
-                    <span className="text-[0.75vw] font-semibold text-gray-400 animate-pulse">Uploading...</span>
-                  ) : (
-                    <span className="text-[0.75vw] font-semibold text-[#9BA1A6]">Upload - MP3, WAV, M4A</span>
-                  )}
-                </div>
-                <div className="space-y-[0.5vw]">
-                   {[
-                    { id: 'BG Sound 1', label: 'Bg Sound 1' },
-                    { id: 'BG Sound 2', label: 'Bg Sound 2' },
-                    { id: 'BG Sound 3', label: 'Bg Sound 3' },
-                    ...(settings.sound?.customBgSounds || [])
-                   ].map((s, sIdx) => (
-                     <button 
-                       key={s.id}
-                       onClick={() => updateNested('sound', 'bgSound', s.id)}
-                       className={`w-full flex items-center justify-between px-[0.9vw] py-[0.3vw] transition-all group ${
-                         settings.sound?.bgSound === s.id 
-                         ? 'bg-transparent' 
-                         : 'bg-transparent '
-                       }`}
-                     >
-                       <div className="flex items-center gap-[1.25vw] overflow-hidden truncate">
-                        <div className={`w-[1.5vw] h-[1.5vw] flex items-center justify-center rounded-full transition-all shrink-0 ${
-                          settings.sound?.bgSound === s.id ? 'bg-[#4A3AFF] text-white shadow-md border-transparent' : 'bg-white border-[1.5px] border-black text-black shadow-sm group-hover:border-[#4A3AFF]'
-                        }`}>
-                          <Icon icon={settings.sound?.bgSound === s.id ? 'icon-park:music-rhythm' : 'mdi:music'} className="w-[1.2vw] h-[1.2vw]" color={settings.sound?.bgSound === s.id ? 'white' : 'black'} />
-                        </div>
-                        <span className={`text-[0.75vw] font-semibold truncate ${
-                          settings.sound?.bgSound === s.id ? 'text-gray-900' : 'text-gray-500'
-                        }`}>{s.label}</span>
-                       </div>
+              <div
+                className={`rounded-[0.5vw] p-[0.8vw] flex flex-col items-center justify-center gap-[0.50vw] cursor-pointer hover:border-[#4A3AFF]/50 transition-all mb-[1.5vw] group/upload ${settings.sound?.bgSound?.startsWith('BG Sound') && parseInt(settings.sound.bgSound.split(' ')[2]) >= 4 ? 'border-[#4A3AFF] bg-[#4A3AFF]/5' : 'bg-transparent'}`}
+                style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='20' ry='20' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+                onClick={() => bgSoundInputRef.current?.click()}
+              >
+                <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw]" />
 
-                       {sIdx > 2 && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleDeleteCustomSound(s.id); }}
-                            className="opacity-0 group-hover:opacity-100 p-[0.2vw] text-gray-400 hover:text-red-500 transition-all shrink-0"
-                            title="Delete Sound"
-                          >
-                            <Trash2 size="0.95vw" />
-                          </button>
-                       )}
-                     </button>
-                   ))}
-                </div>
+                {settings.sound?.isUploadingBg ? (
+                  <span className="text-[0.75vw] font-semibold text-gray-400 animate-pulse">Uploading...</span>
+                ) : (
+                  <span className="text-[0.75vw] font-semibold text-[#9BA1A6]">Upload - MP3, WAV, M4A</span>
+                )}
               </div>
+              <div className="space-y-[0.5vw]">
+                {[
+                  { id: 'None', label: 'None' },
+                  { id: 'BG Sound 1', label: 'Bg Sound 1' },
+                  { id: 'BG Sound 2', label: 'Bg Sound 2' },
+                  { id: 'BG Sound 3', label: 'Bg Sound 3' },
+                  ...(settings.sound?.customBgSounds || [])
+                ].map((s, sIdx) => (
+                  <button
+                    key={s.id}
+                    onClick={() => updateNested('sound', 'bgSound', s.id)}
+                    className={`w-full flex items-center justify-between px-[0.9vw] py-[0.3vw] transition-all group ${settings.sound?.bgSound === s.id
+                        ? 'bg-transparent'
+                        : 'bg-transparent '
+                      }`}
+                  >
+                    <div className="flex items-center gap-[1.25vw] overflow-hidden truncate">
+                      <div className={`w-[1.5vw] h-[1.5vw] flex items-center justify-center rounded-full transition-all shrink-0 ${settings.sound?.bgSound === s.id ? 'bg-gray-300 text-black shadow-md border-transparent' : 'bg-white border-[1.5px] border-black text-black shadow-sm group-hover:border-[#4A3AFF]'
+                        }`}>
+                        {settings.sound?.bgSound === s.id && s.id !== 'None' ? (
+                          <div className="w-[1vw] h-[1vw] text-black">
+                            <svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <rect x="4" y="10" width="3" height="10" rx="1" fill="currentColor">
+                                <animate attributeName="y" values="10;6;10;14;10" dur="0.8s" repeatCount="indefinite" />
+                                <animate attributeName="height" values="10;14;10;6;10" dur="0.8s" repeatCount="indefinite" />
+                              </rect>
+                              <rect x="9" y="6" width="3" height="14" rx="1" fill="currentColor">
+                                <animate attributeName="y" values="6;10;14;10;6" dur="1s" repeatCount="indefinite" />
+                                <animate attributeName="height" values="14;10;6;10;14" dur="1s" repeatCount="indefinite" />
+                              </rect>
+                              <rect x="14" y="12" width="3" height="8" rx="1" fill="currentColor">
+                                <animate attributeName="y" values="12;8;12;16;12" dur="0.7s" repeatCount="indefinite" />
+                                <animate attributeName="height" values="8;12;8;4;8" dur="0.7s" repeatCount="indefinite" />
+                              </rect>
+                              <rect x="19" y="8" width="3" height="12" rx="1" fill="currentColor">
+                                <animate attributeName="y" values="8;12;8;4;8" dur="0.9s" repeatCount="indefinite" />
+                                <animate attributeName="height" values="12;8;12;16;12" dur="0.9s" repeatCount="indefinite" />
+                              </rect>
+                            </svg>
+                          </div>
+                        ) : (
+                          <Icon icon={s.id === 'None' ? 'mdi:music-off' : 'mdi:music'} className="w-[1.2vw] h-[1.2vw]" color={settings.sound?.bgSound === s.id ? 'black' : 'black'} />
+                        )}
+                      </div>
+                      <span className={`text-[0.75vw] font-semibold truncate ${settings.sound?.bgSound === s.id ? 'text-gray-900' : 'text-gray-500'
+                        }`}>{s.label}</span>
+                    </div>
+
+                    {sIdx > 3 && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteCustomSound(s.id); }}
+                        className="opacity-0 group-hover:opacity-100 p-[0.2vw] text-gray-400 hover:text-red-500 transition-all shrink-0"
+                        title="Delete Sound"
+                      >
+                        <Trash2 size="0.95vw" />
+                      </button>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </AccordionItem>
 
@@ -916,7 +951,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                              )}
                              {img && (
                                <button 
-                                 onClick={() => deleteImage(i)}
+                                 onClick={() => confirmDeleteImage(i)}
                                  className="w-full px-[1vw] py-[0.65vw] text-[0.6vw] font-semibold text-red-500 hover:bg-red-50 text-left transition-colors flex items-center gap-[0.5vw]"
                                >
                                  Delete Image
@@ -1058,172 +1093,188 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
              </div>
         </AccordionItem>
 
+        {/* Bookmark Option */}
+        <AccordionItem
+          title="Bookmark"
+          isOpen={openAccordion === 'bookmark'}
+          onToggle={() => setOpenAccordion(openAccordion === 'bookmark' ? null : 'bookmark')}
+        >
+          <div className="pb-[1vw] pt-[0.5vw]">
+            <BookmarkStylesPopup
+              settings={settings}
+              onUpdate={onUpdate}
+              onClose={() => { }}
+              pages={pages}
+            />
+          </div>
+        </AccordionItem>
+
         {/* Cover Picture Option */}
-        <AccordionItem 
-          title="Cover Picture" 
-          isOpen={openAccordion === 'cover'} 
+        <AccordionItem
+          title="Cover Picture"
+          isOpen={openAccordion === 'cover'}
           onToggle={() => setOpenAccordion(openAccordion === 'cover' ? null : 'cover')}
         >
           <div className="space-y-[1.25vw] pb-[1vw]">
             <p className="text-[0.6vw] text-gray-400 font-sm max-w-[15vw] mb-[1vw] ">
               This image will appear as the cover of your flipbook<span className="text-red-500">*</span>
             </p>
-            
+
             <div className="relative w-[15vw] h-[14vw] mx-auto rounded-[1.2vw] overflow-hidden bg-gray-100 flex items-center justify-center group shadow-md border border-gray-200">
-                {settings.coverPicture?.url ? (
-                    <img src={settings.coverPicture.url} className="w-full h-full object-cover" alt="Cover" />
-                ) : settings.coverPicture?.type === 'template' ? (
-                    <div className="w-full h-full flex flex-col items-center justify-center p-[1vw] text-center" style={{ backgroundColor: settings.coverPicture.bgColor || '#D7D8E8' }}>
-                         <h3 className="text-[0.8vw] font-bold mb-[0.2vw]" style={{ color: settings.coverPicture.shadowColor || '#000000' }}>{settings.coverPicture.text1 || 'Title'}</h3>
-                         <p className="text-[0.6vw]" style={{ color: settings.coverPicture.shadowColor || '#000000', opacity: 0.8 }}>{settings.coverPicture.text2 || 'Supporting Text'}</p>
-                    </div>
-                ) : (
-                    <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: ".assets/cover/cover1.png" }}></div>
-                )}
-                {/* Dark overlay for editing */}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button 
-                        onClick={() => {
-                            originalCoverRef.current = settings.coverPicture;
-                            setShowCoverPopup(true);
-                        }}
-                        className="flex items-center gap-[0.5vw] bg-white/30 backdrop-blur-sm border border-white/60 text-white px-[1.2vw] py-[0.6vw] rounded-[0.6vw] hover:bg-white/40 shadow-lg transition-colors"
-                    >
-                        <Edit2 size="0.9vw" />
-                        <span className="text-[0.85vw] font-semibold">Edit Cover</span>
-                    </button>
+              {settings.coverPicture?.url ? (
+                <img src={settings.coverPicture.url} className="w-full h-full object-cover" alt="Cover" />
+              ) : settings.coverPicture?.type === 'template' ? (
+                <div className="w-full h-full flex flex-col items-center justify-center p-[1vw] text-center" style={{ backgroundColor: settings.coverPicture.bgColor || '#D7D8E8' }}>
+                  <h3 className="text-[0.8vw] font-bold mb-[0.2vw]" style={{ color: settings.coverPicture.shadowColor || '#000000' }}>{settings.coverPicture.text1 || 'Title'}</h3>
+                  <p className="text-[0.6vw]" style={{ color: settings.coverPicture.shadowColor || '#000000', opacity: 0.8 }}>{settings.coverPicture.text2 || 'Supporting Text'}</p>
                 </div>
+              ) : (
+                <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: ".assets/cover/cover1.png" }}></div>
+              )}
+              {/* Dark overlay for editing */}
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  onClick={() => {
+                    originalCoverRef.current = settings.coverPicture;
+                    setShowCoverPopup(true);
+                  }}
+                  className="flex items-center gap-[0.5vw] bg-white/30 backdrop-blur-sm border border-white/60 text-white px-[1.2vw] py-[0.6vw] rounded-[0.6vw] hover:bg-white/40 shadow-lg transition-colors"
+                >
+                  <Edit2 size="0.9vw" />
+                  <span className="text-[0.85vw] font-semibold">Edit Cover</span>
+                </button>
+              </div>
             </div>
 
             <div className="pt-[0.5vw]">
-                <div className="flex items-center mb-[0.5vw]">
-                    <span className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Set Quality & Export type</span>
-                    <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
+              <div className="flex items-center mb-[0.5vw]">
+                <span className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Set Quality & Export type</span>
+                <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
+              </div>
+              <div className="flex items-center justify-between gap-[0.5vw]">
+                <div className="flex items-center gap-[0.5vw]">
+                  <select className="border border-gray-300 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-800 outline-none hover:border-gray-400 focus:border-[#4A3AFF] transition-colors appearance-none bg-white">
+                    <option>1080 px</option>
+                    <option>720 px</option>
+                  </select>
+                  <select className="border border-gray-300 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-800 outline-none hover:border-gray-400 focus:border-[#4A3AFF] transition-colors appearance-none bg-white">
+                    <option>JPG</option>
+                    <option>PNG</option>
+                  </select>
                 </div>
-                <div className="flex items-center justify-between gap-[0.5vw]">
-                    <div className="flex items-center gap-[0.5vw]">
-                        <select className="border border-gray-300 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-800 outline-none hover:border-gray-400 focus:border-[#4A3AFF] transition-colors appearance-none bg-white">
-                            <option>1080 px</option>
-                            <option>720 px</option>
-                        </select>
-                        <select className="border border-gray-300 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-800 outline-none hover:border-gray-400 focus:border-[#4A3AFF] transition-colors appearance-none bg-white">
-                            <option>JPG</option>
-                            <option>PNG</option>
-                        </select>
-                    </div>
-                    <span className="text-gray-500 font-semibold">:</span>
-                    <button className="flex items-center gap-[0.5vw] bg-black text-white px-[1vw] py-[0.5vw] rounded-[0.5vw] hover:bg-zinc-800 transition-colors shadow-md active:scale-95">
-                        <Upload size="0.9vw" className="rotate-0" />
-                        <span className="text-[0.85vw] font-medium">Download</span>
-                    </button>
-                </div>
+                <span className="text-gray-500 font-semibold">:</span>
+                <button className="flex items-center gap-[0.5vw] bg-black text-white px-[1vw] py-[0.5vw] rounded-[0.5vw] hover:bg-zinc-800 transition-colors shadow-md active:scale-95">
+                  <Upload size="0.9vw" className="rotate-0" />
+                  <span className="text-[0.85vw] font-medium">Download</span>
+                </button>
+              </div>
             </div>
           </div>
         </AccordionItem>
 
         {/* Image Library Pop-up (Library of uploaded images) */}
-         {showLibrary && (
-           <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200" 
-                 style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
-             <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
-               <h2 className="text-[1vw] font-semibold text-gray-900">Image Gallery</h2>
-               <button onClick={() => setShowLibrary(false)} className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
-                  <X className="w-[1.2vw] h-[1.2vw] text-gray-400" />
-               </button>
-             </div>
+        {showLibrary && (
+          <div className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.8vw] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+            style={{ width: '320px', height: '540px', top: '50%', left: '24vw', transform: 'translate(-50%, -50%)' }}>
+            <div className="flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-100">
+              <h2 className="text-[1vw] font-semibold text-gray-900">Image Gallery</h2>
+              <button onClick={() => setShowLibrary(false)} className="w-[1.8vw] h-[1.8vw] flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors">
+                <X className="w-[1.2vw] h-[1.2vw] text-gray-400" />
+              </button>
+            </div>
 
-             <div className="px-[1vw] py-[0.5vw]">
-               <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.2vw]">Upload your Image</h3>
-               <p className="text-[0.7vw] text-gray-400 mb-[1vw]">
-                 <span>You Can Reuse The File Which Is Uploaded In Gallery</span>
-                 <span className="text-red-500">*</span>
-               </p>
-               <div
-                 onClick={() => galleryInputRef.current?.click()}
-                 onDragOver={(e) => e.preventDefault()}
-                 onDrop={(e) => {
-                   e.preventDefault();
-                   const file = e.dataTransfer.files[0];
-                   if (file && file.type.startsWith('image/')) {
-                     handleLibraryFileUpload({ target: { files: [file] } });
-                   }
-                 }}
-                 className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-all cursor-pointer group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
-                             >
-                               <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
-                                             <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
-                                             <div className="flex flex-col items-center">
-                                               <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
-                                               <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
-                                             </div>
-                             </div>
-               <input type="file" ref={galleryInputRef} onChange={handleLibraryFileUpload} accept="image/*" className="hidden" />
-             </div>
-
-             <div 
-                className="hide-scrollbar overflow-y-auto px-[1vw] py-[0.5vw] flex-1"
-                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            <div className="px-[1vw] py-[0.5vw]">
+              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.2vw]">Upload your Image</h3>
+              <p className="text-[0.7vw] text-gray-400 mb-[1vw]">
+                <span>You Can Reuse The File Which Is Uploaded In Gallery</span>
+                <span className="text-red-500">*</span>
+              </p>
+              <div
+                onClick={() => galleryInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file && file.type.startsWith('image/')) {
+                    handleLibraryFileUpload({ target: { files: [file] } });
+                  }
+                }}
+                className="w-full h-[12vh] rounded-2xl flex flex-col items-center justify-center bg-white hover:bg-indigo-50 transition-all cursor-pointer group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
               >
-               <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.5vw]">Uploaded Images</h3>
-               {uploadedImages.length > 0 ? (
-                 <div className="grid grid-cols-3 gap-[0.5vw]">
-                   {uploadedImages.map((img, index) => (
-                     <div key={img.id || index} className="group cursor-pointer flex flex-col items-center" onClick={() => setLocalLibrarySelected(img)}>
-                       <div className={`aspect-square w-full rounded-[0.5vw] overflow-hidden border-[0.15vw] transition-all ${localLibrarySelected?.url === img.url ? 'border-indigo-600 shadow-md scale-[1.02]' : 'hover:border-indigo-400 border-gray-100'}`}>
-                         <img src={img.url} className="w-full h-full object-cover" alt="" />
-                       </div>
-                     </div>
-                   ))}
-                 </div>
-               ) : (
-                 <div className="text-center py-[2vw] text-gray-400">
-                   <p className="text-[0.8vw]">No uploaded images yet</p>
-                 </div>
-               )}
-             </div>
+                <p className="text-[0.9vw] text-gray-600 font-semibold mb-[0.5vw]">Drag & Drop or <span className="text-[#4F46E5] font-semibold">Upload</span></p>
+                <Icon icon="lucide:upload" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-2" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[0.7vw] font-semibold text-gray-500">Supported File</span>
+                  <span className="text-[0.7vw] font-semibold text-gray-500">Image, Video, Audio, GIF, SVG</span>
+                </div>
+              </div>
+              <input type="file" ref={galleryInputRef} onChange={handleLibraryFileUpload} accept="image/*" className="hidden" />
+            </div>
 
-             <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white mt-auto">
-               <button 
-                 onClick={() => { setShowLibrary(false); setLocalLibrarySelected(null); }} 
-                 className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] hover:bg-gray-50"
-               >
-                 <X size="0.9vw" /> Close
-               </button>
-               <button
-                 onClick={handlePlaceFromLibrary}
-                 disabled={!localLibrarySelected}
-                 className={`flex-1 h-[2vw] rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] transition-all ${localLibrarySelected ? 'bg-black text-white hover:bg-zinc-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-               >
-                 <Check size="0.9vw" /> Place
-               </button>
-             </div>
-           </div>
+            <div
+              className="hide-scrollbar overflow-y-auto px-[1vw] py-[0.5vw] flex-1"
+              style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+            >
+              <h3 className="text-[0.85vw] font-semibold text-gray-900 mb-[0.5vw]">Uploaded Images</h3>
+              {uploadedImages.length > 0 ? (
+                <div className="grid grid-cols-3 gap-[0.5vw]">
+                  {uploadedImages.map((img, index) => (
+                    <div key={img.id || index} className="group cursor-pointer flex flex-col items-center" onClick={() => setLocalLibrarySelected(img)}>
+                      <div className={`aspect-square w-full rounded-[0.5vw] overflow-hidden border-[0.15vw] transition-all ${localLibrarySelected?.url === img.url ? 'border-indigo-600 shadow-md scale-[1.02]' : 'hover:border-indigo-400 border-gray-100'}`}>
+                        <img src={img.url} className="w-full h-full object-cover" alt="" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-[2vw] text-gray-400">
+                  <p className="text-[0.8vw]">No uploaded images yet</p>
+                </div>
+              )}
+            </div>
+
+            <div className="p-[0.75vw] border-t flex justify-end gap-[0.5vw] bg-white mt-auto">
+              <button
+                onClick={() => { setShowLibrary(false); setLocalLibrarySelected(null); }}
+                className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] hover:bg-gray-50"
+              >
+                <X size="0.9vw" /> Close
+              </button>
+              <button
+                onClick={handlePlaceFromLibrary}
+                disabled={!localLibrarySelected}
+                className={`flex-1 h-[2vw] rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.3vw] transition-all ${localLibrarySelected ? 'bg-black text-white hover:bg-zinc-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+              >
+                <Check size="0.9vw" /> Place
+              </button>
+            </div>
+          </div>
         )}
 
         {showDotColorPicker && (
-          <ColorPicker 
+          <ColorPicker
             color={settings.gallery?.dotColor || '#4F46E5'}
             onChange={(color) => updateGallery('dotColor', color)}
             onClose={() => setShowDotColorPicker(false)}
             style={{ position: 'fixed', top: dotPickerPos.y, left: dotPickerPos.x, zIndex: 1100 }}
             opacity={100}
-            onOpacityChange={() => {}}
+            onOpacityChange={() => { }}
           />
         )}
 
         {showNavColorPicker && (
-          <ColorPicker 
+          <ColorPicker
             color={settings.gallery?.navIconColor || '#000000'}
             onChange={(color) => updateGallery('navIconColor', color)}
             onClose={() => setShowNavColorPicker(false)}
             style={{ position: 'fixed', top: navPickerPos.y, left: navPickerPos.x, zIndex: 1100 }}
             opacity={100}
-            onOpacityChange={() => {}}
+            onOpacityChange={() => { }}
           />
         )}
 
         {showNavStylesPopup && (
-          <NavIconStylesPopup 
+          <NavIconStylesPopup
             currentStyle={settings.gallery?.navStyle || 1}
             onClose={() => setShowNavStylesPopup(false)}
             onSelect={(styleId) => updateGallery('navStyle', styleId)}
@@ -1232,153 +1283,124 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
 
         {showCoverPopup && (
           <CoverPicturePopup
-             settings={settings}
-             pages={pages}
-             onClose={() => {
-                 // Restore original background picture if cancelled
-                 if (originalCoverRef.current) {
-                     onUpdate(prev => ({
-                         ...prev,
-                         coverPicture: originalCoverRef.current
-                     }));
-                 }
-                 setShowCoverPopup(false);
-             }}
-             onPreview={(previewData) => {
-                 onUpdate(prev => ({
-                     ...prev,
-                     coverPicture: {
-                         ...prev.coverPicture,
-                         ...previewData
-                     }
-                 }));
-             }}
-             onSave={async (coverData) => {
-                 let finalUrl = coverData.url;
-                 
-                 // If it's an uploaded image, we must upload it to the server to get a perent URL
-                 if (coverData.type === 'upload' && coverData.rawFile) {
-                     try {
-                         const uploaded = await uploadFile(coverData.rawFile);
-                         if (uploaded && uploaded.url) {
-                             finalUrl = uploaded.url;
-                             // Also update the local storage cache immediately for the dashboard
-                             if (bookName && folderName) {
-                               localStorage.setItem(`book_thumb_${folderName}_${bookName}`, finalUrl);
-                               localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
-                             } else if (bookName) {
-                               localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
-                             }
-                         }
-                     } catch (err) {
-                         console.error("Failed to upload cover picture", err);
-                     }
-                 } else if (coverData.type === 'template' && finalUrl) {
-                     // Also persist template URLs to local storage for the dashboard
-                     if (bookName && folderName) {
-                       localStorage.setItem(`book_thumb_${folderName}_${bookName}`, finalUrl);
-                       localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
-                     } else if (bookName) {
-                       localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
-                     }
-                 }
+            settings={settings}
+            pages={pages}
+            onClose={() => {
+              // Restore original background picture if cancelled
+              if (originalCoverRef.current) {
+                onUpdate(prev => ({
+                  ...prev,
+                  coverPicture: originalCoverRef.current
+                }));
+              }
+              setShowCoverPopup(false);
+            }}
+            onPreview={(previewData) => {
+              onUpdate(prev => ({
+                ...prev,
+                coverPicture: {
+                  ...prev.coverPicture,
+                  ...previewData
+                }
+              }));
+            }}
+            onSave={async (coverData) => {
+              let finalUrl = coverData.url;
 
-                 onUpdate(prev => ({
-                     ...prev,
-                     coverPicture: {
-                       ...coverData,
-                       url: finalUrl,
-                       rawFile: null // Clear file object from state
-                     }
-                 }));
-                 setShowCoverPopup(false);
-             }}
+              // If it's an uploaded image, we must upload it to the server to get a perent URL
+              if (coverData.type === 'upload' && coverData.rawFile) {
+                try {
+                  const uploaded = await uploadFile(coverData.rawFile);
+                  if (uploaded && uploaded.url) {
+                    finalUrl = uploaded.url;
+                    // Also update the local storage cache immediately for the dashboard
+                    if (bookName && folderName) {
+                      localStorage.setItem(`book_thumb_${folderName}_${bookName}`, finalUrl);
+                      localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
+                    } else if (bookName) {
+                      localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
+                    }
+                  }
+                } catch (err) {
+                  console.error("Failed to upload cover picture", err);
+                }
+              } else if (coverData.type === 'template' && finalUrl) {
+                // Also persist template URLs to local storage for the dashboard
+                if (bookName && folderName) {
+                  localStorage.setItem(`book_thumb_${folderName}_${bookName}`, finalUrl);
+                  localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
+                } else if (bookName) {
+                  localStorage.setItem(`book_thumb_${bookName}`, finalUrl);
+                }
+              }
+
+              onUpdate(prev => ({
+                ...prev,
+                coverPicture: {
+                  ...coverData,
+                  url: finalUrl,
+                  rawFile: null // Clear file object from state
+                }
+              }));
+              setShowCoverPopup(false);
+            }}
           />
         )}
         {isCropping && cropTargetIndex !== null && (
-          <ImageCropOverlay 
-              imageSrc={slideshowImages[cropTargetIndex].url}
-              onSave={async ({ crop }) => {
-                  const img = new Image();
-                  img.crossOrigin = "anonymous";
-                  img.onload = async () => {
-                      const canvas = document.createElement('canvas');
-                      const ctx = canvas.getContext('2d');
-                      const sw = (crop.width / 100) * img.naturalWidth;
-                      const sh = (crop.height / 100) * img.naturalHeight;
-                      const sx = (crop.left / 100) * img.naturalWidth;
-                      const sy = (crop.top / 100) * img.naturalHeight;
-                      canvas.width = sw;
-                      canvas.height = sh;
-                      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-                      const croppedSrc = canvas.toDataURL('image/png');
-                      
-                      // Optimistic update
-                      updateGallery('images', current => {
-                          const updated = [...current];
-                          updated[cropTargetIndex] = { ...updated[cropTargetIndex], url: croppedSrc, isUploading: true };
-                          return updated;
-                      });
-                      
-                      // Convert to blob and upload
-                      canvas.toBlob(async (blob) => {
-                          const file = new File([blob], `cropped_${Date.now()}.png`, { type: 'image/png' });
-                          const uploadedData = await uploadFile(file, slideshowImages[cropTargetIndex].file_v_id);
-                          
-                          updateGallery('images', current => 
-                              current.map((item, idx) => {
-                                  if (idx === cropTargetIndex) {
-                                      return uploadedData 
-                                          ? { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false }
-                                          : { ...item, isUploading: false };
-                                  }
-                                  return item;
-                              })
-                          );
-                      }, 'image/png');
-                      
-                      setIsCropping(false);
-                      setCropTargetIndex(null);
-                  };
-                  img.src = slideshowImages[cropTargetIndex].url;
-              }}
-              onCancel={() => {
-                  setIsCropping(false);
-                  setCropTargetIndex(null);
-              }}
+          <ImageCropOverlay
+            imageSrc={slideshowImages[cropTargetIndex].url}
+            onSave={async ({ crop }) => {
+              const img = new Image();
+              img.crossOrigin = "anonymous";
+              img.onload = async () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const sw = (crop.width / 100) * img.naturalWidth;
+                const sh = (crop.height / 100) * img.naturalHeight;
+                const sx = (crop.left / 100) * img.naturalWidth;
+                const sy = (crop.top / 100) * img.naturalHeight;
+                canvas.width = sw;
+                canvas.height = sh;
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+                const croppedSrc = canvas.toDataURL('image/png');
+
+                // Optimistic update
+                updateGallery('images', current => {
+                  const updated = [...current];
+                  updated[cropTargetIndex] = { ...updated[cropTargetIndex], url: croppedSrc, isUploading: true };
+                  return updated;
+                });
+
+                // Convert to blob and upload
+                canvas.toBlob(async (blob) => {
+                  const file = new File([blob], `cropped_${Date.now()}.png`, { type: 'image/png' });
+                  const uploadedData = await uploadFile(file, slideshowImages[cropTargetIndex].file_v_id);
+
+                  updateGallery('images', current =>
+                    current.map((item, idx) => {
+                      if (idx === cropTargetIndex) {
+                        return uploadedData
+                          ? { ...item, url: uploadedData.url, file_v_id: uploadedData.file_v_id, name: uploadedData.name, isUploading: false }
+                          : { ...item, isUploading: false };
+                      }
+                      return item;
+                    })
+                  );
+                }, 'image/png');
+
+                setIsCropping(false);
+                setCropTargetIndex(null);
+              };
+              img.src = slideshowImages[cropTargetIndex].url;
+            }}
+            onCancel={() => {
+              setIsCropping(false);
+              setCropTargetIndex(null);
+            }}
           />
         )}
 
-        {activeColorPicker && (
-          <CustomColorPicker
-            color={
-              activeColorPicker === 'primary'
-                ? gallery.primaryColor || '#000000'
-                : activeColorPicker === 'secondary'
-                ? gallery.secondaryColor || '#D7DBE8'
-                : gallery.bgColor || '#FFFFFF'
-            }
-            opacity={
-              activeColorPicker === 'primary'
-                ? gallery.primaryOpacity || 100
-                : activeColorPicker === 'secondary'
-                ? gallery.secondaryOpacity || 100
-                : gallery.bgOpacity || 80
-            }
-            onChange={(newColor) => {
-              if (activeColorPicker === 'primary') updateGallery('primaryColor', newColor);
-              else if (activeColorPicker === 'secondary') updateGallery('secondaryColor', newColor);
-              else updateGallery('bgColor', newColor);
-            }}
-            onOpacityChange={(newOpacity) => {
-              if (activeColorPicker === 'primary') updateGallery('primaryOpacity', newOpacity);
-              else if (activeColorPicker === 'secondary') updateGallery('secondaryOpacity', newOpacity);
-              else updateGallery('bgOpacity', newOpacity);
-            }}
-            onClose={closePicker}
-            position={colorPickerPos}
-          />
-        )}
+
       </div>
     </div>
   );

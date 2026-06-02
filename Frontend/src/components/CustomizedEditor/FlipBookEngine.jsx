@@ -86,6 +86,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         textureStyle,
         pageOpacity,
         singlePage = false,
+        hardCoverZoom,
     },
     ref
 ) {
@@ -100,28 +101,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     useEffect(() => { onFlipRef.current = onFlip; }, [onFlip]);
     useEffect(() => { onTurningRef.current = onTurning; }, [onTurning]);
 
-    // Forward mousemove events from iframe to turn.js book element to trigger corner curls/peels
-    useEffect(() => {
-        const handleMessage = (e) => {
-            if (e.data && e.data.type === 'IFRAME_MOUSEMOVE') {
-                if (bookEl.current) {
-                    const event = new MouseEvent('mousemove', {
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: e.data.clientX,
-                        clientY: e.data.clientY,
-                        screenX: e.data.screenX,
-                        screenY: e.data.screenY
-                    });
-                    bookEl.current.dispatchEvent(event);
-                }
-            }
-        };
-        window.addEventListener('message', handleMessage);
-        return () => {
-            window.removeEventListener('message', handleMessage);
-        };
-    }, []);
+    // The broken IFRAME_MOUSEMOVE listener was removed because it was blasting turn.js with invalid coordinates.
 
     /* ── Engine-selection logic ── */
     // useFullTurnJs = true → soft-cover mode (turn.js handles every page)
@@ -159,7 +139,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             <div
                 key={i}
                 data-density={isHardPage ? 'hard' : 'soft'}
-                className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'}`}
+                className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'} ${i === 0 ? 'fbe-page--first' : ''} ${(i === pages.length - 1 || (i === pages.length - 2 && pages[i + 1]?.isPad)) ? 'fbe-page--last' : ''}`}
                 style={{
                     backgroundColor: page.isPad ? 'transparent' : '#fff',
                     opacity: pageOpacity
@@ -181,8 +161,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     <>
                         <iframe
                             title={`Page ${i + 1}`}
-                            srcdoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
-                            style={{ border: 'none', width: 'calc(100% / 0.67)', height: 'calc(100% / 0.67)', transform: 'scale(0.67)', transformOrigin: 'top left', pointerEvents: 'auto', borderRadius: 'inherit' }}
+                            srcDoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
+                            style={{ border: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit' }}
                         />
                         {textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor) && (
                             <div
@@ -196,6 +176,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         {/* Drag overlay for react-pageflip to allow corner dragging */}
                         <div
                             className="fbe-drag-overlay"
+                            draggable="false"
                             style={{
                                 position: 'absolute',
                                 top: 0,
@@ -203,6 +184,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 width: '50px',
                                 zIndex: 100,
                                 background: 'transparent',
+                                userSelect: 'none',
+                                WebkitUserSelect: 'none',
                                 [i % 2 === 0 ? 'right' : 'left']: 0
                             }}
                             onMouseDown={(e) => {
@@ -210,9 +193,11 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 iframes.forEach(iframe => iframe.style.pointerEvents = 'none');
                                 const handleMouseUp = () => {
                                     iframes.forEach(iframe => iframe.style.pointerEvents = 'auto');
-                                    window.removeEventListener('mouseup', handleMouseUp);
+                                    window.removeEventListener('mouseup', handleMouseUp, true);
+                                    window.removeEventListener('touchend', handleMouseUp, true);
                                 };
-                                window.addEventListener('mouseup', handleMouseUp);
+                                window.addEventListener('mouseup', handleMouseUp, true);
+                                window.addEventListener('touchend', handleMouseUp, true);
                             }}
                         />
                     </>
@@ -252,7 +237,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
         // turn.js requires an even page count in double-display mode
         const augmented = [...pages];
-        if (augmented.length % 2 !== 0) augmented.push({ isPad: true });
+        if (!singlePage && augmented.length % 2 !== 0) augmented.push({ isPad: true });
 
         // Build page DOM elements
         augmented.forEach((page, i) => {
@@ -288,14 +273,18 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
             // In turn.js, the "hard" class creates a rigid, non-curling fold. 
             // We use both 'hard' and 'cover' for maximum compatibility with custom patches.
+            const isFirst = i === 0;
+            const isLast = i === augmented.length - 1 || (i === augmented.length - 2 && augmented[i + 1]?.isPad);
+            const positionClass = `${isFirst ? 'fbe-page--first' : ''} ${isLast ? 'fbe-page--last' : ''}`.trim();
+
             if (isPageHard) {
-                pageDiv.className = 'hard cover fbe-page';
+                pageDiv.className = `hard cover fbe-page ${i % 2 === 0 ? 'fbe-page--right' : 'fbe-page--left'} ${positionClass}`;
                 pageDiv.setAttribute('data-density', 'hard');
                 pageDiv.style.backgroundColor = '#ffffff';
                 pageDiv.style.borderRadius = i % 2 === 0 ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             } else {
-                pageDiv.className = 'fbe-page fbe-page--soft';
+                pageDiv.className = `fbe-page fbe-page--soft ${i % 2 === 0 ? 'fbe-page--right' : 'fbe-page--left'} ${positionClass}`;
                 pageDiv.style.borderRadius = i % 2 === 0 ? `0 ${cornerRadius} ${cornerRadius} 0` : `${cornerRadius} 0 0 ${cornerRadius}`;
                 pageDiv.style.transition = 'border-radius 0.5s ease';
             }
@@ -310,7 +299,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 const iframe = document.createElement('iframe');
                 iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
                 // Render scaled to fill exactly
-                iframe.style.cssText = 'border:none;width:calc(100% / 0.67);height:calc(100% / 0.67);transform:scale(0.67);transform-origin:top left;pointer-events:auto;';
+                iframe.style.cssText = 'border:none;width:100%;height:100%;pointer-events:auto;';
                 inner.appendChild(iframe);
 
                 // Add texture overlay
@@ -328,25 +317,41 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     inner.appendChild(textureOverlay);
                 }
 
-                pageDiv.appendChild(inner);
+                // Add a single drag overlay for the outer edges (150px top/bottom, 100px sides)
+                const edgeOverlay = document.createElement('div');
+                edgeOverlay.className = 'fbe-drag-overlay';
+                edgeOverlay.draggable = false;
 
-                // Add drag overlay for turn.js to capture drag/click on outer edge
-                const dragOverlay = document.createElement('div');
-                dragOverlay.className = 'fbe-drag-overlay';
-                Object.assign(dragOverlay.style, {
+                // Create a clip path that cuts out the center so the user can interact with the iframe
+                // But leaves the top, bottom, and outer side solid for dragging.
+                const clipPath = i % 2 === 0
+                    ? 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 150px, calc(100% - 100px) 150px, calc(100% - 100px) calc(100% - 150px), 0% calc(100% - 150px))' // Right page
+                    : 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 150px, 100px 150px, 100px calc(100% - 150px), 0% calc(100% - 150px))'; // Left page
+
+                Object.assign(edgeOverlay.style, {
                     position: 'absolute',
-                    top: '0',
-                    bottom: '0',
-                    width: '50px',
+                    top: '0', left: '0', right: '0', bottom: '0',
                     zIndex: '100',
                     background: 'transparent',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
                 });
-                if (i % 2 === 0) { // Right page: drag zone on the right edge
-                    dragOverlay.style.right = '0';
-                } else { // Left page: drag zone on the left edge
-                    dragOverlay.style.left = '0';
+
+                // Polyfill for clip-path just using borders if preferred, but clip-path is standard now
+                // Actually, an easier way is just use a border to cover the edges!
+                edgeOverlay.style.boxSizing = 'border-box';
+                if (i % 2 === 0) { // Right page: border on top, bottom, and right
+                    edgeOverlay.style.borderTop = '150px solid transparent';
+                    edgeOverlay.style.borderBottom = '150px solid transparent';
+                    edgeOverlay.style.borderRight = '100px solid transparent';
+                } else { // Left page: border on top, bottom, and left
+                    edgeOverlay.style.borderTop = '150px solid transparent';
+                    edgeOverlay.style.borderBottom = '150px solid transparent';
+                    edgeOverlay.style.borderLeft = '100px solid transparent';
                 }
-                pageDiv.appendChild(dragOverlay);
+
+                pageDiv.appendChild(inner);
+                pageDiv.appendChild(edgeOverlay);
 
                 // Distinguish between a click and a drag to block single-click flipping
                 let startX = 0;
@@ -407,20 +412,44 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             acceleration: flipStyle === 'Smooth Flip' || flipStyle === '3D Flip',
             gradients: true,
             elevation: flipStyle === '3D Flip' ? 80 : 10,
-            // Generous corner hot-zone so the peel starts easily
-            hoverAreaSize: flipStyle === 'Page Curl' ? 250 : 150,
-            cornerPosition: '60px 30px',
-            turnCorners: 'l,r',     // peel allowed on both sides
             pages: totalPages,
             page: initPage,
             autoCenter: false,
             when: {
-                turning: (_e, turnPage) => {
+                start: (e, pageObject, corner) => {
+                    // Block the peel animation before it even starts if going to a pad page
+                    if (corner === 'r' || corner === 'tr' || corner === 'br') {
+                        const nextLogical = pageObject.page; // 1-based next page logical index
+                        if (augmented[nextLogical] && augmented[nextLogical].isPad) {
+                            e.preventDefault();
+                        }
+                    }
+                },
+                turning: (e, turnPage) => {
                     const logical = turnPage - 1;
+
+                    // Prevent turning to the pad page if the flipbook has an odd number of real pages
+                    if (augmented[logical] && augmented[logical].isPad) {
+                        e.preventDefault();
+                        return false;
+                    }
+
                     if (onTurningRef.current) onTurningRef.current({ data: logical });
                 },
                 turned: (_e, turnPage) => {
                     const logical = turnPage - 1;
+
+                    // Safe-guard: if turn.js reaches the pad page despite our blocks,
+                    // do NOT update the React state to this page, and force turn.js back.
+                    if (augmented[logical] && augmented[logical].isPad) {
+                        setTimeout(() => {
+                            if (bookEl.current && window.jQuery) {
+                                try { window.jQuery(bookEl.current).turn('page', turnPage - 2); } catch (e) { }
+                            }
+                        }, 0);
+                        return;
+                    }
+
                     setCurrentPage(logical);
                     // Use the ref so we always call the latest onFlip from PreviewArea
                     if (onFlipRef.current) onFlipRef.current({ data: logical });
@@ -440,37 +469,45 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     iframes.forEach(iframe => {
                         iframe.style.pointerEvents = 'auto';
                     });
-                    window.removeEventListener('mouseup', handleMouseUp);
+                    window.removeEventListener('mouseup', handleMouseUp, true);
+                    window.removeEventListener('touchend', handleMouseUp, true);
                 };
-                window.addEventListener('mouseup', handleMouseUp);
+                window.addEventListener('mouseup', handleMouseUp, true);
+                window.addEventListener('touchend', handleMouseUp, true);
             }
         };
 
         const bookDom = bookEl.current;
         if (bookDom) {
-            bookDom.addEventListener('mousedown', handleMouseDown);
+            bookDom.addEventListener('mousedown', handleMouseDown, true);
+            bookDom.addEventListener('touchstart', handleMouseDown, true);
         }
 
         if (!useMouseEvents) $book.turn('disable', true);
 
         return () => {
             if (bookDom) {
-                bookDom.removeEventListener('mousedown', handleMouseDown);
+                bookDom.removeEventListener('mousedown', handleMouseDown, true);
+                bookDom.removeEventListener('touchstart', handleMouseDown, true);
             }
             try { $book.turn('destroy'); } catch (_) { /* noop */ }
         };
         // onFlip intentionally excluded — it's captured in the closure correctly
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, pages, width, height, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle]);
+    }, [ready, pages, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle]);
 
     /* ── Imperative API (exposed via ref) ── */
     const flipNextFn = useCallback(() => {
         if (showingTurnJs && bookEl.current && window.jQuery) {
+            // Block turning to the pad page for turn.js if the original pages count is odd
+            if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
+                return;
+            }
             window.jQuery(bookEl.current).turn('next');
         } else if (showingReactFlip && reactFlipRef.current) {
             reactFlipRef.current.pageFlip().flipNext();
         }
-    }, [showingTurnJs, showingReactFlip]);
+    }, [showingTurnJs, showingReactFlip, pages.length, singlePage, currentPage]);
 
     const flipPrevFn = useCallback(() => {
         if (showingTurnJs && bookEl.current && window.jQuery) {
@@ -512,6 +549,15 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             }
         }
     }, [currentPage, showingTurnJs]);
+
+    /* ── Sync turn.js size when width/height change dynamically ── */
+    useEffect(() => {
+        if (!showingTurnJs || !bookEl.current || !window.jQuery) return;
+        const $book = window.jQuery(bookEl.current);
+        if ($book.data('turn')) {
+            $book.turn('size', singlePage ? width : width * 2, height);
+        }
+    }, [width, height, singlePage, showingTurnJs]);
 
     /* ── Autoplay ── */
     useEffect(() => {
@@ -565,6 +611,33 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     pointerEvents: showingTurnJs ? 'auto' : 'none',
                     zIndex: showingTurnJs ? 5 : 1,
                 }}
+                onPointerDownCapture={(e) => {
+                    if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        if (clickX > rect.width / 2) {
+                            e.stopPropagation();
+                        }
+                    }
+                }}
+                onMouseDownCapture={(e) => {
+                    if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        if (clickX > rect.width / 2) {
+                            e.stopPropagation();
+                        }
+                    }
+                }}
+                onTouchStartCapture={(e) => {
+                    if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2 && e.touches.length > 0) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.touches[0].clientX - rect.left;
+                        if (clickX > rect.width / 2) {
+                            e.stopPropagation();
+                        }
+                    }
+                }}
             >
                 {/* turn.js mounts pages directly inside this div — keep styles minimal */}
                 <div
@@ -580,36 +653,41 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             </div>
 
             {/* ── REACT-PAGEFLIP ENGINE — handles hard-cover mode ── */}
-            {showingReactFlip && (
-                <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    zIndex: 100,
-                    background: 'transparent',
-                    transition: bookTransition,
-                }}>
-                    <HTMLFlipBook
-                        key={Number(activeLayout) === 1 ? `react-flip-${width}-${height}` : 'react-flip'}
-                        ref={reactFlipRef}
-                        width={width} height={height} size={Number(activeLayout) === 1 ? 'fixed' : 'stretch'}
-                        minWidth={width} maxWidth={width * 2}
-                        minHeight={height} maxHeight={height}
-                        drawShadow={flipStyle !== 'Fast Flip'}
-                        useMouseEvents={useMouseEvents}
-                        flippingTime={flipTime}
-                        startPage={Number(activeLayout) === 1 ? currentPage : startPage}
-                        showCover={true}
-                        autoCenter={false}
-                        clickEventForward={false} // Disable flipping on single click
-                        style={{ background: 'transparent' }}
-                        onFlip={(e) => {
-                            const logical = e.data;
-                            setCurrentPage(logical);
-                            if (onFlipRef.current) onFlipRef.current({ data: logical });
-                        }}
-                    >
-                        {memoizedReactPages}
-                    </HTMLFlipBook>
+            {showingReactFlip && ( // wrapper for possible hard cover zoom
+                <div style={hardCoverZoom ? { transform: `scale(${hardCoverZoom.scale})`, transformOrigin: '0 0' } : {}}>
+                    <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        zIndex: 100,
+                        background: 'transparent',
+                        transition: bookTransition,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}>
+                        <HTMLFlipBook
+                            key={'react-flip'}
+                            ref={reactFlipRef}
+                            width={width} height={height} size={'fixed'}
+                            minWidth={width} maxWidth={width * 2}
+                            minHeight={height} maxHeight={height}
+                            drawShadow={flipStyle !== 'Fast Flip'}
+                            useMouseEvents={useMouseEvents}
+                            flippingTime={flipTime}
+                            startPage={Number(activeLayout) === 1 ? currentPage : startPage}
+                            showCover={true}
+                            autoCenter={false}
+                            clickEventForward={false} // Disable flipping on single click
+                            style={{ background: 'transparent' }}
+                            onFlip={(e) => {
+                                const logical = e.data;
+                                setCurrentPage(logical);
+                                if (onFlipRef.current) onFlipRef.current({ data: logical });
+                            }}
+                        >
+                            {memoizedReactPages}
+                        </HTMLFlipBook>
+                    </div>
                 </div>
             )}
 
@@ -653,12 +731,40 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     -webkit-transform: translateZ(0);
                 }
 
-                .fbe-react-page--left {
+                .fbe-react-page--left, .fbe-page--left {
                     border-radius: ${cornerRadius} 0 0 ${cornerRadius} !important;
                 }
 
-                .fbe-react-page--right {
+                .fbe-react-page--right, .fbe-page--right {
                     border-radius: 0 ${cornerRadius} ${cornerRadius} 0 !important;
+                }
+
+                .fbe-react-page--left::after, .fbe-page--left::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    width: 80px;
+                    background: linear-gradient(to right, transparent 0%, rgba(0,0,0,0.02) 20%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0.4) 100%);
+                    pointer-events: none;
+                    z-index: 20;
+                }
+
+                .fbe-react-page--right::after, .fbe-page--right::after {
+                    content: '';
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    bottom: 0;
+                    width: 40px;
+                    background: linear-gradient(to left, transparent 0%, rgba(0,0,0,0.02) 20%, rgba(0,0,0,0.06) 45%, rgba(0,0,0,0.15) 75%, rgba(0,0,0,0.4) 100%);
+                    pointer-events: none;
+                    z-index: 20;
+                }
+
+                .fbe-page--first::after, .fbe-page--last::after {
+                    width: 40px !important;
                 }
 
                 /* Force turn.js hard pages to remain rigid and hide internal peel gradients */
@@ -677,11 +783,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     -webkit-backface-visibility: hidden !important;
                 }
 
-                /* Remove any shadow/peel effects globally */
-                .p-shadow,
-                .p-gradient,
-                .p-shadow-left,
-                .p-shadow-right,
+                /* Remove any shadow/peel effects for hard pages only */
                 .hard .p-shadow,
                 .hard .p-gradient,
                 .cover .p-shadow,

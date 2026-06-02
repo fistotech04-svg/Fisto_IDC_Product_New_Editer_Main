@@ -947,15 +947,16 @@ const CustomizedEditor = () => {
           />
         );
       case 'othersetup':
-        return (
-          <OtherSetup
-            onBack={handleBack}
-            settings={otherSetupSettings}
-            onUpdate={setOtherSetupSettings}
-            folderName={folder}
-            bookName={v_id || bookName}
-          />
-        );
+  return (
+<OtherSetup
+      onBack={handleBack}
+      settings={otherSetupSettings}
+      onUpdate={setOtherSetupSettings}
+      folderName={folder}
+      bookName={v_id || bookName}
+      pages={pages}          // ← THIS LINE ONLY ADDED (Line 902)
+    />
+  );
       case 'leadform':
         return (
           <LeadForm

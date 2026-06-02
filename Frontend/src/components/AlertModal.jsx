@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, AlertCircle, XCircle, Info } from 'lucide-react';
 
 const AlertModal = ({ 
@@ -47,7 +48,7 @@ const AlertModal = ({
     info: 'bg-blue-600 hover:bg-blue-700'
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-[1000] flex items-center justify-center p-[1vw] bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-200">
       <div 
         className="bg-white rounded-[1.2vw] shadow-[0_8px_32px_rgba(0,0,0,0.12)] w-full max-w-[21vw] overflow-hidden transform scale-100 animate-in zoom-in-95 duration-200"
@@ -100,7 +101,8 @@ const AlertModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

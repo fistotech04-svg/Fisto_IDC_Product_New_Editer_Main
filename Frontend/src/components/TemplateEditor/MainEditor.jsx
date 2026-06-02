@@ -175,11 +175,6 @@ const svgGlobalStyles = `
     stroke: transparent !important;
     stroke-width: 0 !important;
   }
-  .page-svg-container svg rect[data-name="Free Frame"][data-drawing="true"] {
-    stroke: #000000 !important;
-    stroke-width: 1 !important;
-    stroke-dasharray: 4,4 !important;
-  }
 `;
 import TopToolbar from './TopToolbar';
 
@@ -584,7 +579,7 @@ const MainEditor = ({
 
       // ── Restrict shortcuts in non-editor modes ─────────────────
       if (activeTopTool !== 'editor') {
-        const isSelectionKey = key === 'v' || key === 'a';
+        const isSelectionKey = key === 'v' || key === 'a' || key === ' ';
         if (!isSelectionKey) return;
       }
 
@@ -1184,7 +1179,7 @@ const MainEditor = ({
         if (el.getAttribute('data-name') === 'Free Frame') {
           polygon.setAttribute('stroke', '#000000');
         } else if (activeTopTool === 'interaction' && (type === 'selected' || type === 'child-selected')) {
-          polygon.setAttribute('stroke', '#4B5563');
+          polygon.setAttribute('stroke', '#000000');
         } else if (type === 'hover' || type === 'child-hover') {
           polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'selected' || type === 'child-selected') {
@@ -1203,8 +1198,8 @@ const MainEditor = ({
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (activeTopTool === 'interaction' && (type === 'selected' || type === 'child-selected')) {
-        polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
-        polygon.setAttribute('stroke-dasharray', `${6 / zoomScale},${3 / zoomScale}`);
+        polygon.setAttribute('stroke-width', String(1 / zoomScale));
+        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
@@ -1262,17 +1257,12 @@ const MainEditor = ({
               const vBar = document.createElement('div');
               [hBar, vBar].forEach(bar => {
                 bar.style.position = 'absolute';
-                if (isFreeFrame) {
-                  bar.style.backgroundColor = '#000000';
-                  bar.style.border = 'none';
-                } else {
-                  bar.style.backgroundColor = '#FFFFFF';
-                  bar.style.border = '1px solid #1F2937';
-                }
+                bar.style.backgroundColor = '#000000';
+                bar.style.border = 'none';
                 bar.style.boxSizing = 'border-box';
               });
 
-              const barThickness = isFreeFrame ? 3 : 4;
+              const barThickness = 3;
               hBar.style.width = '100%';
               hBar.style.height = `${barThickness}px`;
               vBar.style.width = `${barThickness}px`;
@@ -1326,7 +1316,7 @@ const MainEditor = ({
               let posX = p.x;
               let posY = p.y;
               if (useLBrackets) {
-                const inwardOffset = (isFreeFrame ? (handleSize / 3.5) : 4) / zoomScale;
+                const inwardOffset = (12 / 3.5) / zoomScale; // Original handleSize=12 divided by 3.5
                 if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
                 if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
                 if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
@@ -1420,17 +1410,19 @@ const MainEditor = ({
 
           if (badge) {
             const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
-            const vwOffset = window.innerWidth * 0.006;
+            const vwOffset = (window.innerWidth * 0.006) / zoomScale;
             badge.style.left = `${midN.x}px`;
 
             // If the top edge of the selection bounding box is too close to the top of the page (e.g. less than 35px),
             // position the badge inside the top edge instead of above it, to prevent clipping.
-            if (midN.y < 35) {
+            if (midN.y < 35 / zoomScale) {
               badge.style.top = `${midN.y + vwOffset}px`;
-              badge.style.transform = 'translate(-50%, 0%)';
+              badge.style.transformOrigin = 'top center';
+              badge.style.transform = `translate(-50%, 0%) scale(${1 / zoomScale})`;
             } else {
               badge.style.top = `${midN.y - vwOffset}px`;
-              badge.style.transform = 'translate(-50%, -100%)';
+              badge.style.transformOrigin = 'bottom center';
+              badge.style.transform = `translate(-50%, -100%) scale(${1 / zoomScale})`;
             }
 
             // Flip label to left if badge is near the right edge of the overlay
@@ -1643,13 +1635,38 @@ const MainEditor = ({
   useEffect(() => {
     const handleBadgeUpdate = (e) => {
       const { elementId, actionType } = e.detail || {};
-      if (!elementId || !actionType) return;
+      if (!elementId) return;
 
       const badge = document.getElementById(`interaction-badge-${elementId}`);
       if (!badge) return;
 
       const mainBox = badge.querySelector('[data-badge-mainbox]');
       if (!mainBox) return;
+
+      if (!actionType) {
+        // Revert to default "add interaction" state
+        mainBox.innerHTML = `
+          <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934M6.54475 16.3864C6.81275 16.7104 7.08375 17.0884 7.42375 17.5184M9.52975 21.9994V21.0534C9.60275 19.8904 8.54675 18.9574 7.42375 17.5184M7.42375 17.5184C7.34275 17.4144 7.49975 17.6154 7.42375 17.5184ZM7.42375 17.5184L8.53075 18.8724" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        `;
+        const plusBadge = document.createElement('div');
+        plusBadge.setAttribute('data-badge-plus', 'true');
+        plusBadge.className = 'absolute -top-1 -right-1 flex items-center justify-center';
+        plusBadge.style.width = '0.75vw';
+        plusBadge.style.height = '0.75vw';
+        plusBadge.innerHTML = `
+          <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
+              <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
+              <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
+          </svg>
+        `;
+        mainBox.appendChild(plusBadge);
+        badge.querySelectorAll('[data-badge-tick]').forEach(t => t.remove());
+        return;
+      }
 
       // Swap touch icon → selected action icon via Iconify CDN
       const [prefix, iconName] = actionType.icon.split(':');
@@ -3307,9 +3324,11 @@ const MainEditor = ({
             shape.setAttribute('stroke', '#000000');
             shape.setAttribute('stroke-width', '2');
           } else if (selectedShapeTool === 'free-frame') {
+            const zoomScale = zoom / 100;
             shape.setAttribute('fill', 'transparent');
-            shape.setAttribute('stroke', 'transparent');
-            shape.setAttribute('stroke-width', '0');
+            shape.setAttribute('stroke', '#000000');
+            shape.setAttribute('stroke-width', String(1 / zoomScale));
+            shape.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
             shape.setAttribute('data-interaction', 'open-link');
             shape.setAttribute('data-interaction-value', '');
             shape.setAttribute('data-drawing', 'true');

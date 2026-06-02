@@ -2457,6 +2457,32 @@ const TemplateEditor = () => {
 
       if (!currentPage) return;
 
+      // 0. Detect and dynamically load any new fonts used in the template
+      const fontsToLoad = new Set();
+      const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+      let match;
+      while ((match = cssRegex.exec(content)) !== null) {
+        let f = match[1] || match[2];
+        f = f.split(',')[0].replace(/['"]/g, '').trim();
+        if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+      }
+      const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+      while ((match = attrRegex.exec(content)) !== null) {
+        let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+        if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+      }
+      
+      fontsToLoad.forEach(font => {
+        const fontId = `dynamic-font-${font.replace(/\s+/g, '-')}`;
+        if (!document.getElementById(fontId)) {
+          const link = document.createElement('link');
+          link.id = fontId;
+          link.href = `https://fonts.googleapis.com/css?family=${font.replace(/\s+/g, '+')}:300,400,500,600,700,800,900&display=swap`;
+          link.rel = 'stylesheet';
+          document.head.appendChild(link);
+        }
+      });
+
       // 1. Parse template content
       const templateDoc = parser.parseFromString(content, 'image/svg+xml');
       const templateSvg = templateDoc.querySelector('svg');
@@ -2621,7 +2647,7 @@ const TemplateEditor = () => {
           const attrsToInherit = [
             'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin',
             'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
-            'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
+            'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor', 'letter-spacing', 'word-spacing'
           ];
           attrsToInherit.forEach(attr => {
             const val = mainGroup.getAttribute(attr);
@@ -2633,6 +2659,24 @@ const TemplateEditor = () => {
               });
             }
           });
+
+          // Inherit the main container's style to keep text styling stable
+          const groupStyle = mainGroup.getAttribute('style');
+          if (groupStyle) {
+            children.forEach(child => {
+              const childStyle = child.getAttribute('style');
+              child.setAttribute('style', childStyle ? `${groupStyle}; ${childStyle}` : groupStyle);
+            });
+          }
+
+          // Inherit the main container's classes
+          const groupClass = mainGroup.getAttribute('class');
+          if (groupClass) {
+            children.forEach(child => {
+              const childClass = child.getAttribute('class');
+              child.setAttribute('class', childClass ? `${groupClass} ${childClass}` : groupClass);
+            });
+          }
 
           // Inherit the main container's transform to keep positions stable
           const groupTransform = mainGroup.getAttribute('transform') || '';
@@ -2661,7 +2705,7 @@ const TemplateEditor = () => {
         // Inherit visual attributes from the original template SVG
         const svgAttrs = [
           'fill', 'stroke', 'stroke-width', 'opacity', 'visibility', 'filter', 'color', 'clip-path', 'mask',
-          'font-family', 'font-size', 'font-weight', 'text-anchor', 'letter-spacing'
+          'font-family', 'font-size', 'font-weight', 'font-style', 'text-anchor', 'letter-spacing', 'word-spacing'
         ];
 
         finalTemplateElements.forEach(child => {
@@ -2674,6 +2718,20 @@ const TemplateEditor = () => {
               imported.setAttribute(attr, val);
             }
           });
+
+          // Inherit top-level style
+          const svgStyle = templateSvg.getAttribute('style');
+          if (svgStyle) {
+            const importedStyle = imported.getAttribute('style');
+            imported.setAttribute('style', importedStyle ? `${svgStyle}; ${importedStyle}` : svgStyle);
+          }
+          
+          // Inherit top-level class
+          const svgClass = templateSvg.getAttribute('class');
+          if (svgClass) {
+            const importedClass = imported.getAttribute('class');
+            imported.setAttribute('class', importedClass ? `${svgClass} ${importedClass}` : svgClass);
+          }
 
           // Apply scaling and translation to fit A4
           const currentTransform = imported.getAttribute('transform') || '';
@@ -3062,6 +3120,7 @@ const TemplateEditor = () => {
         updatePageBackground={updatePageBackground}
         selectedLayerId={selectedLayerId}
         updateElementAttribute={updateElementAttribute}
+        deleteLayer={deleteLayer}
         onPreview={() => setShowPreview(true)}
         flipbookDimensions={getFlipbookDimensions()}
         isPopupEditor={!!popupEditContext}

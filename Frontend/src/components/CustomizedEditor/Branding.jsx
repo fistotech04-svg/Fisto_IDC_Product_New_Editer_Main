@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
 import { Trash2, Plus, ChevronDown, RefreshCw } from 'lucide-react';
 import PremiumDropdown from './PremiumDropdown';
+import AlertModal from '../AlertModal';
 import { AdjustmentSlider, SectionLabel, ImageCropOverlay } from './AppearanceShared';
 
 const fontFamilies = [
@@ -17,6 +18,7 @@ const Branding = ({ type = 'logo', logoSettings, onUpdateLogo, profileSettings, 
   const [showGallery, setShowGallery] = useState(false);
   const [uploadedImages, setUploadedImages] = useState([]);
   const [showCropOverlay, setShowCropOverlay] = useState(false);
+  const [deleteAlert, setDeleteAlert] = useState(false);
 
   // Load gallery images from localStorage on mount
   useEffect(() => {
@@ -77,9 +79,14 @@ const Branding = ({ type = 'logo', logoSettings, onUpdateLogo, profileSettings, 
     onUpdateLogo({ ...logoSettings, type: e.target.value });
   };
 
+  const confirmRemoveLogo = () => {
+    setDeleteAlert(true);
+  };
+
   const removeLogo = () => {
     onUpdateLogo({ ...logoSettings, src: null });
     if (fileInputRef.current) fileInputRef.current.value = '';
+    setDeleteAlert(false);
   };
 
   const handleAdjustmentChange = (key, value) => {
@@ -385,7 +392,7 @@ const Branding = ({ type = 'logo', logoSettings, onUpdateLogo, profileSettings, 
                   {/* Hover overlay with trash icon */}
                   <div
                     className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); removeLogo(); }}
+                    onClick={(e) => { e.stopPropagation(); confirmRemoveLogo(); }}
                   >
                     <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
                     <span className="text-[0.5vw] text-white font-semibold">Remove</span>
@@ -693,13 +700,20 @@ const Branding = ({ type = 'logo', logoSettings, onUpdateLogo, profileSettings, 
           onCancel={() => setShowCropOverlay(false)}
         />
       )}
+
+      <AlertModal
+        isOpen={deleteAlert}
+        onClose={() => setDeleteAlert(false)}
+        onConfirm={removeLogo}
+        type="warning"
+        title="Delete Image"
+        message="Are you sure you want to delete this image? This action cannot be undone."
+        showCancel={true}
+        confirmText="Delete"
+        cancelText="Cancel"
+      />
     </div>
   );
 };
 
 export default Branding;
-
-
-
-
-

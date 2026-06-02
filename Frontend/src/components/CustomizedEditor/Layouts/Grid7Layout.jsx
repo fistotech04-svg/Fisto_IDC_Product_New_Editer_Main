@@ -102,7 +102,8 @@ const Grid7Layout = ({
     showSoundPopup,
     setShowSoundPopupMemo,
     showTOC,
-    isTablet
+    isTablet,
+    isFullscreen: isFullscreenProp
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
@@ -134,14 +135,9 @@ const Grid7Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        // Shift left to center the front cover, shift right to center the back cover
-        if (currentPage === 0) {
-            return -(dimWidth / 2);
-        } else if (currentPage >= pages.length - 1) {
-            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
-        }
-        return 0;
-    }, [currentPage, pages.length, dimWidth]);
+        if (typeof offset === 'undefined' || !offset) return 0;
+        return offset * (dimWidth / initialWidth);
+    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -206,21 +202,10 @@ const Grid7Layout = ({
     const [editValue, setEditValue] = useState('');
     const [tocSearchQuery, setTocSearchQuery] = useState('');
     const [recommendations, setRecommendations] = useState([]);
-    const [isFullscreen, setIsFullscreen] = useState(!!document.fullscreenElement);
+    const isFullscreen = isFullscreenProp || false;
+    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
     const [showNoteOptions, setShowNoteOptions] = useState(false);
-
-    useEffect(() => {
-        const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
-        };
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-        return () => {
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
-            document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-        };
-    }, []);
 
     const closeAll = () => {
         setShowThumbnails(false);
@@ -319,6 +304,7 @@ const Grid7Layout = ({
         });
     };
 
+    const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
     const progressPercentage = pagesCount > 1 ? (currentPage / (pagesCount - 1)) * 100 : 0;
 
     return (
@@ -336,122 +322,129 @@ const Grid7Layout = ({
                 }}
             />
             {/* Top Header - Light themed as in screenshot */}
-            <div className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50`}>
+            <div
+                className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
+                style={{
+                    opacity: isFullscreen && isCanvasHovered ? 0 : 1
+                }}
+            >
                 {/* Search Bar */}
                 <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                    <div className="relative">
-                        <div
-                            className={`flex items-center rounded-[0.4vw] ${isTablet ? 'px-[0.6vw] py-[0.4vh] w-[11vw]' : 'px-[0.8vw] py-[0.5vw] shadow-sm w-[15vw]'} border relative overflow-hidden`}
-                            style={{
-                                borderColor: 'rgba(0,0,0,0.08)'
-                            }}
-                        >
-                            <div className="absolute inset-0 -z-10" style={{
-                                backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'),
-                                opacity: getLayoutOpacity('search-bg-v2', 1)
-                            }} />
-                            <Icon
-                                icon="lucide:search"
-                                className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`}
-                                style={{
-                                    color: getLayoutColor('search-text-v2', '#575C9C'),
-                                    opacity: getLayoutOpacity('search-text-v2', 1) * 0.6
-                                }}
-                            />
-                            <input
-                                type="text"
-                                value={localSearchQuery}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setLocalSearchQuery(val);
-                                    if (val.length >= 1) {
-                                        const results = [];
-                                        const lowerQuery = val.toLowerCase();
-                                        const uniqueMatches = new Set();
-                                        pages.forEach((page, index) => {
-                                            const text = (page.html || page.content || '').replace(/<[^>]*>/g, ' ');
-                                            const words = text.split(/\s+/).filter(w => w.trim().length > 0);
-
-                                            for (let i = 0; i < words.length; i++) {
-                                                const word = words[i];
-                                                const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '');
-                                                if (cleanWord.length > 2 && cleanWord.toLowerCase().startsWith(lowerQuery)) {
-                                                    const contextWords = words.slice(i + 1, i + 3).join(' ');
-                                                    const matchKey = `${cleanWord.toLowerCase()}|${contextWords.toLowerCase()}`;
-
-                                                    if (!uniqueMatches.has(matchKey)) {
-                                                        results.push({
-                                                            word: word,
-                                                            context: contextWords,
-                                                            pageNumber: index + 1
-                                                        });
-                                                        uniqueMatches.add(matchKey);
-                                                    }
-                                                }
-                                                if (results.length > 15) break;
-                                            }
-                                            if (results.length > 15) return;
-                                        });
-                                        setRecommendations(results.slice(0, 6));
-                                    } else {
-                                        setRecommendations([]);
-                                    }
-                                }}
-                                onFocus={() => closeAll()}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        setSearchQuery(localSearchQuery);
-                                        handleQuickSearch(localSearchQuery);
-                                        setRecommendations([]);
-                                    }
-                                }}
-                                placeholder="Quick Search..."
-                                className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
-                                style={{
-                                    color: getLayoutColor('search-text-v2', '#2D2D2D'),
-                                    opacity: getLayoutOpacity('search-text-v2', 1)
-                                }}
-                            />
-                        </div>
-
-                        {/* Search Suggestions Dropdown */}
-                        {recommendations.length > 0 && (
+                    {settings?.interaction?.search !== false && !isPdfProject && (
+                        <div className="relative">
                             <div
-                                className="absolute top-full left-0 w-full rounded-b-[0.8vw] shadow-2xl z-[100] border backdrop-blur-md overflow-hidden"
+                                className={`flex items-center rounded-[0.4vw] ${isTablet ? 'px-[0.6vw] py-[0.4vh] w-[11vw]' : 'px-[0.8vw] py-[0.5vw] shadow-sm w-[15vw]'} border relative overflow-hidden`}
                                 style={{
-                                    backgroundColor: getLayoutColor('dropdown-bg', 'rgba(255,255,255,0.4)'),
-                                    opacity: getLayoutOpacity('dropdown-bg', 1),
-                                    borderColor: 'rgba(255,255,255,0.2)'
+                                    borderColor: 'rgba(0,0,0,0.08)'
                                 }}
-                                onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="flex flex-col py-[0.3vw]">
-                                    {recommendations.map((rec, idx) => (
-                                        <button
-                                            key={`${rec.word}-${rec.pageNumber}-${idx}`}
-                                            className="flex items-center justify-between px-[1vw] py-[0.6vw] hover:bg-white/20 transition-colors group"
-                                            style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
-                                            onClick={() => {
-                                                onPageClick(rec.pageNumber - 1);
-                                                const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
-                                                setLocalSearchQuery(fullQuery);
-                                                setSearchQuery(fullQuery);
-                                                setRecommendations([]);
-                                            }}
-                                        >
-                                            <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
-                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
-                                                    <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 800 }}>{rec.word}</span>
-                                                    {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
-                                                </span>
-                                            </div>
-                                            <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-bold opacity-60 tabular-nums shrink-0`}>Pg {rec.pageNumber}</span>
-                                        </button>
-                                    ))}
-                                </div>
+                                <div className="absolute inset-0 -z-10" style={{
+                                    backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'),
+                                    opacity: getLayoutOpacity('search-bg-v2', 1)
+                                }} />
+                                <Icon
+                                    icon="lucide:search"
+                                    className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`}
+                                    style={{
+                                        color: getLayoutColor('search-text-v2', '#575C9C'),
+                                        opacity: getLayoutOpacity('search-text-v2', 1) * 0.6
+                                    }}
+                                />
+                                <input
+                                    type="text"
+                                    value={localSearchQuery}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setLocalSearchQuery(val);
+                                        if (val.length >= 1) {
+                                            const results = [];
+                                            const lowerQuery = val.toLowerCase();
+                                            const uniqueMatches = new Set();
+                                            pages.forEach((page, index) => {
+                                                const text = (page.html || page.content || '').replace(/<[^>]*>/g, ' ');
+                                                const words = text.split(/\s+/).filter(w => w.trim().length > 0);
+
+                                                for (let i = 0; i < words.length; i++) {
+                                                    const word = words[i];
+                                                    const cleanWord = word.replace(/[^a-zA-Z0-9]/g, '');
+                                                    if (cleanWord.length > 2 && cleanWord.toLowerCase().startsWith(lowerQuery)) {
+                                                        const contextWords = words.slice(i + 1, i + 3).join(' ');
+                                                        const matchKey = `${cleanWord.toLowerCase()}|${contextWords.toLowerCase()}`;
+
+                                                        if (!uniqueMatches.has(matchKey)) {
+                                                            results.push({
+                                                                word: word,
+                                                                context: contextWords,
+                                                                pageNumber: index + 1
+                                                            });
+                                                            uniqueMatches.add(matchKey);
+                                                        }
+                                                    }
+                                                    if (results.length > 15) break;
+                                                }
+                                                if (results.length > 15) return;
+                                            });
+                                            setRecommendations(results.slice(0, 6));
+                                        } else {
+                                            setRecommendations([]);
+                                        }
+                                    }}
+                                    onFocus={() => closeAll()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            setSearchQuery(localSearchQuery);
+                                            handleQuickSearch(localSearchQuery);
+                                            setRecommendations([]);
+                                        }
+                                    }}
+                                    placeholder="Quick Search..."
+                                    className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
+                                    style={{
+                                        color: getLayoutColor('search-text-v2', '#2D2D2D'),
+                                        opacity: getLayoutOpacity('search-text-v2', 1)
+                                    }}
+                                />
                             </div>
-                        )}
-                    </div>
+
+                            {/* Search Suggestions Dropdown */}
+                            {recommendations.length > 0 && (
+                                <div
+                                    className="absolute top-full left-0 w-full rounded-b-[0.8vw] shadow-2xl z-[100] border backdrop-blur-md overflow-hidden"
+                                    style={{
+                                        backgroundColor: getLayoutColor('dropdown-bg', 'rgba(255,255,255,0.4)'),
+                                        opacity: getLayoutOpacity('dropdown-bg', 1),
+                                        borderColor: 'rgba(255,255,255,0.2)'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="flex flex-col py-[0.3vw]">
+                                        {recommendations.map((rec, idx) => (
+                                            <button
+                                                key={`${rec.word}-${rec.pageNumber}-${idx}`}
+                                                className="flex items-center justify-between px-[1vw] py-[0.6vw] hover:bg-white/20 transition-colors group"
+                                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                                onClick={() => {
+                                                    onPageClick(rec.pageNumber - 1);
+                                                    const fullQuery = rec.word + (rec.context ? ' ' + rec.context : '');
+                                                    setLocalSearchQuery(fullQuery);
+                                                    setSearchQuery(fullQuery);
+                                                    setRecommendations([]);
+                                                }}
+                                            >
+                                                <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
+                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
+                                                        <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 800 }}>{rec.word}</span>
+                                                        {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
+                                                    </span>
+                                                </div>
+                                                <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-bold opacity-60 tabular-nums shrink-0`}>Pg {rec.pageNumber}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* Center: Book Name - Screenshot style */}
@@ -823,7 +816,10 @@ const Grid7Layout = ({
 
                 {/* Right Sidebar - EXACT UI FROM SCREENSHOT */}
                 <div
-                    className={`absolute ${isTablet ? 'right-[0.5vw] w-[2.4vw] py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]' : 'right-[0.8vw] w-[2.8vw] py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]'} top-[36%] -translate-y-1/2 flex flex-col z-40 shadow-2xl items-center overflow-visible`}
+                    className={`absolute ${isTablet ? 'right-[0.5vw] w-[2.4vw] py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]' : 'right-[0.8vw] w-[2.8vw] py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]'} top-[36%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                    style={{
+                        opacity: isFullscreen && isCanvasHovered ? 0 : 1
+                    }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="absolute inset-0 -z-10" style={{
@@ -859,123 +855,6 @@ const Grid7Layout = ({
                     >
                         <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                     </button>
-                    <div className="relative">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showNoteOptions;
-                                closeAll();
-                                if (!wasOpen) setShowNoteOptions(true);
-                            }}
-                            className={`transition-all transform hover:scale-110 ${showNoteOptions ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-                            style={{
-                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                opacity: getLayoutOpacity('toolbar-text-main', 1)
-                            }}
-                        >
-                            <Icon icon="material-symbols-light:add-notes" className={`${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />
-                        </button>
-                        {showNoteOptions && (
-                            <div
-                                className={`absolute right-[calc(100%+0.5vw)] top-0 ${isTablet ? 'w-[10vw]' : 'w-[12vw]'} rounded-[1vw] shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200 border backdrop-blur-xl`}
-                                style={{
-                                    backgroundColor: getLayoutColor('toc-bg', '#575C9C'),
-                                    opacity: getLayoutOpacity('toc-bg', 1),
-                                    borderColor: getLayoutColor('toc-text', '#FFFFFF') + '33' // 20% opacity border
-                                }}
-                            >
-                                <button
-                                    className="w-full flex items-center px-[0.8vw] py-[1.2vh] hover:opacity-80 transition-all gap-[0.8vw] text-left"
-                                    onClick={() => {
-                                        setShowAddNotesPopupMemo(true);
-                                        setShowNoteOptions(false);
-                                    }}
-                                >
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`}
-                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}
-                                    >
-                                        <path d="M2.75499 14.7146L3.27199 16.6466C3.87599 18.9016 4.17899 20.0296 4.86399 20.7606C5.40464 21.3374 6.10408 21.7411 6.87399 21.9206C7.84999 22.1486 8.97799 21.8466 11.234 21.2426C13.488 20.6386 14.616 20.3366 15.347 19.6516C15.4077 19.5943 15.4663 19.5356 15.523 19.4756C15.1824 19.4449 14.8439 19.3948 14.509 19.3256C13.813 19.1876 12.986 18.9656 12.008 18.7036L11.901 18.6746L11.876 18.6686C10.812 18.3826 9.92299 18.1446 9.21299 17.8886C8.46599 17.6186 7.78799 17.2856 7.21099 16.7456C6.41731 16.002 5.86191 15.0398 5.61499 13.9806C5.43499 13.2116 5.48699 12.4576 5.62699 11.6766C5.76099 10.9276 6.00099 10.0296 6.28899 8.95463L6.82399 6.96062L6.84199 6.89062C4.92199 7.40763 3.91099 7.71362 3.23699 8.34462C2.65949 8.88568 2.25545 9.58588 2.07599 10.3566C1.84799 11.3316 2.14999 12.4596 2.75499 14.7146Z" fill="currentColor" />
-                                        <path fillRule="evenodd" clipRule="evenodd" d="M11.8741 2.07599C12.85 1.84807 13.9778 2.14979 16.2335 2.7547C16.8008 2.90671 17.2972 3.03922 17.7335 3.16388C17.275 3.7184 17.0001 4.43016 17.0001 5.20587C17.0001 6.97649 18.4355 8.41192 20.2061 8.41192C20.6511 8.4119 21.0748 8.32092 21.46 8.15704C21.3339 8.82433 21.1174 9.64216 20.8301 10.7147L20.3116 12.6463C19.7066 14.9013 19.4048 16.0296 18.7198 16.7606C18.1793 17.3377 17.48 17.7419 16.71 17.9217C16.6135 17.9443 16.515 17.9614 16.4151 17.9734C15.5001 18.0864 14.3827 17.788 12.3507 17.244C10.0957 16.639 8.96738 16.3362 8.23639 15.6512C7.65932 15.1105 7.25582 14.4106 7.07624 13.6404C6.84831 12.6645 7.15003 11.5377 7.75495 9.28302L8.27155 7.3504L8.51569 6.4461C8.97069 4.78012 9.27733 3.86314 9.86432 3.23614C10.405 2.65934 11.1042 2.25553 11.8741 2.07599ZM11.1924 12.1736C11.0005 12.1225 10.7961 12.1495 10.6241 12.2488C10.452 12.3482 10.326 12.512 10.2745 12.7039C10.249 12.799 10.2431 12.8983 10.2559 12.9959C10.2687 13.0935 10.3005 13.188 10.3497 13.2733C10.3988 13.3584 10.4641 13.4331 10.5421 13.493C10.6202 13.553 10.7096 13.5973 10.8048 13.6229L13.7032 14.3983C13.7993 14.4276 13.9001 14.438 14.0001 14.4275C14.1002 14.417 14.1981 14.3865 14.2862 14.3377C14.3741 14.289 14.4509 14.2225 14.5128 14.1434C14.5747 14.0641 14.6205 13.973 14.6466 13.8758C14.6726 13.7785 14.6791 13.6767 14.6651 13.577C14.6511 13.4773 14.6174 13.381 14.5655 13.2947C14.5137 13.2086 14.4446 13.1341 14.3633 13.075C14.2819 13.0158 14.189 12.9736 14.0909 12.951L11.1924 12.1736ZM11.6778 9.25567C11.5801 9.26848 11.4858 9.30021 11.4005 9.34942C11.3153 9.39855 11.2407 9.46389 11.1807 9.54181C11.1208 9.6199 11.0764 9.70941 11.0508 9.8045C10.9995 9.99651 11.0267 10.2027 11.126 10.3748C11.2254 10.5467 11.3893 10.6719 11.5811 10.7234L16.4112 12.0174C16.5072 12.0462 16.6084 12.0555 16.7081 12.0447C16.8075 12.0339 16.9038 12.0035 16.9913 11.9549C17.079 11.9061 17.1561 11.8397 17.2178 11.7606C17.2796 11.6814 17.3246 11.5909 17.3507 11.494C17.3767 11.397 17.384 11.2955 17.3702 11.1961C17.3564 11.0968 17.3219 11.001 17.2706 10.9149C17.2192 10.8289 17.1511 10.7544 17.0704 10.6951C16.9895 10.6358 16.8975 10.5933 16.7999 10.5701L11.9698 9.27423C11.8747 9.2487 11.7754 9.24288 11.6778 9.25567Z" fill="currentColor" />
-                                        <path d="M20.2062 3V6.63111M22.0217 4.81555H18.3906" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>Add Notes</span>
-                                </button>
-                                <div className="h-[1px] w-full" style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 0.1 }} />
-                                <button
-                                    className="w-full flex items-center px-[0.8vw] py-[1.2vh] hover:opacity-80 transition-all gap-[0.8vw] text-left"
-                                    onClick={() => {
-                                        setShowNotesViewerMemo(true);
-                                        setShowNoteOptions(false);
-                                    }}
-                                >
-                                    <Icon icon="lets-icons:view-fill" className={`${isTablet ? 'w-[1vw]' : 'w-[1.2vw]'}`} style={{ color: getLayoutColor('toc-text', '#FFFFFF') }} />
-                                    <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>View Notes</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                    <div className="relative">
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                const wasOpen = showBookmarkOptions;
-                                closeAll();
-                                if (!wasOpen) setShowBookmarkOptions(true);
-                            }}
-                            className={`transition-all transform hover:scale-110 ${showBookmarkOptions ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-                            style={{
-                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                opacity: getLayoutOpacity('toolbar-text-main', 1)
-                            }}
-                        >
-                            <Icon icon="fluent:bookmark-24-filled" className={`${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />
-                        </button>
-                        {showBookmarkOptions && (
-                            <div
-                                className={`absolute right-[calc(100%+0.5vw)] top-0 ${isTablet ? 'w-[10vw]' : 'w-[12vw]'} rounded-[1vw] shadow-2xl z-[100] overflow-hidden animate-in fade-in slide-in-from-right-2 duration-200 border backdrop-blur-xl`}
-                                style={{
-                                    backgroundColor: getLayoutColor('toc-bg', '#575C9C'),
-                                    opacity: getLayoutOpacity('toc-bg', 1),
-                                    borderColor: getLayoutColor('toc-text', '#FFFFFF') + '33'
-                                }}
-                            >
-                                <button
-                                    className="w-full flex items-center px-[0.8vw] py-[1.2vh] hover:opacity-80 transition-all gap-[0.8vw] text-left"
-                                    onClick={() => {
-                                        setShowAddBookmarkPopupMemo(true);
-                                        setShowBookmarkOptions(false);
-                                    }}
-                                >
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`}
-                                        style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}
-                                    >
-                                        <path d="M15.2354 2C15.084 2.37237 15 2.77935 15 3.20605C15 4.97672 16.4354 6.41209 18.2061 6.41211C18.8707 6.41211 19.488 6.20962 20 5.86328V21.0283C19.9998 22.2481 18.6198 22.958 17.6279 22.249L12 18.2285L6.37207 22.249C5.37915 22.959 4.00022 22.2491 4 21.0293V5C4 4.20435 4.3163 3.44152 4.87891 2.87891C5.44152 2.3163 6.20435 2 7 2H15.2354Z" fill="currentColor" />
-                                        <path d="M18.2062 1V4.63111M20.0217 2.81555H16.3906" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" strokeLinejoin="round" />
-                                    </svg>
-                                    <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>Add Bookmark</span>
-                                </button>
-                                <div className="h-[1px] w-full" style={{ backgroundColor: getLayoutColor('toc-text', '#FFFFFF'), opacity: 0.1 }} />
-                                <button
-                                    className="w-full flex items-center px-[0.8vw] py-[1.2vh] hover:opacity-80 transition-all gap-[0.8vw] text-left"
-                                    onClick={() => {
-                                        setShowViewBookmarkPopup(true);
-                                        setShowBookmarkOptions(false);
-                                    }}
-                                >
-                                    <Icon icon="lets-icons:view-fill" className={`${isTablet ? 'w-[1vw]' : 'w-[1.2vw]'}`} style={{ color: getLayoutColor('toc-text', '#FFFFFF') }} />
-                                    <span className={`${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('toc-text', '#FFFFFF') }}>View Bookmark</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
                     <button
                         onClick={() => {
                             closeAll();
@@ -1098,7 +977,19 @@ const Grid7Layout = ({
                 </div>
 
                 {/* Book Viewer Container */}
-                <div className={`flex-1 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-[2vw] pr-[5vw]'} select-none`}>
+                <div className={`flex-1 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-[2vw] pr-[5vw]'} select-none`}
+                    onMouseMove={(e) => {
+                        if (!isFullscreen) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        const EDGE_ZONE = 72;
+                        // Near edge: left edge, top edge, bottom edge, right edge
+                        const nearEdge = x < EDGE_ZONE || y < EDGE_ZONE || y > rect.height - EDGE_ZONE || x > rect.width - EDGE_ZONE;
+                        setIsCanvasHovered(!nearEdge);
+                    }}
+                    onMouseLeave={() => isFullscreen && setIsCanvasHovered(false)}
+                >
                     <div
                         className="relative transition-all duration-600 ease-in-out"
                         style={{
@@ -1131,7 +1022,10 @@ const Grid7Layout = ({
             </div>
 
             <div
-                className={`${isTablet ? 'h-[6vh]' : 'h-[7vh]'} flex items-center px-[2vw] shrink-0 w-full relative z-40 transition-all duration-300 overflow-visible`}
+                className={`${isTablet ? 'h-[6vh]' : 'h-[7vh]'} flex items-center px-[2vw] shrink-0 w-full z-[100] transition-all duration-500 ease-in-out overflow-visible ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
+                style={{
+                    opacity: isFullscreen && isCanvasHovered ? 0 : 1
+                }}
             >
                 <div className="absolute inset-0 -z-10" style={{
                     backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
