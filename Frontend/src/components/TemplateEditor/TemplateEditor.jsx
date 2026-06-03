@@ -991,9 +991,11 @@ const TemplateEditor = () => {
       formData.append('v_id', v_id);
       formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
       formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
-      formData.append('page_v_id', 'global');
 
       const pageToReplace = pages[replacePageIndexRef.current];
+      const pageVId = (pageToReplace && (pageToReplace.v_id || pageToReplace.id)) || 'global';
+      formData.append('page_v_id', pageVId);
+
       if (pageToReplace && pageToReplace.html && pageToReplace.html.includes('data-name="PDF Background"')) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(pageToReplace.html, 'image/svg+xml');
@@ -1168,14 +1170,15 @@ const TemplateEditor = () => {
 
       let completed = 0;
       const uploadPromises = images.map(async (image, i) => {
+        const newPageVId = 'page_' + Math.random().toString(36).substr(2, 9);
         const formData = new FormData();
-        formData.append('file', image.blob, `pdf-page-${i + 1}.png`);
+        formData.append('file', image.blob, `pdf-page-${i + 1}.svg`);
         formData.append('emailId', emailId);
         formData.append('type', 'image');
         formData.append('v_id', v_id);
         formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
         formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
-        formData.append('page_v_id', 'global');
+        formData.append('page_v_id', newPageVId);
 
         const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -1208,7 +1211,8 @@ const TemplateEditor = () => {
         const layers = parseLayersFromSVG(doc.documentElement);
 
         return {
-          id: 'page_' + Math.random().toString(36).substr(2, 9),
+          id: newPageVId,
+          v_id: newPageVId,
           name: pageName,
           html: absoluteHtml,
           layers

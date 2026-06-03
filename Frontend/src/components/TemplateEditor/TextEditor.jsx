@@ -454,7 +454,7 @@ const TextEditor = ({
     // Immediate Live Feedback for DOM and Overlay
     const liveEl = document.getElementById(elId);
     const styleProp = STYLE_MAP[attribute];
-    const finalVal = attribute === 'fontSize' && !value?.toString().includes('px') ? `${value}px` : value;
+    const finalVal = (attribute === 'fontSize' || attribute === 'letterSpacing') && !value?.toString().includes('px') && !value?.toString().includes('em') ? `${value}px` : value;
 
     if (liveEl && styleProp) {
       const liveTag = liveEl.tagName.toLowerCase();
@@ -849,7 +849,7 @@ const TextEditor = ({
       if (el) {
         const styleProp = STYLE_MAP[property];
         if (styleProp) {
-          const finalVal = property === 'fontSize' && !value.toString().includes('px') ? `${value}px` : value;
+          const finalVal = (property === 'fontSize' || property === 'letterSpacing') && !value.toString().includes('px') && !value.toString().includes('em') ? `${value}px` : value;
           
           if (el.tagName.toLowerCase() === 'foreignobject') {
             if (el.firstElementChild) {

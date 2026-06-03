@@ -1,4 +1,3 @@
-
 export const processBookAppearanceSettings = (settings) => {
   if (!settings) return {};
 
@@ -46,60 +45,19 @@ export const processBookAppearanceSettings = (settings) => {
       flipTime = Math.max(300, flipTime * styleMapTimeModifiers[settings.flipStyle]);
   }
 
-  // Paper Textures mapping using SVG Data URIs for distinct textural feels
-  const textureImageMap = {
-    'Soft Matte Paper': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
-    'Premium Art Paper': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'1.5\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
-    'Soft Linen Paper': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
-    'Canvas Texture': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 100 100\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'canvas\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8 0.1\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'matrix\' values=\'0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.3 0\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23canvas)\'/%3E%3C/svg%3E")',
-    'Kraft Paper': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 512 512\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.08\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'matrix\' values=\'0.6 0 0 0 0 0 0.4 0 0 0 0 0 0.2 0 0 0 0 0 0.5 0\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
-    'Felt Paper': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.4\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3CfeColorMatrix type=\'matrix\' values=\'0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
-    'Watermarked Paper': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 400 400\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.02\' numOctaves=\'5\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Cpattern id=\'mark\' width=\'200\' height=\'200\' patternUnits=\'userSpaceOnUse\'%3E%3Ccircle cx=\'100\' cy=\'100\' r=\'40\' fill=\'none\' stroke=\'rgba(0,0,0,0.05)\' stroke-width=\'1\' /%3E%3C/pattern%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.5\'/%3E%3Crect width=\'100%25\' height=\'100%25\' fill=\'url(%23mark)\' /%3E%3C/svg%3E")',
-    'Premium Vellum': 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.05\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3CfeGaussianBlur stdDeviation=\'0.5\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")',
-    'Plain White': 'none'
-  };
-
-  const scaleValue = (100 + (settings.textureScale || 0)) + "%";
-  const grainOpacity = Math.max(0, (Math.abs(settings.grainIntensity || 0) / 100) * 0.8);
-  const baseOpacity = typeof settings.opacity !== 'undefined' ? settings.opacity / 100 : 1;
-
-  // Basic texture style logic
-  const textureStyle = {
-    opacity: baseOpacity * (settings.texture && settings.texture !== 'Plain White' ? grainOpacity : 1),
-    mixBlendMode: 'multiply',
-    pointerEvents: 'none',
-    backgroundImage: textureImageMap[settings.texture] || 'none',
-    backgroundSize: scaleValue
-  };
-
-  const warmth = settings.warmth || 0;
-  if (warmth !== 0) {
-      if (warmth > 0) {
-          // Warming (Yellowish)
-          const warmthAmount = warmth / 250; 
-          textureStyle.backgroundColor = `rgba(244, 230, 180, ${warmthAmount})`;
-      } else {
-          // Cooling (Bluish)
-          const coolAmount = Math.abs(warmth) / 250;
-          textureStyle.backgroundColor = `rgba(200, 230, 255, ${coolAmount})`;
-      }
-      
-      if(!textureStyle.backgroundImage || textureStyle.backgroundImage === 'none') {
-        textureStyle.opacity = baseOpacity; 
-      }
-  }
+  // Paper textures and warmth removed
 
   return {
     shadowStyle,
     cornerRadius,
     pageOpacity: typeof settings.opacity !== 'undefined' ? settings.opacity / 100 : 1, // Modified to carry layout visual opacity rather than strictly 1
-    textureStyle,
     flipTime,
     flipStyle: settings.flipStyle || 'Classic Flip',
     hardCover: !!settings.hardCover,
     shadowActive: !!shadow.active
   };
 };
+
 
 export const getShadowWidth = (currentIndex, totalPages, singlePageWidth) => {
   // Cover (Page 0)

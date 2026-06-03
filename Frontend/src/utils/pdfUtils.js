@@ -63,26 +63,28 @@ export const convertPdfToImages = async (file, scale = 2, maxPages = Infinity) =
       
       pixmap.destroy();
 
-      // 2. Render vector SVG paths using DocumentWriter
+      // 2. Render real vector SVG paths using DocumentWriter to ensure vector format
       const buf = new mupdf.Buffer();
-      const writer = new mupdf.DocumentWriter(buf, 'svg', '');
+      const writer = new mupdf.DocumentWriter(buf, 'svg', 'image-format=png');
       const device = writer.beginPage(bounds);
       
       page.run(device, mupdf.Matrix.identity);
       writer.endPage();
       writer.close();
       
-      // 3. Strip the natively embedded SVG images (because they are often negative/broken in mupdf)
-      let svgString = buf.asString().replace(/<image[\s\S]*?(?:\/>|<\/image>)/gi, '');
+      let svgString = buf.asString();
       
-      // 4. Combine them! Inject our perfect Pixmap PNG as the very first element inside the SVG
-      // Wrap the mupdf vector layers in a darken blend mode so any solid white backgrounds become transparent,
-      // perfectly revealing the colored images underneath while keeping the black text razor sharp!
-      svgString = svgString.replace(
-        /(<svg[^>]*>)/i,
-        `$1\n<image href="${pngDataUrl}" x="${bounds[0]}" y="${bounds[1]}" width="${widthPt}" height="${heightPt}" preserveAspectRatio="none" />\n<g style="mix-blend-mode: darken;">`
-      );
-      svgString = svgString.replace(/<\/svg>\s*$/i, '</g></svg>');
+      // Check if the page is essentially just an image (e.g. scanned page or comic book)
+      const imageCount = (svgString.match(/<image\b/gi) || []).length;
+      const textCount = (svgString.match(/<text\b/gi) || []).length;
+      const pathCount = (svgString.match(/<path\b/gi) || []).length;
+      
+      // If there's exactly 1 image (user requested), or if it's purely images without text
+      if (imageCount === 1 || (imageCount > 0 && textCount === 0 && pathCount < 10)) {
+        svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${widthPt}" height="${heightPt}" viewBox="0 0 ${widthPt} ${heightPt}">
+          <image href="${pngDataUrl}" x="0" y="0" width="${widthPt}" height="${heightPt}" preserveAspectRatio="none" />
+        </svg>`;
+      }
       
       buf.destroy();
       writer.destroy();

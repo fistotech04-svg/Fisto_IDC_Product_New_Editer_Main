@@ -198,6 +198,8 @@ export default function Home() {
 
       // 3. Upload all aggregated pages as assets
       const uploadedAssets = [];
+      const pageVIds = allImages.map(() => nanoid()); // Generate page v_ids in advance
+      
       for (let i = 0; i < allImages.length; i++) {
         setProcessingProgress({
           current: i + 1,
@@ -212,7 +214,7 @@ export default function Home() {
         formData.append('v_id', v_id);
         formData.append('folderName', targetFolder);
         formData.append('flipbookName', uniqueName);
-        formData.append('page_v_id', 'global');
+        formData.append('page_v_id', pageVIds[i]);
 
         const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -228,8 +230,11 @@ export default function Home() {
         const html = generatePdfPageSvg(relativeUrl, `Page ${i + 1}`, maxWidth, maxHeight);
 
         return {
-          pageName: `Page ${i + 1}`,
-          content: html
+          pageNumber: i + 1,
+          name: `Page ${i + 1}`,
+          fileName: `page-${i + 1}.html`,
+          v_id: pageVIds[i],
+          html: html,
         };
       });
 

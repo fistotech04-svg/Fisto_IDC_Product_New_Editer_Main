@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import { BookOpen, Folder, Plus, ArrowLeft, Search, MoreVertical, Trash2, Edit2, Copy, Eye, Wrench, PenTool, BarChart2, Share2, Download, FolderInput, SlidersHorizontal, CheckSquare, Check, X, Home, Library, ArrowRight, UploadCloud, Upload, ChevronLeft, ChevronRight, ChevronDown, ArrowDownUp, Globe, Lock, Settings, CloudUpload } from 'lucide-react';
@@ -10,6 +10,121 @@ import { convertPdfToImages, getPdfPageCount, generatePdfPageSvg } from '../util
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
+
+// Lazy-load preview iframe: only fetches HTML when card is visible in viewport
+const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
+    const containerRef = useRef(null);
+    const [html, setHtml] = useState(null);
+    const [loaded, setLoaded] = useState(false);
+    const [fetching, setFetching] = useState(false);
+
+    useEffect(() => {
+        if (!v_id || loaded) return;
+        const el = containerRef.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0].isIntersecting && !loaded && !fetching) {
+                    observer.disconnect();
+                    setFetching(true);
+                    // Always fetch first-page HTML for both PDF and template books
+                    axios
+                        .get(`${backendUrl}/api/flipbook/preview/${v_id}`, { params: { emailId } })
+                        .then((res) => {
+                            if (res.data?.html) {
+                                // Extract and dynamically load Google Fonts found in the SVG
+                                const fontsToLoad = new Set();
+                                const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+                                const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+                                let match;
+                                while ((match = cssRegex.exec(res.data.html)) !== null) {
+                                    let f = match[1] || match[2];
+                                    if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
+                                    if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                                }
+                                while ((match = attrRegex.exec(res.data.html)) !== null) {
+                                    let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+                                    if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+                                }
+                                
+                                let fontImports = '';
+                                if (fontsToLoad.size > 0) {
+                                    const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
+                                    fontImports = `<link href="https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`;
+                                }
+                                
+                                setHtml({ content: res.data.html, fontImports });
+                            }
+                        })
+                        .catch(() => {})
+                        .finally(() => { setFetching(false); setLoaded(true); });
+                }
+            },
+            { threshold: 0.1 }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [v_id, loaded, fetching, backendUrl, emailId]);
+
+    const isLoading = !loaded || fetching;
+
+    return (
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center relative">
+            {/* Skeleton shimmer — visible while loading */}
+            {isLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-[0.4vw] bg-gradient-to-br from-gray-100 to-gray-200 rounded-[0.5vw] overflow-hidden">
+                    {/* Animated sweep */}
+                    <div
+                        className="absolute inset-0 opacity-60"
+                        style={{
+                            background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.7) 50%, transparent 100%)',
+                            backgroundSize: '200% 100%',
+                            animation: 'shimmer 1.4s infinite linear',
+                        }}
+                    />
+                    <style>{`@keyframes shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }`}</style>
+                    {/* Spinning icon */}
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="text-gray-400 relative z-10"
+                        style={{ width: '1.75vw', height: '1.75vw', animation: 'spin 1.2s linear infinite' }}
+                    >
+                        <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    <span className="text-[0.55vw] text-gray-400 font-semibold uppercase tracking-wider relative z-10">
+                        Loading preview...
+                    </span>
+                </div>
+            )}
+
+            {/* Actual preview — rendered on top once ready */}
+            {html ? (
+                <iframe
+                    title={`Preview of ${title}`}
+                    className="w-full h-full border-none pointer-events-none"
+                    srcDoc={`<!DOCTYPE html><html><head>${html.fontImports}<base href="${iframeBaseUrl}"><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:transparent;}svg{width:100%;height:100%;max-width:100%;max-height:100%;}</style></head><body>${html.content.replace(/<svg/, '<svg preserveAspectRatio="xMidYMid meet"')}</body></html>`}
+                />
+            ) : loaded && imageUrl ? (
+                // Fallback: asset image if no HTML was found
+                <img src={`${backendUrl}${imageUrl}`} alt={title} className="w-full h-full object-contain" />
+            ) : loaded && !html ? (
+                // Loaded but nothing available
+                <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full">
+                    <BookOpen size="2vw" strokeWidth={1.5} />
+                    <span className="text-[0.6vw] mt-1 uppercase font-bold tracking-wider">No Preview</span>
+                </div>
+            ) : null}
+        </div>
+    );
+};
 
 const sortCategories = [
     {
@@ -291,6 +406,8 @@ export default function MyFlipbooks() {
 
             // 3. Upload all aggregated pages as assets
             const uploadedAssets = [];
+            const pageVIds = allImages.map(() => 'page_' + Math.random().toString(36).substr(2, 9));
+
             for (let i = 0; i < allImages.length; i++) {
                 setProcessingProgress({
                     current: i + 1,
@@ -299,13 +416,14 @@ export default function MyFlipbooks() {
                 });
 
                 const formData = new FormData();
-                formData.append('file', allImages[i].blob, `page-${i + 1}.svg`);
+                const pageExt = allImages[i].ext || 'svg';
+                formData.append('file', allImages[i].blob, `page-${i + 1}.${pageExt}`);
                 formData.append('emailId', emailId);
                 formData.append('type', 'image');
                 formData.append('v_id', v_id);
                 formData.append('folderName', targetFolder);
                 formData.append('flipbookName', uniqueName);
-                formData.append('page_v_id', 'global');
+                formData.append('page_v_id', pageVIds[i]);
 
                 const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
@@ -322,7 +440,8 @@ export default function MyFlipbooks() {
 
                 return {
                     pageName: `Page ${i + 1}`,
-                    content: html
+                    content: html,
+                    v_id: pageVIds[i]
                 };
             });
 
@@ -667,49 +786,49 @@ export default function MyFlipbooks() {
     };
 
     const confirmDeleteBook = async () => {
-        setIsLoading(true);
-        try {
-            const isRecent = activeFolder === 'Recent Book';
-            const endpoint = isRecent ? `${backendUrl}/api/flipbook/remove-recent` : `${backendUrl}/api/flipbook/delete`;
+        const isRecent = activeFolder === 'Recent Book';
+        const endpoint = isRecent ? `${backendUrl}/api/flipbook/remove-recent` : `${backendUrl}/api/flipbook/delete`;
 
+        // --- Optimistic UI: remove from state immediately ---
+        const idsToDelete =
+            deleteBookConfirmation.bookId === 'BULK'
+                ? [...selectedBooks]
+                : deleteBookConfirmation.bookId
+                ? [deleteBookConfirmation.bookId]
+                : [];
+
+        const removedBooks = books.filter(b => idsToDelete.includes(b.id));
+        setBooks(prev => prev.filter(b => !idsToDelete.includes(b.id)));
+        if (deleteBookConfirmation.bookId === 'BULK') setSelectedBooks([]);
+        else setSelectedBooks(prev => prev.filter(id => !idsToDelete.includes(id)));
+        setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' }); // close modal instantly
+
+        try {
             if (deleteBookConfirmation.bookId === 'BULK') {
-                await Promise.all(selectedBooks.map(bookId => {
-                    const book = books.find(b => b.id === bookId);
-                    if (book) {
-                        if (isRecent) {
-                            return axios.post(endpoint, {
-                                emailId,
-                                bookName: book.realName
-                            });
-                        } else {
-                            return axios.delete(endpoint, {
-                                data: { emailId, folderName: book.folder, bookName: book.realName }
-                            });
-                        }
-                    }
-                    return Promise.resolve();
-                }));
-                setSelectedBooks([]);
-            } else if (deleteBookConfirmation.bookId) {
-                const book = books.find(b => b.id === deleteBookConfirmation.bookId);
-                if (book) {
+                await Promise.all(removedBooks.map(book => {
                     if (isRecent) {
-                        await axios.post(endpoint, { emailId, bookName: book.realName });
+                        return axios.post(endpoint, { emailId, bookName: book.realName });
                     } else {
-                        await axios.delete(endpoint, {
+                        return axios.delete(endpoint, {
                             data: { emailId, folderName: book.folder, bookName: book.realName }
                         });
                     }
+                }));
+            } else if (removedBooks.length > 0) {
+                const book = removedBooks[0];
+                if (isRecent) {
+                    await axios.post(endpoint, { emailId, bookName: book.realName });
+                } else {
+                    await axios.delete(endpoint, {
+                        data: { emailId, folderName: book.folder, bookName: book.realName }
+                    });
                 }
-                setSelectedBooks(prev => prev.filter(id => id !== deleteBookConfirmation.bookId));
             }
-            await fetchData();
         } catch (err) {
             console.error(err);
+            // Restore books on failure
+            setBooks(prev => [...prev, ...removedBooks]);
             showAlert('Delete Failed', err.response?.data?.message || err.message);
-        } finally {
-            setIsLoading(false);
-            setDeleteBookConfirmation({ isOpen: false, bookId: null, bookTitle: '' });
         }
     };
 
@@ -970,15 +1089,6 @@ export default function MyFlipbooks() {
             {/* Sidebar */}
             <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20">
 
-                {/* Back to Home */}
-                <Link
-                    to="/home"
-                    className="w-full flex items-center justify-center gap-[0.5vw] px-[1vw] py-[0.75vw] rounded-[0.5vw] border-[1.5px] border-gray-800 text-gray-900 font-bold hover:bg-gray-50 transition-colors text-[1vw] mb-[2vw]"
-                >
-                    <Home size="1.2vw" />
-                    Back to Home
-                </Link>
-
                 {/* Folders Section */}
                 <div className="flex-1 flex flex-col min-h-0">
                     {/* Static Header Area */}
@@ -1198,7 +1308,7 @@ export default function MyFlipbooks() {
 
             {/* Main Content */}
             <main
-                className="flex-1 ml-[18vw] px-[2vw] pb-[2vw] pt-[1vw] relative overflow-hidden bg-[#d9dbe9] flex flex-col"
+                className="flex-1 ml-[18vw] px-[2vw] pb-[2vw] pt-[1vw] relative overflow-hidden bg-[#d9dbe9] flex flex-col select-none"
             >
 
                 <h1 className="text-[1.45vw] font-semibold text-gray-900 mb-[1.25vw] relative z-10">Quick Create your Flipbook</h1>
@@ -1462,34 +1572,14 @@ export default function MyFlipbooks() {
                                         >
                                             {/* Thumbnail */}
                                             <div className="w-[8vw] h-[6vw] bg-gray-100 rounded-[0.5vw] overflow-hidden flex-shrink-0 border border-gray-100 flex items-center justify-center relative">
-                                                {book.firstPageHtml ? (
-                                                    <iframe
-                                                        title={`Preview of ${book.title}`}
-                                                        className="w-full h-full border-none pointer-events-none"
-                                                        srcDoc={`
-                                                    <!DOCTYPE html>
-                                                    <html>
-                                                    <head>
-                                                        <base href="${iframeBaseUrl}">
-                                                        <style>
-                                                            html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; display: flex; align-items: center; justify-content: center; background: transparent; }
-                                                            svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
-                                                        </style>
-                                                    </head>
-                                                    <body>
-                                                        ${book.firstPageHtml.replace(/<svg/, '<svg preserveAspectRatio="xMidYMid meet"')}
-                                                    </body>
-                                                    </html>
-                                                `}
-                                                    />
-                                                ) : book.image ? (
-                                                    <img src={`${backendUrl}${book.image}`} alt={book.title} className="w-full h-full object-contain" />
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center text-gray-400">
-                                                        <BookOpen size="2vw" strokeWidth={1.5} />
-                                                        <span className="text-[0.6vw] mt-1 uppercase font-bold tracking-wider">No Preview</span>
-                                                    </div>
-                                                )}
+                                                <LazyPreview
+                                                    v_id={book.v_id}
+                                                    emailId={emailId}
+                                                    backendUrl={backendUrl}
+                                                    iframeBaseUrl={iframeBaseUrl}
+                                                    title={book.title}
+                                                    imageUrl={book.image || null}
+                                                />
                                             </div>
 
                                             {/* Content */}

@@ -35,147 +35,9 @@ const BookAppearanceSection = ({
 
   return (
     <div className="p-[1vw] ">
-      {/* Book Paper Texture */}
-      <div className="space-y-[0vw] ">
-        <div className="flex items-center gap-[0.5vw]">
-          <h3 className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Book Paper Texture</h3>
-          <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
-        </div>
-        <p className="text-[0.6vw] text-gray-400 font-sm  mb-[0.5vw] ">
-          The chosen paper texture will be applied to every page of the flipbook.
-        </p>
-
-        <div className="flex items-center gap-[0.7vw] py-[0.5vw]">
-          <div className="relative group">
-            <div
-              className="w-[4.5vw] h-[4.5vw] bg-transparent rounded-[0.6vw] border-2 border-gray-200 overflow-hidden flex items-center justify-center hover:scale-105 duration-300 shadow-sm"
-            >
-              {bookAppearanceSettings?.texture && bookAppearanceSettings.texture !== 'Plain White' ? (
-                <div
-                  className="w-full h-full rounded-[0.5vw]"
-                  style={{
-                    backgroundImage: BookAppearanceHelpers.processBookAppearanceSettings(bookAppearanceSettings).textureStyle.backgroundImage,
-                    backgroundSize: 'contain',
-                    opacity: 0.8
-                  }}
-                />
-              ) : (
-                <div className="w-full h-full rounded-[0.6vw] " />
-              )}
-            </div>
-          </div>
-
-          <div className="flex-1 space-y-[0vw]">
-            <div className="flex flex-col gap-[0.3vw] pt-[0.2vw]">
-              <span className="text-[0.8vw] font-semibold text-gray-700">Texture :</span>
-              <div className="pt-[0.4vw]">
-                <PremiumDropdown
-                  options={['Plain White', 'Soft Matte Paper', 'Premium Art Paper', 'Photo Album Paper', 'Soft Linen Paper', 'Light Grain Paper', 'Fine Texture Paper', 'Smooth Print Paper']}
-                  value={bookAppearanceSettings?.texture || 'Soft Matte Paper'}
-                  onChange={(opt) => onUpdateBookAppearance({ ...bookAppearanceSettings, texture: opt })}
-                  width="9.5vw"
-                  buttonClassName="!border-gray-600 !rounded-[0.5vw]"
-                  align="left"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Sliders Section */}
-      <div className="flex flex-col gap-[0vw] pt-[0.2vw]">
-        {[
-          { label: 'Grain Intensity', key: 'grainIntensity', min: -100, max: 100 },
-          { label: 'Warmth', key: 'warmth', min: -100, max: 100 },
-          { label: 'Texture Scale', key: 'textureScale', min: -50, max: 50 },
-          { label: 'Opacity', key: 'opacity', min: 0, max: 100 }
-        ].map((item) => {
-          const val = bookAppearanceSettings?.[item.key] ?? (item.key === 'opacity' ? 100 : 0);
-
-          return (
-            <div key={item.key} className="flex flex-col mb-[0.2vw]">
-              <div className="flex items-center mb-[-0.2vw]">
-                <DraggableSpan
-                  label={item.label}
-                  value={val}
-                  onChange={(v) => onUpdateBookAppearance({ ...bookAppearanceSettings, [item.key]: v })}
-                  min={item.min}
-                  max={item.max}
-                  className="text-[0.75vw] font-semibold text-gray-700"
-                />
-                <Icon
-                  icon="lucide:rotate-ccw"
-                  className="w-[0.9vw] h-[0.9vw] text-gray-400 cursor-pointer hover:text-gray-600 transition-colors ml-[0.2vw]"
-                  onClick={() => onUpdateBookAppearance({ ...bookAppearanceSettings, [item.key]: item.key === 'opacity' ? 100 : 0 })}
-                />
-              </div>
-
-              <div className="flex items-center gap-[0.5vw]">
-                <div className="flex-1 relative h-[1.2vw] flex items-center">
-                  <input
-                    type="range"
-                    min={item.min}
-                    max={item.max}
-                    value={val}
-                    onChange={(e) => onUpdateBookAppearance({ ...bookAppearanceSettings, [item.key]: parseInt(e.target.value) })}
-                    className="w-full h-[0.5vw] rounded-full appearance-none cursor-pointer accent-[#5551FF] z-10 bg-transparent"
-                  />
-                  <div
-                    className="absolute inset-x-0 h-[0.25vw] rounded-full -z-0"
-                    style={{
-                      background: item.key === 'warmth'
-                        ? 'linear-gradient(to right, #4387f5ff 0%, #E5E7EB 50%, #FFE4B5 100%)'
-                        : '#E5E7EB'
-                    }}
-                  >
-                    {(item.key === 'opacity') && (
-                      <div
-                        className="h-full bg-[#5551FF] rounded-full"
-                        style={{
-                          width: `${((val - item.min) / (item.max - item.min)) * 100}%`
-                        }}
-                      />
-                    )}
-                    {(item.key !== 'opacity' && item.key !== 'warmth') && (
-                      <div
-                        className="absolute top-0 bottom-0 bg-[#5551FF] rounded-full"
-                        style={{
-                          left: val >= 0 ? '50%' : `${50 - (Math.abs(val) / item.max * 50)}%`,
-                          width: `${(Math.abs(val) / item.max * 50)}%`
-                        }}
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center">
-                  <div
-                    className="w-[2vw] h-[1.5vw] flex items-center justify-between pl-[0.5vw] cursor-ew-resize select-none text-[0.75vw] font-semibold text-gray-700"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startVal = val;
-                      const handleMove = (moveEvent) => {
-                        const dx = moveEvent.clientX - startX;
-                        const newVal = Math.max(item.min, Math.min(item.max, startVal + Math.round(dx)));
-                        onUpdateBookAppearance({ ...bookAppearanceSettings, [item.key]: newVal });
-                      };
-                      const handleUp = () => { window.removeEventListener('mousemove', handleMove); window.removeEventListener('mouseup', handleUp); };
-                      window.addEventListener('mousemove', handleMove);
-                      window.addEventListener('mouseup', handleUp);
-                    }}
-                  >
-                    {val}{item.key === 'opacity' ? '%' : ''}
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
       {/* Hard Cover Settings - Designed From Image */}
-      <div className="space-y-[0.5vw] pt-[1vw]">
+      <div className="space-y-[0.5vw] pt-[0.5vw]">
         <div className="flex items-center gap-[0.5vw]">
           <h3 className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">Hard Cover Settings</h3>
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
@@ -407,7 +269,7 @@ const BookAppearanceSection = ({
                         ...bookAppearanceSettings, 
                         dropShadow: { ...bookAppearanceSettings.dropShadow, [item.key]: parseInt(e.target.value) } 
                       })}
-                      className="w-full h-[0.4vw] rounded-full appearance-none cursor-pointer accent-[#5551FF] z-10 bg-transparent relative"
+                      className="w-full h-[0.4vw] rounded-full appearance-none cursor-pointer z-10 bg-transparent relative [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[0.8vw] [&::-webkit-slider-thumb]:h-[0.8vw] [&::-webkit-slider-thumb]:bg-[#5551FF] [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-[0.8vw] [&::-moz-range-thumb]:h-[0.8vw] [&::-moz-range-thumb]:bg-[#5551FF] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none"
                       style={{ margin: 0 }}
                     />
                     <div className="absolute inset-x-0 h-[0.25vw] rounded-full bg-gray-200 pointer-events-none">
@@ -433,6 +295,3 @@ const BookAppearanceSection = ({
 };
 
 export default BookAppearanceSection;
-
-
-

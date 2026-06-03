@@ -290,29 +290,18 @@ router.post("/save", async (req, res) => {
       savedPages.push(fileName);
       savedFileNames.add(fileName);
 
-      // PRESERVE existing v_id: Match by v_id first, then by name
-      let pageVId = null;
-      if (existingDoc && existingDoc.pages) {
-        // Try to match by v_id first (if provided from frontend)
-        if (v_id) {
-          const existingPage = existingDoc.pages.find((p) => p.v_id === v_id);
-          if (existingPage) {
-            pageVId = existingPage.v_id; // Reuse existing v_id
-          }
-        }
-
-        // Fallback: match by name (for backward compatibility)
-        if (!pageVId) {
-          const existingPage = existingDoc.pages.find(
-            (p) => p.name === pageName,
-          );
-          if (existingPage && existingPage.v_id) {
-            pageVId = existingPage.v_id; // Reuse existing v_id
-          }
+      // PRESERVE existing v_id: Use incoming v_id if present, else fallback to matching by name
+      let pageVId = v_id; // Use incoming v_id from frontend (especially for new PDF uploads)
+      
+      if (!pageVId && existingDoc && existingDoc.pages) {
+        // Fallback: match by name (for backward compatibility on legacy projects)
+        const existingPage = existingDoc.pages.find((p) => p.name === pageName);
+        if (existingPage && existingPage.v_id) {
+          pageVId = existingPage.v_id; // Reuse existing v_id
         }
       }
 
-      // Only generate new v_id if page doesn't exist
+      // Only generate new v_id if page doesn't exist and wasn't provided
       if (!pageVId) {
         pageVId = nanoid();
       }
@@ -328,42 +317,44 @@ router.post("/save", async (req, res) => {
     }
 
     // Handle Cascading Deletion of Assets for Deleted Pages
-    if (existingDoc && existingDoc.pages) {
-      const deletedPageIds = existingDoc.pages
-        .filter((p) => p.v_id && !newPageIds.has(p.v_id))
-        .map((p) => p.v_id);
+    try {
+      let currentFlipbookVId = req.body.v_id;
+      if (existingDoc && existingDoc.v_id) {
+        currentFlipbookVId = existingDoc.v_id;
+      }
+      
+      // Find all assets associated with this flipbook
+      const allFlipbookAssets = await FlipbookAsset.find({ flipbook_v_id: currentFlipbookVId });
+      
+      // Identify assets whose page_v_id is no longer in the newPageIds set.
+      // We skip 'global' because legacy assets were uploaded with 'global' 
+      // and we cannot safely determine if they belong to a deleted page.
+      const orphanedAssets = allFlipbookAssets.filter(asset => 
+        asset.page_v_id && 
+        asset.page_v_id !== 'global' && 
+        !newPageIds.has(asset.page_v_id)
+      );
 
-      if (deletedPageIds.length > 0) {
-        console.log("Deleting assets for removed pages:", deletedPageIds);
-        try {
-          const assetsToDelete = await FlipbookAsset.find({
-            page_v_id: { $in: deletedPageIds },
-          });
-
-          for (const asset of assetsToDelete) {
-            try {
-              if (asset.url && asset.url.startsWith("/uploads")) {
-                const assetPath = path.join(__dirname, "../../", asset.url);
-                if (fs.existsSync(assetPath)) {
-                  fs.unlinkSync(assetPath);
-                  console.log(`Deleted orphaned asset file: ${assetPath}`);
-                }
+      if (orphanedAssets.length > 0) {
+        console.log("Deleting orphaned assets for removed pages...");
+        
+        for (const asset of orphanedAssets) {
+          try {
+            if (asset.url && asset.url.startsWith("/uploads")) {
+              const assetPath = path.join(__dirname, "../../", asset.url);
+              if (fs.existsSync(assetPath)) {
+                fs.unlinkSync(assetPath);
+                console.log(`Deleted orphaned asset file: ${assetPath}`);
               }
-            } catch (e) {
-              console.warn(
-                `Failed to delete file for asset ${asset._id}:`,
-                e.message,
-              );
             }
+            await FlipbookAsset.deleteOne({ _id: asset._id });
+          } catch (e) {
+            console.warn(`Failed to delete orphaned asset ${asset._id}:`, e.message);
           }
-
-          await FlipbookAsset.deleteMany({
-            page_v_id: { $in: deletedPageIds },
-          });
-        } catch (err) {
-          console.error("Error cleaning up assets for deleted pages:", err);
         }
       }
+    } catch (err) {
+      console.error("Error cleaning up orphaned assets:", err);
     }
 
     // Clean up orphaned HTML files (Deleted or Renamed pages)
@@ -608,16 +599,16 @@ router.get("/list", async (req, res) => {
     // 0. Fetch all DB records for this user to map v_ids
     const userDbBooks = await Flipbook.find({ userEmail: emailId });
 
-    // Fetch all image assets for this user to use as thumbnails
-    // We only care about images for these specific flipbooks
+    // Fetch all assets for this user to use as thumbnails AND calculate sizes
     const bookVIds = userDbBooks.map((b) => b.v_id).filter(Boolean);
     const allAssets = await FlipbookAsset.find({
       flipbook_v_id: { $in: bookVIds },
-      assetType: "image",
     });
 
     // Map to store the first image URL for each flipbook v_id
     const firstImageAssetMap = new Map();
+    const bookSizeMap = new Map();
+
     // Sort to ensure 'page-1.png' or similar comes first if possible
     allAssets.sort((a, b) =>
       a.fileName.localeCompare(b.fileName, undefined, {
@@ -626,8 +617,13 @@ router.get("/list", async (req, res) => {
       }),
     );
     allAssets.forEach((asset) => {
-      if (!firstImageAssetMap.has(asset.flipbook_v_id)) {
+      if (asset.assetType === "image" && !firstImageAssetMap.has(asset.flipbook_v_id)) {
         firstImageAssetMap.set(asset.flipbook_v_id, asset.url);
+      }
+
+      if (asset.size) {
+        const currentSize = bookSizeMap.get(asset.flipbook_v_id) || 0;
+        bookSizeMap.set(asset.flipbook_v_id, currentSize + asset.size);
       }
     });
 
@@ -658,7 +654,14 @@ router.get("/list", async (req, res) => {
           const files = fs.readdirSync(bookPath);
           htmlFiles = files.filter((f) => f.endsWith(".html"));
           stats = fs.statSync(bookPath);
-          sizeBytes = getDirSize(bookPath);
+
+          // Calculate size of HTML files directly (no recursive traversal)
+          for (const f of htmlFiles) {
+            try {
+              const stat = fs.statSync(path.join(bookPath, f));
+              sizeBytes += stat.size;
+            } catch (e) {}
+          }
         } catch (e) {
           console.error("Error reading book details", e);
         }
@@ -670,6 +673,11 @@ router.get("/list", async (req, res) => {
             (b.folderName === folder ||
               (Array.isArray(b.folderName) && b.folderName.includes(folder))),
         );
+
+        // Add DB asset size (much faster than recursive fs calls)
+        if (dbMatch && dbMatch.v_id && bookSizeMap.has(dbMatch.v_id)) {
+          sizeBytes += bookSizeMap.get(dbMatch.v_id);
+        }
 
         // AUTO-HEAL: If no DB match, create one to ensure v_id
         if (!dbMatch) {
@@ -687,6 +695,7 @@ router.get("/list", async (req, res) => {
               pageNumber: idx + 1,
               name: f.replace(".html", ""),
               fileName: f,
+              v_id: nanoid()
             }));
 
             const newDoc = await Flipbook.create({
@@ -708,20 +717,6 @@ router.get("/list", async (req, res) => {
           }
         }
 
-        // Get the first page HTML content for live custom preview
-        let firstPageHtml = null;
-        try {
-          const firstPage = dbMatch?.pages?.find(p => p.pageNumber === 1) || dbMatch?.pages?.[0];
-          if (firstPage) {
-            const firstPagePath = path.join(bookPath, firstPage.fileName);
-            if (fs.existsSync(firstPagePath)) {
-              firstPageHtml = fs.readFileSync(firstPagePath, "utf8");
-            }
-          }
-        } catch (e) {
-          console.error("Error reading first page for preview:", e);
-        }
-
         books.push({
           id: `${folder}_${bookDir.name}`,
           v_id: dbMatch ? dbMatch.v_id : null, // ID from DB
@@ -730,12 +725,12 @@ router.get("/list", async (req, res) => {
           folder: folder,
           pages: htmlFiles.length,
           created: stats.birthtime
-            ? stats.birthtime.toLocaleDateString("en-GB").replace(/\//g, "-")
+            ? stats.birthtime.toLocaleDateString("en-GB").replace(/\//g, "-") + " " + stats.birthtime.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })
             : "",
           views: 0,
           size: formatSize(sizeBytes),
           image: dbMatch ? firstImageAssetMap.get(dbMatch.v_id) || null : null,
-          firstPageHtml: firstPageHtml, // Fallback preview
+          // firstPageHtml is NOT sent in list – fetch lazily via /preview/:v_id
           mtime: stats.mtime,
           share: dbMatch ? dbMatch.share : null,
         });
@@ -764,30 +759,6 @@ router.get("/list", async (req, res) => {
         (b) => b.realName === doc.flipbookName && b.folder === realFolder,
       );
 
-      // If not in the physical scan list, try to fetch its preview
-      let previewHtml = matchingPhysicalBook?.firstPageHtml || null;
-      if (!previewHtml) {
-        try {
-          const firstPage =
-            doc.pages?.find((p) => p.pageNumber === 1) || doc.pages?.[0];
-          if (firstPage) {
-            const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-            const uploadsDir = path.join(__dirname, "../../uploads");
-            const bookPath = path.join(
-              uploadsDir,
-              sanitizedEmail,
-              FLIPBOOK_ROOT,
-              realFolder || "My Flipbooks",
-              doc.flipbookName,
-            );
-            const firstPagePath = path.join(bookPath, firstPage.fileName);
-            if (fs.existsSync(firstPagePath)) {
-              previewHtml = fs.readFileSync(firstPagePath, "utf8");
-            }
-          }
-        } catch (e) {}
-      }
-
       return {
         id: `Recent_${doc.flipbookName}`,
         realName: doc.flipbookName,
@@ -799,7 +770,7 @@ router.get("/list", async (req, res) => {
         views: 0,
         size: matchingPhysicalBook ? matchingPhysicalBook.size : "0 B",
         image: firstImageAssetMap.get(doc.v_id) || null,
-        firstPageHtml: previewHtml,
+        // firstPageHtml is NOT sent in list – fetch lazily via /preview/:v_id
         mtime: doc.lastUpdated || doc.createdAt,
         share: doc.share || null,
       };
@@ -811,6 +782,50 @@ router.get("/list", async (req, res) => {
     res.json({ books: allBooks });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// @route   GET /api/flipbook/preview/:v_id
+// @desc    Return first-page HTML for a single flipbook (lazy preview)
+// @access  Public
+router.get("/preview/:v_id", async (req, res) => {
+  try {
+    const { v_id } = req.params;
+    const { emailId } = req.query;
+    if (!emailId || !v_id) {
+      return res.status(400).json({ message: "Missing emailId or v_id" });
+    }
+
+    const doc = await Flipbook.findOne({ userEmail: emailId, v_id });
+    if (!doc) return res.status(404).json({ message: "Flipbook not found" });
+
+    // Resolve physical folder (skip 'Recent Book' virtual tag)
+    const realFolders = Array.isArray(doc.folderName)
+      ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
+      : [doc.folderName];
+    const realFolder = realFolders[0] || "My Flipbooks";
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const bookPath = path.join(
+      __dirname,
+      "../../uploads",
+      sanitizedEmail,
+      FLIPBOOK_ROOT,
+      realFolder,
+      doc.flipbookName,
+    );
+
+    const firstPage = doc.pages?.find((p) => p.pageNumber === 1) || doc.pages?.[0];
+    if (!firstPage) return res.json({ html: null });
+
+    const firstPagePath = path.join(bookPath, firstPage.fileName);
+    if (!fs.existsSync(firstPagePath)) return res.json({ html: null });
+
+    const html = fs.readFileSync(firstPagePath, "utf8");
+    res.json({ html });
+  } catch (err) {
+    console.error("Error fetching preview:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1512,6 +1527,7 @@ router.get("/get", async (req, res) => {
             pageNumber: i + 1,
             name: p.name,
             fileName: `${p.name}.html`,
+            v_id: nanoid()
           }));
 
           dbBook = await Flipbook.create({
@@ -2161,7 +2177,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 20 * 1024 * 1024, // 20MB limit
+    fileSize: 50 * 1024 * 1024, // 50MB limit (SVG files from complex PDFs can be large)
   },
 });
 

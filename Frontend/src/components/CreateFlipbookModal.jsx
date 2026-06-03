@@ -4,9 +4,12 @@ import { Icon } from '@iconify/react';
 import { useModernToast } from './ModernToast';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPdfPageCount } from '../utils/pdfUtils';
+import AlertModal from './AlertModal';
 
 const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialView = 'upload', initialTemplateId = 'corporate', existingFlipbooks = [], initialFiles = null }) => {
   const [view, setView] = useState(initialView);
+  const [initialFlipbookName, setInitialFlipbookName] = useState('');
+  const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', type: 'info', onConfirm: null, showCancel: false, confirmText: 'Okay' });
 
   // Template View State
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId);
@@ -27,7 +30,9 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
       setSelectedTemplateId(initialTemplateId);
       setUploadedFiles([]);
       const isTemplate = (initialView === 'selection' ? 'upload' : initialView) === 'template';
-      setFlipbookName(isTemplate ? `Flipbook_${getFormattedDateTime()}` : `PDF_Flipbook_${getFormattedDateTime()}`);
+      const defaultName = isTemplate ? `Flipbook_${getFormattedDateTime()}` : `PDF_Flipbook_${getFormattedDateTime()}`;
+      setFlipbookName(defaultName);
+      setInitialFlipbookName(defaultName);
       setNameError(false);
     }
   }, [isOpen, initialView, initialTemplateId]);
@@ -207,16 +212,39 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     setUploadedFiles(prev => prev.filter(f => f.id !== id));
   };
 
+  const confirmCreation = (actionCallback) => {
+    if (flipbookName.trim() === initialFlipbookName) {
+      setAlertState({
+        isOpen: true,
+        title: 'Default Name Detected',
+        message: 'Are you sure you want to continue with the default flipbook name?',
+        type: 'info',
+        showCancel: true,
+        confirmText: 'Continue',
+        onConfirm: () => {
+          setAlertState(prev => ({ ...prev, isOpen: false }));
+          actionCallback();
+        }
+      });
+    } else {
+      actionCallback();
+    }
+  };
+
   const handleCreateFlipbook = () => {
     if (nameError || !flipbookName.trim()) return;
-    onUpload(uploadedFiles.map(f => f.file), flipbookName.trim());
+    confirmCreation(() => {
+      onUpload(uploadedFiles.map(f => f.file), flipbookName.trim());
+    });
   };
 
   const handleCreateFromTemplate = () => {
     if (nameError || !flipbookName.trim()) return;
-    const template = templates.find(t => t.id === selectedTemplateId);
-    console.log("Creating from template:", template, "Pages:", pageCount);
-    onTemplate({ templateId: selectedTemplateId, pageCount, flipbookName: flipbookName.trim() });
+    confirmCreation(() => {
+      const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
+      console.log("Creating from template:", template, "Pages:", pageCount);
+      onTemplate({ templateId: selectedTemplateId, pageCount, flipbookName: flipbookName.trim() });
+    });
   };
 
   const handleUploadClick = () => {
@@ -529,6 +557,16 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
             {view === 'upload' && renderUploadView()}
             {view === 'template' && renderTemplateView()}
           </motion.div>
+          <AlertModal
+            isOpen={alertState.isOpen}
+            onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+            onConfirm={alertState.onConfirm}
+            type={alertState.type}
+            title={alertState.title}
+            message={alertState.message}
+            showCancel={alertState.showCancel}
+            confirmText={alertState.confirmText}
+          />
         </div>
       )}
     </AnimatePresence>
