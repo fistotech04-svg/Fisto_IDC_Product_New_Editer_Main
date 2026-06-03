@@ -12,7 +12,7 @@ import {
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import axios from 'axios';
 import AlertModal from '../AlertModal';
-import FileReplaceIcon from '@iconify-react/mdi/file-replace';
+import { Icon as FileReplaceIcon } from '@iconify/react';
 
 const LayerItem = ({
   layer,
@@ -1185,7 +1185,7 @@ const Layer = ({
                             <button onClick={() => { insertPageAfter(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Plus size="0.9vw" /> Add Page</button>
                           )}
                           <button onClick={() => { onAddFile && onAddFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FilePlus size="0.9vw" /> Add File</button>
-                          <button onClick={() => { onReplaceFile && onReplaceFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FileReplaceIcon className="w-[0.9vw] h-[0.9vw]" /> Replace File</button>
+                          <button onClick={() => { onReplaceFile && onReplaceFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FileReplaceIcon icon="mdi:file-replace" className="w-[0.9vw] h-[0.9vw]" /> Replace File</button>
                           <button onClick={() => { duplicatePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Copy size="0.9vw" /> Duplicate</button>
                           <button onClick={(e) => handleRenameStart(e, page)} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Edit2 size="0.9vw" /> Rename</button>
                           {!isPdfProject && (
