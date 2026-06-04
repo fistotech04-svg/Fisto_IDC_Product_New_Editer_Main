@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import PremiumDropdown from './PremiumDropdown';
 import ColorPicker from './ColorPallet';
@@ -100,44 +101,40 @@ const RadioGroup = ({ options, value, onChange }) => (
 );
 
 const SectionHeader = ({ title }) => (
-  <div className="flex items-center gap-[0.5vw] mb-[1vw] mt-[0.8vw]">
+  <div className="flex items-center gap-[0.5vw] mb-[0.5vw] mt-[0.8vw]">
     <h4 className="text-[0.8vw] font-semibold text-gray-900 whitespace-nowrap pb-[0.5vw]">{title}</h4>
     <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.3vw' }}> </div>
   </div>
 );
 
-const ColorPickerItem = ({ label, color, opacity = 100, onChange, onOpacityChange }) => (
-  <div className="flex items-center justify-between mb-[0.75vw] gap-[1vw]">
-    <span className="text-[0.75vw] font-semibold text-gray-700">{label} :</span>
+const ColorPickerItem = ({ label, color, opacity = 100, onChange, onOpacityChange, onClick }) => (
+  <div className="flex items-center justify-between mb-[0.6vw] gap-[0.5vw] px-[0.5vw]">
+    <div className="flex items-center justify-between w-[4vw] shrink-0">
+      <span className="text-[0.75vw] font-medium text-gray-700">{label}</span>
+      <span className="text-[0.75vw] font-medium text-gray-700">:</span>
+    </div>
     <div className="flex items-center gap-[0.4vw] flex-1">
-      <div
-        className="w-[2.2vw] h-[1.8vw] rounded-[0.4vw] border border-gray-300 cursor-pointer overflow-hidden relative shadow-sm shrink-0"
+      <div 
+        className="w-[2vw] h-[2vw] rounded-[0.5vw] border border-gray-700 cursor-pointer overflow-hidden relative shadow-sm shrink-0 transition-shadow hover:shadow-md"
         style={{ backgroundColor: color === '#' || !color || color === 'transparent' ? 'white' : color }}
+        onClick={onClick}
       >
         {(color === '#' || !color || color === 'transparent') && (
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-[1px] bg-red-400 rotate-45"></div>
         )}
-        <input
-          type="color"
-          value={color && color.startsWith('#') && color.length === 7 ? color : '#ffffff'}
-          onChange={(e) => onChange(e.target.value)}
-          className="absolute inset-0 opacity-0 cursor-pointer"
-        />
       </div>
-      <div className="flex-1 flex items-center bg-white border border-gray-100 rounded-[0.4vw] px-[0.6vw] py-[0.2vw] h-[1.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.02)]">
-        <input
+      <div className="flex-1 flex items-center bg-white border border-gray-700 rounded-[0.5vw] px-[0.6vw] py-[0.1vw] h-[2vw]">
+        <input 
           type="text"
           value={color && color.length > 1 ? color.toUpperCase() : '#'}
           onChange={(e) => onChange(e.target.value)}
-          className="text-[0.75vw] font-medium text-gray-600 flex-1 bg-transparent outline-none uppercase w-full"
+          className="text-[0.7vw] font-medium text-gray-600 flex-1 bg-transparent outline-none uppercase w-full"
         />
-        <div className="w-[1px] h-[70%] bg-gray-100 mx-[0.4vw] shrink-0"></div>
-        <div className="text-[0.8vw] font-semibold text-gray-800 w-[2.5vw] text-right shrink-0">{opacity}%</div>
+        <div className="text-[0.7vw] font-medium text-gray-600 w-[2.5vw] text-right shrink-0">{opacity}%</div>
       </div>
     </div>
   </div>
 );
-
 
 const SettingRow = ({ label, children, className = "" }) => (
   <div className={`flex items-center justify-between mb-[0.8vw] gap-[0.5vw] ${className}`}>
@@ -172,12 +169,20 @@ const AccordionItem = ({ title, isOpen, onToggle, children }) => (
 
 const MAX_GALLERY_IMAGES = 12;
 
-const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = [] }) => {
-  const [openAccordion, setOpenAccordion] = useState('layout');
+const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = [], targetAccordion }) => {
+  const [openAccordion, setOpenAccordion] = useState(targetAccordion || 'layout');
   const [bookAppearance, setBookAppearance] = useState({});
 
+  const { v_id } = useParams();
+
   React.useEffect(() => {
-    const saved = localStorage.getItem('customized_editor_appearance');
+    if (targetAccordion) {
+      setOpenAccordion(targetAccordion);
+    }
+  }, [targetAccordion]);
+
+  React.useEffect(() => {
+    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -1092,6 +1097,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
                </div>
              </div>
         </AccordionItem>
+
 
         {/* Bookmark Option */}
         <AccordionItem

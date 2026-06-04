@@ -13,10 +13,10 @@ const TooltipCustomization = ({
   updateElementAttribute
 }) => {
   const defaultSettings = {
-    text: 'Centered Tooltip',
+    text: '',
     w: 100,
     h: 60,
-    animation: 'Fade In /Out',
+    animation: 'Default',
     speed: 'Medium',
     fontFamily: 'Poppins',
     fontWeight: 'Regular',
@@ -371,7 +371,7 @@ const TooltipCustomization = ({
           {activePanel === 'shape' && createPortal(
             <div
               ref={shapePopupRef}
-              className="p-[0.8vw] bg-white rounded-[0.8vw] shadow-[0_8px_32px_rgba(0,0,0,0.15)] border border-gray-200 w-[19vw] flex flex-col gap-[0.8vh]"
+              className="p-[0.8vw] bg-white/80 backdrop-blur-md rounded-[0.8vw] shadow-[0_8px_32px_rgba(0,0,0,0.15)] border border-gray-200 w-[19vw] flex flex-col gap-[0.8vh]"
               style={{
                 position: 'fixed',
                 top: shapePopupPosition.top + 'px',
@@ -542,6 +542,10 @@ const TooltipCustomization = ({
               };
             }
 
+            const translucentBgColor = (settings.bgColor && settings.bgColor.startsWith('#') && settings.bgColor.length === 7) 
+              ? `${settings.bgColor}CC` 
+              : settings.bgColor;
+
             return (
               <div
                 className={`flex select-none transition-all duration-200 ${shapeDir === 'top' ? 'flex-col items-center' :
@@ -552,16 +556,15 @@ const TooltipCustomization = ({
                 style={{ maxWidth: '85%' }}
               >
                 {/* Left/Top Tail */}
-                {/* Left/Top Tail */}
                 {isTopOrLeft && (
                   <div
                     style={{
                       width: 0,
                       height: 0,
                       borderLeft: shapeDir === 'top' ? '0.4vw solid transparent' : 'none',
-                      borderRight: shapeDir === 'top' ? '0.4vw solid transparent' : `0.5vw solid ${settings.bgColor}`,
+                      borderRight: shapeDir === 'top' ? '0.4vw solid transparent' : `0.5vw solid ${translucentBgColor}`,
                       borderTop: shapeDir === 'top' ? 'none' : '0.4vw solid transparent',
-                      borderBottom: shapeDir === 'top' ? `0.5vw solid ${settings.bgColor}` : '0.4vw solid transparent',
+                      borderBottom: shapeDir === 'top' ? `0.5vw solid ${translucentBgColor}` : '0.4vw solid transparent',
                       alignSelf: alignSelfVal,
                       marginLeft: shapeDir === 'top' && shapeAlign === 'left' ? '0.8vw' : '0',
                       marginRight: shapeDir === 'top' && shapeAlign === 'right' ? '0.8vw' : (shapeDir === 'left' ? '-1px' : '0'),
@@ -574,9 +577,9 @@ const TooltipCustomization = ({
 
                 {/* Tooltip Bubble */}
                 <div
-                  className="rounded-[0.5vw] py-[0.6vh] px-[1.2vw] shadow-[0_4px_12px_rgba(0,0,0,0.12)] transition-all duration-200 flex items-center justify-center"
+                  className="rounded-[0.5vw] py-[0.6vh] px-[1.2vw] shadow-[0_4px_12px_rgba(0,0,0,0.12)] transition-all duration-200 flex items-center justify-center backdrop-blur-md"
                   style={{
-                    backgroundColor: settings.bgColor,
+                    backgroundColor: translucentBgColor,
                     color: settings.textColor,
                     fontFamily: settings.fontFamily,
                     fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Medium' ? '500' : settings.fontWeight === 'SemiBold' ? '600' : settings.fontWeight === 'Bold' ? '700' : 'normal'),
@@ -594,11 +597,12 @@ const TooltipCustomization = ({
                 >
                   <div
                     style={{
-                      width: settings.isWidthAuto ? 'auto' : `${settings.textW || 80}px`,
-                      height: settings.isHeightAuto ? 'auto' : `${settings.textH || 40}px`,
+                      width: '100%',
+                      height: '100%',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
+                      justifyContent: settings.align === 'left' ? 'flex-start' : settings.align === 'right' ? 'flex-end' : 'center',
+                      textAlign: settings.align,
                       wordBreak: 'break-word',
                       whiteSpace: 'pre-wrap'
                     }}
@@ -613,9 +617,9 @@ const TooltipCustomization = ({
                     style={{
                       width: 0,
                       height: 0,
-                      borderLeft: shapeDir === 'right' ? `0.5vw solid ${settings.bgColor}` : '0.4vw solid transparent',
+                      borderLeft: shapeDir === 'right' ? `0.5vw solid ${translucentBgColor}` : '0.4vw solid transparent',
                       borderRight: shapeDir === 'right' ? 'none' : '0.4vw solid transparent',
-                      borderTop: shapeDir === 'right' ? '0.4vw solid transparent' : `0.5vw solid ${settings.bgColor}`,
+                      borderTop: shapeDir === 'right' ? '0.4vw solid transparent' : `0.5vw solid ${translucentBgColor}`,
                       borderBottom: shapeDir === 'right' ? '0.4vw solid transparent' : 'none',
                       alignSelf: alignSelfVal,
                       marginLeft: shapeDir === 'bottom' && shapeAlign === 'left' ? '0.8vw' : (shapeDir === 'right' ? '-1px' : '0'),
@@ -730,6 +734,7 @@ const TooltipCustomization = ({
               value={settings.animation}
               onChange={(e) => updateSetting('animation', e.target.value, true)}
             >
+              <option value="Default">Default</option>
               <option value="Fade In /Out">Fade In /Out</option>
               <option value="Slide Up">Slide Up</option>
               <option value="Zoom In">Zoom In</option>
@@ -765,22 +770,12 @@ const TooltipCustomization = ({
           {/* Text Input/TextArea */}
           <div className="relative border border-gray-300 rounded-[0.8vw] p-[0.8vw] bg-white hover:border-gray-400 focus-within:border-gray-500 transition-colors">
             <textarea
-              className="w-full text-[0.85vw] placeholder-gray-400 bg-transparent outline-none resize-none no-scrollbar h-[5.5vh]"
+              className="w-full text-[0.85vw] placeholder-gray-400 bg-transparent outline-none resize-none no-scrollbar h-[5.5vh] text-[#1f2937] whitespace-pre-wrap"
               value={localText}
-              placeholder="SIPPER GLASS"
+              placeholder="Enter tooltip"
               onChange={(e) => {
                 setLocalText(e.target.value);
                 updateSetting('text', e.target.value);
-              }}
-              style={{
-                fontFamily: settings.fontFamily,
-                fontWeight: settings.bold ? 'bold' : (settings.fontWeight === 'Medium' ? '500' : settings.fontWeight === 'SemiBold' ? '600' : settings.fontWeight === 'Bold' ? '700' : 'normal'),
-                fontStyle: settings.italic ? 'italic' : 'normal',
-                textAlign: settings.align,
-                textDecoration: `${settings.underline ? 'underline ' : ''}${settings.lineThrough ? 'line-through' : ''}`.trim() || 'none',
-                textTransform: settings.textTransform || 'none',
-                color: '#1f2937',
-                whiteSpace: 'pre-wrap'
               }}
             />
             <div className="absolute bottom-[0.6vw] right-[0.6vw] text-gray-700 pointer-events-none">
@@ -971,21 +966,38 @@ const TooltipCustomization = ({
       </div>
 
       {activeColorPicker && createPortal(
-        <ColorPicker
-          color={activeColorPicker === 'textColor' ? settings.textColor : settings.bgColor}
-          onChange={(val) => updateSetting(activeColorPicker, val)}
-          opacity={100}
-          onOpacityChange={() => { }}
-          colorsOnPage={colorsOnPage}
-          onClose={() => setActiveColorPicker(null)}
-          hidePalette={true}
-          style={{
-            position: 'fixed',
-            top: pickerPosition.top,
-            right: pickerPosition.right,
-            zIndex: 5000
-          }}
-        />,
+        <>
+          <div
+            className="fixed inset-0 z-[4999]"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (activeColorPicker) {
+                updateSetting(activeColorPicker, activeColorPicker === 'textColor' ? settings.textColor : settings.bgColor, true);
+              }
+              setActiveColorPicker(null);
+            }}
+          />
+          <ColorPicker
+            color={activeColorPicker === 'textColor' ? settings.textColor : settings.bgColor}
+            onChange={(val) => updateSetting(activeColorPicker, val)}
+            opacity={100}
+            onOpacityChange={() => { }}
+            colorsOnPage={colorsOnPage}
+            onClose={() => {
+              if (activeColorPicker) {
+                updateSetting(activeColorPicker, activeColorPicker === 'textColor' ? settings.textColor : settings.bgColor, true);
+              }
+              setActiveColorPicker(null);
+            }}
+            hidePalette={true}
+            style={{
+              position: 'fixed',
+              top: pickerPosition.top,
+              right: pickerPosition.right,
+              zIndex: 5000
+            }}
+          />
+        </>,
         document.body
       )}
     </div>

@@ -75,6 +75,7 @@ const CustomizedEditor = () => {
   const { setExportHandler, setSaveHandler, setPreviewHandler, setHasUnsavedChanges, triggerSaveSuccess, isAutoSaveEnabled, currentBook, setCurrentBook, activeDevice, setActiveDevice } = useOutletContext() || {};
   const [bookName, setBookName] = useState(() => currentBook?.flipbookName || 'Name of the Book');
   const [activeSubView, setActiveSubView] = useState(null);
+  const [otherSetupTarget, setOtherSetupTarget] = useState(null);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [pages, setPages] = useState([]);
   const [showPreview, setShowPreview] = useState(false);
@@ -119,7 +120,7 @@ const CustomizedEditor = () => {
 
   // Customization States
   const [logoSettings, setLogoSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_branding');
+    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -146,7 +147,7 @@ const CustomizedEditor = () => {
   });
 
   const [profileSettings, setProfileSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_branding');
+    const saved = localStorage.getItem(`customized_editor_branding_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -166,7 +167,7 @@ const CustomizedEditor = () => {
   });
 
   const [backgroundSettings, setBackgroundSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_appearance');
+    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -188,7 +189,7 @@ const CustomizedEditor = () => {
   });
 
   const [bookAppearanceSettings, setBookAppearanceSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_appearance');
+    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -221,7 +222,7 @@ const CustomizedEditor = () => {
   });
 
   const [layoutSettings, setLayoutSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_appearance');
+    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -234,7 +235,7 @@ const CustomizedEditor = () => {
   });
 
   const [layoutColors, setLayoutColors] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_appearance');
+    const saved = localStorage.getItem(`customized_editor_appearance_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -324,7 +325,7 @@ const CustomizedEditor = () => {
   }, [backgroundSettings.style, backgroundSettings.image, backgroundSettings.reactBitType]);
 
   const [menuBarSettings, setMenuBarSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_setup');
+    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -337,7 +338,7 @@ const CustomizedEditor = () => {
       navigation: {
         nextPrevButtons: true,
         mouseWheel: true,
-        dragToTurn: false,
+        dragToTurn: true,
         pageQuickAccess: true,
         tableOfContents: true,
         pageThumbnails: true,
@@ -388,7 +389,7 @@ const CustomizedEditor = () => {
   });
 
   const [otherSetupSettings, setOtherSetupSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_setup');
+    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -451,7 +452,7 @@ const CustomizedEditor = () => {
   });
 
   const [leadFormSettings, setLeadFormSettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_setup');
+    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -472,7 +473,7 @@ const CustomizedEditor = () => {
       }
     }
     return {
-      enabled: true,
+      enabled: false,
       leadText: 'Share your information to get personalized updates.',
       fields: [
         { id: '1', type: 'name', placeholder: 'Enter your Name' },
@@ -496,7 +497,7 @@ const CustomizedEditor = () => {
   });
 
   const [visibilitySettings, setVisibilitySettings] = useState(() => {
-    const saved = localStorage.getItem('customized_editor_setup');
+    const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -538,8 +539,9 @@ const CustomizedEditor = () => {
       layout: layoutSettings,
       layoutColors: layoutColors
     };
-    localStorage.setItem('customized_editor_appearance', JSON.stringify(settings));
-    saveToDB('customized_editor_appearance', settings);
+    const key = `customized_editor_appearance_${v_id || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(settings));
+    saveToDB(key, settings);
   }, [backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors]);
 
   // Save Setup Logic
@@ -550,8 +552,9 @@ const CustomizedEditor = () => {
       visibility: visibilitySettings,
       leadForm: leadFormSettings
     };
-    localStorage.setItem('customized_editor_setup', JSON.stringify(settings));
-    saveToDB('customized_editor_setup', settings);
+    const key = `customized_editor_setup_${v_id || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(settings));
+    saveToDB(key, settings);
   }, [menuBarSettings, otherSetupSettings, visibilitySettings, leadFormSettings]);
 
   // Save Branding Logic
@@ -560,15 +563,16 @@ const CustomizedEditor = () => {
       logo: logoSettings,
       profile: profileSettings
     };
-    localStorage.setItem('customized_editor_branding', JSON.stringify(settings));
-    saveToDB('customized_editor_branding', settings);
+    const key = `customized_editor_branding_${v_id || 'default'}`;
+    localStorage.setItem(key, JSON.stringify(settings));
+    saveToDB(key, settings);
   }, [logoSettings, profileSettings]);
 
   // Save Bookmarks and Notes Logic
   useEffect(() => {
     if (isDataLoaded) {
-      saveToDB('customized_editor_bookmarks', bookmarks);
-      saveToDB('customized_editor_notes', notes);
+      saveToDB(`customized_editor_bookmarks_${v_id || 'default'}`, bookmarks);
+      saveToDB(`customized_editor_notes_${v_id || 'default'}`, notes);
     }
   }, [bookmarks, notes, isDataLoaded]);
 
@@ -744,7 +748,7 @@ const CustomizedEditor = () => {
       }
 
       // Check for synced settings from TemplateEditor or other sessions
-      const appearance = await getFromDB('customized_editor_appearance');
+      const appearance = await getFromDB(`customized_editor_appearance_${v_id || 'default'}`);
       if (appearance) {
         if (appearance.background) setBackgroundSettings(appearance.background);
         if (appearance.appearance) setBookAppearanceSettings(appearance.appearance);
@@ -752,13 +756,13 @@ const CustomizedEditor = () => {
         if (appearance.layoutColors) setLayoutColors(appearance.layoutColors);
       }
 
-      const branding = await getFromDB('customized_editor_branding');
+      const branding = await getFromDB(`customized_editor_branding_${v_id || 'default'}`);
       if (branding) {
         if (branding.logo) setLogoSettings(branding.logo);
         if (branding.profile) setProfileSettings(branding.profile);
       }
 
-      const setup = await getFromDB('customized_editor_setup');
+      const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
       if (setup) {
         if (setup.menuBar) setMenuBarSettings(setup.menuBar);
         if (setup.otherSetup) setOtherSetupSettings(setup.otherSetup);
@@ -944,19 +948,24 @@ const CustomizedEditor = () => {
             settings={menuBarSettings}
             onUpdate={setMenuBarSettings}
             activeLayout={layoutSettings}
+            onNavigateToOtherSetup={(target) => {
+              setOtherSetupTarget(target);
+              setActiveSubView('othersetup');
+            }}
           />
         );
       case 'othersetup':
-  return (
-<OtherSetup
-      onBack={handleBack}
-      settings={otherSetupSettings}
-      onUpdate={setOtherSetupSettings}
-      folderName={folder}
-      bookName={v_id || bookName}
-      pages={pages}          // ← THIS LINE ONLY ADDED (Line 902)
-    />
-  );
+        return (
+          <OtherSetup
+            onBack={handleBack}
+            settings={otherSetupSettings}
+            onUpdate={setOtherSetupSettings}
+            folderName={folder}
+            bookName={v_id || bookName}
+            pages={pages}
+            targetAccordion={otherSetupTarget}
+          />
+        );
       case 'leadform':
         return (
           <LeadForm

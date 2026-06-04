@@ -96,6 +96,12 @@ const TemplateEditor = () => {
     return () => window.removeEventListener('open-change-popup-template', handleOpen);
   }, []);
 
+  useEffect(() => {
+    if (!v_id && !location.state) {
+      navigate('/unauthorized', { replace: true });
+    }
+  }, [v_id, location.state, navigate]);
+
   const [pdfProcessing, setPdfProcessing] = useState(null); // { current, total, message }
   const pdfInputRef = useRef(null);
   const pdfInsertIndexRef = useRef(null);
@@ -2434,14 +2440,14 @@ const TemplateEditor = () => {
       } else {
         // Handle physical Delete and Backspace keys (no modifiers)
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (multiSelectedIds.size > 0) {
-            deleteLayer(activePageIndex, multiSelectedIds);
-            setMultiSelectedIds(new Set());
-            setSelectedLayerId(null);
-          } else if (selectedLayerId) {
-            deleteLayer(activePageIndex, selectedLayerId);
-            setSelectedLayerId(null);
-          }
+          // if (multiSelectedIds.size > 0) {
+          //   deleteLayer(activePageIndex, multiSelectedIds);
+          //   setMultiSelectedIds(new Set());
+          //   setSelectedLayerId(null);
+          // } else if (selectedLayerId) {
+          //   deleteLayer(activePageIndex, selectedLayerId);
+          //   setSelectedLayerId(null);
+          // }
         }
       }
     };

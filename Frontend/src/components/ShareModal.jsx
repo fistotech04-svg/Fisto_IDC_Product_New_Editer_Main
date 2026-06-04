@@ -106,7 +106,7 @@ const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl
                 <iframe
                     title={`Preview of ${title}`}
                     className="w-full h-full border-none pointer-events-none"
-                    srcDoc={`<!DOCTYPE html><html><head>${html.fontImports}<base href="${iframeBaseUrl}"><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:transparent;}svg{width:100%;height:100%;max-width:100%;max-height:100%;}</style></head><body>${html.content.replace(/<svg/, '<svg preserveAspectRatio="xMidYMid meet"')}</body></html>`}
+                    srcDoc={`<!DOCTYPE html><html><head>${html.fontImports}<base href="${iframeBaseUrl}"><style>html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:transparent;}svg{width:100%;height:100%;max-width:100%;max-height:100%;}[data-name="Free Frame"]{stroke:transparent !important;fill:transparent !important;}</style></head><body>${html.content.replace(/<svg/, '<svg preserveAspectRatio="xMidYMid meet"')}</body></html>`}
                 />
             ) : loaded && imageUrl ? (
                 // Fallback: asset image if no HTML was found
@@ -273,6 +273,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     };
     const [copied, setCopied] = useState(false);
     const [embedCopied, setEmbedCopied] = useState(false);
+    const [showEmbedCode, setShowEmbedCode] = useState(false);
     const [isEditingQR, setIsEditingQR] = useState(false);
     const [activeQRTab, setActiveQRTab] = useState('templates');
     const [selectedTemplateIdx, setSelectedTemplateIdx] = useState(0);
@@ -404,6 +405,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const hiddenText1Ref = useRef(null);
     const hiddenText2Ref = useRef(null);
     const hiddenQrWrapRef = useRef(null);
+
+    useEffect(() => {
+        if (!isOpen) {
+            setShowEmbedCode(false);
+        }
+    }, [isOpen]);
 
     const qrThemes = [
         { name: 'Classic Black', fg: '#000000', bg: '#ffffff', dotType: 'square', cornerSquareType: 'square', cornerDotType: 'square' },
@@ -1109,7 +1116,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                             </div>
 
                             {/* Right Column: Share Options */}
-                            <div className="flex-1 flex flex-col gap-[1.5vw]">
+                            <div className="flex-1 flex flex-col gap-[1vw]">
                                 {/* Flipbook Link */}
                                 <div className="flex flex-col gap-[0.6vw]">
                                     <div className="flex items-center gap-[0.6vw]">
@@ -1225,7 +1232,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                 </div>
 
                                 {/* Share Through */}
-                                <div className="flex flex-col gap-[0.8vw] mt-auto pb-[1vw]">
+                                <div className="flex flex-col gap-[0.8vw]">
                                     <div className="flex items-center gap-[0.6vw]">
                                         <h3 className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Share Through</h3>
                                         <div className="flex-1 h-[1px] bg-gray-100" />
@@ -1233,16 +1240,11 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     <div className="flex items-center gap-[0.6vw]">
                                         {/* Embed */}
                                         <div 
-                                            onClick={() => {
-                                                const iframeCode = `<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`;
-                                                navigator.clipboard.writeText(iframeCode);
-                                                setEmbedCopied(true);
-                                                setTimeout(() => setEmbedCopied(false), 2000);
-                                            }}
-                                            title="Copy Embed Code"
-                                            className={`w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${embedCopied ? 'bg-green-500 border-green-500' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
+                                            onClick={() => setShowEmbedCode(!showEmbedCode)}
+                                            title="Toggle Embed Code"
+                                            className={`w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${showEmbedCode ? 'bg-gray-100 border-gray-400' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
                                         >
-                                            <Icon icon={embedCopied ? "lucide:check" : "lucide:code-2"} className={`w-[1.2vw] h-[1.2vw] ${embedCopied ? 'text-white' : 'text-gray-600'} transition-transform`} />
+                                            <Icon icon="lucide:code-2" className={`w-[1.2vw] h-[1.2vw] ${showEmbedCode ? 'text-gray-800' : 'text-gray-600'} transition-transform`} />
                                         </div>
                                         {/* WhatsApp */}
                                         <div 
@@ -1278,6 +1280,34 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center transition-all cursor-pointer shadow-md"
                                         >
                                             <Icon icon="ri:instagram-line" className="w-[2.2vw] h-[2.2vw] text-white" />
+                                        </div>
+                                    </div>
+
+                                    {/* Embed Code smoothly expanding */}
+                                    <div className={`grid transition-all duration-300 ease-in-out ${showEmbedCode ? 'grid-rows-[1fr] opacity-100 mt-[0.5vw]' : 'grid-rows-[0fr] opacity-0 mt-0'}`}>
+                                        <div className="overflow-hidden flex flex-col gap-[0.6vw]">
+                                            <div className="flex items-center gap-[0.6vw]">
+                                                <h3 className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Embed Code</h3>
+                                                <div className="flex-1 h-[1px] bg-gray-100" />
+                                            </div>
+                                            <div className="relative w-full h-[5.5vw] bg-white border border-gray-300 rounded-[0.4vw] shadow-sm overflow-hidden flex shrink-0">
+                                                <textarea 
+                                                    readOnly 
+                                                    value={`<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`}
+                                                    className="w-full h-full bg-transparent border-none outline-none text-[0.75vw] font-medium text-gray-600 resize-none p-[0.6vw] pr-[2.5vw] custom-scrollbar"
+                                                />
+                                                <button 
+                                                    onClick={() => {
+                                                        navigator.clipboard.writeText(`<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`);
+                                                        setEmbedCopied(true);
+                                                        setTimeout(() => setEmbedCopied(false), 2000);
+                                                    }}
+                                                    className="absolute bottom-[0.4vw] right-[0.4vw] p-[0.3vw] bg-white rounded-[0.2vw] border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
+                                                    title="Copy Embed Code"
+                                                >
+                                                    <Icon icon={embedCopied ? "lucide:check" : "lucide:copy"} className={`w-[0.9vw] h-[0.9vw] ${embedCopied ? 'text-green-500' : 'text-[#4A3AFF]'}`} />
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

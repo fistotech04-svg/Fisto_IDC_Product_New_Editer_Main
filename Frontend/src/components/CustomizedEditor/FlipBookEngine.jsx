@@ -64,7 +64,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     {
         pages = [],
         width = 400,
-        height = 566,
+        height = 500,
         flipTime = 5,
         hardCovers = false,
         startPage = 0,
@@ -111,14 +111,21 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     const showingTurnJs = ready && useFullTurnJs;
     const showingReactFlip = ready && !useFullTurnJs;
 
+    const augmentedPages = useMemo(() => {
+        const arr = [...pages];
+        if (!singlePage && arr.length % 2 !== 0) arr.push({ isPad: true });
+        return arr;
+    }, [pages, singlePage]);
+
     /* ── Memoize pages for react-pageflip to prevent iframe reloads ── */
-    const memoizedReactPages = useMemo(() => pages.map((page, i) => {
+    const memoizedReactPages = useMemo(() => augmentedPages.map((page, i) => {
         let isHardPage = false;
 
         if (makeFirstLastPageHard) {
             if (i === 0) isHardPage = true;
-            if (i === pages.length - 1) isHardPage = true;
-            if (i === pages.length - 2 && pages[i + 1]?.isPad) isHardPage = true;
+            if (!singlePage && i === 1) isHardPage = true;
+            if (i === augmentedPages.length - 1) isHardPage = true;
+            if (!singlePage && i === augmentedPages.length - 2) isHardPage = true;
         }
 
         if (selectCustomHardPages) {
@@ -128,8 +135,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         }
 
         if (!makeFirstLastPageHard && !selectCustomHardPages && hardCovers) {
-            if (i === 0 || i === pages.length - 1) isHardPage = true;
-            if (i === pages.length - 2 && pages[i + 1]?.isPad) isHardPage = true;
+            if (i === 0) isHardPage = true;
+            if (!singlePage && i === 1) isHardPage = true;
+            if (i === augmentedPages.length - 1) isHardPage = true;
+            if (!singlePage && i === augmentedPages.length - 2) isHardPage = true;
         }
 
         let startX = 0;
@@ -139,7 +148,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             <div
                 key={i}
                 data-density={isHardPage ? 'hard' : 'soft'}
-                className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'} ${i === 0 ? 'fbe-page--first' : ''} ${(i === pages.length - 1 || (i === pages.length - 2 && pages[i + 1]?.isPad)) ? 'fbe-page--last' : ''}`}
+                className={`fbe-react-page fbe-react-page--${i % 2 === 0 ? 'right' : 'left'} ${i === 0 ? 'fbe-page--first' : ''} ${(i === augmentedPages.length - 1 || (i === augmentedPages.length - 2 && augmentedPages[i + 1]?.isPad)) ? 'fbe-page--last' : ''}`}
                 style={{
                     backgroundColor: page.isPad ? 'transparent' : '#fff',
                     opacity: pageOpacity
@@ -149,13 +158,17 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     startY = e.clientY;
                 }}
                 onMouseUp={(e) => {
+                    if (e.target.closest('.fbe-drag-overlay')) return;
                     const diffX = Math.abs(e.clientX - startX);
                     const diffY = Math.abs(e.clientY - startY);
                     if (diffX < 10 && diffY < 10) {
                         e.stopPropagation();
                     }
                 }}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                    if (e.target.closest('.fbe-drag-overlay')) return;
+                    e.stopPropagation();
+                }}
             >
                 {!page.isPad && (
                     <>
@@ -173,38 +186,24 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 }}
                             />
                         )}
-                        {/* Drag overlay for react-pageflip to allow corner dragging */}
                         <div
                             className="fbe-drag-overlay"
-                            draggable="false"
                             style={{
                                 position: 'absolute',
                                 top: 0,
                                 bottom: 0,
-                                width: '50px',
-                                zIndex: 100,
-                                background: 'transparent',
-                                userSelect: 'none',
-                                WebkitUserSelect: 'none',
-                                [i % 2 === 0 ? 'right' : 'left']: 0
-                            }}
-                            onMouseDown={(e) => {
-                                const iframes = document.querySelectorAll('.fbe-react-page iframe');
-                                iframes.forEach(iframe => iframe.style.pointerEvents = 'none');
-                                const handleMouseUp = () => {
-                                    iframes.forEach(iframe => iframe.style.pointerEvents = 'auto');
-                                    window.removeEventListener('mouseup', handleMouseUp, true);
-                                    window.removeEventListener('touchend', handleMouseUp, true);
-                                };
-                                window.addEventListener('mouseup', handleMouseUp, true);
-                                window.addEventListener('touchend', handleMouseUp, true);
+                                [i % 2 === 0 ? 'right' : 'left']: 0,
+                                width: '10px',
+                                zIndex: 20,
+                                cursor: 'grab',
+                                pointerEvents: 'auto'
                             }}
                         />
                     </>
                 )}
             </div>
         );
-    }), [pages, makeFirstLastPageHard, selectCustomHardPages, customHardPages, hardCovers, externalBuildPageDoc, cornerRadius, textureStyle]);
+    }), [augmentedPages, makeFirstLastPageHard, selectCustomHardPages, customHardPages, hardCovers, externalBuildPageDoc, cornerRadius, textureStyle]);
 
     /* ── Load Scripts from local /public/lib/ (no CDN) ── */
     useEffect(() => {
@@ -212,16 +211,30 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         (async () => {
             try {
                 if (!window.jQuery) await loadScript('/lib/jquery.min.js');
-                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js');
+                if (!window.jQuery?.fn?.turn) await loadScript('/lib/turn.min.js?v=3');
                 if (alive) setReady(true);
             } catch (err) {
                 console.error('[FlipBookEngine] Script load failed:', err);
             }
         })();
-        return () => { alive = false; };
+
+        // Global mouseup to cancel drag state
+        const handleGlobalMouseUp = () => {
+            document.querySelectorAll('.fbe-is-dragging').forEach(el => el.classList.remove('fbe-is-dragging'));
+        };
+        window.addEventListener('mouseup', handleGlobalMouseUp);
+        window.addEventListener('touchend', handleGlobalMouseUp);
+
+        return () => {
+            alive = false;
+            window.removeEventListener('mouseup', handleGlobalMouseUp);
+            window.removeEventListener('touchend', handleGlobalMouseUp);
+        };
     }, []);
 
     /* ── Turn.js — "sheet" paper-curl for COVER PAGES only ── */
+    const pagesHash = React.useMemo(() => pages.map(p => p.html || p.content || '').join('|'), [pages]);
+
     useEffect(() => {
         if (!ready || !bookEl.current || !pages.length || !window.jQuery?.fn?.turn || !useFullTurnJs) return;
 
@@ -231,13 +244,20 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         // ── Teardown: destroy old instance AND flush jQuery data ──────────
         // Without removeData(), stale $.data('turn.turn') causes widgetInterface
         // to treat the options object as a method name → TypeError on .apply().
-        try { $book.turn('destroy'); } catch (_) { /* noop */ }
+        try { 
+            const oldData = $book.data();
+            if (oldData && oldData.pages) {
+                // Wipe the pages from the old instance to neutralize leaked document closures in turn.js v3
+                for (let k in oldData.pages) delete oldData.pages[k];
+            }
+            $book.turn('destroy'); 
+        } catch (_) { /* noop */ }
+        $book.off();          // unbind leaked $book listeners
         $book.removeData();   // wipe 'turn.turn' key so next init is always fresh
         $book.empty();
 
         // turn.js requires an even page count in double-display mode
-        const augmented = [...pages];
-        if (!singlePage && augmented.length % 2 !== 0) augmented.push({ isPad: true });
+        const augmented = augmentedPages;
 
         // Build page DOM elements
         augmented.forEach((page, i) => {
@@ -249,8 +269,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             // 1. First & Last (Covers)
             if (makeFirstLastPageHard) {
                 if (i === 0) isPageHard = true;
+                if (!singlePage && i === 1) isPageHard = true;
                 if (i === augmented.length - 1) isPageHard = true;
-                if (i === augmented.length - 2 && augmented[i + 1]?.isPad) isPageHard = true;
+                if (!singlePage && i === augmented.length - 2) isPageHard = true;
             }
 
             // 2. Custom selected pages
@@ -264,8 +285,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             // 3. Fallback for master toggle
             if (!makeFirstLastPageHard && !selectCustomHardPages && hardCovers) {
                 if (i === 0) isPageHard = true;
+                if (!singlePage && i === 1) isPageHard = true;
                 if (i === augmented.length - 1) isPageHard = true;
-                if (i === augmented.length - 2 && augmented[i + 1]?.isPad) isPageHard = true;
+                if (!singlePage && i === augmented.length - 2) isPageHard = true;
             }
 
             // [LOG] Debug hard page detection
@@ -292,9 +314,6 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (!page.isPad) {
                 const inner = document.createElement('div');
                 inner.className = 'fbe-inner';
-                // Add backface visibility hidden to inner to prevent shearing during 3D flip
-                inner.style.webkitBackfaceVisibility = 'hidden';
-                inner.style.backfaceVisibility = 'hidden';
 
                 const iframe = document.createElement('iframe');
                 iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
@@ -317,80 +336,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     inner.appendChild(textureOverlay);
                 }
 
-                // Add a single drag overlay for the outer edges (150px top/bottom, 100px sides)
-                const edgeOverlay = document.createElement('div');
-                edgeOverlay.className = 'fbe-drag-overlay';
-                edgeOverlay.draggable = false;
-
-                // Create a clip path that cuts out the center so the user can interact with the iframe
-                // But leaves the top, bottom, and outer side solid for dragging.
-                const clipPath = i % 2 === 0
-                    ? 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 150px, calc(100% - 100px) 150px, calc(100% - 100px) calc(100% - 150px), 0% calc(100% - 150px))' // Right page
-                    : 'polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%, 0% 150px, 100px 150px, 100px calc(100% - 150px), 0% calc(100% - 150px))'; // Left page
-
-                Object.assign(edgeOverlay.style, {
-                    position: 'absolute',
-                    top: '0', left: '0', right: '0', bottom: '0',
-                    zIndex: '100',
-                    background: 'transparent',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                });
-
-                // Polyfill for clip-path just using borders if preferred, but clip-path is standard now
-                // Actually, an easier way is just use a border to cover the edges!
-                edgeOverlay.style.boxSizing = 'border-box';
-                if (i % 2 === 0) { // Right page: border on top, bottom, and right
-                    edgeOverlay.style.borderTop = '150px solid transparent';
-                    edgeOverlay.style.borderBottom = '150px solid transparent';
-                    edgeOverlay.style.borderRight = '100px solid transparent';
-                } else { // Left page: border on top, bottom, and left
-                    edgeOverlay.style.borderTop = '150px solid transparent';
-                    edgeOverlay.style.borderBottom = '150px solid transparent';
-                    edgeOverlay.style.borderLeft = '100px solid transparent';
-                }
-
                 pageDiv.appendChild(inner);
-                pageDiv.appendChild(edgeOverlay);
 
-                // Distinguish between a click and a drag to block single-click flipping
-                let startX = 0;
-                let startY = 0;
-
-                pageDiv.addEventListener('mousedown', (e) => {
-                    if (!e.target.closest('.fbe-inner')) {
-                        // Allow click/drag on drag overlay or turn.js elements
-                        return;
-                    }
-                    startX = e.clientX;
-                    startY = e.clientY;
-                }, true);
-
-                pageDiv.addEventListener('mouseup', (e) => {
-                    if (!e.target.closest('.fbe-inner')) {
-                        // Allow click/drag on drag overlay or turn.js elements
-                        return;
-                    }
-                    const diffX = Math.abs(e.clientX - startX);
-                    const diffY = Math.abs(e.clientY - startY);
-
-                    // If the mouse hasn't moved significant distance (more than 10px), it's a click.
-                    // We stop propagation to prevent the flipbook engine from seeing this as a flip trigger.
-                    if (diffX < 10 && diffY < 10) {
-                        e.stopPropagation();
-                        e.stopImmediatePropagation();
-                    }
-                }, true);
-
-                // Also block the 'click' event itself just in case
-                pageDiv.addEventListener('click', (e) => {
-                    if (!e.target.closest('.fbe-inner')) {
-                        // Allow click/drag on drag overlay or turn.js elements
-                        return;
-                    }
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                }, true);
+                // Removed custom click-blocking logic to allow native turn.js behavior
             } else {
                 // Invisible pad page
                 pageDiv.style.cssText = 'opacity:0;pointer-events:none;background:transparent;';
@@ -411,12 +359,14 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             duration: flipTime,
             acceleration: flipStyle === 'Smooth Flip' || flipStyle === '3D Flip',
             gradients: true,
+            cornerSize: Math.max(100, width / 2),
             elevation: flipStyle === '3D Flip' ? 80 : 10,
             pages: totalPages,
             page: initPage,
             autoCenter: false,
             when: {
                 start: (e, pageObject, corner) => {
+                    if (bookEl.current) bookEl.current.classList.add('fbe-is-dragging');
                     // Block the peel animation before it even starts if going to a pad page
                     if (corner === 'r' || corner === 'tr' || corner === 'br') {
                         const nextLogical = pageObject.page; // 1-based next page logical index
@@ -424,6 +374,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             e.preventDefault();
                         }
                     }
+                },
+                end: (e, pageObject, turned) => {
+                    if (bookEl.current) bookEl.current.classList.remove('fbe-is-dragging');
                 },
                 turning: (e, turnPage) => {
                     const logical = turnPage - 1;
@@ -457,52 +410,34 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             },
         });
 
-        const handleMouseDown = (e) => {
-            if (e.target.closest('.fbe-drag-overlay') || !e.target.closest('.fbe-inner')) {
-                const iframes = bookEl.current.querySelectorAll('iframe');
-                iframes.forEach(iframe => {
-                    iframe.style.pointerEvents = 'none';
-                });
 
-                const handleMouseUp = () => {
-                    const iframes = bookEl.current.querySelectorAll('iframe');
-                    iframes.forEach(iframe => {
-                        iframe.style.pointerEvents = 'auto';
-                    });
-                    window.removeEventListener('mouseup', handleMouseUp, true);
-                    window.removeEventListener('touchend', handleMouseUp, true);
-                };
-                window.addEventListener('mouseup', handleMouseUp, true);
-                window.addEventListener('touchend', handleMouseUp, true);
-            }
-        };
-
-        const bookDom = bookEl.current;
-        if (bookDom) {
-            bookDom.addEventListener('mousedown', handleMouseDown, true);
-            bookDom.addEventListener('touchstart', handleMouseDown, true);
-        }
 
         if (!useMouseEvents) $book.turn('disable', true);
 
         return () => {
-            if (bookDom) {
-                bookDom.removeEventListener('mousedown', handleMouseDown, true);
-                bookDom.removeEventListener('touchstart', handleMouseDown, true);
-            }
             try { $book.turn('destroy'); } catch (_) { /* noop */ }
         };
         // onFlip intentionally excluded — it's captured in the closure correctly
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [ready, pages, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle]);
+    }, [ready, pagesHash, flipTime, flipStyle, useFullTurnJs, useMouseEvents, externalBuildPageDoc, makeFirstLastPageHard, selectCustomHardPages, customHardPages, cornerRadius, textureStyle]);
+
+    /* ── Handle Window / Container Resize dynamically ── */
+    useEffect(() => {
+        if (ready && bookEl.current && window.jQuery?.fn?.turn && useFullTurnJs) {
+            try {
+                window.jQuery(bookEl.current).turn('size', singlePage ? width : width * 2, height);
+            } catch (e) { /* ignore */ }
+        }
+    }, [width, height, singlePage, ready, useFullTurnJs]);
 
     /* ── Imperative API (exposed via ref) ── */
     const flipNextFn = useCallback(() => {
+        // Block turning to the pad page if the original pages count is odd
+        if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
+            return;
+        }
+
         if (showingTurnJs && bookEl.current && window.jQuery) {
-            // Block turning to the pad page for turn.js if the original pages count is odd
-            if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
-                return;
-            }
             window.jQuery(bookEl.current).turn('next');
         } else if (showingReactFlip && reactFlipRef.current) {
             reactFlipRef.current.pageFlip().flipNext();
@@ -559,6 +494,16 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         }
     }, [width, height, singlePage, showingTurnJs]);
 
+    /* ── Sync react-pageflip size when width/height change dynamically ── */
+    useEffect(() => {
+        if (!showingReactFlip || !reactFlipRef.current) return;
+        const pageFlip = reactFlipRef.current.pageFlip();
+        if (pageFlip && typeof pageFlip.update === 'function') {
+            // In 'stretch' mode, calling update() forces it to read the new container size
+            pageFlip.update();
+        }
+    }, [width, height, showingReactFlip]);
+
     /* ── Autoplay ── */
     useEffect(() => {
         if (!autoplay || !ready) return;
@@ -578,6 +523,63 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             }
         }
     }, [startPage, pages.length, showingTurnJs]);
+
+    /* ── Pass-through IFRAME Dragging ── */
+    useEffect(() => {
+        const handleMessage = (e) => {
+            if (!e.data || !showingTurnJs || !window.jQuery) return;
+            
+            const $ = window.jQuery;
+            
+            const createJqEvent = (type, data) => {
+                let clientX = data.originalClientX || 0;
+                let clientY = data.originalClientY || 0;
+
+                // Lookup the specific iframe using pageNumber to get its exact position in the parent window
+                if (data.pageNumber && bookEl.current) {
+                    const iframe = bookEl.current.querySelector(`.p${data.pageNumber} iframe`);
+                    if (iframe) {
+                        const rect = iframe.getBoundingClientRect();
+                        clientX += rect.left;
+                        clientY += rect.top;
+                    }
+                }
+
+                const ev = $.Event(type);
+                ev.clientX = clientX;
+                ev.clientY = clientY;
+                ev.pageX = clientX + window.scrollX;
+                ev.pageY = clientY + window.scrollY;
+                ev.originalEvent = {
+                    touches: [{ pageX: ev.pageX, pageY: ev.pageY, clientX: ev.clientX, clientY: ev.clientY }],
+                    preventDefault: () => {},
+                    stopPropagation: () => {}
+                };
+                return ev;
+            };
+
+            if (e.data.type === 'IFRAME_MOUSEDOWN') {
+                if (bookEl.current) {
+                    bookEl.current.classList.add('fbe-is-dragging');
+                    $(bookEl.current).trigger(createJqEvent('mousedown', e.data));
+                    $(bookEl.current).trigger(createJqEvent('touchstart', e.data));
+                }
+            } else if (e.data.type === 'IFRAME_MOUSEMOVE') {
+                if (bookEl.current && bookEl.current.classList.contains('fbe-is-dragging')) {
+                    $(document).trigger(createJqEvent('mousemove', e.data));
+                    $(document).trigger(createJqEvent('touchmove', e.data));
+                }
+            } else if (e.data.type === 'IFRAME_MOUSEUP') {
+                if (bookEl.current && bookEl.current.classList.contains('fbe-is-dragging')) {
+                    bookEl.current.classList.remove('fbe-is-dragging');
+                    $(document).trigger(createJqEvent('mouseup', e.data));
+                    $(document).trigger(createJqEvent('touchend', e.data));
+                }
+            }
+        };
+        window.addEventListener('message', handleMessage);
+        return () => window.removeEventListener('message', handleMessage);
+    }, [showingTurnJs]);
 
     const bookTransition = `transform ${flipTime}ms ease`;
 
@@ -654,7 +656,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
             {/* ── REACT-PAGEFLIP ENGINE — handles hard-cover mode ── */}
             {showingReactFlip && ( // wrapper for possible hard cover zoom
-                <div style={hardCoverZoom ? { transform: `scale(${hardCoverZoom.scale})`, transformOrigin: '0 0' } : {}}>
+                <div style={hardCoverZoom ? { transform: `scale(${hardCoverZoom.scale})`, transformOrigin: '0 0' } : {}} className="fbe-react-wrapper">
                     <div style={{
                         position: 'absolute',
                         inset: 0,
@@ -668,17 +670,25 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                         <HTMLFlipBook
                             key={'react-flip'}
                             ref={reactFlipRef}
-                            width={width} height={height} size={'fixed'}
-                            minWidth={width} maxWidth={width * 2}
-                            minHeight={height} maxHeight={height}
+                            width={width} height={height} size={'stretch'}
+                            minWidth={100} maxWidth={4000}
+                            minHeight={100} maxHeight={4000}
                             drawShadow={flipStyle !== 'Fast Flip'}
                             useMouseEvents={useMouseEvents}
                             flippingTime={flipTime}
                             startPage={Number(activeLayout) === 1 ? currentPage : startPage}
                             showCover={true}
+                            usePortrait={singlePage}
                             autoCenter={false}
                             clickEventForward={false} // Disable flipping on single click
-                            style={{ background: 'transparent' }}
+                            onChangeState={(e) => {
+                                const wrapper = document.querySelector('.fbe-react-wrapper');
+                                if (wrapper) {
+                                    if (e.data !== 'read') wrapper.classList.add('fbe-is-dragging');
+                                    else wrapper.classList.remove('fbe-is-dragging');
+                                }
+                            }}
+                            style={{ background: 'transparent', width: '100%', height: '100%' }}
                             onFlip={(e) => {
                                 const logical = e.data;
                                 setCurrentPage(logical);
@@ -815,6 +825,24 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 }
                 .turn-page-wrapper:active, .turn-page:active {
                     cursor: grabbing;
+                }
+                
+                /* When dragging, disable iframe pointer events so they don't swallow mouse movements */
+                .fbe-is-dragging iframe,
+                .fbe-wrapper.fbe-is-dragging iframe {
+                    pointer-events: none !important;
+                }
+
+                /* Add a global invisible shield over the entire wrapper during a drag to guarantee mousemove tracking */
+                .fbe-wrapper.fbe-is-dragging::after {
+                    content: '';
+                    position: absolute;
+                    top: -100px;
+                    left: -100px;
+                    right: -100px;
+                    bottom: -100px;
+                    z-index: 9999;
+                    cursor: grabbing !important;
                 }
             `}</style>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import PhoneInput from 'react-phone-input-2';
@@ -14,8 +15,8 @@ const validatePhoneNumber = (value) => {
 
   // Custom validation rules based on dial code
   if (clean.startsWith('91')) {
-    // India: +91 followed by exactly 10 digits
-    return clean.length === 12;
+    // India: +91 followed by exactly 10 digits starting with 6, 7, 8, or 9
+    return clean.length === 12 && /^[6-9]/.test(clean.substring(2));
   }
   if (clean.startsWith('1')) {
     // US/Canada: +1 followed by exactly 10 digits
@@ -33,17 +34,20 @@ const validatePhoneNumber = (value) => {
 
 const CallInteractionInput = ({ initialValue, onSave }) => {
   const [localValue, setLocalValue] = useState(initialValue || '');
-  
+  const [isSaved, setIsSaved] = useState(true);
+
   const hasDigits = localValue.replace(/\D/g, '').length > 0;
   const isInvalid = !validatePhoneNumber(localValue);
   const isValidAndFilled = validatePhoneNumber(localValue) && hasDigits;
+  const isUnsavedValid = isValidAndFilled && !isSaved;
 
-  const borderColor = isValidAndFilled ? '#22C55E' : (isInvalid ? '#EF4444' : '#D1D5DB');
-  const textColor = isValidAndFilled ? '#22C55E' : (isInvalid ? '#EF4444' : '#374151');
-  const bgColor = isValidAndFilled ? '#F0FDF4' : (isInvalid ? '#FEF2F2' : '#F3F4F6');
+  const borderColor = isUnsavedValid ? '#22C55E' : (isInvalid ? '#EF4444' : '#D1D5DB');
+  const textColor = isUnsavedValid ? '#22C55E' : (isInvalid ? '#EF4444' : '#374151');
+  const bgColor = isUnsavedValid ? '#F0FDF4' : (isInvalid ? '#FEF2F2' : '#F3F4F6');
 
   useEffect(() => {
     setLocalValue(initialValue || '');
+    setIsSaved(true);
   }, [initialValue]);
 
   return (
@@ -55,10 +59,12 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
         onChange={(phone) => {
           const formatted = phone.startsWith('+') ? phone : '+' + phone;
           setLocalValue(formatted);
+          setIsSaved(false);
         }}
         onBlur={() => {
           if (localValue !== initialValue) {
             onSave(localValue);
+            setIsSaved(true);
           }
         }}
         placeholder="1234567890"
@@ -108,12 +114,13 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
           Please enter the valid number *
         </div>
       )}
-      {isValidAndFilled && (
+      {isUnsavedValid && (
         <div className="absolute right-0 -bottom-[4vh] z-10">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onSave(localValue);
+              setIsSaved(true);
             }}
             className="flex items-center gap-[0.3vw] bg-[#22C55E] hover:bg-[#16A34A] text-white px-[0.8vw] py-[0.5vh] rounded-[0.3vw] shadow-sm transition-colors"
           >
@@ -123,6 +130,95 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
         </div>
       )}
     </div>
+  );
+};
+
+
+const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setOpenDropdownId, updateElementAttribute, activePageIndex, setCardActionOverrides }) => {
+  const triggerRef = useRef(null);
+  const [dropdownStyles, setDropdownStyles] = useState({});
+
+  useEffect(() => {
+    if (isDropdownOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownStyles({
+        position: 'fixed',
+        left: `${rect.left}px`,
+        bottom: `${window.innerHeight - rect.top + 5}px`, // Open upwards, 5px gap
+        width: '11vw',
+        zIndex: 999999
+      });
+    } else {
+      setDropdownStyles({});
+    }
+  }, [isDropdownOpen]);
+
+  // Close dropdown when scrolling to avoid detached floating menu
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handleScroll = (e) => {
+      // Don't close if scrolling inside the dropdown itself
+      if (e.target.closest && e.target.closest('[data-dropdown-menu="true"]')) return;
+      setOpenDropdownId(null);
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [isDropdownOpen, setOpenDropdownId]);
+
+  return (
+    <>
+      <div
+        ref={triggerRef}
+        data-dropdown-trigger="true"
+        className="py-[0.8vh] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer hover:bg-gray-200 transition-colors relative select-none"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenDropdownId(isDropdownOpen ? null : item.id);
+        }}
+      >
+        <span className="text-[0.9vw] text-gray-700 font-normal font-sans">{currentAction.label}</span>
+        <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
+        </svg>
+      </div>
+
+      {isDropdownOpen && dropdownStyles.left && createPortal(
+        <div
+          data-dropdown-menu="true"
+          className="bg-white border border-gray-200 rounded-[0.6vw] shadow-xl flex flex-col py-[0.5vh] max-h-[39vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 origin-bottom-left"
+          style={dropdownStyles}
+        >
+          {actionTypes.map(action => (
+            <div
+              key={action.id}
+              className="flex items-center gap-[0.8vw] px-[1vw] py-[0.7vh] hover:bg-gray-50 cursor-pointer transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdownId(null);
+                setCardActionOverrides(prev => ({ ...prev, [item.id]: action.id }));
+
+                setTimeout(() => {
+                  if (updateElementAttribute) {
+                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                    updateElementAttribute(targetIdx, item.id, 'data-interaction', action.id);
+                  }
+                  window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                    detail: {
+                      elementId: item.id,
+                      actionType: action
+                    }
+                  }));
+                }, 50);
+              }}
+            >
+              <Icon icon={action.icon} className="text-gray-600 text-[1.2vw]" />
+              <span className="text-[0.85vw] text-gray-700 font-medium">{action.label}</span>
+            </div>
+          ))}
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 
@@ -296,6 +392,66 @@ const InteractionPanel = ({
     return () => window.removeEventListener('add-free-frame', handleAddInteraction);
   }, []);
 
+  // Sync existing interactions from the page HTML into openCardIds when page loads or changes
+  useEffect(() => {
+    if (!pages || pages.length === 0) return;
+    const page = pages[activePageIndex];
+    if (!page || !page.html) return;
+
+    let doc;
+    const cached = parsedPagesDOMsRef.current[activePageIndex];
+    if (cached && cached.html === page.html && cached.doc) {
+      doc = cached.doc;
+    } else {
+      try {
+        const parser = new DOMParser();
+        doc = parser.parseFromString(page.html, 'image/svg+xml');
+      } catch (e) {
+        return;
+      }
+    }
+
+    const interactEls = doc.querySelectorAll('[data-interaction]');
+    const newlyFoundIds = [];
+    interactEls.forEach(el => {
+      const type = el.getAttribute('data-interaction');
+      if (el.id && type && type !== 'none') {
+        newlyFoundIds.push(el.id);
+      }
+    });
+
+    setOpenCardIds(prev => {
+      let hasChanges = false;
+      const next = {};
+      newlyFoundIds.forEach(id => {
+        next[id] = true;
+        if (!prev[id]) {
+          hasChanges = true;
+        }
+      });
+      Object.keys(prev).forEach(id => {
+        if (prev[id] && !next[id]) {
+          hasChanges = true;
+        }
+      });
+      return hasChanges ? next : prev;
+    });
+
+    if (newlyFoundIds.length > 0) {
+      setCollapsedCardIds(prev => {
+        let hasChanges = false;
+        const next = { ...prev };
+        newlyFoundIds.forEach(id => {
+          if (next[id] === undefined) {
+            next[id] = (id !== selectedLayerId);
+            hasChanges = true;
+          }
+        });
+        return hasChanges ? next : prev;
+      });
+    }
+  }, [pages, activePageIndex, selectedLayerId]);
+
   // Broadcast visual badge state (icon/checkmark) updates to MainEditor canvas whenever elements exist, page changes, or selection changes
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -340,7 +496,11 @@ const InteractionPanel = ({
 
     // 1. Try to find the element in the live DOM first (fastest and most accurate!)
     const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    let el = editorDoc.getElementById(id);
+    
+    // Search within the target page's container to avoid matching duplicate IDs from other pages
+    const pageIdxToSearch = targetPageIndex !== null ? targetPageIndex : activePageIndex;
+    const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${pageIdxToSearch}"]`);
+    let el = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(id)}"]`) : editorDoc.getElementById(id);
 
     // 2. If not found in live DOM, use our super fast cached parsed DOMs
     if (!el) {
@@ -510,7 +670,8 @@ const InteractionPanel = ({
 
       // 1. ALWAYS check live DOM first (super fast, O(1))
       const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-      const liveEl = editorDoc.getElementById(id);
+      const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      const liveEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(id)}"]`) : editorDoc.getElementById(id);
       if (liveEl) {
         foundEl = liveEl;
         foundPageIndex = activePageIndex;
@@ -633,7 +794,8 @@ const InteractionPanel = ({
     // Fallback to live DOM if not parsed
     if (!el && activeLayerId) {
       const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-      el = editorDoc.getElementById(activeLayerId);
+      const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      el = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(activeLayerId)}"]`) : editorDoc.getElementById(activeLayerId);
     }
 
     const tagName = (props.tagName || el?.tagName || '').toLowerCase();
@@ -682,53 +844,42 @@ const InteractionPanel = ({
     <div className="flex flex-col gap-[3vh] p-[1.5vw] bg-[#fbfbfb] h-full overflow-y-auto no-scrollbar">
 
       {/* Select Free Frame Section */}
-      <div className="space-y-[1.5vh]">
-        <div className="flex items-center gap-[0.75vw]">
-          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Select Free Frame</span>
-          <div className="h-[0.1vw] flex-1 bg-gray-200"></div>
+      <div className="space-y-[1.2vw]">
+        <div className="flex items-center gap-[0.4vw]">
+          <span className="text-[0.9vw] font-bold text-gray-900 whitespace-nowrap">Select Free Frame</span>
+          <div className="h-px flex-grow bg-gray-100"></div>
         </div>
-
-        <div
+        <div 
           onClick={() => {
             window.dispatchEvent(new CustomEvent('add-free-frame', {
               detail: { pageIndex: activePageIndex }
             }));
           }}
-          className="w-[92%] mx-auto h-[11.5vh] bg-[#E5E7EB]/50 flex flex-col items-center justify-center cursor-pointer hover:bg-[#E5E7EB]/70 transition-all group relative rounded-[0.1vw] overflow-visible"
-          style={{
-            backgroundImage: `linear-gradient(to right, #4B5563 60%, transparent 40%), linear-gradient(to right, #4B5563 60%, transparent 40%), linear-gradient(to bottom, #4B5563 60%, transparent 40%), linear-gradient(to bottom, #4B5563 60%, transparent 40%)`,
-            backgroundPosition: 'left top, left bottom, left top, right top',
-            backgroundRepeat: 'repeat-x, repeat-x, repeat-y, repeat-y',
-            backgroundSize: '1vw 0.1vw, 1vw 0.1vw, 0.1vw 1vw, 0.1vw 1vw'
-          }}
+          className="w-[18vw] mx-auto h-[6vw] border-[0.15vw] border-dashed border-black bg-[#E5E7EB]/40 flex flex-col items-center justify-center cursor-pointer hover:bg-[#E5E7EB]/60 transition-all group relative"
+          style={{ borderDasharray: "10, 15" }}
         >
-          {/* Sharp L-corners with Black Fill */}
-
-          {/* Top Left */}
-          <div className="absolute -top-[0.15vw] -left-[0.15vw] w-[0.9vw] h-[0.9vw]">
-            <div className="absolute top-0 left-0 w-full h-[0.3vw] bg-black border border-black"></div>
-            <div className="absolute top-0 left-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          {/* Perfect Corner markers - Top Left */}
+          <div className="absolute -top-[0.225vw] -left-[0.225vw] w-[1vw] h-[1vw]">
+            <div className="absolute top-0 left-0 w-full h-[0.3vw] bg-black"></div>
+            <div className="absolute top-0 left-0 w-[0.3vw] h-full bg-black"></div>
           </div>
-
-          {/* Top Right */}
-          <div className="absolute -top-[0.15vw] -right-[0.15vw] w-[0.9vw] h-[0.9vw]">
-            <div className="absolute top-0 right-0 w-full h-[0.3vw] bg-black border border-black"></div>
-            <div className="absolute top-0 right-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          {/* Perfect Corner markers - Top Right */}
+          <div className="absolute -top-[0.225vw] -right-[0.225vw] w-[1vw] h-[1vw]">
+            <div className="absolute top-0 right-0 w-full h-[0.3vw] bg-black"></div>
+            <div className="absolute top-0 right-0 w-[0.3vw] h-full bg-black"></div>
           </div>
-
-          {/* Bottom Left */}
-          <div className="absolute -bottom-[0.15vw] -left-[0.15vw] w-[0.9vw] h-[0.9vw]">
-            <div className="absolute bottom-0 left-0 w-full h-[0.3vw] bg-black border border-black"></div>
-            <div className="absolute bottom-0 left-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          {/* Perfect Corner markers - Bottom Left */}
+          <div className="absolute -bottom-[0.225vw] -left-[0.225vw] w-[1vw] h-[1vw]">
+            <div className="absolute bottom-0 left-0 w-full h-[0.3vw] bg-black"></div>
+            <div className="absolute bottom-0 left-0 w-[0.3vw] h-full bg-black"></div>
           </div>
-
-          {/* Bottom Right */}
-          <div className="absolute -bottom-[0.15vw] -right-[0.15vw] w-[0.9vw] h-[0.9vw]">
-            <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-black border border-black"></div>
-            <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-black border border-black"></div>
+          {/* Perfect Corner markers - Bottom Right */}
+          <div className="absolute -bottom-[0.225vw] -right-[0.225vw] w-[1vw] h-[1vw]">
+            <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-black"></div>
+            <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-black"></div>
           </div>
-
-          <span className="text-[0.9vw] font-medium text-[#4B5563] tracking-tight">Click To Add Free Frame</span>
+          
+          <span className="text-[0.8vw] font-medium text-gray-600">Click To Add Free Frame</span>
         </div>
       </div>
 
@@ -756,6 +907,7 @@ const InteractionPanel = ({
 
           {interactiveElementsList.length > 0 ? (
             interactiveElementsList.map(item => {
+
               const isCollapsed = !!collapsedCardIds[item.id];
               const isDropdownOpen = openDropdownId === item.id;
               // Use local override (immediate) if available, else fall back to item.actionId from pages
@@ -808,71 +960,33 @@ const InteractionPanel = ({
                 >
 
                   {/* Card Header / Settings */}
-                  <div className={`flex flex-col ${isCollapsed ? 'py-[1.5vh] px-[1.6vw]' : 'p-[1.6vw]'}`}>
+                  <div className="flex flex-col">
                     {/* Top Row: Icon + Dropdowns */}
-                    <div className="flex items-center justify-between gap-[0.8vw]">
+                    <div className={`flex items-center justify-between gap-[0.8vw] ${isCollapsed ? 'py-[1.6vh] pl-[0.8vw] pr-[1.2vw]' : 'pt-[2vh] pl-[0.8vw] pr-[1.2vw] pb-[2vh]'}`}>
                       <div className="flex items-center gap-[0.8vw]">
                         {/* Touch Icon */}
-                        <div className="flex-shrink-0 text-gray-500 flex items-center">
-                          <svg width="1.4vw" height="1.4vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" />
-                            <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934" />
-                          </svg>
+                        <div className="flex-shrink-0 text-gray-500 flex items-center pl-[0.6vw]">
+                          <Icon icon="hugeicons:touch-interaction-01" className="text-[1.4vw]" />
                         </div>
 
                         {/* Expanded state pills directly in header */}
                         {!isCollapsed ? (
                           <div className="flex items-center gap-[0.6vw]">
                             {/* Action selector dropdown styled as a pill */}
-                            <div
-                              data-dropdown-trigger="true"
-                              className="h-[3.6vh] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer hover:bg-gray-200 transition-colors relative select-none"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenDropdownId(isDropdownOpen ? null : item.id);
-                              }}
-                            >
-                              <span className="text-[0.8vw] text-gray-700 font-semibold">{currentAction.label}</span>
-                              <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
-                              </svg>
-                              {isDropdownOpen && (
-                                <div data-dropdown-menu="true" className="absolute bottom-[calc(100%+0.5vh)] left-0 w-[11vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl flex flex-col py-[0.5vh] z-[100] max-h-[39vh] overflow-y-auto no-scrollbar">
-                                  {actionTypes.map(action => (
-                                    <div
-                                      key={action.id}
-                                      className="flex items-center gap-[0.8vw] px-[1vw] py-[1vh] hover:bg-gray-50 cursor-pointer transition-colors"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setOpenDropdownId(null);
-                                        // Immediately update card display via local override
-                                        setCardActionOverrides(prev => ({ ...prev, [item.id]: action.id }));
+                            <ActionDropdown
+                              item={item}
+                              currentAction={currentAction}
+                              actionTypes={actionTypes}
+                              isDropdownOpen={isDropdownOpen}
+                              setOpenDropdownId={setOpenDropdownId}
+                              updateElementAttribute={updateElementAttribute}
+                              activePageIndex={activePageIndex}
+                              setCardActionOverrides={setCardActionOverrides}
+                            />
 
-                                        // Defer the heavy DOM update so the dropdown closes instantly and lag is eliminated
-                                        setTimeout(() => {
-                                          if (updateElementAttribute) {
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            updateElementAttribute(targetIdx, item.id, 'data-interaction', action.id);
-                                          }
-                                          window.dispatchEvent(new CustomEvent('update-interaction-badge', {
-                                            detail: {
-                                              elementId: item.id,
-                                              actionType: action
-                                            }
-                                          }));
-                                        }, 50);
-                                      }}
-                                    >
-                                      <Icon icon={action.icon} className="text-gray-600 text-[1.2vw]" />
-                                      <span className="text-[0.85vw] text-gray-700 font-medium">{action.label}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
                             {/* Trigger Pill */}
                             {resolvedActionId === 'tooltip' ? (
-                              <div className="h-[3.6vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-pointer select-none relative pr-[1.6vw]">
+                              <div className="py-[0.8vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-pointer select-none relative pr-[1.6vw]">
                                 <select
                                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                                   value={resolvedTrigger}
@@ -893,12 +1007,12 @@ const InteractionPanel = ({
                                   <option value="click">Click</option>
                                   <option value="hover">Hover</option>
                                 </select>
-                                <span className="text-[0.8vw] text-gray-700 font-semibold capitalize pointer-events-none">{item.trigger || 'click'}</span>
+                                <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize pointer-events-none">{item.trigger || 'click'}</span>
                                 <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] absolute right-[0.4vw] pointer-events-none" />
                               </div>
                             ) : (
-                              <div className="h-[3.6vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-default select-none">
-                                <span className="text-[0.8vw] text-gray-700 font-semibold">Click</span>
+                              <div className="py-[0.8vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-default select-none">
+                                <span className="text-[0.9vw] text-gray-700 font-normal font-sans">Click</span>
                               </div>
                             )}
                           </div>
@@ -911,6 +1025,14 @@ const InteractionPanel = ({
                       <div
                         onClick={(e) => {
                           e.stopPropagation();
+
+                          if (!isSelected) {
+                            setActiveLayerId(item.id);
+                            window.dispatchEvent(new CustomEvent('select-layer', {
+                              detail: { layerId: item.id }
+                            }));
+                          }
+
                           setCollapsedCardIds(prev => {
                             const isNowCollapsed = !prev[item.id];
                             if (isNowCollapsed && resolvedActionId === 'tooltip') {
@@ -928,48 +1050,69 @@ const InteractionPanel = ({
                     </div>
 
                     {/* Input Row */}
-                    {!isCollapsed && (
-                      <div className="flex flex-col gap-[1.5vh] w-full mt-[2vh]">
-                        {/* Label + Arrow row */}
-                        <div className="flex items-center gap-[0.5vw] w-full">
-                          <div className="h-[4vh] px-[0.6vw] bg-[#F3F4F6] rounded-[0.4vw] flex items-center justify-center flex-shrink-0 max-w-[5vw] overflow-hidden">
-                            <span className="text-[0.7vw] text-gray-600 font-medium truncate">{item.label}</span>
-                          </div>
+                    <div className={isCollapsed ? 'hidden' : 'block'}>
+                      <>
+                        <div className="w-full border-t border-gray-100"></div>
+                        <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[5vh] pb-[5vh]">
+                          {/* Label + Arrow row */}
+                          <div className="flex items-center gap-[0.5vw] w-full">
+                            <div className="h-[4vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center flex-shrink-0 max-w-[7vw] overflow-hidden">
+                              <span className="text-[0.75vw] text-gray-600 font-medium truncate">{item.label}</span>
+                            </div>
 
-                          <span className="text-gray-400 shrink-0 select-none tracking-widest font-mono">---&gt;</span>
+                            <span className="text-gray-400 shrink-0 select-none tracking-widest font-mono">---&gt;</span>
 
                             {resolvedActionId === 'navigate-to' ? (
-                              <div className="w-[8.5vw] flex-shrink-0 h-[4vh] border border-gray-300 rounded-[0.4vw] flex items-center px-[0.6vw] bg-white overflow-hidden relative">
-                                <select
-                                  value={resolvedValue || '1'}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
-                                    setTimeout(() => {
-                                      if (updateElementAttribute) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        updateElementAttribute(targetIdx, item.id, {
-                                          'data-interaction': 'navigate-to',
-                                          'data-interaction-value': val
-                                        });
-                                      }
-                                    }, 50);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()} // Prevent card selection click trigger
-                                  className="w-full h-full text-[0.8vw] text-gray-700 bg-transparent outline-none cursor-pointer appearance-none pr-[1.8vw] font-medium"
-                                >
-                                  {Array.from({ length: pages?.length || 0 }, (_, i) => (
-                                    <option key={i + 1} value={(i + 1).toString()}>
-                                      Page {i + 1}
-                                    </option>
-                                  ))}
-                                </select>
-                                <div className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
-                                  <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="6 9 12 15 18 9"></polyline>
-                                  </svg>
-                                </div>
-                              </div>
+                              (() => {
+                                const pageDropId = `page-drop-${item.id}`;
+                                const isPageDropOpen = openDropdownId === pageDropId;
+                                const selectedPage = resolvedValue || '1';
+                                return (
+                                  <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <div
+                                      data-dropdown-trigger="true"
+                                      className="w-[8.5vw] h-[4vh] border border-gray-900 rounded-[0.5vw] flex items-center justify-between px-[0.6vw] bg-white cursor-pointer select-none"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDropdownId(isPageDropOpen ? null : pageDropId);
+                                      }}
+                                    >
+                                      <span className="text-[0.8vw] text-gray-700 font-medium font-sans">Page {selectedPage}</span>
+                                      <Icon 
+                                        icon="lucide:chevron-down" 
+                                        className={`text-gray-700 text-[1vw] transition-transform duration-200 ${isPageDropOpen ? 'rotate-180' : ''}`} 
+                                      />
+                                    </div>
+                                    {isPageDropOpen && (
+                                      <div data-dropdown-menu="true" className="absolute left-0 top-[calc(100%+0.4vh)] z-[99999] w-[8.5vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl py-[0.5vh] max-h-[30vh] overflow-y-auto no-scrollbar">
+                                        {Array.from({ length: pages?.length || 0 }, (_, i) => (
+                                          <div
+                                            key={i + 1}
+                                            className={`px-[0.8vw] py-[0.7vh] text-[0.8vw] font-sans cursor-pointer rounded-[0.3vw] mx-[0.3vw] transition-colors ${String(i + 1) === String(selectedPage) ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const val = (i + 1).toString();
+                                              setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
+                                              setOpenDropdownId(null);
+                                              setTimeout(() => {
+                                                if (updateElementAttribute) {
+                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                  updateElementAttribute(targetIdx, item.id, {
+                                                    'data-interaction': 'navigate-to',
+                                                    'data-interaction-value': val
+                                                  });
+                                                }
+                                              }, 250);
+                                            }}
+                                          >
+                                            Page {i + 1}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()
                             ) : resolvedActionId === 'download' ? (
                               (() => {
                                 let fileMeta = null;
@@ -1040,7 +1183,7 @@ const InteractionPanel = ({
                                       className={
                                         fileMeta
                                           ? "w-[7.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all overflow-hidden p-[0.3vw]"
-                                          : "w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.8vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all gap-[0.5vh] px-[0.5vw]"
+                                          : "w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.4vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all gap-[0.5vh] px-[0.5vw]"
                                       }
                                     >
                                       {fileMeta ? (
@@ -1055,7 +1198,7 @@ const InteractionPanel = ({
                                         })()
                                       ) : (
                                         <>
-                                          <Icon icon="solar:upload-linear" className="text-gray-400 text-[1.5vw]" />
+                                          <Icon icon="prime:upload" className="text-gray-400 text-[1.5vw]" />
                                           <span className="text-[0.7vw] text-[#4A5568] font-medium text-center">
                                             Drag & Drop or <span className="text-[#5145F6] font-bold">Upload</span>
                                           </span>
@@ -1075,7 +1218,7 @@ const InteractionPanel = ({
                                 const val = item.value || '';
                                 return (
                                   <div
-                                    className="w-[9.2vw] flex-shrink-0 h-[4.2vh] relative"
+                                    className="w-[10.5vw] flex-shrink-0 h-[4.2vh] relative ml-[-0.4vw]"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     <CallInteractionInput
@@ -1265,63 +1408,92 @@ const InteractionPanel = ({
                                 );
                               })()
                             ) : resolvedActionId === 'popup' ? (
-                              <div
-                                onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
-                                className="flex-1 h-[7vh] border-[1.5px] border-dashed border-[#A0AEC0] rounded-[0.6vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group relative overflow-hidden"
-                              >
-                                {resolvedValue ? (
-                                  <div className="relative w-full h-full rounded-[0.4vw] overflow-hidden group">
+                              resolvedValue ? (
+                                <div className="flex-1 relative h-[12vh] rounded-[0.4vw] group shadow-sm border border-gray-200">
+                                  {/* Inner container for image to keep rounded corners without clipping the dropdown */}
+                                  <div className="absolute inset-0 rounded-[0.4vw] overflow-hidden pointer-events-none">
                                     <img
                                       src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
                                       alt="Selected Template"
                                       className="w-full h-full object-cover"
                                     />
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-[0.5vw] z-10 backdrop-blur-sm">
-                                      <button
-                                        className="p-[0.3vw] bg-white rounded-[0.3vw] hover:bg-gray-100 transition-colors shadow-sm"
-                                        title="Change Template"
-                                        onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
-                                      >
-                                        <svg width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="#4A3AFF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <path d="M12 20h9" />
-                                          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                                        </svg>
-                                      </button>
-                                      <button
-                                        className="p-[0.3vw] bg-white rounded-[0.3vw] hover:bg-red-50 transition-colors shadow-sm"
-                                        title="Delete Template"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
-                                          if (updateElementAttribute) {
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
-                                          }
-                                        }}
-                                      >
-                                        <svg width="0.9vw" height="0.9vw" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                          <path d="M3 6h18" />
-                                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                                        </svg>
-                                      </button>
-                                    </div>
+                                    {/* Dim Overlay */}
+                                    <div className="absolute inset-0 bg-black/40"></div>
                                   </div>
-                                ) : (
-                                  <>
-                                    <svg width="1.4vw" height="1.4vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 group-hover:text-[#4A3AFF] transition-colors mb-[0.2vh]">
-                                      <rect x="3" y="4" width="18" height="4" rx="1" />
-                                      <rect x="3" y="10" width="7" height="10" rx="1" />
-                                      <line x1="13" y1="11" x2="21" y2="11" />
-                                      <line x1="13" y1="15" x2="21" y2="15" />
-                                      <line x1="13" y1="19" x2="18" y2="19" />
-                                    </svg>
-                                    <span className="text-[0.6vw] text-[#4B5563] font-medium group-hover:text-gray-700 transition-colors select-none text-center leading-tight">
-                                      Click to Choose <span className="text-[#4A3AFF] font-semibold">Template</span>
-                                    </span>
-                                  </>
-                                )}
-                              </div>
+
+                                  {/* Edit Button overlay in center */}
+                                  <div
+                                    onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                    className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
+                                    title="Edit Template"
+                                  >
+                                    <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
+                                  </div>
+                                  {/* 3 dots menu */}
+                                  <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
+                                    <div
+                                      className="p-[0.2vw] cursor-pointer"
+                                      data-dropdown-trigger="true"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
+                                      }}
+                                    >
+                                      <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
+                                    </div>
+
+                                    {openDropdownId === `popup-${item.id}` && (
+                                      <div
+                                        data-dropdown-menu="true"
+                                        className="absolute top-[100%] right-0 mt-[2.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
+                                      >
+                                        <div
+                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(null);
+                                            setActiveTemplateSelectionId(item.id);
+                                          }}
+                                        >
+                                          <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                          <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Change Template</span>
+                                        </div>
+                                        <div
+                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(null);
+                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                            if (updateElementAttribute) {
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
+                                            }
+                                          }}
+                                        >
+                                          <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
+                                          <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div
+                                  onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                  className="flex-1 h-[12vh] border-[1.5px] border-dashed border-[#A0AEC0] rounded-[0.6vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group relative overflow-hidden"
+                                >
+                                  <svg width="1.4vw" height="1.4vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 group-hover:text-[#4A3AFF] transition-colors mb-[0.2vh]">
+                                    <rect x="3" y="4" width="18" height="4" rx="1" />
+                                    <rect x="3" y="10" width="7" height="10" rx="1" />
+                                    <line x1="13" y1="11" x2="21" y2="11" />
+                                    <line x1="13" y1="15" x2="21" y2="15" />
+                                    <line x1="13" y1="19" x2="18" y2="19" />
+                                  </svg>
+                                  <span className="text-[0.6vw] text-[#4B5563] font-medium group-hover:text-gray-700 transition-colors select-none text-center leading-tight">
+                                    Click to Choose <span className="text-[#4A3AFF] font-semibold">Template</span>
+                                  </span>
+                                </div>
+                              )
                             ) : resolvedActionId === 'zoom' ? (
                               <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh] w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.8vw] bg-[#F9FAFB] cursor-pointer hover:bg-gray-50 transition-all">
                                 <Icon icon="tabler:zoom-in-area" className="text-gray-500 text-[1.8vw] mb-[0.2vh]" />
@@ -1330,7 +1502,7 @@ const InteractionPanel = ({
                                 </span>
                               </div>
                             ) : (
-                              <div className="flex-1 h-[4vh] border border-gray-300 rounded-[0.4vw] flex items-center px-[0.6vw] bg-white overflow-hidden">
+                              <div className="flex-1 h-[4vh] border border-gray-400 rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden">
                                 <input
                                   type="text"
                                   placeholder="Enter URL..."
@@ -1362,60 +1534,33 @@ const InteractionPanel = ({
                             )}
                           </div>
 
-                        {/* Popup extra options */}
-                        {resolvedActionId === 'popup' && (
-                          <div className="flex flex-col gap-[1.5vh] w-full mt-[0.5vh]">
-                            {/* Animation Section Header */}
-                            <div className="flex items-center gap-[0.5vw] w-full">
-                              <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Animation</span>
-                              <div className="h-[0.1vh] flex-1 bg-gray-200"></div>
-                            </div>
-
-                            {/* Animation Dropdown */}
-                            <div className="relative w-full">
-                              <select
-                                value={item.popupAnimation || 'Fade In /Out'}
-                                onChange={(e) => {
-                                  if (updateElementAttribute) {
-                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                    updateElementAttribute(targetIdx, item.id, {
-                                      'data-interaction-popup-animation': e.target.value
-                                    });
-                                  }
-                                }}
-                                className="w-full h-[4.5vh] px-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] appearance-none pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
-                              >
-                                <option value="Fade In /Out">Fade In /Out</option>
-                                <option value="Slide Up">Slide Up</option>
-                                <option value="Slide Down">Slide Down</option>
-                                <option value="Zoom In">Zoom In</option>
-                              </select>
-                              <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                                <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="6 9 12 15 18 9"></polyline>
-                                </svg>
+                          {/* Popup extra options */}
+                          {resolvedActionId === 'popup' && (
+                            <div className="flex flex-col gap-[1.5vh] w-full mt-[0.5vh]">
+                              {/* Animation Section Header */}
+                              <div className="flex items-center gap-[0.5vw] w-full">
+                                <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Animation</span>
+                                <div className="h-[0.1vh] flex-1 bg-gray-200"></div>
                               </div>
-                            </div>
 
-                            {/* Animation Speed Dropdown */}
-                            <div className="flex items-center justify-between w-full">
-                              <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap">Animation Speed :</span>
-                              <div className="relative w-[9vw]">
+                              {/* Animation Dropdown */}
+                              <div className="relative w-full">
                                 <select
-                                  className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
-                                  value={item.popupSpeed || 'Medium'}
+                                  value={item.popupAnimation || 'Fade In /Out'}
                                   onChange={(e) => {
                                     if (updateElementAttribute) {
                                       const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
                                       updateElementAttribute(targetIdx, item.id, {
-                                        'data-interaction-popup-speed': e.target.value
+                                        'data-interaction-popup-animation': e.target.value
                                       });
                                     }
                                   }}
+                                  className="w-full h-[4.5vh] px-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] appearance-none pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
                                 >
-                                  <option value="Slow">Slow</option>
-                                  <option value="Medium">Medium</option>
-                                  <option value="Fast">Fast</option>
+                                  <option value="Fade In /Out">Fade In /Out</option>
+                                  <option value="Slide Up">Slide Up</option>
+                                  <option value="Slide Down">Slide Down</option>
+                                  <option value="Zoom In">Zoom In</option>
                                 </select>
                                 <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                                   <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1423,46 +1568,73 @@ const InteractionPanel = ({
                                   </svg>
                                 </div>
                               </div>
+
+                              {/* Animation Speed Dropdown */}
+                              <div className="flex items-center justify-between w-full">
+                                <span className="text-[0.85vw] text-gray-700 font-medium whitespace-nowrap">Animation Speed :</span>
+                                <div className="relative w-[9vw]">
+                                  <select
+                                    className="w-full appearance-none h-[4.5vh] px-[1vw] pr-[1vw] text-[0.8vw] text-gray-600 border border-[#C5C5C5] rounded-[0.6vw] bg-white outline-none focus:border-[#4A3AFF] pr-[2.5vw] font-medium shadow-sm hover:border-gray-400 transition-colors cursor-pointer"
+                                    value={item.popupSpeed || 'Medium'}
+                                    onChange={(e) => {
+                                      if (updateElementAttribute) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        updateElementAttribute(targetIdx, item.id, {
+                                          'data-interaction-popup-speed': e.target.value
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <option value="Slow">Slow</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Fast">Fast</option>
+                                  </select>
+                                  <div className="absolute right-[1vw] top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                    <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <polyline points="6 9 12 15 18 9"></polyline>
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        {/* Zoom speed row */}
-                        {resolvedActionId === 'zoom' && (
-                          <div className="flex items-center justify-between w-full mt-[1vh]">
-                            <span className="text-[0.85vw] text-gray-600 font-medium whitespace-nowrap">Zoom Speed :</span>
-                            <div className="relative w-[12vw]">
-                              <select
-                                className="w-full appearance-none h-[4vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-300 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6]"
-                                value={resolvedValue || 'Medium'}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
-                                  setTimeout(() => {
-                                    if (updateElementAttribute) {
-                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                      updateElementAttribute(targetIdx, item.id, {
-                                        'data-interaction': 'zoom',
-                                        'data-interaction-value': val
-                                      });
-                                    }
-                                  }, 50);
-                                }}
-                              >
-                                <option value="Slow">Slow</option>
-                                <option value="Medium">Medium</option>
-                                <option value="Fast">Fast</option>
-                              </select>
-                              <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 text-[1vw] pointer-events-none" />
+                          )}
+                          {/* Zoom speed row */}
+                          {resolvedActionId === 'zoom' && (
+                            <div className="flex items-center justify-between w-full mt-[1vh]">
+                              <span className="text-[0.85vw] text-gray-600 font-medium whitespace-nowrap">Zoom Speed :</span>
+                              <div className="relative w-[12vw]">
+                                <select
+                                  className="w-full appearance-none h-[4vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-300 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6]"
+                                  value={resolvedValue || 'Medium'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: val }));
+                                    setTimeout(() => {
+                                      if (updateElementAttribute) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        updateElementAttribute(targetIdx, item.id, {
+                                          'data-interaction': 'zoom',
+                                          'data-interaction-value': val
+                                        });
+                                      }
+                                    }, 50);
+                                  }}
+                                >
+                                  <option value="Slow">Slow</option>
+                                  <option value="Medium">Medium</option>
+                                  <option value="Fast">Fast</option>
+                                </select>
+                                <Icon icon="lucide:chevron-down" className="absolute right-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 text-[1vw] pointer-events-none" />
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      </>
+                    </div>
                   </div>
 
                   {/* Card Footer (Highlight Component) */}
-                  {!isCollapsed && (
-                    <div className="bg-[#F9FAFB] border-t border-gray-100 p-[1.6vw] flex items-center justify-between rounded-b-[0.8vw]">
+                  <div className={`bg-white border-t border-gray-100 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw] ${isCollapsed ? 'hidden' : 'flex'}`}>
                       <div className="flex items-center gap-[0.6vw]">
                         {/* Custom Radio Button */}
                         <div className="w-[1.2vw] h-[1.2vw] rounded-full border-2 border-[#5145F6] flex items-center justify-center bg-white">
@@ -1473,47 +1645,50 @@ const InteractionPanel = ({
 
                       {/* Trash Icon */}
                       <button
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+
+                          // Check if it's a Free Frame
+                          const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                          const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                          const frameEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
+                          const isFreeFrame = frameEl && (frameEl.getAttribute('data-type') === 'free-frame' || frameEl.getAttribute('data-name')?.toLowerCase() === 'free frame');
+
+                          if (isFreeFrame && deleteLayer) {
+                            deleteLayer(targetIdx, item.id);
+                          } else {
+                            if (updateElementAttribute) {
+                              updateElementAttribute(targetIdx, item.id, {
+                                'data-interaction': null,
+                                'data-interaction-value': null,
+                                'data-interaction-intent': null
+                              });
+                            }
+                            if (typeof setSelectedLayerId !== 'undefined' && setSelectedLayerId) setSelectedLayerId(null);
+                            if (typeof setMultiSelectedIds !== 'undefined' && setMultiSelectedIds) setMultiSelectedIds(new Set());
+                          }
+
                           setOpenCardIds(prev => {
                             const next = { ...prev };
                             delete next[item.id];
                             return next;
                           });
-                          
-                          if (item.dataName === 'Free Frame') {
-                             if (deleteLayer) {
-                               const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                               deleteLayer(targetIdx, item.id);
-                             }
-                             // Manually remove badge since element is destroyed
-                             const badge = document.getElementById(`interaction-badge-${item.id}`);
-                             if (badge) badge.remove();
-                          } else {
-                            if (updateElementAttribute) {
-                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                              updateElementAttribute(targetIdx, item.id, {
-                                'data-interaction': null,
-                                'data-interaction-value': null
-                              });
+
+                          // Fire event to reset canvas badge visual state
+                          window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                            detail: {
+                              elementId: item.id,
+                              actionType: null
                             }
-                            // Fire event to reset canvas badge visual state
-                            window.dispatchEvent(new CustomEvent('update-interaction-badge', {
-                              detail: {
-                                elementId: item.id,
-                                actionType: null
-                              }
-                            }));
-                          }
+                          }));
                         }}
-                        className="text-red-400 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center w-[1.5vw] h-[1.5vw] rounded-full hover:bg-red-50"
+                        className="text-red-400 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center w-[1.8vw] h-[1.8vw] rounded-full hover:bg-red-50"
                       >
-                        <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="3 6 5 6 21 6"></polyline>
-                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
+                        <Icon icon="material-symbols-light:delete-outline-rounded" className="text-[1.5vw]" />
                       </button>
                     </div>
-                  )}
 
                 </div>
               );
@@ -1537,12 +1712,31 @@ const InteractionPanel = ({
           }
           setActiveTemplateSelectionId(null);
         }}
-        onSelect={(templateId) => {
+        onSelect={async (templateId) => {
           if (updateElementAttribute && activeTemplateSelectionId) {
             setItemValueOverrides(prev => ({ ...prev, [activeTemplateSelectionId]: templateId }));
+
+            let fallbackHtml = '';
+            const template = TEMPLATES.find(t => t.id === templateId);
+            if (template && template.image) {
+              try {
+                const res = await fetch(template.image);
+                if (res.ok) {
+                  fallbackHtml = await res.text();
+                }
+              } catch (err) {}
+            }
+            if (!fallbackHtml) {
+              fallbackHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
+                <g id="layer-1" data-name="Background"><rect width="100%" height="100%" fill="#ffffff" rx="16" /></g>
+                <g id="layer-2" data-name="Content"><text x="50%" y="50%" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">Popup Template</text></g>
+              </svg>`;
+            }
+
             updateElementAttribute(activePageIndex, activeTemplateSelectionId, {
               'data-interaction': 'popup',
-              'data-interaction-value': templateId
+              'data-interaction-value': templateId,
+              'data-interaction-popup-custom-html': fallbackHtml
             });
           }
         }}

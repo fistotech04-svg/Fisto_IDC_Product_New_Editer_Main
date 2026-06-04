@@ -183,22 +183,32 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
   const [hasAnimation, setHasAnimation] = useState(false);
   const [hasInteraction, setHasInteraction] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const tooltipRef = useRef(null);
 
   useEffect(() => {
     let animationFrame;
     const update = () => {
       const container = document.querySelector(`[data-page-index="${pageIndex}"]`);
-      if (!container) { setPos(null); return; }
+      if (!container) { 
+        if (pos !== null) setPos(null); 
+        return; 
+      }
 
       const el = container.querySelector(`[id="${selectedId}"], [data-name="${selectedId}"]`) ||
         document.getElementById(selectedId) ||
         document.querySelector(`[data-name="${selectedId}"]`);
 
-      if (!el) { setPos(null); return; }
+      if (!el) { 
+        if (pos !== null) setPos(null); 
+        return; 
+      }
 
       const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
         el.getAttribute('data-type') === 'background';
-      if (isOverlay) { setPos(null); return; }
+      if (isOverlay) { 
+        if (pos !== null) setPos(null); 
+        return; 
+      }
 
       try {
         const animations = el.getAnimations ? el.getAnimations() : [];
@@ -225,27 +235,37 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
         const containerRect = container.getBoundingClientRect();
 
         const scale = zoom / 100;
-        const x = (rect.right - containerRect.left) / scale;
-        // Position it at the top, but slightly offset upwards to avoid resize handles
+        // Calculate center position instead of right edge for better UX (or keep right if preferred, but center is usually expected for these frames)
+        // Actually, let's keep it at right edge as per original, or center it? Let's keep original X calculation but use center of rect for width? 
+        // Original: const x = (rect.right - containerRect.left) / scale;
+        // Let's change it to center because it looks centered in the user's screenshot.
+        // Wait, I will keep the original logic to avoid breaking user's design, but update the position directly.
+        const x = (rect.left + rect.width / 2 - containerRect.left) / scale; 
         const y = (rect.top - containerRect.top) / scale;
 
-        // If it's too close to the top edge, it will be clipped by overflow-hidden
         const isTooCloseToTop = y < 40;
 
-        setPos({ x, y, isTooCloseToTop });
+        if (tooltipRef.current) {
+          tooltipRef.current.style.left = `${Math.round(x)}px`;
+          tooltipRef.current.style.top = `${Math.round(y + (isTooCloseToTop ? 10 : -4))}px`;
+          // Transform -50% for centering, instead of -100% for right-align
+          tooltipRef.current.style.transform = `translate(-50%, ${isTooCloseToTop ? '0%' : '-100%'})`;
+        } else {
+          // Initial state update to trigger render
+          setPos({ x, y, isTooCloseToTop });
+        }
 
         const animType = el.getAttribute('data-animation-open-type');
         const interactType = el.getAttribute('data-animation-interact-type');
         const hasIntent = el.getAttribute('data-animation-intent') === 'true';
-        // If it has ANY active animation type or has explicit intent, it's "Managed"
         const isManaged = (animType && animType !== 'none') || (interactType && interactType !== 'none') || hasIntent;
-        setHasAnimation(isManaged);
+        
+        setHasAnimation(prev => prev !== isManaged ? isManaged : prev);
 
         const interaction = el.getAttribute('data-interaction');
         const hasInteract = (interaction && interaction !== 'none') || el.getAttribute('data-interaction-intent') === 'true';
-        setHasInteraction(!!hasInteract);
+        setHasInteraction(prev => prev !== !!hasInteract ? !!hasInteract : prev);
 
-        // If multi-selection, only show yellow if ALL have animation (or just keep it simple)
         if (multiSelectedIds && multiSelectedIds.size > 1) {
           let allHave = true;
           let allInteract = true;
@@ -260,29 +280,30 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
               if (!interact || interact === 'none') allInteract = false;
             }
           });
-          setHasAnimation(allHave);
-          setHasInteraction(allInteract);
+          setHasAnimation(prev => prev !== allHave ? allHave : prev);
+          setHasInteraction(prev => prev !== allInteract ? allInteract : prev);
         }
       } catch (e) {
-        setPos(null);
+        if (pos !== null) setPos(null);
       }
       animationFrame = requestAnimationFrame(update);
     };
 
     update();
     return () => cancelAnimationFrame(animationFrame);
-  }, [selectedId, zoom, pageIndex]);
+  }, [selectedId, zoom, pageIndex, multiSelectedIds]);
 
-  if (activeTopTool !== 'animation') return null;
+  if (activeTopTool !== 'animation' && activeTopTool !== 'interaction') return null;
   if (!pos) return null;
 
   return (
     <div
+      ref={tooltipRef}
       className="absolute z-[1001] pointer-events-auto"
       style={{
-        left: Math.round(pos.x - 4),
+        left: Math.round(pos.x),
         top: Math.round(pos.y + (pos.isTooCloseToTop ? 10 : -4)),
-        transform: `translate(-100%, ${pos.isTooCloseToTop ? '0%' : '-100%'})`
+        transform: `translate(-50%, ${pos.isTooCloseToTop ? '0%' : '-100%'})`
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
@@ -312,9 +333,11 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
                     el.setAttribute('data-interaction-intent', 'true');
 
                     if (updateElementAttribute) {
-                      updateElementAttribute(pageIndex, id, 'data-interaction', 'open-link');
-                      updateElementAttribute(pageIndex, id, 'data-interaction-value', '');
-                      updateElementAttribute(pageIndex, id, 'data-interaction-intent', 'true');
+                      updateElementAttribute(pageIndex, id, {
+                        'data-interaction': 'open-link',
+                        'data-interaction-value': '',
+                        'data-interaction-intent': 'true'
+                      });
                     }
                   } else {
                     if (updateElementAttribute) {
@@ -364,18 +387,16 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
                     el.setAttribute('data-animation-intent', 'true');
                     if (sharedGroupId) el.setAttribute('data-animation-group', sharedGroupId);
 
-                    // Persist to state - focus on the intent and type first to minimize batching issues
                     if (updateElementAttribute) {
-                      updateElementAttribute(pageIndex, id, 'data-animation-open-type', 'fade-in');
-                      if (sharedGroupId) updateElementAttribute(pageIndex, id, 'data-animation-group', sharedGroupId);
-
-                      // Use a slightly larger timeout or skip secondary attributes for bulk to prevent hang
-                      if (ids.length < 5) {
-                        setTimeout(() => updateElementAttribute(pageIndex, id, 'data-animation-open-duration', '1'), 100);
-                        setTimeout(() => updateElementAttribute(pageIndex, id, 'data-animation-intent', 'true'), 200);
-                      } else {
-                        updateElementAttribute(pageIndex, id, 'data-animation-intent', 'true');
+                      const animUpdates = {
+                        'data-animation-open-type': 'fade-in',
+                        'data-animation-open-duration': '1',
+                        'data-animation-intent': 'true'
+                      };
+                      if (sharedGroupId) {
+                        animUpdates['data-animation-group'] = sharedGroupId;
                       }
+                      updateElementAttribute(pageIndex, id, animUpdates);
                     }
                   } else {
                     if (updateElementAttribute) {
@@ -1244,7 +1265,7 @@ const MainEditor = ({
           if (!handle && htmlOverlay) {
             handle = document.createElement('div');
             handle.id = handleId;
-            handle.className = `resize-handle overlay-type-${type} absolute transition-all duration-150`;
+            handle.className = `resize-handle overlay-type-${type} absolute`;
 
             if (useLBrackets) {
               // Special L-corner for Interaction Mode and Free Frame
@@ -1316,7 +1337,8 @@ const MainEditor = ({
               let posX = p.x;
               let posY = p.y;
               if (useLBrackets) {
-                const inwardOffset = (12 / 3.5) / zoomScale; // Original handleSize=12 divided by 3.5
+                // Offset of 4.5 aligns the center of the 3px bar exactly with the dotted line (handleSize 12/2 - barThickness 3/2 = 4.5)
+                const inwardOffset = 4.5 / zoomScale; 
                 if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
                 if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
                 if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
@@ -2815,33 +2837,107 @@ const MainEditor = ({
             const dragState = event.interaction.dragState;
             if (!dragState) return;
 
+            const viewBox = dragState.svgElement.getAttribute('viewBox');
+            const [vX, vY, baseWidth, baseHeight] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 210, 297];
+
+            const finalizeEnd = () => {
+              if (suppressClickRef.current && updatePageHtml) {
+                const container = dragState.element.closest('.page-svg-container');
+                const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : dragState.pageIndex;
+                saveModifiedPageHtml(pageIdx, dragState.svgElement);
+              }
+
+              setTimeout(() => {
+                suppressClickRef.current = false;
+              }, 50);
+
+              const svgEl = dragState.svgElement;
+              const pageIndex = dragState.pageIndex;
+              delete event.interaction.dragState;
+
+              if (updatePageHtmlRef.current && svgEl) {
+                updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
+              }
+            };
+
+            const constrainElement = (el, onComplete) => {
+              const bbox = el.getBBox();
+              const matrix = getElementMatrix(el);
+              
+              const pt1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(matrix);
+              const pt2 = new DOMPoint(bbox.x + bbox.width, bbox.y).matrixTransform(matrix);
+              const pt3 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(matrix);
+              const pt4 = new DOMPoint(bbox.x, bbox.y + bbox.height).matrixTransform(matrix);
+
+              const minX = Math.min(pt1.x, pt2.x, pt3.x, pt4.x);
+              const maxX = Math.max(pt1.x, pt2.x, pt3.x, pt4.x);
+              const minY = Math.min(pt1.y, pt2.y, pt3.y, pt4.y);
+              const maxY = Math.max(pt1.y, pt2.y, pt3.y, pt4.y);
+
+              let dx = 0;
+              let dy = 0;
+
+              if (maxX > baseWidth) dx = baseWidth - maxX;
+              if (minX + dx < 0) dx = -minX;
+
+              if (maxY > baseHeight) dy = baseHeight - maxY;
+              if (minY + dy < 0) dy = -minY;
+
+              if (dx !== 0 || dy !== 0) {
+                const startE = matrix.e;
+                const startF = matrix.f;
+                const translation = new DOMMatrix().translate(dx, dy);
+                const endMatrix = translation.multiply(matrix);
+                const endE = endMatrix.e;
+                const endF = endMatrix.f;
+
+                const duration = 400; 
+                const startTime = performance.now();
+                const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
+
+                const animate = (currentTime) => {
+                  const elapsed = currentTime - startTime;
+                  const progress = Math.min(elapsed / duration, 1);
+                  const eased = easeOutQuart(progress);
+
+                  matrix.e = startE + (endE - startE) * eased;
+                  matrix.f = startF + (endF - startF) * eased;
+                  
+                  el.setAttribute('transform', matrixToTransform(matrix));
+                  drawOverlayHighlight(el, currentFrameIdRef.current && el.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+
+                  if (progress < 1) {
+                    requestAnimationFrame(animate);
+                  } else {
+                    onComplete();
+                  }
+                };
+                
+                requestAnimationFrame(animate);
+                return true;
+              }
+              return false;
+            };
+
             if (dragState.multiDragItems) {
-              // Clean up all multi-dragged elements
+              let activeAnimations = 0;
+              let hasAnimation = false;
               for (const item of dragState.multiDragItems) {
                 item.element.removeAttribute('data-dragging');
+                const isAnimating = constrainElement(item.element, () => {
+                  activeAnimations--;
+                  if (activeAnimations === 0) finalizeEnd();
+                });
+                if (isAnimating) {
+                  activeAnimations++;
+                  hasAnimation = true;
+                }
               }
+              if (!hasAnimation) finalizeEnd();
             } else {
               dragState.element.removeAttribute('data-dragging');
-            }
-
-            if (suppressClickRef.current && updatePageHtml) {
-              const container = dragState.element.closest('.page-svg-container');
-              const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : dragState.pageIndex;
-              saveModifiedPageHtml(pageIdx, dragState.svgElement);
-            }
-
-            setTimeout(() => {
-              suppressClickRef.current = false;
-            }, 50);
-
-            // Access data BEFORE deleting
-            const svgEl = dragState.svgElement;
-            const pageIndex = dragState.pageIndex;
-            delete event.interaction.dragState;
-
-            // Single reliable update call
-            if (updatePageHtmlRef.current && svgEl) {
-              updatePageHtmlRef.current(pageIndex, svgEl.outerHTML);
+              const hasAnimation = constrainElement(dragState.element, finalizeEnd);
+              if (!hasAnimation) finalizeEnd();
             }
           }
         }
@@ -2900,6 +2996,7 @@ const MainEditor = ({
               matrix,
               bbox,
               worldAnchor,
+              localAnchor,
               startPoint,
               svg,
               cursor: currentCursor // Store for reinforcement
@@ -2963,13 +3060,32 @@ const MainEditor = ({
               scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
             }
 
-            const scaleMatrix = new DOMMatrix()
-              .translate(worldAnchor.x, worldAnchor.y)
-              .scale(scaleX, scaleY)
-              .translate(-worldAnchor.x, -worldAnchor.y);
+            const isFreeFrame = el.getAttribute('data-name') === 'Free Frame' && el.tagName.toLowerCase() === 'rect';
 
-            const nextMatrix = scaleMatrix.multiply(matrix);
-            el.setAttribute('transform', matrixToTransform(nextMatrix));
+            if (isFreeFrame) {
+              const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
+              const newLocalY = state.localAnchor.y + (bbox.y - state.localAnchor.y) * scaleY;
+              const newLocalRight = state.localAnchor.x + ((bbox.x + bbox.width) - state.localAnchor.x) * scaleX;
+              const newLocalBottom = state.localAnchor.y + ((bbox.y + bbox.height) - state.localAnchor.y) * scaleY;
+              
+              const finalX = Math.min(newLocalX, newLocalRight);
+              const finalY = Math.min(newLocalY, newLocalBottom);
+              const finalWidth = Math.max(0, Math.abs(newLocalRight - newLocalX));
+              const finalHeight = Math.max(0, Math.abs(newLocalBottom - newLocalY));
+
+              el.setAttribute('x', finalX);
+              el.setAttribute('y', finalY);
+              el.setAttribute('width', finalWidth);
+              el.setAttribute('height', finalHeight);
+            } else {
+              const scaleMatrix = new DOMMatrix()
+                .translate(worldAnchor.x, worldAnchor.y)
+                .scale(scaleX, scaleY)
+                .translate(-worldAnchor.x, -worldAnchor.y);
+
+              const nextMatrix = scaleMatrix.multiply(matrix);
+              el.setAttribute('transform', matrixToTransform(nextMatrix));
+            }
 
             // Force update selection highlight immediately
             const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
@@ -2998,7 +3114,7 @@ const MainEditor = ({
     return () => {
       interactable.unset();
     };
-  }, [activePageIndex]);
+  }, [activePageIndex, zoom]);
 
   // ── FIGMA-STYLE MOUSE DOWN: start drag on already-selected element ────────────
   const getLocalPoint = (svg, element, clientX, clientY) => {
@@ -4930,7 +5046,8 @@ const MainEditor = ({
           }
         }}
         onClick={(e) => {
-          if (isPanningRef.current || isSpaceDownRef.current) {
+          // If we just finished a drag or are panning, suppress background clicks
+          if (isPanningRef.current || isSpaceDownRef.current || suppressClickRef.current) {
             e.preventDefault();
             e.stopPropagation();
             return;

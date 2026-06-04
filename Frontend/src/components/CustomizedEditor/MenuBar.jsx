@@ -90,7 +90,7 @@ const SettingRow = ({ label, children, className = "" }) => (
 );
 
 // Menu Item Component (Card Style)
-const MenuItem = ({ label, enabled, onChange, hasSettings, isExpanded, onToggleSettings, children }) => (
+const MenuItem = ({ label, enabled, onChange, hasSettings, isExpanded, onToggleSettings, onRedirect, children }) => (
   <div
     className={`bg-white rounded-[0.8vw] shadow-[0_0.9vw_1.2vw_rgba(0,0,0,0.05)] transition-all duration-300 relative ${isExpanded ? 'ring-1 ring-gray-200 z-[100] !overflow-visible' : 'z-0 !overflow-visible'}`}
   >
@@ -106,6 +106,19 @@ const MenuItem = ({ label, enabled, onChange, hasSettings, isExpanded, onToggleS
             <Icon
               icon="tdesign:adjustment-filled"
               className={`w-[1vw] h-[1vw] rotate-90 transition-colors ${isExpanded ? 'text-[#5551FF]' : 'text-gray-800'}`}
+            />
+          </button>
+        )}
+
+        {onRedirect && (
+          <button
+            onClick={onRedirect}
+            className="p-[0.25vw] rounded-[0.7vw] transition-colors hover:bg-gray-100 text-gray-400"
+            title="Go to Other Setup"
+          >
+            <Icon
+              icon="lucide:external-link"
+              className="w-[1vw] h-[1vw] text-gray-800"
             />
           </button>
         )}
@@ -282,7 +295,7 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
 };
 
 
-const MenuBar = ({ onBack, settings, onUpdate, activeLayout }) => {
+const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSetup }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   const [showStylesPopup, setShowStylesPopup] = useState(false);
   const [editingTOCIndex, setEditingTOCIndex] = useState((settings.tocSettings?.content?.length || 0) > 0 ? 0 : null);
@@ -552,6 +565,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout }) => {
             isExpanded={expandedSection === 'bookmark'}
             onToggleSettings={() => toggleSection('bookmark')}
             onChange={(val) => updateSection('navigation', 'bookmark', val)} 
+            onRedirect={() => onNavigateToOtherSetup('bookmark')}
           >
             <AnimatePresence>
               {expandedSection === 'bookmark' && (
@@ -696,6 +710,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout }) => {
             label="Gallery"
             enabled={settings.interaction?.gallery}
             onChange={(val) => updateSection('interaction', 'gallery', val)}
+            onRedirect={() => onNavigateToOtherSetup('gallery')}
           />
         </div>
 
@@ -747,6 +762,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout }) => {
             label="Background Audio"
             enabled={settings.media?.backgroundAudio}
             onChange={(val) => updateSection('media', 'backgroundAudio', val)}
+            onRedirect={() => onNavigateToOtherSetup('sound')}
           />
         </div>
 

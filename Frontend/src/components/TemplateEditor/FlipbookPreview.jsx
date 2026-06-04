@@ -55,19 +55,19 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
 
         // Try getting local unsaved state from DB just like CustomizedEditor does
         try {
-          const appearance = await getFromDB('customized_editor_appearance');
+          const appearance = await getFromDB(`customized_editor_appearance_${v_id || 'default'}`);
           if (appearance) {
             finalSettings.background = appearance.background;
             finalSettings.appearance = appearance.appearance;
             finalSettings.layout = appearance.layout;
             finalSettings.layoutColors = appearance.layoutColors;
           }
-          const branding = await getFromDB('customized_editor_branding');
+          const branding = await getFromDB(`customized_editor_branding_${v_id || 'default'}`);
           if (branding) {
             finalSettings.logo = branding.logo;
             finalSettings.profile = branding.profile;
           }
-          const setup = await getFromDB('customized_editor_setup');
+          const setup = await getFromDB(`customized_editor_setup_${v_id || 'default'}`);
           if (setup) {
             finalSettings.menubar = setup.menuBar;
             finalSettings.othersetup = setup.otherSetup;

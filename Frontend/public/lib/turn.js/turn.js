@@ -1263,11 +1263,14 @@ flipMethods = {
 
 			if (c.y<csz) c.corner = 't';
 			else if (c.y>=height-csz) c.corner = 'b';
-			else return false;
+			else c.corner = '';
 			
 			if (c.x<=csz) c.corner+= 'l';
 			else if (c.x>=width-csz) c.corner+= 'r';
 			else return false;
+
+            if (c.corner === 'r') c.corner = 'tr';
+            if (c.corner === 'l') c.corner = 'tl';
 
 		return ($.inArray(c.corner, allowedCorners)==-1) ? false : c;
 

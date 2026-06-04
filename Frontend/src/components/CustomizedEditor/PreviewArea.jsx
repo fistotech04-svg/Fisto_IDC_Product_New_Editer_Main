@@ -535,7 +535,7 @@ const getInteractionScript = (pageNumber) => `
                 }
                 return null;
             };
-            document.addEventListener('click', (e) => {
+            const handleStart = (e) => {
                const el = findInteractionEl(e.target);
                if (el) {
                    const type = el.dataset.interaction || el.getAttribute('data-interaction');
@@ -613,54 +613,73 @@ const getInteractionScript = (pageNumber) => `
                                    window.parent._activePreviewAudio = audio;
                                    window.parent._activePreviewAudioEl = el;
                                    audio.play().catch(function(e) { console.error('Audio playback failed', e) });
-                               }
-                           }
-                       } catch(err) {
-                           console.error('Failed to parse or play audio interaction', err);
-                       }
-                   } else if (type === 'tooltip') {
-                       const trigger = el.dataset.interactionTrigger || el.getAttribute('data-interaction-trigger') || 'click';
-                       if (trigger === 'click') {
-                           e.preventDefault();
-                           e.stopPropagation();
-                           var isShowing = el.dataset.tooltipShowing === 'true';
-                           if (isShowing) {
-                               el.dataset.tooltipShowing = 'false';
-                               window.parent.postMessage({ type: 'hide-tooltip' }, '*');
-                           } else {
-                               document.querySelectorAll('[data-tooltip-showing="true"]').forEach(function(other) {
-                                   other.dataset.tooltipShowing = 'false';
-                               });
-                               el.dataset.tooltipShowing = 'true';
-                               var rect = el.getBoundingClientRect();
-                               var settingsStr = el.getAttribute('data-tooltip-settings');
-                               var settings = null;
-                               try { if (settingsStr) settings = JSON.parse(settingsStr); } catch(e){}
-                               var absLeft = rect.left, absTop = rect.top, absW = rect.width, absH = rect.height;
-                               try {
-                                   var iframe = window.frameElement;
-                                   if (iframe) {
-                                       var fr = iframe.getBoundingClientRect();
-                                       var sx = fr.width / (window.innerWidth || 1);
-                                       var sy = fr.height / (window.innerHeight || 1);
-                                       absLeft = fr.left + rect.left * sx;
-                                       absTop  = fr.top  + rect.top  * sy;
-                                       absW    = rect.width  * sx;
-                                       absH    = rect.height * sy;
-                                   }
-                               } catch(err) {}
-                               window.parent.postMessage({
-                                   type: 'show-tooltip',
-                                   abs: { left: absLeft, top: absTop, width: absW, height: absH },
-                                   settings: settings,
-                                   pageNumber: window._pageNumber,
-                                   elementId: el.id
-                               }, '*');
-                           }
-                       }
-                   }
+                                }
+                            }
+                        } catch(err) {
+                            console.error('Failed to parse or play audio interaction', err);
+                        }
+                    } else if (type === 'call' && value) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open('tel:' + value, '_blank');
+                    } else if (type === 'tooltip') {
+                        const trigger = el.dataset.interactionTrigger || el.getAttribute('data-interaction-trigger') || 'click';
+                        if (trigger === 'click') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            var isShowing = el.dataset.tooltipShowing === 'true';
+                            if (isShowing) {
+                                el.dataset.tooltipShowing = 'false';
+                                window.parent.postMessage({ type: 'hide-tooltip' }, '*');
+                            } else {
+                                document.querySelectorAll('[data-tooltip-showing="true"]').forEach(function(other) {
+                                    other.dataset.tooltipShowing = 'false';
+                                });
+                                el.dataset.tooltipShowing = 'true';
+                                var rect = el.getBoundingClientRect();
+                                var settingsStr = el.getAttribute('data-tooltip-settings');
+                                var settings = null;
+                                try { if (settingsStr) settings = JSON.parse(settingsStr); } catch(e){}
+                                var absLeft = rect.left, absTop = rect.top, absW = rect.width, absH = rect.height;
+                                try {
+                                    var iframe = window.frameElement;
+                                    if (iframe) {
+                                        var fr = iframe.getBoundingClientRect();
+                                        var sx = fr.width / (window.innerWidth || 1);
+                                        var sy = fr.height / (window.innerHeight || 1);
+                                        absLeft = fr.left + rect.left * sx;
+                                        absTop  = fr.top  + rect.top  * sy;
+                                        absW    = rect.width  * sx;
+                                        absH    = rect.height * sy;
+                                    }
+                                } catch(err) {}
+                                window.parent.postMessage({
+                                    type: 'show-tooltip',
+                                    abs: { left: absLeft, top: absTop, width: absW, height: absH },
+                                    settings: settings,
+                                    pageNumber: window._pageNumber,
+                                    elementId: el.id
+                                }, '*');
+                            }
+                        }
+                    }
+               } else {
+                    // Forward mousedown to parent for dragging
+                    try {
+                        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                        window.parent.postMessage({
+                            type: 'IFRAME_MOUSEDOWN',
+                            originalClientX: clientX,
+                            originalClientY: clientY,
+                            pageNumber: window._pageNumber
+                        }, '*');
+                    } catch (err) {}
                }
-            });
+            };
+            
+            document.addEventListener('mousedown', handleStart);
+            document.addEventListener('touchstart', handleStart, { passive: true });
 
             // Hover logic for tooltips
             const handleHover = (e, isEnter) => {
@@ -740,6 +759,11 @@ const getIframeContent = (html, pageNumber) => {
                     [data-interaction="popup"] * {
                         cursor: pointer !important;
                     }
+
+                    /* Hide Free Frame dashed border in preview */
+                    [data-name="Free Frame"] {
+                        stroke: transparent !important;
+                    }
                 </style>
                 <base href="/">
                 ${getSlideshowScript()}
@@ -748,22 +772,23 @@ const getIframeContent = (html, pageNumber) => {
                 <script>
                     (function() {
                         const isRightPage = ${pageNumber} % 2 !== 0;
-                        document.addEventListener('mousemove', (e) => {
+                        const handleMove = (e) => {
                             try {
-                                const rect = window.frameElement ? window.frameElement.getBoundingClientRect() : { left: 0, top: 0 };
+                                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                                 window.parent.postMessage({
                                     type: 'IFRAME_MOUSEMOVE',
-                                    clientX: rect.left + e.clientX,
-                                    clientY: rect.top + e.clientY,
-                                    screenX: e.screenX,
-                                    screenY: e.screenY
+                                    originalClientX: clientX,
+                                    originalClientY: clientY,
+                                    pageNumber: window._pageNumber
                                 }, '*');
 
-                                // Dynamic cursor for drag edges inside iframe
-                                const nearEdge = isRightPage 
-                                    ? (window.innerWidth - e.clientX < 50) 
-                                    : (e.clientX < 50);
-                                if (nearEdge) {
+                                // Dynamic cursor for drag corners inside iframe
+                                const nearCornerX = isRightPage 
+                                    ? (window.innerWidth - clientX < 50) 
+                                    : (clientX < 50);
+                                const nearCornerY = (clientY < 50) || (window.innerHeight - clientY < 50);
+                                if (nearCornerX && nearCornerY) {
                                     document.documentElement.style.setProperty('cursor', 'grab', 'important');
                                     document.body.style.setProperty('cursor', 'grab', 'important');
                                 } else {
@@ -771,7 +796,24 @@ const getIframeContent = (html, pageNumber) => {
                                     document.body.style.removeProperty('cursor');
                                 }
                             } catch (err) {}
-                        });
+                        };
+                        document.addEventListener('mousemove', handleMove);
+                        document.addEventListener('touchmove', handleMove, { passive: true });
+
+                        const handleEnd = (e) => {
+                            try {
+                                const clientX = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0].clientX : e.clientX;
+                                const clientY = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0].clientY : e.clientY;
+                                window.parent.postMessage({
+                                    type: 'IFRAME_MOUSEUP',
+                                    originalClientX: clientX,
+                                    originalClientY: clientY,
+                                    pageNumber: window._pageNumber
+                                }, '*');
+                            } catch (err) {}
+                        };
+                        document.addEventListener('mouseup', handleEnd);
+                        document.addEventListener('touchend', handleEnd, { passive: true });
                     })();
                 </script>
             </head>
@@ -1186,21 +1228,6 @@ const TurnJsBookRenderer = React.memo(({
 
     const zoomStyle = useMemo(() => {
         if (!interactionZoom) {
-            if (!isTurnJs && physicalZoom && physicalZoom !== 1) {
-                let originX = '50%';
-                if (!singlePage) {
-                    if (currentPage === 0) {
-                        originX = '75%';
-                    } else if (currentPage === pagesCount - 1 && pagesCount % 2 === 0) {
-                        originX = '25%';
-                    }
-                }
-                return {
-                    transform: `scale(${physicalZoom})`,
-                    transformOrigin: `${originX} 50%`,
-                    transition: 'transform 0.3s ease'
-                };
-            }
             return { transition: 'transform 0.3s ease' };
         }
 
@@ -1436,7 +1463,30 @@ const PreviewArea = React.memo(({
     const [fitScale, setFitScale] = useState(1);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isToolbarHidden, setIsToolbarHidden] = useState(false);
 
+    useEffect(() => {
+        if (!isFullscreen) {
+            setIsToolbarHidden(false);
+            return;
+        }
+
+        const handleMouseMove = (e) => {
+            const EDGE_ZONE = 72;
+            const nearEdge = e.clientY < EDGE_ZONE || e.clientY > window.innerHeight - EDGE_ZONE;
+            setIsToolbarHidden(!nearEdge);
+        };
+
+        const handleMouseLeave = () => setIsToolbarHidden(false);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseleave', handleMouseLeave);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseleave', handleMouseLeave);
+        };
+    }, [isFullscreen]);
     const baseDimensions = useMemo(() => {
         if (pages && pages.length > 0 && pages[0].html) {
             try {
@@ -1494,13 +1544,7 @@ const PreviewArea = React.memo(({
             }
         };
 
-        // ── Double-click: zoom in / reset ─────────────────────────────────────
-        const handleDblClick = (e) => {
-            const isInsideFlipbook = e.target.closest?.('.turn-book, #turn-book, [data-turn-book], .flipbook-magazine-wrapper, .fbe-book');
-            if (!isInsideFlipbook) return;
-            e.preventDefault();
-            setManualZoom(prev => prev > 1.1 ? 1 : 1.8);
-        };
+
 
         // ── Pinch-to-zoom (touch) ─────────────────────────────────────────────
         let pinchStartDist = null;
@@ -1538,7 +1582,6 @@ const PreviewArea = React.memo(({
         const container = containerRef.current;
         if (container) {
             container.addEventListener('wheel', handleWheel, { passive: false });
-            container.addEventListener('dblclick', handleDblClick);
             container.addEventListener('touchstart', handleTouchStart, { passive: true });
             container.addEventListener('touchmove', handleTouchMove, { passive: false });
             container.addEventListener('touchend', handleTouchEnd);
@@ -1548,7 +1591,6 @@ const PreviewArea = React.memo(({
         return () => {
             if (container) {
                 container.removeEventListener('wheel', handleWheel);
-                container.removeEventListener('dblclick', handleDblClick);
                 container.removeEventListener('touchstart', handleTouchStart);
                 container.removeEventListener('touchmove', handleTouchMove);
                 container.removeEventListener('touchend', handleTouchEnd);
@@ -1570,19 +1612,19 @@ const PreviewArea = React.memo(({
             const { clientWidth, clientHeight } = screen;
             const isCurrentlyFullscreen = !!document.fullscreenElement || isFullscreen;
 
-            const wFactor = isCurrentlyFullscreen ? 0.70 : 0.70;
-            const hFactor = isCurrentlyFullscreen ? 0.80 : 0.80;
+            const wFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.80 : 0.70) : 0.70;
+            const hFactor = isCurrentlyFullscreen ? (isToolbarHidden ? 0.85 : 0.80) : 0.80;
 
             const availableW = clientWidth * wFactor;
             const availableH = clientHeight * hFactor;
 
-            // Calculate effective zoom (interactionZoom or manualZoom)
-            // The user wants NO CSS scaling, meaning we apply the scale directly to the physical dimensions
-            let baseZoom = interactionZoom && interactionZoom.scale > 1 ? interactionZoom.scale : manualZoom;
+            // Calculate effective zoom (manualZoom only, interactionZoom is handled via CSS transform)
+            // The user wants NO CSS scaling for manual zoom, meaning we apply the scale directly to the physical dimensions
+            let baseZoom = manualZoom;
 
             // In fullscreen we might have a scaling factor applied externally
             if (isCurrentlyFullscreen) {
-                baseZoom = baseZoom / 1.3;
+                baseZoom = baseZoom;
             }
 
             // Use the template editor height and width ratio
@@ -1596,10 +1638,8 @@ const PreviewArea = React.memo(({
 
             const physicalZoom = baseZoom;
 
-            const physicalZoomForDimensions = isTurnJs ? physicalZoom : 1;
-
-            setWIDTH(Math.round(baseDimensions.width * scale * physicalZoomForDimensions));
-            setHEIGHT(Math.round(baseDimensions.height * scale * physicalZoomForDimensions));
+            setWIDTH(Math.round(baseDimensions.width * scale * physicalZoom));
+            setHEIGHT(Math.round(baseDimensions.height * scale * physicalZoom));
             setActualPhysicalZoom(physicalZoom);
         };
 
@@ -1621,7 +1661,7 @@ const PreviewArea = React.memo(({
             document.removeEventListener('fullscreenchange', onFSChange);
             document.removeEventListener('webkitfullscreenchange', onFSChange);
         };
-    }, [activeDevice, isSidebarOpen, isFullscreen, zoom, manualZoom, interactionZoom, baseDimensions, isTurnJs]);
+    }, [activeDevice, isSidebarOpen, isFullscreen, isToolbarHidden, zoom, manualZoom, interactionZoom, baseDimensions, isTurnJs]);
 
     const setCurrentZoom = useCallback((val) => {
         if (typeof val === 'function') {
@@ -2271,7 +2311,24 @@ const PreviewArea = React.memo(({
         interactionZoom,
         activeTooltip,
         isTurnJs,
-        physicalZoom: actualPhysicalZoom
+        physicalZoom: actualPhysicalZoom,
+        style: (() => {
+            if (!interactionZoom) return { transition: 'transform 0.5s ease', transform: 'scale(1)', transformOrigin: 'center center' };
+            const { scale, rect, pageNumber } = interactionZoom;
+            const originX = ((rect.left + rect.width / 2) / rect.windowWidth) * 100;
+            const originY = ((rect.top + rect.height / 2) / rect.windowHeight) * 100;
+            let finalOriginX = originX;
+            if (activeDevice !== 'Mobile') {
+                const isRightPage = pageNumber % 2 !== 0;
+                finalOriginX = isRightPage ? 50 + (originX / 2) : originX / 2;
+            }
+            return {
+                transform: `scale(${scale})`,
+                transformOrigin: `${finalOriginX}% ${originY}%`,
+                transition: 'transform 0.5s ease',
+                zIndex: 50
+            };
+        })()
     };
 
 
@@ -2289,15 +2346,15 @@ const PreviewArea = React.memo(({
             return;
         }
 
-        // 2. Force show lead form if we are explicitly editing it in the sidebar
-        if (activeSubView === 'leadform' && !onClose) {
-            setShowLeadForm(true);
+        // 2. If lead form is disabled, hide it (even when editing)
+        if (!leadFormSettings || !leadFormSettings.enabled) {
+            setShowLeadForm(false);
             return;
         }
 
-        // 3. If not editing, and lead form is disabled, hide it
-        if (!leadFormSettings || !leadFormSettings.enabled) {
-            setShowLeadForm(false);
+        // 3. Force show lead form if we are explicitly editing it in the sidebar and it's enabled
+        if (activeSubView === 'leadform' && !onClose) {
+            setShowLeadForm(true);
             return;
         }
 
@@ -3307,21 +3364,39 @@ const PreviewArea = React.memo(({
                                     animate={{ scale: 1, opacity: 1 }}
                                     exit={{ scale: 0.95, opacity: 0 }}
                                     transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="bg-white rounded-[1vw] shadow-2xl overflow-hidden relative pointer-events-auto"
+                                    className="relative pointer-events-auto flex items-center justify-center"
                                     style={{
-                                        width: '80%',
-                                        maxWidth: '800px',
-                                        aspectRatio: '4/3',
+                                        width: (() => {
+                                            if (!activePopupInteraction?.html) return '800px';
+                                            const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                                            if (match) {
+                                                const w = parseFloat(match[3]);
+                                                return w ? `${w}px` : '800px';
+                                            }
+                                            return '800px';
+                                        })(),
+                                        maxWidth: '85vw',
+                                        maxHeight: '85vh',
+                                        aspectRatio: (() => {
+                                            if (!activePopupInteraction?.html) return '4/3';
+                                            const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
+                                            if (match) {
+                                                const w = parseFloat(match[3]);
+                                                const h = parseFloat(match[4]);
+                                                if (w && h) return `${w}/${h}`;
+                                            }
+                                            return '4/3';
+                                        })(),
                                     }}
                                     onClick={e => e.stopPropagation()}
                                 >
                                     <button
                                         onClick={() => setActivePopupInteraction(null)}
-                                        className="absolute top-[1vw] right-[1vw] z-[100001] bg-white rounded-full p-[0.3vw] shadow-sm hover:bg-gray-100 transition-colors"
+                                        className="absolute -top-[1.5vw] -right-[1.5vw] md:-top-4 md:-right-4 z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
                                     >
-                                        <Icon icon="lucide:x" className="w-[1.2vw] h-[1.2vw] text-gray-700" />
+                                        <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
                                     </button>
-                                    <div className="w-full h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                    <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
                                 </motion.div>
                             </motion.div>
                         )}

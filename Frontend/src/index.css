@@ -102,3 +102,8 @@ video.hide-controls:hover::-webkit-media-controls {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
+
+/* Fix for flipbook dragging over iframes */
+.fbe-is-dragging iframe {
+  pointer-events: none !important;
+}
