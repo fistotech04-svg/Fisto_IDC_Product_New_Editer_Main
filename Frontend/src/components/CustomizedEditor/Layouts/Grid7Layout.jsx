@@ -99,6 +99,9 @@ const Grid7Layout = ({
     isMuted,
     onToggleAudio,
     setShowGalleryPopupMemo,
+        showGalleryPopup,
+        showSharePopup,
+        showExportPopup,
     showSoundPopup,
     setShowSoundPopupMemo,
     showTOC,
@@ -135,9 +138,14 @@ const Grid7Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {

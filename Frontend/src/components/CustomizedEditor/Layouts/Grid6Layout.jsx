@@ -175,6 +175,9 @@ const Grid6Layout = ({
     isMuted,
     onToggleAudio,
     setShowGalleryPopupMemo,
+        showGalleryPopup,
+        showSharePopup,
+        showExportPopup,
     showSoundPopup,
     setShowSoundPopupMemo,
     layoutColors,
@@ -213,9 +216,14 @@ const Grid6Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -582,14 +590,6 @@ const Grid6Layout = ({
                     <button
                         className="opacity-60 hover:opacity-100 transition-all hover:scale-110 p-[0.4vw]"
                         style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
-                        onClick={() => onPageClick(0)}
-                        title="First Page"
-                    >
-                        <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
-                    </button>
-                    <button
-                        className="opacity-60 hover:opacity-100 transition-all hover:scale-110 p-[0.4vw]"
-                        style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
                         onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
                         title="Previous Page"
                     >
@@ -606,14 +606,6 @@ const Grid6Layout = ({
                         title="Next Page"
                     >
                         <Icon icon="ph:caret-right" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
-                    </button>
-                    <button
-                        className="opacity-60 hover:opacity-100 transition-all hover:scale-110 p-[0.4vw]"
-                        style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}
-                        onClick={() => onPageClick(pagesCount - 1)}
-                        title="Last Page"
-                    >
-                        <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
                     </button>
                 </div>
 
@@ -1072,7 +1064,7 @@ const Grid6Layout = ({
                         >
                             <span className={`${isTablet ? 'text-[0.85vw]' : 'text-[1.1vw]'} font-medium font-sans`} style={{ color: getLayoutColor('toc-text', '#575C9C') }}>Table of Contents</span>
                             <button
-                                onClick={() => setShowTOCPanel(false)}
+                                onClick={() => setShowTOCMemo?.(false)}
                                 className="transition-colors"
                                 style={{ color: getLayoutColor('toc-icon', '#575C9C'), opacity: 0.6 }}
                             >
@@ -1138,7 +1130,7 @@ const Grid6Layout = ({
                                                         style={{ color: getLayoutColor('toc-text', '#575C9C') }}
                                                         onClick={() => {
                                                             onPageClick && onPageClick(heading.page - 1);
-                                                            setShowTOCPanel(false);
+                                                            setShowTOCMemo?.(false);
                                                             setTocSearchQuery('');
                                                         }}
                                                     >
@@ -1163,7 +1155,7 @@ const Grid6Layout = ({
                                                                 style={{ color: getLayoutColor('toc-text', '#575C9C') }}
                                                                 onClick={() => {
                                                                     onPageClick && onPageClick(sub.page - 1);
-                                                                    setShowTOCPanel(false);
+                                                                    setShowTOCMemo?.(false);
                                                                     setTocSearchQuery('');
                                                                 }}
                                                             >

@@ -2839,7 +2839,7 @@ const TemplateEditor = () => {
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: { emailId: user?.emailId, v_id }
+            params: { emailId: user?.emailId, v_id, folderName: folder || location.state?.folderName, bookName: decodeURIComponent(v_id) }
           });
 
           if (res.data && res.data.pages) {

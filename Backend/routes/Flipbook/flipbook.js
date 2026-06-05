@@ -1419,11 +1419,12 @@ router.get("/get", async (req, res) => {
     let effectiveBookName = bookName;
 
     // V_ID Lookup Logic
+    let dbDoc = null;
     if (v_id) {
-      const dbDoc = await Flipbook.findOne({ v_id: v_id });
-      if (!dbDoc)
-        return res.status(404).json({ message: "Flipbook not found" });
+      dbDoc = await Flipbook.findOne({ v_id: v_id });
+    }
 
+    if (dbDoc) {
       // Ensure it matches user (optional but safer)
       if (dbDoc.userEmail !== emailId)
         return res.status(403).json({ message: "Unauthorized" });
@@ -1438,25 +1439,34 @@ router.get("/get", async (req, res) => {
       } else {
         effectiveFolderName = dbDoc.folderName;
       }
-    }
-    // Logic for folderName/bookName driven request
-    else if (folderName === "Recent Book") {
-      // If requested from Recent Book, find the specific doc tagged with 'Recent Book'
-      const dbDoc = await Flipbook.findOne({
-        userEmail: emailId,
-        flipbookName: bookName,
-        folderName: "Recent Book",
-      });
+    } else {
+      // Fallback if v_id wasn't found (could be a book name) or wasn't provided
+      if (!folderName || !bookName) {
+        return res.status(404).json({ message: "Flipbook not found" });
+      }
 
-      if (dbDoc && dbDoc.folderName) {
-        if (Array.isArray(dbDoc.folderName)) {
-          // Get the first non-Recent folder (the physical one)
-          const realFolders = dbDoc.folderName.filter(
-            (f) => f !== "Recent Book",
-          );
-          if (realFolders.length > 0) effectiveFolderName = realFolders[0];
-        } else if (dbDoc.folderName !== "Recent Book") {
-          effectiveFolderName = dbDoc.folderName;
+      effectiveFolderName = folderName;
+      effectiveBookName = bookName;
+
+      // Logic for folderName/bookName driven request
+      if (effectiveFolderName === "Recent Book") {
+        // If requested from Recent Book, find the specific doc tagged with 'Recent Book'
+        const recentDbDoc = await Flipbook.findOne({
+          userEmail: emailId,
+          flipbookName: effectiveBookName,
+          folderName: "Recent Book",
+        });
+
+        if (recentDbDoc && recentDbDoc.folderName) {
+          if (Array.isArray(recentDbDoc.folderName)) {
+            // Get the first non-Recent folder (the physical one)
+            const realFolders = recentDbDoc.folderName.filter(
+              (f) => f !== "Recent Book",
+            );
+            if (realFolders.length > 0) effectiveFolderName = realFolders[0];
+          } else if (recentDbDoc.folderName !== "Recent Book") {
+            effectiveFolderName = recentDbDoc.folderName;
+          }
         }
       }
     }
@@ -1475,11 +1485,14 @@ router.get("/get", async (req, res) => {
     let pages = [];
 
     // 1. Try fetching from MongoDB
-    let dbBook = await Flipbook.findOne({
-      userEmail: emailId,
-      folderName: effectiveFolderName,
-      flipbookName: effectiveBookName,
-    });
+    let dbBook = dbDoc;
+    if (!dbBook) {
+      dbBook = await Flipbook.findOne({
+        userEmail: emailId,
+        folderName: effectiveFolderName,
+        flipbookName: effectiveBookName,
+      });
+    }
 
     if (dbBook && dbBook.pages && dbBook.pages.length > 0) {
       // Sort by pageNumber to ensure correct order

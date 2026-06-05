@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Icon } from '@iconify/react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'framer-motion';
 
 const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     const cleanHtml = (html || '')
@@ -56,8 +56,90 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
+// ── Magnetic dock button (same as Layout1) ──────────────────────────────────
+const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, isTablet }) => {
+    const btnRef = React.useRef(null);
+    const [showTooltip, setShowTooltip] = React.useState(false);
+    const rawScale = useMotionValue(1);
+    const scale = useSpring(rawScale, { stiffness: 380, damping: 26, mass: 0.5 });
+    const rawGlow = useMotionValue(0);
+    const glowOp = useSpring(rawGlow, { stiffness: 380, damping: 26, mass: 0.5 });
+    const glowBg = useTransform(glowOp, v => `rgba(255,255,255,${v * 0.07})`);
+
+    React.useEffect(() => {
+        if (!mousePos || !btnRef.current) {
+            rawScale.set(1);
+            rawGlow.set(0);
+            setShowTooltip(false);
+            return;
+        }
+        const rect = btnRef.current.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const dist = Math.hypot(mousePos.x - cx, mousePos.y - cy);
+        const isInside = mousePos.x >= rect.left && mousePos.x <= rect.right &&
+            mousePos.y >= rect.top && mousePos.y <= rect.bottom;
+        setShowTooltip(isInside);
+        const maxDist = 52;
+        const t = Math.max(0, 1 - dist / maxDist);
+        const eased = t * t * (3 - 2 * t);
+        const focused = eased * eased;
+        rawScale.set(1 + 0.32 * focused);
+        rawGlow.set(focused);
+    }, [mousePos]);
+
+    return (
+        <button
+            ref={btnRef}
+            onFocus={() => setShowTooltip(true)}
+            onBlur={() => setShowTooltip(false)}
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            className={`flex flex-col items-center justify-center relative z-[20] magnetic-dock-btn ${extraClassName || ''}`}
+            style={{ ...extraStyle, border: 'none', outline: 'none', cursor: 'pointer', padding: 0, background: 'transparent' }}
+            onClick={(e) => { setShowTooltip(false); if (onClick) onClick(e); }}
+        >
+            <motion.div
+                style={{ scale, transformOrigin: 'center 80%', willChange: 'transform' }}
+                className="flex flex-col items-center justify-center"
+                whileTap={{ scale: 0.91 }}
+            >
+                <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.3vw', padding: '0.18vw', background: glowBg }}>
+                    {iconEl}
+                </motion.span>
+            </motion.div>
+            {showTooltip && (
+                <div
+                    className="absolute bottom-full mb-[2.8vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
+                    style={{
+                        background: 'rgba(10, 10, 12, 0.55)',
+                        backdropFilter: 'blur(30px)',
+                        WebkitBackdropFilter: 'blur(30px)',
+                        transform: 'translateZ(0)',
+                        isolation: 'isolate',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        color: '#ffffff',
+                        padding: '0.25vw 0.5vw',
+                        borderRadius: '0.3vw',
+                        fontSize: isTablet ? '0.55vw' : '0.65vw',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                        pointerEvents: 'none',
+                        zIndex: 150,
+                    }}
+                >
+                    {label}
+                    <div
+                        className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[0.35vw] border-r-[0.35vw] border-t-[0.45vw]"
+                        style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}
+                    />
+                </div>
+            )}
+        </button>
+    );
+};
+// ───────────────────────────────────────────────────────────────────────────
+
 const Grid8Layout = ({
-    offset,
     children,
     settings,
     bookName,
@@ -78,6 +160,7 @@ const Grid8Layout = ({
     handleShare,
     handleDownload,
     handleFullScreen,
+    showProfilePopup,
     setShowProfilePopup,
     logoSettings,
     currentPage,
@@ -97,6 +180,7 @@ const Grid8Layout = ({
     backgroundStyle,
     isMuted,
     onToggleAudio,
+    showGalleryPopup,
     setShowGalleryPopupMemo,
     showSoundPopup,
     setShowSoundPopupMemo,
@@ -134,9 +218,14 @@ const Grid8Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -167,8 +256,26 @@ const Grid8Layout = ({
     const [showSuggestions, setShowSuggestions] = useState(false);
     const isFullscreen = isFullscreenProp || false;
     const [isCanvasHovered, setIsCanvasHovered] = useState(false);
+
+    // Track actual browser fullscreen (fires only when browser enters real fullscreen — 2nd click)
+    const [isBrowserFullscreen, setIsBrowserFullscreen] = useState(false);
+    useEffect(() => {
+        const onFsChange = () => setIsBrowserFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', onFsChange);
+        return () => document.removeEventListener('fullscreenchange', onFsChange);
+    }, []);
+
+    const [dockMousePos, setDockMousePos] = useState(null);
     const [showThumbnails, setShowThumbnails] = useState(false);
     const thumbScrollRef = useRef(null);
+
+    const closeAllPopups = () => {
+        setShowTOCMemo?.(false);
+        setShowThumbnails(false);
+        setShowGalleryPopupMemo?.(false);
+        setShowSoundPopupMemo?.(false);
+        setShowProfilePopup?.(false);
+    };
 
     useEffect(() => {
         setLocalSearchQuery(searchQuery || '');
@@ -317,6 +424,16 @@ const Grid8Layout = ({
         return defaultOpacity;
     };
 
+    // Bottom bar sizes: keep consistent regardless of fullscreen mode
+    const bbHeight = isTablet ? 'h-[5.5vh]' : 'h-[7vh]';
+    const bbPt = 'pt-[1vh]';
+    const bbGap = 'gap-[1.3vw]';
+    const bbMb = 'mb-[0.3vh]';
+    const bbIconSm = isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1vw] h-[1vw]';
+    const bbIconMid = isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.15vw] h-[1.15vw]';
+    const bbIconLg = isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]';
+    const bbIconFul = isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]';
+
     return (
         <div
             className="h-full w-full font-sans overflow-hidden relative"
@@ -341,9 +458,9 @@ const Grid8Layout = ({
                         <div className={`relative ${showSuggestions && recommendations.length > 0 ? 'z-[90]' : 'z-50'}`} onClick={(e) => e.stopPropagation()}>
                             <div
                                 className={`flex items-center rounded-full px-[1vw] py-[0.5vh] ${isTablet ? 'h-[3.2vh]' : 'h-[4vh]'} shadow-sm transition-all duration-300 ${isSidebarOpen ? (isTablet ? 'w-[7vw]' : 'w-[9vw]') : (isTablet ? 'w-[13vw]' : 'w-[16vw]')}`}
-                                style={{ backgroundColor: getLayoutColor('search-bg-v2', getLayoutColor('toolbar-bg', '#575C9C')) }}
+                                style={{ backgroundColor: '#FFFFFF' }}
                             >
-                                <Icon icon="lucide:search" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} style={{ color: getLayoutColor('search-text-v1', getLayoutColor('toolbar-text-main', '#FFFFFF')) }} />
+                                <Icon icon="lucide:search" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]'}`} style={{ color: getLayoutColor('search-text-v1', primaryColor) }} />
                                 <input
                                     type="text"
                                     value={localSearchQuery}
@@ -395,7 +512,7 @@ const Grid8Layout = ({
                                     onFocus={() => { if (recommendations.length > 0) setShowSuggestions(true); }}
                                     placeholder="Quick Search..."
                                     className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} ml-[0.6vw] w-full font-medium`}
-                                    style={{ color: getLayoutColor('search-text-v1', getLayoutColor('toolbar-text-main', '#FFFFFF')) }}
+                                    style={{ color: getLayoutColor('search-text-v1', primaryColor) }}
                                 />
                             </div>
 
@@ -445,7 +562,7 @@ const Grid8Layout = ({
                     {/* Zoom Pill */}
                     <div
                         className={`flex items-center rounded-full px-[0.4vw] py-[0.5vh] ${isTablet ? 'h-[3.2vh]' : 'h-[4vh]'} shadow-sm pointer-events-auto`}
-                        style={{ backgroundColor: getLayoutColor('reset-bg', '#B8BBCE') }}
+                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.03)' }}
                     >
                         <button
                             onClick={(e) => { e.stopPropagation(); zoomOut(); }}
@@ -497,23 +614,6 @@ const Grid8Layout = ({
                 </div>
             </div>
 
-            {/* Left Navigate Button */}
-            <button
-                className={`absolute ${isTablet ? 'left-[4vw]' : 'left-[8vw]'} top-1/2 -translate-y-[calc(50%+4.5vh)] transition-all z-20 pointer-events-auto opacity-70 hover:opacity-100`}
-                style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-            >
-                <Icon icon="lucide:chevron-left" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:-translate-x-1 transition-transform`} />
-            </button>
-
-            {/* Right Navigate Button */}
-            <button
-                className={`absolute ${isTablet ? 'right-[4vw]' : 'right-[8vw]'} top-1/2 -translate-y-[calc(50%+4.5vh)] transition-all z-20 pointer-events-auto opacity-70 hover:opacity-100`}
-                style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-            >
-                <Icon icon="lucide:chevron-right" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:translate-x-1 transition-transform`} />
-            </button>
 
             {/* Main Canvas */}
             <div className="absolute inset-0 flex justify-center items-center z-10 pt-[8vh] pb-[9vh]"
@@ -530,13 +630,31 @@ const Grid8Layout = ({
                 onMouseLeave={() => isFullscreen && setIsCanvasHovered(false)}
             >
                 <div
-                    className="transition-all duration-600 ease-in-out"
+                    className="transition-all duration-600 ease-in-out relative"
                     style={{
                         transform: `translateX(${localOffset}px) scale(1)`,
                         transformOrigin: 'center center'
                     }}
                 >
                     {modifiedChildren}
+
+                    {/* Left Navigate Button — hugs the visible page's left edge */}
+                    <button
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
+                        style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                    >
+                        <Icon icon="lucide:chevron-left" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:-translate-x-1 transition-transform`} />
+                    </button>
+
+                    {/* Right Navigate Button — hugs the visible page's right edge */}
+                    <button
+                        className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
+                        style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                    >
+                        <Icon icon="lucide:chevron-right" strokeWidth={1} className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.5vw] h-[2.5vw]'} hover:translate-x-1 transition-transform`} />
+                    </button>
                 </div>
             </div>
 
@@ -586,60 +704,136 @@ const Grid8Layout = ({
 
 
 
-            {/* Bottom Menu Bar — z-[100] so it sits on top of the thumbnail panel */}
+            {/* Bottom Menu Bar — z-[105] so it sits on top of the thumbnail panel and tooltips work */}
             <div
-                className={`absolute bottom-0 left-0 right-0 ${isTablet ? 'h-[7.5vh]' : 'h-[9vh]'} flex flex-col justify-center items-center pt-[2vh] z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'} shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
+                className={`absolute bottom-0 left-0 right-0 ${bbHeight} flex flex-col justify-center items-center ${bbPt} z-[105] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'} shadow-[0_-5px_20px_rgba(0,0,0,0.05)]`}
                 style={{
                     backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
-                    paddingLeft: '18.5vw',
                     opacity: isFullscreen && isCanvasHovered ? 0 : 1
                 }}
+                onMouseMove={(e) => setDockMousePos({ x: e.clientX, y: e.clientY })}
+                onMouseLeave={() => setDockMousePos(null)}
             >
-                <div className="flex items-center gap-[1.6vw] mb-[0.8vh]">
-                    <button onClick={(e) => { e.stopPropagation(); setShowTOCMemo?.(!showTOC); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); setShowThumbnails(prev => !prev); }}
-                        className={`hover:scale-110 transition-transform ${showThumbnails ? 'scale-110' : ''}`}
-                        style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
-                    >
-                        <Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-
-                    <button onClick={(e) => { e.stopPropagation(); setShowGalleryPopupMemo(true); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
+                <div className={`flex items-center ${bbGap} ${bbMb}`}>
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="fluent:text-bullet-list-24-filled" className={bbIconSm} />}
+                        label="TOC"
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const wasOpen = showTOC;
+                            closeAllPopups();
+                            if (!wasOpen) setShowTOCMemo?.(true);
+                        }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="ph:squares-four-fill" className={bbIconSm} />}
+                        label="Thumbnails"
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const wasOpen = showThumbnails;
+                            closeAllPopups();
+                            if (!wasOpen) setShowThumbnails(true);
+                        }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="clarity:image-gallery-solid" className={bbIconSm} />}
+                        label="Gallery"
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const wasOpen = showGalleryPopup;
+                            closeAllPopups();
+                            if (!wasOpen) setShowGalleryPopupMemo?.(true); 
+                        }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
 
                     <div className="w-[0.5vw]" />
 
-                    <button onClick={() => onPageClick(0)} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
-                    </button>
-                    <button onClick={() => setIsPlaying(!isAutoFlipping)} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />
-                    </button>
-                    <button onClick={() => onPageClick(totalPages - 1)} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
-                    </button>
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="ph:skip-back" className={bbIconMid} />}
+                        label="First Page"
+                        onClick={() => { closeAllPopups(); onPageClick(0); }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={bbIconLg} />}
+                        label={isAutoFlipping ? 'Pause' : 'Play'}
+                        onClick={() => { closeAllPopups(); setIsPlaying(!isAutoFlipping); }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="ph:skip-forward" className={bbIconMid} />}
+                        label="Last Page"
+                        onClick={() => { closeAllPopups(); onPageClick(totalPages - 1); }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
 
                     <div className="w-[0.5vw]" />
 
-                    <button onClick={(e) => { e.stopPropagation(); setShowSoundPopupMemo(!showSoundPopup); }} className={`hover:scale-110 transition-transform opacity-100`} style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); setShowProfilePopup(true); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleShare(); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="mage:share-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDownload(); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleFullScreen(); }} className="hover:scale-110 transition-transform" style={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}>
-                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />
-                    </button>
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="solar:music-notes-bold" className={bbIconSm} />}
+                        label="Sound"
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const wasOpen = showSoundPopup;
+                            closeAllPopups();
+                            if (!wasOpen) setShowSoundPopupMemo?.(true);
+                        }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="fluent:person-24-filled" className={bbIconSm} />}
+                        label="Profile"
+                        onClick={(e) => { 
+                            e.stopPropagation(); 
+                            const wasOpen = showProfilePopup;
+                            closeAllPopups();
+                            if (!wasOpen) setShowProfilePopup?.(true); 
+                        }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="mage:share-fill" className={bbIconSm} />}
+                        label="Share"
+                        onClick={(e) => { e.stopPropagation(); closeAllPopups(); handleShare(); }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon="meteor-icons:download" className={bbIconSm} />}
+                        label="Download"
+                        onClick={(e) => { e.stopPropagation(); closeAllPopups(); handleDownload(); }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
+                    <MagneticDockBtn
+                        iconEl={<Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={bbIconFul} />}
+                        label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                        onClick={(e) => { e.stopPropagation(); closeAllPopups(); handleFullScreen(); }}
+                        extraStyle={{ color: getLayoutColor('toolbar-text-main', '#FFFFFF') }}
+                        mousePos={dockMousePos}
+                        isTablet={isTablet}
+                    />
                 </div>
 
                 {/* Progress Bar */}
@@ -763,16 +957,17 @@ const Grid8Layout = ({
                         animate={{ y: 0 }}
                         exit={{ y: '100%' }}
                         transition={{ duration: 0.3, ease: "easeInOut" }}
-                        className="fixed z-[40] rounded-t-[0.8vw] overflow-hidden"
+                        className="fixed z-[101] rounded-t-[0.8vw] overflow-hidden"
                         style={{
-                            left: '34vw',
-                            right: '16vw',
+                            left: isSidebarOpen ? '40vw' : '34vw',
+                            right: isSidebarOpen ? '10vw' : '16vw',
                             bottom: isTablet ? '7.5vh' : '9vh',
                             backgroundColor: '#FFFFFF',
                             maxHeight: '45vh',
                             boxShadow: '0 -10px 40px rgba(0,0,0,0.3)',
                             backdropFilter: 'none',
-                            opacity: 1
+                            opacity: 1,
+                            transition: 'left 0.3s ease'
                         }}
                     >
                         {/* Header */}

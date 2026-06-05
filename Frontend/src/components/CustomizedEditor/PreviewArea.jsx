@@ -729,11 +729,35 @@ const getInteractionScript = (pageNumber) => `
 `;
 
 const getIframeContent = (html, pageNumber) => {
+    // Extract and dynamically load Google Fonts found in the SVG
+    const fontsToLoad = new Set();
+    if (html) {
+        const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+        const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+        let match;
+        while ((match = cssRegex.exec(html)) !== null) {
+            let f = match[1] || match[2];
+            if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
+            if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+        }
+        while ((match = attrRegex.exec(html)) !== null) {
+            let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+            if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+        }
+    }
+    
+    let fontImports = '';
+    if (fontsToLoad.size > 0) {
+        const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
+        fontImports = `<link href="https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`;
+    }
+
     // Inject scripts
     const content = `
         <!DOCTYPE html>
         <html>
             <head>
+                ${fontImports}
                 <style>
                     html, body { cursor: default !important; -webkit-user-select: none; user-select: none; }
                     body { margin: 0; padding: 0; overflow: hidden; background: transparent; width: 100%; height: 100%; }
@@ -1381,7 +1405,8 @@ const PreviewArea = React.memo(({
     notes = [],
     setBookmarks,
     setNotes,
-    isPublishedPreview = false
+    isPublishedPreview = false,
+    disableAutoGallery = false
 }) => {
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
@@ -1706,6 +1731,11 @@ const PreviewArea = React.memo(({
     const [isFlipMuted, setIsFlipMuted] = useState(false);
     const [flipTrigger, setFlipTrigger] = useState(0);
 
+    // Independent Audio state for Mobile Layouts
+    const [mobileIsMuted, setMobileIsMuted] = useState(false);
+    const [mobileIsFlipMuted, setMobileIsFlipMuted] = useState(false);
+    const [mobileFlipTrigger, setMobileFlipTrigger] = useState(0);
+
 
 
     useEffect(() => {
@@ -1730,11 +1760,11 @@ const PreviewArea = React.memo(({
     }, [pages]);
 
     useEffect(() => {
-        if (!isPublishedPreview && otherSetupSettings?.gallery?.previewOpen && otherSetupSettings.gallery.previewOpen !== lastPreviewOpen.current) {
+        if (!disableAutoGallery && !isPublishedPreview && otherSetupSettings?.gallery?.previewOpen && otherSetupSettings.gallery.previewOpen !== lastPreviewOpen.current) {
             setShowGalleryPopup(true);
             lastPreviewOpen.current = otherSetupSettings.gallery.previewOpen;
         }
-    }, [otherSetupSettings?.gallery?.previewOpen, isPublishedPreview]);
+    }, [otherSetupSettings?.gallery?.previewOpen, isPublishedPreview, disableAutoGallery]);
 
     // Sync current page with targetPage prop (from TemplateEditor's activePageIndex)
     useEffect(() => {
@@ -1992,8 +2022,29 @@ const PreviewArea = React.memo(({
             }
         };
         window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-    }, [pages, onPageClick]);
+
+        const handleOpenTOCPreview = () => {
+            setShowTOCMemo(true);
+        };
+        window.addEventListener('open-toc-preview', handleOpenTOCPreview);
+
+        const handleOpenProfilePreview = () => {
+            setShowProfilePopup(true);
+        };
+        window.addEventListener('open-profile-preview', handleOpenProfilePreview);
+
+        const handleCloseProfilePreview = () => {
+            setShowProfilePopup(false);
+        };
+        window.addEventListener('close-profile-preview', handleCloseProfilePreview);
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+            window.removeEventListener('open-toc-preview', handleOpenTOCPreview);
+            window.removeEventListener('open-profile-preview', handleOpenProfilePreview);
+            window.removeEventListener('close-profile-preview', handleCloseProfilePreview);
+        };
+    }, [pages, onPageClick, setShowTOCMemo, setShowProfilePopup]);
 
     const handleZoomIn = useCallback(() => setManualZoom(prev => Math.min(prev + 0.05, 2)), []);
     const handleZoomOut = useCallback(() => setManualZoom(prev => Math.max(prev - 0.05, 0.5)), []);
@@ -2251,6 +2302,7 @@ const PreviewArea = React.memo(({
 
         // Signal a flip to the Sound component
         setFlipTrigger(prev => prev + 1);
+        setMobileFlipTrigger(prev => prev + 1);
     }, [pages.length, WIDTH, useHardCover]);
 
     const onTurning = useCallback((e) => {
@@ -2520,7 +2572,7 @@ const PreviewArea = React.memo(({
 
             )}
 
-            {showProfilePopup && (
+            {showProfilePopup && ![4, 5, '4', '5'].includes(activeLayout) && (
                 <ProfilePopup
                     onClose={() => setShowProfilePopup(false)}
                     profileSettings={profileSettings}
@@ -2540,14 +2592,16 @@ const PreviewArea = React.memo(({
                 activeLayout={activeLayout}
                 otherSetupSettings={otherSetupSettings}
                 onUpdateOtherSetup={onUpdateOtherSetup}
-                isMuted={isMuted}
-                setIsMuted={setIsMuted}
-                isFlipMuted={isFlipMuted}
-                setIsFlipMuted={setIsFlipMuted}
-                flipTrigger={flipTrigger}
+                isSidebarOpen={isSidebarOpen}
+                isMuted={activeDevice === 'Mobile' ? mobileIsMuted : isMuted}
+                setIsMuted={activeDevice === 'Mobile' ? setMobileIsMuted : setIsMuted}
+                isFlipMuted={activeDevice === 'Mobile' ? mobileIsFlipMuted : isFlipMuted}
+                setIsFlipMuted={activeDevice === 'Mobile' ? setMobileIsFlipMuted : setIsFlipMuted}
+                flipTrigger={activeDevice === 'Mobile' ? mobileFlipTrigger : flipTrigger}
                 settings={settings}
                 isTablet={isTablet}
                 isMobile={isMobile}
+                isLandscape={isLandscape}
                 isEditor={!onClose}
                 isFullscreen={isFullscreen}
             />
@@ -2666,7 +2720,11 @@ const PreviewArea = React.memo(({
         offset,
         backgroundSettings: layoutBackgroundSettings,
         backgroundStyle: layoutBackgroundStyle,
-        isMuted,
+        isMuted: mobileIsMuted,
+        setIsMuted: setMobileIsMuted,
+        isFlipMuted: mobileIsFlipMuted,
+        setIsFlipMuted: setMobileIsFlipMuted,
+        flipTrigger: mobileFlipTrigger,
         onToggleAudio: handleToggleAudio,
         isSidebarOpen,
         isFullscreen,
@@ -2823,6 +2881,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -2881,6 +2940,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -2940,6 +3000,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -3000,6 +3061,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -3055,6 +3117,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -3112,6 +3175,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -3169,6 +3233,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -3231,6 +3296,7 @@ const PreviewArea = React.memo(({
                                     handleDownload={handleDownload}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     logoSettings={logoSettings}
                                     currentPage={currentPage}
                                     pagesCount={pages.length}
@@ -3305,6 +3371,7 @@ const PreviewArea = React.memo(({
                                     setShowViewBookmarkPopup={setShowViewBookmarkPopup}
                                     showViewBookmarkPopup={showViewBookmarkPopup}
                                     setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
                                     showSoundPopup={showSoundPopup}
                                     setShowSoundPopupMemo={setShowSoundPopupMemo}
@@ -3356,7 +3423,7 @@ const PreviewArea = React.memo(({
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
-                                className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/50 p-[2vw]"
+                                className="absolute inset-0 z-[100000] flex items-center justify-center bg-black/50 p-[2vw]"
                                 onClick={() => setActivePopupInteraction(null)}
                             >
                                 <motion.div
@@ -3375,8 +3442,8 @@ const PreviewArea = React.memo(({
                                             }
                                             return '800px';
                                         })(),
-                                        maxWidth: '85vw',
-                                        maxHeight: '85vh',
+                                        maxWidth: '90%',
+                                        maxHeight: '90%',
                                         aspectRatio: (() => {
                                             if (!activePopupInteraction?.html) return '4/3';
                                             const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);

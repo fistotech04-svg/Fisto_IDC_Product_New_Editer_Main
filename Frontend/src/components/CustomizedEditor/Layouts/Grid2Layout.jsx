@@ -59,7 +59,7 @@ const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) => {
 
 const getLayoutOpacity = (id, defaultOpacity) => `calc(var(--${id}-opacity, 1) * ${defaultOpacity})`;
 
-const TopMagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, addTextBelowIcons, isMobileLandscape, isTablet, textFont }) => {
+const TopMagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, addTextBelowIcons, isMobileLandscape, isTablet, textFont, hideTooltip = false }) => {
     const btnRef = React.useRef(null);
     const [showTooltip, setShowTooltip] = React.useState(false);
     const rawScale = useMotionValue(1);
@@ -120,7 +120,7 @@ const TopMagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClas
             </motion.div>
 
             {/* Custom tooltip for top bar (appears below button, unaffected by scale transform) */}
-            {showTooltip && (
+            {showTooltip && !hideTooltip && (
                 <div
                     className="absolute top-full mt-[2.8vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
                     style={{
@@ -136,7 +136,7 @@ const TopMagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                         fontSize: isTablet ? '0.55vw' : '0.65vw',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
                         pointerEvents: 'none',
-                        zIndex: 10,
+                        zIndex: 9999,
                     }}
                 >
                     {label}
@@ -197,6 +197,9 @@ const Grid2Layout = ({
     showSoundPopup,
     setShowSoundPopupMemo,
     setShowGalleryPopupMemo,
+    showGalleryPopup,
+    showSharePopup,
+    showExportPopup,
     activeLayout,
     isMobile,
     isMobileLandscape = false,
@@ -279,9 +282,14 @@ const Grid2Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -410,6 +418,11 @@ const Grid2Layout = ({
         if (e.cancelable) e.preventDefault();
         setRadialScroll(prev => {
             const shift = e.deltaY > 0 ? 1 : -1;
+            if (spreads.length <= 7) {
+                const nextFocus = activeSpreadIdx + prev + shift;
+                if (nextFocus < 0) return -activeSpreadIdx;
+                if (nextFocus > spreads.length - 1) return spreads.length - 1 - activeSpreadIdx;
+            }
             return prev + shift;
         });
     };
@@ -494,7 +507,7 @@ const Grid2Layout = ({
     const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
 
     // Helper: renders an icon button with optional text label below
-    const renderToolbarBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '') => (
+    const renderToolbarBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '', hideTooltip = false) => (
         <TopMagneticDockBtn
             iconEl={iconEl}
             label={label}
@@ -506,6 +519,7 @@ const Grid2Layout = ({
             isMobileLandscape={isMobileLandscape}
             isTablet={isTablet}
             textFont={textFont}
+            hideTooltip={hideTooltip}
         />
     );
 
@@ -687,7 +701,9 @@ const Grid2Layout = ({
                                     closeAllPopups();
                                     if (!wasOpen) setShowTOCMemo(true);
                                 },
-                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
+                                '',
+                                !!showTOC
                             )}
                             {renderToolbarBtn(
                                 <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
@@ -698,66 +714,12 @@ const Grid2Layout = ({
                                     togglePopup('thumbnails', e);
                                     setShowThumbnailBarMemo?.(!wasOpen);
                                 },
-                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
+                                '',
+                                activePopup === 'thumbnails'
                             )}
 
-                            {settings.navigation.bookmark && (
-                                <div className="relative flex items-center justify-center">
-                                    {renderToolbarBtn(
-                                        <Icon icon="fluent:bookmark-24-filled" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
-                                        'Bookmark',
-                                        (e) => togglePopup('bookmarks', e),
-                                        { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
-                                    )}
-                                    {activePopup === 'bookmarks' && (
-                                        <div
-                                            className={`absolute left-1/2 -translate-x-1/2 ${isTablet ? 'top-[245%]' : 'top-[255%]'} backdrop-blur-xl border border-white/50 ${isTablet ? 'rounded-[0.75vw]' : 'rounded-[1vw]'} z-[100] shadow-[0_8px_30px_rgba(0,0,0,0.25)] animate-in fade-in slide-in-from-top-2 duration-200 p-1 ${isTablet ? 'w-[10vw]' : 'w-[12vw]'}`}
-                                            style={{
-                                                backgroundColor: "transparent",
-                                            }}
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <div className="rounded-[0.65vw] bg-white overflow-hidden">
-                                                <div
-                                                    className="rounded-[0.65vw] overflow-hidden"
-                                                    style={{ backgroundColor: "rgba(var(--dropdown-bg-rgb, 87, 92, 156), calc(0.2 + var(--dropdown-bg-opacity, 1) * 0.8))" }}
-                                                >
-                                                    <div className={`flex flex-col ${isTablet ? 'py-[0.25vw]' : 'py-[0.4vw]'}`}>
-                                                        <button
-                                                            className={`w-full flex items-center ${isTablet ? 'px-[0.8vw] py-[0.5vw]' : 'px-[1.2vw] py-[0.7vw]'} hover:bg-black/10 transition-colors ${isTablet ? 'gap-[0.8vw]' : 'gap-[1vw]'} text-left group`}
-                                                            onClick={() => {
-                                                                setShowAddBookmarkPopupMemo(true);
-                                                                setShowBookmarkOptions(false);
-                                                            }}
-                                                        >
-                                                            <Icon
-                                                                icon="mdi:bookmark-plus"
-                                                                className={`${isTablet ? 'w-[0.9vw]' : 'w-[1.25vw]'} group-hover:scale-125 transition-transform`}
-                                                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                                            />
-                                                            <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>Add Bookmark</span>
-                                                        </button>
-                                                        <button
-                                                            className={`w-full flex items-center ${isTablet ? 'px-[0.8vw] py-[0.5vw]' : 'px-[1.2vw] py-[0.7vw]'} hover:bg-black/10 transition-colors ${isTablet ? 'gap-[0.8vw]' : 'gap-[1vw]'} text-left group`}
-                                                            onClick={() => {
-                                                                setShowViewBookmarkPopup(true);
-                                                                setShowBookmarkOptions(false);
-                                                            }}
-                                                        >
-                                                            <Icon
-                                                                icon="mdi:bookmark-multiple"
-                                                                className={`${isTablet ? 'w-[0.9vw]' : 'w-[1.25vw]'} group-hover:scale-125 transition-transform`}
-                                                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                                            />
-                                                            <span className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>View Bookmark</span>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+
                             {renderToolbarBtn(
                                 <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                                 'Gallery',
@@ -767,7 +729,8 @@ const Grid2Layout = ({
                                     setShowGalleryPopupMemo(true);
                                 },
                                 { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
-                                'gallery-button'
+                                'gallery-button',
+                                !!showGalleryPopup
                             )}
 
                         </div>
@@ -783,7 +746,9 @@ const Grid2Layout = ({
                                     closeAllPopups();
                                     if (!wasOpen) setShowSoundPopupMemo(true);
                                 },
-                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
+                                '',
+                                !!showSoundPopup
                             )}
                             {renderToolbarBtn(
                                 <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
@@ -815,19 +780,25 @@ const Grid2Layout = ({
                                     closeAllPopups();
                                     if (!wasOpen) setShowProfilePopup(true);
                                 },
-                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
+                                '',
+                                !!showProfilePopup
                             )}
                             {renderToolbarBtn(
                                 <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                                 'Share',
                                 (e) => { e.stopPropagation(); closeAllPopups(); handleShare(); },
-                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
+                                '',
+                                !!showSharePopup
                             )}
                             {renderToolbarBtn(
                                 <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                                 'Download',
                                 (e) => { e.stopPropagation(); closeAllPopups(); handleDownload(); },
-                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') }
+                                { color: getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '1') },
+                                '',
+                                !!showExportPopup
                             )}
                             {renderToolbarBtn(
                                 <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.7vw] h-[0.7vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,

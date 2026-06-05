@@ -13,31 +13,19 @@ const fontFamilies = [
   'Inter', 'Playfair Display', 'Oswald', 'Merriweather'
 ];
 
-const Switch = ({ enabled, onChange, variant = 'primary' }) => {
-  const isPrimary = variant === 'primary';
-  const bgColor = enabled ? (isPrimary ? 'bg-[#4A3AFF]' : 'bg-[#373D8A]') : 'bg-transparent';
-  const borderColor = isPrimary ? 'border-[#4A3AFF]' : 'border-[#373D8A]';
-  const thumbColor = isPrimary ? 'bg-[#4A3AFF]' : 'bg-[#373D8A]';
-
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onChange(!enabled);
-      }}
-      className={`group relative inline-flex items-center ${isPrimary ? 'h-[1vw] w-[2vw]' : 'h-[0.9vw] w-[2vw]'} shrink-0 cursor-pointer rounded-[1vw] transition-all duration-200 ease-in-out border outline-none ${bgColor} ${borderColor}`}
-    >
-      <div
-        className={`pointer-events-none flex items-center justify-center ${isPrimary ? 'h-[1.1vw] w-[1.1vw]' : 'h-[1vw] w-[1vw]'} rounded-full ${thumbColor} shadow-sm transition-all duration-200 ease-in-out absolute  ${enabled ? 'left-[1.1vw]' : 'right-[1.1vw]'
-          }`}
-      >
-        {enabled && (
-          <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-white " />
-        )}
-      </div>
-    </button>
-  );
-};
+const Switch = ({ enabled, onChange, variant = 'primary' }) => (
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      onChange(!enabled);
+    }}
+    className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${enabled ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
+  >
+    <div
+      className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${enabled ? 'left-[0.9vw]' : 'left-[0.1vw]'}`}
+    />
+  </button>
+);
 
 // Reusable Section Header
 const SectionHeader = ({ title }) => (
@@ -113,7 +101,7 @@ const MenuItem = ({ label, enabled, onChange, hasSettings, isExpanded, onToggleS
         {onRedirect && (
           <button
             onClick={onRedirect}
-            className="p-[0.25vw] rounded-[0.7vw] transition-colors hover:bg-gray-100 text-gray-400"
+            className=" rounded-[0.7vw] transition-colors hover:bg-gray-100 text-gray-800"
             title="Go to Other Setup"
           >
             <Icon
@@ -557,80 +545,13 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
             onChange={(val) => updateSection('navigation', 'pageThumbnails', val)}
           />
 
-          {/* Bookmark with Settings */}
-          <MenuItem 
-            label="Bookmark" 
-            enabled={settings.navigation?.bookmark} 
-            hasSettings={true}
-            isExpanded={expandedSection === 'bookmark'}
-            onToggleSettings={() => toggleSection('bookmark')}
-            onChange={(val) => updateSection('navigation', 'bookmark', val)} 
+          {/* Bookmark */}
+          <MenuItem
+            label="Bookmark"
+            enabled={settings.navigation?.bookmark}
+            onChange={(val) => updateSection('navigation', 'bookmark', val)}
             onRedirect={() => onNavigateToOtherSetup('bookmark')}
-          >
-            <AnimatePresence>
-              {expandedSection === 'bookmark' && (
-                <motion.div 
-                  initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
-                  animate={{ 
-                    height: 'auto', 
-                    opacity: 1,
-                    transitionEnd: { overflow: 'visible' }
-                  }}
-                  exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
-                  className="border-t border-gray-200 bg-gray-50/50 relative z-10 !overflow-visible rounded-b-[0.8vw]"
-                >
-                  <div className="p-[1vw]">
-                    <div className="flex items-center mb-[0.6vw]">
-                      <span className="text-[0.75vw] font-semibold text-gray-900 whitespace-nowrap">Bookmark Symbol</span>
-                      <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1vw' }}> </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-[0.1vw]">
-                      <div className="w-[5vw] h-[5vw] p-[0.5vw] flex items-center bg-white shadow-sm border border-gray-200 rounded-[0.5vw] relative group">
-                        {/* Bookmark icon preview hover overlay */}
-                        <button 
-                          onClick={() => setShowStylesPopup(true)}
-                          className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1.8vw] h-[1.8vw] flex items-center justify-center bg-white/80 shadow-md rounded-[0.4vw] scale-90 opacity-0 group-hover:opacity-100 group-hover:scale-100 transition-all duration-300 cursor-pointer hover:bg-gray-50"
-                        >
-                          <Icon icon="lucide:arrow-left-right" className="w-[1vw] h-[1vw] text-gray-800" />
-                        </button>
-                        <div 
-                          className="w-[4vw] h-[2.5vw] relative overflow-hidden shadow-sm transition-all duration-300 group-hover:blur-[1px]"
-                          style={{
-                              backgroundColor: settings.navigation?.bookmarkSettings?.color || '#C45A5A',
-                              clipPath: getBookmarkClipPath(settings.navigation?.bookmarkSettings?.style || 1),
-                              borderRadius: getBookmarkBorderRadius(settings.navigation?.bookmarkSettings?.style || 1)
-                          }}
-                        >
-                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white text-[0.5vw] font-semibold whitespace-nowrap">Bookmark</div>
-                        </div>
-                        
-                      </div>
-                        <div className="pl-[1vw] flex flex-col gap-[0.5vw] relative z-20">
-                          <span className="text-[0.75vw] font-semibold text-gray-800 pt-[0.1vw]">Select Text</span>
-                          <PremiumDropdown 
-                            options={fontFamilies} 
-                            value={settings.navigation?.bookmarkSettings?.font ||  'Arial'}
-                            onChange={(val) => updateNestedSetting('navigation', 'bookmarkSettings', 'font', val)}
-                            width="10vw"
-                            isFont={true}
-                            buttonClassName="!border-gray-800 !rounded-[0.4vw] "
-                            align="right"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {showStylesPopup && (
-              <BookmarkStylesPopup 
-                currentStyle={settings.navigation?.bookmarkSettings?.style || 1}
-                onClose={() => setShowStylesPopup(false)}
-                onSelect={(style) => updateNestedSetting('navigation', 'bookmarkSettings', 'style', style)}
-              />
-            )}
-          </MenuItem>
+          />
 
           <MenuItem
             label="Start / End Navigation"
@@ -727,10 +648,10 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
           >
             <AnimatePresence>
               {expandedSection === 'autoFlip' && (
-                <motion.div 
+                <motion.div
                   initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
-                  animate={{ 
-                    height: 'auto', 
+                  animate={{
+                    height: 'auto',
                     opacity: 1,
                     transitionEnd: { overflow: 'visible' }
                   }}
@@ -740,15 +661,15 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
                   <div className="p-[1vw]">
                     <div className="space-y-[0.85vw]">
                       <SettingRow label="Auto Flip Duration">
-                        <Stepper 
-                          value={settings.media?.autoFlipSettings?.duration || 5} 
-                          onChange={(val) => updateNestedSetting('media', 'autoFlipSettings', 'duration', val)} 
+                        <Stepper
+                          value={settings.media?.autoFlipSettings?.duration || 5}
+                          onChange={(val) => updateNestedSetting('media', 'autoFlipSettings', 'duration', val)}
                         />
                       </SettingRow>
                       <SettingRow label="Next Flip Countdown">
-                        <Switch 
-                          enabled={settings.media?.autoFlipSettings?.countdown ?? true} 
-                          onChange={(val) => updateNestedSetting('media', 'autoFlipSettings', 'countdown', val)} 
+                        <Switch
+                          enabled={settings.media?.autoFlipSettings?.countdown ?? true}
+                          onChange={(val) => updateNestedSetting('media', 'autoFlipSettings', 'countdown', val)}
                           variant="secondary"
                         />
                       </SettingRow>

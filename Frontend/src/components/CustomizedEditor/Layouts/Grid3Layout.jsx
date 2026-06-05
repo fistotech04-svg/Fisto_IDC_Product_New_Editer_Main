@@ -156,7 +156,7 @@ const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                         fontSize: isTablet ? '0.55vw' : '0.65vw',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
                         pointerEvents: 'none',
-                        zIndex: 10,
+                        zIndex: 9999,
                     }}
                 >
                     {label}
@@ -171,7 +171,6 @@ const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClas
 };
 
 const Grid3Layout = ({
-    offset,
     children,
     settings,
     bookName,
@@ -224,7 +223,9 @@ const Grid3Layout = ({
     isTablet,
     showTOC,
     isMobileLandscape = false,
-    isEditor = false
+    isEditor = false,
+    showSharePopup,
+    showExportPopup
 }) => {
     const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
     const totalPages = pagesCount;
@@ -415,10 +416,15 @@ const Grid3Layout = ({
         });
     };
 
-    const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+    const localOffset = useMemo(() => {
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -784,7 +790,8 @@ const Grid3Layout = ({
                                 'Share',
                                 handleShare,
                                 { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                'p-[0.3vw]'
+                                'p-[0.3vw]',
+                                !!showSharePopup
                             )}
                             {/* Download */}
                             {renderToolbarBtn(
@@ -792,7 +799,8 @@ const Grid3Layout = ({
                                 'Download',
                                 handleDownload,
                                 { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                'p-[0.3vw]'
+                                'p-[0.3vw]',
+                                !!showExportPopup
                             )}
                             {/* Magnifying Glass */}
                             {renderToolbarBtn(
@@ -1153,16 +1161,17 @@ const Grid3Layout = ({
                         <div
                             className={`absolute z-[150] flex items-center pointer-events-auto transition-all ${isTablet ? 'top-[calc(6.5vh+0.4vw)] h-[4.5vw]' : 'top-[calc(7.5vh+0.4vw)] h-[6.5vw]'} left-1/2 -translate-x-1/2 rounded-[0.5vw] shadow-[0_0.2vw_1vw_rgba(0,0,0,0.15)] px-[0.4vw]`}
                             style={{
-                                width: isTablet ? '29vw' : '42vw',
+                                width: 'fit-content',
+                                maxWidth: isTablet ? '31vw' : '45.7vw',
                                 backgroundColor: getLayoutColor('dropdown-bg', '#575C9C')
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {spreads.length > 6 && (
                                 <button
-                                    className={`${isTablet ? 'w-[1.3vw] h-[2.6vw]' : 'w-[1.6vw] h-[3.2vw]'} rounded-[0.3vw] hover:opacity-80 flex items-center justify-center transition-all shrink-0 z-20`}
+                                    className={`${isTablet ? 'w-[1.3vw] h-[2.6vw]' : 'w-[1.6vw] h-[3.2vw]'} rounded-[0.3vw] ${canScrollLeft ? 'hover:opacity-80 cursor-pointer' : 'opacity-30 cursor-default'} flex items-center justify-center transition-all shrink-0 z-20`}
                                     style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                    onClick={(e) => { e.stopPropagation(); scroll('left'); }}
+                                    onClick={(e) => { e.stopPropagation(); if (canScrollLeft) scroll('left'); }}
                                 >
                                     <Icon icon="lucide:chevron-left" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
                                 </button>
@@ -1171,7 +1180,7 @@ const Grid3Layout = ({
                             <div
                                 ref={scrollRef}
                                 onScroll={checkScroll}
-                                className={`flex w-full ${spreads.length > 6 ? 'overflow-x-auto' : 'overflow-x-hidden'} no-scrollbar scroll-smooth items-center h-full ${isTablet ? 'gap-[0.5vw] px-[0.7vw]' : 'gap-[0.8vw] px-[1vw]'} justify-center`}
+                                className={`flex w-full ${spreads.length > 6 ? 'overflow-x-auto justify-start' : 'overflow-x-hidden justify-center'} no-scrollbar scroll-smooth items-center h-full ${isTablet ? 'gap-[0.5vw] px-[0.7vw]' : 'gap-[0.8vw] px-[1vw]'}`}
                             >
                                 {spreads.map((spread, idx) => {
                                     const isSelected = spread.indices.includes(currentPage);
@@ -1216,9 +1225,9 @@ const Grid3Layout = ({
                             </div>
                             {spreads.length > 6 && (
                                 <button
-                                    className={`${isTablet ? 'w-[1.3vw] h-[2.6vw]' : 'w-[1.6vw] h-[3.2vw]'} rounded-[0.3vw] hover:opacity-80 flex items-center justify-center transition-all shrink-0 z-20`}
+                                    className={`${isTablet ? 'w-[1.3vw] h-[2.6vw]' : 'w-[1.6vw] h-[3.2vw]'} rounded-[0.3vw] ${canScrollRight ? 'hover:opacity-80 cursor-pointer' : 'opacity-30 cursor-default'} flex items-center justify-center transition-all shrink-0 z-20`}
                                     style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                    onClick={(e) => { e.stopPropagation(); scroll('right'); }}
+                                    onClick={(e) => { e.stopPropagation(); if (canScrollRight) scroll('right'); }}
                                 >
                                     <Icon icon="lucide:chevron-right" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
                                 </button>

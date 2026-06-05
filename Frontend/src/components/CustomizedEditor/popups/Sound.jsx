@@ -6,8 +6,9 @@ import classicBookFlipSound from '../../../assets/Audios/Classic book flip.mp3';
 import hardCoverPageSound from '../../../assets/Audios/Hard cover page.mp3';
 import softCoverPageSound from '../../../assets/Audios/Soft cover page.mp3';
 import bgSound1 from '../../../assets/Audios/bg music1.mp3';
-import bgSound2 from '../../../assets/Audios/bg music 2.mp3';
+import bgSound2 from '../../../assets/Audios/bg music2.mp3';
 import bgSound3 from '../../../assets/Audios/bg music3.mp3';
+import bgSound4 from '../../../assets/Audios/bg music4.mp3';
 
 // --- Shared Helper for RGBA Colors ---
 const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) =>
@@ -84,6 +85,11 @@ const MobileLayout = ({
                             <button
                                 className={`flex-shrink-0 w-[20px] h-[20px] flex items-center justify-center transition-all duration-300 rounded-full bg-transparent ${flipSoundMasterEnabled ? 'hover:bg-white/10 active:scale-95' : 'cursor-not-allowed opacity-40'}`}
                                 onClick={handleFlipClick}
+                                onTouchEnd={(e) => {
+                                    // prevent double fire
+                                    if (e.cancelable) e.preventDefault();
+                                    handleFlipClick(e);
+                                }}
                                 disabled={!flipSoundMasterEnabled}
                             >
                                 <Icon
@@ -92,8 +98,10 @@ const MobileLayout = ({
                                     style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: isFlipActive ? 1 : 0.4 }}
                                 />
                             </button>
-                            <div className="flex-1 h-[2px] rounded-full relative overflow-hidden" style={{ cursor: "pointer", cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
-                                <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                            <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                                <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                    <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: '10px', height: '10px', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                                </div>
                             </div>
                         </div>
                         {/* BG */}
@@ -101,6 +109,10 @@ const MobileLayout = ({
                             <button
                                 className={`flex-shrink-0 w-[20px] h-[20px] flex items-center justify-center transition-all duration-300 rounded-full bg-transparent ${bgSoundMasterEnabled ? 'hover:bg-white/10 active:scale-95' : 'cursor-not-allowed opacity-40'}`}
                                 onClick={handleBgClick}
+                                onTouchEnd={(e) => {
+                                    if (e.cancelable) e.preventDefault();
+                                    handleBgClick(e);
+                                }}
                                 disabled={!bgSoundMasterEnabled}
                             >
                                 <svg
@@ -115,8 +127,10 @@ const MobileLayout = ({
                                     <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
                                 </svg>
                             </button>
-                            <div className="flex-1 h-[2px] rounded-full relative overflow-hidden" style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
-                                <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                            <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                                <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                    <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: '10px', height: '10px', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -158,6 +172,10 @@ const MobileLayout = ({
                             }`}
                         style={(!isLayout3 && isFlipActive) ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15) } : {}}
                         onClick={handleFlipClick}
+                        onTouchEnd={(e) => {
+                            if (e.cancelable) e.preventDefault();
+                            handleFlipClick(e);
+                        }}
                         disabled={!flipSoundMasterEnabled}
                     >
                         <Icon
@@ -166,11 +184,13 @@ const MobileLayout = ({
                             style={{ color: isLayout3 && !isFlipActive ? '#3E4491' : getLayoutColor('dropdown-text', '#FFFFFF') }}
                         />
                     </button>
-                    <div className={`flex-1 h-1 rounded-full relative overflow-hidden ${isLayout3 ? 'bg-gray-100' : ''}`} style={!isLayout3 ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2), cursor: "pointer" } : { cursor: "pointer" }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                    <div className={`flex-1 h-1 rounded-full relative ${isLayout3 ? 'bg-gray-100' : ''}`} style={{ ...(!isLayout3 ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) } : {}), cursor: "pointer", touchAction: "none" }} onPointerDown={(e) => handleVolumeDrag(e, "flip")} onTouchStart={(e) => handleVolumeDrag(e, "flip")}>
                         <div
-                            className={`absolute inset-0 transition-all duration-75 rounded-full ${isLayout3 ? 'bg-[#3E4491]' : ''}`}
+                            className={`absolute inset-y-0 left-0 transition-all duration-75 rounded-full ${isLayout3 ? 'bg-[#3E4491]' : ''}`}
                             style={{ width: flipWidth, backgroundColor: !isLayout3 ? getLayoutColor('dropdown-text', '#FFFFFF') : undefined }}
-                        />
+                        >
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: '12px', height: '12px', backgroundColor: isLayout3 ? '#3E4491' : getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                        </div>
                     </div>
                 </div>
 
@@ -185,6 +205,10 @@ const MobileLayout = ({
                             }`}
                         style={(!isLayout3 && isBgActive) ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15) } : {}}
                         onClick={handleBgClick}
+                        onTouchEnd={(e) => {
+                            if (e.cancelable) e.preventDefault();
+                            handleBgClick(e);
+                        }}
                         disabled={!bgSoundMasterEnabled}
                     >
                         {activeLayout == 2 ? (
@@ -206,11 +230,13 @@ const MobileLayout = ({
                             />
                         )}
                     </button>
-                    <div className={`flex-1 h-1 rounded-full relative overflow-hidden ${isLayout3 ? 'bg-gray-100' : ''}`} style={!isLayout3 ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2), cursor: "pointer" } : { cursor: "pointer" }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                    <div className={`flex-1 h-1 rounded-full relative ${isLayout3 ? 'bg-gray-100' : ''}`} style={{ ...(!isLayout3 ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) } : {}), cursor: "pointer", touchAction: "none" }} onPointerDown={(e) => handleVolumeDrag(e, "bg")} onTouchStart={(e) => handleVolumeDrag(e, "bg")}>
                         <div
-                            className={`absolute inset-0 transition-all duration-75 rounded-full ${isLayout3 ? 'bg-[#3E4491]' : ''}`}
+                            className={`absolute inset-y-0 left-0 transition-all duration-75 rounded-full ${isLayout3 ? 'bg-[#3E4491]' : ''}`}
                             style={{ width: bgWidth, backgroundColor: !isLayout3 ? getLayoutColor('dropdown-text', '#FFFFFF') : undefined }}
-                        />
+                        >
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: '12px', height: '12px', backgroundColor: isLayout3 ? '#3E4491' : getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -227,7 +253,7 @@ const Layout1 = ({
         onClick={(e) => e.stopPropagation()}
         style={{
             backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
-            width: isTablet ? '8vw' : '10vw',
+            width: isTablet ? '9vw' : '11vw',
             borderRadius: '0.7vw',
             boxShadow: '0 0.5vw 2vw rgba(0,0,0,0.15)',
             border: '1px solid rgba(255,255,255,0.2)',
@@ -236,7 +262,7 @@ const Layout1 = ({
             padding: isTablet ? '0.4vw 0.8vw 0.8vw' : '0.5vw 1vw 1vw',
         }}
     >
-        <div className={isTablet ? "flex flex-col gap-[0.8vw]" : "flex flex-col gap-[1.2vw]"}>
+        <div className={isTablet ? "flex flex-col gap-[0.8vw]" : "flex flex-col gap-[0.8vw]"}>
             <div className="text-center mb-[0.5vw] px-[0.5vw]">
                 <h2 className={isTablet ? "text-[0.7vw] font-semibold mb-[0.2vw]" : "text-[0.95vw] font-semibold mb-[0.3vw]"}
                     style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
@@ -256,8 +282,10 @@ const Layout1 = ({
                 >
                     <Icon icon="mingcute:volume-line" className={isTablet ? "w-[0.8vw] h-[0.8vw]" : "w-[1.2vw] h-[1.2vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
-                    <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative" : "flex-1 h-[0.15vw] rounded-full relative"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                    <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                        <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                    </div>
                 </div>
             </div>
             <div className={isTablet ? "flex items-center gap-[0.6vw]" : "flex items-center gap-[1vw]"}>
@@ -279,8 +307,10 @@ const Layout1 = ({
                         <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
                     </svg>
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
-                    <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative" : "flex-1 h-[0.15vw] rounded-full relative"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                    <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                        <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                    </div>
                 </div>
             </div>
         </div>
@@ -321,8 +351,10 @@ const Layout2 = ({
                     >
                         <Icon icon="mingcute:volume-line" className={isTablet ? "w-[0.8vw] h-[0.8vw]" : "w-[1.2vw] h-[1.2vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                     </button>
-                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
-                        <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative" : "flex-1 h-[0.15vw] rounded-full relative"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                        <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                        </div>
                     </div>
                 </div>
                 {/* BG */}
@@ -345,8 +377,10 @@ const Layout2 = ({
                             <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
                         </svg>
                     </button>
-                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
-                        <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative" : "flex-1 h-[0.15vw] rounded-full relative"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                        <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -393,8 +427,10 @@ const Layout3 = ({
                             style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: isFlipActive ? 1 : 0.4 }}
                         />
                     </button>
-                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
-                        <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative" : "flex-1 h-[0.15vw] rounded-full relative"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                        <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                        </div>
                     </div>
                 </div>
                 {/* BG */}
@@ -416,8 +452,10 @@ const Layout3 = ({
                             <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
                         </svg>
                     </button>
-                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
-                        <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                    <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative" : "flex-1 h-[0.15vw] rounded-full relative"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                        <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                            <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -487,51 +525,54 @@ const Layout5 = ({
     bgSoundMasterEnabled, isBgActive, handleBgClick, bgWidth, handleVolumeDrag, isTablet
 }) => (
     <div
-        className="animate-in fade-in slide-in-from-bottom-2 duration-200"
+        className="animate-in fade-in slide-in-from-bottom-2 duration-200 relative"
         onClick={(e) => e.stopPropagation()}
         style={{
-            backgroundColor: '#FFFFFF',
-            width: isTablet ? '8.5vw' : '10.5vw',
-            borderRadius: isTablet ? '0.8vw' : '1vw',
+            backgroundColor: getLayoutColor('dropdown-bg', '#575C9C'),
+            width: isTablet ? '10vw' : '11.5vw',
+            borderRadius: isTablet ? '0.8vw' : '0.5vw',
             boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-            overflow: 'hidden',
-            border: 'none'
+            overflow: 'visible',
+            border: 'none',
+            padding: isTablet ? '0.8vw' : '1vw',
         }}
     >
-        <div
-            className="flex flex-col gap-[0.5vw]"
-            style={{
-                backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', '1'),
-                padding: isTablet ? '1vw' : '1.2vw',
-            }}
-        >
+        <div className="flex flex-col gap-[0.6vw]">
+            <div className={isTablet ? "flex items-center gap-[0.5vw]" : "flex items-center gap-[0.8vw]"}>
+                <h2 className={isTablet ? "text-[0.7vw]" : "text-[0.9vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), fontWeight: 'bold' }}>Sound</h2>
+                <div className="flex-1 h-[2px] rounded-full" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+            </div>
             {/* Volume / Flip Sound */}
-            <div className="flex items-center gap-[1.2vw]">
+            <div className="flex items-center gap-[1vw]">
                 <button
-                    className={`flex-shrink-0 transition-all duration-300 ${!flipSoundMasterEnabled ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
+                    className={`flex-shrink-0 transition-all duration-300 rounded-full flex items-center justify-center ${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.2vw] h-[2.2vw]'} ${!flipSoundMasterEnabled ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
                     onClick={handleFlipClick}
                     disabled={!flipSoundMasterEnabled}
+                    style={{ backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) }}
                 >
                     <Icon
                         icon="mingcute:volume-line"
-                        className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.8vw] h-[1.8vw]'}`}
-                        style={{ color: getLayoutColor('toc-text', '#000000'), opacity: isFlipActive ? 1 : 0.4 }}
+                        className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`}
+                        style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                     />
                 </button>
-                <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorRgba('toc-text', '0, 0, 0', '0.1') }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
                     <div
                         className="absolute inset-y-0 left-0 transition-all duration-75 rounded-full"
-                        style={{ width: flipWidth, backgroundColor: getLayoutColor('toc-text', '#000000') }}
-                    />
+                        style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}
+                    >
+                        <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                    </div>
                 </div>
             </div>
 
             {/* Music / BG Sound */}
-            <div className="flex items-center gap-[1.2vw]">
+            <div className="flex items-center gap-[1vw]">
                 <button
-                    className={`flex-shrink-0 transition-all duration-300 ${!bgSoundMasterEnabled ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
+                    className={`flex-shrink-0 transition-all duration-300 rounded-full flex items-center justify-center ${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.2vw] h-[2.2vw]'} ${!bgSoundMasterEnabled ? 'opacity-30 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
                     onClick={handleBgClick}
                     disabled={!bgSoundMasterEnabled}
+                    style={{ backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.1) }}
                 >
                     <svg
                         width="100%"
@@ -539,19 +580,29 @@ const Layout5 = ({
                         viewBox="0 0 21 23"
                         fill="none"
                         xmlns="http://www.w3.org/2000/svg"
-                        className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.8vw] h-[1.8vw]'}`}
-                        style={{ color: getLayoutColor('toc-text', '#000000'), opacity: isBgActive ? 1 : 0.4 }}
+                        className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`}
+                        style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
                     >
                         <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
                     </svg>
                 </button>
-                <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorRgba('toc-text', '0, 0, 0', '0.1') }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
                     <div
                         className="absolute inset-y-0 left-0 transition-all duration-75 rounded-full"
-                        style={{ width: bgWidth, backgroundColor: getLayoutColor('toc-text', '#000000') }}
-                    />
+                        style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}
+                    >
+                        <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: isTablet ? '0.45vw' : '0.6vw', height: isTablet ? '0.45vw' : '0.6vw', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                    </div>
                 </div>
             </div>
+        </div>
+        <div
+            className="absolute -bottom-[1.3vw] right-[25%] translate-x-1/2 z-10 pointer-events-none"
+            style={{ width: '0.9vw', height: '1.4vw' }}
+        >
+            <svg width="100%" height="100%" viewBox="0 0 10 20" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 0L5 20L10 0" fill={getLayoutColor('dropdown-bg', '#575C9C')} />
+            </svg>
         </div>
     </div>
 );
@@ -709,7 +760,7 @@ const Layout8 = ({
         className="animate-in fade-in slide-in-from-bottom-4 duration-300"
         onClick={(e) => e.stopPropagation()}
         style={{
-            backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'),
+            backgroundColor: '#FFFFFF',
             width: isTablet ? '7vw' : '11vw',
             borderRadius: '0.8vw',
             boxShadow: '0 0.5vw 2vw rgba(0,0,0,0.15)',
@@ -728,12 +779,12 @@ const Layout8 = ({
                     className={isTablet ? "flex-shrink-0 w-[1vw] h-[1vw] flex items-center justify-center transition-all duration-300 rounded-full" : "flex-shrink-0 w-[1.5vw] h-[1.5vw] flex items-center justify-center transition-all duration-300 rounded-full"}
                     onClick={handleFlipClick}
                     disabled={!flipSoundMasterEnabled}
-                    style={isFlipActive ? { backgroundColor: getLayoutColor('dropdown-icon', '#575C9C') } : {}}
+                    style={isFlipActive ? { backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') } : { backgroundColor: '#f3f4f6' }}
                 >
-                    <Icon icon="mingcute:volume-line" className={isTablet ? "w-[0.7vw] h-[0.7vw]" : "w-[1vw] h-[1vw]"} style={{ color: isFlipActive ? getLayoutColor('dropdown-bg', '#FFFFFF') : getLayoutColor('dropdown-icon', '#575C9C'), opacity: !isFlipActive ? 0.4 : 1 }} />
+                    <Icon icon="mingcute:volume-line" className={isTablet ? "w-[0.7vw] h-[0.7vw]" : "w-[1vw] h-[1vw]"} style={{ color: isFlipActive ? '#FFFFFF' : getLayoutColor('dropdown-bg', '#575C9C'), opacity: !isFlipActive ? 0.4 : 1 }} />
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.12vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorRgba('dropdown-icon', '87,92,156', '0.15') }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
-                    <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-icon', '#575C9C') }} />
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.12vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-bg', '87,92,156', 0.15) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                    <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }} />
                 </div>
             </div>
             {/* BG */}
@@ -742,7 +793,7 @@ const Layout8 = ({
                     className={isTablet ? "flex-shrink-0 w-[1vw] h-[1vw] flex items-center justify-center transition-all duration-300 rounded-full" : "flex-shrink-0 w-[1.5vw] h-[1.5vw] flex items-center justify-center transition-all duration-300 rounded-full"}
                     onClick={handleBgClick}
                     disabled={!bgSoundMasterEnabled}
-                    style={isBgActive ? { backgroundColor: getLayoutColor('dropdown-icon', '#575C9C'), borderColor: getLayoutColor('dropdown-icon', '#575C9C') } : { borderColor: `${getLayoutColor('dropdown-icon', '#575C9C')}40` }}
+                    style={isBgActive ? { backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') } : { backgroundColor: '#f3f4f6' }}
                 >
                     <svg
                         width="100%"
@@ -751,13 +802,13 @@ const Layout8 = ({
                         fill="none"
                         xmlns="http://www.w3.org/2000/svg"
                         className={isTablet ? "w-[0.5vw] h-[0.5vw]" : "w-[0.8vw] h-[0.8vw]"}
-                        style={{ color: isBgActive ? getLayoutColor('dropdown-bg', '#FFFFFF') : getLayoutColor('dropdown-icon', '#575C9C'), opacity: !isBgActive ? 0.4 : 1 }}
+                        style={{ color: isBgActive ? '#FFFFFF' : getLayoutColor('dropdown-bg', '#575C9C'), opacity: !isBgActive ? 0.4 : 1 }}
                     >
                         <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
                     </svg>
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.12vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorRgba('dropdown-icon', '87,92,156', '0.15') }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
-                    <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-icon', '#575C9C') }} />
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.12vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-bg', '87,92,156', 0.15) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                    <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-bg', '#575C9C') }} />
                 </div>
             </div>
         </div>
@@ -784,12 +835,12 @@ const Layout9 = ({
                     <clipPath id="sound-shape-clip" clipPathUnits="objectBoundingBox">
                         <path
                             transform="scale(0.004, 0.0037037)"
-                            d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
+                            d="M0 82 C0 75.37 5.37 70 12 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V258 C250 264.63 243.37 270 238 270 H12 C5.37 270 0 263.37 0 258 V82 Z"
                         />
                     </clipPath>
                 </defs>
                 <path
-                    d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
+                    d="M0 82 C0 75.37 5.37 70 12 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V258 C250 264.63 243.37 270 238 270 H12 C5.37 270 0 263.37 0 258 V82 Z"
                     fill={getLayoutColor('dropdown-bg', '#575C9C')}
                     fillOpacity="0.6"
                     stroke="rgba(255,255,255,0.1)"
@@ -903,7 +954,8 @@ const Sound = ({
     isMobile,
     isLandscape,
     isEditor,
-    isFullscreen
+    isFullscreen,
+    isSidebarOpen
 }) => {
     const bgAudioRef = useRef(null);
     const flipAudioRef = useRef(null);
@@ -924,6 +976,8 @@ const Sound = ({
             soundUrl = bgSound2;
         } else if (bgSound === 'BG Sound 3') {
             soundUrl = bgSound3;
+        } else if (bgSound === 'BG Sound 4') {
+            soundUrl = bgSound4;
         } else {
             const custom = customBgSounds?.find(s => s.id === bgSound || s.label === bgSound);
             if (custom) {
@@ -1102,13 +1156,19 @@ const Sound = ({
     const getPosition = () => {
         if (isMobile) return 'top-[150px] right-[16px]';
         if (layout === 2) return isTablet ? 'top-[8.5vh] left-[calc(50%_-_3vw)] -translate-x-1/2' : 'top-[8.5vh] left-[calc(50%_-_4.5vw)] -translate-x-1/2';
-        if (layout === 4) return isTablet ? 'top-[40vh] left-[3vw]' : 'top-[40vh] left-[4.2vw]';
-        if (layout === 5) return `bottom-[4.2vw] left-[calc(50%_+_13.3vw)] -translate-x-1/2`;
-        if (layout === 6) return isTablet ? 'top-[40vh] right-[5vw] -translate-y-1/2' : 'top-[44vh] right-[5.5vw] -translate-y-1/2';
+        if (layout === 3) return 'top-[7.5vh] left-[calc(50%_+_0.2vw)] -translate-x-1/2';
+        if (layout === 4) return isTablet ? 'top-[34vh] left-[3vw]' : 'top-[34vh] left-[4.2vw]';
+        if (layout === 5) {
+            if (isFullscreen && document.fullscreenElement) return `bottom-[4.2vw] left-[calc(50%_+_22vw)] -translate-x-1/2`;
+            return isSidebarOpen ? `bottom-[4.2vw] left-[calc(50%_+_4.5vw)] -translate-x-1/2` : `bottom-[4.2vw] left-[calc(50%_+_14.5vw)] -translate-x-1/2`;
+        }
+        if (layout === 6) return isTablet ? 'top-[40vh] right-[5vw] -translate-y-1/2' : 'top-[37vh] right-[4vw] -translate-y-1/2';
         if (layout === 7) return 'top-[40vh] right-[3.7vw] -translate-y-1/2';
         if (layout === 8) return isTablet ? 'bottom-[10.5vh] left-[calc(50%_+_6vw)] -translate-x-1/2' : 'bottom-[10.5vh] left-[calc(50%_+_6.5vw)] -translate-x-1/2';
         if (layout === 9) return 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
-        return layout === 3 ? 'top-[7.5vh] left-[calc(50%_+_0.2vw)] -translate-x-1/2' : (isTablet ? 'bottom-[3.8vw] right-[17vw]' : 'bottom-[4.5vw] right-[25vw]');
+
+        // Default (Layout 1)
+        return isTablet ? 'bottom-[3.8vw] right-[17vw]' : (isSidebarOpen ? 'bottom-[4.5vw] right-[18vw]' : 'bottom-[4.5vw] right-[25vw]');
     };
 
     const commonProps = {
@@ -1135,47 +1195,61 @@ const Sound = ({
                         <div className="pointer-events-auto animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                             <div style={{
                                 width: '160px',
-                                borderRadius: '16px',
-                                boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+                                borderRadius: '12px',
+                                boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
                                 border: '1px solid rgba(255,255,255,0.2)',
                                 overflow: 'hidden',
                                 backdropFilter: 'blur(12px)',
-                                backgroundColor: getLayoutColorAlpha('dropdown-bg', '87, 92, 156', 0.8),
-                                padding: '8px 16px 16px'
+                                backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '0.8'),
+                                padding: '10px 16px 16px'
                             }}>
-                                <div className="flex flex-col gap-4">
-                                    <div className="text-center mb-1">
-                                        <h2 className="text-[15px] font-semibold" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }}>Sound</h2>
-                                        <div className="h-[0.5px] w-[calc(100%+32px)] -ml-4 mt-2" style={{ backgroundColor: "#FFFFFF", opacity: 0.2 }}></div>
+                                <div className="flex flex-col gap-3">
+                                    <div className="text-center mb-1 px-2">
+                                        <h2 className="text-[14px] font-semibold mb-1" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                            Sound
+                                        </h2>
+                                        <div className="h-[0.5px] w-[calc(100%+32px)] -ml-4" style={{ backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 0.2 }} />
                                     </div>
 
-                                    {/* Flip Sound */}
                                     <div className="flex items-center gap-3">
                                         <button
-                                            className={`flex-shrink-0 w-8 h-8 flex items-center justify-center transition-all duration-300 rounded-full ${flipSoundMasterEnabled ? (isFlipActive ? 'shadow-inner' : 'bg-transparent hover:bg-white/10') : 'bg-transparent cursor-not-allowed opacity-40'}`}
-                                            style={isFlipActive ? { backgroundColor: 'rgba(255,255,255,0.15)' } : {}}
+                                            className={`flex-shrink-0 w-7 h-7 flex items-center justify-center transition-all duration-300 rounded-full ${flipSoundMasterEnabled ? (isFlipActive ? 'shadow-inner' : 'bg-transparent hover:bg-black/5') : 'bg-transparent cursor-not-allowed opacity-40'}`}
+                                            style={isFlipActive ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15) } : {}}
                                             onClick={handleFlipClick}
                                             disabled={!flipSoundMasterEnabled}
                                         >
-                                            <Icon icon="mingcute:volume-line" className="w-4 h-4" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }} />
+                                            <Icon icon="mingcute:volume-line" className="w-[18px] h-[18px]" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                                         </button>
-                                        <div className="flex-1 h-[1.5px] rounded-full relative overflow-hidden" style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
-                                            <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                                        <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                                            <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                                <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: '10px', height: '10px', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* BG Sound */}
                                     <div className="flex items-center gap-3">
                                         <button
-                                            className={`flex-shrink-0 w-8 h-8 flex items-center justify-center transition-all duration-300 rounded-full ${bgSoundMasterEnabled ? (isBgActive ? 'shadow-inner' : 'bg-transparent hover:bg-white/10') : 'bg-transparent cursor-not-allowed opacity-40'}`}
-                                            style={isBgActive ? { backgroundColor: 'rgba(255,255,255,0.15)' } : {}}
+                                            className={`flex-shrink-0 w-7 h-7 flex items-center justify-center transition-all duration-300 rounded-full ${bgSoundMasterEnabled ? (isBgActive ? 'shadow-inner' : 'bg-transparent hover:bg-black/5') : 'bg-transparent cursor-not-allowed opacity-40'}`}
+                                            style={isBgActive ? { backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.15) } : {}}
                                             onClick={handleBgClick}
                                             disabled={!bgSoundMasterEnabled}
                                         >
-                                            <Icon icon="solar:music-notes-bold" className="w-4 h-4" style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: "var(--dropdown-text-opacity, 1)" }} />
+                                            <svg
+                                                width="100%"
+                                                height="100%"
+                                                viewBox="0 0 21 23"
+                                                fill="none"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                className="w-[14px] h-[14px]"
+                                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
+                                            >
+                                                <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
+                                            </svg>
                                         </button>
-                                        <div className="flex-1 h-[1.5px] rounded-full relative overflow-hidden" style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
-                                            <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
+                                        <div className="flex-1 h-[2px] rounded-full relative" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                                            <div className="absolute top-0 left-0 bottom-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }}>
+                                                <div className="absolute top-1/2 right-0 -translate-y-1/2 translate-x-1/2 rounded-full shadow-sm" style={{ width: '10px', height: '10px', backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF'), border: '1px solid rgba(0,0,0,0.1)' }} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1220,10 +1294,6 @@ const Sound = ({
             );
         }
 
-        if (layout === 5) {
-            return null;
-        }
-
         return (
             <div className={`absolute inset-0 z-[100] overflow-hidden flex items-center justify-center pointer-events-none ${activeLayout === 9 ? 'opacity-0 scale-0' : ''}`}>
                 <div className="absolute inset-0 z-[110] pointer-events-auto cursor-default" onClick={onClose} />
@@ -1234,6 +1304,7 @@ const Sound = ({
                             case 2: return <Layout2 {...commonProps} />;
                             case 3: return <Layout3 {...commonProps} />;
                             case 4: return <Layout4 {...commonProps} />;
+                            case 5: return <Layout5 {...commonProps} />;
                             case 6: return <Layout6 {...commonProps} />;
                             case 7: return <Layout7 {...commonProps} />;
                             case 8: return <Layout8 {...commonProps} />;

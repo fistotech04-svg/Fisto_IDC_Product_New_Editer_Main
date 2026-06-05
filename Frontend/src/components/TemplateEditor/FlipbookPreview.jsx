@@ -39,19 +39,15 @@ const AttachedCurve = ({ position }) => {
   );
 };
 
-const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage }) => {
-  const { v_id } = useParams();
+const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, v_id: propVId }) => {
+  const params = useParams();
+  const v_id = propVId || params.v_id;
   const [localSettings, setLocalSettings] = useState(settings || {});
 
   useEffect(() => {
-    if (settings && Object.keys(settings).length > 0) {
-      setLocalSettings(settings);
-      return;
-    }
-
     const fetchSettings = async () => {
       try {
-        let finalSettings = {};
+        let finalSettings = { ...(settings || {}) };
 
         // Try getting local unsaved state from DB just like CustomizedEditor does
         try {
@@ -377,6 +373,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         activeDevice={activeDevice}
         isDoublePage={isDoublePage}
         useNativeFullscreen={true}
+        disableAutoGallery={true}
       />
 
       {/* Draggable Device Settings - Tablet/Mobile: outside device frame */}

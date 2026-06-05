@@ -57,7 +57,6 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
 });
 
 const Grid9Layout = ({
-    offset,
     children,
     settings,
     bookName,
@@ -140,9 +139,14 @@ const Grid9Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -374,7 +378,7 @@ const Grid9Layout = ({
                 {/* Left: Quick Search */}
                 <div className="flex-1 flex justify-start pointer-events-auto">
                     {settings?.interaction?.search !== false && !isPdfProject && (
-                        <div className="relative z-50" onClick={(e) => e.stopPropagation()}>
+                        <div className={`relative z-50 transition-transform duration-300 ${isSidebarOpen ? '-translate-x-[0.8vw]' : ''}`} onClick={(e) => e.stopPropagation()}>
                             {/* Purple Background & Dropdown Container */}
                             <AnimatePresence>
                                 {recommendations.length > 0 && (
@@ -488,7 +492,7 @@ const Grid9Layout = ({
                 {/* ═══════════ Center: Top Toolbar ═══════════ */}
                 <div className="flex-shrink-0 pointer-events-auto relative z-[4000]">
                     <div
-                        className={`flex items-center ${isSidebarOpen ? 'gap-[0.5vw]' : (isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]')} rounded-full px-[0.8vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'}`}
+                        className={`flex items-center ${isSidebarOpen ? 'gap-[0.8vw]' : (isTablet ? 'gap-[0.4vw]' : 'gap-[0.8vw]')} rounded-full px-[0.8vw] py-[0.5vh] ${isTablet ? 'h-[3.6vh]' : 'h-[4.2vh]'}`}
                     >
                         {/* TOC */}
                         <ToolbarBtn
@@ -533,12 +537,12 @@ const Grid9Layout = ({
                                                     <clipPath id="sound-shape-clip-local-" clipPathUnits="objectBoundingBox">
                                                         <path
                                                             transform="scale(0.004, 0.0037037)"
-                                                            d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
+                                                            d="M0 82 C0 75.37 5.37 70 12 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V258 C250 264.63 243.37 270 238 270 H12 C5.37 270 0 263.37 0 258 V82 Z"
                                                         />
                                                     </clipPath>
                                                 </defs>
                                                 <path
-                                                    d="M0 115 C0 90.16 20.16 70 45 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V225 C250 249.84 229.84 270 205 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
+                                                    d="M0 82 C0 75.37 5.37 70 12 70 H155 C170 70 175 60 175 40 V30 C175 10 192.5 0 212.5 0 C232.5 0 250 10 250 30 V258 C250 264.63 243.37 270 238 270 H12 C5.37 270 0 263.37 0 258 V82 Z"
                                                     fill={getLayoutColor('dropdown-bg', primaryColor)}
                                                     fillOpacity="0.6"
                                                     stroke="rgba(255,255,255,0.1)"
@@ -652,7 +656,7 @@ const Grid9Layout = ({
                         />
                         {/* Fullscreen */}
                         <ToolbarBtn
-                            icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"}
+                            icon={isFullscreen ? "lucide:minimize" : "lucide:fullscreen"}
                             onClick={handleFullScreen}
                             isActive={isFullscreen}
                         />
@@ -697,26 +701,13 @@ const Grid9Layout = ({
                 </div>
             </div>
 
-            {/* ═══════════ Page Numbers Below Pages ═══════════ */}
-            <div
-                className="absolute bottom-[13vh] left-1/2 -translate-x-1/2 flex items-center gap-[22vw] z-[100] pointer-events-none transition-all duration-500 ease-in-out"
-                style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
-            >
-                <span className="text-[0.85vw] font-medium" style={{ color: getLayoutColor('toolbar-bg', primaryColor), opacity: 0.7 }}>
-                    {currentPage + 1}
-                </span>
-                {currentPage + 2 <= totalPages && (
-                    <span className="text-[0.85vw] font-medium" style={{ color: getLayoutColor('toolbar-bg', primaryColor), opacity: 0.7 }}>
-                        {currentPage + 2}
-                    </span>
-                )}
-            </div>
+            {/* ═══════════ Page Numbers Below Pages Removed ═══════════ */}
 
             {/* ═══════════ Floating Action Buttons Removed ═══════════ */}
 
 
             {/* ═══════════ Top Thumbnail Bar ═══════════ */}
-            <AnimatePresence>
+            <>
                 {showThumbnails && (
                     <>
                         {/* Invisible click-to-close overlay */}
@@ -724,37 +715,41 @@ const Grid9Layout = ({
                             className="fixed inset-0 z-[44] cursor-default"
                             onClick={() => setShowThumbnails(false)}
                         />
-                        <motion.div
+                        <div
                             key="thumb-panel"
-                            initial={{ opacity: 0, y: -20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -20 }}
-                            className="absolute top-[7.5vh] left-[2vw] right-[2vw] z-[45] pointer-events-auto"
+                            className="absolute w-max max-w-[56.5vw] z-[45] pointer-events-auto"
+                            style={{ 
+                                top: isFullscreen ? (isTablet ? 'calc(4.2vh + 0.7vw)' : 'calc(4.8vh + 0.7vw)') : (isTablet ? 'calc(5.6vh + 0.7vw)' : 'calc(6.2vh + 0.7vw)'),
+                                left: `calc(50% - ${isSidebarOpen ? '13vw' : '16.8vw'})`,
+                                transform: `translateX(-${Math.ceil(pages.length / 2) === 1 ? 50 : 25}%)`
+                            }}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Connector Tab for Thumbnail Icon - Exact geometry from Rectangle 7411.svg */}
-                            <div className={`absolute top-[-3.1vw] left-[50%] ${isSidebarOpen ? '-translate-x-[calc(50%+15.7vw)]' : '-translate-x-[calc(50%+20vw)]'} w-[5.2vw] h-[3.4vw] z-0`}>
+                            <div className="absolute top-[-3.1vw] w-[5.2vw] h-[3.4vw] z-0" style={{ left: `${Math.ceil(pages.length / 2) === 1 ? 50 : 25}%`, transform: 'translateX(-50%)' }}>
                                 <svg width="100%" height="100%" viewBox="0 0 113 67" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M24.8182 33.0909C24.8182 14.8153 39.6335 0 57.9091 0C76.1847 0 91 14.8153 91 33.0909V41.7377C91.0109 60.2573 94.967 66.6391 113 67H0C18.7515 67 24.8182 52.7213 24.8182 41.7377V33.0909Z"
                                         fill={getLayoutColor('dropdown-bg', primaryColor)}
-                                        fillOpacity="1"
+                                        fillOpacity="0.8"
                                     />
                                 </svg>
                             </div>
 
                             <div
                                 className={`w-full ${isTablet ? 'h-[10vh]' : 'h-[12vh]'} rounded-[1vw] flex items-center relative px-[1vw] shadow-2xl backdrop-blur-md`}
-                                style={{ backgroundColor: getLayoutColor('dropdown-bg', primaryColor) }}
+                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', primaryColor, 0.8) }}
                             >
                                 {/* Left Arrow */}
-                                <button
-                                    onClick={() => thumbScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
-                                    className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
-                                    style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                >
-                                    <Icon icon="lucide:arrow-left" className="w-[1.8vw] h-[1.8vw]" />
-                                </button>
+                                {Math.ceil(pages.length / 2) > 6 && (
+                                    <button
+                                        onClick={() => thumbScrollRef.current?.scrollBy({ left: -400, behavior: 'smooth' })}
+                                        className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
+                                        style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
+                                    >
+                                        <Icon icon="lucide:arrow-left" className="w-[1.8vw] h-[1.8vw]" />
+                                    </button>
+                                )}
 
                                 {/* Scrollable thumbnail row - Showing Double Spreads */}
                                 <div
@@ -817,18 +812,20 @@ const Grid9Layout = ({
                                 </div>
 
                                 {/* Right Arrow */}
-                                <button
-                                    onClick={() => thumbScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
-                                    className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
-                                    style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                >
-                                    <Icon icon="lucide:arrow-right" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
-                                </button>
+                                {Math.ceil(pages.length / 2) > 6 && (
+                                    <button
+                                        onClick={() => thumbScrollRef.current?.scrollBy({ left: 400, behavior: 'smooth' })}
+                                        className="z-10 transition-opacity p-[0.5vw] hover:opacity-80"
+                                        style={{ color: isLightColor(getLayoutColor('dropdown-bg', primaryColor)) ? bodyTextColor : getLayoutColor('dropdown-text', '#FFFFFF') }}
+                                    >
+                                        <Icon icon="lucide:arrow-right" className={`${isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.8vw] h-[1.8vw]'}`} />
+                                    </button>
+                                )}
                             </div>
-                        </motion.div>
+                        </div>
                     </>
                 )}
-            </AnimatePresence>
+            </>
 
             {/* ═══════════ Bottom Navigation Bar ═══════════ */}
             <div
@@ -839,19 +836,19 @@ const Grid9Layout = ({
                     {/* First Page */}
                     <button
                         onClick={() => onPageClick(0)}
-                        className="w-[2.6vw] h-[2.6vw] rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                        className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                         style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                     >
-                        <Icon icon="ph:skip-back-fill" className="w-[1.1vw] h-[1.1vw]" color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                        <Icon icon="ph:skip-back-fill" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.1vw] h-[1.1vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                     </button>
 
                     {/* Prev Page */}
                     <button
                         onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-                        className="w-[2.6vw] h-[2.6vw] rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                        className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                         style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                     >
-                        <Icon icon="lucide:chevron-left" className="w-[1.2vw] h-[1.2vw]" color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                        <Icon icon="lucide:chevron-left" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.2vw] h-[1.2vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                     </button>
 
                     {/* Page Info Pill */}
@@ -901,19 +898,19 @@ const Grid9Layout = ({
                     {/* Next Page */}
                     <button
                         onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-                        className="w-[2.6vw] h-[2.6vw] rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                        className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                         style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                     >
-                        <Icon icon="lucide:chevron-right" className="w-[1.2vw] h-[1.2vw]" color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                        <Icon icon="lucide:chevron-right" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.2vw] h-[1.2vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                     </button>
 
                     {/* Last Page */}
                     <button
                         onClick={() => onPageClick(totalPages - 1)}
-                        className="w-[2.6vw] h-[2.6vw] rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                        className={`${isSidebarOpen ? (isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[1.85vw] h-[1.85vw]') : 'w-[2.6vw] h-[2.6vw]'} rounded-full flex items-center justify-center shadow-md hover:shadow-lg hover:scale-105 transition-all`}
                         style={{ backgroundColor: getLayoutColor('toolbar-bg', primaryColor) }}
                     >
-                        <Icon icon="ph:skip-forward-fill" className="w-[1.1vw] h-[1.1vw]" color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
+                        <Icon icon="ph:skip-forward-fill" className={`${isSidebarOpen ? (isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[0.95vw] h-[0.95vw]') : 'w-[1.1vw] h-[1.1vw]'}`} color={getLayoutColor('toolbar-text-main', '#FFFFFF')} />
                     </button>
                 </div>
             </div>

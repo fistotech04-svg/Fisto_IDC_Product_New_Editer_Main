@@ -213,7 +213,7 @@ const BookmarkStylesPopup = ({ onClose, settings = {}, onUpdate, pages = [] }) =
                                         options={fontFamilies} 
                                         value={bookmarkSettings.font || 'Poppins'}
                                         onChange={(val) => updateSectionField('navigation', 'bookmarkSettings', 'font', val)}
-                                        width="10vw"
+                                        width="8vw"
                                         isFont={true}
                                         buttonClassName="!border-gray-300 !rounded-[0.4vw]"
                                         align="right"

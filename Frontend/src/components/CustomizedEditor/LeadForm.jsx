@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { Plus, Trash2 } from 'lucide-react';
 import PremiumDropdown from './PremiumDropdown';
@@ -16,17 +17,11 @@ const Switch = ({ enabled, onChange }) => (
       e.stopPropagation();
       onChange(!enabled);
     }}
-    className={`group relative inline-flex items-center h-[1vw] w-[2vw] shrink-0 cursor-pointer rounded-[1vw] transition-all duration-200 ease-in-out border outline-none ${enabled ? 'bg-[#4A3AFF] border-[#4A3AFF]' : 'bg-transparent border-[#4A3AFF]'
-      }`}
+    className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${enabled ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
   >
     <div
-      className={`pointer-events-none flex items-center justify-center h-[1.1vw] w-[1.1vw] rounded-full bg-[#4A3AFF] shadow-sm transition-all duration-200 ease-in-out absolute  ${enabled ? 'left-[1.1vw]' : 'right-[1.1vw]'
-        }`}
-    >
-      {enabled && (
-        <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-white " />
-      )}
-    </div>
+      className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${enabled ? 'left-[0.9vw]' : 'left-[0.1vw]'}`}
+    />
   </button>
 );
 
@@ -43,18 +38,51 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     });
   };
 
-  const [showFieldDropdown, setShowFieldDropdown] = useState(false);
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
 
-  const handleAddField = (type) => {
+  useEffect(() => {
+    if (!settings.fields || settings.fields.length === 0) {
+      onUpdate({
+        ...settings,
+        fields: [
+          { id: Date.now().toString(), type: 'name', placeholder: 'Enter your Name' },
+          { id: (Date.now() + 1).toString(), type: 'empty' }
+        ]
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!activeDropdownId) return;
+      const activeContainer = document.getElementById(`dropdown-container-${activeDropdownId}`);
+      if (activeContainer && !activeContainer.contains(event.target)) {
+        setActiveDropdownId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [activeDropdownId]);
+
+  const handleAddField = () => {
+    const newFields = [...(settings.fields || []), { id: Date.now().toString(), type: 'empty' }];
+    onUpdate({ ...settings, fields: newFields });
+  };
+
+  const handleTypeChange = (id, type) => {
     const defaultPlaceholders = {
       name: 'Enter your Name',
-      email: 'Enter your Gmail',
+      email: 'Enter your Email',
       phone: 'Enter your Phone Number',
-      feedback: 'Enter your Feedback'
+      services: 'Select Service',
+      enquiry: 'Enter your Enquiry'
     };
-    const newFields = [...(settings.fields || []), { id: Date.now().toString(), type, placeholder: defaultPlaceholders[type] }];
+    const newFields = (settings.fields || []).map(f =>
+      f.id === id ? { ...f, type, placeholder: defaultPlaceholders[type] } : f
+    );
     onUpdate({ ...settings, fields: newFields });
-    setShowFieldDropdown(false);
+    setActiveDropdownId(null);
   };
 
   const handleRemoveField = (id) => {
@@ -73,12 +101,11 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
     { type: 'name', label: 'Name', icon: 'lucide:user' },
     { type: 'email', label: 'Email', icon: 'logos:google-gmail' },
     { type: 'phone', label: 'Phone Number', icon: 'lucide:phone' },
-    { type: 'feedback', label: 'Feedback', icon: 'lucide:message-square' }
+    { type: 'services', label: 'Services', icon: 'lucide:settings' },
+    { type: 'enquiry', label: 'Enquiry', icon: 'lucide:message-square' }
   ];
 
-  // Assuming max one of each for now, or just let them add multiples
-  const availableOptions = fieldOptions.filter(opt => !settings.fields?.some(f => f.type === opt.type));
-  const allOptionsAdded = availableOptions.length === 0;
+  const allOptionsAdded = (settings.fields || []).length >= fieldOptions.length;
 
   const updateAppearance = (field, value) => {
     onUpdate({
@@ -161,34 +188,93 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
 
             <div className="space-y-[1vw]">
               {settings.fields?.map((field) => (
-                <div key={field.id} className="flex items-center gap-[0.75vw] group">
+                <div
+                  key={field.id}
+                  id={`dropdown-container-${field.id}`}
+                  className="flex items-center gap-[0.75vw] group relative"
+                >
                   {/* Icon Container */}
-                  <div className="w-[2.5vw] h-[2.5vw] bg-white border border-gray-400 rounded-[0.5vw] flex items-center justify-center shrink-0 shadow-sm">
+                  <div
+                    className="w-[2.5vw] h-[2.5vw] bg-white border border-gray-400 rounded-[0.5vw] flex items-center justify-center shrink-0 shadow-sm cursor-pointer"
+                    onClick={() => setActiveDropdownId(activeDropdownId === field.id ? null : field.id)}
+                  >
                     {field.type === 'email' ? (
                       <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg" alt="Gmail" className="w-[1.25vw] h-auto" />
                     ) : field.type === 'name' ? (
-                      <Icon icon="lucide:user" width="1.25vw" className="text-gray-900" />
+                      <Icon icon="lucide:user" width="1vw" className="text-gray-900" />
                     ) : field.type === 'phone' ? (
-                      <Icon icon="lucide:phone" width="1.25vw" className="text-gray-400" />
-                    ) : field.type === 'feedback' ? (
-                      <div className="relative flex items-center justify-center">
-                        <Icon icon="lucide:ban" width="1.25vw" className="text-gray-900" />
-                      </div>
-                    ) : null}
+                      <Icon icon="lucide:phone" width="1vw" className="text-gray-400" />
+                    ) : field.type === 'services' ? (
+                      <Icon icon="lucide:settings" width="1vw" className="text-gray-900" />
+                    ) : field.type === 'enquiry' || field.type === 'feedback' ? (
+                      <Icon icon="lucide:message-square" width="1vw" className="text-gray-900" />
+                    ) : (
+                      <Icon icon="lucide:ban" width="1vw" className="text-gray-900" />
+                    )}
                     <Icon icon="fluent:chevron-down-12-regular" className="ml-[0.1vw] text-gray-400" width="0.75vw" />
                   </div>
 
+                  {/* Dropdown for this field */}
+                  {activeDropdownId === field.id && (
+                    <div className="absolute top-[3vw] left-0 z-50 bg-white rounded-[1vw] shadow-2xl p-[1vw] w-[12vw] border border-gray-50 animate-in slide-in-from-top-2 duration-200">
+                      <div className="space-y-[0.75vw]">
+                        {fieldOptions
+                          .filter(opt => !settings.fields.some(f => f.type === opt.type && f.id !== field.id))
+                          .map((opt) => (
+                            <div
+                              key={opt.type}
+                              className="flex items-center gap-[1vw] group/opt cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleTypeChange(field.id, opt.type);
+                              }}
+                            >
+                              {opt.type === 'email' ? (
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/7/7e/Gmail_icon_%282020%29.svg" alt="Gmail" className="w-[1.25vw] h-auto" />
+                              ) : (
+                                <Icon icon={opt.icon} width="1.25vw" className="transition-transform group-hover/opt:scale-110" />
+                              )}
+                              <span className="text-[0.8125vw] font-medium text-gray-700 normal-case">{opt.label}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Input Area */}
-                  <div className="flex-1 flex items-center bg-white border border-gray-400 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] h-[2.5vw] shadow-sm">
-                    <input
-                      type="text"
-                      value={field.placeholder || ''}
-                      onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                      placeholder={`Enter your ${field.type === 'email' ? 'Gmail' : field.label || field.type}`}
-                      className="flex-1 text-[0.65vw] focus:outline-none normal-case font-medium font-gray-900 bg-transparent min-w-0"
-                    />
-                    <div className="flex items-center gap-[0.25vw] ml-[0.5vw] shrink-0">
-                      <Icon icon="mdi:rename-outline" width="0.8vw" className="text-gray-300 hover:text-gray-500 cursor-pointer transition-colors opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto" />
+                  <div className="flex-1 flex items-center justify-between bg-white border border-gray-400 rounded-[0.5vw] px-[0.5vw] py-[0.5vw] h-[2.5vw] shadow-sm overflow-hidden">
+                    <div className="flex items-center gap-[0.25vw] flex-1 min-w-0">
+                      <div className="grid min-w-0 max-w-full">
+                        <span className="col-start-1 row-start-1 invisible whitespace-pre font-medium text-[0.7vw] px-[0.1vw] overflow-hidden text-ellipsis">
+                          {field.placeholder || (field.type === 'empty' ? 'Select a type...' : `Enter your ${field.type === 'email' ? 'Email' : fieldOptions.find(o => o.type === field.type)?.label || field.type}`)}
+                        </span>
+                        <input
+                          id={`input-${field.id}`}
+                          type="text"
+                          size={1}
+                          value={field.placeholder || ''}
+                          onChange={(e) => handleFieldChange(field.id, e.target.value)}
+                          placeholder={field.type === 'empty' ? 'Select a type...' : `Enter your ${field.type === 'email' ? 'Email' : fieldOptions.find(o => o.type === field.type)?.label || field.type}`}
+                          className="col-start-1 row-start-1 w-full text-[0.7vw] focus:outline-none normal-case font-medium text-gray-900 bg-transparent min-w-0 px-[0.1vw]"
+                          disabled={field.type === 'empty'}
+                        />
+                      </div>
+
+                      <Icon
+                        icon="mdi:rename-outline"
+                        width="1vw"
+                        className="text-gray-500 hover:text-gray-900 cursor-pointer transition-colors opacity-0 group-hover:opacity-100 transition-opacity shrink-0 pointer-events-none group-hover:pointer-events-auto"
+                        onClick={() => {
+                          const input = document.getElementById(`input-${field.id}`);
+                          if (input) {
+                            input.focus();
+                            input.select();
+                          }
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex items-center ml-[0.5vw] shrink-0">
                       <Trash2
                         size="1vw"
                         className="text-red-400 cursor-pointer hover:text-red-500 transition-colors stroke-[1.5px] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto"
@@ -203,27 +289,11 @@ const LeadForm = ({ onBack, settings, onUpdate, pages = [] }) => {
               {!allOptionsAdded && (
                 <div className="flex items-center justify-end pt-[0.25vw] relative">
                   <button
-                    onClick={() => setShowFieldDropdown(!showFieldDropdown)}
+                    onClick={handleAddField}
                     className="flex items-center gap-[0.25vw] px-[0.7vw] py-[0.5vw] border border-gray-300 bg-white rounded-[0.5vw] text-gray-600 text-[0.75vw] font-semibold hover:bg-gray-50 transition-colors shadow-sm"
                   >
                     <Plus size="0.875vw" /> Add
                   </button>
-                  {showFieldDropdown && (
-                    <div className="absolute justify-end top-full left-0 mt-[0.5vw] z-50 bg-white rounded-[1vw] shadow-2xl p-[1vw] w-[10vw] border border-gray-50 animate-in slide-in-from-top-2 duration-200">
-                      <div className="space-y-[0.75vw]">
-                        {availableOptions.map((opt) => (
-                          <div
-                            key={opt.type}
-                            className="flex items-center gap-[1vw] group cursor-pointer"
-                            onClick={() => handleAddField(opt.type)}
-                          >
-                            <Icon icon={opt.icon} width="1.25vw" className="transition-transform group-hover:scale-110" />
-                            <span className="text-[0.8125vw] font-medium text-gray-700 normal-case">{opt.label}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -379,8 +449,14 @@ const ColorPickerItem = ({ label, color, onChange }) => {
   const handleOpen = () => {
     if (!isOpen && swatchRef.current) {
       const rect = swatchRef.current.getBoundingClientRect();
-      // Position picker to the left of the button to avoid getting cut off
-      setPickerPos({ x: rect.left - 270, y: rect.top });
+      const sidebarContainer = swatchRef.current.closest('.bg-white.relative.overflow-visible');
+      const sidebarRightEdge = sidebarContainer ? sidebarContainer.getBoundingClientRect().right : rect.right;
+      
+      const pickerWidth = window.innerWidth * 0.15; // ColorPallet width is 15vw
+      const pickerHeight = 350;
+      const yPos = Math.min(rect.top, window.innerHeight - pickerHeight);
+      // Position picker half inside and half outside on the right side of the sidebar
+      setPickerPos({ x: sidebarRightEdge - (pickerWidth / 2), y: Math.max(0, yPos) });
     }
     setIsOpen(!isOpen);
   };
@@ -405,19 +481,17 @@ const ColorPickerItem = ({ label, color, onChange }) => {
           <div className="text-[0.7vw] font-semibold text-gray-800 w-[2.5vw] text-right">100%</div>
         </div>
       </div>
-      {isOpen && (
-        <div
-          ref={pickerRef}
-          className="fixed z-[9999]"
-          style={{ top: pickerPos.y, left: pickerPos.x }}
-        >
+      {isOpen && createPortal(
+        <div ref={pickerRef}>
           <ColorPallet
             color={color && color.startsWith('#') && color.length >= 7 ? color.substring(0, 7) : '#ffffff'}
             onChange={onChange}
             opacity={100}
             onClose={() => setIsOpen(false)}
+            style={{ position: 'fixed', top: pickerPos.y, left: pickerPos.x, zIndex: 9999, transform: 'none' }}
           />
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

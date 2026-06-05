@@ -161,7 +161,7 @@ const MagneticSidebarBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                         fontSize: isTablet ? '0.55vw' : '0.65vw',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
                         pointerEvents: 'none',
-                        zIndex: 10,
+                        zIndex: 9999,
                     }}
                 >
                     {label}
@@ -177,7 +177,6 @@ const MagneticSidebarBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClas
 };
 
 const Grid4Layout = ({
-    offset,
     children,
     settings,
     bookName,
@@ -198,6 +197,7 @@ const Grid4Layout = ({
     handleDownload,
     handleFullScreen,
     setShowProfilePopup,
+    showProfilePopup,
     logoSettings,
     currentPage,
     pagesCount,
@@ -295,9 +295,14 @@ const Grid4Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -324,14 +329,14 @@ const Grid4Layout = ({
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
 
     const [showThumbnails, setShowThumbnails] = useState(false);
-    const [showProfile, setShowProfile] = useState(false);
+    // using showProfilePopup instead of showProfilePopup local state
     const [recommendations, setRecommendations] = useState([]);
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
     const [tocSearchQuery, setTocSearchQuery] = useState('');
     const isFullscreen = isFullscreenProp || false;
     const [isCanvasHovered, setIsCanvasHovered] = useState(false);
     const [sidebarMousePos, setSidebarMousePos] = useState(null);
-    const isBigBars = !isEditor || isFullscreen;
+    const isBigBars = !isEditor || (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement);
     const scrollRef = useRef(null);
     const buttonsRef = useRef(null);
     const sidebarContentRef = useRef(null);
@@ -437,13 +442,13 @@ const Grid4Layout = ({
 
     useEffect(() => {
         const handleClickOutside = (event) => {
-            if (showThumbnails || showTOC || showProfile || showSoundPopup) {
+            if (showThumbnails || showTOC || showProfilePopup || showSoundPopup) {
                 const isClickOnPreview = previewAreaRef.current?.contains(event.target);
 
                 if (isClickOnPreview) {
                     setShowThumbnails(false);
                     setShowTOCMemo?.(false);
-                    setShowProfile(false);
+                    setShowProfilePopup(false);
                     setShowSoundPopupMemo?.(false);
                 }
             }
@@ -451,7 +456,7 @@ const Grid4Layout = ({
 
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [showThumbnails, showTOC, showProfile, showSoundPopup, setShowSoundPopupMemo]);
+    }, [showThumbnails, showTOC, showProfilePopup, showSoundPopup, setShowSoundPopupMemo]);
 
     const renderSidebarBtn = (iconEl, label, onClick, extraStyle = {}) => (
         <MagneticSidebarBtn
@@ -468,7 +473,7 @@ const Grid4Layout = ({
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={backgroundStyle} onClick={() => setRecommendations([])}>
             {/* Top Bar: Brand - Title - Search */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5.5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1000] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5.5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1000] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                 <div className="flex items-center">
                     {settings.brandingProfile.logo && logoSettings?.src && (
                         <img
@@ -595,7 +600,7 @@ const Grid4Layout = ({
                     ref={buttonsRef}
                     onMouseMove={(e) => setSidebarMousePos({ x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setSidebarMousePos(null)}
-                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isTablet ? 'w-[3vw] items-center' : !isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col ${isFullscreen ? 'justify-center' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : isTablet ? '2vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isTablet ? 'w-[3vw] items-center' : !isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col ${isFullscreen ? 'justify-center' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : isTablet ? '2vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
 
                     {renderSidebarBtn(
                         <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
@@ -603,7 +608,7 @@ const Grid4Layout = ({
                         () => {
                             setShowTOCMemo(!showTOC);
                             setShowThumbnails(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                             setShowSoundPopupMemo?.(false);
                         },
                         { color: getLayoutColor('toolbar-icon', '#FFFFFF') }
@@ -615,7 +620,7 @@ const Grid4Layout = ({
                         () => {
                             setShowThumbnails(!showThumbnails);
                             setShowTOCMemo?.(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                             setShowSoundPopupMemo?.(false);
                         },
                         { color: getLayoutColor('toolbar-icon', '#FFFFFF') }
@@ -628,7 +633,7 @@ const Grid4Layout = ({
                             setShowGalleryPopupMemo(true);
                             setShowThumbnails(false);
                             setShowTOC(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                             setShowSoundPopupMemo?.(false);
                         },
                         { color: getLayoutColor('toolbar-icon', '#FFFFFF') }
@@ -642,7 +647,7 @@ const Grid4Layout = ({
                             setShowSoundPopupMemo?.(!showSoundPopup);
                             setShowTOC(false);
                             setShowThumbnails(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                         },
                         { color: isMuted ? getLayoutColorRgba('toolbar-icon', '255, 255, 255', '0.3') : getLayoutColor('toolbar-icon', '#FFFFFF') }
                     )}
@@ -651,7 +656,7 @@ const Grid4Layout = ({
                         <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
                         "Profile",
                         () => {
-                            setShowProfile(!showProfile);
+                            setShowProfilePopup(!showProfilePopup);
                             setShowTOC(false);
                             setShowThumbnails(false);
                             setShowSoundPopupMemo?.(false);
@@ -666,7 +671,7 @@ const Grid4Layout = ({
                             handleShare();
                             setShowThumbnails(false);
                             setShowTOC(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                             setShowSoundPopupMemo?.(false);
                         },
                         { color: getLayoutColor('toolbar-icon', '#FFFFFF') }
@@ -679,7 +684,7 @@ const Grid4Layout = ({
                             handleDownload();
                             setShowThumbnails(false);
                             setShowTOC(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                             setShowSoundPopupMemo?.(false);
                         },
                         { color: getLayoutColor('toolbar-icon', '#FFFFFF') }
@@ -692,7 +697,7 @@ const Grid4Layout = ({
                             handleFullScreen();
                             setShowThumbnails(false);
                             setShowTOC(false);
-                            setShowProfile(false);
+                            setShowProfilePopup(false);
                             setShowSoundPopupMemo?.(false);
                         },
                         { color: getLayoutColor('toolbar-icon', '#FFFFFF') }
@@ -701,7 +706,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Thumbnail Sidebar Integration */}
                 {showThumbnails && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[14vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                         >
@@ -781,7 +786,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Table of Contents Sidebar */}
                 {showTOC && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[11vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[11vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('toc-bg', '#FFFFFF') }}
                         >
@@ -900,8 +905,8 @@ const Grid4Layout = ({
                 )}
 
                 {/* Vertical Profile Sidebar */}
-                {showProfile && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[16vw]'} h-full bg-white z-30 border-r border-gray-200`}>
+                {showProfilePopup && (
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[13vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                         >
@@ -909,7 +914,7 @@ const Grid4Layout = ({
                             <div className="flex items-center justify-between px-[1vw] py-[1.5vh] border-b" style={{ borderColor: getLayoutColorRgba('dropdown-text', '62, 68, 145', '0.2') }}>
                                 <span className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-semibold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Profile</span>
                                 <button
-                                    onClick={() => setShowProfile(false)}
+                                    onClick={() => setShowProfilePopup(false)}
                                     className="transition-colors opacity-60 hover:opacity-100"
                                     style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}
                                 >
@@ -1068,7 +1073,7 @@ const Grid4Layout = ({
             </div>
 
             {/* Bottom Bar: Multi-Region Integration */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1000] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1000] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
                 {/* Left: Playback Icons */}
                 <div className="flex items-center gap-[1.5vw]">
                     <button onClick={() => onPageClick && onPageClick(0)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>

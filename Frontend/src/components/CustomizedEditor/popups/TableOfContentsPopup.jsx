@@ -164,11 +164,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
                                 {/* TOC List */}
                                 <div className="flex flex-col gap-[4px] overflow-y-auto custom-scrollbar pr-[2px]" style={{ scrollbarWidth: 'none' }}>
-                                    {(filteredContent.length > 0 ? filteredContent : [
-                                        { id: 'h1', title: 'Landing Page', page: 1 },
-                                        { id: 'h2', title: 'Product Page', page: 2, subheadings: [{ id: 's1', title: 'Sub Heading 1', page: 2 }, { id: 's2', title: 'Sub Heading 2', page: 2 }] },
-                                        { id: 'h3', title: 'Pricing', page: 4, subheadings: [{ id: 's3', title: 'Pro Plan', page: 5 }] }
-                                    ]).map((heading, hIdx) => {
+                                    {filteredContent.map((heading, hIdx) => {
                                         const sectionId = heading.id || heading.title;
                                         const hasSubItems = heading.subheadings && heading.subheadings.length > 0;
                                         return (
@@ -208,6 +204,11 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                             </div>
                                         );
                                     })}
+                                    {filteredContent.length === 0 && (
+                                        <div className="text-[10px] text-center py-4 font-medium" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 0.5 }}>
+                                            No Table Of Content Found
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -220,8 +221,8 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             <>
                 <div className="fixed inset-0 z-[40] pointer-events-auto bg-transparent" onClick={onClose} />
                 <div
-                    className={`absolute top-[1.2vh] ${isSidebarOpen ? 'left-[4.0vw]' : 'left-[9.1vw]'} z-[45] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500 origin-top-right`}
-                    style={{ filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))', transform: 'scale(0.85)', transformOrigin: 'top left', transition: 'transform 0.3s ease' }}
+                    className={`absolute top-[1.2vh] z-[45] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500 origin-top-right`}
+                    style={{ left: `calc(50% - ${isSidebarOpen ? '25vw' : '29.3vw'})`, filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))', transform: 'scale(0.85)', transformOrigin: 'top left', transition: 'transform 0.3s ease' }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className={`relative w-[13vw] min-h-[15vw] h-fit max-h-[80vh] flex flex-col group`}>
@@ -232,12 +233,12 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                     <clipPath id="toc-shape-clip" clipPathUnits="objectBoundingBox">
                                         <path
                                             transform="scale(0.004, 0.00166667)"
-                                            d="M0 100C0 88.95 8.95 80 20 80H155C170 80 175 65 175 45V35C175 15 190 0 210 0C230 0 250 15 250 35V80V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V100Z"
+                                            d="M0 130C0 118.95 8.95 110 20 110H155C170 110 175 95 175 75V35C175 15 190 0 210 0C230 0 250 15 250 35V110V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V130Z"
                                         />
                                     </clipPath>
                                 </defs>
                                 <path
-                                    d="M0 100C0 88.95 8.95 80 20 80H155C170 80 175 65 175 45V35C175 15 190 0 210 0C230 0 250 15 250 35V80V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V100Z"
+                                    d="M0 130C0 118.95 8.95 110 20 110H155C170 110 175 95 175 75V35C175 15 190 0 210 0C230 0 250 15 250 35V110V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V130Z"
                                     fill={getLayoutColor('toc-bg', '#575C9C')}
                                     fillOpacity={getLayoutOpacity('toc-bg', '0.6')}
                                 />
@@ -246,7 +247,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
                         {/* Content Layer with Body Background and Styling */}
                         <div
-                            className="relative z-10 flex flex-col flex-1 pt-[5vw] px-[1vw] pb-[2.5vw] backdrop-blur-md"
+                            className="relative z-10 flex flex-col flex-1 pt-[6vw] px-[1vw] pb-[2.5vw] backdrop-blur-md"
                             style={{ clipPath: 'url(#toc-shape-clip)', WebkitClipPath: 'url(#toc-shape-clip)' }}
                         >
                             {/* Search Bar - Compact */}
@@ -273,24 +274,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 className="flex flex-col gap-[0.6vw] overflow-y-auto custom-scrollbar pr-[0.4vw]"
                                 style={{ scrollbarWidth: 'none' }}
                             >
-                                {(filteredContent.length > 0 ? filteredContent : [
-                                    {
-                                        id: 'h1', title: 'Content 1', page: 1,
-                                        subheadings: [{ id: 's1', title: 'Sub content 1', page: 1 }, { id: 's2', title: 'Sub content 2', page: 2 }]
-                                    },
-                                    {
-                                        id: 'h2', title: 'Content 2', page: 3,
-                                        subheadings: [
-                                            { id: 's3', title: 'Sub content 1', page: 4 },
-                                            { id: 's4', title: 'Sub content 2', page: 4 },
-                                            { id: 's5', title: 'Sub content 3', page: 5 }
-                                        ]
-                                    },
-                                    {
-                                        id: 'h3', title: 'Content 3', page: 7,
-                                        subheadings: [{ id: 's7', title: 'Sub content 1', page: 8 }, { id: 's8', title: 'Sub content 2', page: 9 }]
-                                    }
-                                ]).map((heading, hIdx) => {
+                                {filteredContent.map((heading, hIdx) => {
                                     const sectionId = heading.id || heading.title;
                                     const isExpanded = expandedSections[sectionId] || false;
                                     const hasSubItems = heading.subheadings && heading.subheadings.length > 0;
@@ -341,6 +325,11 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                         </div>
                                     );
                                 })}
+                                {filteredContent.length === 0 && (
+                                    <div className="text-[0.85vw] text-center py-[2vw] font-medium" style={{ color: getLayoutColor('toc-text', '#FFFFFF'), opacity: 0.5 }}>
+                                        No Table Of Content Found
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -672,7 +661,8 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         }
         if (activeLayout === 1 || activeLayout === 'Layout1') return isTablet ? { bottom: '3.8vw', left: '2.2vw' } : { bottom: '8vh', left: '1vw' };
         if (activeLayout === 2 || activeLayout === 'Layout2') {
-            if (!isEditor || isFullscreen) {
+            const isNativeFullscreen = !!document.fullscreenElement;
+            if (!isEditor || isNativeFullscreen) {
                 return { top: '8.5vh', left: 'calc(50% - 11vw)', transform: 'translateX(-50%)' };
             }
             const leftPos = isSidebarOpen ? 'calc(50% + 8vw)' : 'calc(50% - 4.5vw)';
@@ -864,20 +854,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                 className="flex flex-col gap-1 overflow-y-auto custom-scrollbar max-h-[160px] pr-1"
                             >
                                 {(() => {
-                                    const displayContent = filteredContent.length > 0
-                                        ? filteredContent
-                                        : (!content?.length && !searchQuery ? [
-                                            { id: 'h1', title: 'Landing Page', page: 1 },
-                                            {
-                                                id: 'h2', title: 'Product Page', page: 2,
-                                                subheadings: [
-                                                    { id: 's1', title: 'Sub Heading 1', page: 2 },
-                                                    { id: 's2', title: 'Sub Heading 2', page: 2 },
-                                                    { id: 's3', title: 'Sub Heading 3', page: 3 },
-                                                    { id: 's4', title: 'Sub Heading 4', page: 4 },
-                                                ]
-                                            }
-                                        ] : []);
+                                    const displayContent = filteredContent;
 
                                     return displayContent.length > 0 ? displayContent.map((heading, hIdx) => (
                                         <React.Fragment key={heading.id || hIdx}>
@@ -1252,20 +1229,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                                     }}
                                 >
                                     {(() => {
-                                        const displayContent = filteredContent.length > 0
-                                            ? filteredContent
-                                            : (!content?.length && !searchQuery ? [
-                                                { id: 'h1', title: 'Landing Page', page: 1 },
-                                                {
-                                                    id: 'h2', title: 'Product Page', page: 2,
-                                                    subheadings: [
-                                                        { id: 's1', title: 'Sub Heading 1', page: 2 },
-                                                        { id: 's2', title: 'Sub Heading 2', page: 2 },
-                                                        { id: 's3', title: 'Sub Heading 3', page: 3 },
-                                                        { id: 's4', title: 'Sub Heading 4', page: 4 },
-                                                    ]
-                                                }
-                                            ] : []);
+                                        const displayContent = filteredContent;
 
                                         return (
                                             <>

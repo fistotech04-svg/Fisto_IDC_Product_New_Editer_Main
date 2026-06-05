@@ -50,7 +50,6 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
 });
 
 const Grid5Layout = ({
-    offset,
     children,
     settings,
     bookName,
@@ -72,6 +71,7 @@ const Grid5Layout = ({
     handleDownload,
     handleFullScreen,
     setShowProfilePopup,
+    showProfilePopup,
     logoSettings,
     currentPage,
     pagesCount,
@@ -91,6 +91,9 @@ const Grid5Layout = ({
     isMuted,
     onToggleAudio,
     setShowGalleryPopupMemo,
+    showGalleryPopup,
+    showSharePopup,
+    showExportPopup,
     otherSetupSettings,
     setIsMuted,
     isFlipMuted,
@@ -154,9 +157,14 @@ const Grid5Layout = ({
     }, [aspectRatio, initialWidth]);
 
     const localOffset = React.useMemo(() => {
-        if (typeof offset === 'undefined' || !offset) return 0;
-        return offset * (dimWidth / initialWidth);
-    }, [typeof offset !== 'undefined' ? offset : null, dimWidth, initialWidth]);
+        // Shift left to center the front cover, shift right to center the back cover
+        if (currentPage === 0) {
+            return -(dimWidth / 2);
+        } else if (currentPage >= pages.length - 1) {
+            return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
+        }
+        return 0;
+    }, [currentPage, pages.length, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -278,11 +286,13 @@ const Grid5Layout = ({
     }, [isMobileLandscape, initialWidth, initialHeight]);
 
     const [showThumbnails, setShowThumbnails] = useState(false);
+    const [canScrollLeft, setCanScrollLeft] = useState(false);
+    const [canScrollRight, setCanScrollRight] = useState(false);
     const isFullscreen = isFullscreenProp || false;
     const [isCanvasHovered, setIsCanvasHovered] = useState(false);
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
-    const [showProfileLocal, setShowProfileLocal] = useState(false);
+    // using showProfilePopup from props instead of local state
     const [showBookmarkLocal, setShowBookmarkLocal] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [editValue, setEditValue] = useState('');
@@ -409,6 +419,8 @@ const Grid5Layout = ({
     const checkScroll = () => {
         if (scrollRef.current) {
             const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+            setCanScrollLeft(scrollLeft > 0);
+            setCanScrollRight(Math.ceil(scrollLeft + clientWidth) < scrollWidth);
         }
     };
 
@@ -443,7 +455,7 @@ const Grid5Layout = ({
             setShowThumbnails(false);
             setShowTOCMemo?.(false);
             setShowBookmarkLocal(false);
-            setShowProfileLocal(false);
+            setShowProfilePopup(false);
             setShowSoundPopupMemo(false);
         }}>
             {/* ── TOP BAR ── White with search | title | logo */}
@@ -599,42 +611,6 @@ const Grid5Layout = ({
                 onMouseLeave={() => isFullscreen && setIsCanvasHovered(false)}
             >
 
-                {/* Far-left navigation: skip-back + prev */}
-                <div className="absolute left-[1.5vw] top-1/2 -translate-y-1/2 flex items-center gap-[0.5vw] z-20">
-                    <button
-                        className="hover:scale-110 transition-all p-[0.5vw] opacity-60 hover:opacity-100"
-                        onClick={() => onPageClick(0)}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                    >
-                        <Icon icon="ph:skip-back" className={`${isMobileLandscape ? 'w-[0.8vw] h-[0.8vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
-                    </button>
-                    <button
-                        className="hover:scale-110 transition-all p-[0.5vw] opacity-60 hover:opacity-100"
-                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                    >
-                        <Icon icon="ph:caret-left" className={`${isMobileLandscape ? 'w-[0.8vw] h-[0.8vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
-                    </button>
-                </div>
-
-                {/* Far-right navigation: next + skip-forward */}
-                <div className="absolute right-[1.5vw] top-1/2 -translate-y-1/2 flex items-center gap-[0.5vw] z-20">
-                    <button
-                        className="hover:scale-110 transition-all p-[0.5vw] opacity-60 hover:opacity-100"
-                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                    >
-                        <Icon icon="ph:caret-right" className={`${isMobileLandscape ? 'w-[0.8vw] h-[0.8vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
-                    </button>
-                    <button
-                        className="hover:scale-110 transition-all p-[0.5vw] opacity-60 hover:opacity-100"
-                        onClick={() => onPageClick(pagesCount - 1)}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                    >
-                        <Icon icon="ph:skip-forward" className={`${isMobileLandscape ? 'w-[0.8vw] h-[0.8vw]' : isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />
-                    </button>
-                </div>
-
                 {/* Flipbook Container */}
                 <div
                     className="relative transition-all duration-600 ease-in-out magazine-content-area"
@@ -647,11 +623,29 @@ const Grid5Layout = ({
                     }}
                 >
                     {modifiedChildren}
+
+                    {/* Left Navigate Button — hugs the visible page's left edge */}
+                    <button
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
+                        style={{ left: localOffset < 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                    >
+                        <Icon icon="ph:caret-left" className={`${isMobileLandscape ? 'w-[1vw] h-[1vw]' : isTablet ? 'w-[1.5vw] h-[1.5vw]' : 'w-[2vw] h-[2vw]'} hover:-translate-x-1 transition-transform`} />
+                    </button>
+
+                    {/* Right Navigate Button — hugs the visible page's right edge */}
+                    <button
+                        className="absolute top-1/2 -translate-y-1/2 translate-x-full transition-all z-20 pointer-events-auto opacity-60 hover:opacity-100"
+                        style={{ right: localOffset > 0 ? `calc(${dimWidth}px - 0.8vw)` : '-0.8vw', color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                    >
+                        <Icon icon="ph:caret-right" className={`${isMobileLandscape ? 'w-[1vw] h-[1vw]' : isTablet ? 'w-[1.5vw] h-[1.5vw]' : 'w-[2vw] h-[2vw]'} hover:translate-x-1 transition-transform`} />
+                    </button>
                 </div>
             </div>
 
             {/* ── BOTTOM BAR ── UI Match to Screenshot */}
-            <div className={`magazine-toolbar ${isMobileLandscape ? 'h-[11%]' : isTablet ? 'h-[5.5vh]' : 'h-[8vh]'} flex items-center px-[1.5vw] justify-between shrink-0 w-full z-40 bg-transparent border-t border-gray-200/50 overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}>
+            <div className={`magazine-toolbar ${isMobileLandscape ? 'h-[11%]' : isTablet ? 'h-[5.5vh]' : 'h-[8vh]'} flex items-center px-[1.5vw] justify-between shrink-0 w-full z-40 bg-transparent overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}>
                 <div className={`rounded-full flex items-center p-[0.3vw] shadow-[0_0.2vw_1vw_rgba(0,0,0,0.06)] border border-gray-100 shrink-0 ${isMobileLandscape ? 'h-[65%] gap-[0.5vw] px-[0.8vw]' : isTablet ? 'h-[4vh] gap-[0.2vw] px-[0.2vw]' : 'h-[6vh] gap-[0.3vw] px-[0.5vw]'}`}
                     style={{
                         backgroundColor: currentPage === 0
@@ -731,10 +725,10 @@ const Grid5Layout = ({
                         )}
                     </div>
 
-                    {/* Progress Bar */}
+                    {/* Progress Bar (With Expanded Hover Area) */}
                     <div
                         ref={progressRef}
-                        className={`flex-1 ${isTablet ? 'h-[0.25vh] mr-[0.5vw] w-[2vw]' : 'h-[0.35vh] mr-[2.5vw]'} relative group cursor-pointer`}
+                        className={`flex-1 ${isTablet ? 'h-[3vh] mr-[0.5vw] w-[2vw]' : 'h-[3vh] mr-[2.5vw]'} flex items-center relative group cursor-pointer`}
                         onClick={handleProgressClick}
                         onMouseMove={handleProgressMouseMove}
                         onMouseLeave={() => {
@@ -742,7 +736,7 @@ const Grid5Layout = ({
                             setProgressHover(prev => ({ ...prev, visible: false }));
                         }}
                     >
-                        <div className="w-full h-full rounded-full absolute inset-0 overflow-hidden">
+                        <div className={`w-full ${isTablet ? 'h-[0.25vh]' : 'h-[0.35vh]'} rounded-full relative overflow-hidden`}>
                             {/* Track Underlay */}
                             <div className="absolute inset-0 transition-colors duration-300" style={{ backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: isTablet ? 0.4 : 0.3 }} />
                             {/* Progress Fill */}
@@ -764,11 +758,11 @@ const Grid5Layout = ({
                                     animate={{ opacity: 1, scale: 1, y: 0 }}
                                     exit={{ opacity: 0, scale: 0.9, y: 10 }}
                                     transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className={`absolute z-[100] bottom-[calc(100%+2.5vw)] pointer-events-none`}
+                                    className={`absolute z-[100] bottom-[calc(100%+0.5vw)] pointer-events-none`}
                                     style={{ left: `${progressHover.x}px` }}
                                 >
                                     <div
-                                        className={`absolute bottom-0 flex flex-col items-center ${isTablet ? 'p-[0.6vw] rounded-[0.6vw]' : 'p-[0.5vw] rounded-[0.8vw]'} shadow-[0_10px_40px_rgba(0,0,0,0.3)]`}
+                                        className={`absolute bottom-0 flex flex-col items-center ${isTablet ? `p-[0.6vw] ${progressHover.spread.pages.length === 1 ? 'rounded-[0.3vw]' : 'rounded-[0.6vw]'}` : `p-[0.5vw] ${progressHover.spread.pages.length === 1 ? 'rounded-[0.3vw]' : 'rounded-[0.8vw]'}`} shadow-[0_10px_40px_rgba(0,0,0,0.3)]`}
                                         style={{
                                             backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'),
                                             transform: progressHover.pageIndex === 0 ? 'translateX(-25%)' : 'translateX(-50%)',
@@ -858,7 +852,7 @@ const Grid5Layout = ({
                                 setShowThumbnails(!showThumbnails);
                                 setShowTOCMemo?.(false);
                                 setShowBookmarkLocal(false);
-                                setShowProfileLocal(false);
+                                setShowProfilePopup(false);
                                 setShowBottomNotesOptions(false);
                                 setShowBookmarkOptions(false);
                                 setShowSoundPopupMemo(false);
@@ -876,7 +870,7 @@ const Grid5Layout = ({
                                     setShowTOCMemo(!showTOC);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
-                                    setShowProfileLocal(false);
+                                    setShowProfilePopup(false);
 
                                     setShowSoundPopupMemo(false);
                                 },
@@ -1071,11 +1065,14 @@ const Grid5Layout = ({
                                 setShowTOCMemo?.(false);
                                 setShowThumbnails(false);
                                 setShowBookmarkLocal(false);
-                                setShowProfileLocal(false);
+                                setShowProfilePopup(false);
                                 setShowBottomNotesOptions(false);
                                 setShowBookmarkOptions(false);
                             },
                             { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            ,
+                            '',
+                            showGalleryPopup
                         )}
                         {/* Music */}
                         <div className="relative">
@@ -1088,84 +1085,13 @@ const Grid5Layout = ({
                                     setShowTOCMemo?.(false);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
-                                    setShowProfileLocal(false);
+                                    setShowProfilePopup(false);
 
                                 },
                                 { color: (showSoundPopup || !isMuted) ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColorRgba('toolbar-text-main', '255, 255, 255', '0.3') }
                             )}
 
-                            {showSoundPopup && (
-                                <>
-                                    <div
-                                        className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.2vw)] z-[160] animate-in fade-in slide-in-from-bottom-2 duration-200"
-                                        onClick={(e) => e.stopPropagation()}
-                                        style={{
-                                            backgroundColor: '#FFFFFF',
-                                            width: isTablet ? '8.5vw' : '10.5vw',
-                                            borderRadius: isTablet ? '0.8vw' : '1vw',
-                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                            overflow: 'hidden',
-                                            border: 'none'
-                                        }}
-                                    >
-                                        <div
-                                            className="flex flex-col gap-[0.5vw]"
-                                            style={{
-                                                backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', '1'),
-                                                padding: isTablet ? '1vw' : '1.2vw',
-                                            }}
-                                        >
-                                            {/* Volume / Flip Sound */}
-                                            <div className="flex items-center gap-[1.2vw]">
-                                                <button
-                                                    className={`flex-shrink-0 transition-all duration-300 ${!flipSoundMasterEnabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
-                                                    onClick={handleFlipClick}
-                                                    disabled={!flipSoundMasterEnabled}
-                                                >
-                                                    <Icon
-                                                        icon="mingcute:volume-line"
-                                                        className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.8vw] h-[1.8vw]'}`}
-                                                        style={{ color: getLayoutColor('toc-text', '#000000'), opacity: 1 }}
-                                                    />
-                                                </button>
-                                                <div className="flex-1 h-[2px] rounded-full relative" style={{ backgroundColor: getLayoutColorRgba('toc-text', '0, 0, 0', '0.1') }}>
-                                                    <div
-                                                        className="absolute inset-y-0 left-0 transition-all duration-500 rounded-full"
-                                                        style={{ width: flipWidth, backgroundColor: getLayoutColor('toc-text', '#000000') }}
-                                                    />
-                                                </div>
-                                            </div>
 
-                                            {/* Music / BG Sound */}
-                                            <div className="flex items-center gap-[1.2vw]">
-                                                <button
-                                                    className={`flex-shrink-0 transition-all duration-300 ${!bgSoundMasterEnabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer hover:scale-110 active:scale-95'}`}
-                                                    onClick={handleBgClick}
-                                                    disabled={!bgSoundMasterEnabled}
-                                                >
-                                                    <svg
-                                                        width="100%"
-                                                        height="100%"
-                                                        viewBox="0 0 21 23"
-                                                        fill="none"
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.8vw] h-[1.8vw]'}`}
-                                                        style={{ color: getLayoutColor('toc-text', '#000000'), opacity: 1 }}
-                                                    >
-                                                        <path d="M9.42375 1.0422C9.48521 1.31201 9.43634 1.59503 9.28788 1.82905C9.13942 2.06306 8.90352 2.22891 8.63205 2.29014C6.88603 2.68576 5.31295 3.62554 4.14236 4.97234C2.97178 6.31914 2.26497 8.00246 2.12508 9.77664C1.98519 11.5508 2.41954 13.323 3.36475 14.8345C4.30996 16.3461 5.71655 17.5179 7.37925 18.1789C9.04195 18.84 10.8737 18.9556 12.6072 18.5091C14.3408 18.0625 15.8853 17.0771 17.0155 15.6966C18.1456 14.3161 18.8022 12.6128 18.8894 10.8353C18.9767 9.0578 18.49 7.29911 17.5003 5.81589C17.424 5.70175 17.3711 5.57379 17.3445 5.43931C17.318 5.30483 17.3183 5.16647 17.3456 5.03213C17.4006 4.76082 17.5618 4.52235 17.7938 4.36917C18.0258 4.216 18.3095 4.16068 18.5825 4.21537C18.7177 4.24245 18.8462 4.29573 18.9607 4.37216C19.0751 4.44858 19.1733 4.54667 19.2496 4.66081C20.3938 6.37018 21.0029 8.37801 21 10.431C21 16.1938 16.2991 20.8653 10.5 20.8653C4.70085 20.8653 0 16.1938 0 10.431C0 5.46425 3.49125 1.30931 8.16795 0.255449C8.43946 0.194368 8.72426 0.242931 8.95975 0.390462C9.19524 0.537994 9.36213 0.772418 9.42375 1.0422ZM11.55 1.05472C11.5499 0.898191 11.5848 0.743603 11.6523 0.602183C11.7198 0.460763 11.8182 0.336062 11.9403 0.237141C12.0623 0.138219 12.2051 0.06756 12.358 0.0302978C12.511 -0.00696441 12.6704 -0.00989448 12.8247 0.0217206L12.9454 0.0540671L16.0818 1.09332C16.3366 1.177 16.5495 1.35445 16.6767 1.58923C16.804 1.82401 16.836 2.0983 16.7661 2.35577C16.6962 2.61324 16.5298 2.83435 16.301 2.9737C16.0722 3.11304 15.7984 3.16005 15.5358 3.10506L15.4182 3.07375L13.65 2.48735V10.431C13.6497 11.0865 13.4423 11.7254 13.057 12.2576C12.6718 12.7897 12.1282 13.1882 11.5028 13.3969C10.8775 13.6056 10.202 13.614 9.57161 13.4208C8.94125 13.2275 8.38782 12.8426 7.98941 12.3201C7.59099 11.7976 7.36769 11.164 7.351 10.5087C7.33432 9.85337 7.52508 9.20936 7.89639 8.66753C8.2677 8.1257 8.80082 7.71339 9.42055 7.48875C10.0403 7.2641 10.7153 7.23847 11.3505 7.41547L11.55 7.47807V1.05576V1.05472Z" fill="currentColor" />
-                                                    </svg>
-                                                </button>
-                                                <div className="flex-1 h-[2px] rounded-full relative" style={{ backgroundColor: getLayoutColorRgba('toc-text', '0, 0, 0', '0.1') }}>
-                                                    <div
-                                                        className="absolute inset-y-0 left-0 transition-all duration-500 rounded-full"
-                                                        style={{ width: bgWidth, backgroundColor: getLayoutColor('toc-text', '#000000') }}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
                         </div>
                         {/* Profile */}
                         <div className="relative">
@@ -1174,18 +1100,18 @@ const Grid5Layout = ({
                                 'Profile',
                                 (e) => {
                                     e.stopPropagation();
-                                    setShowProfileLocal(!showProfileLocal);
+                                    setShowProfilePopup(!showProfilePopup);
                                     setShowTOCMemo?.(false);
                                     setShowThumbnails(false);
                                     setShowBookmarkLocal(false);
 
                                     setShowSoundPopupMemo(false);
                                 },
-                                { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showProfileLocal ? 0.7 : 1 }
+                                { color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: showProfilePopup ? 0.7 : 1 }
                             )}
 
                             {/* Profile Popup */}
-                            {showProfileLocal && (
+                            {showProfilePopup && (
                                 <>
                                     <div
                                         className={`absolute ${isTablet ? 'bottom-[2.8vw] -translate-x-[75%]' : 'bottom-[3.2vw] -translate-x-[80%]'} z-[160] mb-[0.2vw] animate-in fade-in slide-in-from-bottom-2 duration-200`}
@@ -1317,6 +1243,9 @@ const Grid5Layout = ({
                             'Share',
                             handleShare,
                             { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            ,
+                            '',
+                            showSharePopup
                         )}
                         {/* Download */}
                         {renderToolbarBtn(
@@ -1324,6 +1253,9 @@ const Grid5Layout = ({
                             'Download',
                             handleDownload,
                             { color: getLayoutColor('toolbar-text-main', '#FFFFFF') }
+                            ,
+                            '',
+                            showExportPopup
                         )}
                         {/* Fullscreen */}
                         {renderToolbarBtn(
@@ -1403,7 +1335,7 @@ const Grid5Layout = ({
                 <>
                     {/* Main Container - Rounded Capsule */}
                     <div
-                        className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-[3vw] right-[3vw] rounded-full shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
+                        className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-1/2 -translate-x-1/2 w-max max-w-[49vw] ${spreads.length === 1 ? 'rounded-[0.8vw]' : 'rounded-full'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
                         style={{
                             backgroundColor: '#FFFFFF',
                             borderColor: getLayoutColor('dropdown-text', '#575C9C')
@@ -1411,17 +1343,19 @@ const Grid5Layout = ({
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div
-                            className="w-full h-full flex items-center px-[0.5vw]"
+                            className={`w-full h-full flex items-center ${canScrollLeft ? 'pl-[0.5vw]' : 'pl-[1.5vw]'} ${canScrollRight ? 'pr-[0.5vw]' : 'pr-[1.5vw]'}`}
                             style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '255, 255, 255', '1') }}
                         >
                             {/* Left Navigation */}
-                            <button
-                                className="w-[3vw] h-full flex items-center justify-center hover:scale-110 transition-all shrink-0"
-                                onClick={(e) => { e.stopPropagation(); scroll('left'); }}
-                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
-                            >
-                                <Icon icon="ph:caret-left" className="w-[1.2vw] h-[1.2vw]" />
-                            </button>
+                            {canScrollLeft && (
+                                <button
+                                    className="w-[3vw] h-full flex items-center justify-center hover:scale-110 transition-all shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); scroll('left'); }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                >
+                                    <Icon icon="ph:caret-left" className="w-[1.2vw] h-[1.2vw]" />
+                                </button>
+                            )}
 
                             {/* Thumbnails Container */}
                             <div
@@ -1489,13 +1423,15 @@ const Grid5Layout = ({
                             </div>
 
                             {/* Right Navigation */}
-                            <button
-                                className="w-[3vw] h-full flex items-center justify-center hover:scale-110 transition-all shrink-0"
-                                onClick={(e) => { e.stopPropagation(); scroll('right'); }}
-                                style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
-                            >
-                                <Icon icon="ph:caret-right" className="w-[1.2vw] h-[1.2vw]" />
-                            </button>
+                            {canScrollRight && (
+                                <button
+                                    className="w-[3vw] h-full flex items-center justify-center hover:scale-110 transition-all shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); scroll('right'); }}
+                                    style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}
+                                >
+                                    <Icon icon="ph:caret-right" className="w-[1.2vw] h-[1.2vw]" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </>

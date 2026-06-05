@@ -8,7 +8,44 @@ const PreviewPage = () => {
   useEffect(() => {
     const loadData = async () => {
       const saved = await getFromDB('editor_autosave');
-      if (saved) {
+      if (saved && saved.pages) {
+        // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
+        const imageUrls = [];
+        const pBaseUrl = saved.projectBaseUrl || '';
+        saved.pages.forEach(p => {
+          const htmlStr = p.html || p.content || '';
+          if (!htmlStr) return;
+          const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
+          let match;
+          while ((match = imgRegex.exec(htmlStr)) !== null) {
+            let url = match[1];
+            if (url && !url.startsWith('data:')) {
+              if (url.includes('nullassets/') && pBaseUrl) {
+                url = url.split('nullassets/').join(`${pBaseUrl}assets/`);
+              } else if (url.includes('./assets/') && pBaseUrl) {
+                url = url.split('./assets/').join(`${pBaseUrl}assets/`);
+              }
+              imageUrls.push(url);
+            }
+          }
+        });
+
+        const uniqueUrls = Array.from(new Set(imageUrls));
+        if (uniqueUrls.length > 0) {
+          console.log(`[Preview] Loading ${uniqueUrls.length} unique assets before initialization...`);
+          await Promise.all(uniqueUrls.map(url => {
+            return new Promise((resolve) => {
+              const img = new Image();
+              img.onload = resolve;
+              img.onerror = resolve;
+              img.src = url;
+            });
+          }));
+        }
+
+        // Extra 3s loading time as requested
+        await new Promise(resolve => setTimeout(resolve, 5000));
+
         setData(saved);
       } else {
         setData({ error: true });
@@ -43,8 +80,9 @@ const PreviewPage = () => {
         isMobile={false}
         isDoublePage={data.isDoublePage || false}
         targetPage={0}
-        settings={{}}
+        settings={data.settings || {}}
         baseUrl={data.projectBaseUrl || ''}
+        v_id={data.v_id}
       />
     </div>
   );

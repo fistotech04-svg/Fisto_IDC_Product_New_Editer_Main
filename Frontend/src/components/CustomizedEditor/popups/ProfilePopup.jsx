@@ -872,11 +872,11 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 {/* Global click-to-close overlay */}
                 <div className="fixed inset-0 z-[40] cursor-default" onClick={onClose} />
                 <div
-                    className={`absolute top-[1.2vh] ${isSidebarOpen ? 'left-[calc(50%_+_10.9vw)]' : 'left-[calc(50%_+_13.5vw)]'} -translate-x-[90%] z-[45] animate-in fade-in slide-in-from-top-2 duration-300`}
+                    className={`absolute top-[1.2vh] ${isSidebarOpen ? 'left-[calc(50%_+_7.6vw)]' : 'left-[calc(50%_+_10.6vw)]'} -translate-x-[90%] z-[45] animate-in fade-in slide-in-from-top-2 duration-300`}
                     style={{ filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))' }}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className={`relative w-[16.5vw] min-h-[13.5vw] h-fit max-h-[80vh] flex flex-col group`}>
+                    <div className={`relative w-[16.5vw] ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'} h-fit max-h-[80vh] flex flex-col group`}>
                         {/* TOC-style SVG Shape Background */}
                         <div className="absolute inset-0 z-0 pointer-events-none">
                             <svg width="100%" height="100%" viewBox="0 0 250 630" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
@@ -884,12 +884,12 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                     <clipPath id="profile-shape-clip" clipPathUnits="objectBoundingBox">
                                         <path
                                             transform="scale(0.004, 0.0015873)"
-                                            d="M0 130C0 118.95 8.95 110 20 110H180C195 110 200 90 200 60V35C200 15 212.5 0 225 0C237.5 0 250 15 250 35V110V610C250 621.05 241.05 630 230 630H20C8.95 630 0 621.05 0 610V130Z"
+                                            d="M0 170C0 158.95 8.95 150 20 150H180C195 150 200 130 200 100V35C200 15 212.5 0 225 0C237.5 0 250 15 250 35V170V610C250 621.05 241.05 630 230 630H20C8.95 630 0 621.05 0 610V170Z"
                                         />
                                     </clipPath>
                                 </defs>
                                 <path
-                                    d="M0 130C0 118.95 8.95 110 20 110H180C195 110 200 90 200 60V35C200 15 212.5 0 225 0C237.5 0 250 15 250 35V110V610C250 621.05 241.05 630 230 630H20C8.95 630 0 621.05 0 610V130Z"
+                                    d="M0 170C0 158.95 8.95 150 20 150H180C195 150 200 130 200 100V35C200 15 212.5 0 225 0C237.5 0 250 15 250 35V170V610C250 621.05 241.05 630 230 630H20C8.95 630 0 621.05 0 610V170Z"
                                     fill={dropdownBgHex}
                                     fillOpacity={0.6}
                                 />
@@ -898,10 +898,10 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
 
                         {/* Content Layer */}
                         <div
-                            className="relative z-10 flex flex-col flex-1 pt-[3.8vw] px-[0.7vw] pb-[0.7vw] backdrop-blur-md"
+                            className="relative z-10 flex flex-col flex-1 pt-[4.4vw] px-[0.7vw] pb-[0.7vw] backdrop-blur-md"
                             style={{ clipPath: 'url(#profile-shape-clip)', WebkitClipPath: 'url(#profile-shape-clip)' }}
                         >
-                            <div className="bg-white rounded-[0.8vw] flex flex-col w-full h-full p-[1vw] shadow-sm overflow-hidden min-h-[13.5vw]">
+                            <div className={`bg-white rounded-[0.8vw] flex flex-col w-full h-full p-[1vw] shadow-sm overflow-hidden ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'}`}>
                                 {!hasData ? (
                                     <div className="text-[0.9vw] text-center py-[2vw] italic font-medium" style={{ color: layout9AccentColor, opacity: 0.5 }}>
                                         No profile found

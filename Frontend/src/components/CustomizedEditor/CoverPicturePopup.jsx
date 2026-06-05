@@ -134,25 +134,25 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
         </div>
 
         {/* Content */}
-        <div className="px-[1.5vw] pb-[1vw] flex flex-col h-[40vw] max-h-[350px] overflow-hidden">
+        <div className="px-[1.5vw] pb-[1vw] flex flex-col h-[35vw] max-h-[430px] overflow-hidden">
           {/* Options */}
-          <div className="flex items-center gap-[2vw] mb-[1.5vw] shrink-0">
-            <label className="flex items-center gap-[0.5vw] cursor-pointer group" onClick={() => setOption('template')}>
-              <div className={`w-[1vw] h-[1vw] rounded-full border-[0.15vw] flex items-center justify-center transition-colors ${option === 'template' ? 'border-[#4A3AFF]' : 'border-gray-800'}`}>
-                  {option === 'template' && <div className="w-[0.5vw] h-[0.5vw] bg-[#4A3AFF] rounded-full"></div>}
-              </div>
-              <span className="text-[0.75vw] font-semibold text-gray-900">Add from Templates</span>
-            </label>
-            <label className="flex items-center gap-[0.5vw] cursor-pointer group" onClick={() => setOption('upload')}>
-              <div className={`w-[1vw] h-[1vw] rounded-full border-[0.15vw] flex items-center justify-center transition-colors ${option === 'upload' ? 'border-[#4A3AFF]' : 'border-gray-800'}`}>
-                  {option === 'upload' && <div className="w-[0.5vw] h-[0.5vw] bg-[#4A3AFF] rounded-full"></div>}
-              </div>
-              <span className="text-[0.75vw] font-semibold text-gray-900">Upload cover picture</span>
-            </label>
+          <div className="flex items-center gap-[0.8vw] mb-[1.5vw] shrink-0">
+            <button 
+              onClick={() => setOption('template')}
+              className={`px-[1.2vw] py-[0.5vw] rounded-[0.5vw] font-semibold text-[0.75vw] transition-all cursor-pointer ${option === 'template' ? 'bg-white text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.08)] border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              Add from Templates
+            </button>
+            <button 
+              onClick={() => setOption('upload')}
+              className={`px-[1.2vw] py-[0.5vw] rounded-[0.5vw] font-semibold text-[0.75vw] transition-all cursor-pointer ${option === 'upload' ? 'bg-white text-gray-900 shadow-[0_2px_10px_rgba(0,0,0,0.08)] border border-gray-100' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              Upload cover picture
+            </button>
 
-            {option === 'upload' && (
-              <div className="flex items-center gap-[0.8vw] ml-[1vw]">
-                 <label className="text-[0.75vw] font-semibold text-gray-700">Image Fix Type </label>
+             {option === 'upload' && (
+              <div className="flex items-center gap-[0.8vw] ml-[2vw]">
+                 <label className="text-[0.75vw] font-semibold text-gray-700">Image fix type : </label>
           <PremiumDropdown 
             options={['Fit', 'Fill', 'Stretch', 'Crop']}
             value={imageFixType || 'Fit'}
@@ -170,16 +170,16 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
           </div>
 
           {option === 'upload' ? (
-             <div className="flex gap-[2vw] flex-1 min-h-0 ">
+             <div className="flex gap-[2vw] flex-1 min-h-0">
                {/* Left Upload/Preview Area */}
-               <div className="w-[50%] flex flex-col relative h-[36vw] max-h-[270px] ">
+               <div className="w-[60%] pb-[2vw] pr-[1vw] pl-[1vw] flex flex-col relative h-full">
                   {!uploadedImage ? (
-                     <div className="w-full h-full border-[0.15vw] border-dashed border-gray-400 rounded-[1.5vw] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors relative">
+                     <div className="w-full h-full border-[0.15vw] border-dashed border-gray-300 rounded-[1.5vw] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors relative">
                         <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleCoverUpload} />
-                        <span className="text-[0.75vw] text-gray-400 font-semibold mb-[2vw]">Drag & Drop or <span className="text-[#4A3AFF] font-bold">Upload</span></span>
-                        <Upload size="1.8vw" className="text-gray-400 mb-[1vw]" strokeWidth={1.5} />
-                        <span className="text-[0.7vw] text-gray-400 mb-[0.4vw] mt-[2vw]">Dimensions 1080 X 880 px</span>
-                        <span className="text-[0.7vw] text-gray-400">Supported File Format : JPG, PNG</span>
+                        <span className="text-[0.75vw] text-gray-400 font-semibold mb-[1.5vw]">Drag & Drop or <span className="text-[#4A3AFF] font-bold">Upload</span></span>
+                        <Upload size="2vw" className="text-gray-400 mb-[2vw]" strokeWidth={1.5} />
+                        <span className="text-[0.65vw] text-gray-400 mb-[0.5vw]">Dimensions 1080 X 880 px</span>
+                        <span className="text-[0.65vw] text-gray-400">Supported File Format : JPG, PNG</span>
                      </div>
                   ) : (
                      <div className="w-full h-full rounded-[1.5vw] overflow-hidden relative group shadow-sm bg-gray-50">
@@ -198,7 +198,7 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                         </button>
 
                         {showMenu && (
-                            <div className="absolute top-[3.5vw] right-[0.8vw] bg-white rounded-[0.4vw] shadow-[0_4px_15px_rgba(0,0,0,0.1)] flex flex-col items-center justify-center py-[0.5vw] border border-gray-100 z-20 overflow-hidden">
+                            <div className="absolute top-[2vw] right-[0.8vw] bg-white rounded-[0.4vw] shadow-[0_4px_15px_rgba(0,0,0,0.1)] flex flex-col items-center justify-center py-[0.5vw] border border-gray-100 z-20 overflow-hidden">
                                <button 
                                   className="px-[1.2vw] py-[0.5vw] hover:bg-gray-50 text-[0.75vw] font-semibold text-gray-700 w-full text-center border-b border-gray-100 whitespace-nowrap" 
                                   onClick={() => {
@@ -226,45 +226,44 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                   )}
                </div>
 
-               {/* Right Side Options & Footer */}
-               <div className="w-[70%] flex flex-col justify-end pb-[1.5vw] pr-[2vw]">
-                 <div className="flex flex-col gap-[1vw]">
-                     <p className="text-[0.6vw] text-gray-400 font-semibold pr-[1vw]">
-                        <span className="text-red-500">*</span> Your selected or uploaded image will be saved as the flipbook cover after clicking <strong>“Save Changes”</strong>
-                     </p>
-                     <div className="flex gap-[0.5vw]">
-                        <button 
-                            onClick={onClose} 
-                            className="flex-1 py-[0.5vw] border border-gray-900 rounded-[0.5vw] text-[0.75vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-[0.5vw] shadow-sm"
-                        >
-                           <X size="1vw" strokeWidth={2.5} /> Cancel
-                        </button>
-                        <button 
-                            onClick={() => { 
-                                onSave({ 
-                                    type: 'upload', 
-                                    url: uploadedImage, 
-                                    fit: imageFixType,
-                                    rawFile: rawFile
-                                }); 
-                                onClose(); 
-                            }} 
-                            className="flex-1 py-[0.5vw] bg-black text-white rounded-[0.5vw] text-[0.75vw] font-semibold hover:bg-zinc-800 transition-colors flex items-center justify-center gap-[0.5vw] shadow-sm"
-                        >
-                           <Check size="1vw" strokeWidth={3} /> Save Changes
-                        </button>
-                     </div>
+               {/* Right Area */}
+               <div className="w-[40%] flex flex-col justify-end mb-[2.5vw]">
+                  <p className="text-[0.65vw] text-gray-500 font-medium mb-[1vw] pr-[0.5vw]">
+                     <span className="text-red-500">*</span> Your selected or uploaded image will be saved as the flipbook cover after clicking <strong>"Change Cover"</strong>
+                  </p>
+                  <div className="flex gap-[0.8vw] ">
+                     <button 
+                         onClick={onClose} 
+                         className="flex-1 py-[0.6vw] border border-gray-900 rounded-[0.5vw] text-[0.8vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors flex items-center justify-center gap-[0.4vw] shadow-sm"
+                     >
+                        <X size="1vw" strokeWidth={2.5} /> Cancel
+                     </button>
+                     <button 
+                         onClick={() => { 
+                             onSave({ 
+                                 type: 'upload', 
+                                 url: uploadedImage, 
+                                 fit: imageFixType,
+                                 rawFile: rawFile
+                             }); 
+                             onClose(); 
+                         }} 
+                         className="flex-1 py-[0.6vw] bg-black text-white rounded-[0.5vw] text-[0.8vw] font-semibold hover:bg-zinc-800 transition-colors flex items-center justify-center gap-[0.4vw] shadow-sm"
+                     >
+                        <Check size="1vw" strokeWidth={3} /> Change Cover
+                     </button>
                   </div>
                </div>
              </div>
           ) : (
-          <div className="flex gap-[1vw] flex-1 min-h-0">
+          <div className="flex flex-col flex-1 min-h-0">
+             <div className="flex gap-[1vw] flex-1 min-h-0">
         {/* Left Preview */}
-             <div className="w-[50%] rounded-[0.8vw] overflow-hidden flex items-center justify-center relative shadow-sm bg-gray-100">
+             <div className="w-[50%] pt-[0.5vw] rounded-[0.8vw] overflow-hidden flex items-center justify-center relative ">
                {option === 'template' && selectedTemplate ? (
                  <img
                    src={selectedTemplate.src}
-                   className="w-full h-full object-cover"
+                   className="w-full h-full object-contain"
                    alt={selectedTemplate.label}
                  />
                ) : (
@@ -275,7 +274,7 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
              </div>
 
             {/* Right Controls */}
-            <div className="w-[45%] bg-[#e9e9ea] rounded-[0.8vw] flex flex-col overflow-hidden relative custom-popup-scrollbar">
+            <div className="w-[50%] bg-white rounded-[0.8vw] flex flex-col overflow-hidden relative custom-popup-scrollbar border border-gray-200">
                {/* Tabs */}
                <div className="flex items-center pt-[0.5vw] px-[1vw] gap-[2vw] border-b border-gray-300 mx-[0.5vw] shrink-0">
                   <button 
@@ -323,10 +322,13 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                          ))}
                       </div>
                   ) : (
-                     <div className="space-y-[0.50vw]">
+                     <div className="space-y-[1.2vw]">
                         {/* Text 1 Row */}
-                        <div className="flex items-center justify-between gap-[0.5vw]">
-                           <span className="text-[0.75vw] font-semibold text-gray-900 whitespace-nowrap min-w-[4vw]">Enter Text 1 :</span>
+                        <div className="flex items-center gap-[0.5vw]">
+                           <div className="w-[6.5vw] flex items-center justify-between shrink-0">
+                               <span className="text-[0.75vw] font-semibold text-gray-900">Enter Text 1</span>
+                               <span className="text-[0.75vw] font-semibold text-gray-900">:</span>
+                           </div>
                            <div className="flex-1 flex gap-[0.5vw] items-center">
                               <div className="flex-1 bg-white border border-gray-400 rounded-[0.5vw] flex items-center px-[0.5vw] h-[2.2vw]">
                                  <input type="text" value={text1} onChange={e => setText1(e.target.value)} className="flex-1 bg-transparent text-[0.65vw] outline-none text-gray-400 font-medium" />
@@ -337,8 +339,11 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                         </div>
 
                         {/* Text 2 Row */}
-                        <div className="flex items-start justify-between gap-[0.5vw]">
-                           <span className="text-[0.75vw] font-semibold text-gray-900 whitespace-nowrap min-w-[4vw] pt-[0.6vw]">Enter Text 2 :</span>
+                        <div className="flex items-start gap-[0.5vw]">
+                           <div className="w-[6.5vw] flex items-start justify-between shrink-0 pt-[0.6vw]">
+                               <span className="text-[0.75vw] font-semibold text-gray-900">Enter Text 2</span>
+                               <span className="text-[0.75vw] font-semibold text-gray-900">:</span>
+                           </div>
                            <div className="flex-1 flex gap-[0.5vw] items-start">
                               <div className="flex-1 bg-white border border-gray-400 rounded-[0.5vw] flex flex-col p-[0.7vw] min-h-[5.5vw] relative">
                                  <textarea value={text2} onChange={e => setText2(e.target.value)} className="flex-1 bg-transparent text-[0.65vw] outline-none text-gray-400 resize-none h-full font-medium" />
@@ -350,7 +355,10 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
 
                         {/* Background Color Row */}
                         <div className="flex items-center gap-[0.5vw]">
-                            <span className="text-[0.75vw] font-semibold text-gray-900 min-w-[4vw]">Background :</span>
+                            <div className="w-[6.5vw] flex items-center justify-between shrink-0">
+                                <span className="text-[0.75vw] font-semibold text-gray-900">Background</span>
+                                <span className="text-[0.75vw] font-semibold text-gray-900">:</span>
+                            </div>
                             <div className="flex gap-[0.5vw] items-center flex-1">
                                 <div className="w-[1.8vw] h-[1.8vw] rounded-[0.5vw] border border-gray-400 shadow-sm" style={{ backgroundColor: bgColor }}></div>
                                 <div className="bg-white border border-gray-400 rounded-[0.5vw] flex items-center justify-between px-[0.6vw] h-[1.8vw] flex-1">
@@ -363,7 +371,10 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                         {/* Shadow Color & Sliders */}
                         <div className="space-y-[1.2vw]">
                             <div className="flex items-center gap-[0.5vw]">
-                                <span className="text-[0.75vw] font-semibold text-gray-900 min-w-[4.5vw]">Shadow :</span>
+                                <div className="w-[6.5vw] flex items-center justify-between shrink-0">
+                                    <span className="text-[0.75vw] font-semibold text-gray-900">Shadow</span>
+                                    <span className="text-[0.75vw] font-semibold text-gray-900">:</span>
+                                </div>
                                 <div className="flex gap-[0.5vw] items-center flex-1">
                                     <div className="w-[1.8vw] h-[1.8vw] rounded-[0.5vw] border border-gray-400 bg-black shadow-sm"></div>
                                     <div className="bg-white border border-gray-400 rounded-[0.5vw] flex items-center justify-between px-[0.6vw] h-[1.8vw] flex-1">
@@ -373,38 +384,41 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                                 </div>
                             </div>
                             
-                            <div className="space-y-[0.5vw] ml-[5vw]">
-                                <div className="flex items-center justify-between gap-[0.3vw]">
-                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.3vw]">X Axis :</span>
+                            <div className="space-y-[0.5vw] ml-[5vw] pr-[0.5vw]">
+                                <div className="flex items-center gap-[0.5vw]">
+                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[3.5vw] text-right shrink-0">X Axis :</span>
                                     <div className="relative flex-1 h-[0.2vw]">
                                         <div className="absolute inset-0 bg-gray-400 rounded-full"></div>
                                         <div className="absolute top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] bg-white rounded-full shadow-md border border-gray-300 left-[0%]"></div>
                                     </div>
-                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[1vw] text-right">{shadowX}</span>
+                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.5vw] text-right shrink-0">{shadowX}</span>
                                 </div>
-                                <div className="flex items-center justify-between gap-[1vw]">
-                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.3vw]">Y Axis :</span>
+                                <div className="flex items-center gap-[0.5vw]">
+                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[3.5vw] text-right shrink-0">Y Axis :</span>
                                     <div className="relative flex-1 h-[0.2vw]">
                                         <div className="absolute inset-0 bg-gray-400 rounded-full"></div>
                                         <div className="absolute top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] bg-white rounded-full shadow-md border border-gray-300 left-[0%]"></div>
                                     </div>
-                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[1vw] text-right">{shadowY}</span>
+                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.5vw] text-right shrink-0">{shadowY}</span>
                                 </div>
-                                <div className="flex items-center justify-between gap-[1vw]">
-                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.3vw]">Blur :</span>
+                                <div className="flex items-center gap-[0.5vw]">
+                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[3.5vw] text-right shrink-0">Blur :</span>
                                     <div className="relative flex-1 h-[0.2vw]">
                                         <div className="absolute inset-0 bg-gray-400 rounded-full"></div>
                                         <div className="absolute inset-y-0 left-0 bg-[#4A3AFF] rounded-full w-[35%]"></div>
                                         <div className="absolute top-1/2 -translate-y-1/2 w-[0.8vw] h-[0.8vw] bg-white rounded-full shadow-md border border-gray-300 left-[0%]"></div>
                                     </div>
-                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.5vw] text-right">{shadowBlur} %</span>
+                                    <span className="text-[0.7vw] font-semibold text-gray-900 w-[2.5vw] text-right shrink-0">{shadowBlur} %</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Upload Logo Box */}
                         <div className="flex items-start gap-[0.5vw]">
-                           <span className="text-[0.75vw] font-semibold text-gray-900 min-w-[4.5vw] pt-[0.5vw]">Upload Logo :</span>
+                           <div className="w-[6.5vw] flex items-start justify-between shrink-0 pt-[0.5vw]">
+                               <span className="text-[0.75vw] font-semibold text-gray-900">Upload Logo</span>
+                               <span className="text-[0.75vw] font-semibold text-gray-900">:</span>
+                           </div>
                            <div className="flex-1 flex flex-col items-center">
                               <div className="w-full border-[0.15vw] border-dashed border-gray-400 rounded-[1vw] flex flex-col items-center justify-center py-[1.5vw] bg-white cursor-pointer hover:bg-gray-50 transition-colors">
                                  <Upload size="1.3vw" className="text-gray-400 mb-[0.6vw]" strokeWidth={2} />
@@ -418,59 +432,55 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
 
                         {/* Select Pages Component */}
                         <div className="flex items-start gap-[0.5vw] pt-[1vw]">
-                           <span className="text-[0.75vw] font-semibold text-gray-900 min-w-[4.5vw] ">Select pages:</span>
+                           <span className="text-[0.75vw] font-semibold text-gray-900 w-[6.5vw] shrink-0 pt-[0.5vw]">Select pages:</span>
                            <div className="bg-[#F2F2F2] rounded-[0.5vw] flex-1 border border-white shadow-sm overflow-hidden flex flex-col">
                               {/* Header */}
-                              <div className="px-[0.5vw] py-[0.5vw]">
-                                 <h3 className="text-[0.7vw] font-semibold text-gray-900">Select any - {selectedPages.length || 3} Pages</h3>
+                              <div className="px-[0.8vw] py-[0.6vw] border-b border-gray-200">
+                                 <h3 className="text-[0.75vw] font-semibold text-gray-900">Select any - {selectedPages.length || 3} Pages</h3>
                               </div>
                               
-                              
+                              <div className="flex w-full">
                                  {/* Pages List */}
-                                 <div className="flex-1 py-[1vw] px-[1.2vw] space-y-[0.5vw] relative">
+                                 <div className="flex-1 py-[0.8vw] px-[1vw] space-y-[0.5vw] relative">
                                     {pages.length > 0 ? pages.map((page, index) => {
                                        const pageNum = index + 1;
                                        const isChecked = selectedPages.includes(pageNum);
                                        return (
-                                          <label key={pageNum} className="flex items-center gap-[1.2vw] cursor-pointer group" onClick={(e) => { e.preventDefault(); togglePageSelection(pageNum); }}>
-                                             <div className={`w-[1vw] h-[1vw] rounded-[0.2vw] flex items-center justify-center transition-colors ${isChecked ? 'bg-black text-white' : 'border-[0.15vw] border-gray-400 bg-white group-hover:border-gray-500'}`}>
-                                                {isChecked && <span className="text-[0.65vw] font-semibold ">{selectedPages.indexOf(pageNum) !== -1 ? selectedPages.indexOf(pageNum) + 1 : pageNum}</span>}
+                                          <label key={pageNum} className="flex items-center gap-[0.8vw] cursor-pointer group" onClick={(e) => { e.preventDefault(); togglePageSelection(pageNum); }}>
+                                             <div className={`w-[0.9vw] h-[0.9vw] rounded-[0.2vw] flex items-center justify-center transition-colors ${isChecked ? 'bg-black text-white' : 'border-[0.15vw] border-gray-400 bg-white group-hover:border-gray-500'}`}>
+                                                {isChecked && <span className="text-[0.6vw] font-semibold ">{selectedPages.indexOf(pageNum) !== -1 ? selectedPages.indexOf(pageNum) + 1 : pageNum}</span>}
                                              </div>
-                                             <span className={`text-[0.6.5vw] font-semibold transition-colors ${isChecked ? 'text-gray-900' : 'text-gray-400'}`}>Page {pageNum}</span>
+                                             <span className={`text-[0.7vw] font-medium transition-colors ${isChecked ? 'text-gray-900' : 'text-gray-400'}`}>Page {pageNum}</span>
                                           </label>
                                        )
                                     }) : (
-                                       <span className="text-gray-400 text-[0.8vw] font-medium">No pages available</span>
+                                       <span className="text-gray-400 text-[0.7vw] font-medium">No pages available</span>
                                     )}
                                  </div>
 
                                  {/* Preview Image */}
-                                 <div className="w-[5vw] m-[1.2vw] aspect-[3.5/5] bg-white border border-gray-200 rounded-[0.2vw] overflow-hidden shadow-md flex-shrink-0">
+                                 <div className="w-[4vw] m-[0.8vw] ml-0 aspect-[3.5/5] bg-white border border-gray-200 rounded-[0.2vw] overflow-hidden shadow-md flex-shrink-0 relative">
                                     {pages.length > 0 ? (
-                                       <div className="w-full h-full p-[0.2vw] pointer-events-none w-[100%] h-[50%]">
+                                       <div className="absolute inset-0 pointer-events-none" style={{ transformOrigin: 'top left', transform: 'scale(0.2)', width: '500%', height: '500%' }}>
                                           <div dangerouslySetInnerHTML={{ __html: pages[selectedPages[selectedPages.length - 1] - 1]?.html || pages[0].html }} />
                                        </div>
                                     ) : (
-                                       <div className="w-full h-full bg-gray-50 flex items-center justify-center text-[0.6vw] text-gray-400 px-[0.5vw] text-center">Preview</div>
+                                       <div className="w-full h-full bg-gray-50 flex items-center justify-center text-[0.5vw] text-gray-400 text-center">Preview</div>
                                     )}
                                  </div>
-
                               </div>
                            </div>
                         </div>
-                  
+                     </div>
                   )}
                </div>
             </div>
           </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        {option === 'template' && (
-           <div className="px-[1.5vw] py-[1.2vw] flex items-center justify-between bg-white mt-auto border-t border-gray-200 shrink-0">
+           {/* Template Footer */}
+           <div className="pt-[1.2vw] flex items-center justify-between mt-[1vw] border-t border-gray-200 shrink-0">
              <p className="text-[0.65vw] text-gray-500 font-medium">
-               <span className="text-red-500">*</span> Choose and customize a template, then click "Save Changes" to save as your flipbook cover
+               <span className="text-red-500">*</span> Choose and customize a template, then click "Change Cover" to save as your flipbook cover
              </p>
              <div className="flex gap-[0.8vw]">
                 <button 
@@ -494,18 +504,21 @@ const CoverPicturePopup = ({ onClose, onSave, onPreview, settings, pages = [] })
                             shadowOpacity,
                             shadowX,
                             shadowY,
-                            shadowBlur,
-                            selectedPages,
-                        }); 
+                            shadowBlur
+                        });
                         onClose(); 
                     }} 
                     className="px-[1vw] py-[0.5vw] bg-black text-white rounded-[0.5vw] text-[0.7vw] font-semibold hover:bg-zinc-800 transition-colors flex items-center gap-[0.4vw] shadow-sm"
                 >
-                   <Check size="1vw" strokeWidth={3} /> Save Changes
+                   <Check size="1vw" strokeWidth={3} /> Change Cover
                 </button>
              </div>
            </div>
-        )}
+
+          </div>
+          )}
+        </div>
+
         {isCropping && (
           <ImageCropOverlay 
             imageSrc={originalImage || uploadedImage}

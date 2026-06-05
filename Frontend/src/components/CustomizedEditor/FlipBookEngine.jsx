@@ -24,11 +24,11 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
 <head>
 <style>
   html, body {
-    margin:0; padding:0; overflow:hidden; background:#fff; width:100%; height:100%;
+    margin:0; padding:0; overflow:hidden; background:transparent; width:100%; height:100%;
     backface-visibility: hidden !important;
     -webkit-backface-visibility: hidden !important;
   }
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; outline: none !important; }
 </style>
 </head>
 <body>${rawHtml || ''}</body>
@@ -172,11 +172,20 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             >
                 {!page.isPad && (
                     <>
-                        <iframe
-                            title={`Page ${i + 1}`}
-                            srcDoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
-                            style={{ border: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit' }}
-                        />
+                        <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'inherit' }}>
+                            <div 
+                                className="fbe-static-bg"
+                                style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
+                                dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; }</style>` + (page.html || page.content || '') }}
+                            />
+                            <iframe
+                                title={`Page ${i + 1}`}
+                                srcDoc={(externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1)}
+                                onLoad={(e) => { e.target.style.opacity = 1; }}
+                                frameBorder="0"
+                                style={{ position: 'absolute', inset: 0, border: 'none', outline: 'none', width: '100%', height: '100%', pointerEvents: 'auto', borderRadius: 'inherit', opacity: 0.01, transition: 'opacity 0.3s ease' }}
+                            />
+                        </div>
                         {textureStyle && (textureStyle.backgroundImage !== 'none' || textureStyle.backgroundColor) && (
                             <div
                                 className="absolute inset-0 z-10 pointer-events-none"
@@ -231,6 +240,38 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             window.removeEventListener('touchend', handleGlobalMouseUp);
         };
     }, []);
+
+    /* ── Preload Google Fonts into Parent Document for Static Background ── */
+    useEffect(() => {
+        const fontsToLoad = new Set();
+        augmentedPages.forEach(page => {
+            const html = page.html || page.content || '';
+            const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+            const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+            let match;
+            while ((match = cssRegex.exec(html)) !== null) {
+                let f = match[1] || match[2];
+                if (f) f = f.split(',')[0].replace(/['"]/g, '').trim();
+                if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+            }
+            while ((match = attrRegex.exec(html)) !== null) {
+                let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+                if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
+            }
+        });
+
+        if (fontsToLoad.size > 0) {
+            const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
+            const href = `https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap`;
+            
+            if (!document.querySelector(`link[href="${href}"]`)) {
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                document.head.appendChild(link);
+            }
+        }
+    }, [augmentedPages]);
 
     /* ── Turn.js — "sheet" paper-curl for COVER PAGES only ── */
     const pagesHash = React.useMemo(() => pages.map(p => p.html || p.content || '').join('|'), [pages]);
@@ -315,10 +356,21 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 const inner = document.createElement('div');
                 inner.className = 'fbe-inner';
 
+                inner.style.position = 'relative';
+
+                const staticBg = document.createElement('div');
+                staticBg.className = 'fbe-static-bg';
+                staticBg.style.cssText = 'position:absolute;inset:0;overflow:hidden;background:#fff;pointer-events:none;border-radius:inherit;';
+                staticBg.innerHTML = `<style>[data-name="Free Frame"] { stroke: transparent !important; }</style>` + (page.html || page.content || '');
+                inner.appendChild(staticBg);
+
                 const iframe = document.createElement('iframe');
+                iframe.setAttribute('frameBorder', '0');
                 iframe.srcdoc = (externalBuildPageDoc || buildPageDoc)(page.html || page.content || '', i + 1);
-                // Render scaled to fill exactly
-                iframe.style.cssText = 'border:none;width:100%;height:100%;pointer-events:auto;';
+                iframe.style.cssText = 'position:absolute;inset:0;border:none;outline:none;width:100%;height:100%;pointer-events:auto;opacity:0.01;transition:opacity 0.3s ease;border-radius:inherit;';
+                iframe.onload = () => {
+                    iframe.style.opacity = '1';
+                };
                 inner.appendChild(iframe);
 
                 // Add texture overlay
@@ -704,6 +756,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
             {/* Page styles */}
             <style>{`
+                .fbe-wrapper, .fbe-wrapper * {
+                    outline: none !important;
+                    user-select: none !important;
+                    -webkit-user-select: none !important;
+                    -webkit-user-drag: none !important;
+                }
+
                 .fbe-page {
                     background: #fff;
                     overflow: hidden;

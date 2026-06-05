@@ -285,7 +285,10 @@ const Sidebar = ({ bookName, setBookName, activeSubView, setActiveSubView, isPan
               label="Profile"
               icon="lucide:user"
               isActive={activeSubView === 'profile'}
-              onClick={() => setActiveSubView('profile')}
+              onClick={() => {
+                setActiveSubView('profile');
+                window.dispatchEvent(new Event('open-profile-preview'));
+              }}
             />
           </div>
         </SidebarItem>

@@ -8,6 +8,22 @@ import {
   DraggableSpan
 } from './AppearanceShared';
 
+const Switch = ({ enabled, onChange, disabled }) => (
+  <button
+    disabled={disabled}
+    onClick={(e) => {
+      if (disabled) return;
+      e.stopPropagation();
+      onChange(!enabled);
+    }}
+    className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'} ${enabled ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
+  >
+    <div
+      className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${enabled ? 'left-[0.9vw]' : 'left-[0.1vw]'}`}
+    />
+  </button>
+);
+
 const BookAppearanceSection = ({
   bookAppearanceSettings,
   onUpdateBookAppearance,
@@ -46,9 +62,9 @@ const BookAppearanceSection = ({
         <div className="flex flex-col gap-[1vw]">
           <div className="flex items-center justify-between px-[0.2vw]">
             <span className="text-[0.75vw] font-semibold text-gray-700">Make First & Last Page Hard</span>
-            <button
-              onClick={() => {
-                const newValue = !bookAppearanceSettings?.makeFirstLastPageHard;
+            <Switch
+              enabled={bookAppearanceSettings?.makeFirstLastPageHard}
+              onChange={(newValue) => {
                 let currentHardPages = [...(bookAppearanceSettings?.customHardPages || [])];
 
                 if (newValue) {
@@ -70,23 +86,16 @@ const BookAppearanceSection = ({
                   customHardPages: newValue ? currentHardPages : []
                 });
               }}
-              className={`w-[2.3vw] h-[1.1vw] rounded-full relative transition-all duration-300 ${bookAppearanceSettings?.makeFirstLastPageHard ? 'bg-[#5551FF]' : 'bg-gray-300'}`}
-            >
-              <div className={`absolute top-[0.1vw] w-[0.9vw] h-[0.9vw] bg-white rounded-full shadow-md transition-all duration-300 flex items-center justify-center ${bookAppearanceSettings?.makeFirstLastPageHard ? 'left-[1.3vw]' : 'left-[0.1vw]'}`}>
-                {bookAppearanceSettings?.makeFirstLastPageHard && (
-                  <Icon icon="lucide:check" className="text-[#5551FF] w-[0.6vw] h-[0.6vw]" strokeWidth={3} />
-                )}
-              </div>
-            </button>
+            />
           </div>
 
           {/* Select Custom Hard Pages */}
           <div className={`flex items-center justify-between px-[0.2vw] ${!bookAppearanceSettings?.makeFirstLastPageHard ? 'opacity-50' : ''}`}>
             <span className="text-[0.75vw] font-semibold text-gray-700">Select Custom Hard Pages</span>
-            <button
+            <Switch
               disabled={!bookAppearanceSettings?.makeFirstLastPageHard}
-              onClick={() => {
-                const isEnabling = !bookAppearanceSettings?.selectCustomHardPages;
+              enabled={bookAppearanceSettings?.selectCustomHardPages}
+              onChange={(isEnabling) => {
                 let newCustomHardPages = bookAppearanceSettings?.customHardPages || [];
 
                 if (isEnabling) {
@@ -99,14 +108,7 @@ const BookAppearanceSection = ({
                   customHardPages: newCustomHardPages
                 });
               }}
-              className={`w-[2.3vw] h-[1.1vw] rounded-full relative transition-all duration-300 ${!bookAppearanceSettings?.makeFirstLastPageHard ? 'cursor-not-allowed' : 'cursor-pointer'} ${bookAppearanceSettings?.selectCustomHardPages ? 'bg-[#5551FF]' : 'bg-gray-300'}`}
-            >
-              <div className={`absolute top-[0.1vw] w-[0.9vw] h-[0.9vw] bg-white rounded-full shadow-md transition-all duration-300 flex items-center justify-center ${bookAppearanceSettings?.selectCustomHardPages ? 'left-[1.3vw]' : 'left-[0.1vw]'}`}>
-                {bookAppearanceSettings?.selectCustomHardPages && (
-                  <Icon icon="lucide:check" className="text-[#5551FF] w-[0.6vw] h-[0.6vw]" strokeWidth={3} />
-                )}
-              </div>
-            </button>
+            />
           </div>
 
           {/* Custom Pages Selection List - Only visible when the toggle is turned ON */}
@@ -137,8 +139,8 @@ const BookAppearanceSection = ({
                       >
                         <div
                           className={`w-[1vw] h-[1vw] rounded-[0.15vw] border-[0.15vw] flex items-center justify-center transition-all ${isSelected
-                              ? 'bg-[#5551FF] border-[#5551FF]'
-                              : 'border-gray-500 bg-white group-hover:border-gray-600'
+                            ? 'bg-[#5551FF] border-[#5551FF]'
+                            : 'border-gray-500 bg-white group-hover:border-gray-600'
                             } ${isForced ? 'cursor-not-allowed' : ''}`}
                           onClick={(e) => {
                             e.preventDefault();
@@ -265,9 +267,9 @@ const BookAppearanceSection = ({
                       min={item.min}
                       max={item.max}
                       value={val}
-                      onChange={(e) => onUpdateBookAppearance({ 
-                        ...bookAppearanceSettings, 
-                        dropShadow: { ...bookAppearanceSettings.dropShadow, [item.key]: parseInt(e.target.value) } 
+                      onChange={(e) => onUpdateBookAppearance({
+                        ...bookAppearanceSettings,
+                        dropShadow: { ...bookAppearanceSettings.dropShadow, [item.key]: parseInt(e.target.value) }
                       })}
                       className="w-full h-[0.4vw] rounded-full appearance-none cursor-pointer z-10 bg-transparent relative [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-[0.8vw] [&::-webkit-slider-thumb]:h-[0.8vw] [&::-webkit-slider-thumb]:bg-[#5551FF] [&::-webkit-slider-thumb]:rounded-full [&::-moz-range-thumb]:w-[0.8vw] [&::-moz-range-thumb]:h-[0.8vw] [&::-moz-range-thumb]:bg-[#5551FF] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-none"
                       style={{ margin: 0 }}

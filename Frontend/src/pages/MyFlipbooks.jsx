@@ -1631,7 +1631,7 @@ export default function MyFlipbooks() {
                                                                 if (physicalBook) targetFolder = physicalBook.folder;
                                                             }
                                                             const identifier = book.v_id || encodeURIComponent(book.realName);
-                                                            navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName } });
+                                                            navigate(`/editor/customized_editor/${encodeURIComponent(targetFolder)}/${identifier}`, { state: { flipbookName: book.realName, pageCount: book.pages } });
                                                         }}
                                                         className="flex items-center gap-[0.375vw] cursor-pointer text-[0.75vw] font-semibold text-[#4c5add] hover:text-[#3a44b1] transition-colors"
                                                     >
