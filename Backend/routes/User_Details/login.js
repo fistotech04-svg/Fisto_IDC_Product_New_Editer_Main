@@ -14,18 +14,13 @@ const getTransporter = () => {
   return nodemailer.createTransport({
     service: 'gmail',
     auth: {
-      type: 'OAuth2',
       user: process.env.EMAIL_USER,
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
+      pass: process.env.EMAIL_APP_PASSWORD,
     },
   });
 };
 
 const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
-
-
 
 // Get the directory name for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -86,7 +81,6 @@ router.post('/google-login', async (req, res) => {
         audience: process.env.GOOGLE_CLIENT_ID,
       });
 
-
       const payload = ticket.getPayload();
       email = payload.email;
       googleId = payload.sub;
@@ -130,8 +124,6 @@ router.post('/google-login', async (req, res) => {
     res.status(500).json({ message: 'Google authentication failed', error: error.message });
   }
 });
-
-
 
 // @route   POST /api/auth/signup
 // @desc    Register a new user
@@ -227,8 +219,7 @@ router.post('/check-user', async (req, res) => {
     // Personalize email name
     const userName = user.emailId.split('@')[0];
 
-
-    // Send OTP via Nodemailer (Gmail OAuth2)
+    // Send OTP via Nodemailer (Gmail App Password)
     try {
       const transporter = getTransporter();
       await transporter.sendMail({
@@ -260,9 +251,6 @@ router.post('/check-user', async (req, res) => {
       console.error('Email Sending Error:', emailError);
       return res.status(500).json({ message: 'Failed to send OTP. Please check your Gmail API credentials.' });
     }
-
-
-    
   } catch (error) {
     console.error('Check User Error:', error);
     res.status(500).json({ message: 'Server error' });
@@ -315,7 +303,6 @@ router.post('/reset-password', async (req, res) => {
     user.otp = null; // Clear OTP
     await user.save();
 
-
     res.status(200).json({ message: 'Password reset successful' });
   } catch (error) {
     console.error('Reset Password Error:', error);
@@ -336,9 +323,6 @@ router.post('/clear-otp', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-
-
 
 // @route   GET /api/auth/users
 // @desc    Get all users (Simple get function as requested)

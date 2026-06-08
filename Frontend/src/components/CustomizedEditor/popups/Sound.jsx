@@ -639,7 +639,7 @@ const Layout6 = ({
                         style={{ color: getLayoutColor('dropdown-text', '#000000'), opacity: isFlipActive ? 1 : 0.4 }}
                     />
                 </button>
-                <div className="flex-1 h-[2px] rounded-none relative overflow-hidden" style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '0, 0, 0', 0.1) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                <div className="flex-1 h-[2px] rounded-none relative overflow-hidden" style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '0, 0, 0', 0.1) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
                     <div
                         className="absolute inset-y-0 left-0 transition-all duration-75 rounded-none"
                         style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#000000') }}
@@ -866,7 +866,7 @@ const Layout9 = ({
                 >
                     <Icon icon="iconoir:sound-low-solid" className={isTablet ? "w-[0.8vw] h-[0.8vw]" : "w-[1.2vw] h-[1.2vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: !isFlipActive ? 0.5 : 1 }} />
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
                     <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </div>
             </div>
@@ -879,7 +879,7 @@ const Layout9 = ({
                 >
                     <Icon icon="solar:music-notes-bold" className={isTablet ? "w-[0.6vw] h-[0.6vw]" : "w-[0.9vw] h-[0.9vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: !isBgActive ? 0.5 : 1 }} />
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
                     <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </div>
             </div>
@@ -914,7 +914,7 @@ const LayoutDefault = ({
                 >
                     <Icon icon="iconoir:sound-low-solid" className={isTablet ? "w-[0.8vw] h-[0.8vw]" : "w-[1.2vw] h-[1.2vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "flip")}>
                     <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: flipWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </div>
             </div>
@@ -926,7 +926,7 @@ const LayoutDefault = ({
                 >
                     <Icon icon="solar:music-notes-bold" className={isTablet ? "w-[0.6vw] h-[0.6vw]" : "w-[0.9vw] h-[0.9vw]"} style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </button>
-                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
+                <div className={isTablet ? "flex-1 h-[0.1vw] rounded-full relative overflow-hidden" : "flex-1 h-[0.15vw] rounded-full relative overflow-hidden"} style={{ cursor: "pointer", backgroundColor: getLayoutColorAlpha('dropdown-text', '255, 255, 255', 0.2) }} onPointerDown={(e) => handleVolumeDrag(e, "bg")}>
                     <div className="absolute inset-0 transition-all duration-75 rounded-full" style={{ width: bgWidth, backgroundColor: getLayoutColor('dropdown-text', '#FFFFFF') }} />
                 </div>
             </div>

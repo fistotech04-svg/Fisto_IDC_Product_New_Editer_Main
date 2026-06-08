@@ -719,7 +719,10 @@ const getInteractionScript = (pageNumber) => `
                     }
                 }
             };
-            document.addEventListener('mouseover', (e) => handleHover(e, true));
+            document.addEventListener('mouseover', (e) => {
+                if (!document.hasFocus()) window.focus();
+                handleHover(e, true);
+            });
             document.addEventListener('mouseout', (e) => handleHover(e, false));
         };
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
@@ -745,7 +748,7 @@ const getIframeContent = (html, pageNumber) => {
             if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
         }
     }
-    
+
     let fontImports = '';
     if (fontsToLoad.size > 0) {
         const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
@@ -1277,18 +1280,18 @@ const TurnJsBookRenderer = React.memo(({
                 <div
                     className="absolute transition-all duration-700 pointer-events-none"
                     style={{
-                        width: BookAppearanceHelpers.getShadowWidth(currentPage, pagesCount, WIDTH),
+                        width: singlePage ? WIDTH : BookAppearanceHelpers.getShadowWidth(currentPage, pagesCount, WIDTH),
                         height: HEIGHT,
-                        left: BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '75%' ? '50%' :
-                            BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '25%' ? '0%' : '0%',
+                        left: singlePage ? '0%' : (BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '75%' ? '50%' :
+                            BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '25%' ? '0%' : '0%'),
                         transform: 'translateX(0)',
                         boxShadow: shadowStyle,
                         zIndex: 0,
-                        borderRadius: BookAppearanceHelpers.getShadowWidth(currentPage, pagesCount, WIDTH) === WIDTH
+                        borderRadius: singlePage ? cornerRadius : (BookAppearanceHelpers.getShadowWidth(currentPage, pagesCount, WIDTH) === WIDTH
                             ? (BookAppearanceHelpers.getShadowOffset(currentPage, pagesCount) === '75%'
                                 ? `0 ${cornerRadius} ${cornerRadius} 0`
                                 : `${cornerRadius} 0 0 ${cornerRadius}`)
-                            : cornerRadius
+                            : cornerRadius)
                     }}
                 />
             )}
@@ -1312,7 +1315,7 @@ const TurnJsBookRenderer = React.memo(({
                 textureStyle={textureStyle}
                 singlePage={singlePage}
                 pageOpacity={pageOpacity}
-                useMouseEvents={true}
+                useMouseEvents={settings?.navigation?.dragToTurn ?? true} 
             />
 
             <div
@@ -1406,7 +1409,8 @@ const PreviewArea = React.memo(({
     setBookmarks,
     setNotes,
     isPublishedPreview = false,
-    disableAutoGallery = false
+    disableAutoGallery = false,
+    onFlip: externalOnFlip
 }) => {
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
@@ -1736,7 +1740,7 @@ const PreviewArea = React.memo(({
     const [mobileIsFlipMuted, setMobileIsFlipMuted] = useState(false);
     const [mobileFlipTrigger, setMobileFlipTrigger] = useState(0);
 
-
+    const lastSoundLogicalRef = useRef(null);
 
     useEffect(() => {
         setShowAddNotesPopup(false);
@@ -1942,10 +1946,12 @@ const PreviewArea = React.memo(({
             setShowAddBookmarkPopup(false);
             setShowAddNotesPopup(false);
             setShowNotesViewer(false);
-            setShowMoreMenu(false);
+            if (Number(activeLayout) !== 4) {
+                setShowMoreMenu(false);
+            }
         }
         setShowSoundPopup(val);
-    }, []);
+    }, [activeLayout]);
 
     const onAddNote = useCallback((note) => {
         if (setNotes) {
@@ -2289,6 +2295,10 @@ const PreviewArea = React.memo(({
         const logicalIndex = e.data;
         setCurrentPage(logicalIndex);
 
+        if (externalOnFlip) {
+            externalOnFlip(logicalIndex);
+        }
+
         // Compute offset for UI centering
         let newOffset = 0;
         if (logicalIndex === 0) {
@@ -2301,16 +2311,30 @@ const PreviewArea = React.memo(({
         setOffset(newOffset);
 
         // Signal a flip to the Sound component
-        setFlipTrigger(prev => prev + 1);
-        setMobileFlipTrigger(prev => prev + 1);
-    }, [pages.length, WIDTH, useHardCover]);
+        if (lastSoundLogicalRef.current !== logicalIndex) {
+            lastSoundLogicalRef.current = logicalIndex;
+            setFlipTrigger(prev => prev + 1);
+            setMobileFlipTrigger(prev => prev + 1);
+        }
+    }, [pages.length, WIDTH, useHardCover, externalOnFlip]);
 
     const onTurning = useCallback((e) => {
         const logicalIndex = e.data;
         if (logicalIndex !== currentPage) {
             setCurrentPage(logicalIndex);
+
+            if (externalOnFlip) {
+                externalOnFlip(logicalIndex);
+            }
+           
+            // Signal a flip to the Sound component when turning starts
+            if (lastSoundLogicalRef.current !== logicalIndex) {
+                lastSoundLogicalRef.current = logicalIndex;
+                setFlipTrigger(prev => prev + 1);
+                setMobileFlipTrigger(prev => prev + 1);
+            }
         }
-    }, [currentPage]);
+    }, [currentPage, externalOnFlip])
 
 
     useEffect(() => {
@@ -3115,6 +3139,11 @@ const PreviewArea = React.memo(({
                                     isAutoFlipping={isAutoFlipping}
                                     handleShare={handleShare}
                                     handleDownload={handleDownload}
+                                    showSharePopup={showSharePopup}
+                                    setShowSharePopup={setShowSharePopup}
+                                    showExportPopup={showExportPopup}
+                                    setShowExportPopup={setShowExportPopup}
+                                    showGalleryPopup={showGalleryPopup}
                                     handleFullScreen={handleFullScreen}
                                     setShowProfilePopup={setShowProfilePopup}
                                     showProfilePopup={showProfilePopup}
