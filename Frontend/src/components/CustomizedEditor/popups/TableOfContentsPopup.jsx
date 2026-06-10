@@ -542,7 +542,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
         return (
             <>
                 <div className="fixed inset-0 z-[190] pointer-events-auto bg-transparent" onClick={onClose} />
-                <div className="fixed bottom-[10.5vh] left-[38vw] -translate-x-1/2 z-[200] pointer-events-auto">
+                <div className={`fixed bottom-[10.5vh] ${isSidebarOpen ? 'left-[54vw]' : 'left-[44vw]'} -translate-x-1/2 z-[200] pointer-events-auto`}>
                     <div
                         className="bg-white rounded-[0.4vw] shadow-[0_0.5vw_2vw_rgba(0,0,0,0.15)] w-[13vw] overflow-hidden border border-gray-100 flex flex-col"
                         onClick={(e) => e.stopPropagation()}

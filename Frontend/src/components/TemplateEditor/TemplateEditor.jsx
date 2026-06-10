@@ -415,16 +415,22 @@ const TemplateEditor = () => {
 
   // ── Popup Customization Handlers ──────────────────────────────────────────
   const onCustomizePopup = async (templateId, elementId, pageIndex) => {
+    const isAlreadyEditing = !!popupEditContext;
+
     // Try to find existing custom HTML on the element
     let initialSvgText = null;
+    let existingTemplateId = null;
     try {
-      const originalPage = pages[pageIndex];
+      const originalPage = isAlreadyEditing ? popupEditContext.backup.pages[pageIndex] : pages[pageIndex];
       if (originalPage && originalPage.html) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(originalPage.html, 'image/svg+xml');
         const el = doc.getElementById(elementId) || doc.querySelector(`[data-name="${elementId}"]`);
         if (el) {
-          initialSvgText = el.getAttribute('data-interaction-popup-custom-html');
+          existingTemplateId = el.getAttribute('data-interaction-value');
+          if (existingTemplateId === templateId) {
+            initialSvgText = el.getAttribute('data-interaction-popup-custom-html');
+          }
         }
       }
     } catch (e) {
@@ -432,7 +438,7 @@ const TemplateEditor = () => {
     }
 
     // Backup current states
-    const backupContext = {
+    const backupContext = isAlreadyEditing ? { ...popupEditContext, templateId } : {
       backup: {
         pages: [...pages],
         activePageIndex,
@@ -449,7 +455,28 @@ const TemplateEditor = () => {
       templateId
     };
 
-    const loadPopupData = (svgText) => {
+    const loadPopupData = (svgText, isNewTemplate = false) => {
+      // If it's a new template, patch the backup pages so a 'Cancel' leaves the new template applied
+      if (isNewTemplate) {
+        const newBackupPages = [...backupContext.backup.pages];
+        if (newBackupPages[pageIndex]) {
+          const pageParser = new DOMParser();
+          const pageDoc = pageParser.parseFromString(newBackupPages[pageIndex].html, 'image/svg+xml');
+          const targetEl = pageDoc.getElementById(elementId) || pageDoc.querySelector(`[data-name="${elementId}"]`);
+          if (targetEl) {
+            targetEl.setAttribute('data-interaction', 'popup');
+            targetEl.setAttribute('data-interaction-value', templateId);
+            targetEl.setAttribute('data-interaction-popup-custom-html', svgText);
+            const serializer = new XMLSerializer();
+            newBackupPages[pageIndex] = {
+              ...newBackupPages[pageIndex],
+              html: serializer.serializeToString(pageDoc.documentElement)
+            };
+            backupContext.backup.pages = newBackupPages;
+          }
+        }
+      }
+
       const parser = new DOMParser();
       const doc = parser.parseFromString(svgText, 'image/svg+xml');
       const svgEl = doc.documentElement;
@@ -528,7 +555,7 @@ const TemplateEditor = () => {
     };
 
     if (initialSvgText && initialSvgText.trim() !== '') {
-      loadPopupData(initialSvgText);
+      loadPopupData(initialSvgText, false);
     } else {
       const template = popupTemplates.find(t => t.id === templateId);
       if (template && template.image) {
@@ -536,7 +563,7 @@ const TemplateEditor = () => {
           const res = await fetch(template.image);
           if (!res.ok) throw new Error("Failed to fetch template image");
           const svgText = await res.text();
-          loadPopupData(svgText);
+          loadPopupData(svgText, true);
         } catch (err) {
           console.error("Failed to fetch template SVG, using fallback:", err);
           const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
@@ -547,7 +574,7 @@ const TemplateEditor = () => {
               <text x="50%" y="50%" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">Popup Template</text>
             </g>
           </svg>`;
-          loadPopupData(fallbackSvg);
+          loadPopupData(fallbackSvg, true);
         }
       } else {
         const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
@@ -558,7 +585,7 @@ const TemplateEditor = () => {
             <text x="50%" y="50%" font-family="Arial" font-size="24" text-anchor="middle" fill="#333">Popup Template</text>
           </g>
         </svg>`;
-        loadPopupData(fallbackSvg);
+        loadPopupData(fallbackSvg, true);
       }
     }
   };
@@ -990,44 +1017,12 @@ const TemplateEditor = () => {
         return;
       }
 
-      const formData = new FormData();
-      formData.append('file', image.blob, `replaced-page-${Date.now()}.svg`);
-      formData.append('emailId', emailId);
-      formData.append('type', 'image');
-      formData.append('v_id', v_id);
-      formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
-      formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
-
-      const pageToReplace = pages[replacePageIndexRef.current];
-      const pageVId = (pageToReplace && (pageToReplace.v_id || pageToReplace.id)) || 'global';
-      formData.append('page_v_id', pageVId);
-
-      if (pageToReplace && pageToReplace.html && pageToReplace.html.includes('data-name="PDF Background"')) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(pageToReplace.html, 'image/svg+xml');
-        const oldImg = doc.querySelector('image[data-name="PDF Background"]');
-        if (oldImg) {
-          const oldHref = oldImg.getAttribute('href') || oldImg.getAttribute('xlink:href');
-          if (oldHref) {
-            formData.append('replacing_file_url', oldHref);
-          }
-        }
-      }
-
-      setPdfProcessing({ current: 1, total: 1, message: 'Uploading replacement asset...' });
-
-      const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(image.blob);
       });
-
-      const assetUrl = res.data.url;
-      const filename = assetUrl.split('/').pop();
-      const relativeUrl = `./assets/image/${filename}`;
-
-      const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
-      const bName = currentBook?.flipbookName || 'Untitled Flipbook';
-      const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
-      const absoluteHtmlSrc = relativeUrl.replace('./assets/', `${projectBaseUrl}assets/`);
 
       saveToHistory();
       let newPages = [];
@@ -1043,16 +1038,14 @@ const TemplateEditor = () => {
           const doc = parser.parseFromString(updatedPage.html, 'image/svg+xml');
           const img = doc.querySelector('image[data-name="PDF Background"]');
           if (img) {
-            img.setAttribute('href', absoluteHtmlSrc);
-            // In some cases it might use xlink:href, update both to be safe
-            if (img.hasAttribute('xlink:href')) img.setAttribute('xlink:href', absoluteHtmlSrc);
+            img.setAttribute('href', base64Data);
+            if (img.hasAttribute('xlink:href')) img.setAttribute('xlink:href', base64Data);
           }
           updatedPage.html = new XMLSerializer().serializeToString(doc.documentElement);
           updatedPage.layers = parseLayersFromSVG(doc.documentElement);
         } else {
           const pageName = updatedPage.name || "Replaced Page";
-          const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
-          const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+          const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight);
           const parser = new DOMParser();
           const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
           updatedPage.html = absoluteHtml;
@@ -1177,25 +1170,16 @@ const TemplateEditor = () => {
       let completed = 0;
       const uploadPromises = images.map(async (image, i) => {
         const newPageVId = 'page_' + Math.random().toString(36).substr(2, 9);
-        const formData = new FormData();
-        formData.append('file', image.blob, `pdf-page-${i + 1}.svg`);
-        formData.append('emailId', emailId);
-        formData.append('type', 'image');
-        formData.append('v_id', v_id);
-        formData.append('folderName', currentBook?.folderName || 'My Flipbooks');
-        formData.append('flipbookName', currentBook?.flipbookName || 'Untitled');
-        formData.append('page_v_id', newPageVId);
-
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const base64Data = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(image.blob);
         });
 
         completed++;
         setPdfProcessing({ current: completed, total: images.length, message: `Processing page ${completed} of ${images.length}...` });
 
-        const assetUrl = res.data.url;
-        const filename = assetUrl.split('/').pop();
-        const relativeUrl = `./assets/image/${filename}`;
         const existingNames = pages.map(p => p.name || "");
         const pdfNums = existingNames
           .filter(n => n.startsWith("PDF Page "))
@@ -1204,13 +1188,7 @@ const TemplateEditor = () => {
         const startNum = pdfNums.length > 0 ? Math.max(...pdfNums) + 1 : 1;
 
         const pageName = `PDF Page ${startNum + i}`;
-        const rawHtml = generatePdfPageSvg(relativeUrl, pageName, baseWidth, baseHeight);
-
-        // Resolve to absolute for immediate editor preview
-        const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || 'Recent Book');
-        const bName = currentBook?.flipbookName || 'Untitled Flipbook';
-        const projectBaseUrl = `${backendUrl}/uploads/${emailId.replace(/[@.]/g, "_")}/My_Flipbooks/${fName}/${bName}/`;
-        const absoluteHtml = rawHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
+        const absoluteHtml = generatePdfPageSvg(base64Data, pageName, baseWidth, baseHeight);
 
         const parser = new DOMParser();
         const doc = parser.parseFromString(absoluteHtml, 'image/svg+xml');
@@ -1910,7 +1888,10 @@ const TemplateEditor = () => {
 
       const parser = new DOMParser();
       const doc = parser.parseFromString(page.html, 'image/svg+xml');
-      const element = doc.getElementById(elementId);
+      let element = doc.getElementById(elementId);
+      if (!element) {
+        element = doc.querySelector(`[data-name="${elementId}"]`);
+      }
       if (element) {
         const updates = (typeof attribute === 'object' && attribute !== null)
           ? Object.entries(attribute)
@@ -2839,7 +2820,7 @@ const TemplateEditor = () => {
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: { emailId: user?.emailId, v_id, folderName: folder || location.state?.folderName, bookName: decodeURIComponent(v_id) }
+            params: { emailId: user?.emailId, v_id, folderName: folder || location.state?.folderName, bookName: decodeURIComponent(v_id), metadataOnly: true }
           });
 
           if (res.data && res.data.pages) {
@@ -2849,9 +2830,20 @@ const TemplateEditor = () => {
             const bookName = res.data.meta.flipbookName;
             const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
 
-            const mappedPages = res.data.pages.map((p, i) => {
+            const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
               const name = p.name || `Page ${i + 1}`;
-              if (!p.html || p.html.trim() === '') {
+              let pageHtml = p.html;
+
+              if (!pageHtml && p.fileName) {
+                try {
+                  const htmlRes = await axios.get(`${projectBaseUrl}${p.fileName}?t=${Date.now()}`);
+                  pageHtml = htmlRes.data;
+                } catch (e) {
+                  console.error(`Failed to fetch HTML for ${p.fileName}`, e);
+                }
+              }
+
+              if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
                 const { html, layers } = createDefaultPageData(name);
                 return {
                   id: p.v_id || i + 1,
@@ -2862,7 +2854,7 @@ const TemplateEditor = () => {
               }
 
               // Transform relative paths to absolute for the editor's canvas
-              let updatedHtml = p.html;
+              let updatedHtml = pageHtml;
               if (updatedHtml.includes('./assets/')) {
                 updatedHtml = updatedHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
               }
@@ -2887,7 +2879,7 @@ const TemplateEditor = () => {
                 html: updatedHtml,
                 layers: layers
               };
-            });
+            }));
 
             setPages(mappedPages);
 
@@ -2904,30 +2896,6 @@ const TemplateEditor = () => {
             }));
             setHasUnsavedChanges(false);
 
-            // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
-            const imageUrls = [];
-            mappedPages.forEach(p => {
-              if (!p.html) return;
-              const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
-              let match;
-              while ((match = imgRegex.exec(p.html)) !== null) {
-                const url = match[1];
-                if (url && !url.startsWith('data:')) imageUrls.push(url);
-              }
-            });
-
-            const uniqueUrls = Array.from(new Set(imageUrls));
-            if (uniqueUrls.length > 0) {
-              console.log(`[Cache] Loading ${uniqueUrls.length} unique assets before initialization...`);
-              await Promise.all(uniqueUrls.map(url => {
-                return new Promise((resolve) => {
-                  const img = new Image();
-                  img.onload = resolve;
-                  img.onerror = resolve; // Continue even if one fails
-                  img.src = url;
-                });
-              }));
-            }
           }
         } catch (err) {
           console.error("Failed to fetch flipbook:", err);
@@ -2978,27 +2946,7 @@ const TemplateEditor = () => {
     initializeEditor();
   }, [v_id, location.state]);
 
-  // Image Pre-caching for quicker view across the entire editor
-  useEffect(() => {
-    if (pages && pages.length > 0) {
-      const cachedUrls = new Set();
-      pages.forEach(page => {
-        if (!page.html) return;
 
-        // Scan for SVG <image> hrefs and standard <img> src
-        const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
-        let match;
-        while ((match = imgRegex.exec(page.html)) !== null) {
-          const url = match[1];
-          if (url && !url.startsWith('data:') && !cachedUrls.has(url)) {
-            const img = new Image();
-            img.src = url;
-            cachedUrls.add(url);
-          }
-        }
-      });
-    }
-  }, [pages]);
 
   if (isLoading) {
     return (

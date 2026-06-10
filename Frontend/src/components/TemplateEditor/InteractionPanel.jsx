@@ -846,7 +846,7 @@ const InteractionPanel = ({
       {/* Select Free Frame Section */}
       <div className="space-y-[1.2vw]">
         <div className="flex items-center gap-[0.4vw]">
-          <span className="text-[0.9vw] font-bold text-gray-900 whitespace-nowrap">Select Free Frame</span>
+          <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Select Free Frame</span>
           <div className="h-px flex-grow bg-gray-100"></div>
         </div>
         <div 
@@ -1423,9 +1423,15 @@ const InteractionPanel = ({
 
                                   {/* Edit Button overlay in center */}
                                   <div
-                                    onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      if (onCustomizePopup) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        onCustomizePopup(resolvedValue, item.id, targetIdx);
+                                      }
+                                    }}
                                     className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
-                                    title="Edit Template"
+                                    title="Customize Template"
                                   >
                                     <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
                                   </div>

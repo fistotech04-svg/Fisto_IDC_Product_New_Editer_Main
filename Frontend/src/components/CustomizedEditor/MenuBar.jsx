@@ -283,7 +283,7 @@ const TocItem = ({ item, index, isEditing, onUpdate, onDelete, activeTOCItem, se
 };
 
 
-const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSetup }) => {
+const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSetup, onTocSettingsClick }) => {
   const [expandedSection, setExpandedSection] = useState(null);
   const [showStylesPopup, setShowStylesPopup] = useState(false);
   const [editingTOCIndex, setEditingTOCIndex] = useState((settings.tocSettings?.content?.length || 0) > 0 ? 0 : null);
@@ -292,7 +292,12 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
 
   const toggleSection = (section) => {
-    setExpandedSection(expandedSection === section ? null : section);
+    const willOpen = expandedSection !== section;
+    setExpandedSection(willOpen ? section : null);
+    // Notify parent when TOC settings panel opens so it can show the TOC popup
+    if (section === 'toc' && willOpen && onTocSettingsClick) {
+      onTocSettingsClick();
+    }
   };
 
   const updateSection = (section, field, value) => {

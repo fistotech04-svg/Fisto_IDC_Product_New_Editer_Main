@@ -82,7 +82,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
             
             const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-              params: { emailId: user.emailId, v_id }
+              params: { emailId: user.emailId, v_id, metadataOnly: true }
             });
 
             if (res.data && res.data.settings) {

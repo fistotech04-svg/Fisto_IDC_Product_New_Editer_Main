@@ -103,13 +103,41 @@ const GalleryPopup = ({ onClose, settings = {}, popupSettings = {}, isTablet }) 
   const primaryColor = hexToRgba(settings.primaryColor || '#000000', settings.primaryOpacity ?? 100);
   const secondaryColor = hexToRgba(settings.secondaryColor || '#D7DBE8', settings.secondaryOpacity ?? 100);
 
-  if (!images || images.length === 0) return null;
-
   const overlayBgColor = popupSettings?.backgroundColor?.fill
     ? `${popupSettings.backgroundColor.fill}50`
     : 'rgba(0,0,0,0.5)';
 
   const popupBgColor = hexToRgba(settings.bgColor || popupSettings?.backgroundColor?.fill || '#FFFFFF', settings.bgOpacity ?? 80);
+
+  if (!images || images.length === 0) {
+    return (
+      <div
+        className={`absolute inset-0 z-[200] flex flex-col items-center justify-center ${isTablet ? 'p-[1vw]' : 'p-[2vw]'}`}
+        style={{ backgroundColor: overlayBgColor, backdropFilter: 'blur(5px)' }}
+        onClick={onClose}
+      >
+        <div
+          className={`relative w-full shadow-2xl flex flex-col items-center justify-center ${isTablet ? 'max-w-[50vw] h-[55vh] rounded-[0.4vw]' : 'max-w-[85vw] h-[75vh] rounded-[0.5vw]'}`}
+          style={{
+            backgroundColor: popupBgColor,
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: popupSettings?.backgroundColor?.stroke && popupSettings.backgroundColor.stroke !== '#' ? `1px solid ${popupSettings.backgroundColor.stroke}` : 'none',
+            fontFamily: popupSettings?.textProperties?.font || 'Poppins'
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className={`absolute flex items-center justify-center bg-white border border-red-500 text-red-500 hover:bg-red-50 transition-all z-[210] shadow-sm cursor-pointer ${isTablet ? 'top-[0.8vw] right-[0.8vw] w-[1.5vw] h-[1.5vw] rounded-[0.25vw]' : 'top-[1vw] right-[1vw] w-[1.8vw] h-[1.8vw] rounded-[0.3vw]'}`}
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+          >
+            <X size={isTablet ? "0.8vw" : "1vw"} strokeWidth={2} />
+          </button>
+          <p className="text-gray-500 font-medium text-lg">Images are not not found</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

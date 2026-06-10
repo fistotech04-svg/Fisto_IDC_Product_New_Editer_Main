@@ -123,6 +123,14 @@ export default function Home() {
     // Scroll progress etc could go here if needed
   }, []);
 
+  // Helper: convert a Blob to a base64 data URI
+  const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
   const handleCreateFlipbook = () => {
     setIsCreateModalOpen(true);
   };
@@ -136,7 +144,7 @@ export default function Home() {
       const MAX_TOTAL_PAGES = 12;
       let allImages = [];
 
-      // 1. Extract images from all PDFs until we hit 12 pages
+      // Step 1 — Extract pages from all PDFs (up to 12 pages)
       for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
         const file = files[fileIndex];
         if (allImages.length >= MAX_TOTAL_PAGES) break;
@@ -152,36 +160,32 @@ export default function Home() {
         allImages = [...allImages, ...images];
       }
 
-      if (allImages.length > 0) {
-        const firstW = allImages[0].width;
-        const firstH = allImages[0].height;
-        const isUniform = allImages.every(img =>
-          Math.abs(img.width - firstW) < 1 &&
-          Math.abs(img.height - firstH) < 1
-        );
-
-        if (!isUniform) {
-          showAlert("Uniformity Error", "Selected PDF pages have different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.");
-          return;
-        }
-
-        var maxWidth = firstW;
-        var maxHeight = firstH;
-      } else {
+      if (allImages.length === 0) {
         showAlert("Error", "No pages could be extracted from the selected files.");
         return;
       }
 
-      // 2. Create the unified flipbook record
+      const firstW = allImages[0].width;
+      const firstH = allImages[0].height;
+      const isUniform = allImages.every(img =>
+        Math.abs(img.width - firstW) < 1 &&
+        Math.abs(img.height - firstH) < 1
+      );
+      if (!isUniform) {
+        showAlert("Uniformity Error", "Selected PDF pages have different dimensions. All pages in a flipbook must have the same size to ensure a professional layout.");
+        return;
+      }
+      const maxWidth = firstW;
+      const maxHeight = firstH;
+
       const now = new Date();
       const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
       const uniqueName = `PDF_Flipbook_${timeString}`;
       const targetFolder = 'My Flipbooks';
 
+      // Step 2 — Create the flipbook record with placeholder pages to get a v_id
       setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
-
-      // Create empty pages structure first
-      const initialPages = allImages.map((_, i) => ({
+      const placeholderPages = allImages.map((_, i) => ({
         pageName: `Page ${i + 1}`,
         content: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${maxWidth} ${maxHeight}" width="100%" height="100%"></svg>`
       }));
@@ -189,65 +193,44 @@ export default function Home() {
       const createRes = await axios.post(`${backendUrl}/api/flipbook/save`, {
         emailId,
         flipbookName: uniqueName,
-        pages: initialPages,
+        pages: placeholderPages,
         overwrite: true,
         folderName: targetFolder
       });
-
       const v_id = createRes.data.v_id;
 
-      // 3. Upload all aggregated pages as assets
-      const uploadedAssets = [];
-      const pageVIds = allImages.map(() => nanoid()); // Generate page v_ids in advance
-      
-      for (let i = 0; i < allImages.length; i++) {
+      // Step 3 — Process pages in batches to speed up upload
+      const BATCH_SIZE = 5;
+      for (let i = 0; i < allImages.length; i += BATCH_SIZE) {
+        const batch = allImages.slice(i, i + BATCH_SIZE);
+        
         setProcessingProgress({
-          current: i + 1,
+          current: Math.min(i + BATCH_SIZE, allImages.length),
           total: allImages.length,
-          message: `Uploading page ${i + 1} of ${allImages.length}...`
+          message: `Saving pages ${i + 1} to ${Math.min(i + BATCH_SIZE, allImages.length)} of ${allImages.length}...`
         });
 
-        const formData = new FormData();
-        formData.append('file', allImages[i].blob, `page-${i + 1}.svg`);
-        formData.append('emailId', emailId);
-        formData.append('type', 'image');
-        formData.append('v_id', v_id);
-        formData.append('folderName', targetFolder);
-        formData.append('flipbookName', uniqueName);
-        formData.append('page_v_id', pageVIds[i]);
+        // Encode the batch of pages concurrently
+        const batchPages = await Promise.all(batch.map(async (img, idx) => {
+          const pageIndex = i + idx + 1;
+          const base64Url = await blobToBase64(img.blob);
+          const html = generatePdfPageSvg(base64Url, `Page ${pageIndex}`, maxWidth, maxHeight);
+          return {
+            pageName: `Page ${pageIndex}`,
+            content: html,
+            pageNumber: pageIndex
+          };
+        }));
 
-        const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        // POST the batch
+        await axios.post(`${backendUrl}/api/flipbook/save-pages-batch`, {
+          emailId,
+          v_id,
+          pages: batchPages
         });
-        uploadedAssets.push(uploadRes.data.url);
       }
 
-      // 4. Update the flipbook with final SVG content
-      const finalPages = allImages.map((img, i) => {
-        const assetUrl = uploadedAssets[i];
-        const filename = assetUrl.split('/').pop();
-        const relativeUrl = `./assets/image/${filename}`;
-        const html = generatePdfPageSvg(relativeUrl, `Page ${i + 1}`, maxWidth, maxHeight);
-
-        return {
-          pageNumber: i + 1,
-          name: `Page ${i + 1}`,
-          fileName: `page-${i + 1}.html`,
-          v_id: pageVIds[i],
-          html: html,
-        };
-      });
-
-      await axios.post(`${backendUrl}/api/flipbook/save`, {
-        emailId,
-        v_id,
-        flipbookName: uniqueName,
-        pages: finalPages,
-        overwrite: true,
-        folderName: targetFolder
-      });
-
-      // 5. Navigate to editor
+      // Step 4 — Navigate to the editor
       navigate(`/editor/${encodeURIComponent(targetFolder)}/${v_id}`);
 
     } catch (error) {

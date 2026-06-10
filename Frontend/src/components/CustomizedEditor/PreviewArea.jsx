@@ -800,6 +800,7 @@ const getIframeContent = (html, pageNumber) => {
                     (function() {
                         const isRightPage = ${pageNumber} % 2 !== 0;
                         const handleMove = (e) => {
+                            if (!document.hasFocus()) window.focus();
                             try {
                                 const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                                 const clientY = e.touches ? e.touches[0].clientY : e.clientY;
@@ -1315,7 +1316,7 @@ const TurnJsBookRenderer = React.memo(({
                 textureStyle={textureStyle}
                 singlePage={singlePage}
                 pageOpacity={pageOpacity}
-                useMouseEvents={settings?.navigation?.dragToTurn ?? true} 
+                useMouseEvents={settings?.navigation?.dragToTurn ?? true}
             />
 
             <div
@@ -1410,7 +1411,9 @@ const PreviewArea = React.memo(({
     setNotes,
     isPublishedPreview = false,
     disableAutoGallery = false,
-    onFlip: externalOnFlip
+    onFlip: externalOnFlip,
+    isLoading = false,
+    externalShowTOC = false,
 }) => {
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
@@ -1713,7 +1716,7 @@ const PreviewArea = React.memo(({
     const [offset, setOffset] = useState(() => {
         // Compute the correct initial offset so first page is centered from the very first render
         if (targetPage === 0) return -(400 / 2); // WIDTH = 400, half-page shift left for cover
-        if (targetPage === (pages?.length ?? 0) - 1) {
+        if (targetPage >= (pages?.length ?? 0) - 1 && (pages?.length ?? 0) % 2 === 0) {
             return (targetPage % 2 === 0) ? -(400 / 2) : (400 / 2);
         }
         return 0;
@@ -1792,6 +1795,13 @@ const PreviewArea = React.memo(({
         setIsMuted(prev => !prev);
     }, []);
     const [showTOC, setShowTOC] = useState(false);
+
+    // Open TOC popup when triggered from MenuBar settings icon click
+    useEffect(() => {
+        if (externalShowTOC) {
+            setShowTOC(true);
+        }
+    }, [externalShowTOC]);
     const [showExportPopup, setShowExportPopup] = useState(false);
     const [showSharePopup, setShowSharePopup] = useState(false);
     const [showProfilePopup, setShowProfilePopup] = useState(false);
@@ -2303,7 +2313,7 @@ const PreviewArea = React.memo(({
         let newOffset = 0;
         if (logicalIndex === 0) {
             newOffset = -(WIDTH / 2);
-        } else if (logicalIndex >= pages.length - 1) {
+        } else if (logicalIndex >= pages.length - 1 && pages.length % 2 === 0) {
             newOffset = (logicalIndex % 2 === 0) ? -(WIDTH / 2) : (WIDTH / 2);
         } else {
             newOffset = 0;
@@ -2316,6 +2326,11 @@ const PreviewArea = React.memo(({
             setFlipTrigger(prev => prev + 1);
             setMobileFlipTrigger(prev => prev + 1);
         }
+
+        // Fix for iframe cursor issue: Blur parent buttons so iframe can capture focus
+        if (document.activeElement && typeof document.activeElement.blur === 'function' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            document.activeElement.blur();
+        }
     }, [pages.length, WIDTH, useHardCover, externalOnFlip]);
 
     const onTurning = useCallback((e) => {
@@ -2326,13 +2341,18 @@ const PreviewArea = React.memo(({
             if (externalOnFlip) {
                 externalOnFlip(logicalIndex);
             }
-           
+
             // Signal a flip to the Sound component when turning starts
             if (lastSoundLogicalRef.current !== logicalIndex) {
                 lastSoundLogicalRef.current = logicalIndex;
                 setFlipTrigger(prev => prev + 1);
                 setMobileFlipTrigger(prev => prev + 1);
             }
+        }
+        
+        // Fix for iframe cursor issue: Blur parent buttons so iframe can capture focus
+        if (document.activeElement && typeof document.activeElement.blur === 'function' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            document.activeElement.blur();
         }
     }, [currentPage, externalOnFlip])
 
@@ -2467,7 +2487,7 @@ const PreviewArea = React.memo(({
         // Soft cover (turn.js): Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             setOffset(-(WIDTH / 2));
-        } else if (currentPage >= pages.length - 1) {
+        } else if (currentPage >= pages.length - 1 && pages.length % 2 === 0) {
             setOffset((currentPage % 2 === 0) ? -(WIDTH / 2) : (WIDTH / 2));
         } else {
             setOffset(0);
@@ -2628,6 +2648,7 @@ const PreviewArea = React.memo(({
                 isLandscape={isLandscape}
                 isEditor={!onClose}
                 isFullscreen={isFullscreen}
+                isLoading={isLoading}
             />
 
             {showTOC && !((isMobile && !isLandscape) || [4, 5, 6, 7].includes(Number(activeLayout))) && (

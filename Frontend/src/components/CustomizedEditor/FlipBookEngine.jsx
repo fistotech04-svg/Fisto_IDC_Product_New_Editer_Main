@@ -113,9 +113,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
     const augmentedPages = useMemo(() => {
         const arr = [...pages];
-        if (!singlePage && arr.length % 2 !== 0) arr.push({ isPad: true });
         return arr;
-    }, [pages, singlePage]);
+    }, [pages]);
 
     /* ── Memoize pages for react-pageflip to prevent iframe reloads ── */
     const memoizedReactPages = useMemo(() => augmentedPages.map((page, i) => {
@@ -124,8 +123,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         if (makeFirstLastPageHard) {
             if (i === 0) isHardPage = true;
             if (!singlePage && i === 1) isHardPage = true;
-            if (i === augmentedPages.length - 1) isHardPage = true;
-            if (!singlePage && i === augmentedPages.length - 2) isHardPage = true;
+            if (augmentedPages.length % 2 === 0) {
+                if (i === augmentedPages.length - 1) isHardPage = true;
+                if (!singlePage && i === augmentedPages.length - 2) isHardPage = true;
+            }
         }
 
         if (selectCustomHardPages) {
@@ -137,8 +138,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         if (!makeFirstLastPageHard && !selectCustomHardPages && hardCovers) {
             if (i === 0) isHardPage = true;
             if (!singlePage && i === 1) isHardPage = true;
-            if (i === augmentedPages.length - 1) isHardPage = true;
-            if (!singlePage && i === augmentedPages.length - 2) isHardPage = true;
+            if (augmentedPages.length % 2 === 0) {
+                if (i === augmentedPages.length - 1) isHardPage = true;
+                if (!singlePage && i === augmentedPages.length - 2) isHardPage = true;
+            }
         }
 
         let startX = 0;
@@ -173,7 +176,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 {!page.isPad && (
                     <>
                         <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 'inherit' }}>
-                            <div 
+                            <div
                                 className="fbe-static-bg"
                                 style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#fff', borderRadius: 'inherit', pointerEvents: 'none' }}
                                 dangerouslySetInnerHTML={{ __html: `<style>[data-name="Free Frame"] { stroke: transparent !important; }</style>` + (page.html || page.content || '') }}
@@ -263,7 +266,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         if (fontsToLoad.size > 0) {
             const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
             const href = `https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap`;
-            
+
             if (!document.querySelector(`link[href="${href}"]`)) {
                 const link = document.createElement('link');
                 link.rel = 'stylesheet';
@@ -285,13 +288,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
         // ── Teardown: destroy old instance AND flush jQuery data ──────────
         // Without removeData(), stale $.data('turn.turn') causes widgetInterface
         // to treat the options object as a method name → TypeError on .apply().
-        try { 
+        try {
             const oldData = $book.data();
             if (oldData && oldData.pages) {
                 // Wipe the pages from the old instance to neutralize leaked document closures in turn.js v3
                 for (let k in oldData.pages) delete oldData.pages[k];
             }
-            $book.turn('destroy'); 
+            $book.turn('destroy');
         } catch (_) { /* noop */ }
         $book.off();          // unbind leaked $book listeners
         $book.removeData();   // wipe 'turn.turn' key so next init is always fresh
@@ -311,8 +314,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (makeFirstLastPageHard) {
                 if (i === 0) isPageHard = true;
                 if (!singlePage && i === 1) isPageHard = true;
-                if (i === augmented.length - 1) isPageHard = true;
-                if (!singlePage && i === augmented.length - 2) isPageHard = true;
+                if (augmented.length % 2 === 0) {
+                    if (i === augmented.length - 1) isPageHard = true;
+                    if (!singlePage && i === augmented.length - 2) isPageHard = true;
+                }
             }
 
             // 2. Custom selected pages
@@ -327,8 +332,10 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             if (!makeFirstLastPageHard && !selectCustomHardPages && hardCovers) {
                 if (i === 0) isPageHard = true;
                 if (!singlePage && i === 1) isPageHard = true;
-                if (i === augmented.length - 1) isPageHard = true;
-                if (!singlePage && i === augmented.length - 2) isPageHard = true;
+                if (augmented.length % 2 === 0) {
+                    if (i === augmented.length - 1) isPageHard = true;
+                    if (!singlePage && i === augmented.length - 2) isPageHard = true;
+                }
             }
 
             // [LOG] Debug hard page detection
@@ -419,10 +426,11 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             when: {
                 start: (e, pageObject, corner) => {
                     if (bookEl.current) bookEl.current.classList.add('fbe-is-dragging');
-                    // Block the peel animation before it even starts if going to a pad page
-                    if (corner === 'r' || corner === 'tr' || corner === 'br') {
-                        const nextLogical = pageObject.page; // 1-based next page logical index
-                        if (augmented[nextLogical] && augmented[nextLogical].isPad) {
+                    // Prevent peel animation for the last page of an odd-numbered flipbook
+                    if (!singlePage && augmented.length % 2 !== 0) {
+                        // pageObject.page is the 1-based page being dragged.
+                        // If it's the last page, and we pull from the right corners, block it.
+                        if (pageObject.page === augmented.length && (corner === 'r' || corner === 'tr' || corner === 'br')) {
                             e.preventDefault();
                         }
                     }
@@ -431,30 +439,16 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     if (bookEl.current) bookEl.current.classList.remove('fbe-is-dragging');
                 },
                 turning: (e, turnPage) => {
-                    const logical = turnPage - 1;
-
-                    // Prevent turning to the pad page if the flipbook has an odd number of real pages
-                    if (augmented[logical] && augmented[logical].isPad) {
+                    // Prevent turning past the last page in odd-numbered flipbooks
+                    if (!singlePage && augmented.length % 2 !== 0 && turnPage > augmented.length) {
                         e.preventDefault();
                         return false;
                     }
-
+                    const logical = turnPage - 1;
                     if (onTurningRef.current) onTurningRef.current({ data: logical });
                 },
                 turned: (_e, turnPage) => {
                     const logical = turnPage - 1;
-
-                    // Safe-guard: if turn.js reaches the pad page despite our blocks,
-                    // do NOT update the React state to this page, and force turn.js back.
-                    if (augmented[logical] && augmented[logical].isPad) {
-                        setTimeout(() => {
-                            if (bookEl.current && window.jQuery) {
-                                try { window.jQuery(bookEl.current).turn('page', turnPage - 2); } catch (e) { }
-                            }
-                        }, 0);
-                        return;
-                    }
-
                     setCurrentPage(logical);
                     // Use the ref so we always call the latest onFlip from PreviewArea
                     if (onFlipRef.current) onFlipRef.current({ data: logical });
@@ -484,7 +478,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
     /* ── Imperative API (exposed via ref) ── */
     const flipNextFn = useCallback(() => {
-        // Block turning to the pad page if the original pages count is odd
+        // Block auto-turning past the last page if the pages count is odd
         if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
             return;
         }
@@ -580,9 +574,9 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     useEffect(() => {
         const handleMessage = (e) => {
             if (!e.data || !showingTurnJs || !window.jQuery) return;
-            
+
             const $ = window.jQuery;
-            
+
             const createJqEvent = (type, data) => {
                 let clientX = data.originalClientX || 0;
                 let clientY = data.originalClientY || 0;
@@ -604,8 +598,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                 ev.pageY = clientY + window.scrollY;
                 ev.originalEvent = {
                     touches: [{ pageX: ev.pageX, pageY: ev.pageY, clientX: ev.clientX, clientY: ev.clientY }],
-                    preventDefault: () => {},
-                    stopPropagation: () => {}
+                    preventDefault: () => { },
+                    stopPropagation: () => { }
                 };
                 return ev;
             };

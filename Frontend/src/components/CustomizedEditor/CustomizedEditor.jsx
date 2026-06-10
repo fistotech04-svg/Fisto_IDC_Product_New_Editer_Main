@@ -389,12 +389,12 @@ const CustomizedEditor = () => {
         addPageNumber: true,
         addSerialNumberHeading: true,
         addSerialNumberSubheading: true,
-        content: [
-          { id: 1, title: 'Heading 1', page: 1, subheadings: [{ id: 1, title: 'Subheading 1', page: 1 }] }
-        ]
+        content: []
       }
     };
   });
+
+  const [tocOpenTrigger, setTocOpenTrigger] = useState(0); 
 
   const [otherSetupSettings, setOtherSetupSettings] = useState(() => {
     const saved = localStorage.getItem(`customized_editor_setup_${v_id || 'default'}`);
@@ -815,7 +815,7 @@ const CustomizedEditor = () => {
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: { emailId: user.emailId, v_id, folderName: folder, bookName: decodeURIComponent(v_id) }
+            params: { emailId: user.emailId, v_id, folderName: folder, bookName: decodeURIComponent(v_id), metadataOnly: true }
           });
 
           if (res.data) {
@@ -834,10 +834,19 @@ const CustomizedEditor = () => {
                 setBookName(res.data.meta?.flipbookName || res.data.name || location.state?.flipbookName || decodeURIComponent(v_id) || 'Name of the Book');
               }
               if (res.data.pages) {
-                setPages(res.data.pages.map((p, i) => {
+                const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
                   let rawHTML = p.html || p.content || '';
 
-                  if (!rawHTML || rawHTML.trim() === '') {
+                  if (!rawHTML && p.fileName) {
+                     try {
+                       const htmlRes = await axios.get(`${pBaseUrl}${p.fileName}?t=${Date.now()}`);
+                       rawHTML = htmlRes.data;
+                     } catch(e) {
+                       console.error(`Failed to fetch HTML for ${p.fileName}`, e);
+                     }
+                  }
+
+                  if (!rawHTML || typeof rawHTML !== 'string' || rawHTML.trim() === '') {
                     const defaultData = createDefaultPageData(p.name || `Page ${i + 1}`);
                     rawHTML = defaultData;
                   }
@@ -859,6 +868,7 @@ const CustomizedEditor = () => {
                     html: rawHTML
                   };
                 }));
+                setPages(mappedPages);
               }
             }
 
@@ -895,45 +905,7 @@ const CustomizedEditor = () => {
               setShareSettings(res.data.share);
             }
 
-            // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
-            if (res.data.pages) {
-              const imageUrls = [];
-              res.data.pages.forEach(p => {
-                const htmlStr = p.html || p.content || '';
-                if (!htmlStr) return;
-                const imgRegex = /<(?:image|img)[^>]+(?:href|src)=["']([^"']+)["']/g;
-                let match;
-                while ((match = imgRegex.exec(htmlStr)) !== null) {
-                  let url = match[1];
-                  if (url && !url.startsWith('data:')) {
-                    // Apply pBaseUrl to relative paths just like we did for the actual pages
-                    if (url.includes('nullassets/') && pBaseUrl) {
-                      url = url.split('nullassets/').join(`${pBaseUrl}assets/`);
-                    } else if (url.includes('./assets/') && pBaseUrl) {
-                      url = url.split('./assets/').join(`${pBaseUrl}assets/`);
-                    }
-                    imageUrls.push(url);
-                  }
-                }
-              });
-
-              const uniqueUrls = Array.from(new Set(imageUrls));
-              if (uniqueUrls.length > 0) {
-                console.log(`[Cache] Loading ${uniqueUrls.length} unique assets before initialization...`);
-                await Promise.all(uniqueUrls.map(url => {
-                  return new Promise((resolve) => {
-                    const img = new Image();
-                    img.onload = resolve;
-                    img.onerror = resolve; // Continue even if one fails
-                    img.src = url;
-                  });
-                }));
-              }
-            }
           }
-
-          // Extra 3s loading time as requested
-          await new Promise(resolve => setTimeout(resolve, 3000));
         } catch (err) {
           console.error("CustomizedEditor: Failed to fetch flipbook", err);
           if (!currentBook?.flipbookName || currentBook?.flipbookName === 'Name of the Book') {
@@ -1017,6 +989,7 @@ const CustomizedEditor = () => {
               setOtherSetupTarget(target);
               setActiveSubView('othersetup');
             }}
+            onTocSettingsClick={() => setTocOpenTrigger(t => t + 1)}
           />
         );
       case 'othersetup':
@@ -1171,6 +1144,8 @@ const CustomizedEditor = () => {
             isEditor={true}
             useNativeFullscreen={true}
             baseUrl={projectBaseUrl}
+            isLoading={isLoading}
+            externalShowTOC={tocOpenTrigger}
           />
         </div>
       </div>

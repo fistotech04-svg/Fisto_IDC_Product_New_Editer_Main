@@ -541,6 +541,137 @@ router.post("/save", async (req, res) => {
   }
 });
 
+// @route  POST /api/flipbook/save-page
+// @desc   Save / update a single page's HTML content for an existing flipbook.
+//         Used when uploading large PDFs page-by-page to avoid oversized requests.
+// @body   { emailId, v_id, pageName, content, pageNumber }
+router.post("/save-page", async (req, res) => {
+  try {
+    const { emailId, v_id, pageName, content, pageNumber } = req.body;
+
+    if (!emailId || !v_id || !pageName || content === undefined) {
+      return res.status(400).json({ message: "Missing required fields: emailId, v_id, pageName, content" });
+    }
+
+    // Locate the flipbook document
+    const doc = await Flipbook.findOne({ userEmail: emailId, v_id });
+    if (!doc) {
+      return res.status(404).json({ message: "Flipbook not found" });
+    }
+
+    // Resolve the physical folder (skip the virtual 'Recent Book' tag)
+    const realFolders = Array.isArray(doc.folderName)
+      ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
+      : [doc.folderName];
+    const realFolder = realFolders[0] || "My Flipbooks";
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    const flipbookDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, realFolder, doc.flipbookName);
+
+    if (!fs.existsSync(flipbookDir)) {
+      fs.mkdirSync(flipbookDir, { recursive: true });
+    }
+
+    // Write the HTML file for this page
+    const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
+    const filePath = path.join(flipbookDir, fileName);
+    fs.writeFileSync(filePath, content, "utf8");
+
+    // Update or insert this page in the DB pages array
+    const existingPageIdx = doc.pages ? doc.pages.findIndex((p) => p.name === pageName) : -1;
+    if (existingPageIdx >= 0) {
+      // Update existing page record
+      doc.pages[existingPageIdx].fileName = fileName;
+      if (pageNumber !== undefined) doc.pages[existingPageIdx].pageNumber = pageNumber;
+    } else {
+      // Append new page record
+      const newPageVId = `page_${Math.random().toString(36).substr(2, 9)}`;
+      doc.pages = doc.pages || [];
+      doc.pages.push({
+        pageNumber: pageNumber || doc.pages.length + 1,
+        name: pageName,
+        fileName,
+        v_id: newPageVId,
+      });
+    }
+
+    doc.lastUpdated = new Date();
+    doc.markModified("pages");
+    await doc.save();
+
+    res.status(200).json({ message: "Page saved", pageName, fileName });
+  } catch (error) {
+    console.error("Error saving page:", error);
+    res.status(500).json({ message: "Server error saving page", error: error.message });
+  }
+});
+
+// @route  POST /api/flipbook/save-pages-batch
+// @desc   Save multiple pages' HTML content for an existing flipbook in one request.
+//         Optimizes large PDF uploads by processing batches (e.g. 5-10 pages at a time).
+// @body   { emailId, v_id, pages: [{ pageName, content, pageNumber }] }
+router.post("/save-pages-batch", async (req, res) => {
+  try {
+    const { emailId, v_id, pages } = req.body;
+
+    if (!emailId || !v_id || !Array.isArray(pages) || pages.length === 0) {
+      return res.status(400).json({ message: "Missing required fields or pages array is empty" });
+    }
+
+    // Locate the flipbook document
+    const doc = await Flipbook.findOne({ userEmail: emailId, v_id });
+    if (!doc) return res.status(404).json({ message: "Flipbook not found" });
+
+    // Resolve the physical folder
+    const realFolders = Array.isArray(doc.folderName)
+      ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
+      : [doc.folderName];
+    const realFolder = realFolders[0] || "My Flipbooks";
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    const flipbookDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, realFolder, doc.flipbookName);
+
+    if (!fs.existsSync(flipbookDir)) {
+      fs.mkdirSync(flipbookDir, { recursive: true });
+    }
+
+    doc.pages = doc.pages || [];
+
+    for (const page of pages) {
+      const { pageName, content, pageNumber } = page;
+      const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
+      
+      // Write HTML file to disk
+      fs.writeFileSync(path.join(flipbookDir, fileName), content, "utf8");
+
+      // Update or insert into DB pages array
+      const existingPageIdx = doc.pages.findIndex((p) => p.name === pageName);
+      if (existingPageIdx >= 0) {
+        doc.pages[existingPageIdx].fileName = fileName;
+        if (pageNumber !== undefined) doc.pages[existingPageIdx].pageNumber = pageNumber;
+      } else {
+        doc.pages.push({
+          pageNumber: pageNumber || doc.pages.length + 1,
+          name: pageName,
+          fileName,
+          v_id: `page_${Math.random().toString(36).substr(2, 9)}`,
+        });
+      }
+    }
+
+    doc.lastUpdated = new Date();
+    doc.markModified("pages");
+    await doc.save();
+
+    res.status(200).json({ message: "Batch saved successfully", pagesSaved: pages.length });
+  } catch (error) {
+    console.error("Error saving pages batch:", error);
+    res.status(500).json({ message: "Server error saving pages batch", error: error.message });
+  }
+});
+
 // Helper to get folder size
 const getDirSize = (dirPath) => {
   let size = 0;
@@ -1409,7 +1540,7 @@ router.post("/duplicate", async (req, res) => {
 // @desc    Get specific flipbook content (pages)
 router.get("/get", async (req, res) => {
   try {
-    const { emailId, folderName, bookName, v_id } = req.query;
+    const { emailId, folderName, bookName, v_id, metadataOnly } = req.query;
     if (!emailId || (!v_id && (!folderName || !bookName)))
       return res.status(400).json({ message: "Missing fields" });
 
@@ -1501,10 +1632,19 @@ router.get("/get", async (req, res) => {
       const pagePromises = dbBook.pages.map(async (p) => {
         const filePath = path.join(bookPath, p.fileName);
         try {
+          if (metadataOnly === 'true') {
+             return {
+                name: p.name,
+                fileName: p.fileName,
+                html: "",
+                v_id: p.v_id,
+             };
+          }
           // Use async reading for better performance
           const content = await fs.promises.readFile(filePath, "utf8");
           return {
             name: p.name,
+            fileName: p.fileName,
             html: content,
             v_id: p.v_id,
           };
@@ -1523,9 +1663,17 @@ router.get("/get", async (req, res) => {
       );
 
       const pagePromises = files.map(async (file) => {
+        if (metadataOnly === 'true') {
+           return {
+              name: file.replace(".html", ""),
+              fileName: file,
+              html: "",
+           };
+        }
         const content = await fs.promises.readFile(path.join(bookPath, file), "utf8");
         return {
           name: file.replace(".html", ""),
+          fileName: file,
           html: content,
         };
       });
@@ -2646,4 +2794,96 @@ router.delete("/delete-asset", async (req, res) => {
   }
 });
 
+// @route  POST /api/flipbook/inline-svgs
+// @desc   Migration: read HTML pages that reference external SVG asset files and
+//         replace href="./assets/image/xxx.svg" with an inline base64 data URI.
+//         Run once per flipbook to make pages self-contained (no separate SVG fetch).
+// @body   { emailId, folderName, flipbookName }
+router.post("/inline-svgs", async (req, res) => {
+  try {
+    const { emailId, folderName, flipbookName } = req.body;
+    if (!emailId || !folderName || !flipbookName) {
+      return res.status(400).json({ message: "Missing emailId, folderName, or flipbookName" });
+    }
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    const flipbookDir = path.join(
+      uploadsDir,
+      sanitizedEmail,
+      FLIPBOOK_ROOT,
+      folderName,
+      flipbookName
+    );
+
+    if (!fs.existsSync(flipbookDir)) {
+      return res.status(404).json({ message: "Flipbook directory not found" });
+    }
+
+    const htmlFiles = fs.readdirSync(flipbookDir).filter((f) => f.endsWith(".html"));
+    let pagesUpdated = 0;
+    let pagesSkipped = 0;
+
+    // Regex to find: href="./assets/image/FILENAME.svg"  (or assets/Image/ any case)
+    const svgHrefRegex = /href="(\.\/assets\/[Ii]mage\/([^"]+\.svg))"/gi;
+
+    for (const htmlFile of htmlFiles) {
+      const filePath = path.join(flipbookDir, htmlFile);
+      let content = fs.readFileSync(filePath, "utf8");
+
+      // Check if this page references an external SVG asset
+      if (!svgHrefRegex.test(content)) {
+        pagesSkipped++;
+        svgHrefRegex.lastIndex = 0; // reset regex state
+        continue;
+      }
+      svgHrefRegex.lastIndex = 0;
+
+      let updated = false;
+      content = content.replace(svgHrefRegex, (match, relPath, filename) => {
+        // Resolve the SVG file relative to the flipbook directory
+        // relPath is like "./assets/image/xxx.svg" or "./assets/Image/xxx.svg"
+        const svgPath = path.join(flipbookDir, relPath.replace(/^\.\//, ""));
+
+        if (!fs.existsSync(svgPath)) {
+          console.warn(`SVG file not found, skipping: ${svgPath}`);
+          return match; // leave unchanged if file missing
+        }
+
+        try {
+          const svgBuffer = fs.readFileSync(svgPath);
+          const base64 = svgBuffer.toString("base64");
+          const dataUri = `data:image/svg+xml;base64,${base64}`;
+          updated = true;
+          return `href="${dataUri}"`;
+        } catch (e) {
+          console.warn(`Failed to read/encode SVG: ${svgPath}`, e.message);
+          return match;
+        }
+      });
+
+      if (updated) {
+        fs.writeFileSync(filePath, content, "utf8");
+        pagesUpdated++;
+        console.log(`✓ Inlined SVG in: ${htmlFile}`);
+      } else {
+        pagesSkipped++;
+      }
+    }
+
+    res.json({
+      message: "SVG inline migration complete",
+      flipbook: flipbookName,
+      folder: folderName,
+      pagesUpdated,
+      pagesSkipped,
+      totalPages: htmlFiles.length,
+    });
+  } catch (error) {
+    console.error("Error inlining SVGs:", error);
+    res.status(500).json({ message: "Server error during SVG inline migration", error: error.message });
+  }
+});
+
 export default router;
+

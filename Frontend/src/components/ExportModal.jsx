@@ -825,10 +825,11 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
               emailId,
               v_id,
               folderName,
-              bookName
+              bookName,
+              metadataOnly: true
             }
           })
-          .then(res => {
+          .then(async res => {
             if (res.data) {
               const sanitizedEmail = emailId.replace(/[@.]/g, "_");
               const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
@@ -844,7 +845,23 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
               setProjectBaseUrl(pBaseUrl);
 
               if (res.data.pages) {
-                setModalPages(normalizePages(res.data.pages));
+                const fetchedPages = await Promise.all(res.data.pages.map(async (p, i) => {
+                   let rawHTML = p.html || p.content || '';
+                   if (!rawHTML && p.fileName) {
+                      try {
+                         const htmlRes = await axios.get(`${pBaseUrl}${p.fileName}?t=${Date.now()}`);
+                         rawHTML = htmlRes.data;
+                      } catch(e) {
+                         console.error(`Failed to fetch HTML for ${p.fileName}`, e);
+                      }
+                   }
+                   return {
+                      ...p,
+                      html: rawHTML,
+                      content: rawHTML
+                   };
+                }));
+                setModalPages(normalizePages(fetchedPages));
               }
             }
           })
