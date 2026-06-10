@@ -367,7 +367,9 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
                   <div className="flex items-center gap-[0.75vw] transition-transform duration-300 ease-in-out group-hover:translate-x-[1vw]">
                     <Icon icon="bi:file-earmark-pdf-fill" className="text-[#FF4444] w-[1.25vw] h-[1.25vw] flex-shrink-0" />
                     <div className="flex flex-col min-w-0">
-                      <span className="text-[0.75vw] font-bold text-gray-900 truncate">{fileObj.file?.name}</span>
+                      <span className="text-[0.75vw] font-bold text-gray-900 block truncate" title={fileObj.file?.name}>
+                        {fileObj.file?.name?.length > 35 ? fileObj.file?.name.substring(0, 35) + '...' : fileObj.file?.name}
+                      </span>
                       <span className="text-[0.55vw] text-gray-500 font-medium">
                         {(fileObj.file.size / (1024 * 1024)).toFixed(2)} MB - {fileObj.pages ? `${fileObj.pages} Pages` : 'Loading pages...'}
                       </span>

@@ -227,17 +227,32 @@ router.post('/check-user', async (req, res) => {
         to: emailId,
         subject: 'Your Password Reset OTP',
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
-            <h2 style="color: #4c5add; text-align: center;">Fisto Password Reset</h2>
-            <p>Hello <strong>${userName}</strong>,</p>
-            <p>You requested to reset your password. Use the following OTP to proceed:</p>
-            <div style="background-color: #f4f7ff; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; color: #4c5add; letter-spacing: 5px; border-radius: 5px; margin: 20px 0;">
-              ${otp}
+          <!DOCTYPE html>
+          <html>
+          <body style="margin: 0; padding: 0; background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+            <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #eaeaea;">
+              <div style="background: linear-gradient(135deg, #4c5add, #3f4bc0); padding: 30px 20px; text-align: center;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 600; letter-spacing: 2px;">FIST-O</h1>
+              </div>
+              <div style="padding: 40px 30px;">
+                <h2 style="color: #333333; font-size: 22px; font-weight: 600; margin-top: 0; text-align: center;">Password Reset Request</h2>
+                <p style="color: #555555; font-size: 16px; line-height: 1.6;">Hello <strong style="color: #333;">${userName}</strong>,</p>
+                <p style="color: #555555; font-size: 16px; line-height: 1.6;">We received a request to reset your Fisto account password. Please use the verification code below to complete the process.</p>
+                
+                <div style="background-color: #f8f9fe; border: 2px dashed #4c5add; border-radius: 8px; padding: 24px; text-align: center; margin: 30px 0;">
+                  <span style="display: block; font-size: 36px; font-weight: 700; color: #4c5add; letter-spacing: 8px; margin-left: 8px;">${otp}</span>
+                </div>
+
+                <p style="color: #777777; font-size: 14px; line-height: 1.6; margin-bottom: 0;">
+                  This code is valid for a limited time. If you did not request a password reset, you can safely ignore this email.
+                </p>
+              </div>
+              <div style="background-color: #f9f9f9; padding: 20px; text-align: center; border-top: 1px solid #eaeaea;">
+                <p style="color: #999999; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} Fisto Tech. All rights reserved.</p>
+              </div>
             </div>
-            <p>This OTP is valid for a limited time. If you did not request this, please ignore this email.</p>
-            <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-            <p style="font-size: 12px; color: #888; text-align: center;">&copy; 2026 Fisto Tech. All rights reserved.</p>
-          </div>
+          </body>
+          </html>
         `
       });
 

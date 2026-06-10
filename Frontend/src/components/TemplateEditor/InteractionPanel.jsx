@@ -5,6 +5,55 @@ import { Icon } from '@iconify/react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
+import { Canvas } from '@react-three/fiber';
+import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
+
+const GlbModel = ({ url }) => {
+  const { scene } = useGLTF(url);
+  return (
+    <Canvas camera={{ fov: 50 }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
+      <Stage environment="city" adjustCamera intensity={1}>
+        <primitive object={scene} />
+      </Stage>
+      <OrbitControls enableZoom={false} enablePan={false} autoRotate={false} />
+    </Canvas>
+  );
+};
+
+const GlbThumbnail = ({ dataUrl }) => {
+  const [blobUrl, setBlobUrl] = useState(null);
+
+  useEffect(() => {
+    if (!dataUrl) return;
+    let active = true;
+    let url = null;
+    
+    // Convert base64 data URL to Blob URL to prevent memory leaks and parsing issues in useGLTF
+    fetch(dataUrl)
+      .then(res => res.blob())
+      .then(blob => {
+        if (!active) return;
+        url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      })
+      .catch(() => {
+        if (active) setBlobUrl(dataUrl);
+      });
+
+    return () => {
+      active = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [dataUrl]);
+  
+  if (!blobUrl) return <div className="w-full h-full flex items-center justify-center text-[0.7vw] text-[#5145F6] font-medium animate-pulse">Loading...</div>;
+  return (
+    <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[0.7vw] text-[#5145F6] font-medium animate-pulse">Rendering...</div>}>
+      <GlbModel url={blobUrl} />
+    </React.Suspense>
+  );
+};
 
 // Helper for international phone validation
 const validatePhoneNumber = (value) => {
@@ -125,7 +174,7 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
             className="flex items-center gap-[0.3vw] bg-[#22C55E] hover:bg-[#16A34A] text-white px-[0.8vw] py-[0.5vh] rounded-[0.3vw] shadow-sm transition-colors"
           >
             <Icon icon="lucide:check" className="text-[0.9vw]" />
-            <span className="text-[0.7vw] font-medium">Done</span>
+            <span className="text-[0.75vw] font-medium">Done</span>
           </button>
         </div>
       )}
@@ -223,6 +272,71 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
 };
 
 
+const CommonDropBox = ({
+  id,
+  accept,
+  onFileSelect,
+  fileMeta, // Object or null. If null, shows empty state
+  emptyIcon = "prime:upload",
+  emptyTitle = <>Drag & Drop or <span className="text-[#5145F6] font-semibold hover:underline">Upload</span></>,
+  subText,
+  renderPreview,
+  boxClassName, // override entire box classes if needed
+  hideInput = false,
+}) => {
+  return (
+    <div className="flex flex-col items-center justify-center w-full">
+      {!hideInput && (
+        <input
+          type="file"
+          id={id}
+          className="hidden"
+          accept={accept}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file && onFileSelect) onFileSelect(file);
+          }}
+        />
+      )}
+      <div
+        onClick={() => document.getElementById(id)?.click()}
+        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+        onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5');
+          const file = e.dataTransfer.files?.[0];
+          if (file && onFileSelect) onFileSelect(file);
+        }}
+        className={
+          boxClassName || (fileMeta
+            ? "w-[7.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all overflow-hidden p-[0.3vw]"
+            : "w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all gap-[0.5vh]")
+        }
+      >
+        {fileMeta ? (
+          renderPreview ? renderPreview(fileMeta) : (
+            <>
+              <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />
+              <span className="text-[0.6vw] font-medium text-gray-500 mt-[0.2vh] truncate text-center w-[7vw]" title={fileMeta.name}>
+                {fileMeta.name}
+              </span>
+            </>
+          )
+        ) : (
+          <>
+            <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none">
+              {emptyTitle}
+            </span>
+            <Icon icon={emptyIcon} className="text-[#6B7280] text-[1.6vw] my-[0.2vh]" />
+            {subText && <span className="text-[0.65vw] text-[#9CA3AF] font-normal select-none">{subText}</span>}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const InteractionPanel = ({
   selectedElementProps,
   activePageIndex,
@@ -231,7 +345,9 @@ const InteractionPanel = ({
   deleteLayer,
   pages,
   flipbookDimensions = { width: 210, height: 297 },
-  onCustomizePopup
+  onCustomizePopup,
+  setIs3DModalOpen,
+  setCurrent3DItem
 }) => {
   const [activeTemplateSelectionId, setActiveTemplateSelectionId] = useState(null);
   const [dimensionUnit, setDimensionUnit] = useState('px');
@@ -249,6 +365,7 @@ const InteractionPanel = ({
   const [itemValueOverrides, setItemValueOverrides] = useState({});
   const [itemTriggerOverrides, setItemTriggerOverrides] = useState({});
   const [localInputValues, setLocalInputValues] = useState({});
+  const [dropdownDirectionOverrides, setDropdownDirectionOverrides] = useState({});
 
   // Audio playback state
   const [playingAudioId, setPlayingAudioId] = useState(null);
@@ -953,7 +1070,7 @@ const InteractionPanel = ({
                       detail: { layerId: item.id }
                     }));
                   }}
-                  className={`w-full mx-auto bg-white border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative cursor-pointer transition-all duration-200 ${isSelected
+                  className={`w-full mx-auto bg-white border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-200 ${isSelected
                     ? 'border-[#4A3AFF] ring-2 ring-[#4A3AFF]/15 shadow-[0_4px_16px_rgba(74,58,255,0.08)]'
                     : 'border-gray-200 hover:border-gray-300'
                     }`}
@@ -984,37 +1101,70 @@ const InteractionPanel = ({
                               setCardActionOverrides={setCardActionOverrides}
                             />
 
-                            {/* Trigger Pill */}
-                            {resolvedActionId === 'tooltip' ? (
-                              <div className="py-[0.8vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-pointer select-none relative pr-[1.6vw]">
-                                <select
-                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                  value={resolvedTrigger}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    setItemTriggerOverrides(prev => ({ ...prev, [item.id]: val }));
-                                    setTimeout(() => {
-                                      if (updateElementAttribute) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        updateElementAttribute(targetIdx, item.id, {
-                                          'data-interaction-trigger': val
-                                        });
-                                      }
-                                    }, 50);
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <option value="click">Click</option>
-                                  <option value="hover">Hover</option>
-                                </select>
-                                <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize pointer-events-none">{item.trigger || 'click'}</span>
-                                <Icon icon="lucide:chevron-down" className="text-gray-500 text-[0.8vw] absolute right-[0.4vw] pointer-events-none" />
-                              </div>
-                            ) : (
-                              <div className="py-[0.8vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-default select-none">
-                                <span className="text-[0.9vw] text-gray-700 font-normal font-sans">Click</span>
-                              </div>
-                            )}
+                            {/* Trigger Pill Custom Dropdown */}
+                            {(() => {
+                              const triggerDropId = `trigger-drop-${item.id}`;
+                              const isTriggerDropOpen = openDropdownId === triggerDropId;
+                              
+                              return (
+                                <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <div
+                                    data-dropdown-trigger="true"
+                                    className="py-[0.8vh] pl-[0.8vw] pr-[1.6vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center cursor-pointer select-none hover:bg-gray-200 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenDropdownId(isTriggerDropOpen ? null : triggerDropId);
+                                    }}
+                                  >
+                                    <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize">{resolvedTrigger}</span>
+                                    <Icon icon="lucide:chevron-down" className={`text-gray-500 text-[0.8vw] absolute right-[0.4vw] transition-transform duration-200 ${isTriggerDropOpen ? 'rotate-180' : ''}`} />
+                                  </div>
+                                  
+                                  {isTriggerDropOpen && (
+                                    <div data-dropdown-menu="true" className="absolute right-0 top-[calc(100%+0.4vh)] z-[99999] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-xl py-[0.5vh] flex flex-col">
+                                      <div
+                                        className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans cursor-pointer transition-colors ${resolvedTrigger === 'click' ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setItemTriggerOverrides(prev => ({ ...prev, [item.id]: 'click' }));
+                                          setOpenDropdownId(null);
+                                          setTimeout(() => {
+                                            if (updateElementAttribute) {
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              updateElementAttribute(targetIdx, item.id, {
+                                                'data-interaction-trigger': 'click'
+                                              });
+                                            }
+                                          }, 50);
+                                        }}
+                                      >
+                                        Click
+                                      </div>
+                                      <div
+                                        className={`px-[0.8vw] py-[0.6vh] text-[0.85vw] font-sans transition-colors ${resolvedTrigger === 'hover' ? 'bg-gray-100 text-gray-900 font-medium' : ''} ${resolvedActionId !== 'tooltip' ? 'text-gray-400 cursor-not-allowed bg-gray-50/50' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (resolvedActionId !== 'tooltip') return;
+                                          setItemTriggerOverrides(prev => ({ ...prev, [item.id]: 'hover' }));
+                                          setOpenDropdownId(null);
+                                          setTimeout(() => {
+                                            if (updateElementAttribute) {
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              updateElementAttribute(targetIdx, item.id, {
+                                                'data-interaction-trigger': 'hover'
+                                              });
+                                            }
+                                          }, 50);
+                                        }}
+                                        title={resolvedActionId !== 'tooltip' ? 'Hover is only available for Tooltip' : ''}
+                                      >
+                                        Hover
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </div>
                         ) : (
                           <span className="text-[0.95vw] font-medium text-gray-800 select-none">{currentAction.label}</span>
@@ -1055,12 +1205,43 @@ const InteractionPanel = ({
                         <div className="w-full border-t border-gray-100"></div>
                         <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[5vh] pb-[5vh]">
                           {/* Label + Arrow row */}
-                          <div className="flex items-center gap-[0.5vw] w-full">
-                            <div className="h-[4vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center flex-shrink-0 max-w-[7vw] overflow-hidden">
-                              <span className="text-[0.75vw] text-gray-600 font-medium truncate">{item.label}</span>
-                            </div>
+                          <div className="flex items-start gap-[0.5vw] w-full">
+                            {(() => {
+                              let hasFile = false;
+                              if (resolvedActionId === '3d-viewer' || resolvedActionId === 'download' || resolvedActionId === 'audio' || resolvedActionId === 'popup') {
+                                try {
+                                  if (resolvedValue && resolvedValue.startsWith('{')) hasFile = true;
+                                  if (resolvedActionId === 'popup' && resolvedValue) hasFile = true;
+                                  if (resolvedActionId === 'audio' && resolvedValue) hasFile = true;
+                                } catch (e) {}
+                              }
 
-                            <span className="text-gray-400 shrink-0 select-none tracking-widest font-mono">---&gt;</span>
+                              const labelMtValue = 
+                                  resolvedActionId === 'popup' ? (hasFile ? '4vh' : '4vh') :
+                                  resolvedActionId === '3d-viewer' ? (hasFile ? '2.25vh' : '3.5vh') :
+                                  resolvedActionId === 'download' ? (hasFile ? '2.25vh' : '3vh') :
+                                  resolvedActionId === 'audio' ? (hasFile ? '0.8vh' : '2.25vh') :
+                                  resolvedActionId === 'zoom' ? '3vh' :
+                                  resolvedActionId === 'tooltip' ? '1.6vh' :
+                                  resolvedActionId === 'call' ? '0.1vh' : '0vh';
+
+                              return (
+                                <div 
+                                  className="flex items-center gap-[0.5vw]"
+                                  style={{ marginTop: labelMtValue }}
+                                >
+                                  <div className="h-[4vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center flex-shrink-0 max-w-[7vw] overflow-hidden">
+                                    <span className="text-[0.75vw] text-gray-600 font-medium truncate">{item.label}</span>
+                                  </div>
+                                  <div className="flex items-center justify-center px-[0.2vw] text-[#9CA3AF]">
+                                    <svg width="1.6vw" height="0.8vw" viewBox="0 0 24 12" fill="none">
+                                      <path d="M0 6h18" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />
+                                      <path d="M16 2l6 4-6 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              );
+                            })()}
 
                             {resolvedActionId === 'navigate-to' ? (
                               (() => {
@@ -1074,6 +1255,11 @@ const InteractionPanel = ({
                                       className="w-[8.5vw] h-[4vh] border border-gray-900 rounded-[0.5vw] flex items-center justify-between px-[0.6vw] bg-white cursor-pointer select-none"
                                       onClick={(e) => {
                                         e.stopPropagation();
+                                        if (!isPageDropOpen) {
+                                          const rect = e.currentTarget.getBoundingClientRect();
+                                          const spaceBelow = window.innerHeight - rect.bottom;
+                                          setDropdownDirectionOverrides(prev => ({ ...prev, [pageDropId]: spaceBelow < 250 ? 'up' : 'down' }));
+                                        }
                                         setOpenDropdownId(isPageDropOpen ? null : pageDropId);
                                       }}
                                     >
@@ -1084,7 +1270,7 @@ const InteractionPanel = ({
                                       />
                                     </div>
                                     {isPageDropOpen && (
-                                      <div data-dropdown-menu="true" className="absolute left-0 top-[calc(100%+0.4vh)] z-[99999] w-[8.5vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl py-[0.5vh] max-h-[30vh] overflow-y-auto no-scrollbar">
+                                      <div data-dropdown-menu="true" className={`absolute left-0 z-[99999] w-[8.5vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-xl py-[0.5vh] max-h-[15vh] overflow-y-auto ${dropdownDirectionOverrides[pageDropId] === 'up' ? 'bottom-[calc(100%+0.4vh)] origin-bottom' : 'top-[calc(100%+0.4vh)] origin-top'}`}>
                                         {Array.from({ length: pages?.length || 0 }, (_, i) => (
                                           <div
                                             key={i + 1}
@@ -1124,44 +1310,10 @@ const InteractionPanel = ({
 
                                 return (
                                   <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
-                                    {/* Hidden file input */}
-                                    <input
-                                      type="file"
+                                    <CommonDropBox
                                       id={`download-upload-${item.id}`}
-                                      className="hidden"
                                       accept="image/*"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file && file.type.startsWith('image/') && updateElementAttribute) {
-                                          const reader = new FileReader();
-                                          reader.onload = () => {
-                                            const base64Data = reader.result;
-                                            const storedVal = JSON.stringify({
-                                              name: file.name,
-                                              type: file.type,
-                                              size: file.size,
-                                              data: base64Data
-                                            });
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            updateElementAttribute(targetIdx, item.id, {
-                                              'data-interaction': 'download',
-                                              'data-interaction-value': storedVal
-                                            });
-                                          };
-                                          reader.readAsDataURL(file);
-                                        }
-                                      }}
-                                    />
-
-                                    {/* Dropzone Area */}
-                                    <div
-                                      onClick={() => document.getElementById(`download-upload-${item.id}`)?.click()}
-                                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
-                                      onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
-                                      onDrop={(e) => {
-                                        e.preventDefault();
-                                        e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5');
-                                        const file = e.dataTransfer.files?.[0];
+                                      onFileSelect={(file) => {
                                         if (file && file.type.startsWith('image/') && updateElementAttribute) {
                                           const reader = new FileReader();
                                           reader.onload = () => {
@@ -1180,36 +1332,17 @@ const InteractionPanel = ({
                                           reader.readAsDataURL(file);
                                         }
                                       }}
-                                      className={
-                                        fileMeta
-                                          ? "w-[7.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all overflow-hidden p-[0.3vw]"
-                                          : "w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.4vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all gap-[0.5vh] px-[0.5vw]"
-                                      }
-                                    >
-                                      {fileMeta ? (
-                                        (() => {
-                                          const isImage = fileMeta.type?.startsWith('image/') || fileMeta.name?.match(/\.(jpg|jpeg|png|gif)$/i);
-                                          if (isImage && fileMeta.data) {
-                                            return <img src={fileMeta.data} alt={fileMeta.name} className="w-full h-full object-contain" />;
-                                          }
-                                          return (
-                                            <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />
-                                          );
-                                        })()
-                                      ) : (
-                                        <>
-                                          <Icon icon="prime:upload" className="text-gray-400 text-[1.5vw]" />
-                                          <span className="text-[0.7vw] text-[#4A5568] font-medium text-center">
-                                            Drag & Drop or <span className="text-[#5145F6] font-bold">Upload</span>
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-
-                                    {/* Subtext */}
-                                    <span className={`text-[0.6vw] font-medium text-gray-500 mt-[0.2vh] truncate text-center ${fileMeta ? 'w-[7.5vw]' : 'w-full'}`} title={fileMeta?.name}>
-                                      {fileMeta ? fileMeta.name : 'File Format : JPG, PNG'}
-                                    </span>
+                                      fileMeta={fileMeta}
+                                      renderPreview={(meta) => {
+                                        const isImage = meta.type?.startsWith('image/') || meta.name?.match(/\.(jpg|jpeg|png|gif)$/i);
+                                        if (isImage && meta.data) {
+                                          return <img src={meta.data} alt={meta.name} className="w-full h-full object-contain" />;
+                                        }
+                                        return <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />;
+                                      }}
+                                      emptyIcon="prime:upload"
+                                      subText="File Format : JPG, PNG"
+                                    />
                                   </div>
                                 );
                               })()
@@ -1362,15 +1495,12 @@ const InteractionPanel = ({
                                         })()}
                                       </div>
                                     ) : (
-                                      <div className="flex flex-col items-center justify-center">
-                                        <div
-                                          onClick={() => document.getElementById(`audio-upload-${item.id}`)?.click()}
-                                          onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
-                                          onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
-                                          onDrop={(e) => {
-                                            e.preventDefault();
-                                            e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5');
-                                            const file = e.dataTransfer.files?.[0];
+                                      <div className="flex flex-col items-center justify-center w-full">
+                                        <CommonDropBox
+                                          id={`audio-upload-${item.id}`}
+                                          accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                                          hideInput={true}
+                                          onFileSelect={(file) => {
                                             const isAudio = file && (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav') || file.name.toLowerCase().endsWith('.m4a') || file.name.toLowerCase().endsWith('.ogg'));
                                             if (isAudio && updateElementAttribute) {
                                               const reader = new FileReader();
@@ -1394,14 +1524,10 @@ const InteractionPanel = ({
                                               reader.readAsDataURL(file);
                                             }
                                           }}
-                                          className="w-[10.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all gap-[0.5vh] p-[0.3vw]"
-                                        >
-                                          <Icon icon="material-symbols:audio-file" className="text-gray-500 text-[1.8vw]" />
-                                          <span className="text-[0.75vw] text-gray-600 font-normal text-center leading-none select-none">
-                                            Drag &amp; Drop or <span className="text-[#4A3AFF] font-semibold">Upload</span>
-                                          </span>
-                                        </div>
-                                        <span className="text-[0.65vw] text-gray-500 font-normal mt-[0.5vh] text-center select-none">File Format : MP3,</span>
+                                          fileMeta={null}
+                                          emptyIcon="material-symbols:audio-file"
+                                          subText="File Format : MP3, WAV, OGG"
+                                        />
                                       </div>
                                     )}
                                   </div>
@@ -1409,103 +1535,294 @@ const InteractionPanel = ({
                               })()
                             ) : resolvedActionId === 'popup' ? (
                               resolvedValue ? (
-                                <div className="flex-1 relative h-[12vh] rounded-[0.4vw] group shadow-sm border border-gray-200">
-                                  {/* Inner container for image to keep rounded corners without clipping the dropdown */}
-                                  <div className="absolute inset-0 rounded-[0.4vw] overflow-hidden pointer-events-none">
-                                    <img
-                                      src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
-                                      alt="Selected Template"
-                                      className="w-full h-full object-cover"
-                                    />
-                                    {/* Dim Overlay */}
-                                    <div className="absolute inset-0 bg-black/40"></div>
-                                  </div>
-
-                                  {/* Edit Button overlay in center */}
-                                  <div
-                                    onClick={(e) => { 
-                                      e.stopPropagation(); 
-                                      if (onCustomizePopup) {
-                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                        onCustomizePopup(resolvedValue, item.id, targetIdx);
-                                      }
-                                    }}
-                                    className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
-                                    title="Customize Template"
-                                  >
-                                    <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
-                                  </div>
-                                  {/* 3 dots menu */}
-                                  <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
-                                    <div
-                                      className="p-[0.2vw] cursor-pointer"
-                                      data-dropdown-trigger="true"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
-                                      }}
-                                    >
-                                      <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
-                                    </div>
-
-                                    {openDropdownId === `popup-${item.id}` && (
-                                      <div
-                                        data-dropdown-menu="true"
-                                        className="absolute top-[100%] right-0 mt-[2.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
-                                      >
-                                        <div
-                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenDropdownId(null);
-                                            setActiveTemplateSelectionId(item.id);
-                                          }}
-                                        >
-                                          <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
-                                          <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Change Template</span>
-                                        </div>
-                                        <div
-                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setOpenDropdownId(null);
-                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
-                                            if (updateElementAttribute) {
-                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                              updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
-                                            }
-                                          }}
-                                        >
-                                          <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
-                                          <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
-                                        </div>
+                                    <div className="flex-1 relative w-full h-[11vh] rounded-[0.6vw] group shadow-sm border border-gray-200">
+                                      {/* Inner container for image to keep rounded corners without clipping the dropdown */}
+                                      <div className="absolute inset-0 rounded-[0.6vw] overflow-hidden pointer-events-none">
+                                        <img
+                                          src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
+                                          alt="Selected Template"
+                                          className="w-full h-full object-cover"
+                                        />
+                                        {/* Dim Overlay */}
+                                        <div className="absolute inset-0 bg-black/40"></div>
                                       </div>
+
+                                      {/* Edit Button overlay in center */}
+                                      <div
+                                        onClick={(e) => { 
+                                          e.stopPropagation(); 
+                                          if (onCustomizePopup) {
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            onCustomizePopup(resolvedValue, item.id, targetIdx);
+                                          }
+                                        }}
+                                        className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
+                                        title="Customize Template"
+                                      >
+                                        <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
+                                      </div>
+                                      {/* 3 dots menu */}
+                                      <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
+                                        <div
+                                          className="p-[0.2vw] cursor-pointer"
+                                          data-dropdown-trigger="true"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
+                                          }}
+                                        >
+                                          <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
+                                        </div>
+
+                                        {openDropdownId === `popup-${item.id}` && (
+                                          <div
+                                            data-dropdown-menu="true"
+                                            className="absolute top-[100%] right-0 mt-[2.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
+                                          >
+                                            <div
+                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenDropdownId(null);
+                                                setActiveTemplateSelectionId(item.id);
+                                              }}
+                                            >
+                                              <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                              <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Change Template</span>
+                                            </div>
+                                            <div
+                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setOpenDropdownId(null);
+                                                setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                                if (updateElementAttribute) {
+                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                  updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
+                                                }
+                                              }}
+                                            >
+                                              <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
+                                              <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                      className="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group relative overflow-hidden"
+                                    >
+                                      <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none mb-[0.2vh]">
+                                        Click to Choose <span className="text-[#5145F6] font-semibold group-hover:underline">Template</span>
+                                      </span>
+                                      <svg width="1.6vw" height="1.6vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-[#6B7280] group-hover:text-[#5145F6] transition-colors">
+                                        <rect x="3" y="4" width="18" height="4" rx="1" />
+                                        <rect x="3" y="10" width="7" height="10" rx="1" />
+                                        <line x1="13" y1="11" x2="21" y2="11" />
+                                        <line x1="13" y1="15" x2="21" y2="15" />
+                                        <line x1="13" y1="19" x2="18" y2="19" />
+                                      </svg>
+                                    </div>
+                                  )
+                            ) : resolvedActionId === '3d-viewer' ? (
+                              (() => {
+                                let fileMeta = null;
+                                try {
+                                  if (resolvedValue && resolvedValue.startsWith('{')) {
+                                    fileMeta = JSON.parse(resolvedValue);
+                                  }
+                                } catch (e) { }
+
+                                return (
+                                  <div className="flex-1 min-w-0 flex flex-col items-center justify-center gap-[1.2vh]" onClick={(e) => e.stopPropagation()}>
+                                    {/* Hidden file input */}
+                                    <input
+                                      type="file"
+                                      id={`3d-upload-${item.id}`}
+                                      className="hidden"
+                                      accept=".glb,.gltf"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
+                                          const reader = new FileReader();
+                                          reader.onload = () => {
+                                            const storedVal = JSON.stringify({
+                                              name: file.name,
+                                              type: 'model/gltf-binary',
+                                              size: file.size,
+                                              data: reader.result
+                                            });
+                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': '3d-viewer',
+                                              'data-interaction-value': storedVal
+                                            });
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                    />
+
+                                    <CommonDropBox
+                                      id={`3d-upload-${item.id}`}
+                                      accept=".glb,.gltf"
+                                      onFileSelect={(file) => {
+                                        if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
+                                          const reader = new FileReader();
+                                          reader.onload = () => {
+                                            const storedVal = JSON.stringify({
+                                              name: file.name,
+                                              type: 'model/gltf-binary',
+                                              size: file.size,
+                                              data: reader.result
+                                            });
+                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                            updateElementAttribute(targetIdx, item.id, {
+                                              'data-interaction': '3d-viewer',
+                                              'data-interaction-value': storedVal
+                                            });
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      fileMeta={fileMeta}
+                                      boxClassName="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all p-[0.3vw]"
+                                      renderPreview={(meta) => (
+                                        <div className="w-full h-full relative group rounded-[0.5vw]">
+                                          <div className="absolute inset-0 overflow-hidden rounded-[0.5vw] flex items-center justify-center pointer-events-none">
+                                            <div className="absolute inset-0 bg-[#F4F5F7] z-0" />
+                                            {meta.data ? (
+                                              <div className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden">
+                                                <GlbThumbnail dataUrl={meta.data} />
+                                              </div>
+                                            ) : (
+                                              <Icon icon="gis:cube-3d" className="text-[#5145F6] text-[2vw] relative z-10" />
+                                            )}
+                                          </div>
+                                          
+                                          {/* Hover Menu Overlay */}
+                                          <div className={`absolute inset-0 transition-opacity z-20 pointer-events-none ${openDropdownId === '3d-menu-' + item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                                            
+                                            {/* Edit Button (Center) */}
+                                            <div 
+                                              className="absolute inset-0 m-auto w-[4.5vw] h-[2.2vw] bg-black/40 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] cursor-pointer hover:bg-black/60 transition-all shadow-md pointer-events-auto"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCurrent3DItem(item);
+                                                setIs3DModalOpen(true);
+                                              }}
+                                              title="Edit 3D Model"
+                                            >
+                                              <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.1vw]" />
+                                              <span className="text-white text-[0.75vw] font-medium drop-shadow-sm">Edit</span>
+                                            </div>
+
+                                            {/* 3 dots menu */}
+                                            <div className="absolute top-[0.4vh] right-[0.2vw] pointer-events-auto">
+                                              <div
+                                                className="p-[0.2vw] cursor-pointer bg-black/20 rounded-full hover:bg-black/40 transition-colors backdrop-blur-[2px]"
+                                                data-dropdown-trigger="true"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  setOpenDropdownId(openDropdownId === `3d-menu-${item.id}` ? null : `3d-menu-${item.id}`);
+                                                }}
+                                              >
+                                                <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
+                                              </div>
+
+                                              {openDropdownId === `3d-menu-${item.id}` && (
+                                                <div
+                                                  data-dropdown-menu="true"
+                                                  className="absolute top-[100%] right-0 mt-[0.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-50"
+                                                >
+                                                  <div
+                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setOpenDropdownId(null);
+                                                      document.getElementById(`3d-upload-${item.id}`)?.click();
+                                                    }}
+                                                  >
+                                                    <Icon icon="lucide:replace" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                                    <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Replace</span>
+                                                  </div>
+                                                  <div
+                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setOpenDropdownId(null);
+                                                      setCurrent3DItem(item);
+                                                      setIs3DModalOpen(true);
+                                                    }}
+                                                  >
+                                                    <Icon icon="lucide:settings-2" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                                    <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">3D Edit</span>
+                                                  </div>
+                                                  <div
+                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setOpenDropdownId(null);
+                                                      // Trigger 3D Gallery Logic here
+                                                    }}
+                                                  >
+                                                    <Icon icon="clarity:image-gallery-solid" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                                    <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">3D Gallery</span>
+                                                  </div>
+                                                  <div
+                                                    className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setOpenDropdownId(null);
+                                                      setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                                      if (updateElementAttribute) {
+                                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                        updateElementAttribute(targetIdx, item.id, {
+                                                          'data-interaction': '3d-viewer',
+                                                          'data-interaction-value': ''
+                                                        });
+                                                      }
+                                                    }}
+                                                  >
+                                                    <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
+                                                    <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      emptyIcon="prime:upload"
+                                      subText="File Format : GLB"
+                                    />
+
+                                    {!fileMeta && (
+                                      <>
+                                        <span className="text-[0.65vw] text-gray-400 font-medium uppercase select-none">OR</span>
+                                        <button className="w-full h-[6vh] bg-[#0A0F1C] rounded-[0.6vw] shadow-md flex items-center justify-center gap-[0.5vw] hover:bg-[#111827] transition-all relative overflow-hidden group cursor-pointer">
+                                          <div className="absolute inset-0 bg-cover bg-center opacity-40 group-hover:opacity-60 transition-opacity" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=400&q=80')" }} />
+                                          <div className="absolute inset-0 bg-gradient-to-r from-[#000000] to-transparent opacity-80" />
+                                          <div className="z-10 flex items-center gap-[0.6vw] px-[1vw]">
+                                            <Icon icon="clarity:image-gallery-solid" className="text-white text-[1.1vw]" />
+                                            <span className="text-[0.9vw] font-semibold text-white tracking-wide whitespace-nowrap">3D Gallery</span>
+                                          </div>
+                                        </button>
+                                      </>
                                     )}
                                   </div>
-                                </div>
-                              ) : (
-                                <div
-                                  onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
-                                  className="flex-1 h-[12vh] border-[1.5px] border-dashed border-[#A0AEC0] rounded-[0.6vw] bg-[#F9FAFB] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all group relative overflow-hidden"
-                                >
-                                  <svg width="1.4vw" height="1.4vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500 group-hover:text-[#4A3AFF] transition-colors mb-[0.2vh]">
-                                    <rect x="3" y="4" width="18" height="4" rx="1" />
-                                    <rect x="3" y="10" width="7" height="10" rx="1" />
-                                    <line x1="13" y1="11" x2="21" y2="11" />
-                                    <line x1="13" y1="15" x2="21" y2="15" />
-                                    <line x1="13" y1="19" x2="18" y2="19" />
-                                  </svg>
-                                  <span className="text-[0.6vw] text-[#4B5563] font-medium group-hover:text-gray-700 transition-colors select-none text-center leading-tight">
-                                    Click to Choose <span className="text-[#4A3AFF] font-semibold">Template</span>
-                                  </span>
-                                </div>
-                              )
+                                );
+                              })()
                             ) : resolvedActionId === 'zoom' ? (
-                              <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh] w-full h-[10vh] border-2 border-dashed border-[#A0AEC0] rounded-[0.8vw] bg-[#F9FAFB] cursor-pointer hover:bg-gray-50 transition-all">
-                                <Icon icon="tabler:zoom-in-area" className="text-gray-500 text-[1.8vw] mb-[0.2vh]" />
-                                <span className="text-[0.7vw] text-[#4A5568] font-medium text-center">
-                                  Customize <span className="text-[#5145F6] font-bold">Zoom Frame</span>
+                              <div className="flex flex-col items-center justify-center gap-[0.2vh] w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] cursor-pointer hover:bg-gray-50 transition-all group">
+                                <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none">
+                                  Customize <span className="text-[#5145F6] font-semibold group-hover:underline">Zoom Frame</span>
                                 </span>
+                                <Icon icon="tabler:zoom-in-area" className="text-[#6B7280] text-[1.6vw] group-hover:text-[#5145F6] transition-colors" />
                               </div>
                             ) : (
                               <div className="flex-1 h-[4vh] border border-gray-400 rounded-[0.5vw] flex items-center px-[0.8vw] bg-white overflow-hidden">
@@ -1643,8 +1960,8 @@ const InteractionPanel = ({
                   <div className={`bg-white border-t border-gray-100 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw] ${isCollapsed ? 'hidden' : 'flex'}`}>
                       <div className="flex items-center gap-[0.6vw]">
                         {/* Custom Radio Button */}
-                        <div className="w-[1.2vw] h-[1.2vw] rounded-full border-2 border-[#5145F6] flex items-center justify-center bg-white">
-                          <div className="w-[0.6vw] h-[0.6vw] rounded-full bg-[#5145F6]"></div>
+                        <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-full border-[0.15vw] border-[#5145F6] flex items-center justify-center bg-white">
+                          <div className="w-[0.45vw] h-[0.45vw] rounded-full bg-[#5145F6]"></div>
                         </div>
                         <span className="text-[0.8vw] text-gray-600 font-medium">Highlight the Component</span>
                       </div>

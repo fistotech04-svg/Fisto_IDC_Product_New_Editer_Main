@@ -9,6 +9,8 @@ import VideoEditor from './VideoEditor';
 import GifEditor from './Gif';
 import AnimationPanel from './AnimationPanel';
 import InteractionPanel from './InteractionPanel';
+import PopupTemplateSelection from './PopupTemplateSelection';
+import Model3DEditor from './Model3DEditor';
 
 
 const RightSidebar = ({ 
@@ -30,7 +32,20 @@ const RightSidebar = ({
   isPopupEditor = false,
   onCustomizePopup,
   onApplyPopupChanges,
-  onCancelPopupChanges
+  onCancelPopupChanges,
+  is3DModalOpen, 
+  setIs3DModalOpen,
+  setCurrent3DItem,
+  shadowStrength, setShadowStrength,
+  shadowSoftness, setShadowSoftness,
+  autoRotate, setAutoRotate,
+  autoRotateSpeed, setAutoRotateSpeed,
+  lockMaxZoom, setLockMaxZoom,
+  maxZoom, setMaxZoom,
+  bgType, setBgType,
+  bgColor, setBgColor,
+  customBg, setCustomBg,
+  enableAR, setEnableAR
 }) => {
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
@@ -605,7 +620,23 @@ const RightSidebar = ({
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
-              {isPdfProject ? (
+              {is3DModalOpen ? (
+                <div className="p-[1.5vw]">
+                  <Model3DEditor
+                    onClose={() => setIs3DModalOpen(false)}
+                    shadowStrength={shadowStrength} setShadowStrength={setShadowStrength}
+                    shadowSoftness={shadowSoftness} setShadowSoftness={setShadowSoftness}
+                    autoRotate={autoRotate} setAutoRotate={setAutoRotate}
+                    autoRotateSpeed={autoRotateSpeed} setAutoRotateSpeed={setAutoRotateSpeed}
+                    lockMaxZoom={lockMaxZoom} setLockMaxZoom={setLockMaxZoom}
+                    maxZoom={maxZoom} setMaxZoom={setMaxZoom}
+                    bgType={bgType} setBgType={setBgType}
+                    bgColor={bgColor} setBgColor={setBgColor}
+                    customBg={customBg} setCustomBg={setCustomBg}
+                    enableAR={enableAR} setEnableAR={setEnableAR}
+                  />
+                </div>
+              ) : isPdfProject ? (
                 <InteractionPanel 
                   selectedElementProps={selectedElementProps}
                   activePageIndex={activePageIndex}
@@ -615,6 +646,8 @@ const RightSidebar = ({
                   pages={pages}
                   flipbookDimensions={flipbookDimensions}
                   onCustomizePopup={onCustomizePopup}
+                  setIs3DModalOpen={setIs3DModalOpen}
+                  setCurrent3DItem={setCurrent3DItem}
                 />
               ) : (
                 <div className="flex flex-col p-[1.5vw] gap-[1.5vw]">

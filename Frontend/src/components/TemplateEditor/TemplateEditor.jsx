@@ -13,6 +13,7 @@ import { convertPdfToImages, generatePdfPageSvg } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
+import Model3DPreviewModal from './Model3DCustomizationModal';
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -89,6 +90,20 @@ const TemplateEditor = () => {
   const [activeTopTool, setActiveTopTool] = useState('editor');
   const [popupEditContext, setPopupEditContext] = useState(null);
   const [showPopupTemplateChange, setShowPopupTemplateChange] = useState(false);
+
+  // 3D Customization States
+  const [is3DModalOpen, setIs3DModalOpen] = useState(false);
+  const [current3DItem, setCurrent3DItem] = useState(null);
+  const [shadowStrength, setShadowStrength] = useState(35);
+  const [shadowSoftness, setShadowSoftness] = useState(35);
+  const [autoRotate, setAutoRotate] = useState(true);
+  const [autoRotateSpeed, setAutoRotateSpeed] = useState(1.5);
+  const [lockMaxZoom, setLockMaxZoom] = useState(true);
+  const [maxZoom, setMaxZoom] = useState(4.5);
+  const [bgType, setBgType] = useState('Solid');
+  const [bgColor, setBgColor] = useState('#000000');
+  const [customBg, setCustomBg] = useState(true);
+  const [enableAR, setEnableAR] = useState(true);
 
   useEffect(() => {
     const handleOpen = () => setShowPopupTemplateChange(true);
@@ -2978,8 +2993,9 @@ const TemplateEditor = () => {
   })();
 
   return (
-    <div className="flex h-[92vh] w-full bg-white overflow-hidden">
-      <Layer
+    <div className="flex h-[92vh] w-full bg-white overflow-hidden relative">
+      <div className={`flex flex-1 transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
+        <Layer
         pages={pages}
         activePageIndex={activePageIndex}
         setActivePageIndex={setActivePageIndex}
@@ -3067,6 +3083,38 @@ const TemplateEditor = () => {
           updateElementAttribute={updateElementAttribute}
         />
       )}
+      </div>
+
+      {/* Dark Overlay for blurred content */}
+      {is3DModalOpen && (
+        <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[90] bg-black/60 pointer-events-none transition-all duration-300"></div>
+      )}
+
+      {/* 3D Preview Modal (rendered in place of main editor when active) */}
+      {is3DModalOpen && (
+        <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[100] flex p-[2vw]">
+          <Model3DPreviewModal 
+            isOpen={is3DModalOpen}
+            dataUrl={
+              current3DItem 
+                ? (() => {
+                    const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
+                    const el = doc.getElementById(current3DItem.id);
+                    const val = el ? el.getAttribute('data-interaction-value') : current3DItem.value;
+                    try {
+                      return val ? JSON.parse(val).data : null;
+                    } catch(e) { return null; }
+                  })()
+                : null
+            }
+            autoRotate={autoRotate}
+            autoRotateSpeed={autoRotateSpeed}
+            bgType={bgType}
+            bgColor={bgColor}
+          />
+        </div>
+      )}
+
       <RightSidebar
         isDoublePage={isDoublePage}
         setIsDoublePage={setIsDoublePage}
@@ -3085,6 +3133,29 @@ const TemplateEditor = () => {
         onCustomizePopup={onCustomizePopup}
         onApplyPopupChanges={handleApplyPopupChanges}
         onCancelPopupChanges={handleCancelPopupChanges}
+        is3DModalOpen={is3DModalOpen}
+        setIs3DModalOpen={setIs3DModalOpen}
+        setCurrent3DItem={setCurrent3DItem}
+        shadowStrength={shadowStrength}
+        setShadowStrength={setShadowStrength}
+        shadowSoftness={shadowSoftness}
+        setShadowSoftness={setShadowSoftness}
+        autoRotate={autoRotate}
+        setAutoRotate={setAutoRotate}
+        autoRotateSpeed={autoRotateSpeed}
+        setAutoRotateSpeed={setAutoRotateSpeed}
+        lockMaxZoom={lockMaxZoom}
+        setLockMaxZoom={setLockMaxZoom}
+        maxZoom={maxZoom}
+        setMaxZoom={setMaxZoom}
+        bgType={bgType}
+        setBgType={setBgType}
+        bgColor={bgColor}
+        setBgColor={setBgColor}
+        customBg={customBg}
+        setCustomBg={setCustomBg}
+        enableAR={enableAR}
+        setEnableAR={setEnableAR}
       />
 
       {showTemplateModal && (
@@ -3153,6 +3224,7 @@ const TemplateEditor = () => {
           selectedTemplateId={popupEditContext.templateId}
         />
       )}
+
     </div>
   );
 };
