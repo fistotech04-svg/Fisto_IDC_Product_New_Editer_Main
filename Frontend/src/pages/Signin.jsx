@@ -12,6 +12,7 @@ import SigninBg from '../assets/logo/signin.png';
 export default function Signin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingUser, setIsCheckingUser] = useState(false);
   const [formData, setFormData] = useState({
     emailId: '',
     password: ''
@@ -37,6 +38,7 @@ export default function Signin() {
     }
 
     try {
+      setIsCheckingUser(true);
       const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
       const res = await axios.post(`${backendUrl}/api/auth/check-user`, {
         emailId: formData.emailId
@@ -52,6 +54,8 @@ export default function Signin() {
         console.error("Error checking user:", err);
         toast.error("Something went wrong. Please try again.");
       }
+    } finally {
+      setIsCheckingUser(false);
     }
   };
 
@@ -227,10 +231,17 @@ export default function Signin() {
                    <button 
                     type="button"
                     onClick={handleForgotPasswordClick}
-                    className={`text-[0.875vw] underline decoration-1 underline-offset-[0.25vw] transition-colors font-semibold ${!formData.emailId ? 'text-gray-500 cursor-not-allowed opacity-60' : 'text-gray-300 hover:text-white cursor-pointer'}`}
-                    disabled={!formData.emailId}
+                    className={`flex items-center text-[0.875vw] underline decoration-1 underline-offset-[0.25vw] transition-colors font-semibold ${(!formData.emailId || isCheckingUser) ? 'text-gray-500 cursor-not-allowed opacity-60' : 'text-gray-300 hover:text-white cursor-pointer'}`}
+                    disabled={!formData.emailId || isCheckingUser}
                    >
-                      Forget Password ?
+                      {isCheckingUser ? (
+                        <>
+                          <Loader2 className="w-[1vw] h-[1vw] animate-spin mr-[0.5vw]" />
+                          Sending OTP to your email...
+                        </>
+                      ) : (
+                        "Forget Password ?"
+                      )}
                    </button>
                 </div>
               </div>
