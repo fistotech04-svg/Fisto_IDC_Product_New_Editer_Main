@@ -11,7 +11,7 @@ const isLightColor = (hex) => {
     return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) > 0.5;
 };
 
-const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, isEditor, layoutColors, isMobileLandscape, isFullscreen, isMobilePortraitOverride }) => {
+const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, isEditor, layoutColors, isMobileLandscape, isFullscreen, isMobilePortraitOverride, addTextBelowIcons = false }) => {
     // Ensure settings is at least an empty object if it's null
     const safeSettings = settings || {};
     const [searchQuery, setSearchQuery] = useState('');
@@ -221,8 +221,15 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             <>
                 <div className="fixed inset-0 z-[40] pointer-events-auto bg-transparent" onClick={onClose} />
                 <div
-                    className={`absolute top-[1.2vh] z-[45] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500 origin-top-right`}
-                    style={{ left: `calc(50% - ${isSidebarOpen ? '25vw' : '29.3vw'})`, filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))', transform: 'scale(0.85)', transformOrigin: 'top left', transition: 'transform 0.3s ease' }}
+                    className={`absolute z-[45] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500 origin-top-right`}
+                    style={{
+                        top: addTextBelowIcons ? '0.7vh' : '1.2vh',
+                        left: addTextBelowIcons ? `calc(50% - ${isSidebarOpen ? '24.8vw' : '29.4vw'})` : `calc(50% - ${isSidebarOpen ? '25vw' : '29.3vw'})`,
+                        filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))',
+                        transform: 'scale(0.85)',
+                        transformOrigin: 'top left',
+                        transition: 'transform 0.3s ease'
+                    }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className={`relative w-[13vw] min-h-[15vw] h-fit max-h-[80vh] flex flex-col group`}>

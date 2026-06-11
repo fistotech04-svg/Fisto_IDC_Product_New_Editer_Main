@@ -367,7 +367,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
         <SectionHeader title="Navigation" />
         <div className="space-y-[0.325vw]">
           <MenuItem
-            label="Next / Preview Buttons"
+            label="Next / Previous Buttons"
             enabled={settings.navigation?.nextPrevButtons}
             onChange={(val) => updateSection('navigation', 'nextPrevButtons', val)}
           />
@@ -390,7 +390,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
           {/* Table of Contents with Settings */}
           <MenuItem
             label="Table of Contents"
-            enabled={settings.navigation?.tableOfContents}
+            enabled={settings.navigation?.tableOfContents ?? true}
             hasSettings={true}
             isExpanded={expandedSection === 'toc'}
             onToggleSettings={() => toggleSection('toc')}
@@ -546,7 +546,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
 
           <MenuItem
             label="Page Thumbnails"
-            enabled={settings.navigation?.pageThumbnails}
+            enabled={settings.navigation?.pageThumbnails ?? true}
             onChange={(val) => updateSection('navigation', 'pageThumbnails', val)}
           />
 
@@ -627,11 +627,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
             enabled={settings.interaction?.search}
             onChange={(val) => updateSection('interaction', 'search', val)}
           />
-          <MenuItem
-            label="Add Notes"
-            enabled={settings.interaction?.notes}
-            onChange={(val) => updateSection('interaction', 'notes', val)}
-          />
+
           <MenuItem
             label="Gallery"
             enabled={settings.interaction?.gallery}
@@ -705,11 +701,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
             enabled={settings.shareExport?.download}
             onChange={(val) => updateSection('shareExport', 'download', val)}
           />
-          <MenuItem
-            label="Contact"
-            enabled={settings.shareExport?.contact}
-            onChange={(val) => updateSection('shareExport', 'contact', val)}
-          />
+
         </div>
 
         {/* Branding & Profile Section */}

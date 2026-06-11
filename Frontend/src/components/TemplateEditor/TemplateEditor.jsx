@@ -13,7 +13,7 @@ import { convertPdfToImages, generatePdfPageSvg } from '../../utils/pdfUtils';
 import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
-import Model3DPreviewModal from './Model3DCustomizationModal';
+import Model3DPreviewModal from './Interaction3DPreview';
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -104,6 +104,83 @@ const TemplateEditor = () => {
   const [bgColor, setBgColor] = useState('#000000');
   const [customBg, setCustomBg] = useState(true);
   const [enableAR, setEnableAR] = useState(true);
+  const [qrText, setQrText] = useState('Scan Me');
+  const [qrColor, setQrColor] = useState('#000000');
+  const [qrBgType, setQrBgType] = useState('Solid');
+  const [qrBgColor, setQrBgColor] = useState('#ffffff');
+  const [qrLevel, setQrLevel] = useState('M');
+  const [qrDotType, setQrDotType] = useState('square');
+  const [qrCornerSquareType, setQrCornerSquareType] = useState('square');
+  const [qrCornerDotType, setQrCornerDotType] = useState('square');
+  const [qrLogo, setQrLogo] = useState(null);
+  
+  const [topText, setTopText] = useState('You can Rotate 3D object');
+  const [bottomText, setBottomText] = useState('Machine');
+
+  useEffect(() => {
+    if (current3DItem && is3DModalOpen) {
+       const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
+       const el = doc.getElementById(current3DItem.id);
+       if (el) {
+          const confStr = el.getAttribute('data-interaction-config');
+          if (confStr) {
+             try {
+                const conf = JSON.parse(confStr);
+                if (conf.shadowStrength !== undefined) setShadowStrength(conf.shadowStrength);
+                if (conf.shadowSoftness !== undefined) setShadowSoftness(conf.shadowSoftness);
+                if (conf.autoRotate !== undefined) setAutoRotate(conf.autoRotate);
+                if (conf.autoRotateSpeed !== undefined) setAutoRotateSpeed(conf.autoRotateSpeed);
+                if (conf.lockMaxZoom !== undefined) setLockMaxZoom(conf.lockMaxZoom);
+                if (conf.maxZoom !== undefined) setMaxZoom(conf.maxZoom);
+                if (conf.bgType !== undefined) setBgType(conf.bgType);
+                if (conf.bgColor !== undefined) setBgColor(conf.bgColor);
+                if (conf.customBg !== undefined) setCustomBg(conf.customBg);
+                if (conf.enableAR !== undefined) setEnableAR(conf.enableAR);
+                if (conf.qrText !== undefined) setQrText(conf.qrText);
+                if (conf.qrColor !== undefined) setQrColor(conf.qrColor);
+                if (conf.qrBgType !== undefined) setQrBgType(conf.qrBgType);
+                if (conf.qrBgColor !== undefined) setQrBgColor(conf.qrBgColor);
+                if (conf.qrLevel !== undefined) setQrLevel(conf.qrLevel);
+                if (conf.qrDotType !== undefined) setQrDotType(conf.qrDotType);
+                if (conf.qrCornerSquareType !== undefined) setQrCornerSquareType(conf.qrCornerSquareType);
+                if (conf.qrCornerDotType !== undefined) setQrCornerDotType(conf.qrCornerDotType);
+                if (conf.qrLogo !== undefined) setQrLogo(conf.qrLogo);
+                if (conf.topText !== undefined) setTopText(conf.topText);
+                if (conf.bottomText !== undefined) setBottomText(conf.bottomText);
+             } catch(e) {}
+          }
+       }
+    }
+  }, [current3DItem, is3DModalOpen]); // Load only on open
+
+  useEffect(() => {
+    if (!is3DModalOpen && current3DItem) {
+      const configObj = {
+        shadowStrength, shadowSoftness, autoRotate, autoRotateSpeed, lockMaxZoom, maxZoom,
+        bgType, bgColor, customBg, enableAR,
+        qrText, qrColor, qrBgType, qrBgColor, qrLevel, qrDotType, qrCornerSquareType, qrCornerDotType, qrLogo,
+        topText, bottomText
+      };
+      
+      setPages(prevPages => {
+         const newPages = [...prevPages];
+         if (!newPages[activePageIndex]) return newPages;
+         const page = { ...newPages[activePageIndex] };
+         if (page.html) {
+             const parser = new DOMParser();
+             const doc = parser.parseFromString(page.html, 'image/svg+xml');
+             const el = doc.getElementById(current3DItem.id);
+             if (el) {
+                 el.setAttribute('data-interaction-config', JSON.stringify(configObj));
+                 const serializer = new XMLSerializer();
+                 page.html = serializer.serializeToString(doc);
+                 newPages[activePageIndex] = page;
+             }
+         }
+         return newPages;
+      });
+    }
+  }, [is3DModalOpen]); // Save only on close
 
   useEffect(() => {
     const handleOpen = () => setShowPopupTemplateChange(true);
@@ -149,7 +226,7 @@ const TemplateEditor = () => {
 
   // ── Save Logic ─────────────────────────────────────────────────────────────
   const saveFlipbook = async (isManual = false, overridePages = null) => {
-    const pagesToSave = overridePages || pages;
+    let pagesToSave = overridePages || pages;
     if (isSaving || !pagesToSave || pagesToSave.length === 0) return;
 
     try {
@@ -157,7 +234,59 @@ const TemplateEditor = () => {
       const storedUser = localStorage.getItem('user');
       const user = storedUser ? JSON.parse(storedUser) : null;
       const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
-      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
+      // Extract and upload massive 3D models before saving to prevent oversized requests
+      pagesToSave = await Promise.all(pagesToSave.map(async (p) => {
+        if (!p.html || !p.html.includes('data-interaction="3d-viewer"')) return p;
+        
+        let newHtml = p.html;
+        try {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(newHtml, 'text/html');
+          const threedElements = doc.querySelectorAll('[data-interaction="3d-viewer"]');
+          
+          for (let el of threedElements) {
+             let dataVal = el.getAttribute('data-interaction-value');
+             if (!dataVal) continue;
+             
+             let actualDataUri = null;
+             
+             if (dataVal.startsWith('{')) {
+                try {
+                   const originalJson = JSON.parse(dataVal);
+                   if (originalJson.data && originalJson.data.startsWith('data:')) {
+                       actualDataUri = originalJson.data;
+                   }
+                } catch(e){}
+             } else if (dataVal.startsWith('data:')) {
+                actualDataUri = dataVal;
+             }
+             
+             if (actualDataUri) {
+                const res = await fetch(actualDataUri);
+                const blob = await res.blob();
+                
+                const formData = new FormData();
+                formData.append('emailId', user?.emailId);
+                formData.append('model', blob, `model_${Date.now()}.glb`); 
+                
+                const uploadRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, formData, {
+                   headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                
+                if (uploadRes.data && uploadRes.data.url) {
+                   const finalUrl = uploadRes.data.url;
+                   newHtml = newHtml.replace(actualDataUri, finalUrl);
+                }
+             }
+          }
+        } catch (err) {
+           console.error('Error processing 3D models in page before save', err);
+        }
+        
+        return { ...p, html: newHtml };
+      }));
 
       const modifiedPagesIndices = [];
       pagesToSave.forEach((p, index) => {
@@ -2961,7 +3090,26 @@ const TemplateEditor = () => {
     initializeEditor();
   }, [v_id, location.state]);
 
-
+  const preview3DDataUrl = React.useMemo(() => {
+    if (!current3DItem) return null;
+    try {
+      const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
+      const el = doc.getElementById(current3DItem.id);
+      const val = el ? el.getAttribute('data-interaction-value') : current3DItem.value;
+      if (!val) return null;
+      let finalVal = val;
+      if (val.startsWith('{')) {
+         finalVal = JSON.parse(val).data || JSON.parse(val).url || val;
+      }
+      if (typeof finalVal === 'string' && finalVal.startsWith('/uploads/')) {
+         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+         finalVal = `${backendUrl}${finalVal}`;
+      }
+      return finalVal;
+    } catch(e) {
+      return null;
+    }
+  }, [current3DItem, pages, activePageIndex]);
 
   if (isLoading) {
     return (
@@ -3095,22 +3243,16 @@ const TemplateEditor = () => {
         <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[100] flex p-[2vw]">
           <Model3DPreviewModal 
             isOpen={is3DModalOpen}
-            dataUrl={
-              current3DItem 
-                ? (() => {
-                    const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
-                    const el = doc.getElementById(current3DItem.id);
-                    const val = el ? el.getAttribute('data-interaction-value') : current3DItem.value;
-                    try {
-                      return val ? JSON.parse(val).data : null;
-                    } catch(e) { return null; }
-                  })()
-                : null
-            }
+            dataUrl={preview3DDataUrl}
             autoRotate={autoRotate}
             autoRotateSpeed={autoRotateSpeed}
             bgType={bgType}
             bgColor={bgColor}
+            customBg={customBg}
+            enableAR={enableAR}
+            setBgColor={setBgColor}
+            qrText={qrText} qrColor={qrColor} qrBgType={qrBgType} qrBgColor={qrBgColor} qrLevel={qrLevel} qrDotType={qrDotType} qrCornerSquareType={qrCornerSquareType} qrCornerDotType={qrCornerDotType} qrLogo={qrLogo}
+            topText={topText} bottomText={bottomText}
           />
         </div>
       )}
@@ -3132,6 +3274,7 @@ const TemplateEditor = () => {
         isPopupEditor={!!popupEditContext}
         onCustomizePopup={onCustomizePopup}
         onApplyPopupChanges={handleApplyPopupChanges}
+        preview3DDataUrl={preview3DDataUrl}
         onCancelPopupChanges={handleCancelPopupChanges}
         is3DModalOpen={is3DModalOpen}
         setIs3DModalOpen={setIs3DModalOpen}
@@ -3156,6 +3299,8 @@ const TemplateEditor = () => {
         setCustomBg={setCustomBg}
         enableAR={enableAR}
         setEnableAR={setEnableAR}
+        qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
+        topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
       />
 
       {showTemplateModal && (

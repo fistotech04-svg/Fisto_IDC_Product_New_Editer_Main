@@ -1,5 +1,6 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { Icon } from '@iconify/react';
 
 import classicBookFlipSound from '../../../assets/Audios/Classic book flip.mp3';
@@ -1221,7 +1222,7 @@ const Sound = ({
                     });
                 }
             };
-            
+
             // Small timeout to wait for the DOM anchor to be fully rendered
             setTimeout(updatePos, 10);
             window.addEventListener('resize', updatePos);
@@ -1230,14 +1231,15 @@ const Sound = ({
     }, [isOpen, layout]);
 
     const getInlineStyle = () => {
+        const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
         if (layout === 9) {
             if (anchorPos) {
                 return {
                     position: 'fixed',
                     left: `${anchorPos.left}px`,
                     top: `${anchorPos.top}px`,
-                    transform: `translateX(calc(-100% + ${isTablet ? '1.35vw' : '1.5vw'})) translateY(-5%)`,
-                    zIndex: 120
+                    transform: `translateX(calc(-100% + ${isTablet ? '1.35vw' : '1.5vw'})) translateY(calc(-9% + ${addTextBelowIcons ? '0.8vw' : '0vw'}))`,
+                    zIndex: 90
                 };
             }
             return { visibility: 'hidden' }; // Hide until position is calculated
@@ -1257,7 +1259,8 @@ const Sound = ({
         if (layout === 6) return isTablet ? 'top-[37vh] right-[5vw] -translate-y-1/2' : 'top-[34vh] right-[4vw] -translate-y-1/2';
         if (layout === 7) return 'top-[28vh] right-[4.7vw] -translate-y-1/2';
         if (layout === 8) return isTablet ? 'bottom-[10.5vh] left-[calc(50%_+_6vw)] -translate-x-1/2' : 'bottom-[10.5vh] left-[calc(50%_+_6.5vw)] -translate-x-1/2';
-        if (layout === 9) return 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
+        const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
+        if (layout === 9) return addTextBelowIcons ? 'top-[2.5vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2' : 'top-[2vh] left-[calc(50%_-_7.5vw)] -translate-x-1/2';
 
         // Default (Layout 1)
         return isTablet ? 'bottom-[3.8vw] right-[17vw]' : (isSidebarOpen ? 'bottom-[4.5vw] right-[18vw]' : 'bottom-[4.5vw] right-[25vw]');
@@ -1371,7 +1374,7 @@ const Sound = ({
             }
 
             const isLayout5 = activeLayout == 5;
-            
+
             if (isLayout5 && !isLandscape) {
                 return (
                     <div
@@ -1422,27 +1425,47 @@ const Sound = ({
         }
 
 
+        const popupContent = (() => {
+            switch (layout) {
+                case 1: return <Layout1 {...commonProps} />;
+                case 2: return <Layout2 {...commonProps} />;
+                case 3: return <Layout3 {...commonProps} />;
+                case 4: return <Layout4 {...commonProps} />;
+                case 5: return <Layout5 {...commonProps} />;
+                case 6: return <Layout6 {...commonProps} />;
+                case 7: return <Layout7 {...commonProps} />;
+                case 8: return <Layout8 {...commonProps} />;
+                case 9: return <Layout9 {...commonProps} />;
+                default: return <LayoutDefault {...commonProps} />;
+            }
+        })();
+
+        if (layout === 9) {
+            const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons;
+            const anchor = document.getElementById('layout9-sound-icon-anchor');
+            if (anchor) {
+                const isTabletLocal = window.innerWidth >= 768 && window.innerWidth <= 1024;
+                return ReactDOM.createPortal(
+                    <div className="absolute pointer-events-auto z-[10]" style={{
+                        left: '50%',
+                        top: addTextBelowIcons ? 'calc(100% - 1.7vw)' : 'calc(100% - 1.2vw)',
+                        transform: `translateX(calc(-85% + ${isTabletLocal ? '0.2vw' : '0.1vw'})) translateY(-15%)`
+                    }}>
+                        {popupContent}
+                    </div>,
+                    anchor
+                );
+            }
+            return null; // Don't render until anchor is found
+        }
+
         return (
             <div className={`absolute inset-0 z-[100] overflow-hidden flex items-center justify-center pointer-events-none`}>
                 <div className="absolute inset-0 z-[110] pointer-events-auto cursor-default" onClick={onClose} />
-                <div 
-                    className={layout === 9 ? "absolute pointer-events-auto" : `absolute ${getPosition()} z-[120] pointer-events-auto`}
-                    style={getInlineStyle()}
+                <div
+                    className={`absolute ${getPosition()} z-[120] pointer-events-auto`}
                 >
-                    {(() => {
-                        switch (layout) {
-                            case 1: return <Layout1 {...commonProps} />;
-                            case 2: return <Layout2 {...commonProps} />;
-                            case 3: return <Layout3 {...commonProps} />;
-                            case 4: return <Layout4 {...commonProps} />;
-                            case 5: return <Layout5 {...commonProps} />;
-                            case 6: return <Layout6 {...commonProps} />;
-                            case 7: return <Layout7 {...commonProps} />;
-                            case 8: return <Layout8 {...commonProps} />;
-                            case 9: return <Layout9 {...commonProps} />;
-                            default: return <LayoutDefault {...commonProps} />;
-                        }
-                    })()}
+                    {popupContent}
                 </div>
             </div>
         );

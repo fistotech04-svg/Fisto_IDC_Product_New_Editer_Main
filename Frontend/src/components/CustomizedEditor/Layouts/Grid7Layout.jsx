@@ -99,9 +99,9 @@ const Grid7Layout = ({
     isMuted,
     onToggleAudio,
     setShowGalleryPopupMemo,
-        showGalleryPopup,
-        showSharePopup,
-        showExportPopup,
+    showGalleryPopup,
+    showSharePopup,
+    showExportPopup,
     showSoundPopup,
     setShowSoundPopupMemo,
     showTOC,
@@ -139,13 +139,14 @@ const Grid7Layout = ({
 
     const localOffset = React.useMemo(() => {
         // Shift left to center the front cover, shift right to center the back cover
+        const length = pages?.length || pagesCount || 0;
         if (currentPage === 0) {
             return -(dimWidth / 2);
-        } else if (currentPage >= pages.length - 1) {
+        } else if (currentPage >= length - 1) {
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages?.length, pagesCount, dimWidth]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -211,9 +212,9 @@ const Grid7Layout = ({
     const [tocSearchQuery, setTocSearchQuery] = useState('');
     const [recommendations, setRecommendations] = useState([]);
     const isFullscreen = isFullscreenProp || false;
-    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
     const [showNoteOptions, setShowNoteOptions] = useState(false);
+    const [isCanvasHovered, setIsCanvasHovered] = useState(false);
 
     const closeAll = () => {
         setShowThumbnails(false);
@@ -798,33 +799,76 @@ const Grid7Layout = ({
                     )}
                 </AnimatePresence>
 
-                {/* Left Navigation Arrow */}
-                <button
-                    className="absolute left-[2vw] top-1/2 -translate-y-1/2 w-[4vw] h-[4vw] flex items-center justify-center transition-all z-30 opacity-50 hover:opacity-100 hover:scale-110"
-                    style={{
-                        color: getLayoutColor('toolbar-bg', '#575C9C'),
-                        opacity: getLayoutOpacity('toolbar-bg', 1) * 0.5 // base 50% * custom opacity
-                    }}
-                    onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-                >
-                    <Icon icon="ph:caret-left" className={`${isTablet ? 'w-[2vw] h-[2vw]' : 'w-[2.5vw] h-[2.5vw]'}`} />
-                </button>
+                {(() => {
+                    const scaledPage = dimWidth;
+                    const shift = localOffset;
 
-                {/* Right Navigation Arrow */}
-                <button
-                    className="absolute right-[5.5vw] top-1/2 -translate-y-1/2 w-[4vw] h-[4vw] flex items-center justify-center transition-all z-30 opacity-50 hover:opacity-100 hover:scale-110"
-                    style={{
-                        color: getLayoutColor('toolbar-bg', '#575C9C'),
-                        opacity: getLayoutOpacity('toolbar-bg', 1) * 0.5 // base 50% * custom opacity
-                    }}
-                    onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-                >
-                    <Icon icon="ph:caret-right" className={`${isTablet ? 'w-[2vw] h-[2vw]' : 'w-[2.5vw] h-[2.5vw]'}`} />
-                </button>
+                    let leftBound, rightBound;
+
+                    const isSinglePage = typeof window !== 'undefined' ? window.innerHeight > window.innerWidth : false;
+
+                    if (isSinglePage) {
+                        leftBound = shift - scaledPage / 2;
+                        rightBound = shift + scaledPage / 2;
+                    } else if (currentPage === 0) {
+                        leftBound = shift;
+                        rightBound = shift + scaledPage;
+                    } else if (currentPage >= (pages?.length || pagesCount || 0) - 1 && currentPage % 2 === 0) {
+                        leftBound = shift - scaledPage;
+                        rightBound = shift;
+                    } else {
+                        leftBound = shift - scaledPage;
+                        rightBound = shift + scaledPage;
+                    }
+
+                    // Adjust for the container's p-[2vw] pr-[5vw] which shifts the mathematical center left by 1.5vw
+                    // We'll calculate relative to the visual center of the book viewer container
+                    return (
+                        <div className="absolute inset-0 pointer-events-none z-30" style={{ right: isFullscreen ? '0vw' : '3vw' }}>
+                            {/* Left Navigation Arrow — hugs left edge of book */}
+                            {(settings?.navigation?.nextPrevButtons ?? true) && (
+                                <div
+                                    className="absolute top-1/2 -translate-y-1/2 -translate-x-full flex items-center transition-all duration-500 ease-out pointer-events-auto"
+                                    style={{ left: `calc(50% + ${leftBound}px - ${isTablet ? '2.5vw' : '3.5vw'})` }}
+                                >
+                                    <button
+                                        className="flex items-center justify-center transition-all hover:scale-110 p-[0.5vw]"
+                                        style={{
+                                            color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                            opacity: getLayoutOpacity('toolbar-bg', 1) * 0.5
+                                        }}
+                                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                                    >
+                                        <Icon icon="ph:caret-left" className={`${isTablet ? 'w-[2vw] h-[2vw]' : 'w-[2.5vw] h-[2.5vw]'}`} />
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* Right Navigation Arrow — hugs right edge of book */}
+                            {(settings?.navigation?.nextPrevButtons ?? true) && (
+                                <div
+                                    className="absolute top-1/2 -translate-y-1/2 flex items-center transition-all duration-500 ease-out pointer-events-auto"
+                                    style={{ left: `calc(50% + ${rightBound}px + ${isTablet ? '1vw' : '1.5vw'})` }}
+                                >
+                                    <button
+                                        className="flex items-center justify-center transition-all hover:scale-110 p-[0.5vw]"
+                                        style={{
+                                            color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                            opacity: getLayoutOpacity('toolbar-bg', 1) * 0.5
+                                        }}
+                                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                                    >
+                                        <Icon icon="ph:caret-right" className={`${isTablet ? 'w-[2vw] h-[2vw]' : 'w-[2.5vw] h-[2.5vw]'}`} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* Right Sidebar - EXACT UI FROM SCREENSHOT */}
                 <div
-                    className={`absolute ${isTablet ? 'right-[0.5vw] w-[2.4vw] py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]' : 'right-[0.8vw] w-[2.8vw] py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]'} top-[36%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                    className={`absolute ${isTablet ? `right-[0.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `right-[0.8vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[39%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                     style={{
                         opacity: isFullscreen && isCanvasHovered ? 0 : 1
                     }}
@@ -835,99 +879,239 @@ const Grid7Layout = ({
                         opacity: getLayoutOpacity('toolbar-bg', 1),
                         borderRadius: isTablet ? '0.5vw' : '0.7vw'
                     }} />
-                    <button
-                        onClick={() => {
-                            const wasOpen = showTOC;
-                            closeAll();
-                            if (!wasOpen) setShowTOCMemo?.(true);
-                        }}
-                        className={`transition-all transform hover:scale-110 ${showTOC ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
-                        onClick={() => {
-                            const wasOpen = showThumbnails;
-                            closeAll();
-                            if (!wasOpen) setShowThumbnails(true);
-                        }}
-                        className={`transition-all transform hover:scale-110 ${showThumbnails ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
-                        onClick={() => {
-                            closeAll();
-                            setShowGalleryPopupMemo(true);
-                        }}
-                        className="transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            const wasOpen = showSoundPopup;
-                            closeAll();
-                            if (!wasOpen) setShowSoundPopupMemo?.(true);
-                        }}
-                        className={`transition-all transform hover:scale-110 ${showSoundPopup ? 'opacity-100' : 'opacity-90 hover:opacity-100'} ${isMuted ? 'opacity-30' : ''}`}
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
-                        onClick={() => {
-                            const wasOpen = showLocalProfile;
-                            closeAll();
-                            if (!wasOpen) setShowLocalProfile(true);
-                        }}
-                        className={`transition-all transform hover:scale-110 ${showLocalProfile ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
-                        onClick={handleShare}
-                        className="transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
-                        onClick={handleDownload}
-                        className="transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
-                    <button
+                    {(settings?.navigation?.tableOfContents ?? true) && (
+                        <button
+                            onClick={() => {
+                                const wasOpen = showTOC;
+                                closeAll();
+                                if (!wasOpen) setShowTOCMemo?.(true);
+                            }}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showTOC ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Table of<br />Contents</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Table of Contents
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.navigation?.pageThumbnails ?? true) && (
+                        <button
+                            onClick={() => {
+                                const wasOpen = showThumbnails;
+                                closeAll();
+                                if (!wasOpen) setShowThumbnails(true);
+                            }}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showThumbnails ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Thumbnails
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.interaction?.gallery ?? true) && (
+                        <button
+                            onClick={() => {
+                                closeAll();
+                                setShowGalleryPopupMemo(true);
+                            }}
+                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Gallery
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.media?.backgroundAudio ?? true) && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                const wasOpen = showSoundPopup;
+                                closeAll();
+                                if (!wasOpen) setShowSoundPopupMemo?.(true);
+                            }}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showSoundPopup ? 'opacity-100' : 'opacity-90 hover:opacity-100'} ${isMuted ? 'opacity-30' : ''}`}
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Sound
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.brandingProfile?.profile ?? true) && (
+                        <button
+                            onClick={() => {
+                                const wasOpen = showLocalProfile;
+                                closeAll();
+                                if (!wasOpen) setShowLocalProfile(true);
+                            }}
+                            className={`group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 ${showLocalProfile ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Profile
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.shareExport?.share ?? true) && (
+                        <button
+                            onClick={handleShare}
+                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Share
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.shareExport?.download ?? true) && (
+                        <button
+                            onClick={handleDownload}
+                            className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 opacity-90 hover:opacity-100"
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
+                            {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
+                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                                style={{
+                                    background: 'rgba(10, 10, 12, 0.55)',
+                                    backdropFilter: 'blur(30px)',
+                                    WebkitBackdropFilter: 'blur(30px)',
+                                    transform: 'translateZ(0)',
+                                    isolation: 'isolate',
+                                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                                    color: '#ffffff',
+                                    padding: '0.25vw 0.5vw',
+                                    borderRadius: '0.3vw',
+                                    fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                                }}>
+                                Download
+                                <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                            </div>
+                        </button>
+                    )}
+                    {(settings?.viewing?.fullScreen ?? true) && <button
                         onClick={handleFullScreen}
-                        className="transition-all transform hover:scale-110 border-t pt-[1vh] mt-[0.5vh] w-full flex justify-center hover:opacity-100"
+                        className="group relative flex flex-col items-center gap-[0.2vh] transition-all transform hover:scale-110 border-t pt-[1vh] mt-[0.5vh] w-full justify-center hover:opacity-100"
                         style={{
                             color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                             opacity: getLayoutOpacity('toolbar-text-main', 1) * 0.9,
@@ -935,54 +1119,74 @@ const Grid7Layout = ({
                         }}
                     >
                         <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
-                    </button>
+                        {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
+                        <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            style={{
+                                background: 'rgba(10, 10, 12, 0.55)',
+                                backdropFilter: 'blur(30px)',
+                                WebkitBackdropFilter: 'blur(30px)',
+                                transform: 'translateZ(0)',
+                                isolation: 'isolate',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                color: '#ffffff',
+                                padding: '0.25vw 0.5vw',
+                                borderRadius: '0.3vw',
+                                fontSize: isTablet ? '0.55vw' : '0.65vw',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)'
+                            }}>
+                            {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                            <div className="absolute top-1/2 -translate-y-1/2 -right-[0.3vw] w-0 h-0 border-solid border-t-transparent border-b-transparent border-l-[0.35vw] border-t-[0.35vw] border-b-[0.35vw]" style={{ borderLeftColor: 'rgba(10, 10, 12, 0.55)' }}></div>
+                        </div>
+                    </button>}
                 </div>
 
 
 
                 {/* Page Counter Badge - Floating above footer */}
-                <div
-                    className={`absolute right-[0.8vw] ${isTablet ? 'bottom-[4vh] rounded-[0.3vw]' : 'bottom-[2.5vh] rounded-[0.4vw]'} px-[0.8vw] py-[0.4vh] shadow-lg z-30 border min-w-[5vw] flex items-center justify-center transition-all duration-300`}
-                    style={{
-                        backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                        opacity: getLayoutOpacity('toolbar-text-main', 1),
-                        borderColor: 'rgba(0,0,0,0.05)'
-                    }}
-                >
-                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>Page </span>
-                    <input
-                        type="text"
-                        value={pageInputValue}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || /^\d+$/.test(val)) {
-                                setPageInputValue(val);
-                            }
+                {(settings?.navigation?.pageQuickAccess ?? true) && (
+                    <div
+                        className={`absolute right-[0.8vw] ${isTablet ? 'bottom-[4vh] rounded-[0.3vw]' : 'bottom-[2.5vh] rounded-[0.4vw]'} px-[0.8vw] py-[0.4vh] shadow-lg z-30 border min-w-[5vw] flex items-center justify-center transition-all duration-300`}
+                        style={{
+                            backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                            opacity: getLayoutOpacity('toolbar-text-main', 1),
+                            borderColor: 'rgba(0,0,0,0.05)'
                         }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
+                    >
+                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>Page </span>
+                        <input
+                            type="text"
+                            value={pageInputValue}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || /^\d+$/.test(val)) {
+                                    setPageInputValue(val);
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    const pageNum = parseInt(pageInputValue, 10);
+                                    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
+                                        onPageClick(pageNum - 1);
+                                    } else {
+                                        setPageInputValue(String(currentPage + 1));
+                                    }
+                                    e.target.blur();
+                                }
+                            }}
+                            onBlur={() => {
                                 const pageNum = parseInt(pageInputValue, 10);
                                 if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
                                     onPageClick(pageNum - 1);
                                 } else {
                                     setPageInputValue(String(currentPage + 1));
                                 }
-                                e.target.blur();
-                            }
-                        }}
-                        onBlur={() => {
-                            const pageNum = parseInt(pageInputValue, 10);
-                            if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
-                                onPageClick(pageNum - 1);
-                            } else {
-                                setPageInputValue(String(currentPage + 1));
-                            }
-                        }}
-                        className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold bg-transparent border-none outline-none text-center`}
-                        style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}
-                    />
-                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}> / {pagesCount}</span>
-                </div>
+                            }}
+                            className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold bg-transparent border-none outline-none text-center`}
+                            style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}
+                        />
+                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.8vw]'} font-bold`} style={{ color: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}> / {pagesCount}</span>
+                    </div>
+                )}
 
                 {/* Book Viewer Container */}
                 <div className={`flex-1 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-[2vw] pr-[5vw]'} select-none`}
@@ -1041,36 +1245,42 @@ const Grid7Layout = ({
                 }} />
                 {/* Playback Controls */}
                 <div className="flex items-center gap-[1.2vw] mr-[2vw]">
-                    <button
-                        onClick={() => onPageClick && onPageClick(0)}
-                        className="transition-all transform active:scale-95"
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1) * 0.8
-                        }}
-                    >
-                        <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
-                    <button
-                        onClick={() => setIsPlaying(!isAutoFlipping)}
-                        className="transition-all transform active:scale-90"
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1)
-                        }}
-                    >
-                        <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />
-                    </button>
-                    <button
-                        onClick={() => onPageClick && onPageClick(pagesCount - 1)}
-                        className="transition-all transform active:scale-95"
-                        style={{
-                            color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                            opacity: getLayoutOpacity('toolbar-text-main', 1) * 0.8
-                        }}
-                    >
-                        <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                    </button>
+                    {(settings?.navigation?.startEndNav ?? true) && (
+                        <button
+                            onClick={() => onPageClick && onPageClick(0)}
+                            className="transition-all transform active:scale-95"
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1) * 0.8
+                            }}
+                        >
+                            <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                        </button>
+                    )}
+                    {(settings?.media?.autoFlip ?? true) && (
+                        <button
+                            onClick={() => setIsPlaying(!isAutoFlipping)}
+                            className="transition-all transform active:scale-90"
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1)
+                            }}
+                        >
+                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />
+                        </button>
+                    )}
+                    {(settings?.navigation?.startEndNav ?? true) && (
+                        <button
+                            onClick={() => onPageClick && onPageClick(pagesCount - 1)}
+                            className="transition-all transform active:scale-95"
+                            style={{
+                                color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                opacity: getLayoutOpacity('toolbar-text-main', 1) * 0.8
+                            }}
+                        >
+                            <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                        </button>
+                    )}
                 </div>
 
                 {/* Progress Bar Container */}
@@ -1188,60 +1398,62 @@ const Grid7Layout = ({
                 </div>
 
                 {/* Zoom & Reset Cluster */}
-                <div className="flex items-center ml-[2vw]">
-                    <div
-                        className="flex items-center rounded-[0.5vw] p-[0.3vw] pl-[0.8vw] gap-[1vw] border"
-                        style={{
-                            backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '1A', // 10% opacity
-                            borderColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '1A'
-                        }}
-                    >
-                        <div className="flex items-center gap-[0.8vw]">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); zoomOut(); }}
-                                className="hover:scale-110 transition-transform"
-                                style={{
-                                    color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                    opacity: getLayoutOpacity('toolbar-text-main', 1)
-                                }}
-                            >
-                                <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'}`} />
-                            </button>
-                            <span
-                                className={`font-bold ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`}
-                                style={{
-                                    color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                    opacity: getLayoutOpacity('toolbar-text-main', 1)
-                                }}
-                            >
-                                {Math.round((dimWidth / initialWidth) * 100)}%
-                            </span>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); zoomIn(); }}
-                                className="hover:scale-110 transition-transform"
-                                style={{
-                                    color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                    opacity: getLayoutOpacity('toolbar-text-main', 1)
-                                }}
-                            >
-                                <Icon icon="lucide:zoom-in" className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'}`} />
-                            </button>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
-                                setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
-                            }}
-                            className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-bold px-[0.8vw] py-[0.35vw] rounded-[0.4vw] hover:opacity-90 active:scale-95 transition-all`}
+                {(settings?.viewing?.zoom ?? true) && (
+                    <div className="flex items-center ml-[2vw]">
+                        <div
+                            className="flex items-center rounded-[0.5vw] p-[0.3vw] pl-[0.8vw] gap-[1vw] border"
                             style={{
-                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                                color: getLayoutColor('bottom-toolbar-bg', '#575C9C')
+                                backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '1A', // 10% opacity
+                                borderColor: getLayoutColor('toolbar-text-main', '#FFFFFF') + '1A'
                             }}
                         >
-                            Reset
-                        </button>
+                            <div className="flex items-center gap-[0.8vw]">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); zoomOut(); }}
+                                    className="hover:scale-110 transition-transform"
+                                    style={{
+                                        color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                        opacity: getLayoutOpacity('toolbar-text-main', 1)
+                                    }}
+                                >
+                                    <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'}`} />
+                                </button>
+                                <span
+                                    className={`font-bold ${isTablet ? 'text-[0.7vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`}
+                                    style={{
+                                        color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                        opacity: getLayoutOpacity('toolbar-text-main', 1)
+                                    }}
+                                >
+                                    {Math.round((dimWidth / initialWidth) * 100)}%
+                                </span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); zoomIn(); }}
+                                    className="hover:scale-110 transition-transform"
+                                    style={{
+                                        color: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                        opacity: getLayoutOpacity('toolbar-text-main', 1)
+                                    }}
+                                >
+                                    <Icon icon="lucide:zoom-in" className={`${isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[0.9vw] h-[0.9vw]'}`} />
+                                </button>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
+                                    setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
+                                }}
+                                className={`${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-bold px-[0.8vw] py-[0.35vw] rounded-[0.4vw] hover:opacity-90 active:scale-95 transition-all`}
+                                style={{
+                                    backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                                    color: getLayoutColor('bottom-toolbar-bg', '#575C9C')
+                                }}
+                            >
+                                Reset
+                            </button>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             <style>{`

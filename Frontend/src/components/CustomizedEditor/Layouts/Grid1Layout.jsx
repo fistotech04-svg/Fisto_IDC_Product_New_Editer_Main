@@ -164,7 +164,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
             </motion.div>
 
             {/* Custom tooltip for bottom bar (appears above button) */}
-            {showTooltip && !hideTooltip && (
+            {showTooltip && !hideTooltip && !addTextBelowIcons && (
                 <div
                     className="absolute bottom-full mb-[2.8vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
                     style={{
@@ -650,7 +650,7 @@ const Grid1Layout = React.memo((props) => {
                         style={{ backgroundColor: isTablet ? getLayoutColorRgba('bottom-toolbar-bg', '#575C9C') : getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
                     >
                         {/* Search Area */}
-                        {settings.interaction.search && !isPdfProject ? (
+                        {(settings?.interaction?.search ?? true) && !isPdfProject ? (
                             <div className="relative">
                                 <div
                                     className={`flex items-center rounded-full px-[0.9vw] py-[0.35vw] ${isMobileLandscape ? 'w-[9vw]' : 'w-[14vw]'} group transition-all shadow-inner`}
@@ -860,29 +860,33 @@ const Grid1Layout = React.memo((props) => {
 
                     return (
                         <>
-                            <button
-                                className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-20 hover:brightness-110`}
-                                style={{ left: leftPos, backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.8'), color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    closeAllPopups();
-                                    bookRef.current?.pageFlip()?.flipPrev();
-                                }}
-                            >
-                                <Icon icon="fluent:chevron-left-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} group-active:scale-90 transition-transform`} />
-                            </button>
+                            {(settings?.navigation?.nextPrevButtons ?? true) && (
+                                <button
+                                    className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-20 hover:brightness-110`}
+                                    style={{ left: leftPos, backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.8'), color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        closeAllPopups();
+                                        bookRef.current?.pageFlip()?.flipPrev();
+                                    }}
+                                >
+                                    <Icon icon="fluent:chevron-left-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} group-active:scale-90 transition-transform`} />
+                                </button>
+                            )}
 
-                            <button
-                                className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-20 hover:brightness-110`}
-                                style={{ right: rightPos, backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.8'), color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    closeAllPopups();
-                                    bookRef.current?.pageFlip()?.flipNext();
-                                }}
-                            >
-                                <Icon icon="fluent:chevron-right-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} group-active:scale-90 transition-transform`} />
-                            </button>
+                            {(settings?.navigation?.nextPrevButtons ?? true) && (
+                                <button
+                                    className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.7vw] h-[1.7vw]' : 'w-[2.2vw] h-[2.2vw]'} backdrop-blur-md rounded-[0.25vw] flex items-center justify-center transition-all shadow-lg group z-20 hover:brightness-110`}
+                                    style={{ right: rightPos, backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.8'), color: getLayoutColor('toolbar-text-main', '#FFFFFF'), opacity: 'var(--toolbar-text-main-opacity, 1)' }}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        closeAllPopups();
+                                        bookRef.current?.pageFlip()?.flipNext();
+                                    }}
+                                >
+                                    <Icon icon="fluent:chevron-right-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'} group-active:scale-90 transition-transform`} />
+                                </button>
+                            )}
                         </>
                     );
                 })()}
@@ -890,55 +894,57 @@ const Grid1Layout = React.memo((props) => {
 
 
                 {/* Page Counter Badge */}
-                <div
-                    className="absolute shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-[1002] flex items-center transition-all duration-300 backdrop-blur-sm"
-                    style={{
-                        backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
-                        opacity: 'var(--toolbar-text-main-opacity, 1)',
-                        left: isMobileLandscape ? '3vw' : '1vw',
-                        bottom: isFullscreen ? (isMobileLandscape || isTablet ? 'calc(5vh + 1.25vw)' : 'calc(6.5vh + 1.25vw)') : '1.25vw',
-                        borderRadius: isMobileLandscape ? '0.5vw' : isTablet ? '0.7vw' : '1vw',
-                        padding: isMobileLandscape ? '0.2vw 0.4vw' : isTablet ? '0.3vw 0.5vw' : '0.4vw 0.8vw'
-                    }}
-                >
-                    <span
-                        className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold transition-colors`}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                    >Page </span>
-                    <input
-                        type="text"
-                        value={pageInputValue}
-                        onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '' || /^\d+$/.test(val)) {
-                                setPageInputValue(val);
-                            }
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.target.blur();
-                            }
-                        }}
-                        onBlur={() => {
-                            const pageNum = parseInt(pageInputValue, 10);
-                            if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
-                                closeAllPopups();
-                                onPageClick(pageNum - 1);
-                            } else {
-                                setPageInputValue(String(currentPage + 1));
-                            }
-                        }}
-                        className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold bg-transparent border-none outline-none text-center transition-colors`}
+                {(settings?.navigation?.pageQuickAccess ?? true) && (
+                    <div
+                        className="absolute shadow-[0_4px_15px_rgba(0,0,0,0.1)] z-[1002] flex items-center transition-all duration-300 backdrop-blur-sm"
                         style={{
-                            color: getLayoutColor('toolbar-bg', '#575C9C'),
-                            width: `${String(pages.length).length + 0.8}ch`
+                            backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
+                            opacity: 'var(--toolbar-text-main-opacity, 1)',
+                            left: isMobileLandscape ? '3vw' : '1vw',
+                            bottom: isFullscreen ? (isMobileLandscape || isTablet ? 'calc(5vh + 1.25vw)' : 'calc(6.5vh + 1.25vw)') : '1.25vw',
+                            borderRadius: isMobileLandscape ? '0.5vw' : isTablet ? '0.7vw' : '1vw',
+                            padding: isMobileLandscape ? '0.2vw 0.4vw' : isTablet ? '0.3vw 0.5vw' : '0.4vw 0.8vw'
                         }}
-                    />
-                    <span
-                        className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold transition-colors`}
-                        style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
-                    > / {pages.length}</span>
-                </div>
+                    >
+                        <span
+                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold transition-colors`}
+                            style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        >Page </span>
+                        <input
+                            type="text"
+                            value={pageInputValue}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === '' || /^\d+$/.test(val)) {
+                                    setPageInputValue(val);
+                                }
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.target.blur();
+                                }
+                            }}
+                            onBlur={() => {
+                                const pageNum = parseInt(pageInputValue, 10);
+                                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
+                                    closeAllPopups();
+                                    onPageClick(pageNum - 1);
+                                } else {
+                                    setPageInputValue(String(currentPage + 1));
+                                }
+                            }}
+                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold bg-transparent border-none outline-none text-center transition-colors`}
+                            style={{
+                                color: getLayoutColor('toolbar-bg', '#575C9C'),
+                                width: `${String(pages.length).length + 0.8}ch`
+                            }}
+                        />
+                        <span
+                            className={`${isMobileLandscape ? 'text-[0.55vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold transition-colors`}
+                            style={{ color: getLayoutColor('toolbar-bg', '#575C9C') }}
+                        > / {pages.length}</span>
+                    </div>
+                )}
 
 
 
@@ -965,7 +971,7 @@ const Grid1Layout = React.memo((props) => {
                 >
                     {/* Left Controls */}
                     <div className={`flex items-center ${isMobileLandscape ? 'ml-[1.5vw] gap-[0.6vw]' : (isSidebarOpen ? 'gap-[0.5vw]' : 'gap-[1.2vw]')}`}>
-                        {renderDockBtn(
+                        {(settings?.navigation?.tableOfContents ?? true) && renderDockBtn(
                             <Icon icon="fluent:text-bullet-list-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                             'TOC',
                             (e) => {
@@ -978,7 +984,7 @@ const Grid1Layout = React.memo((props) => {
                             '',
                             showTOC
                         )}
-                        {renderDockBtn(
+                        {(settings?.navigation?.pageThumbnails ?? true) && renderDockBtn(
                             <Icon icon="ph:squares-four-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]'}`} />,
                             'Thumbnails',
                             (e) => {
@@ -995,7 +1001,7 @@ const Grid1Layout = React.memo((props) => {
                             '',
                             showThumbnailBar
                         )}
-                        {renderDockBtn(
+                        {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
                             <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                             'First',
                             () => {
@@ -1005,7 +1011,7 @@ const Grid1Layout = React.memo((props) => {
                             { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
                             `${isTablet ? 'ml-[4vw]' : (isSidebarOpen ? 'ml-[1vw]' : 'ml-[4vw]')}`
                         )}
-                        {settings.media.autoFlip && renderDockBtn(
+                        {(settings?.media?.autoFlip ?? true) && renderDockBtn(
                             <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
                             isAutoFlipping ? 'Pause' : 'Play',
                             () => {
@@ -1014,7 +1020,7 @@ const Grid1Layout = React.memo((props) => {
                             },
                             { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
                         )}
-                        {renderDockBtn(
+                        {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
                             <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                             'Last',
                             () => {
@@ -1150,7 +1156,7 @@ const Grid1Layout = React.memo((props) => {
 
 
                             {/* Music/Sound Icon */}
-                            {settings.media.backgroundAudio && renderDockBtn(
+                            {(settings?.media?.backgroundAudio ?? true) && renderDockBtn(
                                 <Icon icon="solar:music-notes-bold" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                                 'Music',
                                 (e) => {
@@ -1167,7 +1173,7 @@ const Grid1Layout = React.memo((props) => {
 
 
                             {/* Gallery Icon */}
-                            {renderDockBtn(
+                            {(settings?.interaction?.gallery ?? true) && renderDockBtn(
                                 <Icon icon="clarity:image-gallery-solid" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                                 'Gallery',
                                 (e) => {
@@ -1181,7 +1187,7 @@ const Grid1Layout = React.memo((props) => {
                             )}
 
                             {/* Profile Icon */}
-                            {renderDockBtn(
+                            {(settings?.brandingProfile?.profile ?? true) && renderDockBtn(
                                 <Icon icon="fluent:person-24-filled" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                                 'Profile',
                                 (e) => {
@@ -1200,7 +1206,7 @@ const Grid1Layout = React.memo((props) => {
 
                         <div className="w-[1px] h-[1.5vw] bg-white/10" />
 
-                        {settings.viewing.zoom && (
+                        {(settings?.viewing?.zoom ?? true) && (
                             <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.1vw]' : 'gap-[0.4vw]'}`}>
                                 {renderDockBtn(
                                     <Icon icon="ph:magnifying-glass-minus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
@@ -1230,7 +1236,7 @@ const Grid1Layout = React.memo((props) => {
                         )}
 
                         <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.3vw]' : (isSidebarOpen ? 'gap-[0.5vw]' : 'gap-[1.2vw]')}`}>
-                            {settings.shareExport.share && renderDockBtn(
+                            {(settings?.shareExport?.share ?? true) && renderDockBtn(
                                 <Icon icon="mage:share-fill" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Share',
                                 (e) => {
@@ -1242,7 +1248,7 @@ const Grid1Layout = React.memo((props) => {
                                 '',
                                 showSharePopup
                             )}
-                            {settings.shareExport.download && renderDockBtn(
+                            {(settings?.shareExport?.download ?? true) && renderDockBtn(
                                 <Icon icon="meteor-icons:download" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
                                 'Download',
                                 (e) => {
@@ -1254,7 +1260,7 @@ const Grid1Layout = React.memo((props) => {
                                 '',
                                 showExportPopup
                             )}
-                            {settings.viewing.fullScreen && renderDockBtn(
+                            {(settings?.viewing?.fullScreen ?? true) && renderDockBtn(
                                 <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Full Screen',
                                 (e) => {

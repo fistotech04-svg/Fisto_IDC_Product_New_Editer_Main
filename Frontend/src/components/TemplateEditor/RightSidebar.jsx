@@ -35,6 +35,7 @@ const RightSidebar = ({
   onCancelPopupChanges,
   is3DModalOpen, 
   setIs3DModalOpen,
+  preview3DDataUrl,
   setCurrent3DItem,
   shadowStrength, setShadowStrength,
   shadowSoftness, setShadowSoftness,
@@ -45,7 +46,9 @@ const RightSidebar = ({
   bgType, setBgType,
   bgColor, setBgColor,
   customBg, setCustomBg,
-  enableAR, setEnableAR
+  enableAR, setEnableAR,
+  qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
+  topText, setTopText, bottomText, setBottomText
 }) => {
   const isPdfProject = pages.some(p => p.html && p.html.includes('data-name="PDF Background"'));
   const { width: baseWidth, height: baseHeight } = flipbookDimensions;
@@ -427,7 +430,7 @@ const RightSidebar = ({
         </div>
       )}
       {/* ================= Display Controls (Header Section) ================= */}
-      {!isPopupEditor && (
+      {!isPopupEditor && !is3DModalOpen && (
       <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8.5vh' }}>
          {/* Double Page Toggle Row */}
           <div className="flex items-center">
@@ -447,7 +450,7 @@ const RightSidebar = ({
       )}
 
       {/* Persistent Dimension Section (Common for all) */}
-      {activeTopTool === 'editor' && (
+      {activeTopTool === 'editor' && !is3DModalOpen && (
         <div className="bg-[#f6f6f6] px-[1.5vw] py-[0.8vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
             <div className="flex items-center gap-[0.4vw]">
@@ -634,6 +637,9 @@ const RightSidebar = ({
                     bgColor={bgColor} setBgColor={setBgColor}
                     customBg={customBg} setCustomBg={setCustomBg}
                     enableAR={enableAR} setEnableAR={setEnableAR}
+                    qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
+                    topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
+                    dataUrl={preview3DDataUrl}
                   />
                 </div>
               ) : isPdfProject ? (

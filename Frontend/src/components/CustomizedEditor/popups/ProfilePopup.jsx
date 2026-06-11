@@ -10,7 +10,7 @@ const isLightColor = (hex) => {
     return ((0.299 * r + 0.587 * g + 0.114 * b) / 255) > 0.5;
 };
 
-const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, layoutColors, isEditor, isFullscreen }) => {
+const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, layoutColors, isEditor, isFullscreen, addTextBelowIcons }) => {
     // Select the correct profile data based on activeLayout if profileSettings is keyed by layout ID
     const currentProfile = (profileSettings && profileSettings[activeLayout]) ? profileSettings[activeLayout] : profileSettings;
 
@@ -802,7 +802,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 {/* Global click-to-close overlay */}
                 <div className="fixed inset-0 z-[40] cursor-default" onClick={onClose} />
                 <div
-                    className={`absolute top-[1.2vh] ${isSidebarOpen ? 'left-[calc(50%_+_7.6vw)]' : 'left-[calc(50%_+_10.6vw)]'} -translate-x-[90%] z-[45] animate-in fade-in slide-in-from-top-2 duration-300`}
+                    className={`absolute ${addTextBelowIcons ? 'top-[0.6vh]' : 'top-[1.2vh]'} ${addTextBelowIcons ? (isSidebarOpen ? 'left-[calc(50%_+_8.9vw)]' : 'left-[calc(50%_+_10.7vw)]') : (isSidebarOpen ? 'left-[calc(50%_+_7.6vw)]' : 'left-[calc(50%_+_10.6vw)]')} -translate-x-[90%] z-[45] animate-in fade-in slide-in-from-top-2 duration-300`}
                     style={{ filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))' }}
                     onClick={(e) => e.stopPropagation()}
                 >

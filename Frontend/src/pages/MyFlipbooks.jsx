@@ -1069,7 +1069,7 @@ export default function MyFlipbooks() {
     return (
         <div className="flex bg-[#eef0f8] h-full">
             {/* Sidebar */}
-            <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20">
+            <aside className="w-[18vw] bg-white h-[92vh] fixed left-0 top-[8vh] border-r border-gray-100 flex flex-col p-[1.5vw] z-20 select-none">
 
                 {/* Folders Section */}
                 <div className="flex-1 flex flex-col min-h-0">

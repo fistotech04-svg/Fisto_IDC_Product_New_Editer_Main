@@ -591,6 +591,28 @@ const getInteractionScript = (pageNumber) => `
                                templateId: value
                            }, '*');
                        }
+                   }  else if (type === '3d-viewer') {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       let modelUrl = value;
+                       let configObj = null;
+                       if (value && value.startsWith('{')) {
+                           try {
+                               var parsed = JSON.parse(value);
+                               modelUrl = parsed.data || parsed.url || value;
+                           } catch(e) {}
+                       }
+                       const configStr = el.dataset.interactionConfig || el.getAttribute('data-interaction-config');
+                       if (configStr) {
+                           try {
+                               configObj = JSON.parse(configStr);
+                           } catch(e) {}
+                       }
+                       window.parent.postMessage({
+                           type: 'show-3d-viewer',
+                           url: modelUrl,
+                           config: configObj
+                       }, '*');
                    } else if (type === 'audio' && value) {
                        e.preventDefault();
                        e.stopPropagation();
@@ -1440,15 +1462,16 @@ const PreviewArea = React.memo(({
         `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
 
     const settings = React.useMemo(() => ({
+        ...otherSetupSettings,
         ...(menuBarSettings || {
             navigation: { nextPrevButtons: true, mouseWheel: true, dragToTurn: true, pageQuickAccess: true, tableOfContents: true, pageThumbnails: true, bookmark: true, startEndNav: true },
             viewing: { zoom: true, fullScreen: true },
             interaction: { search: true, notes: true, gallery: true },
             media: { autoFlip: true, backgroundAudio: true },
             shareExport: { share: true, download: true, contact: true },
-            brandingProfile: { logo: true, profile: true }
-        }),
-        ...otherSetupSettings
+            brandingProfile: { logo: true, profile: true },
+            tocSettings: { hasSettings: true, isExpanded: false }
+        })
     }), [menuBarSettings, otherSetupSettings]);
 
     const bookRef = useRef();
@@ -2349,7 +2372,7 @@ const PreviewArea = React.memo(({
                 setMobileFlipTrigger(prev => prev + 1);
             }
         }
-        
+
         // Fix for iframe cursor issue: Blur parent buttons so iframe can capture focus
         if (document.activeElement && typeof document.activeElement.blur === 'function' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
             document.activeElement.blur();
@@ -2620,6 +2643,7 @@ const PreviewArea = React.memo(({
                 <ProfilePopup
                     onClose={() => setShowProfilePopup(false)}
                     profileSettings={profileSettings}
+                    addTextBelowIcons={settings?.toolbar?.addTextBelowIcons}
                     activeLayout={activeLayout}
                     isTablet={isTablet}
                     isMobile={isMobile}
@@ -2659,6 +2683,7 @@ const PreviewArea = React.memo(({
                         setShowTOC(false);
                     }}
                     settings={settings.tocSettings}
+                    addTextBelowIcons={settings?.toolbar?.addTextBelowIcons}
                     activeLayout={activeLayout}
                     isTablet={isTablet}
                     isMobile={isMobile}

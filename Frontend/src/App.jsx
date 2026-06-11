@@ -13,6 +13,7 @@ import NotFound from './pages/NotFound';
 import Editor from './Modules/Editer';
 import { MainEditor } from './components/TemplateEditor'; // Import MainEditor
 import PreviewPage from './pages/PreviewPage';
+import ARView from './pages/ARView';
 import ThreedEditor from './components/ThreedEditor/ThreedEditor';
 import CustomizedEditor from './components/CustomizedEditor/CustomizedEditor';
 import ShareViewBook from './pages/shareviewbook';
@@ -32,6 +33,7 @@ function App() {
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/share=public/:shareId" element={<ShareViewBook />} />
             <Route path="/preview" element={<PreviewPage />} />
+            <Route path="/ar-view" element={<ARView />} />
 
             {/* Protected Editor Layout */}
             <Route path="/editor" element={

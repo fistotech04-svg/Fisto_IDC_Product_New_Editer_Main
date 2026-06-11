@@ -140,7 +140,7 @@ const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                 )}
             </motion.div>
 
-            {showTooltip && !hideTooltip && (
+            {showTooltip && !hideTooltip && !addTextBelowIcons && (
                 <div
                     className="absolute top-full mt-[1.5vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
                     style={{
@@ -705,7 +705,7 @@ const Grid3Layout = ({
                             }}
                         >
                             {/* List/TOC */}
-                            {renderToolbarBtn(
+                            {(settings?.navigation?.tableOfContents ?? true) && renderToolbarBtn(
                                 <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'TOC',
                                 () => {
@@ -721,7 +721,7 @@ const Grid3Layout = ({
                                 !!showTOC
                             )}
                             {/* Squares/Thumbnails */}
-                            {renderToolbarBtn(
+                            {(settings?.navigation?.pageThumbnails ?? true) && renderToolbarBtn(
                                 <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Thumbnails',
                                 () => {
@@ -737,7 +737,7 @@ const Grid3Layout = ({
                                 !!showThumbnails
                             )}
 
-                            {renderToolbarBtn(
+                            {(settings?.interaction?.gallery ?? true) && renderToolbarBtn(
                                 <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Gallery',
                                 () => {
@@ -753,7 +753,7 @@ const Grid3Layout = ({
                                 !!showGalleryPopup
                             )}
                             {/* Music */}
-                            {renderToolbarBtn(
+                            {(settings?.media?.backgroundAudio ?? true) && renderToolbarBtn(
                                 <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Music',
                                 () => {
@@ -769,7 +769,7 @@ const Grid3Layout = ({
                                 !!showSoundPopup
                             )}
                             {/* Profile */}
-                            {renderToolbarBtn(
+                            {(settings?.brandingProfile?.profile ?? true) && renderToolbarBtn(
                                 <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Profile',
                                 () => {
@@ -785,7 +785,7 @@ const Grid3Layout = ({
                                 !!showProfilePopup
                             )}
                             {/* Share */}
-                            {renderToolbarBtn(
+                            {(settings?.shareExport?.share ?? true) && renderToolbarBtn(
                                 <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Share',
                                 handleShare,
@@ -794,7 +794,7 @@ const Grid3Layout = ({
                                 !!showSharePopup
                             )}
                             {/* Download */}
-                            {renderToolbarBtn(
+                            {(settings?.shareExport?.download ?? true) && renderToolbarBtn(
                                 <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Download',
                                 handleDownload,
@@ -802,8 +802,8 @@ const Grid3Layout = ({
                                 'p-[0.3vw]',
                                 !!showExportPopup
                             )}
-                            {/* Magnifying Glass */}
-                            {renderToolbarBtn(
+                            {/* Full Screen */}
+                            {(settings?.viewing?.fullScreen ?? true) && renderToolbarBtn(
                                 <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 'Full Screen',
                                 handleFullScreen,
@@ -866,6 +866,7 @@ const Grid3Layout = ({
                                 filter: brightness(115%);
                             }
                         `}</style>
+
                         {(() => {
                             const isPortraitLayout = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
                             const isCover = currentPage === 0;
@@ -888,27 +889,29 @@ const Grid3Layout = ({
 
                             return (
                                 <>
-                                    <button
-                                        id="v3-prev-arrow"
-                                        className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.4vw] h-[2.4vw]'} flex items-center justify-center transition-all rounded-full z-20`}
-                                        style={{ left: leftPos, color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
-                                        onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
-                                    >
-                                        <Icon icon="lucide:chevron-left" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                                    </button>
-                                    <button
-                                        id="v3-next-arrow"
-                                        className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.4vw] h-[2.4vw]'} flex items-center justify-center transition-all rounded-full z-20`}
-                                        style={{ right: rightPos, color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
-                                        onClick={() => bookRef.current?.pageFlip()?.flipNext()}
-                                    >
-                                        <Icon icon="lucide:chevron-right" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
-                                    </button>
+                                    {(settings?.navigation?.nextPrevButtons ?? true) && (
+                                        <button
+                                            id="v3-prev-arrow"
+                                            className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.4vw] h-[2.4vw]'} flex items-center justify-center transition-all rounded-full z-20`}
+                                            style={{ left: leftPos, color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
+                                            onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
+                                        >
+                                            <Icon icon="lucide:chevron-left" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                        </button>
+                                    )}
+                                    {(settings?.navigation?.nextPrevButtons ?? true) && (
+                                        <button
+                                            id="v3-next-arrow"
+                                            className={`absolute top-1/2 -translate-y-1/2 ${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.4vw] h-[2.4vw]'} flex items-center justify-center transition-all rounded-full z-20`}
+                                            style={{ right: rightPos, color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }}
+                                            onClick={() => bookRef.current?.pageFlip()?.flipNext()}
+                                        >
+                                            <Icon icon="lucide:chevron-right" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                        </button>
+                                    )}
                                 </>
                             );
                         })()}
-
-
 
                         {/* Flipbook Magazine Container */}
                         <div
@@ -932,48 +935,50 @@ const Grid3Layout = ({
                         style={{ backgroundColor: getLayoutColorRgba('bottom-toolbar-bg', '62, 68, 145', '1') }}>
 
                         {/* Left: Page Counter Rounded Box */}
-                        <div className="flex items-center">
-                            <div className={`rounded-[0.3vw] flex items-center justify-center ${!isBigBars ? (isMobileLandscape ? 'px-[0.6vw] h-[1.8vh] min-w-[4vw]' : isTablet ? 'px-[0.3vw] h-[2vh] min-w-[3.5vw]' : 'px-[0.3vw] h-[2.5vh] min-w-[3.8vw]') : (isMobileLandscape ? 'px-[1.2vw] h-[3.5vh] min-w-[7vw]' : isTablet ? 'px-[0.6vw] h-[2.8vh] min-w-[5vw]' : 'px-[0.6vw] pb-[0.1vw] pt-0 h-[3.5vh] min-w-[5.8vw]')} text-center shadow-sm`} style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
-                                <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
-                                <input
-                                    type="text"
-                                    value={pageInputValue}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === '' || /^\d+$/.test(val)) {
-                                            setPageInputValue(val);
-                                        }
-                                    }}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
+                        {(settings?.navigation?.pageQuickAccess ?? true) && (
+                            <div className="flex items-center">
+                                <div className={`rounded-[0.3vw] flex items-center justify-center ${!isBigBars ? (isMobileLandscape ? 'px-[0.6vw] h-[1.8vh] min-w-[4vw]' : isTablet ? 'px-[0.3vw] h-[2vh] min-w-[3.5vw]' : 'px-[0.3vw] h-[2.5vh] min-w-[3.8vw]') : (isMobileLandscape ? 'px-[1.2vw] h-[3.5vh] min-w-[7vw]' : isTablet ? 'px-[0.6vw] h-[2.8vh] min-w-[5vw]' : 'px-[0.6vw] pb-[0.1vw] pt-0 h-[3.5vh] min-w-[5.8vw]')} text-center shadow-sm`} style={{ backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1') }}>
+                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
+                                    <input
+                                        type="text"
+                                        value={pageInputValue}
+                                        onChange={(e) => {
+                                            const val = e.target.value;
+                                            if (val === '' || /^\d+$/.test(val)) {
+                                                setPageInputValue(val);
+                                            }
+                                        }}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                const pageNum = parseInt(pageInputValue, 10);
+                                                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
+                                                    onPageClick(pageNum - 1);
+                                                } else {
+                                                    setPageInputValue(String(currentPage + 1));
+                                                }
+                                                e.target.blur();
+                                            }
+                                        }}
+                                        onBlur={() => {
                                             const pageNum = parseInt(pageInputValue, 10);
                                             if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
                                                 onPageClick(pageNum - 1);
                                             } else {
                                                 setPageInputValue(String(currentPage + 1));
                                             }
-                                            e.target.blur();
-                                        }
-                                    }}
-                                    onBlur={() => {
-                                        const pageNum = parseInt(pageInputValue, 10);
-                                        if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= pages.length) {
-                                            onPageClick(pageNum - 1);
-                                        } else {
-                                            setPageInputValue(String(currentPage + 1));
-                                        }
-                                    }}
-                                    className={`${!isBigBars ? (isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold bg-transparent border-none outline-none text-center leading-none`}
-                                    style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
-                                />
-                                <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
+                                        }}
+                                        className={`${!isBigBars ? (isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold bg-transparent border-none outline-none text-center leading-none`}
+                                        style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                    />
+                                    <span className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.6vw]' : isTablet ? 'text-[0.5vw]' : 'text-[0.55vw]') : (isMobileLandscape ? 'text-[0.75vw]' : isTablet ? 'text-[0.6vw]' : 'text-[0.65vw]')} font-bold select-none whitespace-nowrap leading-none`} style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}> / {totalPages}</span>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Center: Playback Control Group */}
                         <div className={`flex items-center ${isTablet ? 'gap-[0.8vw]' : 'gap-[1.5vw]'}`}>
                             {/* Previous Spread */}
-                            {renderToolbarBtn(
+                            {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
                                 <Icon icon="lucide:skip-back" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                 'First',
                                 () => onPageClick(0),
@@ -981,7 +986,7 @@ const Grid3Layout = ({
                                 'p-[0.3vw]'
                             )}
                             {/* Play/Pause */}
-                            {renderToolbarBtn(
+                            {(settings?.media?.autoFlip ?? true) && renderToolbarBtn(
                                 <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                 isAutoFlipping ? 'Pause' : 'Play',
                                 () => setIsPlaying(!isAutoFlipping),
@@ -989,7 +994,7 @@ const Grid3Layout = ({
                                 'p-[0.3vw]'
                             )}
                             {/* Next Spread */}
-                            {renderToolbarBtn(
+                            {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
                                 <Icon icon="lucide:skip-forward" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                 'Last',
                                 () => onPageClick(totalPages - 1),
@@ -999,48 +1004,50 @@ const Grid3Layout = ({
                         </div>
 
                         {/* Right: Zoom Pill with Reset Button */}
-                        <div className="flex items-center">
-                            <div className={`flex items-center ${!isBigBars ? 'px-[0.15vw] py-[0.05vw] pl-[0.25vw] rounded-[0.25vw]' : 'px-[0.3vw] py-[0.2vw] pl-[0.5vw] rounded-[0.4vw]'} border shadow-sm transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]')}`}
-                                style={{
-                                    backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'),
-                                    borderColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1')
-                                }}
-                            >
-                                <div className={`flex items-center transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.5vw]' : 'gap-[0.8vw]')}`}>
-                                    {renderToolbarBtn(
-                                        <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
-                                        'Zoom Out',
-                                        () => zoomOut(),
-                                        { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }
-                                    )}
-                                    <span className={`font-bold ${!isBigBars ? (isTablet ? 'text-[0.55vw]' : 'text-[0.6vw]') : (isTablet ? 'text-[0.65vw]' : 'text-[0.7vw]')} tracking-tight tabular-nums select-none min-w-[2.0vw]`}
-                                        style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
-                                    >
-                                        {Math.round((dimWidth / initialWidth) * 100)}%
-                                    </span>
-                                    {renderToolbarBtn(
-                                        <Icon icon="lucide:zoom-in" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
-                                        'Zoom In',
-                                        () => zoomIn(),
-                                        { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }
-                                    )}
-                                </div>
-                                <button
-                                    onClick={() => {
-                                        setDimWidth(isMobileLandscape ? initialWidth * 0.95 : isTablet ? initialWidth * 0.7 : initialWidth);
-                                        setDimHeight(isMobileLandscape ? initialHeight * 0.9 : isTablet ? initialHeight * 0.7 : initialHeight);
-                                    }}
-                                    className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.65vw] px-[0.4vw] py-[0.1vw]' : isTablet ? 'text-[0.45vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.5vw] px-[0.3vw] py-[0.1vw]') : (isMobileLandscape ? 'text-[0.85vw] px-[0.8vw] py-[0.2vw]' : isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.2vw]' : 'text-[0.65vw] px-[0.5vw] py-[0.2vw]')} font-bold rounded-[0.25vw] transition-all shadow-sm active:scale-95`}
+                        {(settings?.viewing?.zoom ?? true) && (
+                            <div className="flex items-center">
+                                <div className={`flex items-center ${!isBigBars ? 'px-[0.15vw] py-[0.05vw] pl-[0.25vw] rounded-[0.25vw]' : 'px-[0.3vw] py-[0.2vw] pl-[0.5vw] rounded-[0.4vw]'} border shadow-sm transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.4vw]' : 'gap-[0.6vw]')}`}
                                     style={{
-                                        backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1'),
-                                        color: getLayoutColor('toolbar-icon', '#FFFFFF'),
-                                        opacity: 'var(--toolbar-icon-opacity, 1)'
+                                        backgroundColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1'),
+                                        borderColor: getLayoutColorRgba('search-bg-v2', '255, 255, 255', '1')
                                     }}
                                 >
-                                    Reset
-                                </button>
+                                    <div className={`flex items-center transition-all duration-300 ${!isBigBars ? 'gap-[0.2vw]' : (isSidebarOpen ? 'gap-[0.4vw]' : isTablet ? 'gap-[0.5vw]' : 'gap-[0.8vw]')}`}>
+                                        {renderToolbarBtn(
+                                            <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
+                                            'Zoom Out',
+                                            () => zoomOut(),
+                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }
+                                        )}
+                                        <span className={`font-bold ${!isBigBars ? (isTablet ? 'text-[0.55vw]' : 'text-[0.6vw]') : (isTablet ? 'text-[0.65vw]' : 'text-[0.7vw]')} tracking-tight tabular-nums select-none min-w-[2.0vw]`}
+                                            style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
+                                        >
+                                            {Math.round((dimWidth / initialWidth) * 100)}%
+                                        </span>
+                                        {renderToolbarBtn(
+                                            <Icon icon="lucide:zoom-in" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
+                                            'Zoom In',
+                                            () => zoomIn(),
+                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setDimWidth(isMobileLandscape ? initialWidth * 0.95 : isTablet ? initialWidth * 0.7 : initialWidth);
+                                            setDimHeight(isMobileLandscape ? initialHeight * 0.9 : isTablet ? initialHeight * 0.7 : initialHeight);
+                                        }}
+                                        className={`${!isBigBars ? (isMobileLandscape ? 'text-[0.65vw] px-[0.4vw] py-[0.1vw]' : isTablet ? 'text-[0.45vw] px-[0.3vw] py-[0.1vw]' : 'text-[0.5vw] px-[0.3vw] py-[0.1vw]') : (isMobileLandscape ? 'text-[0.85vw] px-[0.8vw] py-[0.2vw]' : isTablet ? 'text-[0.55vw] px-[0.5vw] py-[0.2vw]' : 'text-[0.65vw] px-[0.5vw] py-[0.2vw]')} font-bold rounded-[0.25vw] transition-all shadow-sm active:scale-95`}
+                                        style={{
+                                            backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1'),
+                                            color: getLayoutColor('toolbar-icon', '#FFFFFF'),
+                                            opacity: 'var(--toolbar-icon-opacity, 1)'
+                                        }}
+                                    >
+                                        Reset
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
 
                         <div
                             ref={progressRef}
