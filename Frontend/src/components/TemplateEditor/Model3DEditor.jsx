@@ -8,6 +8,7 @@ import ColorPicker from './ColorPicker';
 export const CustomQRCode = React.forwardRef(({ 
     value,  
     size = 256, 
+    margin,
     fgColor = '#000000', 
     bgColor = '#ffffff', 
     dotType = 'square', 
@@ -26,7 +27,7 @@ export const CustomQRCode = React.forwardRef(({
             width: size,
             height: size,
             data: value || 'https://google.com',
-            margin: Math.max(2, Math.round(size * 0.05)),
+            margin: margin !== undefined ? margin : Math.max(2, Math.round(size * 0.05)),
             dotsOptions: {
                 color: fgColor,
                 type: dotType
@@ -47,7 +48,7 @@ export const CustomQRCode = React.forwardRef(({
             },
             imageOptions: {
                 crossOrigin: 'anonymous',
-                margin: 5,
+                margin: Math.round(size * 0.03),
                 hideBackgroundDots: true
             },
             image: logo || undefined
@@ -76,7 +77,7 @@ export const CustomQRCode = React.forwardRef(({
                 width: size,
                 height: size,
                 data: value || 'https://google.com',
-                margin: Math.max(2, Math.round(size * 0.05)),
+                margin: margin !== undefined ? margin : Math.max(2, Math.round(size * 0.05)),
                 dotsOptions: {
                     color: fgColor,
                     type: dotType
@@ -95,12 +96,17 @@ export const CustomQRCode = React.forwardRef(({
                 qrOptions: {
                     errorCorrectionLevel: level
                 },
+                imageOptions: {
+                    crossOrigin: 'anonymous',
+                    margin: Math.round(size * 0.03),
+                    hideBackgroundDots: true
+                },
                 image: logo || undefined
             });
         });
 
         return () => cancelAnimationFrame(animFrame);
-    }, [value, size, fgColor, bgColor, dotType, cornerSquareType, cornerDotType, level, logo]);
+    }, [value, size, margin, fgColor, bgColor, dotType, cornerSquareType, cornerDotType, level, logo]);
 
     React.useImperativeHandle(ref, () => ({
         download: async (options) => {
@@ -203,6 +209,7 @@ const Model3DEditor = ({
     const theme = qrThemes[idx];
     setQrColor(theme.fg);
     setQrBgColor(theme.bg);
+    setQrBgType('Solid');
     setQrDotType(theme.dotType);
     setQrCornerSquareType(theme.cornerSquareType);
     setQrCornerDotType(theme.cornerDotType);
@@ -524,7 +531,8 @@ const Model3DEditor = ({
                       <div className="w-[2vw] h-[2vw] pointer-events-none">
                         <CustomQRCode 
                           value="theme" 
-                          size={100} 
+                          size={1024} 
+                          margin={0}
                           fgColor={theme.fg} 
                           bgColor={theme.bg} 
                           dotType={theme.dotType} 
@@ -541,7 +549,8 @@ const Model3DEditor = ({
                   <div className="w-[12vw] h-[12vw] border border-gray-200 rounded-[1vw] overflow-hidden shadow-sm p-[1vw]" style={{ backgroundColor: qrBgType === 'Solid' ? qrBgColor : 'transparent' }}>
                     <CustomQRCode 
                       value={enableAR ? safeQrValue : qrText} 
-                      size={300} 
+                      size={1024} 
+                      margin={0}
                       fgColor={qrColor} 
                       bgColor={qrBgType === 'Solid' ? qrBgColor : 'transparent'} 
                       dotType={qrDotType} 

@@ -20,17 +20,33 @@ const GlbModelViewer = React.memo(({ url, autoRotate, autoRotateSpeed }) => {
 const Model3DPreviewModal = ({ 
   isOpen, 
   dataUrl, 
-  autoRotate, 
-  autoRotateSpeed, 
-  bgType, 
-  bgColor,
-  customBg,
-  enableAR,
-  setBgColor,
-  qrText, qrColor, qrBgType, qrBgColor, qrLevel, qrDotType, qrCornerSquareType, qrCornerDotType, qrLogo,
+  autoRotate = true, 
+  autoRotateSpeed = 1.5, 
+  bgType = 'Solid', 
+  bgColor: initialBgColor = '#ffffff',
+  customBg = true,
+  enableAR = true,
+  setBgColor: externalSetBgColor,
+  qrText = 'Scan Me', qrColor = '#000000', qrBgType = 'Solid', qrBgColor = '#ffffff', qrLevel = 'M', qrDotType = 'square', qrCornerSquareType = 'square', qrCornerDotType = 'square', qrLogo,
   topText, bottomText
 }) => {
+  const [localBgColor, setLocalBgColor] = useState(initialBgColor);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+
+  React.useEffect(() => {
+    if (initialBgColor) {
+      setLocalBgColor(initialBgColor);
+    }
+  }, [initialBgColor]);
+
+  const bgColor = externalSetBgColor ? initialBgColor : localBgColor;
+
+  const handleSetBgColor = (color) => {
+    setLocalBgColor(color);
+    if (externalSetBgColor) {
+      externalSetBgColor(color);
+    }
+  };
 
   const safeQrValue = React.useMemo(() => {
     if (!dataUrl) return qrText || "Scan Me";
@@ -79,7 +95,7 @@ const Model3DPreviewModal = ({
                  <div className="absolute bottom-[calc(100%+0.5vw)] left-[0vw] z-[60] pointer-events-auto">
                      <ColorPicker 
                          color={bgColor} 
-                         onChange={(color) => setBgColor(color)} 
+                         onChange={handleSetBgColor} 
                          hidePalette={true}
                          onClose={() => setShowBgColorPicker(false)}
                      />
@@ -97,10 +113,11 @@ const Model3DPreviewModal = ({
           <div className="flex flex-col items-center min-w-[10vw]">
             {enableAR && (
               <div className="flex flex-col items-center gap-[0.2vw] pointer-events-auto cursor-pointer">
-                 <div className="w-[4.5vw] h-[4.5vw] rounded-[0.5vw] p-[0.3vw] shadow-sm" style={{ backgroundColor: qrBgType === 'Solid' ? qrBgColor : 'transparent' }}>
+                 <div className="w-[4.5vw] h-[4.5vw] rounded-[0.5vw] p-[0.3vw] shadow-sm flex items-center justify-center" style={{ backgroundColor: qrBgType === 'Solid' ? qrBgColor : 'transparent' }}>
                    <CustomQRCode 
                       value={safeQrValue} 
-                      size={150} 
+                      size={1024} 
+                      margin={0}
                       fgColor={qrColor} 
                       bgColor={qrBgType === 'Solid' ? qrBgColor : 'transparent'} 
                       dotType={qrDotType} 

@@ -173,14 +173,14 @@ const TemplateEditor = () => {
              if (el) {
                  el.setAttribute('data-interaction-config', JSON.stringify(configObj));
                  const serializer = new XMLSerializer();
-                 page.html = serializer.serializeToString(doc);
+                 page.html = serializer.serializeToString(doc.documentElement);
                  newPages[activePageIndex] = page;
              }
          }
          return newPages;
       });
     }
-  }, [is3DModalOpen]); // Save only on close
+  }, [is3DModalOpen, current3DItem, activePageIndex, shadowStrength, shadowSoftness, autoRotate, autoRotateSpeed, lockMaxZoom, maxZoom, bgType, bgColor, customBg, enableAR, qrText, qrColor, qrBgType, qrBgColor, qrLevel, qrDotType, qrCornerSquareType, qrCornerDotType, qrLogo, topText, bottomText]); // Save on close with latest values
 
   useEffect(() => {
     const handleOpen = () => setShowPopupTemplateChange(true);
@@ -236,7 +236,12 @@ const TemplateEditor = () => {
       const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-      // Extract and upload massive 3D models before saving to prevent oversized requests
+      // Extract and upload 3D models into the flipbook's assets/3D_Model/ folder before saving
+      const fNameFor3D = Array.isArray(currentBook?.folderName)
+        ? currentBook.folderName.find(f => f !== 'Recent Book' && f !== 'Recent book') || currentBook.folderName[0]
+        : (currentBook?.folderName || location.state?.folderName || 'Recent Book');
+      const bNameFor3D = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
+
       pagesToSave = await Promise.all(pagesToSave.map(async (p) => {
         if (!p.html || !p.html.includes('data-interaction="3d-viewer"')) return p;
         
@@ -269,13 +274,16 @@ const TemplateEditor = () => {
                 
                 const formData = new FormData();
                 formData.append('emailId', user?.emailId);
-                formData.append('model', blob, `model_${Date.now()}.glb`); 
+                formData.append('folderName', fNameFor3D);
+                formData.append('flipbookName', bNameFor3D);
+                formData.append('model', blob, `model_${Date.now()}.glb`);
                 
-                const uploadRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, formData, {
+                const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-3d-model`, formData, {
                    headers: { 'Content-Type': 'multipart/form-data' }
                 });
                 
                 if (uploadRes.data && uploadRes.data.url) {
+                   // url is relative: ./assets/3D_Model/<filename>
                    const finalUrl = uploadRes.data.url;
                    newHtml = newHtml.replace(actualDataUri, finalUrl);
                 }

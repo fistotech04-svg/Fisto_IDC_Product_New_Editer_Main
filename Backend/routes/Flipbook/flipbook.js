@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import multer from "multer";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
+import ThreedModel from "../../models/ThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 
@@ -86,6 +87,129 @@ const assetUpload = multer({
       );
     }
   },
+});
+
+// Configure multer for 3D model uploads into flipbook assets/3D_Model folder
+const model3DStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const { emailId, folderName, flipbookName } = req.body;
+
+    if (!emailId || !folderName || !flipbookName) {
+      return cb(new Error("Missing required fields: emailId, folderName, flipbookName"));
+    }
+
+    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    const modelDir = path.join(
+      uploadsDir,
+      sanitizedEmail,
+      FLIPBOOK_ROOT,
+      folderName,
+      flipbookName,
+      "assets",
+      "3D_Model",
+    );
+
+    if (!fs.existsSync(modelDir)) {
+      fs.mkdirSync(modelDir, { recursive: true });
+    }
+
+    cb(null, modelDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    const uniqueName = `${nanoid()}${ext}`;
+    cb(null, uniqueName);
+  },
+});
+
+const model3DUpload = multer({
+  storage: model3DStorage,
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB limit for 3D models
+  },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowed = [".glb", ".gltf", ".obj", ".stl", ".fbx"];
+    if (allowed.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type for 3D model. Allowed: ${allowed.join(", ")}`));
+    }
+  },
+});
+
+// @route   POST /api/flipbook/upload-3d-model
+// @desc    Upload a 3D model file into the flipbook's assets/3D_Model folder
+// @access  Public
+router.post("/upload-3d-model", (req, res) => {
+  model3DUpload.single("model")(req, res, async (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error("Multer Error (3D model):", err);
+      return res.status(413).json({ message: `Upload error: ${err.message}` });
+    } else if (err) {
+      console.error("Upload Error (3D model):", err);
+      return res.status(500).json({ message: err.message || "Server error during upload" });
+    }
+
+    try {
+      const { emailId, folderName, flipbookName } = req.body;
+      if (!emailId || !folderName || !flipbookName) {
+        return res.status(400).json({ message: "Missing required fields" });
+      }
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      // Relative URL stored in the page HTML (flipbook-portable)
+      const relativeUrl = `./assets/3D_Model/${req.file.filename}`;
+
+      // ── Also copy to user's global 3D_Modals folder ──────────────────────
+      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+      const uploadsDir = path.join(__dirname, "../../uploads");
+      const globalModalsDir = path.join(uploadsDir, sanitizedEmail, "3D_Modals");
+
+      if (!fs.existsSync(globalModalsDir)) {
+        fs.mkdirSync(globalModalsDir, { recursive: true });
+      }
+
+      const globalFilePath = path.join(globalModalsDir, req.file.filename);
+
+      // Copy the already-saved file from the flipbook assets folder
+      fs.copyFileSync(req.file.path, globalFilePath);
+
+      // Upsert DB record in ThreedModel so it appears in the user's gallery
+      const globalUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+      const type = path.extname(req.file.filename).slice(1);
+      const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
+
+      const existingModel = await ThreedModel.findOne({
+        userEmail: emailId,
+        name: req.file.filename,
+      });
+
+      if (!existingModel) {
+        await ThreedModel.create({
+          userEmail: emailId,
+          name: req.file.filename,
+          url: globalUrl,
+          type,
+          size: sizeStr,
+        });
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      res.status(200).json({
+        message: "3D model uploaded successfully",
+        url: relativeUrl,       // relative path for page HTML
+        globalUrl,              // absolute path in 3D_Modals gallery
+        filename: req.file.filename,
+      });
+    } catch (error) {
+      console.error("Error processing 3D model upload:", error);
+      res.status(500).json({ message: "Server error during processing" });
+    }
+  });
 });
 
 // @route   POST /api/flipbook/save/chunk
@@ -390,7 +514,7 @@ router.post("/save", async (req, res) => {
     // We find by primary keys. We update folderName to include Recent Book if missing.
     // Create Default Assets Folders
     const assetsDir = path.join(flipbookDir, "assets");
-    ["Image", "gif", "video"].forEach((sub) => {
+    ["Image", "gif", "video","3D_Model"].forEach((sub) => {
       const subDir = path.join(assetsDir, sub);
       if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
     });
@@ -1348,7 +1472,7 @@ router.post("/duplicate", async (req, res) => {
 
     // Ensure Default Assets Folders in Duplicate
     const assetsDir = path.join(targetPath, "assets");
-    ["Image", "gif", "video"].forEach((sub) => {
+    ["Image", "gif", "video","3D_Model"].forEach((sub) => {
       const subDir = path.join(assetsDir, sub);
       if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
     });

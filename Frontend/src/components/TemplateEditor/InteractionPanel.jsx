@@ -1788,8 +1788,8 @@ const InteractionPanel = ({
                                                       }
                                                     }}
                                                   >
-                                                    <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
-                                                    <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
+                                                    <Icon icon="ic:round-clear" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
+                                                    <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Clear</span>
                                                   </div>
                                                 </div>
                                               )}
