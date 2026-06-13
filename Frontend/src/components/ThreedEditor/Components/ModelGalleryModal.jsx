@@ -28,10 +28,7 @@ const ModelThumbnail = React.memo(({ model }) => {
         
         const observer = new IntersectionObserver(
             ([entry]) => {
-                if (entry.isIntersecting) {
-                    setIsInView(true);
-                    observer.unobserve(entry.target);
-                }
+                setIsInView(entry.isIntersecting);
             },
             { threshold: 0.1 }
         );
@@ -65,7 +62,7 @@ const ModelThumbnail = React.memo(({ model }) => {
     return (
         <div ref={viewRef} className="w-full h-full relative group bg-gray-500">
             {isInView ? (
-                <View track={viewRef} className="w-full h-full">
+                <Canvas style={{ width: '100%', height: '100%', background: 'transparent' }} camera={{ fov: 35, position: [0, 1, 5] }}>
                     <Suspense fallback={
                         <Html center className="pointer-events-none">
                             <div className="flex flex-col items-center justify-center gap-[0.5vw]">
@@ -74,7 +71,6 @@ const ModelThumbnail = React.memo(({ model }) => {
                             </div>
                         </Html>
                     }>
-                        <PerspectiveCamera makeDefault position={[0, 1, 5]} fov={35} />
                         <ambientLight intensity={1.5} />
                         <pointLight position={[10, 10, 10]} intensity={1.5} />
                         <directionalLight position={[-5, 5, 5]} intensity={1} />
@@ -98,7 +94,7 @@ const ModelThumbnail = React.memo(({ model }) => {
                             autoRotate={false}
                         />
                     </Suspense>
-                </View>
+                </Canvas>
             ) : (
                 <div className="absolute inset-0 flex items-center justify-center">
                      <Icon icon="ph:sketch-logo-thin" className="w-[2vw] h-[2vw] text-gray-400 opacity-30" />
@@ -108,16 +104,15 @@ const ModelThumbnail = React.memo(({ model }) => {
     );
 });
 
-export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
+export default function ModelGalleryModal({ isOpen, onClose, onSelectModel, hideDelete }) {
     const [models, setModels] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedModel, setSelectedModel] = useState(null);
+    const [selectedForDeletion, setSelectedForDeletion] = useState([]);
     const toast = useToast();
+    const containerRef = useRef();
     
-    // Context menu states
-    const [menuOpenId, setMenuOpenId] = useState(null);
-    const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
 
     // Alert states
     const [alertConfig, setAlertConfig] = useState({ isOpen: false, data: null });
@@ -201,17 +196,36 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
         }
     };
 
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (menuOpenId && !e.target.closest('.context-menu-body')) {
-                setMenuOpenId(null);
+    const handleDeleteMultipleModels = async (modelsToDelete) => {
+        const userStr = localStorage.getItem('user');
+        if (!userStr || !modelsToDelete || modelsToDelete.length === 0) return;
+        const user = JSON.parse(userStr);
+        
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const email = encodeURIComponent(user.emailId);
+            
+            await Promise.all(modelsToDelete.map(model => 
+                axios.delete(`${backendUrl}/api/3d-models/delete-model/${email}/${model.modelId}`)
+            ));
+            
+            toast.success(`${modelsToDelete.length} model(s) deleted successfully`);
+            
+            fetchModels();
+            setSelectedForDeletion([]);
+            if (modelsToDelete.some(m => m.name === selectedModel?.name)) {
+                setSelectedModel(null);
             }
-        };
-        window.addEventListener('mousedown', handleClickOutside);
-        return () => window.removeEventListener('mousedown', handleClickOutside);
-    }, [menuOpenId]);
+            
+        } catch (error) {
+            console.error("Multiple delete failed:", error);
+            toast.error("Failed to delete some models");
+        } finally {
+            setAlertConfig({ isOpen: false, data: null, isMultiple: false });
+        }
+    };
 
-    const containerRef = useRef();
+
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-[2px] animate-in fade-in duration-300">
@@ -223,6 +237,33 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                         <p className="text-[0.75vw] text-gray-500 mt-[0.2vw] font-medium">Select a professional popup design to get start</p>
                     </div>
                     <div className="flex items-center gap-[0.75vw] pt-[0.25vw]">
+                        {filteredModels.length > 0 && selectedForDeletion.length < filteredModels.length && !hideDelete && (
+                            <button 
+                                onClick={() => setSelectedForDeletion([...filteredModels])}
+                                className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-full text-[0.8vw] font-medium text-gray-700 hover:bg-gray-50 transition-all cursor-pointer"
+                            >
+                                <Icon icon="lucide:check-square" className="w-[1vw] h-[1vw]" />
+                                Select All
+                            </button>
+                        )}
+                        {filteredModels.length > 0 && selectedForDeletion.length === filteredModels.length && !hideDelete && (
+                            <button 
+                                onClick={() => setSelectedForDeletion([])}
+                                className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-white border border-gray-300 rounded-full text-[0.8vw] font-medium text-gray-700 hover:bg-gray-50 transition-all cursor-pointer"
+                            >
+                                <Icon icon="lucide:x-square" className="w-[1vw] h-[1vw]" />
+                                Deselect All
+                            </button>
+                        )}
+                        {selectedForDeletion.length > 0 && !hideDelete && (
+                            <button 
+                                onClick={() => setAlertConfig({ isOpen: true, data: selectedForDeletion, isMultiple: true })}
+                                className="flex items-center gap-[0.4vw] px-[1vw] py-[0.5vw] bg-red-50 text-red-600 border border-red-200 rounded-full text-[0.8vw] font-medium hover:bg-red-100 transition-all cursor-pointer"
+                            >
+                                <Icon icon="solar:trash-bin-trash-bold" className="w-[1vw] h-[1vw]" />
+                                Delete ({selectedForDeletion.length})
+                            </button>
+                        )}
                         {/* Search Bar */}
                         <div className="relative group">
                             <Icon 
@@ -283,18 +324,43 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                                             <span className="text-[0.6vw] font-bold text-gray-700 uppercase tracking-wide leading-none">{model.type?.replace('.', '') || '3D'}</span>
                                         </div>
 
-                                        {/* Three Dots Button - Only on Hover */}
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                const rect = e.currentTarget.getBoundingClientRect();
-                                                setMenuPosition({ x: rect.left, y: rect.top });
-                                                setMenuOpenId(model.name);
-                                            }}
-                                            className={`absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-gray-700 hover:bg-white transition-all z-[140] shadow-md opacity-0 group-hover:opacity-100 ${menuOpenId === model.name ? 'opacity-100' : ''}`}
-                                        >
-                                            <Icon icon="heroicons:ellipsis-vertical-20-solid" width="1vw" />
-                                        </button>
+                                        {/* Single Delete Trash Icon - Only on Hover */}
+                                        {selectedForDeletion.length === 0 && !hideDelete && (
+                                            <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setAlertConfig({ isOpen: true, data: model, isMultiple: false });
+                                                }}
+                                                className="absolute top-[0.4vw] right-[0.4vw] w-[1.5vw] h-[1.5vw] cursor-pointer bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center text-red-500 hover:bg-red-50 hover:text-red-600 transition-all z-[140] shadow-md opacity-0 group-hover:opacity-100"
+                                            >
+                                                <Icon icon="solar:trash-bin-trash-bold" width="0.8vw" />
+                                            </button>
+                                        )}
+
+                                        {/* Selection Checkbox */}
+                                        {!hideDelete && (
+                                            <div 
+                                                className="absolute top-[0.4vw] right-[2.2vw] z-[135] cursor-pointer p-[0.2vw]"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedForDeletion(prev => 
+                                                        prev.some(m => m.modelId === model.modelId)
+                                                        ? prev.filter(m => m.modelId !== model.modelId)
+                                                        : [...prev, model]
+                                                    );
+                                                }}
+                                            >
+                                                <div className={`w-[1.2vw] h-[1.2vw] rounded border flex items-center justify-center transition-all ${
+                                                    selectedForDeletion.some(m => m.modelId === model.modelId)
+                                                    ? 'bg-red-500 border-red-500 text-white'
+                                                    : 'bg-white/80 border-gray-300 opacity-0 group-hover:opacity-100 shadow-sm'
+                                                } ${selectedForDeletion.some(m => m.modelId === model.modelId) ? '!opacity-100' : ''}`}>
+                                                    {selectedForDeletion.some(m => m.modelId === model.modelId) && (
+                                                        <Icon icon="heroicons:check-16-solid" width="0.8vw" />
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                     <div className="px-[0.2vw] flex items-center justify-between gap-[0.5vw] mb-[0.2vw]">
                                         <p 
@@ -318,23 +384,6 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                         </div>
                     )}
                 </div>
-
-                {/* Shared Canvas for View.Port */}
-                <Canvas 
-                    eventSource={containerRef}
-                    className="pointer-events-none"
-                    style={{ 
-                        position: 'fixed', 
-                        top: 0, 
-                        left: 0, 
-                        width: '100vw', 
-                        height: '100vh', 
-                        pointerEvents: 'none',
-                        zIndex: 120 // Higher than modal 
-                    }}
-                >
-                    <View.Port />
-                </Canvas>
 
                 {/* Footer Section */}
                 <div className="p-[1.5vw] pt-0 flex items-center justify-end gap-[0.75vw] mt-auto">
@@ -374,39 +423,26 @@ export default function ModelGalleryModal({ isOpen, onClose, onSelectModel }) {
                 `}</style>
             </div>
 
-            {/* CONTEXT MENU - Absolute within the fixed overlay */}
-            {menuOpenId && (
-                <div 
-                    className="fixed z-[99999] bg-white rounded-[0.85vw] shadow-[0_8px_30px_rgba(0,0,0,0.12)] border-[0.11vw] border-gray-400 py-[0.3vw] px-[0.3vw] min-w-[8vw] animate-in fade-in zoom-in duration-200 context-menu-body"
-                    style={{ 
-                        top: (menuPosition.y - 0) + 'px', 
-                        left: (menuPosition.x + 30) + 'px' 
-                    }}
-                >
-                    <button 
-                        onClick={() => {
-                            const modelToDelete = models.find(m => m.name === menuOpenId);
-                            if (modelToDelete) {
-                                setAlertConfig({ isOpen: true, data: modelToDelete });
-                            }
-                            setMenuOpenId(null);
-                        }}
-                        className="w-full flex items-center gap-[0.6vw] px-[0.8vw] py-[0.5vw] hover:bg-red-50 cursor-pointer rounded-[0.6vw] text-red-500 transition-colors group/item"
-                    >
-                        <Icon icon="solar:trash-bin-trash-linear" className="w-[1.1vw] h-[1.1vw]" />
-                        <span className="text-[0.7vw] font-medium">Delete</span>
-                    </button>
-                </div>
-            )}
+
 
             {/* ALERT MODAL */}
             <AlertModal 
                 isOpen={alertConfig.isOpen}
-                onClose={() => setAlertConfig({ isOpen: false, data: null })}
-                onConfirm={() => handleDeleteModel(alertConfig.data)}
+                onClose={() => setAlertConfig({ isOpen: false, data: null, isMultiple: false })}
+                onConfirm={() => {
+                    if (alertConfig.isMultiple) {
+                        handleDeleteMultipleModels(alertConfig.data);
+                    } else {
+                        handleDeleteModel(alertConfig.data);
+                    }
+                }}
                 type="error"
                 title="Delete Model"
-                message={`Are you sure you want to delete "${alertConfig.data?.name?.replace(/\.[^/.]+$/, "")}" from your gallery? This action cannot be undone.`}
+                message={
+                    alertConfig.isMultiple 
+                    ? `Are you sure you want to delete ${alertConfig.data?.length} selected models from your gallery? This action cannot be undone.`
+                    : `Are you sure you want to delete "${alertConfig.data?.name?.replace(/\.[^/.]+$/, "")}" from your gallery? This action cannot be undone.`
+                }
                 showCancel={true}
                 confirmText="Delete"
             />

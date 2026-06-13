@@ -176,7 +176,10 @@ const Model3DEditor = ({
     if (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:')) {
       return "AR View unavailable for local/unsaved models.";
     }
-    return `${window.location.origin}/ar-view?url=${encodeURIComponent(dataUrl)}`;
+    // Resolve absolute URL to avoid relative path issues when scanned, 
+    // and use encodeURI to keep the QR string much shorter and simpler than encodeURIComponent.
+    const resolvedUrl = new URL(dataUrl, window.location.href).href;
+    return `${window.location.origin}/ar-view?url=${encodeURI(resolvedUrl)}`;
   }, [dataUrl, qrText]);
 
   const [activeThemeIdx, setActiveThemeIdx] = useState(0);

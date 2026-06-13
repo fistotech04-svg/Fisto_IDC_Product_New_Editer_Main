@@ -53,7 +53,8 @@ const Model3DPreviewModal = ({
     if (dataUrl.startsWith('data:') || dataUrl.startsWith('blob:')) {
       return "AR View unavailable for local/unsaved models.";
     }
-    return `${window.location.origin}/ar-view?url=${encodeURIComponent(dataUrl)}`;
+    const resolvedUrl = new URL(dataUrl, window.location.href).href;
+    return `${window.location.origin}/ar-view?url=${encodeURI(resolvedUrl)}`;
   }, [dataUrl, qrText]);
 
   if (!isOpen) return null;

@@ -165,37 +165,40 @@ router.post("/upload-3d-model", (req, res) => {
       const relativeUrl = `./assets/3D_Model/${req.file.filename}`;
 
       // ── Also copy to user's global 3D_Modals folder ──────────────────────
-      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      const uploadsDir = path.join(__dirname, "../../uploads");
-      const globalModalsDir = path.join(uploadsDir, sanitizedEmail, "3D_Modals");
+      let globalUrl = null;
+      if (req.body.skipGlobalGallery !== 'true') {
+        const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+        const uploadsDir = path.join(__dirname, "../../uploads");
+        const globalModalsDir = path.join(uploadsDir, sanitizedEmail, "3D_Modals");
 
-      if (!fs.existsSync(globalModalsDir)) {
-        fs.mkdirSync(globalModalsDir, { recursive: true });
-      }
+        if (!fs.existsSync(globalModalsDir)) {
+          fs.mkdirSync(globalModalsDir, { recursive: true });
+        }
 
-      const globalFilePath = path.join(globalModalsDir, req.file.filename);
+        const globalFilePath = path.join(globalModalsDir, req.file.filename);
 
-      // Copy the already-saved file from the flipbook assets folder
-      fs.copyFileSync(req.file.path, globalFilePath);
+        // Copy the already-saved file from the flipbook assets folder
+        fs.copyFileSync(req.file.path, globalFilePath);
 
-      // Upsert DB record in ThreedModel so it appears in the user's gallery
-      const globalUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
-      const type = path.extname(req.file.filename).slice(1);
-      const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
+        // Upsert DB record in ThreedModel so it appears in the user's gallery
+        globalUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+        const type = path.extname(req.file.filename).slice(1);
+        const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
 
-      const existingModel = await ThreedModel.findOne({
-        userEmail: emailId,
-        name: req.file.filename,
-      });
-
-      if (!existingModel) {
-        await ThreedModel.create({
+        const existingModel = await ThreedModel.findOne({
           userEmail: emailId,
           name: req.file.filename,
-          url: globalUrl,
-          type,
-          size: sizeStr,
         });
+
+        if (!existingModel) {
+          await ThreedModel.create({
+            userEmail: emailId,
+            name: req.file.filename,
+            url: globalUrl,
+            type,
+            size: sizeStr,
+          });
+        }
       }
       // ─────────────────────────────────────────────────────────────────────
 
@@ -481,9 +484,11 @@ router.post("/save", async (req, res) => {
       console.error("Error cleaning up orphaned assets:", err);
     }
 
-    // Clean up orphaned HTML files (Deleted or Renamed pages)
+    // Clean up orphaned HTML files (Deleted or Renamed pages) and orphaned 3D models
     if (fs.existsSync(flipbookDir)) {
       const existingFiles = fs.readdirSync(flipbookDir);
+      const activeModels = new Set();
+
       existingFiles.forEach((file) => {
         const expectedNames = new Set(
           pages
@@ -496,10 +501,41 @@ router.post("/save", async (req, res) => {
             )
             .filter(Boolean),
         );
-        if (file.endsWith(".html") && !expectedNames.has(file)) {
-          fs.unlinkSync(path.join(flipbookDir, file));
+        if (file.endsWith(".html")) {
+          if (!expectedNames.has(file)) {
+            fs.unlinkSync(path.join(flipbookDir, file));
+          } else {
+            // If it's an expected HTML file, scan it for 3D model usages
+            try {
+              const filePath = path.join(flipbookDir, file);
+              const content = fs.readFileSync(filePath, "utf8");
+              // Extract filenames correctly avoiding HTML entities like &quot;
+              const matches = content.match(/\.\/assets\/3D_Model\/([a-zA-Z0-9_.-]+)/g);
+              if (matches) {
+                matches.forEach(m => activeModels.add(m.replace('./assets/3D_Model/', '')));
+              }
+            } catch (err) {
+              console.error(`Error reading ${file} for 3D models scan:`, err);
+            }
+          }
         }
       });
+
+      // Now cleanup 3D_Model folder
+      const modelDir = path.join(flipbookDir, "assets", "3D_Model");
+      if (fs.existsSync(modelDir)) {
+        const existingModels = fs.readdirSync(modelDir);
+        existingModels.forEach((modelFile) => {
+          if (!activeModels.has(modelFile)) {
+            try {
+              fs.unlinkSync(path.join(modelDir, modelFile));
+              console.log(`Deleted orphaned 3D model: ${modelFile}`);
+            } catch (e) {
+              console.error(`Error deleting orphaned 3D model ${modelFile}:`, e);
+            }
+          }
+        });
+      }
     }
 
     // Prepare Folder List for DB (Current Folder + 'Recent Book')

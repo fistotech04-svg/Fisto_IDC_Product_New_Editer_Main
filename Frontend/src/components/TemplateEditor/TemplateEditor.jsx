@@ -108,7 +108,7 @@ const TemplateEditor = () => {
   const [qrColor, setQrColor] = useState('#000000');
   const [qrBgType, setQrBgType] = useState('Solid');
   const [qrBgColor, setQrBgColor] = useState('#ffffff');
-  const [qrLevel, setQrLevel] = useState('M');
+  const [qrLevel, setQrLevel] = useState('L');
   const [qrDotType, setQrDotType] = useState('square');
   const [qrCornerSquareType, setQrCornerSquareType] = useState('square');
   const [qrCornerDotType, setQrCornerDotType] = useState('square');
@@ -202,6 +202,7 @@ const TemplateEditor = () => {
 
   const autoSaveTimerRef = useRef(null);
   const isFirstLoadRef = useRef(true);
+  const justSavedRef = useRef(false);
   const lastPageIndexRef = useRef(-1);
   const historyRef = useRef([]);
   const [history, setHistory] = useState([]);
@@ -260,11 +261,11 @@ const TemplateEditor = () => {
              if (dataVal.startsWith('{')) {
                 try {
                    const originalJson = JSON.parse(dataVal);
-                   if (originalJson.data && originalJson.data.startsWith('data:')) {
+                   if (originalJson.data && (originalJson.data.startsWith('data:') || originalJson.data.startsWith('blob:'))) {
                        actualDataUri = originalJson.data;
                    }
                 } catch(e){}
-             } else if (dataVal.startsWith('data:')) {
+             } else if (dataVal.startsWith('data:') || dataVal.startsWith('blob:')) {
                 actualDataUri = dataVal;
              }
              
@@ -272,11 +273,26 @@ const TemplateEditor = () => {
                 const res = await fetch(actualDataUri);
                 const blob = await res.blob();
                 
-                const formData = new FormData();
-                formData.append('emailId', user?.emailId);
-                formData.append('folderName', fNameFor3D);
-                formData.append('flipbookName', bNameFor3D);
-                formData.append('model', blob, `model_${Date.now()}.glb`);
+                 const formData = new FormData();
+                 formData.append('emailId', user?.emailId);
+                 formData.append('folderName', fNameFor3D);
+                 formData.append('flipbookName', bNameFor3D);
+                 
+                 let isFromGallery = false;
+                 let fileName = `model_${Date.now()}.glb`;
+                 try {
+                     if (dataVal.startsWith('{')) {
+                         const originalJson = JSON.parse(dataVal);
+                         if (originalJson.fromGallery) isFromGallery = true;
+                         if (originalJson.name) fileName = originalJson.name;
+                     }
+                 } catch(e) {}
+                 
+                 if (isFromGallery) {
+                     formData.append('skipGlobalGallery', 'true');
+                 }
+                 
+                 formData.append('model', blob, fileName);
                 
                 const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-3d-model`, formData, {
                    headers: { 'Content-Type': 'multipart/form-data' }
@@ -285,7 +301,8 @@ const TemplateEditor = () => {
                 if (uploadRes.data && uploadRes.data.url) {
                    // url is relative: ./assets/3D_Model/<filename>
                    const finalUrl = uploadRes.data.url;
-                   newHtml = newHtml.replace(actualDataUri, finalUrl);
+                   const absoluteUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${finalUrl.replace(/^\.\//, '')}`;
+                   newHtml = newHtml.replace(actualDataUri, absoluteUrl);
                 }
              }
           }
@@ -405,6 +422,9 @@ const TemplateEditor = () => {
         });
 
         setHasUnsavedChanges(false);
+        justSavedRef.current = true;
+        setPages(pagesToSave);
+        window.dispatchEvent(new CustomEvent('flipbook-saved'));
         triggerSaveSuccess({
           name: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
           folder: Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book'),
@@ -487,6 +507,10 @@ const TemplateEditor = () => {
     if (pages.length > 0 && !isLoading) {
       if (isFirstLoadRef.current) {
         isFirstLoadRef.current = false;
+        return;
+      }
+      if (justSavedRef.current) {
+        justSavedRef.current = false;
         return;
       }
       setHasUnsavedChanges(true);

@@ -5,6 +5,7 @@ import { Icon } from '@iconify/react';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
+import ModelGalleryModal from '../ThreedEditor/Components/ModelGalleryModal';
 import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -360,6 +361,7 @@ const InteractionPanel = ({
   const [collapsedCardIds, setCollapsedCardIds] = useState({});
   // Immediate local override for action type so card header updates without waiting for pages re-sync
   const [cardActionOverrides, setCardActionOverrides] = useState({});
+  const [active3DGalleryItem, setActive3DGalleryItem] = useState(null);
 
   // Immediate local overrides for input values and triggers to eliminate dropdown lag and system hang
   const [itemValueOverrides, setItemValueOverrides] = useState({});
@@ -380,6 +382,15 @@ const InteractionPanel = ({
         activeAudioRef.current.pause();
       }
     };
+  }, []);
+
+  // Clear itemValueOverrides upon save to force reloading from new absolute URLs
+  useEffect(() => {
+    const handleSaveComplete = () => {
+      setItemValueOverrides({});
+    };
+    window.addEventListener('flipbook-saved', handleSaveComplete);
+    return () => window.removeEventListener('flipbook-saved', handleSaveComplete);
   }, []);
 
   const actionTypes = [
@@ -1646,22 +1657,19 @@ const InteractionPanel = ({
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
-                                          const reader = new FileReader();
-                                          reader.onload = () => {
-                                            const storedVal = JSON.stringify({
-                                              name: file.name,
-                                              type: 'model/gltf-binary',
-                                              size: file.size,
-                                              data: reader.result
-                                            });
-                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            updateElementAttribute(targetIdx, item.id, {
-                                              'data-interaction': '3d-viewer',
-                                              'data-interaction-value': storedVal
-                                            });
-                                          };
-                                          reader.readAsDataURL(file);
+                                          const objectUrl = URL.createObjectURL(file);
+                                          const storedVal = JSON.stringify({
+                                            name: file.name,
+                                            type: 'model/gltf-binary',
+                                            size: file.size,
+                                            data: objectUrl
+                                          });
+                                          setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction': '3d-viewer',
+                                            'data-interaction-value': storedVal
+                                          });
                                         }
                                       }}
                                     />
@@ -1671,22 +1679,19 @@ const InteractionPanel = ({
                                       accept=".glb,.gltf"
                                       onFileSelect={(file) => {
                                         if (file && (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) && updateElementAttribute) {
-                                          const reader = new FileReader();
-                                          reader.onload = () => {
-                                            const storedVal = JSON.stringify({
-                                              name: file.name,
-                                              type: 'model/gltf-binary',
-                                              size: file.size,
-                                              data: reader.result
-                                            });
-                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            updateElementAttribute(targetIdx, item.id, {
-                                              'data-interaction': '3d-viewer',
-                                              'data-interaction-value': storedVal
-                                            });
-                                          };
-                                          reader.readAsDataURL(file);
+                                          const objectUrl = URL.createObjectURL(file);
+                                          const storedVal = JSON.stringify({
+                                            name: file.name,
+                                            type: 'model/gltf-binary',
+                                            size: file.size,
+                                            data: objectUrl
+                                          });
+                                          setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                          updateElementAttribute(targetIdx, item.id, {
+                                            'data-interaction': '3d-viewer',
+                                            'data-interaction-value': storedVal
+                                          });
                                         }
                                       }}
                                       fileMeta={fileMeta}
@@ -1767,7 +1772,7 @@ const InteractionPanel = ({
                                                     onClick={(e) => {
                                                       e.stopPropagation();
                                                       setOpenDropdownId(null);
-                                                      // Trigger 3D Gallery Logic here
+                                                      setActive3DGalleryItem(item);
                                                     }}
                                                   >
                                                     <Icon icon="clarity:image-gallery-solid" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
@@ -1804,7 +1809,13 @@ const InteractionPanel = ({
                                     {!fileMeta && (
                                       <>
                                         <span className="text-[0.65vw] text-gray-400 font-medium uppercase select-none">OR</span>
-                                        <button className="w-full h-[6vh] bg-[#0A0F1C] rounded-[0.6vw] shadow-md flex items-center justify-center gap-[0.5vw] hover:bg-[#111827] transition-all relative overflow-hidden group cursor-pointer">
+                                        <button 
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActive3DGalleryItem(item);
+                                          }}
+                                          className="w-full h-[6vh] bg-[#0A0F1C] rounded-[0.6vw] shadow-md flex items-center justify-center gap-[0.5vw] hover:bg-[#111827] transition-all relative overflow-hidden group cursor-pointer"
+                                        >
                                           <div className="absolute inset-0 bg-cover bg-center opacity-40 group-hover:opacity-60 transition-opacity" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=400&q=80')" }} />
                                           <div className="absolute inset-0 bg-gradient-to-r from-[#000000] to-transparent opacity-80" />
                                           <div className="z-10 flex items-center gap-[0.6vw] px-[1vw]">
@@ -2070,6 +2081,49 @@ const InteractionPanel = ({
               : interactiveElementsList.find(item => item.id === activeTemplateSelectionId)?.value)
             : ''
         }
+      />
+
+      {/* 3D Gallery Modal */}
+      <ModelGalleryModal
+        isOpen={!!active3DGalleryItem}
+        onClose={() => setActive3DGalleryItem(null)}
+        hideDelete={true}
+        onSelectModel={async (model) => {
+          if (!active3DGalleryItem) return;
+          const currentItem = active3DGalleryItem;
+          setActive3DGalleryItem(null); // Close modal immediately
+          
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
+          const fullUrl = `${backendUrl}${modelUrlPath}`;
+          
+          try {
+            // Fetch as a blob so it behaves exactly like a direct upload,
+            // allowing TemplateEditor's save process to store it in assets/3D_Model/
+            const response = await fetch(fullUrl);
+            const blob = await response.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            
+            const storedVal = JSON.stringify({
+              name: model.name || 'model.glb',
+              type: model.type || 'model/gltf-binary',
+              size: model.size || blob.size,
+              data: objectUrl,
+              fromGallery: true
+            });
+            
+            setItemValueOverrides(prev => ({ ...prev, [currentItem.id]: storedVal }));
+            const targetIdx = currentItem.pageIndex !== undefined ? currentItem.pageIndex : activePageIndex;
+            if (updateElementAttribute) {
+              updateElementAttribute(targetIdx, currentItem.id, {
+                'data-interaction': '3d-viewer',
+                'data-interaction-value': storedVal
+              });
+            }
+          } catch (error) {
+            console.error("Failed to fetch gallery model as blob:", error);
+          }
+        }}
       />
 
     </div>
