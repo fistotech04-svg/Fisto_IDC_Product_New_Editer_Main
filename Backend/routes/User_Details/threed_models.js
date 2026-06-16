@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import multer from "multer";
 import ThreedModel from "../../models/ThreedModel.js";
+import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 
 const router = express.Router();
 
@@ -96,29 +97,57 @@ router.post("/upload-model", (req, res) => {
       const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
 
       let model;
+      let interactionModel = null;
+      let finalRelativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+
       if (modelId) {
           model = await ThreedModel.findOne({ modelId, userEmail: emailId });
-          if (model) {
-              // Delete old file if name changed (optional, but good for cleanup)
-              if (model.name !== req.file.filename) {
-                  const oldPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals", model.name);
-                  if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-              }
-              
-              model.name = req.file.filename;
-              model.url = relativeUrl;
-              model.type = type;
-              model.size = sizeStr;
-              await model.save();
+          if (!model) {
+              interactionModel = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
           }
       }
 
-      if (!model) {
-          // Save as new model if no modelId or model not found
+      if (model) {
+          // Update ThreedModel
+          if (model.name !== req.file.filename) {
+              const oldPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals", model.name);
+              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+          }
+          
+          model.name = req.file.filename;
+          model.url = finalRelativeUrl;
+          model.type = type;
+          model.size = sizeStr;
+          await model.save();
+      } else if (interactionModel) {
+          // Update InteractionThreedModel
+          const destDir = path.join(__dirname, "../../uploads", sanitizedEmail, "My_Flipbooks", interactionModel.folderName, interactionModel.flipbookName, "assets", "3D_Model");
+          
+          if (!fs.existsSync(destDir)) {
+              fs.mkdirSync(destDir, { recursive: true });
+          }
+
+          if (interactionModel.fileName !== req.file.filename) {
+              const oldPath = path.join(destDir, interactionModel.fileName);
+              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+          }
+          
+          const newPath = path.join(destDir, req.file.filename);
+          fs.copyFileSync(req.file.path, newPath);
+          
+          interactionModel.fileName = req.file.filename;
+          interactionModel.url = `./assets/3D_Model/${req.file.filename}`;
+          interactionModel.type = type;
+          interactionModel.size = sizeStr;
+          await interactionModel.save();
+
+          finalRelativeUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+      } else {
+          // Save as new ThreedModel (Global)
           model = new ThreedModel({
             userEmail: emailId,
             name: req.file.filename,
-            url: relativeUrl,
+            url: finalRelativeUrl,
             type: type,
             size: sizeStr
           });
@@ -127,11 +156,11 @@ router.post("/upload-model", (req, res) => {
 
       res.status(200).json({
         message: modelId ? "Model updated successfully" : "Model uploaded successfully",
-        url: relativeUrl,
+        url: finalRelativeUrl,
         name: req.file.filename,
         type: type,
         size: sizeStr,
-        modelId: model.modelId
+        modelId: model ? model.modelId : (interactionModel ? interactionModel.v_id : null)
       });
     } catch (error) {
       console.error("Error processing 3D model:", error);
@@ -346,20 +375,20 @@ router.post("/save-session", async (req, res) => {
 // @access  Public
 router.post("/rename-model", async (req, res) => {
   try {
-    const { emailId, oldName, newName } = req.body;
+    const { emailId, oldName, newName, modelId } = req.body;
     if (!emailId || !oldName || !newName) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const userFolderPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals");
+    
+    let interactionModel = null;
+    let finalUrl = null;
 
-    // oldName might be "Cube.glb"
-    const oldPath = path.join(userFolderPath, oldName);
-    if (!fs.existsSync(oldPath)) {
-      return res.status(404).json({ message: "File not found on server" });
+    if (modelId) {
+       interactionModel = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
     }
-
+    
     const ext = path.extname(oldName);
     // Sanitize new name and ensure it has correct extension
     let cleanNewName = newName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -367,44 +396,100 @@ router.post("/rename-model", async (req, res) => {
         cleanNewName += ext;
     }
     
-    const newPath = path.join(userFolderPath, cleanNewName);
-
-    // Rename the main file
-    fs.renameSync(oldPath, newPath);
-
-    // Rename associated thumbnail
-    const files = fs.readdirSync(userFolderPath);
-    const oldBase = path.basename(oldName, ext);
-    const newBase = path.basename(cleanNewName, ext);
-    
-    let newThumbUrl = null;
-    const thumbnail = files.find(f => {
-      const fExt = path.extname(f).toLowerCase();
-      return path.basename(f, fExt) === oldBase && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
-    });
-
-    if (thumbnail) {
-      const thumbExt = path.extname(thumbnail);
-      const newThumbPath = path.join(userFolderPath, newBase + thumbExt);
-      fs.renameSync(path.join(userFolderPath, thumbnail), newThumbPath);
-      newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase + thumbExt}`;
+    // Rename in My_Flipbooks if it's an interaction model
+    if (interactionModel) {
+        const flipbooksDir = path.join(__dirname, "../../uploads", sanitizedEmail, "My_Flipbooks", interactionModel.folderName, interactionModel.flipbookName, "assets", "3D_Model");
+        const oldFlipbookPath = path.join(flipbooksDir, interactionModel.fileName);
+        const newFlipbookPath = path.join(flipbooksDir, cleanNewName);
+        
+        if (fs.existsSync(oldFlipbookPath)) {
+            fs.renameSync(oldFlipbookPath, newFlipbookPath);
+        }
+        
+        interactionModel.fileName = cleanNewName;
+        interactionModel.url = `./assets/3D_Model/${cleanNewName}`;
+        await interactionModel.save();
+        
+        finalUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${cleanNewName}`;
     }
 
-    // Update Database
-    const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
-    await ThreedModel.findOneAndUpdate(
-        { userEmail: emailId, name: oldName },
-        { name: cleanNewName, url: relativeUrl, thumbnailUrl: newThumbUrl }
-    );
+    const userFolderPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals");
+    const oldPath = path.join(userFolderPath, oldName);
+    const newPath = path.join(userFolderPath, cleanNewName);
+
+    if (fs.existsSync(oldPath)) {
+        // Rename the main file
+        fs.renameSync(oldPath, newPath);
+
+        // Rename associated thumbnail
+        const files = fs.readdirSync(userFolderPath);
+        const oldBase = path.basename(oldName, ext);
+        const newBase = path.basename(cleanNewName, ext);
+        
+        let newThumbUrl = null;
+        const thumbnail = files.find(f => {
+          const fExt = path.extname(f).toLowerCase();
+          return path.basename(f, fExt) === oldBase && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
+        });
+
+        if (thumbnail) {
+          const thumbExt = path.extname(thumbnail);
+          const newThumbPath = path.join(userFolderPath, newBase + thumbExt);
+          fs.renameSync(path.join(userFolderPath, thumbnail), newThumbPath);
+          newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase + thumbExt}`;
+        }
+
+        const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
+        if (!finalUrl) finalUrl = relativeUrl;
+
+        // Update Database
+        await ThreedModel.findOneAndUpdate(
+            { userEmail: emailId, name: oldName },
+            { name: cleanNewName, url: relativeUrl, thumbnailUrl: newThumbUrl }
+        );
+    } else if (!interactionModel) {
+        return res.status(404).json({ message: "File not found on server" });
+    }
 
     res.status(200).json({
       message: "Model renamed successfully",
       newName: cleanNewName,
-      url: relativeUrl
+      url: finalUrl
     });
   } catch (error) {
     console.error("Rename Error:", error);
     res.status(500).json({ message: "Server error during rename" });
+  }
+});
+
+// @route   POST /api/3d-models/rename-label
+// @desc    Update only the display name (fileName) in the DB without renaming any files.
+//          Used when editing a model from the Interaction 3D Viewer so the file path stays intact.
+// @access  Public
+router.post("/rename-label", async (req, res) => {
+  try {
+    const { emailId, modelId, newName } = req.body;
+    if (!emailId || !modelId || !newName) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    // Find the InteractionThreedModel by v_id
+    const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
+    if (!interactionModel) {
+      return res.status(404).json({ message: "Model record not found" });
+    }
+
+    // Keep the physical fileName and url unchanged — only update the display label
+    interactionModel.displayName = newName.trim();
+    await interactionModel.save();
+
+    res.status(200).json({
+      message: "Model label updated in DB",
+      displayName: interactionModel.displayName
+    });
+  } catch (error) {
+    console.error("Rename Label Error:", error);
+    res.status(500).json({ message: "Server error during label rename" });
   }
 });
 
@@ -508,7 +593,28 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
 router.get("/get-model/:modelId", async (req, res) => {
   try {
     const { modelId } = req.params;
-    const model = await ThreedModel.findOne({ modelId });
+    let model = await ThreedModel.findOne({ modelId });
+    
+    // Fallback: Check InteractionThreedModel using v_id
+    // Fallback: Check InteractionThreedModel using v_id
+    if (!model) {
+      const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
+      if (interactionModel) {
+        const sanitizedEmail = interactionModel.userEmail.replace(/[@.]/g, "_");
+        const absoluteUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+
+        model = {
+          modelId: interactionModel.v_id,
+          name: interactionModel.displayName || interactionModel.fileName,
+          displayName: interactionModel.displayName || null,
+          fileName: interactionModel.fileName,
+          url: absoluteUrl,
+          size: interactionModel.size,
+          type: interactionModel.type
+        };
+      }
+    }
+
     if (!model) {
       return res.status(404).json({ message: "Model not found" });
     }

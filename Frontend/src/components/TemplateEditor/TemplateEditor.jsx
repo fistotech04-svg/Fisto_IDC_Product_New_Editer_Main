@@ -149,6 +149,26 @@ const TemplateEditor = () => {
                 if (conf.bottomText !== undefined) setBottomText(conf.bottomText);
              } catch(e) {}
           }
+          
+          // Fetch latest displayName from DB for Modal Name
+          const dataVal = el.getAttribute('data-interaction-value');
+          if (dataVal && dataVal.startsWith('{')) {
+              try {
+                  const parsed = JSON.parse(dataVal);
+                  if (parsed.v_id) {
+                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                      axios.get(`${backendUrl}/api/3d-models/get-model/${parsed.v_id}`)
+                          .then(res => {
+                              if (res.data && res.data.displayName) {
+                                  setBottomText(res.data.displayName);
+                              } else if (res.data && res.data.name) {
+                                  setBottomText(res.data.name);
+                              }
+                          })
+                          .catch(err => console.error("Failed to fetch 3D model name:", err));
+                  }
+              } catch (e) {}
+          }
        }
     }
   }, [current3DItem, is3DModalOpen]); // Load only on open
@@ -172,6 +192,30 @@ const TemplateEditor = () => {
              const el = doc.getElementById(current3DItem.id);
              if (el) {
                  el.setAttribute('data-interaction-config', JSON.stringify(configObj));
+                 
+                 // Save the manually updated Modal Name (bottomText) back to DB
+                 const dataVal = el.getAttribute('data-interaction-value');
+                 if (dataVal && dataVal.startsWith('{')) {
+                     try {
+                         const parsed = JSON.parse(dataVal);
+                         if (parsed.v_id) {
+                             parsed.name = bottomText;
+                             el.setAttribute('data-interaction-value', JSON.stringify(parsed));
+                             
+                             const storedUser = localStorage.getItem('user');
+                             const user = storedUser ? JSON.parse(storedUser) : null;
+                             if (user?.emailId) {
+                                 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                                 axios.post(`${backendUrl}/api/3d-models/rename-label`, {
+                                     emailId: user.emailId,
+                                     modelId: parsed.v_id,
+                                     newName: bottomText
+                                 }).catch(err => console.error("Failed to update 3D model name in DB:", err));
+                             }
+                         }
+                     } catch(e) {}
+                 }
+
                  const serializer = new XMLSerializer();
                  page.html = serializer.serializeToString(doc.documentElement);
                  newPages[activePageIndex] = page;
@@ -302,7 +346,42 @@ const TemplateEditor = () => {
                    // url is relative: ./assets/3D_Model/<filename>
                    const finalUrl = uploadRes.data.url;
                    const absoluteUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${finalUrl.replace(/^\.\//, '')}`;
-                   newHtml = newHtml.replace(actualDataUri, absoluteUrl);
+                   
+                   let newHtmlVal = dataVal.replace(actualDataUri, absoluteUrl);
+                   if (dataVal.startsWith('{') && uploadRes.data.v_id) {
+                       try {
+                           const obj = JSON.parse(newHtmlVal);
+                           obj.v_id = uploadRes.data.v_id;
+                           newHtmlVal = JSON.stringify(obj);
+                       } catch(e) {}
+                   }
+
+                   const escapedOld = dataVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                   const escapedNew = newHtmlVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                   
+                   if (newHtml.includes(escapedOld)) {
+                       newHtml = newHtml.replace(escapedOld, escapedNew);
+                   } else if (newHtml.includes(dataVal)) {
+                       newHtml = newHtml.replace(dataVal, newHtmlVal);
+                   } else {
+                       newHtml = newHtml.replace(actualDataUri, absoluteUrl);
+                   }
+
+                   // Update live DOM immediately to prevent stale interaction states in UI
+                   try {
+                       const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                       if (editorDoc) {
+                           const liveEls = editorDoc.querySelectorAll('[data-interaction="3d-viewer"]');
+                           liveEls.forEach(lEl => {
+                               const lDataVal = lEl.getAttribute('data-interaction-value');
+                               if (lDataVal && lDataVal === dataVal) {
+                                   lEl.setAttribute('data-interaction-value', newHtmlVal);
+                               } else if (lDataVal && lDataVal.includes(actualDataUri)) {
+                                   lEl.setAttribute('data-interaction-value', lDataVal.replace(actualDataUri, absoluteUrl));
+                               }
+                           });
+                       }
+                   } catch(e) {}
                 }
              }
           }
@@ -449,6 +528,15 @@ const TemplateEditor = () => {
     }
   };
 
+  // Allow external components (like InteractionPanel) to trigger a manual save
+  useEffect(() => {
+    const handleManualSave = () => {
+      saveFlipbook(true, popupEditContext ? popupEditContext.backup.pages : pages);
+    };
+    window.addEventListener('trigger-manual-save', handleManualSave);
+    return () => window.removeEventListener('trigger-manual-save', handleManualSave);
+  }, [pages, popupEditContext, isSaving]);
+
   // Listen for the select-layer custom event to select elements by ID
   useEffect(() => {
     const handleSelectLayer = (e) => {
@@ -487,9 +575,23 @@ const TemplateEditor = () => {
 
   // Register Save Handler to Navbar (Pass true for manual save)
   useEffect(() => {
-    setSaveHandler(() => () => saveFlipbook(true, popupEditContext ? popupEditContext.backup.pages : pages));
-    return () => setSaveHandler(null);
-  }, [pages, currentBook, v_id, popupEditContext]);
+    const handleSaveRequest = () => {
+      // Force any active inputs to blur so onBlur event can update React state
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+      // Wait for React to process the state update from the blur event
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('trigger-manual-save'));
+      }, 100);
+    };
+    if (setSaveHandler) {
+      setSaveHandler(() => handleSaveRequest);
+    }
+    return () => {
+      if (setSaveHandler) setSaveHandler(null);
+    };
+  }, [setSaveHandler]);
 
   // Register Preview Handler to Navbar
   const stablePreviewHandler = useCallback(() => window.open('/preview', '_blank'), []);

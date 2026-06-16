@@ -60,6 +60,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   const v_id = propVId || params.v_id;
   const [localSettings, setLocalSettings] = useState(settings || {});
   const [active3DModelUrl, setActive3DModelUrl] = useState(null);
+  const [active3DModelVId, setActive3DModelVId] = useState(null);
   const [active3DModelConfig, setActive3DModelConfig] = useState(null);
 
   useEffect(() => {
@@ -139,6 +140,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
            finalUrl = `${backendUrl}${finalUrl}`;
         }
         setActive3DModelUrl(finalUrl);
+        setActive3DModelVId(e.data.v_id || null);
         if (e.data.config) {
            setActive3DModelConfig(e.data.config);
         } else {
@@ -528,6 +530,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
                 <Interaction3DPreview 
                    isOpen={true}
                    dataUrl={active3DModelUrl}
+                   vId={active3DModelVId}
                    {...active3DModelConfig}
                 />
               ) : (

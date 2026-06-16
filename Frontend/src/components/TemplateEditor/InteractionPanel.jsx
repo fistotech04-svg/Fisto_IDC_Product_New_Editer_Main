@@ -6,6 +6,7 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import PopupTemplateSelection, { TEMPLATES } from './PopupTemplateSelection';
 import ModelGalleryModal from '../ThreedEditor/Components/ModelGalleryModal';
+import AlertModal from '../AlertModal';
 import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
@@ -105,6 +106,7 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
       <PhoneInput
         country={'in'}
         preferredCountries={['in', 'us', 'gb']}
+        countryCodeEditable={false}
         value={localValue.replace(/^\+/, '')}
         onChange={(phone) => {
           const formatted = phone.startsWith('+') ? phone : '+' + phone;
@@ -351,6 +353,7 @@ const InteractionPanel = ({
   setCurrent3DItem
 }) => {
   const [activeTemplateSelectionId, setActiveTemplateSelectionId] = useState(null);
+  const [alertState, setAlertState] = useState({ isOpen: false, title: '', message: '', type: 'warning', showCancel: false, confirmText: 'Okay', cancelText: 'Cancel', onConfirm: null });
   const [dimensionUnit, setDimensionUnit] = useState('px');
   const [openCardIds, setOpenCardIds] = useState({});
   const [isInteractionCardExpanded, setIsInteractionCardExpanded] = useState(true);
@@ -373,6 +376,7 @@ const InteractionPanel = ({
   const [playingAudioId, setPlayingAudioId] = useState(null);
   const [audioPlaybackTimes, setAudioPlaybackTimes] = useState({});
   const [audioProgressPercent, setAudioProgressPercent] = useState({});
+  const [tooltipSettingsOverrides, setTooltipSettingsOverrides] = useState({});
   const activeAudioRef = useRef(null);
 
   // Clean up audio on unmount
@@ -457,6 +461,7 @@ const InteractionPanel = ({
       setItemValueOverrides({});
       setItemTriggerOverrides({});
       setLocalInputValues({});
+      setTooltipSettingsOverrides({});
       prevLayerIdRef.current = selectedLayerId;
     }
   }, [selectedLayerId, selectedElementProps]);
@@ -1717,8 +1722,10 @@ const InteractionPanel = ({
                                               className="absolute inset-0 m-auto w-[4.5vw] h-[2.2vw] bg-black/40 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] cursor-pointer hover:bg-black/60 transition-all shadow-md pointer-events-auto"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                setCurrent3DItem(item);
-                                                setIs3DModalOpen(true);
+                                                if (fileMeta && fileMeta.data) {
+                                                  setCurrent3DItem(item);
+                                                  setIs3DModalOpen(true);
+                                                }
                                               }}
                                               title="Edit 3D Model"
                                             >
@@ -1760,8 +1767,52 @@ const InteractionPanel = ({
                                                     onClick={(e) => {
                                                       e.stopPropagation();
                                                       setOpenDropdownId(null);
-                                                      setCurrent3DItem(item);
-                                                      setIs3DModalOpen(true);
+                                                      if (!fileMeta) {
+                                                        setAlertState({
+                                                          isOpen: true,
+                                                          title: 'Action Required',
+                                                          message: 'Please Place Interaction Before Edit Your Model',
+                                                          type: 'warning'
+                                                        });
+                                                        return;
+                                                      }
+                                                      if (fileMeta.data && fileMeta.data.startsWith('blob:')) {
+                                                        setAlertState({
+                                                          isOpen: true,
+                                                          title: 'Save Required',
+                                                          message: 'Please save your flipbook to continue editing the 3D model.',
+                                                          type: 'warning',
+                                                          showCancel: true,
+                                                          confirmText: 'Save and Go',
+                                                          cancelText: 'Cancel',
+                                                          onConfirm: () => {
+                                                            setAlertState(prev => ({ ...prev, isOpen: false }));
+                                                            window.dispatchEvent(new CustomEvent('trigger-manual-save'));
+                                                            const handleSaved = () => {
+                                                              window.removeEventListener('flipbook-saved', handleSaved);
+                                                              setTimeout(() => {
+                                                                const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                                                                const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                                                const liveEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
+                                                                if (liveEl) {
+                                                                  const newVal = liveEl.getAttribute('data-interaction-value');
+                                                                  try {
+                                                                    const newMeta = JSON.parse(newVal);
+                                                                    localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: newMeta.data, name: newMeta.name, type: newMeta.type || 'glb' }));
+                                                                    const editUrl = newMeta.v_id ? `/editor/threed_editor/${newMeta.v_id}` : '/editor/threed_editor';
+                                                                    window.open(editUrl, '_blank');
+                                                                  } catch(e) {}
+                                                                }
+                                                              }, 200);
+                                                            };
+                                                            window.addEventListener('flipbook-saved', handleSaved);
+                                                          }
+                                                        });
+                                                        return;
+                                                      }
+                                                      localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: fileMeta.data, name: fileMeta.name, type: fileMeta.type || 'glb' }));
+                                                      const editUrl = fileMeta.v_id ? `/editor/threed_editor/${fileMeta.v_id}` : '/editor/threed_editor';
+                                                      window.open(editUrl, '_blank');
                                                     }}
                                                   >
                                                     <Icon icon="lucide:settings-2" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
@@ -1848,7 +1899,7 @@ const InteractionPanel = ({
                                   }}
                                   onBlur={() => {
                                     const val = localInputValues[item.id];
-                                    if (val !== undefined && val !== item.value) {
+                                    if (val !== undefined && val !== resolvedValue) {
                                       if (updateElementAttribute) {
                                         const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
                                         updateElementAttribute(targetIdx, item.id, {
@@ -1867,6 +1918,70 @@ const InteractionPanel = ({
                               </div>
                             )}
                           </div>
+
+                          {/* Tooltip extra options (Animation) */}
+                          {resolvedActionId === 'tooltip' && (
+                            <div className="flex flex-col gap-[1.2vh] w-full mt-[1.5vh]">
+                              <div className="flex items-center gap-[0.4vw]">
+                                <span className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Animation</span>
+                                <div className="h-[1px] flex-grow bg-gray-150"></div>
+                              </div>
+                              <div className="relative" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                                <select
+                                  className="w-full appearance-none h-[3.8vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-200 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6] cursor-pointer"
+                                  value={(tooltipSettingsOverrides[item.id] && tooltipSettingsOverrides[item.id].animation !== undefined) ? tooltipSettingsOverrides[item.id].animation : (tooltipSettings.animation || 'Default')}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setTooltipSettingsOverrides(prev => ({ ...prev, [item.id]: { ...prev[item.id], animation: val } }));
+                                    if (updateElementAttribute) {
+                                      const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                      const newSettings = { ...tooltipSettings, animation: val };
+                                      updateElementAttribute(targetIdx, item.id, {
+                                        'data-tooltip-settings': JSON.stringify(newSettings)
+                                      });
+                                    }
+                                  }}
+                                >
+                                  <option value="Default">Default</option>
+                                  <option value="Fade In /Out">Fade In /Out</option>
+                                  <option value="Slide Up">Slide Up</option>
+                                  <option value="Zoom In">Zoom In</option>
+                                  <option value="Bounce In">Bounce In</option>
+                                </select>
+                                <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
+                              </div>
+ 
+                              <div className="flex items-center justify-between w-full mt-[0.5vh]" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+                                <span className="text-[0.8vw] text-gray-500 font-medium whitespace-nowrap">Speed :</span>
+                                <div className="relative w-[11.2vw]">
+                                  <select
+                                    className="w-full appearance-none h-[3.8vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-200 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6] cursor-pointer"
+                                    value={(tooltipSettingsOverrides[item.id] && tooltipSettingsOverrides[item.id].speed !== undefined) ? tooltipSettingsOverrides[item.id].speed : (tooltipSettings.speed || 'Medium')}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setTooltipSettingsOverrides(prev => ({ ...prev, [item.id]: { ...prev[item.id], speed: val } }));
+                                      if (updateElementAttribute) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        const newSettings = { ...tooltipSettings, speed: val };
+                                        updateElementAttribute(targetIdx, item.id, {
+                                          'data-tooltip-settings': JSON.stringify(newSettings)
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <option value="Slow">Slow</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Fast">Fast</option>
+                                  </select>
+                                  <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Popup extra options */}
                           {resolvedActionId === 'popup' && (
@@ -2126,6 +2241,17 @@ const InteractionPanel = ({
         }}
       />
 
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={() => setAlertState(prev => ({ ...prev, isOpen: false }))}
+        title={alertState.title}
+        message={alertState.message}
+        type={alertState.type}
+        showCancel={alertState.showCancel}
+        confirmText={alertState.confirmText || 'Okay'}
+        cancelText={alertState.cancelText || 'Cancel'}
+        onConfirm={alertState.onConfirm}
+      />
     </div>
   );
 };

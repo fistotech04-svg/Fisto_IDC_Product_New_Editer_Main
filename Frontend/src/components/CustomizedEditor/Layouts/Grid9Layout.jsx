@@ -108,6 +108,8 @@ const Grid9Layout = ({
     isFlipMuted,
     setIsFlipMuted,
     isFullscreen: isFullscreenProp
+    ,
+    offset = 0,
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
@@ -139,6 +141,7 @@ const Grid9Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -146,7 +149,7 @@ const Grid9Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -174,9 +177,11 @@ const Grid9Layout = ({
 
     const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery || '');
     const [recommendations, setRecommendations] = useState([]);
+    const [popupPositions, setPopupPositions] = useState({});
     const isFullscreen = isFullscreenProp || false;
     const [isCanvasHovered, setIsCanvasHovered] = useState(false);
     const thumbScrollRef = useRef(null);
+    const layoutRef = useRef(null);
     const showThumbnails = showThumbnailBar;
     const setShowThumbnails = setShowThumbnailBarMemo;
 
@@ -210,7 +215,14 @@ const Grid9Layout = ({
         }
     }, [showTOC, showThumbnails, showGalleryPopup, showProfilePopup, showViewBookmarkPopup, showSoundPopup]);
 
-    const handleMenuClick = (setter, currentVal) => {
+    const handleMenuClick = (setter, currentVal, e, popupName) => {
+        if (e && e.currentTarget && popupName && layoutRef.current) {
+            const btnRect = e.currentTarget.getBoundingClientRect();
+            const layoutRect = layoutRef.current.getBoundingClientRect();
+            const relativeLeft = btnRect.left - layoutRect.left + (btnRect.width / 2);
+            setPopupPositions(prev => ({ ...prev, [popupName]: relativeLeft }));
+        }
+
         const next = !currentVal;
         if (next) {
             // Close local dropdowns
@@ -235,6 +247,31 @@ const Grid9Layout = ({
             }
         }
     }, [showThumbnails, currentPage]);
+
+    // Ensure perfect alignment of thumbnails popup with its button during sidebar transitions
+    useEffect(() => {
+        if (!showThumbnails) return;
+
+        let animationFrameId;
+
+        const syncPosition = () => {
+            const currentBtn = document.getElementById('layout9-thumbnails-btn');
+            const currentPopup = document.getElementById('layout9-thumb-panel');
+            const currentLayout = layoutRef.current;
+
+            if (currentBtn && currentPopup && currentLayout) {
+                const btnRect = currentBtn.getBoundingClientRect();
+                const layoutRect = currentLayout.getBoundingClientRect();
+                const relativeLeft = btnRect.left - layoutRect.left + (btnRect.width / 2);
+                currentPopup.style.left = `${relativeLeft}px`;
+            }
+            animationFrameId = requestAnimationFrame(syncPosition);
+        };
+
+        syncPosition();
+
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [showThumbnails]);
 
 
 
@@ -337,13 +374,14 @@ const Grid9Layout = ({
     const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
 
     // Toolbar icon button component
-    const ToolbarBtn = ({ icon, label, onClick, isActive, className = '' }) => {
+    const ToolbarBtn = ({ icon, label, onClick, isActive, className = '', id }) => {
         const bgColor = isActive ? getLayoutColor('toolbar-text-main', '#FFFFFF') : getLayoutColor('toolbar-bg', primaryColor);
         const iconColor = isActive ? getLayoutColor('toolbar-bg', primaryColor) : getLayoutColor('toolbar-text-main', '#FFFFFF');
 
         return (
             <div className="flex flex-col items-center gap-[0.2vh] group relative">
                 <button
+                    id={id}
                     onClick={(e) => {
                         e.stopPropagation();
                         if (onClick) onClick(e);
@@ -384,6 +422,7 @@ const Grid9Layout = ({
 
     return (
         <div
+            ref={layoutRef}
             className="flex flex-col h-full w-full font-sans overflow-hidden relative"
             style={{ backgroundColor: backgroundSettings?.color || baseBgColor, ...backgroundStyle }}
             onClick={() => setRecommendations([])}
@@ -528,18 +567,20 @@ const Grid9Layout = ({
                         {/* TOC */}
                         {(settings?.navigation?.tableOfContents ?? true) && (
                             <ToolbarBtn
+                                id="layout9-toc-btn"
                                 icon="fluent:text-bullet-list-24-filled"
                                 label="TOC"
-                                onClick={() => handleMenuClick(setShowTOCMemo, showTOC)}
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowTOCMemo, showTOC, e, 'toc'); }}
                                 isActive={showTOC}
                             />
                         )}
                         {/* Thumbnails */}
                         {(settings?.navigation?.pageThumbnails ?? true) && (
                             <ToolbarBtn
+                                id="layout9-thumbnails-btn"
                                 icon="ph:squares-four-fill"
                                 label="Thumbnails"
-                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowThumbnailBarMemo, showThumbnails); }}
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowThumbnailBarMemo, showThumbnails, e, 'thumbnails'); }}
                                 isActive={showThumbnails}
                             />
                         )}
@@ -558,7 +599,7 @@ const Grid9Layout = ({
                             <ToolbarBtn
                                 icon="clarity:image-gallery-solid"
                                 label="Gallery"
-                                onClick={() => handleMenuClick(setShowGalleryPopupMemo, showGalleryPopup)}
+                                onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowGalleryPopupMemo, showGalleryPopup, e, 'gallery'); }}
                                 isActive={showGalleryPopup}
                             />
                         )}
@@ -567,7 +608,7 @@ const Grid9Layout = ({
                                 <ToolbarBtn
                                     icon="solar:music-notes-bold"
                                     label="Sound"
-                                    onClick={() => handleMenuClick(setShowSoundPopupMemo, showSoundPopup)}
+                                    onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowSoundPopupMemo, showSoundPopup, e, 'sound'); }}
                                     isActive={showSoundPopup}
                                     className="relative z-[999]"
                                 />
@@ -672,9 +713,10 @@ const Grid9Layout = ({
 
                         {/* Profile */}
                         <ToolbarBtn
+                            id="layout9-profile-btn"
                             icon="fluent:person-24-filled"
                             label="Profile"
-                            onClick={() => handleMenuClick(setShowProfilePopup, showProfilePopup)}
+                            onClick={(e) => { e.stopPropagation(); handleMenuClick(setShowProfilePopup, showProfilePopup, e, 'profile'); }}
                             isActive={showProfilePopup}
                         />
                         {/* Share */}
@@ -705,13 +747,31 @@ const Grid9Layout = ({
 
                 {/* Right: Logo */}
                 <div className="flex-1 flex justify-end pointer-events-auto">
-                    {logoSettings?.src && (
-                        <img
-                            src={logoSettings.src}
-                            alt="Logo"
-                            className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity`}
-                            style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
-                        />
+                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
+                        logoSettings.url ? (
+                            <a
+                                href={logoSettings.url.startsWith('http') ? logoSettings.url : `https://${logoSettings.url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-opacity hover:opacity-80"
+                            >
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                                />
+                            </a>
+                        ) : (
+                            <button className="transition-opacity hover:opacity-80 cursor-default">
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                                />
+                            </button>
+                        )
                     )}
                 </div>
             </div>
@@ -757,20 +817,19 @@ const Grid9Layout = ({
                         />
                         <div
                             key="thumb-panel"
+                            id="layout9-thumb-panel"
                             className="absolute w-max max-w-[56.5vw] z-[45] pointer-events-auto"
                             style={{
                                 top: addTextBelowIcons
                                     ? (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.5vw)' : 'calc(4.8vh + 0.5vw)') : (isTablet ? 'calc(5.6vh + 0.5vw)' : 'calc(6.2vh + 0.5vw)'))
                                     : (isFullscreen ? (isTablet ? 'calc(4.2vh + 0.7vw)' : 'calc(4.8vh + 0.7vw)') : (isTablet ? 'calc(5.6vh + 0.7vw)' : 'calc(6.2vh + 0.7vw)')),
-                                left: addTextBelowIcons
-                                    ? `calc(50% - ${isSidebarOpen ? (isTablet ? '7.4vw' : '12.4vw') : (isTablet ? '10.4vw' : '17vw')})`
-                                    : `calc(50% - ${isSidebarOpen ? (isTablet ? '8vw' : '13vw') : (isTablet ? '10vw' : '16.8vw')})`,
-                                transform: `translateX(-${Math.ceil(pages.length / 2) === 1 ? 50 : 25}%)`
+                                left: popupPositions['thumbnails'] ? `${popupPositions['thumbnails']}px` : '50%',
+                                transform: `translateX(-30%)`
                             }}
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Connector Tab for Thumbnail Icon - Exact geometry from Rectangle 7411.svg */}
-                            <div className="absolute bottom-[98%] w-[5.2vw] h-[3.4vw] z-0" style={{ left: `${Math.ceil(pages.length / 2) === 1 ? 50 : 25}%`, transform: 'translateX(-50%)' }}>
+                            <div className="absolute bottom-[98%] w-[5.2vw] h-[3.4vw] z-0" style={{ left: '30%', transform: 'translateX(-50%)' }}>
                                 <svg width="100%" height="100%" viewBox="0 0 113 67" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M24.8182 33.0909C24.8182 14.8153 39.6335 0 57.9091 0C76.1847 0 91 14.8153 91 33.0909V41.7377C91.0109 60.2573 94.967 66.6391 113 67H0C18.7515 67 24.8182 52.7213 24.8182 41.7377V33.0909Z"

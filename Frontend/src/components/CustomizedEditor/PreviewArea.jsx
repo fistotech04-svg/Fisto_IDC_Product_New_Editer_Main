@@ -11,6 +11,7 @@ import MobileFrame from './MobileFrame';
 import MobileLayoutRenderer from './Mobile/MobileLayoutRenderer';
 import FlipbookSharePopup from './popups/FlipbookSharePopup';
 import ProfilePopup from './popups/ProfilePopup';
+import ShareModal from '../ShareModal';
 import Sound from './popups/Sound';
 import Export from './popups/Export';
 import Grid1Layout from './Layouts/Grid1Layout';
@@ -596,10 +597,12 @@ const getInteractionScript = (pageNumber) => `
                        e.stopPropagation();
                        let modelUrl = value;
                        let configObj = null;
+                       let modelVId = null;
                        if (value && value.startsWith('{')) {
                            try {
                                var parsed = JSON.parse(value);
                                modelUrl = parsed.data || parsed.url || value;
+                               modelVId = parsed.v_id;
                            } catch(e) {}
                        }
                        const configStr = el.dataset.interactionConfig || el.getAttribute('data-interaction-config');
@@ -611,6 +614,7 @@ const getInteractionScript = (pageNumber) => `
                        window.parent.postMessage({
                            type: 'show-3d-viewer',
                            url: modelUrl,
+                           v_id: modelVId,
                            config: configObj
                        }, '*');
                    } else if (type === 'audio' && value) {
@@ -875,66 +879,78 @@ const getIframeContent = (html, pageNumber) => {
     return content;
 };
 
-const BookmarkTab = ({ label, color, side, index, onClick, styleIdx = 1, font = 'Poppins' }) => {
-    // 4.5vw height + 0.5vw gap = 5vw spacing
-    const topOffsetVW = index * 5;
+const BookmarkTab = ({ label, color, pageIndex, currentPage, index, onClick, styleIdx = 1, font = 'Poppins', flipTime = 500, singlePage, spacing = 5 }) => {
+    // Determine leaf and flip state physically bound to the leaf structure
+    const leafIndex = Math.floor(pageIndex / 2);
+    const isFlipped = currentPage >= 2 * leafIndex + 1;
+
+    // Fixed vertical position ensures the tab stays anchored relative to the page
+    const topOffsetVW = index * spacing;
     const displayLabel = label.length > 12 ? label.substring(0, 11) + '...' : label;
 
     return (
-        <motion.div
-            whileHover={{
-                scale: 1.1,
-                filter: 'brightness(1.1)',
-                zIndex: 1000
-            }}
-            className="absolute flex items-center justify-center cursor-pointer pointer-events-auto origin-center"
+        <div
+            className="absolute pointer-events-none"
             style={{
-                top: `calc(10% + ${topOffsetVW}vw)`,
-                width: '2vw',
-                height: '4.5vw',
-                [side === 'right' ? 'left' : 'right']: 'calc(100% - 1px)',
-                zIndex: 50 + index,
-                fontFamily: font
+                top: 0,
+                left: singlePage ? '0%' : '50%',
+                width: singlePage ? '100%' : '50%',
+                height: '100%',
+                transformOrigin: 'left center',
+                transform: `rotateY(${isFlipped ? -180 : 0}deg)`,
+                zIndex: isFlipped ? 50 - index : 50 + index, 
             }}
-            onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (onClick) onClick(e);
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
         >
-            <svg
-                viewBox="0 0 40 98"
-                preserveAspectRatio="none"
-                className="absolute inset-0 w-full h-full drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)] transition-all duration-300"
-                style={side === 'left' ? { transform: 'scaleX(-1)' } : {}}
-            >
-                {color === 'multi-color' && (
-                    <defs>
-                        <linearGradient id={`grad-${index}-${side}`} x1="0" y1="0" x2="1" y2="1">
-                            <stop offset="0%" stopColor="#FF0000" />
-                            <stop offset="20%" stopColor="#FFFF00" />
-                            <stop offset="40%" stopColor="#00FF00" />
-                            <stop offset="60%" stopColor="#00FFFF" />
-                            <stop offset="80%" stopColor="#0000FF" />
-                            <stop offset="100%" stopColor="#FF00FF" />
-                        </linearGradient>
-                    </defs>
-                )}
-                <path d={getBookmarkSVGPath(styleIdx)} fill={color === 'multi-color' ? `url(#grad-${index}-${side})` : (color || '#C45A5A')} />
-            </svg>
-            <span
-                className="relative z-10 text-white font-semibold whitespace-nowrap leading-tight drop-shadow-sm text-center"
+            <motion.div
+                whileHover={{ scale: 1.1, filter: 'brightness(1.1)' }}
+                className="absolute flex items-center justify-center cursor-pointer pointer-events-auto origin-center"
                 style={{
-                    transform: 'rotate(-90deg)',
-                    fontSize: '0.65vw',
-                    display: 'block'
+                    top: `calc(10% + ${topOffsetVW}vw)`,
+                    right: '-2vw', // Sticking out of the right edge of the leaf
+                    width: '2vw',
+                    height: '4.5vw',
+                    fontFamily: font,
+                    backfaceVisibility: 'visible',
                 }}
+                onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (onClick) onClick(e);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
             >
-                {displayLabel}
-            </span>
-        </motion.div>
+                <svg
+                    viewBox="0 0 40 98"
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 w-full h-full drop-shadow-[0_1px_2px_rgba(0,0,0,0.15)]"
+                >
+                    {color === 'multi-color' && (
+                        <defs>
+                            <linearGradient id={`grad-${index}`} x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stopColor="#FF0000" />
+                                <stop offset="20%" stopColor="#FFFF00" />
+                                <stop offset="40%" stopColor="#00FF00" />
+                                <stop offset="60%" stopColor="#00FFFF" />
+                                <stop offset="80%" stopColor="#0000FF" />
+                                <stop offset="100%" stopColor="#FF00FF" />
+                            </linearGradient>
+                        </defs>
+                    )}
+                    <path d={getBookmarkSVGPath(styleIdx)} fill={color === 'multi-color' ? `url(#grad-${index})` : (color || '#C45A5A')} />
+                </svg>
+                <span
+                    className="relative z-10 text-white font-semibold whitespace-nowrap leading-tight drop-shadow-sm text-center"
+                    style={{
+                        transform: `rotate(-90deg) scaleX(${isFlipped ? -1 : 1})`,
+                        fontSize: '0.65vw',
+                        display: 'block'
+                    }}
+                >
+                    {displayLabel}
+                </span>
+            </motion.div>
+        </div>
     );
 };
 
@@ -1100,7 +1116,7 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
 
     const isReversedOrder = shape.startsWith('top') || shape.startsWith('left');
 
-    const animType = settings.animation || 'Fade In /Out';
+    const animType = settings.animation || 'Default';
     const speed = (settings.speed || 'Medium').toLowerCase();
     const durationMap = {
         'slow': 0.8,
@@ -1109,11 +1125,19 @@ const TooltipOverlay = React.memo(({ tooltip }) => {
     };
     const duration = durationMap[speed] || 0.5;
 
-    const outerVariants = {
+    let outerVariants = {
         initial: { opacity: 0 },
         animate: { opacity: 1, transition: { duration, ease: 'easeOut' } },
         exit: { opacity: 0, transition: { duration: duration * 0.8, ease: 'easeIn' } }
     };
+
+    if (animType === 'Default') {
+        outerVariants = {
+            initial: { opacity: 1 },
+            animate: { opacity: 1, transition: { duration: 0 } },
+            exit: { opacity: 0, transition: { duration: 0 } }
+        };
+    }
 
     let innerVariants = {
         initial: {},
@@ -1253,7 +1277,7 @@ const TurnJsBookRenderer = React.memo(({
     currentPage,
     pagesCount,
     bookmarks,
-    bookmarkSpacing = 11,
+    bookmarkSpacing = 5,
     onPageClick,
     settings,
     setShowViewBookmarkPopup,
@@ -1343,13 +1367,12 @@ const TurnJsBookRenderer = React.memo(({
 
             <div
                 className="absolute top-0 pointer-events-none"
-                style={{ width: '100%', height: '100%', left: '0%', zIndex: 200 }}
+                style={{ width: '100%', height: '100%', left: '0%', zIndex: 200, perspective: '2000px' }}
             >
                 {(() => {
+                    if (settings?.navigation?.bookmark === false) return null;
                     const bmItems = settings?.navigation?.bookmarkSettings?.items;
                     if (!bmItems || bmItems.length === 0) return null;
-                    let leftCount = 0;
-                    let rightCount = 0;
                     return bmItems.map((bm, idx) => {
                         // parse 'Pg X' into pageIndex (0-indexed)
                         const pageNumMatch = bm.page ? bm.page.match(/\d+/) : null;
@@ -1357,20 +1380,19 @@ const TurnJsBookRenderer = React.memo(({
                         const label = bm.title || '';
                         const color = settings?.navigation?.bookmarkSettings?.color || '#C45A5A';
 
-                        const side = (currentPage === 0) ? 'right' : (pageIndex <= currentPage ? 'left' : 'right');
-                        if (currentPage === 0 && side === 'left') return null;
-                        if (currentPage === pagesCount - 1 && (pagesCount - 1) % 2 !== 0 && side === 'right') return null;
-                        const sideIndex = side === 'left' ? leftCount++ : rightCount++;
                         return (
                             <BookmarkTab
-                                key={`bm-${idx}-${side}`}
+                                key={`bm-${idx}`}
                                 label={label}
                                 color={color}
-                                side={side}
-                                index={sideIndex}
+                                pageIndex={pageIndex}
+                                currentPage={currentPage}
+                                index={idx}
                                 spacing={bookmarkSpacing}
                                 styleIdx={settings?.navigation?.bookmarkSettings?.style || 1}
                                 font={settings?.navigation?.bookmarkSettings?.font || 'Poppins'}
+                                flipTime={flipTime}
+                                singlePage={singlePage}
                                 onClick={() => {
                                     onPageClick && onPageClick(pageIndex);
                                 }}
@@ -1436,6 +1458,7 @@ const PreviewArea = React.memo(({
     onFlip: externalOnFlip,
     isLoading = false,
     externalShowTOC = false,
+    currentBook,
 }) => {
     const hexToRgb = (hex) => {
         if (!hex) return '0, 0, 0';
@@ -1461,9 +1484,8 @@ const PreviewArea = React.memo(({
     const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) =>
         `rgba(var(--${id}-rgb, ${defaultRgb}), var(--${id}-opacity, ${defaultOpacity}))`;
 
-    const settings = React.useMemo(() => ({
-        ...otherSetupSettings,
-        ...(menuBarSettings || {
+    const settings = React.useMemo(() => {
+        const defaultMenuBarSettings = {
             navigation: { nextPrevButtons: true, mouseWheel: true, dragToTurn: true, pageQuickAccess: true, tableOfContents: true, pageThumbnails: true, bookmark: true, startEndNav: true },
             viewing: { zoom: true, fullScreen: true },
             interaction: { search: true, notes: true, gallery: true },
@@ -1471,8 +1493,21 @@ const PreviewArea = React.memo(({
             shareExport: { share: true, download: true, contact: true },
             brandingProfile: { logo: true, profile: true },
             tocSettings: { hasSettings: true, isExpanded: false }
-        })
-    }), [menuBarSettings, otherSetupSettings]);
+        };
+        const menuBar = menuBarSettings || defaultMenuBarSettings;
+        return {
+            ...otherSetupSettings,
+            ...menuBar,
+            navigation: {
+                ...(otherSetupSettings?.navigation || {}),
+                ...(menuBar?.navigation || {}),
+                bookmarkSettings: {
+                    ...(menuBar?.navigation?.bookmarkSettings || {}),
+                    ...(otherSetupSettings?.navigation?.bookmarkSettings || {})
+                }
+            }
+        };
+    }, [menuBarSettings, otherSetupSettings]);
 
     const bookRef = useRef();
     const containerRef = useRef();
@@ -1483,6 +1518,8 @@ const PreviewArea = React.memo(({
     const lastPreviewOpen = useRef(otherSetupSettings?.gallery?.previewOpen);
 
     const activeDevice = activeDeviceProp; // Desktop, Tablet, Mobile
+    const isPortraitLayout = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
+    const isSinglePage = activeDevice === 'Mobile' || (activeDevice === 'Tablet' && isPortraitLayout);
     const isTablet = activeDevice === 'Tablet';
     const isMobile = activeDevice === 'Mobile';
 
@@ -1683,7 +1720,6 @@ const PreviewArea = React.memo(({
             }
 
             // Use the template editor height and width ratio
-            const isSinglePage = activeDevice === 'Mobile';
             const availablePageW = isSinglePage ? availableW : availableW / 2;
             const availablePageH = availableH;
 
@@ -1856,7 +1892,7 @@ const PreviewArea = React.memo(({
 
     const getScreenWrapperStyle = () => {
         if (activeDevice === 'Desktop') return { width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column', flex: 1 };
-        if (activeDevice === 'Tablet') return {
+        if (activeDevice === 'Tablet' && !isPublishedPreview) return {
             position: 'absolute',
             top: '9.38%',
             bottom: '7.7%',
@@ -2421,6 +2457,7 @@ const PreviewArea = React.memo(({
         shadowActive,
         shadowStyle,
         currentPage,
+        singlePage: isSinglePage,
         pagesCount: pages.length,
         onPageClick,
         settings,
@@ -2651,6 +2688,7 @@ const PreviewArea = React.memo(({
                     isMobileLandscape={isMobileLandscape}
                     isEditor={!onClose}
                     isFullscreen={isFullscreen}
+                    isSidebarOpen={isSidebarOpen}
                 />
             )}
 
@@ -2695,14 +2733,16 @@ const PreviewArea = React.memo(({
                 />
             )}
 
-            {showSharePopup && (
-                <FlipbookSharePopup
+            {showSharePopup && createPortal(
+                <ShareModal
+                    isOpen={showSharePopup}
                     onClose={() => setShowSharePopup(false)}
-                    bookName={bookName}
-                    url={window.location.href}
-                    isTablet={isTablet}
-                    isMobile={isMobile}
-                />
+                    flipbookUrl={currentBook?.shareUrl}
+                    flipbookThumbnail={currentBook?.thumbnail}
+                    currentBook={currentBook}
+                    activeLayout={activeLayout}
+                />,
+                document.body
             )}
 
             <Export
@@ -2836,7 +2876,7 @@ const PreviewArea = React.memo(({
         <div
             ref={containerRef}
             id="preview-area-root"
-            className={`flex-1 flex flex-col relative min-h-0 select-none overflow-hidden ${activeDevice !== 'Desktop' ? 'items-center justify-center p-[2vw]' : ''}`}
+            className={`flex-1 flex flex-col relative min-h-0 select-none overflow-hidden ${activeDevice !== 'Desktop' ? 'items-center justify-center' : ''}`}
             style={{
                 width: activeDevice !== 'Desktop' ? '100%' : 'auto',
                 height: activeDevice !== 'Desktop' ? '100%' : 'auto',
@@ -2851,7 +2891,7 @@ const PreviewArea = React.memo(({
             {backgroundLayers}
 
             {activeDevice === 'Mobile' ? (
-                <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || (Number(activeLayout) === 3 && !isLandscape)}>
+                <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
                     <div ref={screenRef} className="w-full h-full relative overflow-hidden">
                         {backgroundLayers}
 
@@ -2869,7 +2909,7 @@ const PreviewArea = React.memo(({
                             <TurnJsBookRenderer
                                 {...bookRendererProps}
                                 bookmarks={currentBookmarks}
-                                bookmarkSpacing={11}
+                                bookmarkSpacing={5}
                                 singlePage={true}
                             />
                         </MobileLayoutRenderer>
@@ -2890,21 +2930,21 @@ const PreviewArea = React.memo(({
             ) : (
                 <>
                     {/* Tablet Outer Background Layer */}
-                    {activeDevice === 'Tablet' && (
+                    {activeDevice === 'Tablet' && !isPublishedPreview && (
                         <div
                             className="absolute inset-0 z-0 pointer-events-none"
                             style={{ ...backgroundStyle, opacity: 0.4 }}
                         />
                     )}
-                    {activeDevice === 'Tablet' && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
+                    {activeDevice === 'Tablet' && !isPublishedPreview && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
                         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
                             {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
                         </div>
                     )}
 
-                    <div style={{ ...deviceStyles[activeDevice], zIndex: 10 }} className="relative">
+                    <div style={{ ...((activeDevice === 'Tablet' && !isPublishedPreview) ? deviceStyles.Tablet : deviceStyles.Desktop), zIndex: 10 }} className="relative">
                         {/* Floor shadow effect for Tablet bottom (using the style of the SVG) */}
-                        {activeDevice === 'Tablet' && (
+                        {activeDevice === 'Tablet' && !isPublishedPreview && (
                             <svg
                                 viewBox="0 0 1000 100"
                                 preserveAspectRatio="none"
@@ -2971,7 +3011,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={isMobile}
@@ -2986,7 +3026,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout2Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid2Layout>
                             ) : Number(activeLayout) === 3 ? (
@@ -3030,7 +3070,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={isMobile}
@@ -3046,7 +3086,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout3Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid3Layout>
                             ) : Number(activeLayout) === 4 ? (
@@ -3089,7 +3129,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     isSidebarOpen={isSidebarOpen}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={activeDevice === 'Mobile'}
@@ -3105,7 +3145,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout4Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid4Layout>
                             ) : Number(activeLayout) === 5 ? (
@@ -3148,7 +3188,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={activeDevice === 'Mobile'}
@@ -3163,7 +3203,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout5Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid5Layout>
                             ) : (Number(activeLayout) === 6) ? (
@@ -3211,7 +3251,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={activeDevice === 'Mobile'}
@@ -3226,7 +3266,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout6Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid6Layout>
                             ) : (Number(activeLayout) === 7) ? (
@@ -3269,7 +3309,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={activeDevice === 'Mobile'}
@@ -3284,7 +3324,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout7Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid7Layout>
                             ) : (Number(activeLayout) === 8) ? (
@@ -3327,7 +3367,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={activeDevice === 'Mobile'}
@@ -3347,7 +3387,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout8Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid8Layout>
                             ) : (Number(activeLayout) === 9) ? (
@@ -3390,7 +3430,7 @@ const PreviewArea = React.memo(({
                                     isMuted={isMuted}
                                     onToggleAudio={handleToggleAudio}
                                     setShowGalleryPopupMemo={setShowGalleryPopupMemo}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     isFullscreen={isFullscreen}
                                     isTablet={activeDevice === 'Tablet'}
                                     isMobile={activeDevice === 'Mobile'}
@@ -3412,7 +3452,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout9Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid9Layout>
                             ) : (
@@ -3458,7 +3498,7 @@ const PreviewArea = React.memo(({
                                     handleFullScreen={handleFullScreen}
                                     handleShare={handleShare}
                                     handleDownload={handleDownload}
-                                    offset={offset}
+                                    offset={isSinglePage ? 0 : offset}
                                     backgroundSettings={layoutBackgroundSettings}
                                     backgroundStyle={layoutBackgroundStyle}
                                     isMuted={isMuted}
@@ -3473,7 +3513,7 @@ const PreviewArea = React.memo(({
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
                                         bookmarks={layout1Bookmarks}
-                                        bookmarkSpacing={11}
+                                        bookmarkSpacing={5}
                                     />
                                 </Grid1Layout>
                             )}

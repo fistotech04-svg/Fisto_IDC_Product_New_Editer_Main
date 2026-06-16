@@ -43,17 +43,17 @@ const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl
                                     let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
                                     if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
                                 }
-                                
+
                                 let fontImports = '';
                                 if (fontsToLoad.size > 0) {
                                     const fontList = Array.from(fontsToLoad).map(f => f.replace(/\s+/g, '+')).join('|');
                                     fontImports = `<link href="https://fonts.googleapis.com/css?family=${fontList}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`;
                                 }
-                                
+
                                 setHtml({ content: res.data.html, fontImports });
                             }
                         })
-                        .catch(() => {})
+                        .catch(() => { })
                         .finally(() => { setFetching(false); setLoaded(true); });
                 }
             },
@@ -123,15 +123,15 @@ const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl
 };
 
 // Custom QR Code component utilizing qr-code-styling for premium aesthetics
-const CustomQRCode = React.forwardRef(({ 
-    value, 
-    size = 256, 
-    fgColor = '#000000', 
-    bgColor = '#ffffff', 
-    dotType = 'square', 
-    cornerSquareType = 'square', 
-    cornerDotType = 'square', 
-    level = 'M', 
+const CustomQRCode = React.forwardRef(({
+    value,
+    size = 256,
+    fgColor = '#000000',
+    bgColor = '#ffffff',
+    dotType = 'square',
+    cornerSquareType = 'square',
+    cornerDotType = 'square',
+    level = 'M',
     logo = '',
     style = {}
 }, ref) => {
@@ -234,7 +234,8 @@ const CustomQRCode = React.forwardRef(({
 
     return (
         <div className="w-full h-full flex items-center justify-center overflow-hidden" style={style}>
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+                __html: `
                 .qr-styling-container-fisto canvas,
                 .qr-styling-container-fisto svg {
                     width: 100% !important;
@@ -244,8 +245,8 @@ const CustomQRCode = React.forwardRef(({
                     display: block !important;
                 }
             ` }} />
-            <div 
-                ref={containerRef} 
+            <div
+                ref={containerRef}
                 className="qr-styling-container-fisto flex items-center justify-center w-full h-full"
             />
         </div>
@@ -253,7 +254,7 @@ const CustomQRCode = React.forwardRef(({
 });
 
 
-const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook }) => {
+const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBook, activeLayout }) => {
     const [addCover, setAddCover] = useState(false);
 
     const getResolvedFirstPageHtml = () => {
@@ -263,7 +264,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
         const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
         const emailFolder = user?.emailId ? user.emailId.replace(/[@.]/g, "_") : '';
         const basePath = `${backendUrl}/uploads/${emailFolder}/My_Flipbooks/${encodeURIComponent(currentBook.folder)}/${encodeURIComponent(currentBook.realName || currentBook.title)}/`;
-        
+
         let resolvedHtml = currentBook.firstPageHtml;
         resolvedHtml = resolvedHtml.replace(/href="\.\/assets\//g, `href="${basePath}assets/`);
         resolvedHtml = resolvedHtml.replace(/href="assets\//g, `href="${basePath}assets/`);
@@ -281,7 +282,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [isCapturing, setIsCapturing] = useState(false);
     const [exportFormat, setExportFormat] = useState('JPG');
     const [showExportDropdown, setShowExportDropdown] = useState(false);
-    
+
     // Saved configuration for the main view (defaults to standard black & white)
     const [savedConfig, setSavedConfig] = useState({
         hasCustomized: false,
@@ -348,16 +349,16 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [showCustomBgColorPicker, setShowCustomBgColorPicker] = useState(false);
     const [qrBgImage, setQrBgImage] = useState(null);
     const [qrLogo, setQrLogo] = useState(null);
-    
+
     // New states for poster text and dimensions
     const [text1, setText1] = useState('ACCEPTING NEW CLIENTS');
     const [text2, setText2] = useState('Tap to scan');
     const [qrWidth, setQrWidth] = useState(1080);
     const [qrHeight, setQrHeight] = useState(880);
-    
+
     // Typography States
     const [activeTextEditor, setActiveTextEditor] = useState(null); // 'text1' or 'text2' or null
-    
+
     // Text 1 Typography states
     const [text1FontFamily, setText1FontFamily] = useState('Poppins');
     const [text1FontSize, setText1FontSize] = useState(24);
@@ -371,7 +372,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [text1Linethrough, setText1Linethrough] = useState(false);
     const [text1Color, setText1Color] = useState('#2E7D32');
     const [text1ColorOpacity, setText1ColorOpacity] = useState(100);
-    
+
     // Text 2 Typography states
     const [text2FontFamily, setText2FontFamily] = useState('Poppins');
     const [text2FontSize, setText2FontSize] = useState(12);
@@ -393,7 +394,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [showLetterSpacingSlider, setShowLetterSpacingSlider] = useState(false);
     const [showLineHeightSlider, setShowLineHeightSlider] = useState(false);
-    
+
     const qrRef = useRef();
     const mainQrRef = useRef(null);
     const posterPreviewRef = useRef(null);
@@ -660,7 +661,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
         try {
             const vw = window.innerWidth; // Use actual viewport for vw→px conversion
             const rect = targetPosterRef.current.getBoundingClientRect();
-            const elWidth  = rect.width  || 400;
+            const elWidth = rect.width || 400;
             const elHeight = rect.height || 600;
             const scale = 3;
 
@@ -669,22 +670,22 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                 if (!ref?.current) return null;
                 const cs = window.getComputedStyle(ref.current);
                 return {
-                    fontFamily:     cs.fontFamily,
-                    fontSize:       cs.fontSize,
-                    fontWeight:     cs.fontWeight,
-                    letterSpacing:  cs.letterSpacing,
-                    lineHeight:     cs.lineHeight,
-                    textAlign:      cs.textAlign,
-                    color:          cs.color,
-                    opacity:        cs.opacity,
-                    fontStyle:      cs.fontStyle,
+                    fontFamily: cs.fontFamily,
+                    fontSize: cs.fontSize,
+                    fontWeight: cs.fontWeight,
+                    letterSpacing: cs.letterSpacing,
+                    lineHeight: cs.lineHeight,
+                    textAlign: cs.textAlign,
+                    color: cs.color,
+                    opacity: cs.opacity,
+                    fontStyle: cs.fontStyle,
                     textDecoration: cs.textDecoration,
-                    textTransform:  cs.textTransform,
-                    whiteSpace:     cs.whiteSpace,
-                    wordBreak:      cs.wordBreak,
-                    padding:        cs.padding,
-                    width:          cs.width,
-                    textContent:    ref.current.textContent,
+                    textTransform: cs.textTransform,
+                    whiteSpace: cs.whiteSpace,
+                    wordBreak: cs.wordBreak,
+                    padding: cs.padding,
+                    width: cs.width,
+                    textContent: ref.current.textContent,
                 };
             };
             const text1Snap = snapText(targetText1Ref);
@@ -698,8 +699,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             // ── Snapshot the actual border-radius, border-color and border-width in px before capture ──
             const posterCs = window.getComputedStyle(targetPosterRef.current);
             const borderRadiusPx = parseFloat(posterCs.borderRadius) || 0;
-            const borderWidthPx  = parseFloat(posterCs.borderWidth)  || 0;
-            const borderColor    = posterCs.borderColor || 'transparent';
+            const borderWidthPx = parseFloat(posterCs.borderWidth) || 0;
+            const borderColor = posterCs.borderColor || 'transparent';
 
             // ── Snapshot QR SVG BEFORE setting isCapturing (no overlay in DOM yet) ──
             const originalSvg = targetPosterRef.current.querySelector('svg');
@@ -721,7 +722,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             const origCanvasSnapshots = [];
             targetPosterRef.current.querySelectorAll('canvas').forEach((c) => {
                 const snapCanvas = document.createElement('canvas');
-                snapCanvas.width  = c.width;
+                snapCanvas.width = c.width;
                 snapCanvas.height = c.height;
                 snapCanvas.getContext('2d').drawImage(c, 0, 0);
                 origCanvasSnapshots.push(snapCanvas);
@@ -738,16 +739,16 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                 scale,
                 backgroundColor: isJpeg ? '#ffffff' : null,
                 logging: false,
-                width:  elWidth,
+                width: elWidth,
                 height: elHeight,
                 onclone: (clonedDoc, clonedElement) => {
                     if (!clonedElement) return;
 
                     // Fix container size and remove border-radius
                     // (we'll apply rounded corners manually on the final canvas)
-                    clonedElement.style.width        = `${elWidth}px`;
-                    clonedElement.style.height       = `${elHeight}px`;
-                    clonedElement.style.overflow     = 'hidden';
+                    clonedElement.style.width = `${elWidth}px`;
+                    clonedElement.style.height = `${elHeight}px`;
+                    clonedElement.style.overflow = 'hidden';
                     clonedElement.style.borderRadius = '0';
 
                     // Remove the loading overlay if it somehow got in
@@ -774,9 +775,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         const el = clonedElement.querySelector(`[data-export-id="${id}"]`);
                         if (!el) return;
                         Object.assign(el.style, snap);
-                        el.style.overflow     = 'visible';
+                        el.style.overflow = 'visible';
                         el.style.textOverflow = 'clip';
-                        el.style.maxWidth     = '100%';
+                        el.style.maxWidth = '100%';
                     };
                     applySnap('poster-text1', text1Snap);
                     applySnap('poster-text2', text2Snap);
@@ -785,7 +786,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                     if (qrWrapRect) {
                         const qrEl = clonedElement.querySelector('[data-export-id="poster-qr-wrap"]');
                         if (qrEl) {
-                            qrEl.style.width  = `${qrWrapRect.width}px`;
+                            qrEl.style.width = `${qrWrapRect.width}px`;
                             qrEl.style.height = `${qrWrapRect.height}px`;
                         }
                     }
@@ -796,8 +797,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         if (clonedSvg) {
                             const img = clonedDoc.createElement('img');
                             img.src = svgDataUrl;
-                            img.style.width   = `${svgW}px`;
-                            img.style.height  = `${svgH}px`;
+                            img.style.width = `${svgW}px`;
+                            img.style.height = `${svgH}px`;
                             img.style.display = 'block';
                             clonedSvg.parentNode.replaceChild(img, clonedSvg);
                         }
@@ -809,7 +810,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         const destC = clonedCanvases[i];
                         if (!destC) return;
                         const ctx = destC.getContext('2d');
-                        destC.width  = snapC.width;
+                        destC.width = snapC.width;
                         destC.height = snapC.height;
                         ctx.drawImage(snapC, 0, 0);
                     });
@@ -818,7 +819,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
             // ── Post-process: apply rounded corners via canvas clipping ──
             const finalCanvas = document.createElement('canvas');
-            finalCanvas.width  = rawCanvas.width;
+            finalCanvas.width = rawCanvas.width;
             finalCanvas.height = rawCanvas.height;
             const fCtx = finalCanvas.getContext('2d');
             const r = borderRadiusPx * scale; // scale the radius to match the 3x canvas
@@ -855,7 +856,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                 const halfBw = bw / 2;
                 fCtx.save();
                 fCtx.strokeStyle = borderColor;
-                fCtx.lineWidth   = bw;
+                fCtx.lineWidth = bw;
                 fCtx.beginPath();
                 fCtx.moveTo(r + halfBw, halfBw);
                 fCtx.lineTo(w - r - halfBw, halfBw);
@@ -870,11 +871,11 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                 fCtx.stroke();
                 fCtx.restore();
             }
-            
+
             const format = exportFormat.toLowerCase();
             const fileExt = format === 'jpeg' || format === 'jpg' ? 'jpg' : format === 'webp' ? 'webp' : 'png';
             const mimeType = fileExt === 'jpg' ? 'image/jpeg' : fileExt === 'webp' ? 'image/webp' : 'image/png';
-            
+
             const dataUrl = finalCanvas.toDataURL(mimeType, 1.0);
             const link = document.createElement('a');
             link.download = `${currentBook?.flipbookName?.replace(/\s+/g, '-') || 'share'}-poster.${fileExt}`;
@@ -984,7 +985,21 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
     if (!isOpen) return null;
 
-    const publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/share=public/${currentBook.shareId || currentBook.share?.shareId || ''}` : window.location.href);
+    let publicUrl = flipbookUrl || (currentBook ? `${window.location.origin}/share=public/${currentBook.shareId || currentBook.share?.shareId || ''}` : window.location.href);
+
+    if (activeLayout) {
+        try {
+            const urlObj = new URL(publicUrl);
+            urlObj.searchParams.set('layout', activeLayout);
+            publicUrl = urlObj.toString();
+        } catch (e) {
+            if (publicUrl.includes('?')) {
+                publicUrl += `&layout=${activeLayout}`;
+            } else {
+                publicUrl += `?layout=${activeLayout}`;
+            }
+        }
+    }
 
     const handleCopy = () => {
         navigator.clipboard.writeText(publicUrl);
@@ -995,7 +1010,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     const shareModel = async (platform = 'native') => {
         const shareTitle = currentBook?.flipbookName || 'Check out my flipbook!';
         const shareUrl = publicUrl;
-        
+
         if (platform === 'native' && navigator.share) {
             try {
                 await navigator.share({
@@ -1010,7 +1025,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
             }
         } else {
             let url = '';
-            switch(platform) {
+            switch (platform) {
                 case 'whatsapp':
                     url = `https://wa.me/?text=${encodeURIComponent(shareTitle + ' ' + shareUrl)}`;
                     break;
@@ -1038,11 +1053,11 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
     return (
         <div className="fixed inset-0 z-[150] flex items-center justify-center">
             {/* Backdrop */}
-            <div 
-                className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" 
+            <div
+                className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
                 onClick={onClose}
             />
-            
+
             {/* Modal Container */}
             <div className="relative bg-white w-[52vw] rounded-[1vw] shadow-2xl animate-in fade-in zoom-in-95 duration-300">
                 {/* Header */}
@@ -1053,7 +1068,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         </>
                     ) : (
                         <div className="flex items-center gap-[0.5vw]">
-                            <button 
+                            <button
                                 onClick={handleCancelEditor}
                                 className="text-[1.1vw] font-semibold text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                             >
@@ -1064,7 +1079,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         </div>
                     )}
                     <div className="flex-1 h-[1px] bg-gray-200" />
-                    <button 
+                    <button
                         onClick={onClose}
                         className="p-[0.3vw] rounded-full hover:bg-gray-100 transition-colors border border-red-200 text-red-500 cursor-pointer"
                     >
@@ -1105,7 +1120,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <span className="text-white text-[0.75vw] font-medium opacity-90">
                                             Add Cover picture while sharing
                                         </span>
-                                        <div 
+                                        <div
                                             className={`w-[1vw] h-[1vw] rounded-[0.2vw] border-[0.1vw] border-white/50 flex items-center justify-center cursor-pointer transition-all ${addCover ? 'bg-white border-white' : 'hover:border-white'}`}
                                             onClick={() => setAddCover(!addCover)}
                                         >
@@ -1126,14 +1141,14 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     <div className="flex items-center gap-[0.5vw]">
                                         <div className="flex-1 flex items-center gap-[0.5vw] bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.4vw] shadow-sm">
                                             <LinkIcon size="0.9vw" className="text-gray-400" />
-                                            <input 
-                                                type="text" 
-                                                readOnly 
+                                            <input
+                                                type="text"
+                                                readOnly
                                                 value={publicUrl}
                                                 className="flex-1 bg-transparent border-none outline-none text-[0.75vw] font-medium text-gray-600 truncate"
                                             />
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={handleCopy}
                                             className={`flex items-center gap-[0.4vw] px-[1vw] py-[0.4vw] cursor-pointer rounded-[0.4vw] transition-all active:scale-95 shadow-lg ${copied ? 'bg-green-500 text-white' : 'bg-[#4A3AFF] text-white hover:bg-blue-700'}`}
                                         >
@@ -1150,12 +1165,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <div className="flex-1 h-[1px] bg-gray-100" />
                                     </div>
                                     <div className="flex items-center gap-[1vw]">
-                                        <div 
+                                        <div
                                             ref={qrRef}
                                             className="relative w-[4.1vw] h-[4.1vw] bg-gray-100 rounded-[0.4vw] overflow-hidden border border-gray-200 group cursor-pointer shadow-sm flex items-center justify-center"
                                             onClick={handleEnterEditor}
                                         >
-                                            <CustomQRCode 
+                                            <CustomQRCode
                                                 ref={mainQrRef}
                                                 value={publicUrl}
                                                 size={128}
@@ -1175,14 +1190,13 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         </div>
                                         <div className="w-[12vw] relative">
                                             <div className="flex items-center bg-white border border-gray-200 rounded-[0.5vw] shadow-sm hover:border-gray-300 transition-all group overflow-hidden h-[2.8vw]">
-                                                <button 
+                                                <button
                                                     onClick={downloadQRCode}
                                                     disabled={isDownloading}
-                                                    className={`flex-1 px-[0.8vw] font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] transition-colors h-full ${
-                                                        isDownloading
+                                                    className={`flex-1 px-[0.8vw] font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] transition-colors h-full ${isDownloading
                                                             ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
                                                             : 'text-gray-700 cursor-pointer hover:bg-gray-50'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {isDownloading ? (
                                                         <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-[0.9vw] h-[0.9vw] shrink-0" />
@@ -1194,14 +1208,13 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                     </span>
                                                 </button>
                                                 <div className="w-[1px] h-[1.5vw] bg-gray-200 shrink-0" />
-                                                <button 
+                                                <button
                                                     onClick={() => !isDownloading && setShowExportDropdown(!showExportDropdown)}
                                                     disabled={isDownloading}
-                                                    className={`px-[0.6vw] h-full transition-all shrink-0 flex items-center justify-center ${
-                                                        isDownloading
+                                                    className={`px-[0.6vw] h-full transition-all shrink-0 flex items-center justify-center ${isDownloading
                                                             ? 'bg-gray-50 cursor-not-allowed opacity-50'
                                                             : showExportDropdown ? 'bg-gray-100 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform duration-200 ${showExportDropdown ? 'rotate-180' : ''}`} />
                                                 </button>
@@ -1239,7 +1252,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     </div>
                                     <div className="flex items-center gap-[0.6vw]">
                                         {/* Embed */}
-                                        <div 
+                                        <div
                                             onClick={() => setShowEmbedCode(!showEmbedCode)}
                                             title="Toggle Embed Code"
                                             className={`w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border flex items-center justify-center transition-all cursor-pointer shadow-sm group ${showEmbedCode ? 'bg-gray-100 border-gray-400' : 'border-gray-200 hover:border-gray-400 hover:bg-gray-50'}`}
@@ -1247,35 +1260,35 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             <Icon icon="lucide:code-2" className={`w-[1.2vw] h-[1.2vw] ${showEmbedCode ? 'text-gray-800' : 'text-gray-600'} transition-transform`} />
                                         </div>
                                         {/* WhatsApp */}
-                                        <div 
+                                        <div
                                             onClick={() => shareModel('whatsapp')}
                                             className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-[#25D366] flex items-center justify-center transition-all cursor-pointer shadow-md"
                                         >
                                             <Icon icon="ic:baseline-whatsapp" className="w-[1.5vw] h-[1.5vw] text-white" />
                                         </div>
                                         {/* X */}
-                                        <div 
+                                        <div
                                             onClick={() => shareModel('x')}
                                             className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-black flex items-center justify-center transition-all cursor-pointer shadow-md"
                                         >
                                             <Icon icon="ri:twitter-x-fill" className="w-[1.4vw] h-[1.4vw] text-white" />
                                         </div>
                                         {/* Gmail */}
-                                        <div 
+                                        <div
                                             onClick={() => shareModel('mail')}
                                             className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] border border-gray-200 flex items-center justify-center hover:border-gray-400 hover:bg-gray-50 transition-all cursor-pointer shadow-sm"
                                         >
                                             <Icon icon="logos:google-gmail" className="w-[1.4vw] h-[1.4vw]" />
                                         </div>
                                         {/* LinkedIn */}
-                                        <div 
+                                        <div
                                             onClick={() => shareModel('linkedin')}
                                             className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-[#0A66C2] flex items-center justify-center transition-all cursor-pointer shadow-md"
                                         >
                                             <Icon icon="ri:linkedin-fill" className="w-[1.6vw] h-[1.6vw] text-white" />
                                         </div>
                                         {/* Instagram */}
-                                        <div 
+                                        <div
                                             onClick={() => shareModel('instagram')}
                                             className="w-[2.8vw] h-[2.8vw] rounded-[0.5vw] bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center transition-all cursor-pointer shadow-md"
                                         >
@@ -1291,12 +1304,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                 <div className="flex-1 h-[1px] bg-gray-100" />
                                             </div>
                                             <div className="relative w-full h-[5.5vw] bg-white border border-gray-300 rounded-[0.4vw] shadow-sm overflow-hidden flex shrink-0">
-                                                <textarea 
-                                                    readOnly 
+                                                <textarea
+                                                    readOnly
                                                     value={`<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`}
                                                     className="w-full h-full bg-transparent border-none outline-none text-[0.75vw] font-medium text-gray-600 resize-none p-[0.6vw] pr-[2.5vw] custom-scrollbar"
                                                 />
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         navigator.clipboard.writeText(`<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" allowfullscreen></iframe>`);
                                                         setEmbedCopied(true);
@@ -1318,15 +1331,15 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                         <div className="flex gap-[1.5vw] animate-in fade-in slide-in-from-right-4 duration-300">
                             {/* Left Column: QR Poster Preview */}
                             <div className="flex-[0.75] flex flex-col min-w-0 relative">
-                                <div 
-                                    ref={posterPreviewRef} 
-                                    id="poster-preview-container" 
+                                <div
+                                    ref={posterPreviewRef}
+                                    id="poster-preview-container"
                                     className="relative w-full h-[25vw] rounded-[1vw] border-[0.1vw] border-[#A5D6A7] p-[1.5vw] flex flex-col items-center shadow-sm overflow-hidden ml-[0.5vw] bg-white"
                                 >
                                     {/* High Quality Exporting Overlay — rendered inside poster-preview-container
                                          but ignored by html2canvas using data-html2canvas-ignore */}
                                     {(isDownloading || isCapturing) && (
-                                        <div 
+                                        <div
                                             data-html2canvas-ignore="true"
                                             className="absolute inset-0 z-50 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-[0.6vw] pointer-events-auto"
                                         >
@@ -1340,17 +1353,17 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         </div>
                                     )}
                                     {/* Color Background Layer (Bottom) */}
-                                    <div 
+                                    <div
                                         className="absolute inset-0 pointer-events-none transition-all duration-300 z-0"
                                         style={{
                                             backgroundColor: !customBgColor.includes('gradient') ? customBgColor : 'transparent',
                                             backgroundImage: customBgColor.includes('gradient') ? customBgColor : 'none',
                                         }}
                                     />
-                                    
+
                                     {/* Image Background Layer (Top - rendered with dynamic opacity over the color layer) */}
                                     {qrBgType === 'Image' && qrBgImage && (
-                                        <img 
+                                        <img
                                             src={qrBgImage.startsWith('data:') ? qrBgImage : `${qrBgImage}${qrBgImage.includes('?') ? '&' : '?'}cors=1`}
                                             crossOrigin="anonymous"
                                             className="absolute inset-0 pointer-events-none transition-all duration-300 z-[1]"
@@ -1362,7 +1375,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             }}
                                         />
                                     )}
-                                    
+
                                     {/* Top Text */}
                                     <div className="text-center mb-[2vw] shrink-0 relative z-10 w-full max-w-full px-[0.5vw]">
                                         <h3
@@ -1389,7 +1402,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             {text1}
                                         </h3>
                                     </div>
-                                    
+
                                     {/* QR Code Area */}
                                     <div className="flex-1 flex flex-col items-center justify-start w-full relative min-h-0 z-10">
                                         <span
@@ -1416,29 +1429,29 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         >
                                             {text2}
                                         </span>
-                                        
+
                                         <div ref={posterQrWrapRef} data-export-id="poster-qr-wrap" className="relative p-[1.2vw] shrink-0">
                                             {/* Decorative Corners */}
-                                            <div 
-                                                className="absolute top-0 left-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-l-[3px] rounded-tl-[0.8vw]" 
+                                            <div
+                                                className="absolute top-0 left-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-l-[3px] rounded-tl-[0.8vw]"
                                                 style={{ borderColor: qrColor }}
                                             />
-                                            <div 
-                                                className="absolute top-0 right-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-r-[3px] rounded-tr-[0.8vw]" 
+                                            <div
+                                                className="absolute top-0 right-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-r-[3px] rounded-tr-[0.8vw]"
                                                 style={{ borderColor: qrColor }}
                                             />
-                                            <div 
-                                                className="absolute bottom-0 left-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-l-[3px] rounded-bl-[0.8vw]" 
+                                            <div
+                                                className="absolute bottom-0 left-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-l-[3px] rounded-bl-[0.8vw]"
                                                 style={{ borderColor: qrColor }}
                                             />
-                                            <div 
-                                                className="absolute bottom-0 right-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-r-[3px] rounded-br-[0.8vw]" 
+                                            <div
+                                                className="absolute bottom-0 right-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-r-[3px] rounded-br-[0.8vw]"
                                                 style={{ borderColor: qrColor }}
                                             />
-                                            
+
                                             {/* The QR Code - Styled to match image (no background box) */}
                                             <div className="flex items-center justify-center relative">
-                                                <CustomQRCode 
+                                                <CustomQRCode
                                                     value={publicUrl}
                                                     size={300}
                                                     fgColor={qrColor}
@@ -1461,14 +1474,14 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                 <div className="flex-1 flex flex-col bg-gray-100 rounded-[1vw] border border-gray-200 shadow-sm relative">
                                     {/* Tabs Header */}
                                     <div className="flex bg-gray-200/90 border-b border-gray-300 shrink-0 rounded-t-[1vw]">
-                                        <button 
+                                        <button
                                             onClick={() => setActiveQRTab('templates')}
                                             className={`flex-1 py-[0.5vw] text-[0.75vw] font-semibold transition-all relative ${activeQRTab === 'templates' ? 'text-gray-900 bg-white/20' : 'text-gray-500 hover:text-gray-700'}`}
                                         >
                                             Templates
                                             {activeQRTab === 'templates' && <div className="absolute bottom-0 left-0 right-0 h-[0.1vw] bg-black rounded-full" />}
                                         </button>
-                                        <button 
+                                        <button
                                             onClick={() => setActiveQRTab('customize')}
                                             className={`flex-1 py-[0.5vw] text-[0.75vw] font-semibold transition-all relative ${activeQRTab === 'customize' ? 'text-gray-900 bg-white/20' : 'text-gray-500 hover:text-gray-700'}`}
                                         >
@@ -1483,45 +1496,44 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                             {activeQRTab === 'templates' ? (
                                                 <div className="grid grid-cols-3 gap-[0.8vw]">
                                                     {posterTemplates.map((tpl, idx) => (
-                                                        <button 
-                                                            key={idx} 
+                                                        <button
+                                                            key={idx}
                                                             onClick={() => applyPosterTemplate(tpl, idx)}
-                                                            className={`aspect-[3/4] rounded-[0.8vw] overflow-hidden cursor-pointer active:scale-98 transition-all group relative w-full text-left outline-none flex flex-col items-center justify-between p-[0.6vw] ${
-                                                                selectedTemplateIdx === idx 
-                                                                    ? 'border-[0.18vw] border-[#4A3AFF] shadow-lg ring-[0.1vw] ring-[#4A3AFF]/20 scale-[1.02]' 
+                                                            className={`aspect-[3/4] rounded-[0.8vw] overflow-hidden cursor-pointer active:scale-98 transition-all group relative w-full text-left outline-none flex flex-col items-center justify-between p-[0.6vw] ${selectedTemplateIdx === idx
+                                                                    ? 'border-[0.18vw] border-[#4A3AFF] shadow-lg ring-[0.1vw] ring-[#4A3AFF]/20 scale-[1.02]'
                                                                     : 'border border-gray-200 hover:border-[#4A3AFF]/80 hover:shadow-sm'
-                                                            }`}
+                                                                }`}
                                                             style={tpl.bgType === 'Color' ? { background: tpl.bgColor } : {}}
                                                         >
                                                             {tpl.bgType === 'Image' && (
-                                                                <img 
-                                                                    src={tpl.bgImage} 
-                                                                    alt={tpl.name} 
-                                                                    className="absolute inset-0 w-full h-full object-cover" 
+                                                                <img
+                                                                    src={tpl.bgImage}
+                                                                    alt={tpl.name}
+                                                                    className="absolute inset-0 w-full h-full object-cover"
                                                                 />
                                                             )}
                                                             {/* Dark glass overlay for image background readability */}
                                                             {tpl.bgType === 'Image' && <div className="absolute inset-0 bg-black/10" />}
-                                                            
+
                                                             {/* Active Template Floating Checkmark Badge */}
                                                             {selectedTemplateIdx === idx && (
                                                                 <div className="absolute top-[0.4vw] right-[0.4vw] bg-[#4A3AFF] text-white w-[1.2vw] h-[1.2vw] rounded-full flex items-center justify-center shadow-md z-30 border border-white/30 animate-in zoom-in-50 duration-150">
                                                                     <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-white" strokeWidth={4} />
                                                                 </div>
                                                             )}
-                                                            
+
                                                             {/* Mini Poster Content */}
                                                             <div className="relative w-full h-full flex flex-col items-center justify-between z-10 select-none pointer-events-none">
                                                                 {/* Mini Title */}
                                                                 <div className="text-center w-full leading-tight mt-[0.1vw]">
-                                                                    <p 
-                                                                        style={{ color: tpl.text1Color, fontFamily: tpl.fontFamily }} 
+                                                                    <p
+                                                                        style={{ color: tpl.text1Color, fontFamily: tpl.fontFamily }}
                                                                         className="text-[0.4vw] font-black tracking-tight uppercase line-clamp-1"
                                                                     >
                                                                         {text1 || 'ACCEPTING NEW CLIENTS'}
                                                                     </p>
                                                                 </div>
-                                                                
+
                                                                 {/* Mini QR Area */}
                                                                 <div className="flex flex-col items-center justify-center relative my-auto p-[0.3vw]">
                                                                     {/* Decorative L-Corners in Mini */}
@@ -1529,27 +1541,27 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     <div className="absolute top-0 right-0 w-[0.4vw] h-[0.4vw] border-t-[1px] border-r-[1px]" style={{ borderColor: tpl.qrColor }} />
                                                                     <div className="absolute bottom-0 left-0 w-[0.4vw] h-[0.4vw] border-b-[1px] border-l-[1px]" style={{ borderColor: tpl.qrColor }} />
                                                                     <div className="absolute bottom-0 right-0 w-[0.4vw] h-[0.4vw] border-b-[1px] border-r-[1px]" style={{ borderColor: tpl.qrColor }} />
-                                                                    
+
                                                                     {/* Stylized QR Code Icon */}
-                                                                    <div 
-                                                                        className="w-[1.6vw] h-[1.6vw] flex flex-col justify-between p-[0.1vw] rounded-[0.1vw]" 
+                                                                    <div
+                                                                        className="w-[1.6vw] h-[1.6vw] flex flex-col justify-between p-[0.1vw] rounded-[0.1vw]"
                                                                         style={{ color: tpl.qrColor }}
                                                                     >
                                                                         <Icon icon="lucide:qr-code" className="w-full h-full" style={{ color: tpl.qrColor }} />
                                                                     </div>
                                                                 </div>
-                                                                
+
                                                                 {/* Mini Subtitle */}
                                                                 <div className="text-center w-full leading-none mb-[1.2vw]">
-                                                                    <p 
-                                                                        style={{ color: tpl.text2Color, fontFamily: tpl.fontFamily }} 
+                                                                    <p
+                                                                        style={{ color: tpl.text2Color, fontFamily: tpl.fontFamily }}
                                                                         className="text-[0.28vw] font-bold tracking-widest uppercase truncate"
                                                                     >
                                                                         {text2 || 'TAP TO SCAN'}
                                                                     </p>
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             {/* Template Name Capsule Badge */}
                                                             <div className="absolute bottom-[0.4vw] left-[0.4vw] bg-[#2D3139]/80 rounded-[0.25vw] px-[0.4vw] py-[0.15vw] max-w-[85%] flex items-center shadow-md z-20">
                                                                 <p className="text-[0.45vw] font-bold text-white tracking-wider truncate uppercase whitespace-nowrap leading-none">
@@ -1570,14 +1582,14 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 <div className="flex items-center gap-[0.3vw]">
                                                                     <button className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"><ChevronLeft size="0.9vw" /></button>
                                                                     <div className="flex items-center border border-gray-300 rounded-[0.4vw] px-[0.4vw] py-[0.15vw] bg-white">
-                                                                        <input 
-                                                                            type="number" 
-                                                                            value={qrWidth} 
+                                                                        <input
+                                                                            type="number"
+                                                                            value={qrWidth}
                                                                             onChange={(e) => setQrWidth(parseInt(e.target.value) || 0)}
-                                                                            className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin" 
+                                                                            className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin"
                                                                         />
                                                                     </div>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => setQrWidth(prev => prev + 10)}
                                                                         className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"
                                                                     >
@@ -1588,21 +1600,21 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                             <div className="flex items-center gap-[0.4vw]">
                                                                 <span className="text-[0.7vw] font-medium text-gray-500 uppercase whitespace-nowrap">h :</span>
                                                                 <div className="flex items-center gap-[0.3vw]">
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => setQrHeight(prev => Math.max(0, prev - 10))}
                                                                         className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"
                                                                     >
                                                                         <ChevronLeft size="0.9vw" />
                                                                     </button>
                                                                     <div className="flex items-center border border-gray-300 rounded-[0.4vw] px-[0.4vw] py-[0.15vw] bg-white">
-                                                                        <input 
-                                                                            type="number" 
-                                                                            value={qrHeight} 
+                                                                        <input
+                                                                            type="number"
+                                                                            value={qrHeight}
                                                                             onChange={(e) => setQrHeight(parseInt(e.target.value) || 0)}
-                                                                            className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin" 
+                                                                            className="w-[3vw] text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin"
                                                                         />
                                                                     </div>
-                                                                    <button 
+                                                                    <button
                                                                         onClick={() => setQrHeight(prev => prev + 10)}
                                                                         className="p-[0.2vw] text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-[0.3vw] transition-all cursor-pointer"
                                                                     >
@@ -1619,8 +1631,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                             <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.5vw]">Enter Text 1 :</span>
                                                             <div className="flex-1 flex items-center gap-[0.5vw]">
                                                                 <div className="flex-1 relative">
-                                                                    <input 
-                                                                        type="text" 
+                                                                    <input
+                                                                        type="text"
                                                                         className="w-full px-[0.8vw] py-[0.5vw] border border-gray-400 rounded-[0.6vw] text-[0.8vw] font-medium text-gray-700 outline-none focus:border-black transition-colors pr-[2.2vw]"
                                                                         placeholder="Title"
                                                                         value={text1}
@@ -1628,7 +1640,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     />
                                                                     <Edit3 size="0.8vw" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400" />
                                                                 </div>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => setActiveTextEditor(activeTextEditor === 'text1' ? null : 'text1')}
                                                                     className={`p-[0.4vw] rounded-[0.4vw] transition-colors cursor-pointer ${activeTextEditor === 'text1' ? 'bg-[#4A3AFF] text-white hover:bg-blue-700 shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
                                                                 >
@@ -1636,12 +1648,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 </button>
                                                             </div>
                                                         </div>
- 
+
                                                         <div className="flex items-start gap-[0.5vw] min-w-0">
                                                             <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.5vw]">Enter Text 2 :</span>
                                                             <div className="flex-1 flex items-center gap-[0.5vw]">
                                                                 <div className="flex-1 relative">
-                                                                    <textarea 
+                                                                    <textarea
                                                                         className="w-full px-[0.8vw] py-[0.6vw] border border-gray-400 rounded-[0.6vw] text-[0.8vw] font-medium text-gray-700 outline-none focus:border-black transition-colors pr-[2.2vw] resize-none h-[4vw]"
                                                                         placeholder="Supporting Text"
                                                                         value={text2}
@@ -1649,7 +1661,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     />
                                                                     <Edit3 size="0.8vw" className="absolute right-[0.6vw] bottom-[0.6vw] text-gray-400" />
                                                                 </div>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => setActiveTextEditor(activeTextEditor === 'text2' ? null : 'text2')}
                                                                     className={`p-[0.4vw] rounded-[0.4vw] transition-colors cursor-pointer ${activeTextEditor === 'text2' ? 'bg-[#4A3AFF] text-white hover:bg-blue-700 shadow-sm' : 'text-gray-700 hover:bg-gray-100'}`}
                                                                 >
@@ -1664,11 +1676,11 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                         <span className="text-[0.7vw] font-semibold text-gray-700 w-[6vw] shrink-0 mt-[0.5vw]">Edit QR Code :</span>
                                                         <div className="flex-1 flex flex-col gap-[0.8vw] min-w-0">
                                                             <div className="bg-white border border-gray-200 rounded-[0.8vw] p-[0.8vw] flex gap-[1vw] relative overflow-hidden shadow-sm">
-                                                                <div 
+                                                                <div
                                                                     ref={qrRef}
                                                                     className="w-[10.5vw] h-[10.5vw] bg-gray-100 rounded-[0.5vw] flex items-center justify-center relative shrink-0"
                                                                 >
-                                                                    <CustomQRCode 
+                                                                    <CustomQRCode
                                                                         value={publicUrl}
                                                                         size={256}
                                                                         fgColor={qrColor}
@@ -1682,8 +1694,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 </div>
                                                                 <div className="flex-1 grid grid-cols-2 gap-[0.5vw] min-w-0 h-[10.5vw] overflow-hidden pr-[0.4vw] content-start">
                                                                     {qrThemes.map((theme, i) => (
-                                                                        <div 
-                                                                            key={i} 
+                                                                        <div
+                                                                            key={i}
                                                                             onClick={() => {
                                                                                 setQrColor(theme.fg);
                                                                                 setQrBgColor(theme.bg);
@@ -1693,7 +1705,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                             }}
                                                                             className="w-full h-[3.1vw] bg-white border border-gray-200 rounded-[0.5vw] cursor-pointer flex items-center justify-center p-[0.32vw] shadow-sm hover:border-[#4A3AFF] transition-all"
                                                                         >
-                                                                            <CustomQRCode 
+                                                                            <CustomQRCode
                                                                                 value="1"
                                                                                 size={64}
                                                                                 fgColor={theme.fg}
@@ -1714,7 +1726,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">QR Color :</span>
                                                                     <div className="flex-1 flex items-center gap-[0.5vw] min-w-0 relative">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={() => {
                                                                                 setShowQrColorPicker(!showQrColorPicker);
                                                                                 setShowQrBgColorPicker(false);
@@ -1723,9 +1735,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                             style={{ backgroundColor: qrColor }}
                                                                         />
                                                                         <div className="flex-1 flex items-center border border-gray-300 rounded-[0.4vw] bg-white overflow-hidden shadow-sm min-w-0">
-                                                                            <input 
-                                                                                type="text" 
-                                                                                value={qrColor} 
+                                                                            <input
+                                                                                type="text"
+                                                                                value={qrColor}
                                                                                 onChange={(e) => setQrColor(e.target.value)}
                                                                                 onClick={() => {
                                                                                     setShowQrColorPicker(true);
@@ -1741,7 +1753,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">BG Color :</span>
                                                                     <div className="flex-1 flex items-center gap-[0.5vw] min-w-0 relative">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={() => {
                                                                                 setShowQrBgColorPicker(!showQrBgColorPicker);
                                                                                 setShowQrColorPicker(false);
@@ -1750,9 +1762,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                             style={{ backgroundColor: qrBgColor === 'transparent' ? '#ffffff' : qrBgColor }}
                                                                         />
                                                                         <div className="flex-1 flex items-center border border-gray-300 rounded-[0.4vw] bg-white overflow-hidden shadow-sm min-w-0">
-                                                                            <input 
-                                                                                type="text" 
-                                                                                value={qrBgColor} 
+                                                                            <input
+                                                                                type="text"
+                                                                                value={qrBgColor}
                                                                                 onChange={(e) => setQrBgColor(e.target.value)}
                                                                                 onClick={() => {
                                                                                     setShowQrBgColorPicker(true);
@@ -1788,7 +1800,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">Dot Style :</span>
                                                                     <div className="flex-1 relative">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={toggleDotTypeDropdown}
                                                                             className="w-full bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-400 transition-all"
                                                                         >
@@ -1817,12 +1829,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         )}
                                                                     </div>
                                                                 </div>
- 
+
                                                                 {/* Eye Frame Style Selection */}
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">Eye Frame :</span>
                                                                     <div className="flex-1 relative">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={toggleCornerSquareTypeDropdown}
                                                                             className="w-full bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-400 transition-all"
                                                                         >
@@ -1851,12 +1863,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         )}
                                                                     </div>
                                                                 </div>
- 
+
                                                                 {/* Eye Ball Style Selection */}
                                                                 <div className="flex items-center gap-[0.5vw] min-w-0">
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0">Eye Ball :</span>
                                                                     <div className="flex-1 relative">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={toggleCornerDotTypeDropdown}
                                                                             className="w-full bg-white border border-gray-300 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-400 transition-all"
                                                                         >
@@ -1890,9 +1902,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                     <span className="text-[0.7vw] font-semibold text-gray-700 w-[5.5vw] shrink-0 mt-[0.4vw]">Add Logo :</span>
                                                                     <div className="flex-1 flex flex-col items-center gap-[0.4vw]">
                                                                         <label className="w-full h-[4.5vw] border-[0.12vw] border-dashed border-gray-300 rounded-[0.6vw] flex flex-col items-center justify-center gap-[0.2vw] bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden">
-                                                                            <input 
-                                                                                type="file" 
-                                                                                className="hidden" 
+                                                                            <input
+                                                                                type="file"
+                                                                                className="hidden"
                                                                                 accept="image/*"
                                                                                 onChange={(e) => {
                                                                                     const file = e.target.files?.[0];
@@ -1907,12 +1919,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                             />
                                                                             {qrLogo ? (
                                                                                 <div className="absolute inset-0 flex items-center justify-center bg-white p-[0.3vw]">
-                                                                                    <img 
-                                                                                        src={qrLogo} 
-                                                                                        alt="Logo Preview" 
+                                                                                    <img
+                                                                                        src={qrLogo}
+                                                                                        alt="Logo Preview"
                                                                                         className="h-full object-contain"
                                                                                     />
-                                                                                    <button 
+                                                                                    <button
                                                                                         type="button"
                                                                                         onClick={(e) => {
                                                                                             e.preventDefault();
@@ -1948,14 +1960,14 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                             <div className="p-[0.6vw] flex flex-col gap-[0.6vw]">
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="relative w-[7.5vw]">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={toggleBgTypeDropdown}
                                                                             className="w-full bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-300 transition-all"
                                                                         >
                                                                             <span>{qrBgType}</span>
                                                                             <ChevronDown size="0.8vw" className={`text-gray-400 transition-transform duration-200 ${showBgTypeDropdown ? 'rotate-180' : ''}`} />
                                                                         </button>
-                                                                        
+
                                                                         {showBgTypeDropdown && (
                                                                             <>
                                                                                 <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowBgTypeDropdown(false)} />
@@ -1980,14 +1992,14 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                                                                     {qrBgType === 'Image' && (
                                                                         <div className="relative w-[6.5vw]">
-                                                                            <button 
+                                                                            <button
                                                                                 onClick={toggleBgFitDropdown}
                                                                                 className="w-full bg-white border border-gray-200 rounded-[0.4vw] px-[0.6vw] py-[0.35vw] text-[0.75vw] font-semibold text-gray-700 outline-none flex items-center justify-between shadow-sm cursor-pointer hover:border-gray-300 transition-all"
                                                                             >
                                                                                 <span>{qrBgFit}</span>
                                                                                 <ChevronDown size="0.8vw" className={`text-gray-400 transition-transform duration-200 ${showBgFitDropdown ? 'rotate-180' : ''}`} />
                                                                             </button>
-                                                                            
+
                                                                             {showBgFitDropdown && (
                                                                                 <>
                                                                                     <div className="fixed inset-0 z-[55] cursor-default" onClick={() => setShowBgFitDropdown(false)} />
@@ -2015,16 +2027,16 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                 {qrBgType === 'Image' && (
                                                                     <>
                                                                         <label className="w-full h-[6vw] border-[0.12vw] border-dashed border-gray-300 rounded-[0.6vw] flex flex-col items-center justify-center gap-[0.2vw] bg-gray-50/50 hover:bg-gray-50 transition-colors cursor-pointer group relative overflow-hidden mt-[0.2vw]">
-                                                                            <input 
-                                                                                type="file" 
-                                                                                accept="image/*" 
+                                                                            <input
+                                                                                type="file"
+                                                                                accept="image/*"
                                                                                 onChange={(e) => {
                                                                                     const file = e.target.files[0];
                                                                                     if (file) {
                                                                                         setQrBgImage(URL.createObjectURL(file));
                                                                                     }
                                                                                 }}
-                                                                                className="hidden" 
+                                                                                className="hidden"
                                                                             />
                                                                             {qrBgImage ? (
                                                                                 <div className="w-full h-full relative">
@@ -2045,10 +2057,10 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                         <div className="flex items-center gap-[0.8vw] px-[0.2vw] mt-[0.2vw]">
                                                                             <span className="text-[0.75vw] font-semibold text-gray-700 w-[4.5vw] shrink-0">Opacity :</span>
                                                                             <div className="flex-1 flex items-center gap-[0.8vw]">
-                                                                                <input 
-                                                                                    type="range" 
-                                                                                    min="0" 
-                                                                                    max="100" 
+                                                                                <input
+                                                                                    type="range"
+                                                                                    min="0"
+                                                                                    max="100"
                                                                                     value={qrBgOpacity}
                                                                                     onChange={(e) => setQrBgOpacity(e.target.value)}
                                                                                     className="flex-1 h-[0.25vw] bg-gray-200 rounded-full appearance-none cursor-pointer accent-[#4A3AFF] hover:accent-[#3b2fd9] transition-all"
@@ -2061,7 +2073,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                                                                 {qrBgType === 'Color' && (
                                                                     <div className="flex items-center gap-[0.6vw] mt-[0.2vw] relative">
-                                                                        <button 
+                                                                        <button
                                                                             onClick={() => {
                                                                                 setShowCustomBgColorPicker(!showCustomBgColorPicker);
                                                                                 setShowQrColorPicker(false);
@@ -2071,9 +2083,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                                                             style={{ background: customBgColor }}
                                                                         />
                                                                         <div className="flex-1 flex items-center border border-gray-300 rounded-[0.4vw] bg-white overflow-hidden shadow-sm">
-                                                                            <input 
-                                                                                type="text" 
-                                                                                value={customBgColor} 
+                                                                            <input
+                                                                                type="text"
+                                                                                value={customBgColor}
                                                                                 onChange={(e) => setCustomBgColor(e.target.value)}
                                                                                 onClick={() => {
                                                                                     setShowCustomBgColorPicker(true);
@@ -2099,7 +2111,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <>
                                             <div className="fixed inset-0 z-[990] cursor-default" onClick={() => setShowQrColorPicker(false)} />
                                             <div className="absolute left-[-4vw] top-[2.2vw] z-[999] animate-in fade-in zoom-in-95 duration-200">
-                                                <ColorPicker 
+                                                <ColorPicker
                                                     color={qrColor}
                                                     onChange={(hex) => setQrColor(hex)}
                                                     opacity={100}
@@ -2112,7 +2124,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <>
                                             <div className="fixed inset-0 z-[990] cursor-default" onClick={() => setShowQrBgColorPicker(false)} />
                                             <div className="absolute left-[-4vw] top-[4.8vw] z-[999] animate-in fade-in zoom-in-95 duration-200">
-                                                <ColorPicker 
+                                                <ColorPicker
                                                     color={qrBgColor === 'transparent' ? '#ffffff' : qrBgColor}
                                                     onChange={(hex) => setQrBgColor(hex)}
                                                     opacity={100}
@@ -2125,7 +2137,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <>
                                             <div className="fixed inset-0 z-[990] cursor-default" onClick={() => setShowCustomBgColorPicker(false)} />
                                             <div className="absolute left-[calc(100%+1.5vw)] top-[0vw] z-[999] animate-in fade-in zoom-in-95 duration-200">
-                                                <TemplateColorPicker 
+                                                <TemplateColorPicker
                                                     color={customBgColor}
                                                     onChange={(val) => setCustomBgColor(val)}
                                                     opacity={qrBgOpacity}
@@ -2139,77 +2151,75 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                                 {/* Footer Buttons */}
                                 <div className="flex items-center gap-[0.6vw] mt-auto shrink-0">
-                                     <button 
-                                         onClick={handleCancelEditor}
+                                    <button
+                                        onClick={handleCancelEditor}
                                         className="flex-1 py-[0.7vw] rounded-[0.5vw] border border-gray-200 text-gray-700 font-bold text-[0.8vw] hover:bg-gray-50 transition-all cursor-pointer flex items-center justify-center gap-[0.4vw] shadow-sm whitespace-nowrap"
-                                     >
+                                    >
                                         <X size="0.9vw" className="text-gray-500" /> Cancel
-                                     </button>
-                                     
-                                     <div className="flex-1 relative">
-                                         <div className="flex items-center bg-white border border-gray-200 rounded-[0.5vw] shadow-sm hover:border-gray-300 transition-all group overflow-hidden h-full">
-                                             <button 
-                                                 onClick={downloadQRCode}
-                                                 disabled={isDownloading}
-                                                 className={`flex-1 py-[0.7vw] px-[0.5vw] font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] whitespace-nowrap transition-colors ${
-                                                     isDownloading 
-                                                         ? 'bg-gray-50 text-gray-400 cursor-not-allowed' 
-                                                         : 'text-gray-700 cursor-pointer hover:bg-gray-50'
-                                                 }`}
-                                             >
-                                                 {isDownloading ? (
-                                                     <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-[0.9vw] h-[0.9vw] shrink-0" />
-                                                 ) : (
-                                                     <Download size="0.9vw" className="text-gray-400 shrink-0" />
-                                                 )}
-                                                 <span className="truncate">
-                                                     {isDownloading ? 'Generating...' : `Export as ${exportFormat}`}
-                                                 </span>
-                                             </button>
-                                             <div className="w-[1px] h-[1vw] bg-gray-200 shrink-0" />
-                                             <button 
-                                                 onClick={() => !isDownloading && setShowExportDropdown(!showExportDropdown)}
-                                                 disabled={isDownloading}
-                                                 className={`px-[0.6vw] py-[0.7vw] transition-all shrink-0 ${
-                                                     isDownloading 
-                                                         ? 'bg-gray-50 cursor-not-allowed opacity-50' 
-                                                         : showExportDropdown ? 'bg-gray-100 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
-                                                 }`}
-                                             >
-                                                 <ChevronRight size="0.9vw" className={`${showExportDropdown ? '-rotate-90' : 'rotate-90'} text-gray-400 transition-transform duration-200`} />
-                                             </button>
-                                         </div>
+                                    </button>
 
-                                         {/* Dropdown Menu */}
-                                          {showExportDropdown && (
-                                             <>
-                                                 <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowExportDropdown(false)} />
-                                                 <div className="absolute bottom-[calc(100%+0.5vw)] right-0 w-full bg-white border border-gray-100 rounded-[0.6vw] shadow-xl z-50 py-[0.4vw] animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                                     {['JPG', 'PNG', 'WebP'].map((format) => (
-                                                         <button
-                                                             key={format}
-                                                             onClick={() => {
-                                                                 setExportFormat(format);
-                                                                 setShowExportDropdown(false);
-                                                             }}
-                                                             className={`w-full text-left px-[1vw] py-[0.6vw] text-[0.75vw] font-bold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${exportFormat === format ? 'text-[#4A3AFF]' : 'text-gray-600'}`}
-                                                         >
-                                                             {format}
-                                                             {exportFormat === format && <Check size="0.8vw" />}
-                                                         </button>
-                                                     ))}
-                                                 </div>
-                                             </>
-                                         )}
-                                     </div>
+                                    <div className="flex-1 relative">
+                                        <div className="flex items-center bg-white border border-gray-200 rounded-[0.5vw] shadow-sm hover:border-gray-300 transition-all group overflow-hidden h-full">
+                                            <button
+                                                onClick={downloadQRCode}
+                                                disabled={isDownloading}
+                                                className={`flex-1 py-[0.7vw] px-[0.5vw] font-bold text-[0.8vw] flex items-center justify-center gap-[0.5vw] whitespace-nowrap transition-colors ${isDownloading
+                                                        ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                                                        : 'text-gray-700 cursor-pointer hover:bg-gray-50'
+                                                    }`}
+                                            >
+                                                {isDownloading ? (
+                                                    <Icon icon="lucide:loader-2" className="animate-spin text-[#4A3AFF] w-[0.9vw] h-[0.9vw] shrink-0" />
+                                                ) : (
+                                                    <Download size="0.9vw" className="text-gray-400 shrink-0" />
+                                                )}
+                                                <span className="truncate">
+                                                    {isDownloading ? 'Generating...' : `Export as ${exportFormat}`}
+                                                </span>
+                                            </button>
+                                            <div className="w-[1px] h-[1vw] bg-gray-200 shrink-0" />
+                                            <button
+                                                onClick={() => !isDownloading && setShowExportDropdown(!showExportDropdown)}
+                                                disabled={isDownloading}
+                                                className={`px-[0.6vw] py-[0.7vw] transition-all shrink-0 ${isDownloading
+                                                        ? 'bg-gray-50 cursor-not-allowed opacity-50'
+                                                        : showExportDropdown ? 'bg-gray-100 cursor-pointer' : 'hover:bg-gray-50 cursor-pointer'
+                                                    }`}
+                                            >
+                                                <ChevronRight size="0.9vw" className={`${showExportDropdown ? '-rotate-90' : 'rotate-90'} text-gray-400 transition-transform duration-200`} />
+                                            </button>
+                                        </div>
 
-                                     <button 
-                                         onClick={handleSaveEditor}
+                                        {/* Dropdown Menu */}
+                                        {showExportDropdown && (
+                                            <>
+                                                <div className="fixed inset-0 z-40 cursor-default" onClick={() => setShowExportDropdown(false)} />
+                                                <div className="absolute bottom-[calc(100%+0.5vw)] right-0 w-full bg-white border border-gray-100 rounded-[0.6vw] shadow-xl z-50 py-[0.4vw] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                    {['JPG', 'PNG', 'WebP'].map((format) => (
+                                                        <button
+                                                            key={format}
+                                                            onClick={() => {
+                                                                setExportFormat(format);
+                                                                setShowExportDropdown(false);
+                                                            }}
+                                                            className={`w-full text-left px-[1vw] py-[0.6vw] text-[0.75vw] font-bold transition-all hover:bg-gray-50 flex items-center justify-between cursor-pointer ${exportFormat === format ? 'text-[#4A3AFF]' : 'text-gray-600'}`}
+                                                        >
+                                                            {format}
+                                                            {exportFormat === format && <Check size="0.8vw" />}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <button
+                                        onClick={handleSaveEditor}
                                         className="flex-1 py-[0.7vw] rounded-[0.5vw] bg-black text-white font-bold text-[0.8vw] hover:bg-gray-800 transition-all cursor-pointer shadow-md flex items-center justify-center gap-[0.5vw] whitespace-nowrap"
-                                     >
-                                         <Check size="1vw" /> Save
-                                     </button>
-                                 </div>
+                                    >
+                                        <Check size="1vw" /> Save
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -2217,23 +2227,23 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                     {/* Hidden Template for Main View Export */}
                     {!isEditingQR && (
                         <div className="absolute top-[-9999px] left-[-9999px] opacity-0 pointer-events-none -z-50 w-[20vw] flex-[0.75] flex flex-col min-w-0">
-                            <div 
-                                ref={hiddenPosterRef} 
-                                id="hidden-poster-preview-container" 
+                            <div
+                                ref={hiddenPosterRef}
+                                id="hidden-poster-preview-container"
                                 className="relative w-full h-[25vw] rounded-[1vw] border-[0.1vw] border-[#A5D6A7] p-[1.5vw] flex flex-col items-center shadow-sm overflow-hidden bg-white"
                             >
                                 {/* Color Background Layer (Bottom) */}
-                                <div 
+                                <div
                                     className="absolute inset-0 pointer-events-none transition-all duration-300 z-0"
                                     style={{
                                         backgroundColor: !customBgColor.includes('gradient') ? customBgColor : 'transparent',
                                         backgroundImage: customBgColor.includes('gradient') ? customBgColor : 'none',
                                     }}
                                 />
-                                
+
                                 {/* Image Background Layer (Top - rendered with dynamic opacity over the color layer) */}
                                 {qrBgType === 'Image' && qrBgImage && (
-                                    <img 
+                                    <img
                                         src={qrBgImage.startsWith('data:') ? qrBgImage : `${qrBgImage}${qrBgImage.includes('?') ? '&' : '?'}cors=1`}
                                         crossOrigin="anonymous"
                                         className="absolute inset-0 pointer-events-none transition-all duration-300 z-[1]"
@@ -2245,7 +2255,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         }}
                                     />
                                 )}
-                                
+
                                 {/* Top Text */}
                                 <div className="text-center mb-[2vw] shrink-0 relative z-10 w-full max-w-full px-[0.5vw]">
                                     <h3
@@ -2272,7 +2282,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         {text1}
                                     </h3>
                                 </div>
-                                
+
                                 {/* QR Code Area */}
                                 <div className="flex-1 flex flex-col items-center justify-start w-full relative min-h-0 z-10">
                                     <span
@@ -2299,17 +2309,17 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     >
                                         {text2}
                                     </span>
-                                    
+
                                     <div ref={hiddenQrWrapRef} data-export-id="poster-qr-wrap" className="relative p-[1.2vw] shrink-0">
                                         {/* Decorative Corners */}
                                         <div className="absolute top-0 left-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-l-[3px] rounded-tl-[0.8vw]" style={{ borderColor: qrColor }} />
                                         <div className="absolute top-0 right-0 w-[1.5vw] h-[1.5vw] border-t-[3px] border-r-[3px] rounded-tr-[0.8vw]" style={{ borderColor: qrColor }} />
                                         <div className="absolute bottom-0 left-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-l-[3px] rounded-bl-[0.8vw]" style={{ borderColor: qrColor }} />
                                         <div className="absolute bottom-0 right-0 w-[1.5vw] h-[1.5vw] border-b-[3px] border-r-[3px] rounded-br-[0.8vw]" style={{ borderColor: qrColor }} />
-                                        
+
                                         {/* The QR Code - Styled to match image (no background box) */}
                                         <div className="flex items-center justify-center relative">
-                                            <CustomQRCode 
+                                            <CustomQRCode
                                                 value={publicUrl}
                                                 size={300}
                                                 fgColor={qrColor}
@@ -2363,7 +2373,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                     return (
                         <div className="absolute top-[1.2vw] left-[calc(100%+1vw)] z-[70] w-[21vw] bg-white border border-gray-200 rounded-[1.2vw] shadow-2xl p-[1.2vw] animate-in fade-in zoom-in-95 duration-200 flex flex-col gap-[1vw]">
-                            <style dangerouslySetInnerHTML={{ __html: `
+                            <style dangerouslySetInnerHTML={{
+                                __html: `
                                 .typography-color-picker > div:first-child > div:first-child > *:first-child {
                                     display: none !important;
                                 }
@@ -2379,7 +2390,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                             <div className="flex items-center justify-between gap-[0.5vw]">
                                 <span className="font-bold text-[0.85vw] text-gray-900 shrink-0">Typography</span>
                                 <div className="flex-1 h-[1px] bg-gray-200" />
-                                <button 
+                                <button
                                     onClick={() => {
                                         setActiveTextEditor(null);
                                         setShowFontFamilyDropdown(false);
@@ -2393,12 +2404,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     <X size="0.9vw" />
                                 </button>
                             </div>
- 
+
                             {/* Row 1: Font Family & Size */}
                             <div className="flex items-center gap-[0.6vw] relative">
                                 {/* Font Family Selector */}
                                 <div className="relative flex-1">
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setShowFontFamilyDropdown(!showFontFamilyDropdown);
                                             setShowFontSizeDropdown(false);
@@ -2431,8 +2442,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     )}
                                 </div>
 
-                                 <div className="relative w-[5.5vw]">
-                                    <button 
+                                <div className="relative w-[5.5vw]">
+                                    <button
                                         onClick={() => {
                                             setShowFontSizeDropdown(!showFontSizeDropdown);
                                             setShowFontFamilyDropdown(false);
@@ -2464,12 +2475,12 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     )}
                                 </div>
                             </div>
- 
+
                             {/* Row 2: Weight, Character Spacing, Line Height */}
                             <div className="flex items-center gap-[0.6vw] relative">
                                 {/* Font Weight */}
                                 <div className="relative flex-1">
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             setShowFontWeightDropdown(!showFontWeightDropdown);
                                             setShowFontFamilyDropdown(false);
@@ -2504,8 +2515,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                 {/* Character Spacing */}
                                 <div className="relative w-[5.5vw]">
                                     <div className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group">
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             value={letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : letterSpacing}
                                             onChange={(e) => setLetterSpacing(e.target.value)}
                                             onFocus={(e) => e.target.select()}
@@ -2522,30 +2533,30 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <div
                                             onMouseDown={(e) => {
                                                 if (e.button !== 0) return;
-                                                
+
                                                 // Lock global double arrow cursor and prevent text selection during scrubbing drag
                                                 document.body.style.cursor = 'ew-resize';
                                                 document.body.style.userSelect = 'none';
-                                                
+
                                                 const startX = e.clientX;
                                                 const startVal = letterSpacing === 'Auto' ? (isT1 ? 0 : 2) : parseFloat(letterSpacing);
-                                                
+
                                                 const handleMouseMove = (moveEvent) => {
                                                     const deltaX = moveEvent.clientX - startX;
                                                     const change = Math.round(deltaX / 8);
                                                     const newVal = Math.min(40, Math.max(isT1 ? -5 : 0, startVal + change));
                                                     setLetterSpacing(newVal);
                                                 };
-                                                
+
                                                 const handleMouseUp = () => {
                                                     window.removeEventListener('mousemove', handleMouseMove);
                                                     window.removeEventListener('mouseup', handleMouseUp);
-                                                    
+
                                                     // Reset global styles
                                                     document.body.style.cursor = '';
                                                     document.body.style.userSelect = '';
                                                 };
-                                                
+
                                                 window.addEventListener('mousemove', handleMouseMove);
                                                 window.addEventListener('mouseup', handleMouseUp);
                                             }}
@@ -2560,8 +2571,8 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                 {/* Line Height */}
                                 <div className="relative w-[5.5vw]">
                                     <div className="relative w-full h-[2.2vw] border border-gray-300 rounded-[0.6vw] bg-white flex items-center px-[0.6vw] hover:border-gray-400 transition-all group">
-                                        <input 
-                                            type="text" 
+                                        <input
+                                            type="text"
                                             value={lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : lineHeight}
                                             onChange={(e) => setLineHeight(e.target.value)}
                                             onFocus={(e) => e.target.select()}
@@ -2578,30 +2589,30 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         <div
                                             onMouseDown={(e) => {
                                                 if (e.button !== 0) return;
-                                                
+
                                                 // Lock global double arrow cursor and prevent text selection during scrubbing drag
                                                 document.body.style.cursor = 'ew-resize';
                                                 document.body.style.userSelect = 'none';
-                                                
+
                                                 const startX = e.clientX;
                                                 const startVal = lineHeight === 'Auto' ? (isT1 ? 1.1 : 1.2) : parseFloat(lineHeight);
-                                                
+
                                                 const handleMouseMove = (moveEvent) => {
                                                     const deltaX = moveEvent.clientX - startX;
                                                     const change = deltaX / 100;
                                                     const newVal = parseFloat(Math.min(3.0, Math.max(0.5, startVal + change)).toFixed(1));
                                                     setLineHeight(newVal);
                                                 };
-                                                
+
                                                 const handleMouseUp = () => {
                                                     window.removeEventListener('mousemove', handleMouseMove);
                                                     window.removeEventListener('mouseup', handleMouseUp);
-                                                    
+
                                                     // Reset global styles
                                                     document.body.style.cursor = '';
                                                     document.body.style.userSelect = '';
                                                 };
-                                                
+
                                                 window.addEventListener('mousemove', handleMouseMove);
                                                 window.addEventListener('mouseup', handleMouseUp);
                                             }}
@@ -2616,28 +2627,28 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                             {/* Row 3: Align, Underline/Italic */}
                             <div className="flex items-center gap-[0.5vw]">
-                                <button 
+                                <button
                                     onClick={() => setAlign('left')}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'left' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
                                     <Icon icon="lucide:align-left" className="w-[1vw] h-[1vw]" />
                                 </button>
 
-                                <button 
+                                <button
                                     onClick={() => setAlign('center')}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'center' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
                                     <Icon icon="lucide:align-center" className="w-[1vw] h-[1vw]" />
                                 </button>
 
-                                <button 
+                                <button
                                     onClick={() => setAlign('right')}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'right' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
                                     <Icon icon="lucide:align-right" className="w-[1vw] h-[1vw]" />
                                 </button>
 
-                                <button 
+                                <button
                                     onClick={() => setAlign('justify')}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${align === 'justify' ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                 >
@@ -2646,7 +2657,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                                 <div className="w-[1px] h-[1.2vw] bg-gray-200 mx-[0.2vw]" />
 
-                                <button 
+                                <button
                                     onClick={() => setUnderline(!underline)}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${underline ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                     title="Underline"
@@ -2654,7 +2665,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     <span className="font-semibold underline text-[0.85vw] leading-none">U</span>
                                 </button>
 
-                                <button 
+                                <button
                                     onClick={() => setItalic(!italic)}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${italic ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                     title="Italic"
@@ -2662,7 +2673,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     <span className="font-semibold italic text-[0.85vw] leading-none">I</span>
                                 </button>
 
-                                <button 
+                                <button
                                     onClick={() => setLinethrough(!linethrough)}
                                     className={`w-[2.2vw] h-[2.2vw] flex items-center justify-center rounded-[0.5vw] transition-all cursor-pointer shadow-sm ${linethrough ? 'bg-black text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                                     title="Strikethrough"
@@ -2680,9 +2691,9 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
 
                                 <div className="flex items-center gap-[0.6vw]">
                                     <span className="text-[0.75vw] font-bold text-gray-600 min-w-[2vw]">Fill :</span>
-                                    
+
                                     <div className="relative">
-                                        <div 
+                                        <div
                                             onClick={() => setShowColorPicker(!showColorPicker)}
                                             className="w-[2vw] h-[2vw] rounded-[0.4vw] border border-gray-300 shadow-sm cursor-pointer hover:scale-105 transition-all"
                                             style={{ backgroundColor: color }}
@@ -2690,7 +2701,7 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         {showColorPicker && (
                                             <>
                                                 <div className="fixed inset-0 z-[80]" onClick={() => setShowColorPicker(false)} />
-                                                <ColorPicker 
+                                                <ColorPicker
                                                     color={color}
                                                     onChange={(newCol) => setColor(newCol)}
                                                     opacity={opacity}
@@ -2703,17 +2714,17 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                     </div>
 
                                     <div className="w-[10.5vw] flex items-center border border-gray-300 rounded-[0.6vw] bg-white overflow-hidden shadow-sm h-[2.2vw] px-[0.6vw]">
-                                        <input 
-                                            type="text" 
-                                            value={color} 
+                                        <input
+                                            type="text"
+                                            value={color}
                                             onChange={(e) => setColor(e.target.value)}
                                             className="w-[4vw] text-[0.75vw] font-bold text-gray-700 uppercase outline-none bg-transparent"
                                             maxLength={7}
                                         />
                                         <div className="flex-1 flex items-center justify-end gap-[0.1vw] border-l border-gray-200 pl-[0.5vw] ml-[0.5vw] shrink-0">
-                                            <input 
-                                                type="number" 
-                                                value={opacity} 
+                                            <input
+                                                type="number"
+                                                value={opacity}
                                                 onChange={(e) => setOpacity(Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
                                                 className="w-[1.8vw] text-center text-[0.75vw] font-bold text-gray-700 outline-none bg-transparent no-spin"
                                             />

@@ -231,7 +231,8 @@ const Grid4Layout = ({
     isMobileLandscape = false,
     showTOC,
     isEditor = false,
-    isFullscreen: isFullscreenProp
+    isFullscreen: isFullscreenProp,
+    offset = 0,
 }) => {
     // If mobile view is active, delegate entirely to MobileLayout1 (as fallback)
     if (isMobile && !isMobileLandscape) {
@@ -301,6 +302,7 @@ const Grid4Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -308,7 +310,7 @@ const Grid4Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {

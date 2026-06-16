@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
+import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
 
 import paper from 'paper';
 
@@ -65,6 +67,8 @@ const svgGlobalStyles = `
     outline: 1.5px solid #6366F1 !important;
     box-shadow: 0 0 4px rgba(99, 102, 241, 0.3) !important;
     background: white !important;
+    border-right: 0.5vw solid transparent !important;
+    background-clip: padding-box !important;
   }
 
   /* 1. HOVER state — blue outline on the topmost frame candidate */
@@ -189,25 +193,25 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
     let animationFrame;
     const update = () => {
       const container = document.querySelector(`[data-page-index="${pageIndex}"]`);
-      if (!container) { 
-        if (pos !== null) setPos(null); 
-        return; 
+      if (!container) {
+        if (pos !== null) setPos(null);
+        return;
       }
 
       const el = container.querySelector(`[id="${selectedId}"], [data-name="${selectedId}"]`) ||
         document.getElementById(selectedId) ||
         document.querySelector(`[data-name="${selectedId}"]`);
 
-      if (!el) { 
-        if (pos !== null) setPos(null); 
-        return; 
+      if (!el) {
+        if (pos !== null) setPos(null);
+        return;
       }
 
       const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
         el.getAttribute('data-type') === 'background';
-      if (isOverlay) { 
-        if (pos !== null) setPos(null); 
-        return; 
+      if (isOverlay) {
+        if (pos !== null) setPos(null);
+        return;
       }
 
       try {
@@ -240,7 +244,7 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
         // Original: const x = (rect.right - containerRect.left) / scale;
         // Let's change it to center because it looks centered in the user's screenshot.
         // Wait, I will keep the original logic to avoid breaking user's design, but update the position directly.
-        const x = (rect.left + rect.width / 2 - containerRect.left) / scale; 
+        const x = (rect.left + rect.width / 2 - containerRect.left) / scale;
         const y = (rect.top - containerRect.top) / scale;
 
         const isTooCloseToTop = y < 40;
@@ -259,7 +263,7 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
         const interactType = el.getAttribute('data-animation-interact-type');
         const hasIntent = el.getAttribute('data-animation-intent') === 'true';
         const isManaged = (animType && animType !== 'none') || (interactType && interactType !== 'none') || hasIntent;
-        
+
         setHasAnimation(prev => prev !== isManaged ? isManaged : prev);
 
         const interaction = el.getAttribute('data-interaction');
@@ -535,7 +539,7 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
-  const [isEditingText, setIsEditingText] = useState(false);
+  // isEditingText is now managed via isEditingTextRef to prevent React re-renders from destroying the edit box
 
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
   const [selectedPenTool, setSelectedPenTool] = useState('pen'); // 'pen', 'curve', 'pencil'
@@ -582,8 +586,19 @@ const MainEditor = ({
   const drawingSubPathElsRef = useRef([]);
   const activeBendingSegmentRef = useRef(null);
   const handleDraggingStateRef = useRef(null);
+  const clickTimerRef = useRef(null);
   const updatePageHtmlRef = useRef(updatePageHtml);
   const editorContainerRef = useRef(null);
+  const isEditingTextRef = useRef(false);
+  const lastRenderedHtmlRef = useRef({});
+
+  const getHtmlToRender = (index, currentHtml) => {
+    if (isEditingTextRef.current && lastRenderedHtmlRef.current[index]) {
+      return lastRenderedHtmlRef.current[index];
+    }
+    lastRenderedHtmlRef.current[index] = currentHtml;
+    return currentHtml;
+  };
 
   useEffect(() => {
     paperScopeRef.current = new paper.PaperScope();
@@ -593,7 +608,7 @@ const MainEditor = ({
       // 1. Skip shortcuts if user is typing
       if (document.activeElement.tagName === 'INPUT' ||
         document.activeElement.tagName === 'TEXTAREA' ||
-        isEditingText ||
+        isEditingTextRef.current ||
         document.activeElement.isContentEditable) return;
 
       const key = e.key.toLowerCase();
@@ -606,7 +621,7 @@ const MainEditor = ({
 
       // ── Spacebar Pan ─────────────
       if (key === ' ' && !isSpaceDownRef.current) {
-        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || isEditingText || document.activeElement.isContentEditable) return;
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || isEditingTextRef.current || document.activeElement.isContentEditable) return;
         e.preventDefault();
         isSpaceDownRef.current = true;
         setIsSpaceDown(true);
@@ -668,6 +683,316 @@ const MainEditor = ({
     };
   }, [activeTopTool]);
 
+  // ── Global Slideshow UI Manager ───────────────────────────────────────────
+  // Maintains pagination dots and hover arrows for all slideshows even when not selected
+  useEffect(() => {
+    const renderOverlays = () => {
+      const slideshows = document.querySelectorAll('[data-is-slideshow="true"]');
+      slideshows.forEach(el => {
+        // Skip if selected (SlideshowProperties handles it)
+        if (el.getAttribute('data-slideshow-manual') === 'true') {
+          const existing = el._globalSsOverlay;
+          if (existing) {
+            existing.remove();
+            delete el._globalSsOverlay;
+          }
+          return;
+        }
+
+        const dataStr = el.getAttribute('data-slideshow');
+        if (!dataStr) return;
+        let data;
+        try { data = JSON.parse(dataStr); } catch (e) { return; }
+
+        const settings = data.settings || {};
+        const images = data.images || [];
+        if (images.length < 2) return;
+
+        const activeIndex = parseInt(el.getAttribute('data-active-index') || '0');
+        const pageContainer = el.closest('.page-svg-container');
+        if (!pageContainer) return;
+
+        let overlay = el._globalSsOverlay;
+        if (!overlay || !pageContainer.contains(overlay)) {
+          overlay = document.createElement('div');
+          overlay.className = 'global-ss-overlay';
+          Object.assign(overlay.style, {
+            position: 'absolute',
+            pointerEvents: 'none',
+            zIndex: '9998',
+          });
+          pageContainer.style.position = 'relative';
+          if (pageContainer.style.overflow !== 'visible') {
+            pageContainer.style.overflow = 'visible';
+          }
+          pageContainer.appendChild(overlay);
+          el._globalSsOverlay = overlay;
+
+          let leaveTimeout = null;
+          const handleEnter = () => {
+            if (leaveTimeout) clearTimeout(leaveTimeout);
+            overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
+              btn.style.opacity = '1';
+              btn.style.pointerEvents = 'auto';
+            });
+            el.setAttribute('data-is-hovering', 'true');
+          };
+          const handleLeave = () => {
+            leaveTimeout = setTimeout(() => {
+              overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
+                btn.style.opacity = '0';
+                btn.style.pointerEvents = 'none';
+              });
+              el.removeAttribute('data-is-hovering');
+            }, 50);
+          };
+
+          overlay.addEventListener('mouseenter', handleEnter);
+          overlay.addEventListener('mouseleave', handleLeave);
+          el.addEventListener('mouseenter', handleEnter);
+          el.addEventListener('mouseleave', handleLeave);
+
+          overlay._cleanupHover = () => {
+            if (leaveTimeout) clearTimeout(leaveTimeout);
+            overlay.removeEventListener('mouseenter', handleEnter);
+            overlay.removeEventListener('mouseleave', handleLeave);
+            el.removeEventListener('mouseenter', handleEnter);
+            el.removeEventListener('mouseleave', handleLeave);
+          };
+        }
+
+        const containerRect = pageContainer.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const scaleX = containerRect.width / (pageContainer.offsetWidth || 1);
+        const scaleY = containerRect.height / (pageContainer.offsetHeight || 1);
+        const localLeft = (elRect.left - containerRect.left) / scaleX;
+        const localTop = (elRect.top - containerRect.top) / scaleY;
+        const localWidth = elRect.width / scaleX;
+        const localHeight = elRect.height / scaleY;
+
+        overlay.style.left = localLeft + 'px';
+        overlay.style.top = localTop + 'px';
+        overlay.style.width = localWidth + 'px';
+        overlay.style.height = localHeight + 'px';
+
+        const scaleFactor = Math.max(0.4, Math.min(1.8, localWidth / 300));
+
+        const { dotColor = '#4F46E5', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
+
+        const signature = JSON.stringify({
+          imagesCount: images.length,
+          scaleFactor: scaleFactor.toFixed(2),
+          dotColor, navIconColor, showDots, showArrows, showNav
+        });
+
+        if (overlay.dataset.signature !== signature) {
+          overlay.dataset.signature = signature;
+          overlay.innerHTML = '';
+
+          const showNavArrows = showArrows !== false && showNav !== false;
+          if (showNavArrows) {
+            ['prev', 'next'].forEach(type => {
+              const btn = document.createElement('button');
+              btn.className = 'editor-ss-nav editor-ss-nav-' + type;
+              const size = 26 * scaleFactor;
+              const offset = 6 * scaleFactor;
+              Object.assign(btn.style, {
+                position: 'absolute',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                [type === 'prev' ? 'left' : 'right']: offset + 'px',
+                zIndex: '10',
+                background: 'transparent',
+                border: 'none',
+                borderRadius: '50%',
+                width: size + 'px',
+                height: size + 'px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                boxShadow: 'none',
+                padding: '0',
+                pointerEvents: 'none',
+                opacity: '0',
+                transition: 'transform 0.15s, opacity 0.2s',
+              });
+              const svgSize = 15 * scaleFactor;
+              
+              // We'll use a container inside the button for React to render into
+              const iconContainer = document.createElement('div');
+              Object.assign(iconContainer.style, {
+                width: svgSize + 'px',
+                height: svgSize + 'px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              });
+              btn.appendChild(iconContainer);
+              
+              const root = createRoot(iconContainer);
+              const iconKey = type === 'prev' ? 'left' : 'right';
+              // Default to style 1 if navStyle is missing
+              const styleId = settings.navStyle || 1;
+              root.render(NavIconRenderer({ styleId, size: svgSize + 'px', color: navIconColor })[iconKey]);
+              
+              // Attach the root to the btn so we can clean it up later if needed
+              btn._reactRoot = root;
+
+              // btn.addEventListener('mouseenter', () => btn.style.transform = `translateY(-50%) scale(1.25)`);
+              btn.addEventListener('mouseleave', () => btn.style.transform = `translateY(-50%)`);
+              btn.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });
+              btn.addEventListener('click', e => {
+                e.stopPropagation(); e.preventDefault();
+                let next = type === 'prev' ? parseInt(el.getAttribute('data-active-index') || '0') - 1 : parseInt(el.getAttribute('data-active-index') || '0') + 1;
+                if (next < 0) next = images.length - 1;
+                if (next >= images.length) next = 0;
+                el.setAttribute('data-active-index', next.toString());
+                el.setAttribute('data-last-slide-time', Date.now().toString());
+
+                const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: next } });
+                window.dispatchEvent(evt);
+              });
+              overlay.appendChild(btn);
+            });
+          }
+
+          if (showDots) {
+            const dotsWrap = document.createElement('div');
+            Object.assign(dotsWrap.style, {
+              position: 'absolute',
+              bottom: (8 * scaleFactor) + 'px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              display: 'flex',
+              gap: (5 * scaleFactor) + 'px',
+              alignItems: 'center',
+              pointerEvents: 'auto',
+            });
+            images.forEach((_, i) => {
+              const dot = document.createElement('div');
+              dot.className = 'editor-ss-dot';
+              const size = 7 * scaleFactor;
+              Object.assign(dot.style, {
+                width: size + 'px', height: size + 'px', borderRadius: '50%', background: dotColor,
+                cursor: 'pointer', transition: 'opacity 0.25s, transform 0.25s',
+                opacity: '0.4',
+                transform: 'scale(1)',
+                pointerEvents: 'auto',
+              });
+              dot.addEventListener('mousedown', e => e.stopPropagation());
+              dot.addEventListener('click', e => {
+                e.stopPropagation(); e.preventDefault();
+                const current = parseInt(el.getAttribute('data-active-index') || '0');
+                if (i === current) return;
+                el.setAttribute('data-active-index', i.toString());
+                el.setAttribute('data-last-slide-time', Date.now().toString());
+
+                const evt = new CustomEvent('force-slideshow-advance', { detail: { el, nextIndex: i } });
+                window.dispatchEvent(evt);
+              });
+              dotsWrap.appendChild(dot);
+            });
+            overlay.appendChild(dotsWrap);
+          }
+        }
+
+        // Sync state continuously
+        const isHovering = el.getAttribute('data-is-hovering') === 'true';
+        overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
+          btn.style.opacity = isHovering ? '1' : '0';
+          btn.style.pointerEvents = isHovering ? 'auto' : 'none';
+        });
+
+        overlay.querySelectorAll('.editor-ss-dot').forEach((dot, i) => {
+          dot.style.opacity = i === activeIndex ? '1' : '0.4';
+          dot.style.transform = i === activeIndex ? 'scale(1.4)' : 'scale(1)';
+        });
+      });
+
+      document.querySelectorAll('.global-ss-overlay').forEach(overlay => {
+        const found = Array.from(slideshows).some(el => el._globalSsOverlay === overlay);
+        if (!found) {
+          if (overlay._cleanupHover) overlay._cleanupHover();
+          overlay.remove();
+        }
+      });
+    };
+
+    const interval = setInterval(renderOverlays, 200);
+
+    const handleForceAdvance = (e) => {
+      const { el, nextIndex } = e.detail;
+      if (!el) return;
+      try {
+        const dataStr = el.getAttribute('data-slideshow');
+        if (!dataStr) return;
+        const data = JSON.parse(dataStr);
+        const images = data.images || [];
+        const url = images[nextIndex]?.url;
+        if (!url) return;
+
+        const _findImgInPattern = (node) => {
+          const fill = node.getAttribute?.('fill') || '';
+          if (fill?.startsWith('url(#')) {
+            const patternId = fill.match(/url\(#([^)]+)\)/)?.[1];
+            if (patternId) {
+              const ownerSvg = node.closest('svg');
+              const pattern = ownerSvg?.querySelector(`[id="${patternId}"]`);
+              if (pattern) {
+                const img = pattern.querySelector('image');
+                if (img) return img;
+                const useEl = pattern.querySelector('use');
+                if (useEl) {
+                  const refId = (useEl.getAttribute('href') || useEl.getAttribute('xlink:href'))?.replace('#', '');
+                  if (refId) return ownerSvg?.querySelector(`[id="${refId}"]`) || null;
+                }
+              }
+            }
+          }
+          return null;
+        };
+        let imgEl = null;
+        const elTag = el.tagName?.toLowerCase();
+        if (elTag === 'image' || elTag === 'img') imgEl = el;
+        else {
+          imgEl = _findImgInPattern(el) || el.querySelector('image') || el.querySelector('img');
+          if (!imgEl) {
+            const childrenWithPatterns = el.querySelectorAll('[fill^="url(#"]');
+            for (const child of Array.from(childrenWithPatterns)) {
+              const t = _findImgInPattern(child);
+              if (t) { imgEl = t; break; }
+            }
+          }
+          if (!imgEl) imgEl = el;
+        }
+
+        if (!imgEl) return;
+        const imgTag2 = imgEl.tagName?.toLowerCase();
+        if (imgTag2 === 'image') {
+          imgEl.setAttribute('href', url);
+          try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (err) { }
+        } else if (imgTag2 === 'img') {
+          imgEl.src = url;
+        } else {
+          imgEl.style.backgroundImage = `url("${url}")`;
+        }
+        renderOverlays();
+      } catch (err) { }
+    };
+
+    window.addEventListener('force-slideshow-advance', handleForceAdvance);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('force-slideshow-advance', handleForceAdvance);
+      document.querySelectorAll('.global-ss-overlay').forEach(overlay => {
+        if (overlay._cleanupHover) overlay._cleanupHover();
+        overlay.remove();
+      });
+    };
+  }, []);
+
   // ── Global Slideshow Runner ───────────────────────────────────────────────
   // Ensures all slideshows on the template slide automatically even when not selected.
   // This logic runs independently for every element with [data-is-slideshow="true"].
@@ -678,7 +1003,8 @@ const MainEditor = ({
         // Skip if manual control/overlay is active or if user is hovering (prevents conflicts)
         if (el.getAttribute('data-slideshow-manual') === 'true' ||
           el.getAttribute('data-is-hovering') === 'true' ||
-          el.matches(':hover')) return;
+          el.matches(':hover') ||
+          (el._globalSsOverlay && el._globalSsOverlay.querySelector(':hover'))) return;
 
         try {
           const dataStr = el.getAttribute('data-slideshow');
@@ -1179,10 +1505,13 @@ const MainEditor = ({
       const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
+      
+      const isScrollable = el.getAttribute('data-scrollable') === 'true' || el.tagName?.toLowerCase() === 'foreignobject';
+      const rightOffset = isScrollable ? (window.innerWidth * 0.005) / scale : 0;
 
       const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
-      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
-      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
+      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset + rightOffset; pt2.y = bbox.y - localOffset;
+      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset + rightOffset; pt3.y = bbox.y + bbox.height + localOffset;
       const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
 
       const pts = [pt1, pt2, pt3, pt4];
@@ -1338,7 +1667,7 @@ const MainEditor = ({
               let posY = p.y;
               if (useLBrackets) {
                 // Offset of 4.5 aligns the center of the 3px bar exactly with the dotted line (handleSize 12/2 - barThickness 3/2 = 4.5)
-                const inwardOffset = 4.5 / zoomScale; 
+                const inwardOffset = 4.5 / zoomScale;
                 if (name === 'nw') { posX += inwardOffset; posY += inwardOffset; }
                 if (name === 'ne') { posX -= inwardOffset; posY += inwardOffset; }
                 if (name === 'se') { posX -= inwardOffset; posY -= inwardOffset; }
@@ -1729,6 +2058,36 @@ const MainEditor = ({
     return () => window.removeEventListener('update-interaction-badge', handleBadgeUpdate);
   }, []);
 
+  // ── Listen for force selection box update ─────────────────────────────
+  useEffect(() => {
+    const handleForceUpdateSelection = (e) => {
+      const { elementId } = e.detail || {};
+      if (!elementId) return;
+      const el = document.getElementById(elementId);
+      if (el) {
+        // Use setTimeout to ensure SVG layout has fully recalculated before getting the new bounding box
+        setTimeout(() => {
+          drawOverlayHighlight(el, 'selected');
+          
+          // Also update hover box if it is currently visible
+          const overlay = document.getElementById('highlight-overlay') || el.ownerSVGElement?.nextElementSibling;
+          if (overlay) {
+            const hoverPoly = overlay.querySelector(`[id="overlay-poly-hover-${el.id}"]`);
+            if (hoverPoly) {
+              drawOverlayHighlight(el, 'hover');
+            }
+            const childHoverPoly = overlay.querySelector(`[id="overlay-poly-child-hover-${el.id}"]`);
+            if (childHoverPoly) {
+              drawOverlayHighlight(el, 'child-hover');
+            }
+          }
+        }, 10);
+      }
+    };
+    window.addEventListener('force-update-selection-box', handleForceUpdateSelection);
+    return () => window.removeEventListener('force-update-selection-box', handleForceUpdateSelection);
+  }, []);
+
   // ── Listen for add-free-frame to start drawing ─────────────────────────────
   useEffect(() => {
     const handleAddFreeFrame = (e) => {
@@ -2026,12 +2385,12 @@ const MainEditor = ({
     if (!editorContainerRef.current) return;
     const containerWidth = editorContainerRef.current.clientWidth;
     const containerHeight = editorContainerRef.current.clientHeight;
-    
+
     const spreadStartIndex = (isDoublePage && activePageIndex > 0)
       ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
       : activePageIndex;
     const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-    
+
     const baseVhHeight = window.innerHeight * 0.78;
     const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
     const baseCanvasHeight = baseVhHeight;
@@ -2039,10 +2398,10 @@ const MainEditor = ({
     const currentScale = zoom / 100;
     const scaledWidth = baseCanvasWidth * currentScale;
     const scaledHeight = baseCanvasHeight * currentScale;
-    
+
     const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2 + (window.innerWidth * 0.08));
     const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2 + (window.innerHeight * 0.05));
-    
+
     setPan(prev => {
       const boundedX = Math.min(Math.max(prev.x, -maxPanX), maxPanX);
       const boundedY = Math.min(Math.max(prev.y, -maxPanY), maxPanY);
@@ -2419,7 +2778,7 @@ const MainEditor = ({
       ? multiSelectedIds
       : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
 
-    if (isEditingText) return;
+    if (isEditingTextRef.current) return;
 
     idsToHighlight.forEach(id => {
       document.querySelectorAll(`[id="${id}"]`).forEach(el => {
@@ -2436,7 +2795,7 @@ const MainEditor = ({
         drawOverlayHighlight(el, 'entered');
       });
     }
-  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, isEditingText, activeTopTool]);
+  }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, activeTopTool]);
 
   // Sync refs
   useEffect(() => {
@@ -2601,7 +2960,9 @@ const MainEditor = ({
           start(event) {
             let target = event.target;
 
-            const svgElement = target.ownerSVGElement || (target.tagName.toLowerCase() === 'svg' ? target : null);
+            const container = target.closest('.page-svg-container');
+            const rootSvg = container ? container.querySelector(':scope > svg') : null;
+            const svgElement = rootSvg || target.ownerSVGElement || (target.tagName.toLowerCase() === 'svg' ? target : null);
             if (!svgElement) return;
 
             const isEditing = target.closest('[data-editing="true"]') || (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true');
@@ -2611,7 +2972,6 @@ const MainEditor = ({
               return;
             }
 
-            const container = target.closest('.page-svg-container');
             const startPoint = getSvgPoint(svgElement, event.clientX, event.clientY);
             if (!startPoint) {
               event.interaction.stop();
@@ -2863,7 +3223,7 @@ const MainEditor = ({
             const constrainElement = (el, onComplete) => {
               const bbox = el.getBBox();
               const matrix = getElementMatrix(el);
-              
+
               const pt1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(matrix);
               const pt2 = new DOMPoint(bbox.x + bbox.width, bbox.y).matrixTransform(matrix);
               const pt3 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(matrix);
@@ -2891,7 +3251,7 @@ const MainEditor = ({
                 const endE = endMatrix.e;
                 const endF = endMatrix.f;
 
-                const duration = 400; 
+                const duration = 400;
                 const startTime = performance.now();
                 const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 
@@ -2902,7 +3262,7 @@ const MainEditor = ({
 
                   matrix.e = startE + (endE - startE) * eased;
                   matrix.f = startF + (endF - startF) * eased;
-                  
+
                   el.setAttribute('transform', matrixToTransform(matrix));
                   drawOverlayHighlight(el, currentFrameIdRef.current && el.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
 
@@ -2912,7 +3272,7 @@ const MainEditor = ({
                     onComplete();
                   }
                 };
-                
+
                 requestAnimationFrame(animate);
                 return true;
               }
@@ -3051,23 +3411,33 @@ const MainEditor = ({
             if (dir === 'n' || dir === 's') scaleX = 1;
             if (dir === 'e' || dir === 'w') scaleY = 1;
 
-            // Maintain Aspect Ratio for images or if Shift key is held (only for corners)
+            // Maintain Aspect Ratio for images, text, or if Shift key is held (only for corners, but force for text on all handles to prevent distortion)
             const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image';
+            const isText = el.getAttribute('data-type') === 'text' || el.tagName.toLowerCase() === 'text';
+            const isForeignObject = el.tagName.toLowerCase() === 'foreignobject';
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
-            if (isCorner && (event.shiftKey || isImage)) {
+            
+            if ((isCorner && (event.shiftKey || isImage || isText)) || (!isCorner && isText && !isForeignObject)) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              scaleX = s;
-              scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
+              // For side handles on text (that is not a foreignObject), use the changed dimension as the uniform scale factor
+              if (!isCorner && isText && !isForeignObject) {
+                const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
+                scaleX = sSide;
+                scaleY = sSide;
+              } else {
+                scaleX = s;
+                scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
+              }
             }
 
-            const isFreeFrame = el.getAttribute('data-name') === 'Free Frame' && el.tagName.toLowerCase() === 'rect';
+            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName.toLowerCase() === 'rect') || el.tagName.toLowerCase() === 'foreignobject';
 
             if (isFreeFrame) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
               const newLocalY = state.localAnchor.y + (bbox.y - state.localAnchor.y) * scaleY;
               const newLocalRight = state.localAnchor.x + ((bbox.x + bbox.width) - state.localAnchor.x) * scaleX;
               const newLocalBottom = state.localAnchor.y + ((bbox.y + bbox.height) - state.localAnchor.y) * scaleY;
-              
+
               const finalX = Math.min(newLocalX, newLocalRight);
               const finalY = Math.min(newLocalY, newLocalBottom);
               const finalWidth = Math.max(0, Math.abs(newLocalRight - newLocalX));
@@ -3140,6 +3510,7 @@ const MainEditor = ({
         }
       }
     }
+    finalHtml = finalHtml.replace(/<br\s*>/gi, '<br/>');
     updatePageHtml(targetPageIndex, finalHtml);
   };
 
@@ -4114,15 +4485,119 @@ const MainEditor = ({
   };
 
   const enterTextEditMode = (target) => {
-    const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
-    if (isText && target.id) {
-      setIsEditingText(true);
+    const tagName = target.tagName.toLowerCase();
+    const isText = ['text', 'tspan'].includes(tagName);
+    const isForeignObject = tagName === 'foreignobject';
+    
+    if ((isText || isForeignObject) && target.id) {
+      isEditingTextRef.current = true;
+      const svgContainer = target.closest('.page-svg-container');
+      if (svgContainer) {
+        const divWrapper = svgContainer.querySelector('div');
+        if (divWrapper) divWrapper.style.cursor = 'text';
+      }
+      clearOverlayType('selected');
       const svgRoot = target.ownerSVGElement;
+
+      // NATIVE FOREIGN OBJECT EDITING
+      if (isForeignObject) {
+        const div = target.firstElementChild;
+        if (!div) return;
+        
+        target.setAttribute('data-editing', 'true');
+        div.setAttribute('contenteditable', 'true');
+        div.classList.add('text-edit-box');
+        div.style.cursor = TYPE_CURSOR;
+        div.style.userSelect = 'text';
+        div.style.outline = '1.5px solid #6366F1';
+        div.focus();
+        
+        // Move cursor to end
+        const range = document.createRange();
+        range.selectNodeContents(div);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        
+        const cleanup = () => {
+          isEditingTextRef.current = false;
+          const svgContainer = target.closest('.page-svg-container');
+          if (svgContainer) {
+            const divWrapper = svgContainer.querySelector('div');
+            if (divWrapper) {
+              const isPencilActive = activeMainToolRef.current === 'pen' && selectedPenToolRef.current === 'pencil';
+              const isPenToolActive = activeMainToolRef.current === 'pen';
+              const isShapeActive = activeMainToolRef.current === 'shapes';
+              const isTypeActive = activeMainToolRef.current === 'type';
+              divWrapper.style.cursor = isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')));
+            }
+          }
+          target.removeAttribute('data-editing');
+          div.removeAttribute('contenteditable');
+          div.classList.remove('text-edit-box');
+          div.style.outline = '';
+          div.removeEventListener('blur', handleBlur);
+          div.removeEventListener('keydown', handleKeyDown);
+          const sel = window.getSelection();
+          if (sel) sel.removeAllRanges();
+        };
+        
+        const handleBlur = () => {
+          const finalContent = div.innerText.trim();
+          if (finalContent.length === 0) {
+            target.remove();
+            cleanup();
+            if (setSelectedLayerId) setSelectedLayerId(null);
+            selectedLayerIdRef.current = null;
+            if (setMultiSelectedIds) {
+              setMultiSelectedIds(new Set());
+              multiSelectedIdsRef.current = new Set();
+            }
+            const container = target.closest('.page-svg-container');
+            if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
+            return;
+          }
+          cleanup();
+          
+          if (target.id) {
+            if (setSelectedLayerId) setSelectedLayerId(target.id);
+            selectedLayerIdRef.current = target.id;
+            if (setMultiSelectedIds) {
+              setMultiSelectedIds(new Set([target.id]));
+              multiSelectedIdsRef.current = new Set([target.id]);
+            }
+            drawOverlayHighlight(target, 'selected');
+          }
+          
+          const container = target.closest('.page-svg-container');
+          if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
+        };
+        
+        const handleKeyDown = (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            if (div.innerText.trim() === '') {
+              e.preventDefault();
+              div.blur();
+            }
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            div.blur();
+          }
+        };
+        
+        div.addEventListener('blur', handleBlur);
+        div.addEventListener('keydown', handleKeyDown);
+        return;
+      }
+
+      // STANDARD TEXT ELEMENT EDITING (CREATES OVERLAY)
       const bbox = target.getBBox();
       const style = window.getComputedStyle(target);
       const transform = target.getAttribute('transform');
 
       // Hide original text to create illusion of editing in-place
+      target.setAttribute('data-editing', 'true');
       target.style.opacity = '0';
       target.style.visibility = 'hidden';
 
@@ -4148,21 +4623,23 @@ const MainEditor = ({
         fo.setAttribute('y', bbox.y - padY - 2);
       }
 
-      fo.setAttribute('width', initialWidth + 100); // Leave room for growth initially
-      fo.setAttribute('height', initialHeight + 50);
+      const isScrollable = target.getAttribute('data-scrollable') === 'true';
+
+      fo.setAttribute('width', isScrollable ? initialWidth : initialWidth + 100); // Leave room for growth initially if not scrollable
+      fo.setAttribute('height', isScrollable ? initialHeight : initialHeight + 50);
       if (transform) fo.setAttribute('transform', transform);
 
       // Mark it so interact.js ignores dragging while editing
       fo.setAttribute('data-editing', 'true');
       fo.style.cursor = TYPE_CURSOR;
-      fo.style.overflow = 'visible';
+      fo.style.overflow = isScrollable ? 'hidden' : 'visible';
 
       const div = document.createElement('div');
       div.setAttribute('contenteditable', 'true');
-      div.className = 'text-edit-box';
-      div.style.width = 'fit-content';
+      div.className = 'text-edit-box custom-scrollbar';
+      div.style.width = isScrollable ? '100%' : 'fit-content';
       div.style.minWidth = '1px';
-      div.style.height = 'fit-content';
+      div.style.height = isScrollable ? '100%' : 'fit-content';
       div.style.minHeight = '1em';
       div.style.setProperty('background', 'transparent', 'important');
       div.style.setProperty('background-color', 'transparent', 'important');
@@ -4170,7 +4647,13 @@ const MainEditor = ({
       fo.style.setProperty('background-color', 'transparent', 'important');
       div.style.cursor = TYPE_CURSOR;
       div.style.userSelect = 'text';
-      div.style.overflow = 'visible';
+      div.style.overflowY = isScrollable ? 'auto' : 'visible';
+      div.style.overflowX = isScrollable ? 'hidden' : 'visible';
+      
+      // Add padding for scrollbar if scrollable to prevent overlap
+      if (isScrollable) {
+          div.style.paddingRight = '8px';
+      }
 
       // Copy exact styles over to make it look identical to original text
       div.style.fontFamily = target.getAttribute('font-family') || style.fontFamily;
@@ -4182,12 +4665,18 @@ const MainEditor = ({
       div.style.fontWeight = target.getAttribute('font-weight') || style.fontWeight;
 
       let color = target.getAttribute('fill') || style.fill;
-      if (color === 'none') color = target.getAttribute('stroke') || style.stroke || '#000';
+      if (!color || color === 'none' || color === 'transparent') {
+        color = target.getAttribute('stroke') || style.stroke || '#000000';
+      }
+      // HTML color cannot use SVG gradients
+      if (color && color.includes('url(')) {
+        color = '#000000';
+      }
       div.style.color = color;
       div.style.letterSpacing = target.getAttribute('letter-spacing') || style.letterSpacing;
 
       div.style.lineHeight = '1.2';
-      div.style.whiteSpace = 'pre';
+      div.style.whiteSpace = 'pre-wrap';
       div.style.wordWrap = 'normal';
 
       div.style.padding = `${padY}px ${padX}px`;
@@ -4213,23 +4702,50 @@ const MainEditor = ({
       // Initialize content: Convert tspans to newlines if present, otherwise use textContent
       const tspans = Array.from(target.querySelectorAll('tspan'));
       if (tspans.length > 0) {
-        div.innerText = tspans.map(t => t.textContent).join('\n');
+        div.innerText = tspans.map(t => {
+          let text = t.textContent || '';
+          return text.replace(/\u00A0/g, ' ');
+        }).join('\n');
       } else {
-        div.innerText = target.textContent;
+        // Fallback for raw text content without tspans, stripping accidental XML formatting whitespace
+        div.innerText = target.textContent.replace(/\u00A0/g, ' ').trim();
       }
       fo.appendChild(div);
 
       // Insert in exact DOM position next to target to inherit proper z-index and scaling context
       target.parentNode.insertBefore(fo, target.nextSibling);
 
+      const isMultiLine = tspans.length > 1;
+      const originalMaxW = isMultiLine ? Math.max(bbox.width, 50) : null;
+
       // Function to sync foreignObject size to content dynamically
       const syncSize = () => {
-        // Inside foreignObject, 1 CSS pixel matches 1 SVG user unit
-        // scrollWidth/Height gives us the content size without browser zoom scaling issues
+        if (isScrollable) return; // Do not resize if scrollable
+        
+        const svgEl = fo.closest('svg');
+        let maxW = 9999;
+        if (svgEl) {
+           const viewBoxWidth = svgEl.viewBox?.baseVal?.width;
+           const clientWidth = svgEl.clientWidth;
+           const svgWidth = viewBoxWidth || clientWidth || 1000;
+           const xPos = parseFloat(fo.getAttribute('x')) || 0;
+           maxW = Math.max(50, svgWidth - xPos - 10);
+        }
+
+        // Restrict to original width if it was a multi-line paragraph from a template
+        if (originalMaxW !== null) {
+           maxW = Math.min(maxW, originalMaxW);
+        }
+        
+        div.style.maxWidth = `${maxW}px`;
+        div.style.whiteSpace = 'pre-wrap';
+        div.style.wordWrap = 'break-word';
+        div.style.wordBreak = 'normal';
+
         const w = Math.max(div.scrollWidth, 10);
         const h = Math.max(div.scrollHeight, 20);
 
-        fo.setAttribute('width', w + 40); // Breathing room for the caret and outline
+        fo.setAttribute('width', Math.min(w + 40, maxW + 40));
         fo.setAttribute('height', h + 20);
       };
 
@@ -4253,7 +4769,19 @@ const MainEditor = ({
       const initialInnerHTML = target.innerHTML;
 
       const cleanup = () => {
-        setIsEditingText(false);
+        isEditingTextRef.current = false;
+        const svgContainer = target.closest('.page-svg-container');
+        if (svgContainer) {
+          const divWrapper = svgContainer.querySelector('div');
+          if (divWrapper) {
+            const isPencilActive = activeMainToolRef.current === 'pen' && selectedPenToolRef.current === 'pencil';
+            const isPenToolActive = activeMainToolRef.current === 'pen';
+            const isShapeActive = activeMainToolRef.current === 'shapes';
+            const isTypeActive = activeMainToolRef.current === 'type';
+            divWrapper.style.cursor = isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')));
+          }
+        }
+        target.removeAttribute('data-editing');
         target.style.removeProperty('opacity');
         target.style.removeProperty('visibility');
         if (target.getAttribute('style') === '') target.removeAttribute('style');
@@ -4271,9 +4799,9 @@ const MainEditor = ({
       };
 
       const handleBlur = () => {
-        const finalContent = div.innerText.trim();
-        // If the content is empty, remove the layer.
-        if (finalContent.length === 0) {
+        const finalContent = div.innerText;
+        // If the content is entirely empty (or just whitespace), remove the layer.
+        if (finalContent.trim().length === 0) {
           if (target.parentNode) {
             target.parentNode.removeChild(target);
           }
@@ -4315,7 +4843,7 @@ const MainEditor = ({
 
         lines.forEach((line, i) => {
           const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-          tspan.textContent = line || '\u00A0';
+          tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
           tspan.setAttribute('x', x);
           if (i > 0) tspan.setAttribute('dy', `${dy.toFixed(2)}em`);
           target.appendChild(tspan);
@@ -4373,7 +4901,6 @@ const MainEditor = ({
 
     const now = Date.now();
     const timeSinceLast = now - lastClickRef.current.time;
-    // 500ms is a safe standard double click threshold
     const isDoubleClick = timeSinceLast > 0 && timeSinceLast < 500;
     lastClickRef.current.time = now;
 
@@ -4439,6 +4966,59 @@ const MainEditor = ({
     svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
     clearOverlayType('hover');
     clearOverlayType('child-hover');
+
+    // ── Pre-empt polygon clicks (hit area padding) ─────────────────────────────
+    if (e.target.tagName.toLowerCase() === 'polygon' && e.target.id?.includes('overlay-poly-')) {
+      const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
+      if (polySelectionId) {
+        if (e.shiftKey && !e.ctrlKey) {
+          const currentSet = new Set(multiSelectedIdsRef.current);
+          const primaryId = selectedLayerIdRef.current;
+          if (primaryId) currentSet.add(primaryId);
+          if (currentSet.has(polySelectionId)) {
+            currentSet.delete(polySelectionId);
+            if (primaryId === polySelectionId) {
+              const remaining = [...currentSet];
+              const newPrimary = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+              if (setSelectedLayerId) {
+                setSelectedLayerId(newPrimary);
+                selectedLayerIdRef.current = newPrimary;
+              }
+            }
+          } else {
+            currentSet.add(polySelectionId);
+            if (setSelectedLayerId) {
+              setSelectedLayerId(polySelectionId);
+              selectedLayerIdRef.current = polySelectionId;
+            }
+          }
+          multiSelectedIdsRef.current = currentSet;
+          setMultiSelectedIds(currentSet);
+          return;
+        }
+
+        // Normal click on polygon
+        if (selectedLayerIdRef.current === polySelectionId && multiSelectedIdsRef.current.size <= 1) {
+          // Already uniquely selected. Do nothing to preserve state for double-click!
+          return;
+        }
+        
+        // Otherwise, select it
+        setSingleSelection(polySelectionId);
+        
+        // Enter frame context if the element is inside a frame
+        const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
+        if (underlyingEl) {
+          const topFrames = getTopLevelFrames(svg);
+          const frameParent = topFrames.find(f => f.contains(underlyingEl));
+          if (frameParent) {
+            setCurrentFrameId(frameParent.id);
+            currentFrameIdRef.current = frameParent.id;
+          }
+        }
+        return;
+      }
+    }
 
     // ── Creation Tool: Text (Type) Tool logic removed (moved to mousedown) ──────
 
@@ -4780,6 +5360,15 @@ const MainEditor = ({
       }
     } else {
       // 2. Clicked canvas background — deselect everything
+      
+      // ── STICKY SELECTION PRIORITY (Case 3) ──
+      // If we are about to clear the selection, check if the click was VERY close to the active selection!
+      // This protects against accidental deselection when trying to double-click text!
+      const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
+      if (activeSel && hitTest(activeSel, e.clientX, e.clientY, 15)) {
+        return; // Keep selection intact!
+      }
+
       if (isPopupEditor && topLevelEls.length > 0) {
         setSingleSelection(topLevelEls[0].id);
       } else {
@@ -4805,15 +5394,15 @@ const MainEditor = ({
 
     // 2. Proactively check if we are double-clicking while a text is selected
     const selIdContext = selectedLayerIdRef.current;
-    if (selIdContext && (!target || !['text', 'tspan'].includes(target.tagName?.toLowerCase()))) {
+    if (selIdContext && (!target || !['text', 'tspan', 'foreignobject'].includes(target.tagName?.toLowerCase()))) {
       let activeSelEls = svg.querySelectorAll(`[id="${selIdContext}"]`);
       // If there are duplicates due to temporary template saving leaks, find the visible one
       const activeSelEl = Array.from(activeSelEls).find(el => el.getBoundingClientRect().width > 0) || activeSelEls[0];
 
-      if (activeSelEl && ['text', 'tspan'].includes(activeSelEl.tagName.toLowerCase())) {
+      if (activeSelEl && ['text', 'tspan', 'foreignobject'].includes(activeSelEl.tagName.toLowerCase())) {
         // Bypass strict hitTest if the target was the overlay polygon (meaning they clicked inside the blue box exactly)
         const clickedPolygon = e.target.tagName.toLowerCase() === 'polygon';
-        if (clickedPolygon || hitTest(activeSelEl, e.clientX, e.clientY, 10)) {
+        if (clickedPolygon || hitTest(activeSelEl, e.clientX, e.clientY, 15)) {
           target = activeSelEl;
         }
       }
@@ -4839,7 +5428,7 @@ const MainEditor = ({
       return;
     }
 
-    const isText = ['text', 'tspan'].includes(target.tagName.toLowerCase());
+    const isText = ['text', 'tspan', 'foreignobject'].includes(target.tagName.toLowerCase());
     if (isText && target.id) {
       enterTextEditMode(target);
       return;
@@ -4927,6 +5516,20 @@ const MainEditor = ({
 
   const isPageEmpty = !pages[activePageIndex]?.html;
 
+  useEffect(() => {
+    const el = editorContainerRef.current;
+    if (!el) return;
+    const handleWheel = (e) => {
+      if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
+      e.preventDefault();
+
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, [setZoom]);
+
 
   return (
     <div
@@ -4972,12 +5575,6 @@ const MainEditor = ({
         ref={editorContainerRef}
         className={`flex-1 relative flex items-center justify-center p-[1vw] overflow-hidden ${isPopupEditor ? 'bg-transparent' : 'bg-[#FBFBFB]'}`}
         style={{ cursor: isSpaceDown ? (isPanningRef.current ? 'grabbing' : 'grab') : 'default' }}
-        onWheel={(e) => {
-          if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
-          e.preventDefault();
-          const delta = e.deltaY > 0 ? -10 : 10;
-          setZoom(prev => Math.max(10, Math.min(prev + delta, 250)));
-        }}
         onMouseDown={(e) => {
           if (isSpaceDownRef.current) {
             e.preventDefault();
@@ -4995,21 +5592,21 @@ const MainEditor = ({
             const dx = e.clientX - lastPanPointRef.current.x;
             const dy = e.clientY - lastPanPointRef.current.y;
             lastPanPointRef.current = { x: e.clientX, y: e.clientY };
-            
+
             const prev = currentPanRef.current;
             const newX = prev.x + dx;
             const newY = prev.y + dy;
-            
+
             if (!editorContainerRef.current) return;
-            
+
             const containerWidth = editorContainerRef.current.clientWidth;
             const containerHeight = editorContainerRef.current.clientHeight;
-            
+
             const spreadStartIndex = (isDoublePage && activePageIndex > 0)
               ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
               : activePageIndex;
             const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
-            
+
             const baseVhHeight = window.innerHeight * 0.78;
             const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
             const baseCanvasHeight = baseVhHeight;
@@ -5017,15 +5614,15 @@ const MainEditor = ({
             const currentScale = zoom / 100;
             const scaledWidth = baseCanvasWidth * currentScale;
             const scaledHeight = baseCanvasHeight * currentScale;
-            
+
             const maxPanX = Math.max(0, (scaledWidth - containerWidth) / 2 + (window.innerWidth * 0.08));
             const maxPanY = Math.max(0, (scaledHeight - containerHeight) / 2 + (window.innerHeight * 0.05));
-            
+
             const boundedX = Math.min(Math.max(newX, -maxPanX), maxPanX);
             const boundedY = Math.min(Math.max(newY, -maxPanY), maxPanY);
-            
+
             currentPanRef.current = { x: boundedX, y: boundedY };
-            
+
             if (zoomContainerRef.current) {
               zoomContainerRef.current.style.transform = `translate(${boundedX}px, ${boundedY}px) scale(${currentScale})`;
             }
@@ -5683,11 +6280,12 @@ const MainEditor = ({
                       return pages[displayIndex]?.html ? (
                         <div
                           className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                          style={{ cursor: isEditingText ? 'text' : (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
+                          style={{ cursor: (isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
                         >
                           <div
+                            id={`canvas-content-${displayIndex}`}
                             className="w-full h-full flex items-center justify-center"
-                            dangerouslySetInnerHTML={{ __html: pages[displayIndex]?.html }}
+                            dangerouslySetInnerHTML={{ __html: getHtmlToRender(displayIndex, pages[displayIndex]?.html) }}
                             onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
                             onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
                             onMouseLeave={handleSvgMouseLeave}
@@ -5707,7 +6305,7 @@ const MainEditor = ({
                             className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
                           />
                           <AnimatePresence>
-                            {selectedLayerId && !isEditingText && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
                               <SelectionTooltip
                                 selectedId={selectedLayerId}
                                 multiSelectedIds={multiSelectedIds}
@@ -5879,11 +6477,12 @@ const MainEditor = ({
                       return page?.html ? (
                         <div
                           className={`absolute inset-0 w-full h-full overflow-visible flex items-center justify-center ${isPopupEditor ? 'bg-transparent' : 'bg-white'}`}
-                          style={{ cursor: isEditingText ? 'text' : ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
+                          style={{ cursor: ((activeMainTool === 'pen' && selectedPenTool === 'pencil') ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')))) }}
                         >
                           <div
+                            id={`canvas-content-${displayIndex}`}
                             className="w-full h-full flex items-center justify-center"
-                            dangerouslySetInnerHTML={{ __html: page.html }}
+                            dangerouslySetInnerHTML={{ __html: getHtmlToRender(displayIndex, page.html) }}
                             onMouseDown={(e) => handleSvgMouseDown(displayIndex, e)}
                             onMouseMove={(e) => handleSvgMouseMove(displayIndex, e)}
                             onMouseLeave={handleSvgMouseLeave}
@@ -5903,7 +6502,7 @@ const MainEditor = ({
                             className={`absolute inset-0 w-full h-full transition-opacity duration-200 ${isSpaceDown ? 'opacity-0' : 'opacity-100'}`} style={{ overflow: 'visible', pointerEvents: 'none' }}
                           />
                           <AnimatePresence>
-                            {selectedLayerId && !isEditingText && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
+                            {selectedLayerId && !isEditingTextRef.current && multiSelectedIds.size <= 1 && (activeTopTool === 'animation') && (
                               <SelectionTooltip
                                 selectedId={selectedLayerId}
                                 multiSelectedIds={multiSelectedIds}

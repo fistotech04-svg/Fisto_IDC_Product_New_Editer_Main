@@ -90,6 +90,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
 
     const scrollContainerRef = useRef(null);
     const [initialHeight, setInitialHeight] = useState('auto');
+    const [tocLeft, setTocLeft] = useState(null);
 
     useEffect(() => {
         if (scrollContainerRef.current) {
@@ -99,6 +100,32 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             }
         }
     }, [initialHeight]);
+
+    useEffect(() => {
+        if (!isLayout9) return;
+        
+        let animationFrameId;
+
+        const syncPosition = () => {
+            const btn = document.getElementById('layout9-toc-btn');
+            const root = document.getElementById('preview-area-root');
+            const popup = document.getElementById('layout9-toc-panel');
+            
+            if (btn && root && popup) {
+                const btnRect = btn.getBoundingClientRect();
+                const rootRect = root.getBoundingClientRect();
+                const newLeft = btnRect.left - rootRect.left + (btnRect.width / 2);
+                
+                setTocLeft(prev => prev === null ? newLeft : prev);
+                popup.style.left = `${newLeft}px`;
+            }
+            animationFrameId = requestAnimationFrame(syncPosition);
+        };
+
+        syncPosition();
+
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [isLayout9]);
 
     const [expandedSections, setExpandedSections] = useState({});
 
@@ -126,7 +153,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                 <>
                     <div className="fixed inset-0 z-[2000] pointer-events-auto bg-transparent" onClick={onClose} />
                     <div
-                        className={`absolute top-[105px] left-[10px] z-[2100] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-300 origin-top-left`}
+                        className={`absolute top-[105px] left-[15px] z-[2100] pointer-events-auto origin-top-left`}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <div className={`relative w-[150px] min-h-[160px] h-fit max-h-[60vh] flex flex-col group`}>
@@ -134,7 +161,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                             <div className="absolute inset-0 z-0 pointer-events-none drop-shadow-xl">
                                 <svg width="100%" height="100%" viewBox="0 0 250 600" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
                                     <path
-                                        d="M0 35C0 15 15 0 35 0C55 0 70 15 70 35V45C70 65 75 80 90 80H230C241.05 80 250 88.95 250 100V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V35Z"
+                                        d="M0 35C0 15 15 0 35 0C55 0 70 15 70 35V100C70 120 75 135 90 135H230C241.05 135 250 143.95 250 155V580C250 591.05 241.05 600 230 600H20C8.95 600 0 591.05 0 580V35Z"
                                         fill={getLayoutColor('toc-bg', '#575C9C')}
                                         fillOpacity={getLayoutOpacity('toc-bg', '0.95')}
                                     />
@@ -142,7 +169,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
                             </div>
 
                             {/* Content Layer */}
-                            <div className="relative z-10 flex flex-col flex-1 pt-[55px] px-[8px] pb-[12px]">
+                            <div className="relative z-10 flex flex-col flex-1 pt-[70px] px-[8px] pb-[12px]">
                                 {/* Search Bar */}
                                 {addSearch && (
                                     <div className="relative mb-[10px]">
@@ -221,14 +248,14 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             <>
                 <div className="fixed inset-0 z-[40] pointer-events-auto bg-transparent" onClick={onClose} />
                 <div
-                    className={`absolute z-[45] pointer-events-auto animate-in fade-in zoom-in-95 slide-in-from-top-4 duration-500 origin-top-right`}
+                    id={isLayout9 ? "layout9-toc-panel" : undefined}
+                    className={`absolute z-[45] pointer-events-auto origin-top-right`}
                     style={{
                         top: addTextBelowIcons ? '0.7vh' : '1.2vh',
-                        left: addTextBelowIcons ? `calc(50% - ${isSidebarOpen ? '24.8vw' : '29.4vw'})` : `calc(50% - ${isSidebarOpen ? '25vw' : '29.3vw'})`,
+                        left: tocLeft !== null ? `${tocLeft}px` : (addTextBelowIcons ? `calc(50% - ${isSidebarOpen ? '24.8vw' : '29.4vw'})` : `calc(50% - ${isSidebarOpen ? '25vw' : '29.3vw'})`),
                         filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))',
-                        transform: 'scale(0.85)',
-                        transformOrigin: 'top left',
-                        transition: 'transform 0.3s ease'
+                        transform: tocLeft !== null ? 'translateX(-85%) scale(0.85)' : 'scale(0.85)',
+                        transformOrigin: tocLeft !== null ? '85% top' : 'top left'
                     }}
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -350,7 +377,7 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
             <>
                 <div className="fixed inset-0 z-[1000] pointer-events-auto bg-transparent" onClick={onClose} />
                 <motion.div
-                    className={`${isMobile && !isLandscape ? 'fixed right-4 top-[14%] bottom-[125px] w-[230px] rounded-[20px] shadow-2xl' : 'absolute ' + (isTablet ? 'right-[3.1vw] top-[1.5vh] w-[16vw]' : 'right-[4.5vw] top-[2vh] w-[18vw]') + ' bottom-0 rounded-t-[1.5vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]'} z-[1001] flex flex-col overflow-hidden border backdrop-blur-xl pointer-events-auto`}
+                    className={`${isMobile && !isLandscape ? 'absolute right-4 top-[10%] bottom-0 w-[280px] rounded-t-[20px] shadow-2xl' : 'absolute ' + (isTablet ? 'right-[3.1vw] top-[1.5vh] w-[16vw]' : 'right-[4.5vw] top-[2vh] w-[18vw]') + ' bottom-0 rounded-t-[1.5vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]'} z-[1001] flex flex-col overflow-hidden border backdrop-blur-xl pointer-events-auto`}
                     style={{
                         backgroundColor: `rgba(var(--toc-bg-rgb, 255, 255, 255), var(--toc-bg-opacity, 0.6))`,
                         borderColor: getLayoutColor('toc-text', '#575C9C') + '4D'

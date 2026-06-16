@@ -192,7 +192,8 @@ const Grid8Layout = ({
     setShowSoundPopupMemo,
     layoutColors,
     isTablet,
-    isFullscreen: isFullscreenProp
+    isFullscreen: isFullscreenProp,
+    offset = 0,
 }) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
@@ -224,6 +225,7 @@ const Grid8Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -231,7 +233,7 @@ const Grid8Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -615,13 +617,31 @@ const Grid8Layout = ({
 
                 {/* Right Logo */}
                 <div className="flex-1 flex items-center justify-end pointer-events-auto shrink-0 min-w-[10vw]">
-                    {logoSettings?.src && (
-                        <img
-                            src={logoSettings.src}
-                            alt="Logo"
-                            className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity mr-[0.5vw]`}
-                            style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
-                        />
+                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
+                        logoSettings.url ? (
+                            <a 
+                                href={logoSettings.url.startsWith('http') ? logoSettings.url : `https://${logoSettings.url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-opacity hover:opacity-80"
+                            >
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity mr-[0.5vw]`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                                />
+                            </a>
+                        ) : (
+                            <button className="transition-opacity hover:opacity-80 cursor-default">
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.8vw]'} w-auto transition-opacity mr-[0.5vw]`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                                />
+                            </button>
+                        )
                     )}
                 </div>
             </div>

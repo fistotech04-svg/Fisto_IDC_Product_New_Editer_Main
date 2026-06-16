@@ -221,7 +221,9 @@ export default function ThreedEditor() {
                 url: fullUrl,
                 file: null,
                 type: modelData.type,
-                name: modelData.name.replace(/\.[^/.]+$/, "")
+                name: modelData.name.replace(/\.[^/.]+$/, ""),
+                fileName: modelData.fileName,
+                displayName: modelData.displayName
               };
               setModels([newModel]);
               setModelUrl(fullUrl);
@@ -238,7 +240,38 @@ export default function ThreedEditor() {
           }
         }
 
-        // 2. If NO ID in URL, we ALWAYS ensure an empty base as requested by the user.
+        // 2. Check for temp model passed from InteractionPanel
+        const tempThreedEditModelStr = localStorage.getItem('tempThreedEditModel');
+        if (tempThreedEditModelStr) {
+          try {
+            const parsed = JSON.parse(tempThreedEditModelStr);
+            const fullUrl = parsed.url.startsWith('http') || parsed.url.startsWith('blob:') || parsed.url.startsWith('data:') 
+              ? parsed.url 
+              : `${backendUrl}${parsed.url}`;
+            const newModel = {
+              id: Date.now().toString(),
+              modelId: null,
+              url: fullUrl,
+              file: null,
+              type: parsed.type || 'glb',
+              name: parsed.name.replace(/\.[^/.]+$/, "")
+            };
+            setModels([newModel]);
+            setModelUrl(fullUrl);
+            setModelType(newModel.type);
+            setModelName(newModel.name);
+            setSelectedMaterial({ name: newModel.name, parentGroup: newModel.name });
+            setIsSidebarCollapsed(false);
+            setModelStats({ fileSize: "0 MB" });
+            localStorage.removeItem('tempThreedEditModel');
+            return; // End here for temp model load
+          } catch(e) {
+            console.error("Failed to parse tempThreedEditModel", e);
+            localStorage.removeItem('tempThreedEditModel');
+          }
+        }
+
+        // 3. If NO ID in URL, we ALWAYS ensure an empty base as requested by the user.
         // This overrides any previous session state in this session.
         setModels([]);
         setModelUrl(null);
@@ -357,8 +390,9 @@ export default function ThreedEditor() {
         if (m.file) {
           const file = m.file;
           const ext = file.name.split('.').pop().toLowerCase();
-          // Use current name from state (which might have been renamed) instead of original file name
-          const finalFileName = m.name.toLowerCase().endsWith(`.${ext}`) ? m.name : `${m.name}.${ext}`;
+          // Prioritize original physical filename over display name
+          const nameToUse = m.fileName || m.name;
+          const finalFileName = nameToUse.toLowerCase().endsWith(`.${ext}`) ? nameToUse : `${nameToUse}.${ext}`;
           
           const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
           const uploadId = Date.now().toString() + Math.random().toString(36).substring(7);
@@ -413,12 +447,11 @@ export default function ThreedEditor() {
                   exporter.parse(modelGroup, (result) => resolve(result), (err) => reject(err), { binary: true });
               });
               
-              // B. Capture Snapshot (PNG)
-              const screenshotUrl = gl.domElement.toDataURL('image/png');
-              const screenshotRes = await fetch(screenshotUrl);
-              const screenshotBlob = await screenshotRes.blob();
+              // If a physical fileName exists (e.g. Interaction Mode), preserve it exactly.
+              const originalFileName = nextModels[0]?.fileName;
+              const defaultBaseName = (modelName || nextModels[0]?.name || "Scene").replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
               
-              const baseName = (modelName || nextModels[0].name || "Scene").replace(/\.[^/.]+$/, "").replace(/\s+/g, '_');
+              const exportFileName = originalFileName || `${defaultBaseName}.glb`;
               
               // C. Upload GLB (The textured model)
               const glbFormData = new FormData();
@@ -426,28 +459,38 @@ export default function ThreedEditor() {
               if (nextModels[0]?.modelId) {
                   glbFormData.append('modelId', nextModels[0].modelId);
               }
-              glbFormData.append('model', new Blob([glbBuffer]), `${baseName}.glb`);
+              glbFormData.append('model', new Blob([glbBuffer]), exportFileName);
               const glbRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, glbFormData);
-              
-              // D. Upload PNG (The Gallery Thumbnail)
-              const pngFormData = new FormData();
-              pngFormData.append('emailId', user.emailId);
-              pngFormData.append('model', screenshotBlob, `${baseName}.png`);
-              await axios.post(`${backendUrl}/api/3d-models/upload-model`, pngFormData);
               
               if (glbRes.data && glbRes.data.url) {
                   // Keep UI name clean, but update underlying record info
                   nextModels[0] = {
                       ...nextModels[0],
                       url: `${backendUrl}${glbRes.data.url}`,
-                      name: `${baseName}.glb`,
+                      name: nextModels[0]?.displayName || (originalFileName ? originalFileName : `${defaultBaseName}.glb`),
+                      fileName: originalFileName,
                       type: 'glb',
                       file: null,
                       modelId: glbRes.data.modelId // Update with newly returned ID
                   };
                   hasExported = true;
-                  setModelName(baseName); // Keep extension-less for toolbar
+                  if (!originalFileName) {
+                      setModelName(defaultBaseName); // Keep extension-less for toolbar if it's a new standalone model
+                  }
                   setModelUrl(`${backendUrl}${glbRes.data.url}`);
+                  
+                  // Broadcast save to InteractionPanel to bust browser cache
+                  try {
+                    const bc = new BroadcastChannel('threed_model_updates');
+                    bc.postMessage({
+                      type: 'model-saved',
+                      modelId: glbRes.data.modelId,
+                      timestamp: Date.now()
+                    });
+                    bc.close();
+                  } catch (bcErr) {
+                    console.warn('BroadcastChannel not supported:', bcErr);
+                  }
               }
           } catch (e) {
               console.error("Gallery sync failed:", e);
@@ -982,7 +1025,7 @@ export default function ThreedEditor() {
       const user = JSON.parse(storedUser);
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
-      // 1. Identify which model to rename on the server
+      // Update local model list name immediately (for UI consistency)
       const nextModels = models.map(m => {
         if (m.name === oldModelName || models.length === 1) {
           return { ...m, name: newName };
@@ -996,10 +1039,32 @@ export default function ThreedEditor() {
         modelName: newName,
         models: nextModels
       };
-
       pushHistory(nextState);
 
-      // 2. Try to rename the actual file on server for real file sync
+      // ── INTERACTION MODE (opened from 3D Edit in InteractionPanel) ──
+      // Only update the display label in DB. Physical file and URL are untouched.
+      if (urlModelId) {
+        try {
+          await axios.post(`${backendUrl}/api/3d-models/rename-label`, {
+            emailId: user.emailId,
+            modelId: urlModelId,
+            newName: newName.trim()
+          });
+        } catch (e) {
+          console.error("DB label rename failed:", e);
+        }
+
+        // Persist updated session state (name only)
+        await axios.post(`${backendUrl}/api/3d-models/save-session`, {
+          emailId: user.emailId,
+          state: nextState
+        });
+        pushHistory(nextState);
+        return;
+      }
+
+      // ── STANDALONE GALLERY MODE ──
+      // Rename the actual file on server and update DB with new path.
       const renameIndex = nextModels.findIndex(m => m.name === newName);
       if (renameIndex !== -1) {
         const target = nextModels[renameIndex];
@@ -1009,18 +1074,33 @@ export default function ThreedEditor() {
             const renameRes = await axios.post(`${backendUrl}/api/3d-models/rename-model`, {
               emailId: user.emailId,
               oldName: oldFileName,
-              newName: newName
+              newName: newName,
+              modelId: target.modelId
             });
             if (renameRes.data && renameRes.data.url) {
               const updatedUrl = `${backendUrl}${renameRes.data.url}`;
               nextModels[renameIndex].url = updatedUrl;
               
-              // Update state correctly
               setModels([...nextModels]);
               if (renameIndex === 0) setModelUrl(updatedUrl);
               
-              // IMPORTANT: Update nextState before using it below
               nextState.models = [...nextModels];
+
+              // Broadcast rename to parent tab (InteractionPanel) via BroadcastChannel
+              try {
+                const bc = new BroadcastChannel('threed_model_updates');
+                bc.postMessage({
+                  type: 'model-renamed',
+                  modelId: target.modelId,
+                  oldName: oldFileName,
+                  newName: renameRes.data.newName || newName,
+                  newUrl: updatedUrl,
+                  newRelativeUrl: renameRes.data.url
+                });
+                bc.close();
+              } catch (bcErr) {
+                console.warn('BroadcastChannel not supported:', bcErr);
+              }
             }
           } catch (e) {
             console.error("Server-side file rename failed:", e);
@@ -1028,19 +1108,17 @@ export default function ThreedEditor() {
         }
       }
 
-      // 3. Persist updated session state
+      // Persist updated session state
       await axios.post(`${backendUrl}/api/3d-models/save-session`, {
         emailId: user.emailId,
         state: nextState
       });
-
-      // Update history with the final resolved state
       pushHistory(nextState);
 
     } catch (error) {
       console.error("Failed to update backend rename:", error);
     }
-  }, [models, modelName, pushHistory, setModelUrl]);
+  }, [models, modelName, pushHistory, setModelUrl, urlModelId]);
 
 
   const handleRenameMaterial = useCallback((oldName, newName, mName) => {

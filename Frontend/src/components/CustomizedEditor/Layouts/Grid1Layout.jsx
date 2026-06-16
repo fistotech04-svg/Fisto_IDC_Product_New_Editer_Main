@@ -132,7 +132,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
         const t = Math.max(0, 1 - dist / maxDist);
         const eased = t * t * (3 - 2 * t);       // smoothstep
         const focused = eased * eased;             // squared → sharp local peak
-        rawScale.set(1 + 0.32 * focused);
+        rawScale.set(1 + 0.22 * focused);
         rawGlow.set(focused);
     }, [mousePos]);
 
@@ -152,7 +152,7 @@ const MagneticDockBtn = ({ iconEl, label, onClick, extraStyle = {}, extraClassNa
                 className="flex flex-col items-center justify-center"
                 whileTap={{ scale: 0.91 }}
             >
-                <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.3vw', padding: '0.18vw', background: glowBg }}>
+                <motion.span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.2vw', padding: '0.1vw', background: glowBg }}>
                     {React.cloneElement(iconEl, { className: `${iconEl.props.className || ''} ${isMobileLandscape ? '!w-[0.7vw] !h-[0.7vw]' : ''}` })}
                 </motion.span>
                 {addTextBelowIcons && (
@@ -313,19 +313,20 @@ const Grid1Layout = React.memo((props) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
 
-    const [dimWidth, setDimWidth] = useState(isMobileLandscape ? initialWidth * 0.95 : isTablet ? initialWidth * 0.7 : initialWidth);
-    const [dimHeight, setDimHeight] = useState(isMobileLandscape ? initialHeight * 0.9 : isTablet ? initialHeight * 0.7 : initialHeight);
+    const [dimWidth, setDimWidth] = useState(isMobileLandscape ? initialWidth * 0.95 : initialWidth);
+    const [dimHeight, setDimHeight] = useState(isMobileLandscape ? initialHeight * 0.9 : initialHeight);
     const aspectRatio = initialHeight / initialWidth;
 
     // Reset dimensions to default when tablet mode changes or initial props change
     React.useEffect(() => {
-        setDimWidth(isMobileLandscape ? initialWidth * 0.95 : isTablet ? initialWidth * 0.7 : initialWidth);
-        setDimHeight(isMobileLandscape ? initialHeight * 0.9 : isTablet ? initialHeight * 0.7 : initialHeight);
+        setDimWidth(isMobileLandscape ? initialWidth * 0.95 : initialWidth);
+        setDimHeight(isMobileLandscape ? initialHeight * 0.9 : initialHeight);
     }, [isTablet, isMobileLandscape, initialWidth, initialHeight]);
 
-    // Responsive scaling for Mobile Landscape
+    // Responsive scaling for Mobile Landscape and Tablet
+    // Responsive scaling for Mobile Landscape and Tablet
     React.useEffect(() => {
-        if (!isMobileLandscape) {
+        if (!isMobileLandscape && !isTablet) {
             setResponsiveScale(1);
             return;
         }
@@ -339,10 +340,12 @@ const Grid1Layout = React.memo((props) => {
                 const availableW = cw * 0.95;
                 const availableH = ch * 0.95;
 
-                // Spread dimensions (assuming 2 pages)
-                // Use the base dimension factors (0.95 for width, 0.9 for height)
-                const baseSpreadW = (initialWidth * 0.95) * 2;
-                const baseSpreadH = initialHeight * 0.9;
+                const isPortraitLayout = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
+
+                // Spread dimensions (assuming 2 pages unless portrait mode)
+                // Use the base dimension factors (0.95 for width, 0.9 for height on mobile landscape)
+                const baseSpreadW = isMobileLandscape ? ((initialWidth * 0.95) * 2) : (isPortraitLayout ? initialWidth : initialWidth * 2);
+                const baseSpreadH = isMobileLandscape ? (initialHeight * 0.9) : initialHeight;
 
                 const scaleX = availableW / baseSpreadW;
                 const scaleY = availableH / baseSpreadH;
@@ -361,7 +364,7 @@ const Grid1Layout = React.memo((props) => {
             clearTimeout(timer);
             window.removeEventListener('resize', updateScale);
         };
-    }, [isMobileLandscape, initialWidth, initialHeight]);
+    }, [isMobileLandscape, isTablet, initialWidth, initialHeight]);
 
     const zoomIn = () => {
         setDimWidth(prev => {
@@ -380,6 +383,7 @@ const Grid1Layout = React.memo((props) => {
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -387,7 +391,7 @@ const Grid1Layout = React.memo((props) => {
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -489,7 +493,7 @@ const Grid1Layout = React.memo((props) => {
 
     const [dockMousePos, setDockMousePos] = React.useState(null);
 
-    const renderDockBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '', hideTooltip = false) => (
+    const renderDockBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '', hideTooltip = false, forceNoText = false) => (
         <MagneticDockBtn
             iconEl={iconEl}
             label={label}
@@ -497,7 +501,7 @@ const Grid1Layout = React.memo((props) => {
             extraStyle={extraStyle}
             extraClassName={extraClassName}
             mousePos={dockMousePos}
-            addTextBelowIcons={addTextBelowIcons}
+            addTextBelowIcons={forceNoText ? false : addTextBelowIcons}
             isMobileLandscape={isMobileLandscape}
             isTablet={isTablet}
             textFont={textFont}
@@ -634,6 +638,7 @@ const Grid1Layout = React.memo((props) => {
     }, [currentPage, showThumbnailBar, checkScroll]);
 
     const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
+    const isPortraitLayout = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
 
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative" style={{ backgroundColor: backgroundSettings?.color || 'transparent' }}>
@@ -840,7 +845,6 @@ const Grid1Layout = React.memo((props) => {
             >
                 {/* Vertical Centered Navigation Arrows */}
                 {(() => {
-                    const isPortraitLayout = typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
                     const isCover = currentPage === 0;
                     const isBackCover = currentPage === pages.length - 1 && pages.length % 2 === 0;
 
@@ -954,7 +958,7 @@ const Grid1Layout = React.memo((props) => {
                         transform: `translateX(${localOffset}px) scale(${responsiveScale})`,
                         transformOrigin: 'center center',
                         transition: 'transform 0.7s ease-out',
-                        width: dimWidth * 2,
+                        width: isPortraitLayout ? dimWidth : dimWidth * 2,
                         height: dimHeight
                     }}
                 >
@@ -1212,7 +1216,10 @@ const Grid1Layout = React.memo((props) => {
                                     <Icon icon="ph:magnifying-glass-minus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                     'Zoom Out',
                                     (e) => { e.stopPropagation(); zoomOut(); },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                    '',
+                                    false,
+                                    true
                                 )}
                                 <div className={`${isMobileLandscape ? 'w-[2vw]' : 'w-[6vw]'} ${isMobileLandscape ? 'h-[0.15vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.25vw]'} rounded-full relative overflow-hidden`}>
                                     {/* Track Underlay */}
@@ -1230,7 +1237,10 @@ const Grid1Layout = React.memo((props) => {
                                     <Icon icon="ph:magnifying-glass-plus" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />,
                                     'Zoom In',
                                     (e) => { e.stopPropagation(); zoomIn(); },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
+                                    '',
+                                    false,
+                                    true
                                 )}
                             </div>
                         )}

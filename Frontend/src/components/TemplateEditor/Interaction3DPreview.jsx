@@ -4,9 +4,26 @@ import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import { CustomQRCode } from './Model3DEditor';
 import ColorPicker from './ColorPicker';
+import axios from 'axios';
 
 const GlbModelViewer = React.memo(({ url, autoRotate, autoRotateSpeed }) => {
-  const { scene } = useGLTF(url);
+  const [timestamp, setTimestamp] = useState('');
+
+  React.useEffect(() => {
+    const bc = new BroadcastChannel('threed_model_updates');
+    bc.onmessage = (e) => {
+      if (e.data && e.data.type === 'model-saved') {
+        setTimestamp(`?v=${e.data.timestamp}`);
+      }
+    };
+    return () => bc.close();
+  }, []);
+
+  const finalUrl = React.useMemo(() => {
+    return timestamp ? `${url}${timestamp}` : url;
+  }, [url, timestamp]);
+
+  const { scene } = useGLTF(finalUrl);
   return (
     <Canvas camera={{ fov: 50, position: [0, 0, 5] }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
       <Stage environment="city" adjustCamera={1.5} intensity={1}>
@@ -28,10 +45,30 @@ const Model3DPreviewModal = ({
   enableAR = true,
   setBgColor: externalSetBgColor,
   qrText = 'Scan Me', qrColor = '#000000', qrBgType = 'Solid', qrBgColor = '#ffffff', qrLevel = 'M', qrDotType = 'square', qrCornerSquareType = 'square', qrCornerDotType = 'square', qrLogo,
-  topText, bottomText
+  topText, bottomText: initialBottomText, vId
 }) => {
   const [localBgColor, setLocalBgColor] = useState(initialBgColor);
   const [showBgColorPicker, setShowBgColorPicker] = useState(false);
+  const [bottomText, setBottomText] = useState(initialBottomText);
+
+  React.useEffect(() => {
+    setBottomText(initialBottomText);
+  }, [initialBottomText]);
+
+  React.useEffect(() => {
+    if (isOpen && vId) {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+      axios.get(`${backendUrl}/api/3d-models/get-model/${vId}`)
+        .then(res => {
+           if (res.data && res.data.displayName) {
+               setBottomText(res.data.displayName);
+           } else if (res.data && res.data.name) {
+               setBottomText(res.data.name);
+           }
+        })
+        .catch(err => console.error("Failed to fetch latest 3D model name:", err));
+    }
+  }, [isOpen, vId]);
 
   React.useEffect(() => {
     if (initialBgColor) {

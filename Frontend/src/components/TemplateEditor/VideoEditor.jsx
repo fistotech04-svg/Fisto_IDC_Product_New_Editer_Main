@@ -27,6 +27,7 @@ import VideoGalleryModal from "./VideoGalleryModal";
 import ColorPicker, { parseGradient } from "./ColorPicker";
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { createPortal } from "react-dom";
+import { renderToString } from "react-dom/server";
 
 // Switch toggle component (matches SlideshowProperties style)
 const Switch = ({ enabled, onChange }) => (
@@ -35,233 +36,15 @@ const Switch = ({ enabled, onChange }) => (
       e.stopPropagation();
       onChange(!enabled);
     }}
-    className={`group relative inline-flex items-center h-[1vw] w-[2vw] shrink-0 cursor-pointer rounded-[1vw] transition-all duration-200 ease-in-out border outline-none ${
-              enabled ? 'bg-[#4A3AFF] border-[#4A3AFF]' : 'bg-transparent border-[#4A3AFF]'
-            }`}
+    className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${enabled ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
   >
     <div
-      className={`pointer-events-none flex items-center justify-center h-[1.1vw] w-[1.1vw] rounded-full shadow-sm transition-all duration-200 border-[0.01vw] ease-in-out absolute ${
-        enabled ? 'left-[1.1vw] bg-white border-[#4A3AFF]' : 'right-[1.1vw] bg-[#4A3AFF] border-[#4A3AFF]'
-      }`}
-    >
-      {enabled && (
-        <Icon icon="lucide:check" className="w-[0.7vw] h-[0.7vw] text-indigo-600" />
-      )}
-    </div>
+      className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${enabled ? 'left-[0.9vw]' : 'left-[0.1vw]'}`}
+    />
   </button>
 );
 
-const handleScrubHelper = (e, initialVal, updateFn, sensitivity = 5) => {
-  const sValue = parseFloat(initialVal) || 0;
-  let accumulatedDelta = 0;
-  let virtualX = e.clientX;
-  let virtualY = e.clientY;
-  document.body.classList.add('is-scrubbing');
-  if (e.pointerId !== undefined) {
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) {}
-  }
-  const vCursor = document.createElement('div');
-  vCursor.className = 'virtual-scrub-cursor';
-  vCursor.style.left = `${virtualX}px`;
-  vCursor.style.top = `${virtualY}px`;
-  vCursor.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M18 15L21 12L18 9" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M6 9L3 12L6 15" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M4 12H20" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  </svg>`;
-  document.body.appendChild(vCursor);
-  const onMouseMove = (moveEvent) => {
-    const dx = moveEvent.movementX || 0;
-    accumulatedDelta += dx;
-    virtualX += dx;
-    if (virtualX < 0) virtualX = window.innerWidth;
-    if (virtualX > window.innerWidth) virtualX = 0;
-    vCursor.style.left = `${virtualX}px`;
-    const newVal = sValue + Math.round(accumulatedDelta / sensitivity);
-    updateFn(newVal.toString());
-  };
-  const onMouseUp = (moveEvent) => {
-    if (moveEvent.pointerId !== undefined) {
-        try { moveEvent.target.releasePointerCapture(moveEvent.pointerId); } catch(e) {}
-    }
-    if (vCursor.parentNode) vCursor.parentNode.removeChild(vCursor);
-    document.body.classList.remove('is-scrubbing');
-    window.removeEventListener('pointermove', onMouseMove);
-    window.removeEventListener('pointerup', onMouseUp);
-  };
-  window.addEventListener('pointermove', onMouseMove);
-  window.addEventListener('pointerup', onMouseUp);
-};
-
-const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onPickerToggle }) => (
-  <div className="flex items-center gap-[0.4vw] py-[0.4vw]">
-     <span className="text-[0.85vw] font-semibold text-gray-700 min-w-[3vw]">{label} :</span>
-     <div 
-       className="w-[2.5vw] h-[2.5vw] rounded-[0.75vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center" 
-     >
-        <div 
-           onClick={onPickerToggle}
-           className="w-full h-full border border-gray-200 cursor-pointer color-field-trigger transition-transform flex-shrink-0"
-           style={{ background: (color === 'none' || color === 'transparent' || !color) ? 'white' : color }}
-        />
-       {(color === 'none' || color === 'transparent' || !color) && (
-         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
-       )}
-     </div>
-     
-     <div className="flex-grow flex items-center border-[0.1vw] border-gray-400 rounded-[0.75vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.7vw]">
-       <input
-         type="text"
-         value={color === 'none' || color === 'transparent' ? '#' : color.toUpperCase()}
-         onChange={(e) => {
-           const val = e.target.value;
-           if (val === '' || val === '#') {
-             onColorChange('none');
-           } else {
-             const finalVal = val.startsWith('#') ? val : '#' + val;
-             onColorChange(finalVal);
-           }
-         }}
-         className="flex-grow text-[0.75vw] font-medium rounded-full text-gray-700 outline-none bg-transparent min-w-[3vw] font-mono tracking-tight"
-         maxLength={7}
-       />
-        <div 
-          className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
-          onPointerDown={(e) => {
-             handleScrubHelper(e, opacity, (val) => {
-                const clamped = Math.min(Math.max(parseInt(val), 0), 100);
-                onOpacityChange(clamped);
-             });
-          }}
-        >
-          <span className="text-[0.75vw] font-semibold text-gray-700">{opacity}</span>
-          <span className="text-[0.75vw] font-medium text-gray-500">%</span>
-        </div>
-     </div>
-  </div>
-);
-
-const RadiusBox = ({ corner, value, onChange, radiusStyle }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const startXRef = useRef(0);
-  const startValRef = useRef(0);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    const handleMove = (e) => {
-      const dx = e.clientX - startXRef.current;
-      const newVal = Math.max(0, startValRef.current + Math.round(dx));
-      onChange(corner, newVal);
-    };
-    const handleUp = () => { setIsDragging(false); document.body.style.cursor = ''; };
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    document.body.style.cursor = 'ew-resize';
-    return () => { 
-      window.removeEventListener('mousemove', handleMove); 
-      window.removeEventListener('mouseup', handleUp); 
-      document.body.style.cursor = ''; 
-    };
-  }, [isDragging, onChange, corner]);
-
-  const onMouseDown = (e) => {
-    e.preventDefault(); 
-    setIsDragging(true);
-    startXRef.current = e.clientX; 
-    startValRef.current = Number(value) || 0;
-  };
-
-  return (
-    <div className={`relative flex items-center bg-white border border-gray-200 ${radiusStyle} w-[6vw] h-[3vw] shadow-sm px-[0.5vw]`}>
-        <div className="flex items-center justify-between w-full">
-            <button onClick={() => onChange(corner, value - 1)} className="text-gray-300 hover:text-indigo-500 transition-colors p-[0.25vw]"><ChevronLeft size="0.9vw" strokeWidth={1.5} /></button>
-            <div onMouseDown={onMouseDown} className="flex-1 h-full flex items-center justify-center cursor-ew-resize">
-              <span className="text-[0.8vw] font-semibold text-gray-800 select-none block w-full text-center">{value}</span>
-            </div>
-            <button onClick={() => onChange(corner, value + 1)} className="text-gray-300 hover:text-indigo-500 transition-colors p-[0.25vw]"><ChevronRight size="0.9vw" strokeWidth={1.5} /></button>
-        </div>
-    </div>
-  );
-};
-
-const EffectControlRow = ({ label, value, onChange, min = -100, max = 100 }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const startXRef = useRef(0);
-  const startValRef = useRef(0);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    const handleMove = (e) => {
-      const dx = e.clientX - startXRef.current;
-      const newVal = Math.max(min, Math.min(max, startValRef.current + Math.round(dx)));
-      onChange(newVal);
-    };
-    const handleUp = () => { setIsDragging(false); document.body.style.cursor = ''; };
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    document.body.style.cursor = 'ew-resize';
-    return () => { 
-      window.removeEventListener('mousemove', handleMove); 
-      window.removeEventListener('mouseup', handleUp); 
-      document.body.style.cursor = ''; 
-    };
-  }, [isDragging, onChange, min, max]);
-
-  const onMouseDown = (e) => {
-    e.preventDefault(); 
-    setIsDragging(true);
-    startXRef.current = e.clientX; 
-    startValRef.current = Number(value);
-  };
-
-  return (
-    <div className="flex items-center gap-[0.5vw]">
-      <span className="text-[0.75vw] text-gray-800 w-[3vw] cursor-ew-resize select-none" onMouseDown={onMouseDown}>{label} :</span>
-      <div className="flex items-center gap-[0.25vw]">
-        <button onClick={() => onChange(Math.max(min, value - 1))} className="w-[1vw] h-[2vw] flex items-center justify-center text-gray-500 hover:text-gray-600 transition-colors"><ChevronLeft size="1.1vw" strokeWidth={2} /></button>
-        <div onMouseDown={onMouseDown} className="w-[3.75vw] h-[2vw] flex items-center justify-center border border-gray-500 rounded-[0.2vw] text-[0.85vw] text-gray-800 bg-white cursor-ew-resize select-none">
-           {value}
-        </div>
-        <button onClick={() => onChange(Math.min(max, value + 1))} className="w-[1vw] h-[2vw] flex items-center justify-center text-gray-500 hover:text-gray-600 transition-colors"><ChevronRight size="1.1vw" strokeWidth={2} /></button>
-      </div>
-    </div>
-  );
-};
-
-const DraggableSpan = ({ label, value, onChange, min = 0, max = 100, className }) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const startXRef = useRef(0);
-  const startValRef = useRef(0);
-
-  useEffect(() => {
-    if (!isDragging) return;
-    const handleMove = (e) => {
-      const dx = e.clientX - startXRef.current;
-      const newVal = Math.max(min, Math.min(max, startValRef.current + Math.round(dx)));
-      onChange(newVal);
-    };
-    const handleUp = () => { setIsDragging(false); document.body.style.cursor = ''; };
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', handleUp);
-    document.body.style.cursor = 'ew-resize';
-    return () => { 
-      window.removeEventListener('mousemove', handleMove); 
-      window.removeEventListener('mouseup', handleUp); 
-      document.body.style.cursor = ''; 
-    };
-  }, [isDragging, onChange, min, max]);
-
-  const onMouseDown = (e) => {
-    e.preventDefault(); 
-    setIsDragging(true);
-    startXRef.current = e.clientX; 
-    startValRef.current = Number(value);
-  };
-
-  return (
-    <span className={`${className} cursor-ew-resize select-none`} onMouseDown={onMouseDown}>{label}</span>
-  );
-};
+import SubComponent from './SubComponent';
 
 const debounce = (fn, delay = 150) => {
   let t;
@@ -313,8 +96,10 @@ const VideoEditor = ({
   const [opacity, setOpacity] = useState(100);
   const [coverOption, setCoverOption] = useState("auto"); // "upload" or "auto"
   
-  const [bgColor, setBgColor] = useState("#000000");
-  const [bgOpacity, setBgOpacity] = useState(100);
+  const [backgroundColor, setBackgroundColor] = useState({ 
+    fill: '#000000', fillOpacity: 100, stroke: 'transparent', strokeOpacity: 100, strokeType: 'Solid', strokeWeight: 0 
+  });
+  const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
 
   const [radius, setRadius] = useState({ tl: 0, tr: 0, br: 0, bl: 0 });
@@ -323,26 +108,18 @@ const VideoEditor = ({
   const [activePopup, setActivePopup] = useState(null);
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 8, spread: 0 },
-    'Inner Shadow': { color: '#000000', opacity: 35, x: 0, y: 0, blur: 10, spread: 0 },
+    'Inner Shadow': { color: '#FFFFFF', opacity: 100, x: 4, y: 4, blur: 1, spread: 0 },
     'Blur': { blur: 5, spread: 0 },
     'Background Blur': { blur: 10, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
 
-  const [stroke, setStroke] = useState("transparent");
-  const [strokeOpacity, setStrokeOpacity] = useState(100);
-  const [strokeWeight, setStrokeWeight] = useState(0);
-  const [strokeType, setStrokeType] = useState("Solid");
   const [isStrokeStyleOpen, setIsStrokeStyleOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
   const [showStrokeSettings, setShowStrokeSettings] = useState(false);
   const [strokeSettingsPos, setStrokeSettingsPos] = useState({ top: 0, right: 0 });
   const [isDashPosOpen, setIsDashPosOpen] = useState(false);
-  const [strokeDashLength, setStrokeDashLength] = useState(5);
-  const [strokeDashGap, setStrokeDashGap] = useState(5);
-  const [strokeDashPosition, setStrokeDashPosition] = useState('Center');
-  const [strokeLinecap, setStrokeLinecap] = useState('butt');
 
   const isUpdatingDOM = useRef(false);
   const isUpdatingDOMTimeoutRef = useRef(null);
@@ -390,7 +167,7 @@ const VideoEditor = ({
 
   const syncStateFromDOM = useCallback((force = false) => {
     // Re-resolve the live element from the active page container
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
     
     if (!liveElement) return;
@@ -416,27 +193,44 @@ const VideoEditor = ({
     setOpacity(Math.round(op * 100));
 
     // 3. Colors & Stroke
-    const fill = visualTarget.getAttribute('data-bg-color') || visualTarget.style.backgroundColor || visualTarget.getAttribute('fill') || "#000000";
-    setBgColor(fill);
-
+    const fill = visualTarget.getAttribute('data-bg-color') || visualTarget.style.backgroundColor || visualTarget.getAttribute('fill') || "transparent";
     const stColor = visualTarget.getAttribute('data-stroke-color') || visualTarget.style.borderColor || visualTarget.getAttribute('stroke') || "transparent";
-    setStroke(stColor);
-
     const stWeight = parseFloat(visualTarget.getAttribute('data-stroke-width') || visualTarget.style.borderWidth || visualTarget.getAttribute('stroke-width') || "0");
-    setStrokeWeight(stWeight);
-
     const dashData = visualTarget.getAttribute('stroke-dasharray') || 'none';
     const isDashed = dashData !== 'none' && dashData !== '';
-    setStrokeType(isDashed ? 'Dashed' : 'Solid');
     
-    // 3b. Dashed Stroke Settings
+    let dashLen = 5, dashGap = 5;
     if (isDashed) {
       const parts = dashData.split(',');
-      setStrokeDashLength(parseInt(parts[0]) || 5);
-      setStrokeDashGap(parseInt(parts[1] || parts[0]) || 5);
+      dashLen = parseInt(parts[0]) || 5;
+      dashGap = parseInt(parts[1] || parts[0]) || 5;
     }
-    setStrokeDashPosition(visualTarget.getAttribute('data-stroke-position') || 'Center');
-    setStrokeLinecap(visualTarget.getAttribute('stroke-linecap') || 'butt');
+    const dashPos = visualTarget.getAttribute('data-stroke-position') || 'Center';
+    const dashCap = visualTarget.getAttribute('stroke-linecap') || 'butt';
+    
+    setBackgroundColor({
+      fill: fill === 'none' ? 'transparent' : fill,
+      fillOpacity: 100,
+      stroke: stColor === 'none' ? 'transparent' : stColor,
+      strokeOpacity: 100,
+      strokeType: isDashed ? 'Dashed' : 'Solid',
+      strokeWeight: stWeight,
+      strokeDashLength: dashLen,
+      strokeDashGap: dashGap,
+      strokePosition: dashPos,
+      strokeLinecap: dashCap
+    });
+
+    // Filters
+    setFilters({
+      exposure: parseFloat(visualTarget.getAttribute('data-effect-exposure') || '0'),
+      contrast: parseFloat(visualTarget.getAttribute('data-effect-contrast') || '0'),
+      saturation: parseFloat(visualTarget.getAttribute('data-effect-saturation') || '0'),
+      temperature: parseFloat(visualTarget.getAttribute('data-effect-temperature') || '0'),
+      tint: parseFloat(visualTarget.getAttribute('data-effect-tint') || '0'),
+      highlights: parseFloat(visualTarget.getAttribute('data-effect-highlights') || '0'),
+      shadows: parseFloat(visualTarget.getAttribute('data-effect-shadows') || '0'),
+    });
 
     // 4. Radius
     const brData = visualTarget.getAttribute('data-radius');
@@ -548,8 +342,8 @@ const VideoEditor = ({
 
     // Re-resolve the live element from the active page container to ensure we are 
     // mutating the node that is actually visible in the DOM, skipping stale references.
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
-    const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+    let liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
     
     if (!liveElement) return;
 
@@ -558,6 +352,31 @@ const VideoEditor = ({
     
     if (!target) return;
     const visualTarget = container || target;
+
+    let tagLower = liveElement.tagName?.toLowerCase();
+    const isSvgEl = liveElement.namespaceURI === "http://www.w3.org/2000/svg";
+
+    // --- GROUP WITHIN VIDEO FIX ---
+    if (isSvgEl && tagLower === 'foreignobject') {
+        const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        newGroup.id = liveElement.id;
+        liveElement.removeAttribute('id');
+        
+        Array.from(liveElement.attributes).forEach(attr => {
+            if (attr.name.startsWith('data-') || attr.name === 'class' || attr.name === 'style') {
+                newGroup.setAttribute(attr.name, attr.value);
+                liveElement.removeAttribute(attr.name);
+            }
+        });
+        
+        liveElement.parentNode.insertBefore(newGroup, liveElement);
+        newGroup.appendChild(liveElement);
+        liveElement = newGroup;
+        
+        tagLower = 'g';
+        
+        if (onUpdateRef.current) setTimeout(() => onUpdateRef.current({ shouldRefresh: true }), 0);
+    }
 
     isUpdatingDOM.current = true;
     try {
@@ -582,29 +401,143 @@ const VideoEditor = ({
         visualTarget.setAttribute('data-opacity', opVal);
 
         // Styling
-        visualTarget.style.backgroundColor = bgColor;
-        visualTarget.setAttribute('data-bg-color', bgColor);
+        visualTarget.style.backgroundColor = backgroundColor.fill;
+        visualTarget.setAttribute('data-bg-color', backgroundColor.fill);
         
-        visualTarget.style.borderColor = stroke;
-        visualTarget.setAttribute('data-stroke-color', stroke);
+        // Helper to convert hex to rgba for CSS border
+        const hexToRgba = (hex, alpha) => {
+            if (!hex || hex === 'transparent' || hex === 'none') return 'transparent';
+            if (hex.startsWith('rgba')) return hex;
+            if (hex.startsWith('#')) {
+                let c = hex.substring(1).split('');
+                if (c.length === 3) c = [c[0], c[0], c[1], c[1], c[2], c[2]];
+                c = '0x' + c.join('');
+                return `rgba(${[(c>>16)&255, (c>>8)&255, c&255].join(',')},${alpha})`;
+            }
+            return hex;
+        };
         
-        visualTarget.style.borderWidth = `${strokeWeight}px`;
-        visualTarget.setAttribute('stroke-width', strokeWeight);
-        visualTarget.setAttribute('data-stroke-width', strokeWeight); // Keep for legacy
+        const pos = backgroundColor.strokePosition || 'Center';
+        const color = hexToRgba(backgroundColor.stroke, backgroundColor.strokeOpacity / 100);
+        const weight = backgroundColor.strokeWeight;
+        const style = backgroundColor.strokeType === 'Dashed' ? 'dashed' : 'solid';
+
+        visualTarget.setAttribute('data-stroke-color', backgroundColor.stroke);
+        visualTarget.setAttribute('stroke-width', weight);
+        visualTarget.setAttribute('data-stroke-width', weight); // Keep for legacy
         
-        if (strokeType === 'Dashed') {
-           const dashArray = `${strokeDashLength},${strokeDashGap}`;
-           visualTarget.style.borderStyle = 'dashed';
+        if (backgroundColor.strokeType === 'Dashed') {
+           const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
            visualTarget.setAttribute('stroke-dasharray', dashArray);
         } else {
-           visualTarget.style.borderStyle = 'solid';
            visualTarget.setAttribute('stroke-dasharray', 'none');
         }
 
-        // Dashed Stroke Attributes aligned with ShapeProperties
-        visualTarget.setAttribute('data-stroke-position', strokeDashPosition);
-        visualTarget.setAttribute('stroke-linecap', strokeLinecap);
-        visualTarget.setAttribute('stroke-linejoin', strokeLinecap === 'round' ? 'round' : 'miter');
+        // Dashed Stroke Attributes
+        visualTarget.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
+        visualTarget.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
+        visualTarget.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
+
+        // Dynamic Stroke Overlay for SVG Video
+        if (isSvgEl && weight > 0) {
+            let strokeOverlay = liveElement.querySelector('.svg-video-stroke-overlay');
+            if (!strokeOverlay) {
+                strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                strokeOverlay.classList.add('svg-video-stroke-overlay');
+                strokeOverlay.style.pointerEvents = 'none';
+                liveElement.appendChild(strokeOverlay);
+
+                const syncOverlay = () => {
+                    if (!strokeOverlay.isConnected) return;
+                    strokeOverlay.setAttribute('x', visualTarget.getAttribute('x') || '0');
+                    strokeOverlay.setAttribute('y', visualTarget.getAttribute('y') || '0');
+                    strokeOverlay.setAttribute('width', visualTarget.getAttribute('width') || '100%');
+                    strokeOverlay.setAttribute('height', visualTarget.getAttribute('height') || '100%');
+                    strokeOverlay.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+                    strokeOverlay.style.transform = visualTarget.style.transform;
+                    strokeOverlay.style.translate = visualTarget.style.translate;
+                    strokeOverlay.style.scale = visualTarget.style.scale;
+                    strokeOverlay.style.rotate = visualTarget.style.rotate;
+                    strokeOverlay.style.transformOrigin = visualTarget.style.transformOrigin;
+                    strokeOverlay.style.opacity = visualTarget.style.opacity;
+                };
+                const obs = new MutationObserver(syncOverlay);
+                obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+                if (visualTarget !== liveElement) {
+                    obs.observe(visualTarget, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+                }
+            }
+
+            let bx = visualTarget.getAttribute('x') || '0';
+            let by = visualTarget.getAttribute('y') || '0';
+            let bw = visualTarget.getAttribute('width') || '100%';
+            let bh = visualTarget.getAttribute('height') || '100%';
+
+            if (!bx.includes('%') && !bx.includes('px')) bx = `${bx}px`;
+            if (!by.includes('%') && !by.includes('px')) by = `${by}px`;
+            if (!bw.includes('%') && !bw.includes('px')) bw = `${bw}px`;
+            if (!bh.includes('%') && !bh.includes('px')) bh = `${bh}px`;
+
+            strokeOverlay.style.setProperty('x', bx, 'important');
+            strokeOverlay.style.setProperty('y', by, 'important');
+            strokeOverlay.style.setProperty('width', bw, 'important');
+            strokeOverlay.style.setProperty('height', bh, 'important');
+            strokeOverlay.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+            strokeOverlay.style.transform = visualTarget.style.transform;
+            strokeOverlay.style.translate = visualTarget.style.translate;
+            strokeOverlay.style.scale = visualTarget.style.scale;
+            strokeOverlay.style.rotate = visualTarget.style.rotate;
+            strokeOverlay.style.transformOrigin = visualTarget.style.transformOrigin;
+            strokeOverlay.style.opacity = visualTarget.style.opacity;
+
+            strokeOverlay.setAttribute('fill', 'none');
+            strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+            strokeOverlay.setAttribute('stroke-width', weight.toString());
+            if (backgroundColor.strokeType === 'Dashed') {
+               const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+               strokeOverlay.setAttribute('stroke-dasharray', dashArray);
+            } else {
+               strokeOverlay.setAttribute('stroke-dasharray', 'none');
+            }
+            strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
+            strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
+
+            const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+            if (maxR > 0) strokeOverlay.setAttribute('rx', maxR.toString());
+            else strokeOverlay.removeAttribute('rx');
+
+            if (pos === 'Inside') {
+               strokeOverlay.style.outline = 'none';
+               strokeOverlay.style.borderWidth = `${weight}px`;
+               visualTarget.style.outline = 'none';
+               visualTarget.style.borderWidth = '0px';
+            } else {
+               strokeOverlay.style.outline = 'none';
+               strokeOverlay.style.borderWidth = '0px';
+               visualTarget.style.outline = 'none';
+               visualTarget.style.borderWidth = '0px';
+            }
+            strokeOverlay.style.display = 'block';
+        } else {
+            liveElement.querySelector('.svg-video-stroke-overlay')?.remove();
+            
+            // HTML styling fallback
+            if (pos === 'Inside') {
+                visualTarget.style.borderWidth = `${weight}px`;
+                visualTarget.style.borderStyle = style;
+                visualTarget.style.borderColor = color;
+                visualTarget.style.outline = 'none';
+            } else if (pos === 'Outside') {
+                visualTarget.style.borderWidth = `0px`;
+                visualTarget.style.outline = `${weight}px ${style} ${color}`;
+                visualTarget.style.outlineOffset = `0px`;
+            } else {
+                // Center
+                visualTarget.style.borderWidth = `0px`;
+                visualTarget.style.outline = `${weight}px ${style} ${color}`;
+                visualTarget.style.outlineOffset = `-${weight / 2}px`;
+            }
+        }
 
         // Radius
         const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
@@ -622,24 +555,130 @@ const VideoEditor = ({
         target.setAttribute('data-object-fit', videoType);
 
         // Metadata & Effects
-        let filterStr = '';
+        const f = filters;
+        const exposure = f.exposure || 0;
+        const contrast = f.contrast || 0;
+        const saturation = f.saturation || 0;
+        const temperature = f.temperature || 0;
+        const tint = f.tint || 0;
+        const h = f.highlights || 0;
+        const s = f.shadows || 0;
+
+        let filterStr = "";
+        filterStr += `brightness(${100 + exposure + (h/5)}%) `;
+        filterStr += `contrast(${100 + contrast + (s/5)}%) `;
+        filterStr += `saturate(${100 + saturation}%) `;
+        if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
+        if (temperature > 0) filterStr += `sepia(${temperature/2}%) `;
+        else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature)/2}%) hue-rotate(-180deg) `;
+
         let boxShadowStr = '';
         activeEffects.forEach(eff => {
-          const s = effectSettings[eff];
-          if (!s) return;
-          if (eff === 'Blur') filterStr += `blur(${s.blur}px) `;
-          if (eff === 'Drop Shadow') {
-             const alpha = Math.round((s.opacity / 100) * 255).toString(16).padStart(2, '0');
-             boxShadowStr += `${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${s.color}${alpha}, `;
-          }
-          if (eff === 'Inner Shadow') {
-             const alpha = Math.round((s.opacity / 100) * 255).toString(16).padStart(2, '0');
-             boxShadowStr += `inset ${s.x}px ${s.y}px ${s.blur}px ${s.spread}px ${s.color}${alpha}, `;
-          }
+          const effSet = effectSettings[eff];
+          if (!effSet) return;
+          if (eff === 'Blur') filterStr += `blur(${effSet.blur}px) `;
+          if (eff === 'Background Blur') filterStr += `blur(${effSet.blur}px) `;
         });
-        visualTarget.style.filter = filterStr.trim();
+
+        // 2. Drop Shadow Caster
+        let shadowCaster = liveElement.querySelector('.svg-drop-shadow-caster');
+        let hasDropShadow = activeEffects.includes('Drop Shadow');
+        
+        if (hasDropShadow && isSvgEl) {
+            const effSet = effectSettings['Drop Shadow'];
+            if (!shadowCaster) {
+                shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                shadowCaster.classList.add('svg-drop-shadow-caster');
+                shadowCaster.style.pointerEvents = 'none';
+                liveElement.insertBefore(shadowCaster, liveElement.firstChild);
+            }
+            if (shadowCaster) {
+                if (shadowCaster !== liveElement.firstChild) {
+                    liveElement.insertBefore(shadowCaster, liveElement.firstChild);
+                }
+                shadowCaster.setAttribute('x', visualTarget.getAttribute('x') || '0');
+                shadowCaster.setAttribute('y', visualTarget.getAttribute('y') || '0');
+                shadowCaster.setAttribute('width', visualTarget.getAttribute('width') || '100%');
+                shadowCaster.setAttribute('height', visualTarget.getAttribute('height') || '100%');
+                shadowCaster.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+
+                shadowCaster.setAttribute('fill', 'black');
+                shadowCaster.setAttribute('fill-opacity', opacity / 100);
+
+                const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+                if (maxR > 0) shadowCaster.setAttribute('rx', maxR.toString());
+                else shadowCaster.removeAttribute('rx');
+
+                const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
+                const shadowOnlyFilter = `drop-shadow(${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.color}${alpha})`;
+                shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+                shadowCaster.style.setProperty('display', 'block', 'important');
+            }
+        } else if (shadowCaster) {
+            shadowCaster.style.setProperty('display', 'none', 'important');
+        }
+
+        // Inner Shadow
+        if (isSvgEl && activeEffects.includes('Inner Shadow')) {
+            const ds = effectSettings['Inner Shadow'];
+            const alpha = Math.round((ds.opacity / 100) * 255).toString(16).padStart(2, '0');
+            const colorWithAlpha = ds.color + (ds.color.length === 7 ? alpha : '');
+            const shadowString = `inset ${ds.x}px ${ds.y}px ${ds.blur}px ${ds.spread}px ${colorWithAlpha}`;
+            let overlay = liveElement.querySelector('.svg-video-inner-shadow');
+            if (!overlay) {
+                overlay = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+                overlay.classList.add('svg-video-inner-shadow');
+                overlay.style.pointerEvents = 'none';
+                const div = document.createElement('div');
+                div.className = 'inner-shadow-div';
+                div.style.width = '100%'; div.style.height = '100%';
+                overlay.appendChild(div);
+                liveElement.appendChild(overlay);
+            }
+            if (overlay) {
+                overlay.setAttribute('x', visualTarget.getAttribute('x') || '0');
+                overlay.setAttribute('y', visualTarget.getAttribute('y') || '0');
+                overlay.setAttribute('width', visualTarget.getAttribute('width') || '100%');
+                overlay.setAttribute('height', visualTarget.getAttribute('height') || '100%');
+                overlay.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+                const div = overlay.querySelector('.inner-shadow-div');
+                if (div) {
+                    div.style.boxShadow = shadowString;
+                    const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
+                    div.style.borderRadius = anyR ? `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px` : '0px';
+                }
+            }
+        } else if (isSvgEl) {
+            liveElement.querySelector('.svg-video-inner-shadow')?.remove();
+        }
+
+        // Fallback for non-SVG video targets
+        if (!isSvgEl) {
+            activeEffects.forEach(eff => {
+              const effSet = effectSettings[eff];
+              if (!effSet) return;
+              if (eff === 'Drop Shadow') {
+                 const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
+                 boxShadowStr += `${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.spread}px ${effSet.color}${alpha}, `;
+              }
+              if (eff === 'Inner Shadow') {
+                 const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
+                 boxShadowStr += `inset ${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.spread}px ${effSet.color}${alpha}, `;
+              }
+            });
+        }
+
+        visualTarget.style.filter = filterStr.trim() || 'none';
         visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
         visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
+        
+        visualTarget.setAttribute('data-effect-exposure', exposure.toString());
+        visualTarget.setAttribute('data-effect-contrast', contrast.toString());
+        visualTarget.setAttribute('data-effect-saturation', saturation.toString());
+        visualTarget.setAttribute('data-effect-temperature', temperature.toString());
+        visualTarget.setAttribute('data-effect-tint', tint.toString());
+        visualTarget.setAttribute('data-effect-highlights', h.toString());
+        visualTarget.setAttribute('data-effect-shadows', s.toString());
 
         // Media State (preserving attributes)
         if (target.tagName === "VIDEO") {
@@ -716,7 +755,7 @@ const VideoEditor = ({
             isUpdatingDOM.current = false;
         }, 1000);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, width, height, opacity, bgColor, stroke, strokeWeight, strokeType, strokeDashLength, strokeDashGap, strokeDashPosition, strokeLinecap, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, debouncedUpdate]);
+  }, [selectedElement, selectedLayerId, activePageIndex, width, height, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, debouncedUpdate]);
 
   useEffect(() => {
     applyVisuals();
@@ -769,28 +808,28 @@ const VideoEditor = ({
       input.custom-video-progress::-webkit-slider-thumb {
         -webkit-appearance: none !important;
         appearance: none !important;
-        width: 6px !important;
-        height: 6px !important;
+        width: 10px !important;
+        height: 10px !important;
         border-radius: 50% !important;
         background: #ffffff !important;
         cursor: pointer !important;
-        box-shadow: none !important;
+        box-shadow: 0 0 4px rgba(255,255,255,0.5) !important;
         border: none !important;
-        margin-top: -2.5px !important;
+        margin-top: -3.5px !important;
       }
       input.custom-video-progress::-moz-range-thumb {
-        width: 6px !important;
-        height: 6px !important;
+        width: 10px !important;
+        height: 10px !important;
         border-radius: 50% !important;
         background: #ffffff !important;
         cursor: pointer !important;
         border: none !important;
-        box-shadow: none !important;
+        box-shadow: 0 0 4px rgba(255,255,255,0.5) !important;
       }
       input.custom-video-progress::-webkit-slider-runnable-track {
-        height: 1px !important;
-        background: rgba(255,255,255,0.4) !important;
-        border-radius: 1px !important;
+        height: 3px !important;
+        background: transparent !important;
+        border-radius: 2px !important;
       }
     `;
 
@@ -922,13 +961,16 @@ const VideoEditor = ({
     `;
   }, [selectedLayerId, controlsSize]);
 
-  // Inject custom inline controls bar — play | progress | 3-dots — all on one row
+  // Inject custom video controls — centered rewind/play/forward + bottom progress bar + time
+  // All sizes scale proportionally to the container dimensions.
   useEffect(() => {
     const ctrlId = `custom-ctrl-${selectedLayerId}`;
 
     const cleanup = () => {
       const old = document.getElementById(ctrlId);
       if (old) old.remove();
+      // Remove scoped thumb style
+      document.getElementById(`custom-video-thumb-${selectedLayerId}`)?.remove();
     };
 
     if (!selectedLayerId || !controls) {
@@ -937,7 +979,7 @@ const VideoEditor = ({
     }
 
     // Resolve the live video element
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveEl =
       pageContainer?.querySelector(`[id="${selectedLayerId}"]`) ||
       document.getElementById(selectedLayerId) ||
@@ -965,102 +1007,411 @@ const VideoEditor = ({
     if (!mountPoint) return cleanup;
     if (mountPoint.style) {
       mountPoint.style.position = 'relative';
-      // Pass pointer events through to the SVG canvas so dragging still works.
-      // Only the explicit control buttons/inputs will capture events (pointerEvents: 'auto').
+      mountPoint.style.overflow = 'hidden';
+      // Ensure mount point has explicit dimensions matching the foreignObject
+      if (fo) {
+        const foW = fo.getAttribute('width');
+        const foH = fo.getAttribute('height');
+        if (foW) mountPoint.style.width = foW.includes('%') ? foW : `${parseInt(foW)}px`;
+        if (foH) mountPoint.style.height = foH.includes('%') ? foH : `${parseInt(foH)}px`;
+      }
       mountPoint._prevPointerEvents = mountPoint.style.pointerEvents;
       mountPoint.style.pointerEvents = 'none';
     }
 
     cleanup(); // remove any stale bar first
 
-    /* ── Build the bar ──────────────────────────────────────────── */
-    const bar = document.createElement('div');
-    bar.id = ctrlId;
-    Object.assign(bar.style, {
+    /* ── Compute scale factor from internal coordinate dimensions ── */
+    // Use foreignObject attributes or element layout sizes (NOT getBoundingClientRect
+    // which returns screen-scaled coords that differ inside SVG foreignObject).
+    const foW = fo ? (parseInt(fo.getAttribute('width')) || fo.clientWidth) : 0;
+    const foH = fo ? (parseInt(fo.getAttribute('height')) || fo.clientHeight) : 0;
+    const containerW = foW || video.offsetWidth || mountPoint.offsetWidth || mountPoint.clientWidth || 300;
+    const containerH = foH || video.offsetHeight || mountPoint.offsetHeight || mountPoint.clientHeight || 200;
+    const baseRef = Math.min(containerW, containerH);
+    // Scale factor: 1.0 at 300px reference. Clamp to a usable range.
+    const s = Math.max(0.35, Math.min(1.6, baseRef / 300));
+
+    /* ── Helper: format seconds → MM:SS ── */
+    const fmtTime = (sec) => {
+      if (!sec || isNaN(sec)) return '00:00';
+      const m = Math.floor(sec / 60).toString().padStart(2, '0');
+      const ss = Math.floor(sec % 60).toString().padStart(2, '0');
+      return `${m}:${ss}`;
+    };
+
+    /* ── Scaled sizes ── */
+    const gapCenter = Math.round(14 * s);      // gap between center buttons
+    const fontSize = Math.max(7, Math.round(9 * s));  // time label font size
+    const barPadX = Math.round(6 * s);         // horizontal padding in bottom bar
+    const barPadBot = Math.round(4 * s);       // bottom padding
+    const trackH = Math.max(2, Math.round(3.5 * s));  // progress track height (reduced)
+    const thumbSize = Math.max(4, Math.round(8 * s));  // progress thumb size
+    const borderW = Math.max(1, Math.round(1.2 * s)); // button border width
+    const blurAmt = Math.round(3 * s);         // backdrop blur
+
+    /* ── Root overlay — tightly wraps the actual rendered video content ── */
+    const root = document.createElement('div');
+    root.id = ctrlId;
+    Object.assign(root.style, {
       position: 'absolute',
-      bottom: '0',
-      left: '0',
-      right: '0',
       display: 'flex',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: '6px',
-      padding: '4px 8px',
-      boxSizing: 'border-box',
-      background: 'rgba(0,0,0,0.45)',
+      flexDirection: 'column',
+      justifyContent: 'flex-end',
       zIndex: '9999',
+      pointerEvents: 'none',
+      overflow: 'hidden',
+      boxSizing: 'border-box',
+    });
+
+    const updateOverlayBounds = () => {
+      const vW = video.videoWidth || 16;
+      const vH = video.videoHeight || 9;
+      const cW = mountPoint.clientWidth || containerW;
+      const cH = mountPoint.clientHeight || containerH;
+      
+      const vRatio = vW / vH;
+      const cRatio = cW / cH;
+      
+      let renderW = cW;
+      let renderH = cH;
+      
+      if (vRatio > cRatio) {
+        // Video is wider than container ratio -> limited by width (letterbox top/bottom)
+        renderH = cW / vRatio;
+      } else {
+        // Video is taller than container ratio -> limited by height (pillarbox left/right)
+        renderW = cH * vRatio;
+      }
+      
+      const topOff = (cH - renderH) / 2;
+      const leftOff = (cW - renderW) / 2;
+      
+      root.style.width = `${renderW}px`;
+      root.style.height = `${renderH}px`;
+      root.style.top = `${topOff}px`;
+      root.style.left = `${leftOff}px`;
+    };
+
+    // Calculate initial bounds
+    updateOverlayBounds();
+
+    /* ── Top Bar: Volume/Music Icon ── */
+    const volIconSize = Math.round(20 * s);
+    const topPad = Math.round(12 * s);
+    const volBtn = document.createElement('button');
+    Object.assign(volBtn.style, {
+      position: 'absolute',
+      top: `${topPad}px`,
+      right: `${topPad}px`,
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'auto',
+      transition: 'opacity 0.2s, transform 0.15s',
+      opacity: '0.85',
+      zIndex: '10',
+      color: 'white',
+    });
+    
+    // lucide-react components rendered directly
+    const VOL_ON_SVG = renderToString(<Volume2 size={volIconSize} color="white" strokeWidth={0.1} className="lucide lucide-volume-2" />);
+    const VOL_OFF_SVG = renderToString(<VolumeX size={volIconSize} color="white" strokeWidth={0.1} className="lucide lucide-volume-x" />);
+
+    const syncVolume = () => {
+      volBtn.innerHTML = video.muted ? VOL_OFF_SVG : VOL_ON_SVG;
+    };
+    syncVolume();
+
+    volBtn.onmouseenter = () => { volBtn.style.opacity = '1'; volBtn.style.transform = 'scale(1.1)'; };
+    volBtn.onmouseleave = () => { volBtn.style.opacity = '0.85'; volBtn.style.transform = 'scale(1)'; };
+    volBtn.onclick = (e) => {
+      e.stopPropagation();
+      video.muted = !video.muted;
+      syncVolume();
+    };
+    video.addEventListener('volumechange', syncVolume);
+    root.appendChild(volBtn);
+
+    /* ── Center playback controls: rewind 10 | play/pause | forward 10 ── */
+    const centerRow = document.createElement('div');
+    Object.assign(centerRow.style, {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: `${gapCenter}px`,
       pointerEvents: 'none',
     });
 
-    /* ── Play / Pause button ── */
-    const PLAY_SVG  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M8 5v14l11-7z"/></svg>`;
-    const PAUSE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+    // Icon sizes
+    const skipIconSize = Math.round(28 * s);   // rewind/forward icon size
+    const playCircleSize = Math.round(42 * s); // play button circle diameter
+    const playTriSize = Math.round(18 * s);    // play triangle inside circle
+
+    // Rewind 10s SVG — outline arrow with "10" inside (no bg circle)
+    const REWIND_10_SVG = `<svg width="${skipIconSize}" height="${skipIconSize}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M11.99 5V1l-5 5 5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6h-2c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" fill="white" fill-opacity="0.9"/>
+      <text x="7.5" y="16" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="white" fill-opacity="0.9" text-anchor="start">10</text>
+    </svg>`;
+
+    // Forward 10s SVG — outline arrow with "10" inside (no bg circle)
+    const FORWARD_10_SVG = `<svg width="${skipIconSize}" height="${skipIconSize}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12.01 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" fill="white" fill-opacity="0.9"/>
+      <text x="7.5" y="16" font-family="Arial,sans-serif" font-size="8" font-weight="700" fill="white" fill-opacity="0.9" text-anchor="start">10</text>
+    </svg>`;
+
+    // Play/Pause SVGs (just the triangle/bars, rendered inside the circle button)
+    const PLAY_SVG = `<svg width="${playTriSize}" height="${playTriSize}" viewBox="0 0 24 24" fill="white" fill-opacity="0.95"><path d="M8 5v14l11-7z"/></svg>`;
+    const PAUSE_SVG = `<svg width="${playTriSize}" height="${playTriSize}" viewBox="0 0 24 24" fill="white" fill-opacity="0.95"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+
+    // ── Rewind 10s button (icon only, no background)
+    const rwBtn = document.createElement('button');
+    rwBtn.innerHTML = REWIND_10_SVG;
+    Object.assign(rwBtn.style, {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'auto',
+      flexShrink: '0',
+      transition: 'opacity 0.2s, transform 0.15s',
+      opacity: '0.9',
+    });
+    rwBtn.onmouseenter = () => { rwBtn.style.opacity = '1'; rwBtn.style.transform = 'scale(1.1)'; };
+    rwBtn.onmouseleave = () => { rwBtn.style.opacity = '0.9'; rwBtn.style.transform = 'scale(1)'; };
+    rwBtn.onclick = (e) => {
+      e.stopPropagation();
+      video.currentTime = Math.max(0, video.currentTime - 10);
+    };
+
+    // ── Play / Pause button (semi-transparent circle background)
     const playBtn = document.createElement('button');
     playBtn.innerHTML = PLAY_SVG;
     Object.assign(playBtn.style, {
-      background: 'none', border: 'none', color: 'white',
-      cursor: 'pointer', padding: '0', display: 'flex',
-      alignItems: 'center', flexShrink: '0',
+      background: 'rgba(255,255,255,0.2)',
+      backdropFilter: `blur(${blurAmt}px)`,
+      WebkitBackdropFilter: `blur(${blurAmt}px)`,
+      border: `${borderW}px solid rgba(255,255,255,0.3)`,
+      borderRadius: '50%',
+      width: `${playCircleSize}px`,
+      height: `${playCircleSize}px`,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      padding: '0',
+      transition: 'background 0.2s, transform 0.15s',
       pointerEvents: 'auto',
+      flexShrink: '0',
     });
+    playBtn.onmouseenter = () => { playBtn.style.background = 'rgba(255,255,255,0.35)'; playBtn.style.transform = 'scale(1.08)'; };
+    playBtn.onmouseleave = () => { playBtn.style.background = 'rgba(255,255,255,0.2)'; playBtn.style.transform = 'scale(1)'; };
     const onPlay  = () => { playBtn.innerHTML = PAUSE_SVG; };
     const onPause = () => { playBtn.innerHTML = PLAY_SVG; };
-    video.addEventListener('play',  onPlay);
+    video.addEventListener('play', onPlay);
     video.addEventListener('pause', onPause);
+    if (!video.paused) playBtn.innerHTML = PAUSE_SVG;
     playBtn.onclick = (e) => {
       e.stopPropagation();
       video.paused ? video.play() : video.pause();
     };
 
-    /* ── Progress / Timeline ── */
+    // ── Forward 10s button (icon only, no background)
+    const fwBtn = document.createElement('button');
+    fwBtn.innerHTML = FORWARD_10_SVG;
+    Object.assign(fwBtn.style, {
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      padding: '0',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      pointerEvents: 'auto',
+      flexShrink: '0',
+      transition: 'opacity 0.2s, transform 0.15s',
+      opacity: '0.9',
+    });
+    fwBtn.onmouseenter = () => { fwBtn.style.opacity = '1'; fwBtn.style.transform = 'scale(1.1)'; };
+    fwBtn.onmouseleave = () => { fwBtn.style.opacity = '0.9'; fwBtn.style.transform = 'scale(1)'; };
+    fwBtn.onclick = (e) => {
+      e.stopPropagation();
+      video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10);
+    };
+
+    centerRow.appendChild(rwBtn);
+    centerRow.appendChild(playBtn);
+    centerRow.appendChild(fwBtn);
+
+    /* ── Bottom bar: progress + time ── */
+    const bottomBarPadX = Math.round(14 * s);
+    const bottomBar = document.createElement('div');
+    Object.assign(bottomBar.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0px',
+      padding: `0 ${bottomBarPadX}px ${barPadBot}px ${bottomBarPadX}px`,
+      boxSizing: 'border-box',
+      background: 'transparent', // No dark gradient in the reference
+      pointerEvents: 'none',
+      width: '100%',
+    });
+
+    // Time display row
+    const timeRow = document.createElement('div');
+    Object.assign(timeRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      padding: `0 0 ${Math.round(4 * s)}px 0`, // Slight gap above the bar
+      pointerEvents: 'none',
+      width: '100%',
+    });
+    const timeLabel = document.createElement('span');
+    Object.assign(timeLabel.style, {
+      color: 'rgba(255,255,255,1)',
+      fontSize: `${fontSize}px`,
+      fontFamily: 'Inter, Arial, sans-serif',
+      fontWeight: '400',
+      letterSpacing: '0.3px',
+      pointerEvents: 'none',
+      userSelect: 'none',
+    });
+    timeLabel.textContent = `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+    timeRow.appendChild(timeLabel);
+
+    // Progress bar
+    // Progress bar wrapper
+    const progWrapper = document.createElement('div');
+    Object.assign(progWrapper.style, {
+      position: 'relative',
+      width: '100%',
+      height: `${trackH}px`,
+      pointerEvents: 'auto',
+    });
+
+    // Unfilled background track
+    const progTrack = document.createElement('div');
+    Object.assign(progTrack.style, {
+      position: 'absolute',
+      inset: '0',
+      background: 'rgba(255,255,255,0.35)',
+      borderRadius: `${Math.round(trackH / 2)}px`,
+      pointerEvents: 'none',
+    });
+
+    // Filled white progress
+    const progFill = document.createElement('div');
+    Object.assign(progFill.style, {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      bottom: '0',
+      width: '0%',
+      background: '#ffffff',
+      borderRadius: `${Math.round(trackH / 2)}px`,
+      pointerEvents: 'none',
+    });
+
+    // Circular pointer/thumb
+    const thumbRadius = Math.max(3, Math.round(4.5 * s));
+    const progThumb = document.createElement('div');
+    Object.assign(progThumb.style, {
+      position: 'absolute',
+      top: '50%',
+      left: '0%',
+      width: `${thumbRadius * 2}px`,
+      height: `${thumbRadius * 2}px`,
+      background: '#ffffff',
+      borderRadius: '50%',
+      transform: 'translate(-50%, -50%)',
+      pointerEvents: 'none',
+      boxShadow: `0 1px ${Math.round(3 * s)}px rgba(0,0,0,0.4)`,
+    });
+
+    // Invisible native range input for interaction
     const prog = document.createElement('input');
     prog.type = 'range';
-    prog.min = '0'; prog.max = '100'; prog.value = '0';
-    prog.className = 'custom-video-progress';
+    prog.min = '0';
+    prog.max = '1000';
+    prog.value = '0';
     Object.assign(prog.style, {
-      flex: '1 1 auto', minWidth: '0',
-      cursor: 'pointer', height: '2px',
-      appearance: 'none', WebkitAppearance: 'none',
-      background: 'rgba(255,255,255,0.4)',
-      borderRadius: '1px', outline: 'none', border: 'none',
-      pointerEvents: 'auto',
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      opacity: '0',
+      cursor: 'pointer',
+      margin: '0',
+      padding: '0',
     });
-    const onTimeUpdate = () => {
-      if (video.duration) prog.value = (video.currentTime / video.duration) * 100;
+
+    progWrapper.appendChild(progTrack);
+    progWrapper.appendChild(progFill);
+    progWrapper.appendChild(progThumb);
+    progWrapper.appendChild(prog);
+
+    const updateProgress = () => {
+      if (!video.duration) return;
+      const pct = (video.currentTime / video.duration) * 1000;
+      prog.value = pct;
+      const pctPercent = (pct / 1000) * 100;
+      progFill.style.width = `${pctPercent}%`;
+      progThumb.style.left = `${pctPercent}%`;
+      timeLabel.textContent = `${fmtTime(video.currentTime)} / ${fmtTime(video.duration)}`;
+    };
+
+    const onTimeUpdate = () => updateProgress();
+    const onLoadedMeta = () => {
+      updateProgress();
+      updateOverlayBounds();
     };
     video.addEventListener('timeupdate', onTimeUpdate);
-    prog.oninput = () => {
-      if (video.duration) video.currentTime = (prog.value / 100) * video.duration;
+    video.addEventListener('loadedmetadata', onLoadedMeta);
+
+    prog.oninput = (e) => {
+      e.stopPropagation();
+      if (video.duration) {
+        video.currentTime = (prog.value / 1000) * video.duration;
+        updateProgress();
+      }
     };
 
-    /* ── 3-dots button ── */
-    const dotsBtn = document.createElement('button');
-    dotsBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>`;
-    Object.assign(dotsBtn.style, {
-      background: 'none', border: 'none', color: 'white',
-      cursor: 'pointer', padding: '0', display: 'flex',
-      alignItems: 'center', flexShrink: '0',
-      pointerEvents: 'auto',
-    });
+    // Initial sync
+    updateProgress();
 
-    bar.appendChild(playBtn);
-    bar.appendChild(prog);
-    bar.appendChild(dotsBtn);
-    mountPoint.appendChild(bar);
+    bottomBar.appendChild(timeRow);
+    bottomBar.appendChild(progWrapper);
+
+    root.appendChild(centerRow);
+    root.appendChild(bottomBar);
+    mountPoint.appendChild(root);
 
     return () => {
-      video.removeEventListener('play',       onPlay);
-      video.removeEventListener('pause',      onPause);
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
       video.removeEventListener('timeupdate', onTimeUpdate);
+      video.removeEventListener('loadedmetadata', onLoadedMeta);
+      video.removeEventListener('volumechange', syncVolume);
       video.removeAttribute('data-custom-ctrl-active');
-      // Restore mountPoint pointer events
       if (mountPoint?.style) {
         mountPoint.style.pointerEvents = mountPoint._prevPointerEvents ?? '';
+        mountPoint.style.overflow = '';
         delete mountPoint._prevPointerEvents;
       }
-      bar.remove();
+      root.remove();
     };
-  }, [selectedLayerId, controls, selectedElement, activePageIndex]);
+  }, [selectedLayerId, controls, selectedElement, activePageIndex, width, height]);
 
   const updateElementAttribute = (attr, value) => {
     // These update the local state which then triggers applyVisuals
@@ -1088,7 +1439,7 @@ const VideoEditor = ({
     if (!file || !selectedLayerId) return;
 
     // Resolve the live element from the DOM to ensure we don't mutate a stale React reference
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
     
     if (!liveElement) {
@@ -1179,7 +1530,7 @@ const VideoEditor = ({
     reader.onload = (event) => {
       const result = event.target.result;
       // Resolve the live element from the DOM
-      const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+      const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
       const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
       
       if (!liveElement) return;
@@ -1207,7 +1558,7 @@ const VideoEditor = ({
   };
 
   const handleAutoPickThumbnail = useCallback(() => {
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
     
     let target = null;
@@ -1277,7 +1628,7 @@ const VideoEditor = ({
   const replaceTemplateWithUrl = (url) => {
     if (!selectedLayerId || !url) return;
     
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
     
     if (!liveElement) return;
@@ -1582,355 +1933,42 @@ const VideoEditor = ({
             </div>
           ))}
 
-
-
         </div>
       </div>
 
-      {/* Compact Accordion Group */}
-      <div className="space-y-[0.75vw]">
-        {/* Color Accordion — matches ShapeProperties style */}
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
-          <div
-            onClick={() => setOpenSubSection(openSubSection === 'color' ? null : 'color')}
-            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openSubSection === 'color' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
-          >
-            <div className="flex items-center gap-[0.5vw]">
-              <span className="font-semibold text-gray-900 text-[0.85vw]">Color</span>
-            </div>
-            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openSubSection === 'color' ? '' : 'rotate-180'}`} />
-          </div>
-
-          <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'color' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-            <div className="overflow-hidden">
-              <div className="p-[1vw] pt-[0.75vw] space-y-[0.5vw]">
-                <ColorField
-                  label="Fill"
-                  color={bgColor}
-                  opacity={bgOpacity}
-                  onColorChange={(val) => updateElementAttribute('backgroundColor', val)}
-                  onOpacityChange={(val) => setBgOpacity(val)}
-                  onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'fill' ? null : 'fill')}
-                />
-                <ColorField
-                  label="Stroke"
-                  color={stroke}
-                  opacity={strokeOpacity}
-                  onColorChange={(val) => updateElementAttribute('stroke', val)}
-                  onOpacityChange={(val) => setStrokeOpacity(val)}
-                  onPickerToggle={() => setActiveColorPicker(activeColorPicker === 'stroke' ? null : 'stroke')}
-                />
-
-                {stroke && stroke !== 'none' && stroke !== 'transparent' && (
-                  <div className="flex items-center gap-[0.4vw] py-[0.1vw]">
-                    {/* Spacer — aligns with labels above */}
-                    <div className="w-[3vw]" />
-
-                    {/* SlidersHorizontal icon — only when Dashed */}
-                    <div className="w-[2.5vw] flex items-center justify-center">
-                      {strokeType === 'Dashed' && (
-                        <div
-                          className="flex items-center justify-center h-[2vw] w-[2vw] hover:bg-white rounded-[0.5vw] cursor-pointer transition-colors shadow-sm"
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const popupHeight = 250;
-                            const spaceBelow = window.innerHeight - rect.bottom;
-                            const pos = { right: window.innerWidth - rect.right + 50 };
-                            if (spaceBelow < popupHeight) {
-                              pos.bottom = window.innerHeight - rect.top + 10;
-                              pos.top = 'auto';
-                            } else {
-                              pos.top = rect.bottom + 10;
-                              pos.bottom = 'auto';
-                            }
-                            setStrokeSettingsPos(pos);
-                            setShowStrokeSettings(!showStrokeSettings);
-                          }}
-                        >
-                          <Icon icon="tabler:adjustments-horizontal" width="1.1vw" height="1.1vw" className="text-gray-500" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Solid/Dashed dropdown + weight box */}
-                    <div className="flex-grow flex items-center gap-[0.4vw]">
-                      <div className="relative flex-grow h-[2.5vw]">
-                        <div
-                          className={`h-full px-[0.7vw] border-[0.1vw] rounded-[0.75vw] flex items-center gap-[0.5vw] cursor-pointer justify-between bg-white transition-all font-semibold ${isStrokeStyleOpen ? 'border-indigo-500 shadow-sm' : 'border-gray-400 hover:border-indigo-400'}`}
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setDropdownPos({ top: rect.bottom + 5, left: rect.left, width: rect.width });
-                            setIsStrokeStyleOpen(!isStrokeStyleOpen);
-                          }}
-                        >
-                          <span className="text-[0.75vw] text-gray-700 whitespace-nowrap overflow-hidden">
-                            {strokeType}
-                          </span>
-                          <ChevronDown size="0.9vw" className={`text-gray-500 transition-transform ${isStrokeStyleOpen ? 'rotate-180' : ''}`} />
-                        </div>
-                        {isStrokeStyleOpen && createPortal(
-                          <div
-                            className="absolute py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[9999] animate-in fade-in zoom-in duration-200"
-                            style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
-                          >
-                            {['Solid', 'Dashed'].map((type) => (
-                              <div
-                                key={type}
-                                className={`px-[1vw] py-[0.5vw] text-[0.8vw] cursor-pointer transition-colors ${
-                                  strokeType === type
-                                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                                    : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600 font-semibold'
-                                }`}
-                                onClick={() => {
-                                  updateElementAttribute('strokeType', type);
-                                  setIsStrokeStyleOpen(false);
-                                  if (type === 'Solid') setShowStrokeSettings(false);
-                                }}
-                              >
-                                {type}
-                              </div>
-                            ))}
-                          </div>,
-                          document.body
-                        )}
-                      </div>
-
-                      {/* Weight box: line-weight icon (scrubber) + number */}
-                      <div className="h-[2.5vw] w-[4.5vw] border-[0.1vw] border-gray-400 rounded-[0.75vw] flex items-center px-[0.6vw] gap-[0.3vw] bg-white hover:border-indigo-400 transition-colors flex-shrink-0">
-                        <div
-                          className="cursor-ew-resize hover:bg-gray-50 p-[0.2vw] rounded-[0.3vw] transition-colors"
-                          onPointerDown={(e) => {
-                            handleScrubHelper(e, strokeWeight, (val) => {
-                              updateElementAttribute('strokeWeight', Math.max(0, parseInt(val)));
-                            }, 8);
-                          }}
-                        >
-                          <Icon icon="material-symbols:line-weight" width="1vw" height="1vw" className="text-gray-500 flex-shrink-0" />
-                        </div>
-                        <input
-                          type="number"
-                          value={strokeWeight}
-                          onChange={(e) => updateElementAttribute('strokeWeight', parseInt(e.target.value) || 0)}
-                          onWheel={(e) => e.currentTarget.blur()}
-                          className="w-full text-[0.8vw] font-semibold outline-none text-right bg-transparent text-gray-700 no-spin"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-      {/* Corner Radius Accordion */}
-      <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
-        <button 
-          onClick={() => setOpenSubSection(openSubSection === 'radius' ? null : 'radius')} 
-          className="w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
-        >
-          <span>Corner Radius</span>
-          <ChevronDown size="1.1vw" className={`text-gray-900 transition-transform duration-200 ${openSubSection === 'radius' ? 'rotate-180' : ''}`} />
-        </button>
-        {openSubSection === 'radius' && (
-          <div className="relative px-[1.5vw] pb-[1.25vw] pt-[1.25vw] border-t border-gray-100">
-            <div className="flex flex-col items-center gap-[1.5vw]">
-              <div className="flex items-center gap-[1.5vw]">
-                <RadiusBox 
-                  corner="tl" 
-                  value={radius.tl} 
-                  onChange={(c, v) => {
-                    const next = isRadiusLinked ? { tl: v, tr: v, br: v, bl: v } : { ...radius, [c]: v };
-                    setRadius(next);
-                    updateElementAttribute('radius', next);
-                  }} 
-                  radiusStyle="rounded-tl-3xl rounded-tr-md rounded-br-md rounded-bl-md" 
-                />
-                <RadiusBox 
-                  corner="tr" 
-                  value={radius.tr} 
-                  onChange={(c, v) => {
-                    const next = isRadiusLinked ? { tl: v, tr: v, br: v, bl: v } : { ...radius, [c]: v };
-                    setRadius(next);
-                    updateElementAttribute('radius', next);
-                  }} 
-                  radiusStyle="rounded-tr-3xl rounded-tl-md rounded-br-md rounded-bl-md" 
-                />
-              </div>
-              <div className="absolute left-1/2 top-[5vw] -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                <button 
-                  onClick={() => setIsRadiusLinked(!isRadiusLinked)} 
-                  className="pointer-events-auto p-[0.375vw] transition-colors bg-white rounded-full shadow-md border border-gray-100"
-                >
-                  <Icon icon={isRadiusLinked ? "lucide:link" : "lucide:link-2-off"} className={`w-[1.2vw] h-[1.2vw] ${isRadiusLinked ? 'text-indigo-600' : 'text-gray-400'}`} />
-                </button>
-              </div>
-              <div className="flex items-center gap-[1.5vw]">
-                <RadiusBox 
-                  corner="bl" 
-                  value={radius.bl} 
-                  onChange={(c, v) => {
-                    const next = isRadiusLinked ? { tl: v, tr: v, br: v, bl: v } : { ...radius, [c]: v };
-                    setRadius(next);
-                    updateElementAttribute('radius', next);
-                  }} 
-                  radiusStyle="rounded-bl-3xl rounded-tr-md rounded-br-md rounded-tl-md" 
-                />
-                <RadiusBox 
-                  corner="br" 
-                  value={radius.br} 
-                  onChange={(c, v) => {
-                    const next = isRadiusLinked ? { tl: v, tr: v, br: v, bl: v } : { ...radius, [c]: v };
-                    setRadius(next);
-                    updateElementAttribute('radius', next);
-                  }} 
-                  radiusStyle="rounded-br-3xl rounded-tr-md rounded-tl-md rounded-bl-md" 
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Effect Accordion */}
-      <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
-        <button 
-          onClick={() => setOpenSubSection(openSubSection === 'effect' ? null : 'effect')} 
-          className="w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
-        >
-          <span>Effect</span>
-          <ChevronDown size="1.1vw" className={`text-gray-900 transition-transform duration-200 ${openSubSection === 'effect' ? 'rotate-180' : ''}`} />
-        </button>
-        {openSubSection === 'effect' && (
-          <div className="p-[1vw] space-y-[0.5vw] border-t border-gray-100 bg-white">
-            {['Drop Shadow', 'Inner Shadow', 'Blur', 'Background Blur'].map((eff) => (
-              <div key={eff} className="relative">
-                <div 
-                  onClick={() => { 
-                    const isActive = activeEffects.includes(eff); 
-                    if (!isActive) { 
-                      setActiveEffects(prev => [...prev, eff]); 
-                      setActivePopup(eff); 
-                    } else { 
-                      setActivePopup(activePopup === eff ? null : eff); 
-                    } 
-                  }} 
-                  className={`flex items-center justify-between p-[0.6vw] rounded-[0.6vw] border transition-all cursor-pointer ${activePopup === eff ? 'border-indigo-600 bg-indigo-50/20 shadow-sm' : 'bg-gray-50/80 border-gray-100 hover:border-gray-300'}`}
-                >
-                  <span className="text-[0.8vw] font-semibold text-gray-700 flex-1">{eff}</span>
-                  <button 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      const isActive = activeEffects.includes(eff); 
-                      if (isActive) { 
-                        setActiveEffects(prev => prev.filter(e => e !== eff)); 
-                        if (activePopup === eff) setActivePopup(null); 
-                      } else { 
-                        setActiveEffects(prev => [...prev, eff]); 
-                        setActivePopup(eff); 
-                      } 
-                    }} 
-                    className="p-[0.25vw] hover:bg-white/50 rounded-[0.4vw] transition-colors"
-                  >
-                    {activeEffects.includes(eff) ? <Trash2 size="1vw" className="text-red-500" /> : <Icon icon="lucide:plus" size="1vw" className="text-gray-400" />}
-                  </button>
-                </div>
-
-                {activePopup === eff && (
-                  <div className="fixed z-[9999] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[1.5vw] animate-in slide-in-from-right-4 fade-in duration-200" style={{ width: '18vw', top: '35%', left: '92%', transform: 'translateX(-120%)' }}>
-                    <div className="flex items-center mb-[1.2vw]">
-                      <span className="text-[0.9vw] font-semibold text-gray-800">{eff}</span>
-                      <div className="h-[0.1vw] flex-1 mx-[0.75vw] bg-gray-100" />
-                      <button onClick={() => setActivePopup(null)} className="p-[0.375vw] rounded-[0.5vw] hover:bg-gray-100 transition"><Icon icon="lucide:x" size="1vw" className="text-gray-500" /></button>
-                    </div>
-                    <div className="space-y-[1vw]">
-                      {eff.includes('Shadow') && (
-                        <>
-                          <div className="flex items-start gap-[0.75vw]">
-                            <div className="relative">
-                              <div 
-                                className="w-[4.5vw] h-[4.5vw] rounded-[0.5vw] flex items-center justify-center text-white text-[0.85vw] font-semibold cursor-pointer overflow-hidden shadow-inner" 
-                                style={{ background: `linear-gradient(to right, ${effectSettings[eff].color} 0%, ${effectSettings[eff].color}88 50%, transparent 100%)` }}
-                              >
-                                <span className="relative z-10">{effectSettings[eff].opacity}%</span>
-                                <input 
-                                  type="color" 
-                                  value={effectSettings[eff].color} 
-                                  onChange={(e) => {
-                                    const next = { ...effectSettings, [eff]: { ...effectSettings[eff], color: e.target.value } };
-                                    setEffectSettings(next);
-                                    updateElementAttribute('effects', next);
-                                  }} 
-                                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                                />
-                              </div>
-                            </div>
-                            <div className="flex-1 space-y-[0.8vw]">
-                              <div className="flex items-center gap-[0.5vw]">
-                                <span className="text-[0.8vw] text-gray-800 font-medium">Code :</span>
-                                <div className="flex-1 relative">
-                                  <input 
-                                    type="text" 
-                                    value={effectSettings[eff].color.toUpperCase()} 
-                                    onChange={(e) => {
-                                      const next = { ...effectSettings, [eff]: { ...effectSettings[eff], color: e.target.value } };
-                                      setEffectSettings(next);
-                                      updateElementAttribute('effects', next);
-                                    }} 
-                                    className="w-full text-[0.85vw] text-gray-800 outline-none bg-white border border-gray-300 rounded-[0.6vw] px-[0.75vw] h-[2.2vw] font-mono font-semibold" 
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-[0.5vw]">
-                                <DraggableSpan 
-                                  label="Opacity :" 
-                                  value={effectSettings[eff].opacity} 
-                                  onChange={(v) => {
-                                    const next = { ...effectSettings, [eff]: { ...effectSettings[eff], opacity: v } };
-                                    setEffectSettings(next);
-                                    updateElementAttribute('effects', next);
-                                  }} 
-                                  className="text-[0.8vw] text-gray-800 font-medium whitespace-nowrap" 
-                                />
-                                <div className="flex-1 flex items-center gap-[0.5vw]">
-                                  <input 
-                                    type="range" 
-                                    min="0" max="100" 
-                                    value={effectSettings[eff].opacity} 
-                                    onChange={(e) => {
-                                      const next = { ...effectSettings, [eff]: { ...effectSettings[eff], opacity: Number(e.target.value) } };
-                                      setEffectSettings(next);
-                                      updateElementAttribute('effects', next);
-                                    }} 
-                                    className="flex-1 cursor-pointer h-[0.3vw] accent-indigo-600" 
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 gap-[0.8vw] pt-[0.4vw]">
-                            <EffectControlRow label="X Axis" value={effectSettings[eff].x} onChange={(v) => { const next = { ...effectSettings, [eff]: { ...effectSettings[eff], x: v } }; setEffectSettings(next); updateElementAttribute('effects', next); }} min={-100} max={100} />
-                            <EffectControlRow label="Y Axis" value={effectSettings[eff].y} onChange={(v) => { const next = { ...effectSettings, [eff]: { ...effectSettings[eff], y: v } }; setEffectSettings(next); updateElementAttribute('effects', next); }} min={-100} max={100} />
-                            <EffectControlRow label="Blur %" value={effectSettings[eff].blur} onChange={(v) => { const next = { ...effectSettings, [eff]: { ...effectSettings[eff], blur: v } }; setEffectSettings(next); updateElementAttribute('effects', next); }} min={0} max={100} />
-                            <EffectControlRow label="Spread" value={effectSettings[eff].spread} onChange={(v) => { const next = { ...effectSettings, [eff]: { ...effectSettings[eff], spread: v } }; setEffectSettings(next); updateElementAttribute('effects', next); }} min={0} max={100} />
-                          </div>
-                        </>
-                      )}
-                      {!eff.includes('Shadow') && (
-                        <div className="space-y-[1vw]">
-                          <EffectControlRow label="Blur %" value={effectSettings[eff].blur} onChange={(v) => { const next = { ...effectSettings, [eff]: { ...effectSettings[eff], blur: v } }; setEffectSettings(next); updateElementAttribute('effects', next); }} min={0} max={100} />
-                          <EffectControlRow label="Spread" value={effectSettings[eff].spread} onChange={(v) => { const next = { ...effectSettings, [eff]: { ...effectSettings[eff], spread: v } }; setEffectSettings(next); updateElementAttribute('effects', next); }} min={0} max={100} />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+      <SubComponent 
+        openSubSection={openSubSection}
+        setOpenSubSection={setOpenSubSection}
+        backgroundColor={backgroundColor}
+        setBackgroundColor={setBackgroundColor}
+        filters={filters}
+        setFilters={setFilters}
+        radius={radius}
+        setRadius={setRadius}
+        isRadiusLinked={isRadiusLinked}
+        setIsRadiusLinked={setIsRadiusLinked}
+        activeEffects={activeEffects}
+        setActiveEffects={setActiveEffects}
+        effectSettings={effectSettings}
+        setEffectSettings={setEffectSettings}
+        activeColorPicker={activeColorPicker}
+        setActiveColorPicker={setActiveColorPicker}
+        showStrokeSettings={showStrokeSettings}
+        setShowStrokeSettings={setShowStrokeSettings}
+        isStrokeStyleOpen={isStrokeStyleOpen}
+        setIsStrokeStyleOpen={setIsStrokeStyleOpen}
+        dropdownPos={dropdownPos}
+        setDropdownPos={setDropdownPos}
+        strokeSettingsPos={strokeSettingsPos}
+        setStrokeSettingsPos={setStrokeSettingsPos}
+        isDashPosOpen={isDashPosOpen}
+        setIsDashPosOpen={setIsDashPosOpen}
+        activePopup={activePopup}
+        setActivePopup={setActivePopup}
+        colorsOnPage={colorsOnPage}
+        showDetailedPicker={showDetailedPicker}
+        setShowDetailedPicker={setShowDetailedPicker}
+      />
 
       {/* Hidden Inputs */}
       <input ref={fileInputRef} type="file" accept="video/mp4" className="hidden" onChange={handleVideoUpload} />
@@ -1945,153 +1983,6 @@ const VideoEditor = ({
           selectedLayerId={selectedLayerId}
           onClose={() => setOpenGallery(false)}
         />
-      )}
-
-      {/* UNIFIED COLOR PICKER PORTAL */}
-      {activeColorPicker && createPortal(
-        <>
-          <div 
-            className="fixed inset-0 z-[2999] bg-transparent" 
-            onClick={() => {
-              setActiveColorPicker(null);
-              setShowDetailedPicker(false);
-            }}
-          />
-          <div 
-            className="fixed z-[3000] animate-in fade-in zoom-in-95 duration-200"
-            style={{ 
-              top: '50%',
-              right: '22vw', 
-              transform: 'translateY(-50%)'
-            }}
-          >
-            <ColorPicker 
-              color={(() => {
-                if (activeColorPicker === 'fill') return bgColor;
-                if (activeColorPicker === 'stroke') return stroke;
-                return '#000000';
-              })()}
-              onChange={(newVal) => {
-                if (activeColorPicker === 'fill') {
-                  updateElementAttribute('backgroundColor', newVal);
-                } else if (activeColorPicker === 'stroke') {
-                  updateElementAttribute('stroke', newVal);
-                }
-              }}
-              opacity={activeColorPicker === 'fill' ? bgOpacity : strokeOpacity}
-              onOpacityChange={(newOpacity) => {
-                if (activeColorPicker === 'fill') setBgOpacity(newOpacity);
-                else if (activeColorPicker === 'stroke') setStrokeOpacity(newOpacity);
-              }}
-              onClose={() => setActiveColorPicker(null)}
-              colorsOnPage={colorsOnPage}
-            />
-          </div>
-        </>,
-        document.body
-      )}
-
-
-      {/* Dashed Stroke Settings Popup — matches ShapeProperties */}
-      {showStrokeSettings && createPortal(
-        <div
-          id="stroke-settings-popup"
-          className="fixed z-[4000] w-[15vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col p-[1vw] space-y-[1vw] animate-in fade-in zoom-in-95 duration-200"
-          style={{
-            top: strokeSettingsPos.top,
-            bottom: strokeSettingsPos.bottom,
-            right: strokeSettingsPos.right
-          }}
-        >
-          {/* Header */}
-          <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.85vw] font-semibold text-gray-800">Dashed</span>
-            <div className="h-px flex-grow bg-gray-100" />
-            <button
-              onClick={() => setShowStrokeSettings(false)}
-              className="p-[0.3vw] hover:bg-gray-100 rounded-[0.5vw] transition-colors"
-            >
-              <X size="1vw" className="text-gray-400" />
-            </button>
-          </div>
-
-          {/* Position */}
-          <div className="flex items-center justify-between">
-            <span className="text-[0.75vw] font-semibold text-gray-600">Position :</span>
-            <div className="relative flex-grow ml-[1vw]">
-              <div
-                className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white min-w-[5.5vw]"
-                onClick={() => setIsDashPosOpen(!isDashPosOpen)}
-              >
-                <span className="text-[0.7vw] font-semibold text-gray-700 capitalize">{strokeDashPosition}</span>
-                <ChevronDown size="0.8vw" className="text-gray-400" />
-              </div>
-              {isDashPosOpen && (
-                <div className="absolute top-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
-                  {['Inside', 'Center', 'Outside'].map(pos => (
-                    <div
-                      key={pos}
-                      onClick={() => { updateElementAttribute('strokeDashPosition', pos); setIsDashPosOpen(false); }}
-                      className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
-                    >
-                      {pos}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="h-[0.1vw] bg-gray-50 w-full" />
-
-          {/* Length & Gap */}
-          <div className="space-y-[0.75vw]">
-            {[
-              { label: 'Length', attr: 'strokeDashLength', val: strokeDashLength },
-              { label: 'Gap',    attr: 'strokeDashGap',    val: strokeDashGap    }
-            ].map(item => (
-              <div key={item.label} className="flex items-center justify-between">
-                <span
-                  className="text-[0.75vw] font-semibold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                  onPointerDown={(e) => handleScrubHelper(e, item.val, (v) => updateElementAttribute(item.attr, Math.max(0, parseInt(v) || 0)))}
-                >
-                  {item.label} :
-                </span>
-                <div className="flex items-center gap-[0.4vw] h-[2vw]">
-                  <button onClick={() => updateElementAttribute(item.attr, Math.max(0, item.val - 1))} className="text-gray-400 hover:text-indigo-600">
-                    <ChevronLeft size="0.9vw" />
-                  </button>
-                  <div className="w-[3.5vw] h-full border border-gray-200 rounded-[0.3vw] flex items-center justify-center bg-white shadow-sm">
-                    <input
-                      type="number"
-                      value={item.val}
-                      onChange={(e) => updateElementAttribute(item.attr, Math.max(0, parseInt(e.target.value) || 0))}
-                      onClick={(e) => e.stopPropagation()}
-                      className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
-                    />
-                  </div>
-                  <button onClick={() => updateElementAttribute(item.attr, item.val + 1)} className="text-gray-400 hover:text-indigo-600">
-                    <ChevronRight size="0.9vw" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="h-[0.1vw] bg-gray-50 w-full" />
-
-          {/* Round Corners */}
-          <div className="flex items-center justify-between">
-            <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
-            <div
-              className={`w-[2.4vw] h-[1.2vw] rounded-full relative cursor-pointer transition-colors ${strokeLinecap === 'round' ? 'bg-indigo-500' : 'bg-gray-200'}`}
-              onClick={() => updateElementAttribute('strokeLinecap', strokeLinecap === 'round' ? 'butt' : 'round')}
-            >
-              <div className={`absolute top-[0.1vw] w-[1vw] h-[1vw] bg-white rounded-full shadow-sm transition-all ${strokeLinecap === 'round' ? 'translate-x-[1.1vw]' : 'translate-x-0'}`} />
-            </div>
-          </div>
-        </div>,
-        document.body
       )}
     </div>
   );

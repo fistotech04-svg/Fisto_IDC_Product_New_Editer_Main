@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import ShapeProperties from './ShapeProperties';
+import SubComponent from './SubComponent';
 
 import { Icon } from '@iconify/react';
 import {
@@ -29,7 +29,7 @@ const fontWeights = [
   { name: 'Medium', value: '500' },
   { name: 'Semi Bold', value: '600' },
   { name: 'Bold', value: '800' }
-  
+
 ];
 
 // Color conversion helpers
@@ -101,7 +101,11 @@ const STYLE_MAP = {
   textTransform: 'textTransform',
   listStyleType: 'listStyleType',
   fill: 'fill',
-  stroke: 'stroke'
+  stroke: 'stroke',
+  strokeWidth: 'strokeWidth',
+  strokeDasharray: 'strokeDasharray',
+  strokeLinecap: 'strokeLinecap',
+  strokeLinejoin: 'strokeLinejoin'
 };
 
 // Maps React/camelCase property names to SVG presentation attribute names
@@ -116,7 +120,11 @@ const SVG_ATTR_MAP = {
   lineHeight: 'line-height',
   textTransform: 'text-transform',
   fill: 'fill',
-  stroke: 'stroke'
+  stroke: 'stroke',
+  strokeWidth: 'stroke-width',
+  strokeDasharray: 'stroke-dasharray',
+  strokeLinecap: 'stroke-linecap',
+  strokeLinejoin: 'stroke-linejoin'
 };
 
 // Converts textAlign CSS values to SVG text-anchor values
@@ -135,21 +143,21 @@ const syncGradient = (doc, element, baseAttr) => {
   const isUrl = currentValue && currentValue.toLowerCase().startsWith('url(#');
   const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear';
   const stopsJson = element.getAttribute(`${baseAttr}-stops`);
-  
+
   console.log(`[syncGradient] id=${element.id}, type=${type}, isUrl=${isUrl}, attr=${baseAttr}`);
 
   if (type === 'solid' || type === 'none') return;
-  
+
   // If it's a URL, we should at least propagate it to children even if we can't "sync" it from stops
   if (isUrl && !stopsJson) {
-     console.log(`[syncGradient] Propagating global URL: ${currentValue}`);
-     if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
-        Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-           child.setAttribute(baseAttr, currentValue);
-           if (child.style) child.style.setProperty(baseAttr, currentValue, 'important');
-        });
-     }
-     return;
+    console.log(`[syncGradient] Propagating global URL: ${currentValue}`);
+    if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
+      Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+        child.setAttribute(baseAttr, currentValue);
+        if (child.style) child.style.setProperty(baseAttr, currentValue, 'important');
+      });
+    }
+    return;
   }
 
   if (!type && !isUrl) return;
@@ -179,7 +187,7 @@ const syncGradient = (doc, element, baseAttr) => {
 
   const gradId = `${gradIdPrefix}-${Math.random().toString(36).substr(2, 4)}`;
   let gradEl = null;
-  
+
   const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
 
   if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
@@ -199,7 +207,7 @@ const syncGradient = (doc, element, baseAttr) => {
       const y1 = Math.round(50 - Math.sin(angleRad) * 50) + '%';
       const x2 = Math.round(50 + Math.cos(angleRad) * 50) + '%';
       const y2 = Math.round(50 + Math.sin(angleRad) * 50) + '%';
-      
+
       gradEl.setAttribute('x1', x1);
       gradEl.setAttribute('y1', y1);
       gradEl.setAttribute('x2', x2);
@@ -240,73 +248,405 @@ const syncGradient = (doc, element, baseAttr) => {
   if (element.style) {
     element.style.setProperty(baseAttr, finalUrl, 'important');
   }
-  
+
   // Force inheritance for all nested children
   if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
-     Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-        child.setAttribute(baseAttr, finalUrl);
-        if (child.style) {
-          child.style.setProperty(baseAttr, finalUrl, 'important');
-        }
-     });
+    Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+      child.setAttribute(baseAttr, finalUrl);
+      if (child.style) {
+        child.style.setProperty(baseAttr, finalUrl, 'important');
+      }
+    });
   }
 };
 
 const syncTextEffect = (doc, element) => {
   if (!element) return;
-  
-  // Clear any stale filters on children to prevent double-shadowing
+
+  // Clear any stale CSS filters
+  element.style.removeProperty('filter');
   if (element.tagName.toLowerCase() === 'text' || element.tagName.toLowerCase() === 'g') {
-     Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-        child.style.removeProperty('filter');
-     });
-  }
-  
-  let filterString = "";
-  let backdropFilterString = "";
-  
-  // 1. Drop Shadow
-  if (element.getAttribute('data-effect-drop-shadow') === 'true') {
-    const x = element.getAttribute('data-effect-drop-shadow-x') || '0';
-    const y = element.getAttribute('data-effect-drop-shadow-y') || '4';
-    const blur = element.getAttribute('data-effect-drop-shadow-blur') || '4';
-    const color = element.getAttribute('data-effect-drop-shadow-color') || '#000000';
-    const opacity = parseFloat(element.getAttribute('data-effect-drop-shadow-opacity') || '35') / 100;
-    
-    // Basic hex to rgb
-    let r = 0, g = 0, b = 0;
-    if (color.length === 7) {
-      r = parseInt(color.slice(1, 3), 16);
-      g = parseInt(color.slice(3, 5), 16);
-      b = parseInt(color.slice(5, 7), 16);
-    }
-    
-    filterString += `drop-shadow(${x}px ${y}px ${blur}px rgba(${r}, ${g}, ${b}, ${opacity})) `;
-  }
-  
-  // 2. Blur
-  if (element.getAttribute('data-effect-blur') === 'true') {
-    const blur = element.getAttribute('data-effect-blur-value') || '4';
-    filterString += `blur(${blur}px) `;
+    Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+      child.style.removeProperty('filter');
+    });
   }
 
-  // 3. Background Blur (backdrop-filter)
-  if (element.getAttribute('data-effect-background-blur') === 'true') {
-    const blur = element.getAttribute('data-effect-background-blur-value') || '4';
-    backdropFilterString = `blur(${blur}px)`;
+  const svgRoot = element.ownerSVGElement || element.closest('svg') || (doc && doc.querySelector ? doc.querySelector('svg') : null);
+  if (!svgRoot) return;
+
+  const d = element.ownerDocument || document;
+  let defs = svgRoot.querySelector('defs');
+  if (!defs) {
+    defs = d.createElementNS("http://www.w3.org/2000/svg", "defs");
+    svgRoot.insertBefore(defs, svgRoot.firstChild);
   }
-  
-  const finalFilter = filterString.trim() || 'none';
-  element.style.setProperty('filter', finalFilter, 'important');
-  
-  if (backdropFilterString) {
-      element.style.setProperty('backdrop-filter', backdropFilterString, 'important');
-      element.style.setProperty('-webkit-backdrop-filter', backdropFilterString, 'important');
+
+  const filterId = `filter-${element.id || element.getAttribute('data-name') || 'text-effect'}`;
+  let filterEl = defs.querySelector(`[id="${filterId}"]`);
+
+  const hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
+  const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
+  const hasBlur = element.getAttribute('data-effect-blur') === 'true';
+  const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
+
+  if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
+    if (filterEl) filterEl.remove();
+    element.removeAttribute('filter');
+    element.style.backdropFilter = '';
+    element.style.webkitBackdropFilter = '';
+    return;
+  }
+
+  if (!filterEl) {
+    filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
+    filterEl.id = filterId;
+    filterEl.setAttribute('x', '-50%');
+    filterEl.setAttribute('y', '-50%');
+    filterEl.setAttribute('width', '200%');
+    filterEl.setAttribute('height', '200%');
+    defs.appendChild(filterEl);
+  }
+
+  while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+
+  const getVal = (attr, defVal) => element.getAttribute(attr) || defVal;
+  let currentIn = "SourceGraphic";
+
+  if (hasBlur) {
+    const blurVal = parseFloat(getVal('data-effect-blur-value', '4'));
+    const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+    let blurSource = currentIn;
+    if (spreadVal !== 0) {
+      const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spreadVal));
+      morph.setAttribute('in', currentIn);
+      morph.setAttribute('result', 'blur_morph');
+      filterEl.appendChild(morph);
+      blurSource = "blur_morph";
+    }
+    const blurNode = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+    blurNode.setAttribute('stdDeviation', blurVal);
+    blurNode.setAttribute('in', blurSource);
+    blurNode.setAttribute('result', 'blur_out');
+    filterEl.appendChild(blurNode);
+    currentIn = "blur_out";
+  }
+
+  if (hasDropShadow) {
+    const color = getVal('data-effect-drop-shadow-color', '#000000');
+    const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
+    const dx = getVal('data-effect-drop-shadow-x', '0');
+    const dy = getVal('data-effect-drop-shadow-y', '4');
+    const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
+    const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
+
+    const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+    morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+    morph.setAttribute('radius', Math.abs(spread));
+    morph.setAttribute('in', 'SourceAlpha');
+    morph.setAttribute('result', 'ds_morph');
+    filterEl.appendChild(morph);
+
+    const gauss = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+    gauss.setAttribute('stdDeviation', blur);
+    gauss.setAttribute('in', 'ds_morph');
+    gauss.setAttribute('result', 'ds_blur');
+    filterEl.appendChild(gauss);
+
+    const offset = d.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+    offset.setAttribute('dx', dx);
+    offset.setAttribute('dy', dy);
+    offset.setAttribute('in', 'ds_blur');
+    offset.setAttribute('result', 'ds_offset');
+    filterEl.appendChild(offset);
+
+    const flood = d.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+    flood.setAttribute('flood-color', color);
+    flood.setAttribute('flood-opacity', opacity);
+    flood.setAttribute('result', 'ds_flood');
+    filterEl.appendChild(flood);
+
+    const comp = d.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+    comp.setAttribute('in', 'ds_flood');
+    comp.setAttribute('in2', 'ds_offset');
+    comp.setAttribute('operator', 'in');
+    comp.setAttribute('result', 'ds_final');
+    filterEl.appendChild(comp);
+
+    const merge = d.createElementNS("http://www.w3.org/2000/svg", "feMerge");
+    const nodeShadow = d.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+    nodeShadow.setAttribute('in', 'ds_final');
+    const nodeInput = d.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
+    nodeInput.setAttribute('in', currentIn);
+    merge.appendChild(nodeShadow);
+    merge.appendChild(nodeInput);
+    merge.setAttribute('result', 'drop_shadow_merged');
+    filterEl.appendChild(merge);
+    currentIn = "drop_shadow_merged";
+  }
+
+  if (hasInnerShadow) {
+    const color = getVal('data-effect-inner-shadow-color', '#000000');
+    const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
+    const dx = getVal('data-effect-inner-shadow-x', '0');
+    const dy = getVal('data-effect-inner-shadow-y', '4');
+    const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
+    const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
+
+    const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+    morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+    morph.setAttribute('radius', Math.abs(spread));
+    morph.setAttribute('in', 'SourceAlpha');
+    morph.setAttribute('result', 'is_morph');
+    filterEl.appendChild(morph);
+
+    const gauss = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+    gauss.setAttribute('stdDeviation', blur);
+    gauss.setAttribute('in', 'is_morph');
+    gauss.setAttribute('result', 'is_blur');
+    filterEl.appendChild(gauss);
+
+    const offset = d.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+    offset.setAttribute('dx', dx);
+    offset.setAttribute('dy', dy);
+    offset.setAttribute('in', 'is_blur');
+    offset.setAttribute('result', 'is_offset');
+    filterEl.appendChild(offset);
+
+    const compOut = d.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+    compOut.setAttribute('operator', 'out');
+    compOut.setAttribute('in', 'SourceAlpha');
+    compOut.setAttribute('in2', 'is_offset');
+    compOut.setAttribute('result', 'is_inverse');
+    filterEl.appendChild(compOut);
+
+    const flood = d.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+    flood.setAttribute('flood-color', color);
+    flood.setAttribute('flood-opacity', opacity);
+    flood.setAttribute('result', 'is_flood');
+    filterEl.appendChild(flood);
+
+    const compIn = d.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+    compIn.setAttribute('operator', 'in');
+    compIn.setAttribute('in', 'is_flood');
+    compIn.setAttribute('in2', 'is_inverse');
+    compIn.setAttribute('result', 'is_final');
+    filterEl.appendChild(compIn);
+
+    const compOver = d.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+    compOver.setAttribute('operator', 'over');
+    compOver.setAttribute('in', 'is_final');
+    compOver.setAttribute('in2', currentIn);
+    compOver.setAttribute('result', 'inner_shadow_merged');
+    filterEl.appendChild(compOver);
+
+    currentIn = "inner_shadow_merged";
+  }
+
+  element.setAttribute('filter', `url(#${filterId})`);
+
+  if (hasBackgroundBlur) {
+    const bBlur = getVal('data-effect-background-blur-value', '10');
+    element.style.backdropFilter = `blur(${bBlur}px)`;
+    element.style.webkitBackdropFilter = `blur(${bBlur}px)`;
   } else {
-      element.style.removeProperty('backdrop-filter');
-      element.style.removeProperty('-webkit-backdrop-filter');
+    element.style.backdropFilter = '';
+    element.style.webkitBackdropFilter = '';
   }
 };
+
+const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, selectedLayerId, updateElementAttributeLocal }) => {
+  const [openSubSection, setOpenSubSection] = useState(null);
+
+  const [backgroundColor, setBackgroundColor] = useState({
+    fill: selectedElementProps?.fill || '#000000',
+    fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
+    stroke: selectedElementProps?.stroke || 'none',
+    strokeOpacity: 100,
+    strokeType: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
+    strokeWeight: parseFloat(selectedElementProps?.strokeWidth || 0),
+  });
+
+  const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
+
+  const [radius, setRadius] = useState({
+    tl: parseFloat(selectedElementProps?.['data-tl'] || 0),
+    tr: parseFloat(selectedElementProps?.['data-tr'] || 0),
+    br: parseFloat(selectedElementProps?.['data-br'] || 0),
+    bl: parseFloat(selectedElementProps?.['data-bl'] || 0),
+  });
+  const [isRadiusLinked, setIsRadiusLinked] = useState(selectedElementProps?.['data-corner-linked'] !== 'false');
+
+  const [activeEffects, setActiveEffects] = useState(() => {
+    const effs = [];
+    if (selectedElementProps?.['data-effect-drop-shadow'] === 'true') effs.push('Drop Shadow');
+    if (selectedElementProps?.['data-effect-inner-shadow'] === 'true') effs.push('Inner Shadow');
+    if (selectedElementProps?.['data-effect-blur'] === 'true') effs.push('Blur');
+    if (selectedElementProps?.['data-effect-background-blur'] === 'true') effs.push('Background Blur');
+    return effs;
+  });
+
+  const [effectSettings, setEffectSettings] = useState(() => {
+    const p = selectedElementProps || {};
+    return {
+      'Drop Shadow': { color: p['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(p['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(p['data-effect-drop-shadow-x'] || 4), y: parseFloat(p['data-effect-drop-shadow-y'] || 4), blur: parseFloat(p['data-effect-drop-shadow-blur'] || 4), spread: 0 },
+      'Inner Shadow': { color: p['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(p['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(p['data-effect-inner-shadow-x'] || 4), y: parseFloat(p['data-effect-inner-shadow-y'] || 4), blur: parseFloat(p['data-effect-inner-shadow-blur'] || 1), spread: 0 },
+      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 4), spread: 0 },
+      'Background Blur': { blur: parseFloat(p['data-effect-background-blur-value'] || 10), spread: 0 }
+    };
+  });
+
+  const [activeColorPicker, setActiveColorPicker] = useState(null);
+  const [showStrokeSettings, setShowStrokeSettings] = useState(false);
+  const [isStrokeStyleOpen, setIsStrokeStyleOpen] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [strokeSettingsPos, setStrokeSettingsPos] = useState({ top: 0, right: 0 });
+  const [isDashPosOpen, setIsDashPosOpen] = useState(false);
+  const [activePopup, setActivePopup] = useState(null);
+  const [showDetailedPicker, setShowDetailedPicker] = useState(false);
+  const [colorsOnPage, setColorsOnPage] = useState([]);
+
+  // Debounce ref to prevent excessive calls to updateElementAttributeLocal
+  const updateTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    setBackgroundColor({
+      fill: selectedElementProps?.fill || '#000000',
+      fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
+      stroke: selectedElementProps?.stroke || 'none',
+      strokeOpacity: 100,
+      strokeType: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
+      strokeWeight: parseFloat(selectedElementProps?.strokeWidth || 0),
+      strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
+      strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[1] || (selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
+    });
+    setRadius({
+      tl: parseFloat(selectedElementProps?.['data-tl'] || 0),
+      tr: parseFloat(selectedElementProps?.['data-tr'] || 0),
+      br: parseFloat(selectedElementProps?.['data-br'] || 0),
+      bl: parseFloat(selectedElementProps?.['data-bl'] || 0),
+    });
+    setIsRadiusLinked(selectedElementProps?.['data-corner-linked'] !== 'false');
+
+    const effs = [];
+    if (selectedElementProps?.['data-effect-drop-shadow'] === 'true') effs.push('Drop Shadow');
+    if (selectedElementProps?.['data-effect-inner-shadow'] === 'true') effs.push('Inner Shadow');
+    if (selectedElementProps?.['data-effect-blur'] === 'true') effs.push('Blur');
+    if (selectedElementProps?.['data-effect-background-blur'] === 'true') effs.push('Background Blur');
+    setActiveEffects(effs);
+
+    setEffectSettings({
+      'Drop Shadow': { color: selectedElementProps?.['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(selectedElementProps?.['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(selectedElementProps?.['data-effect-drop-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-drop-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-drop-shadow-blur'] || 4), spread: 0 },
+      'Inner Shadow': { color: selectedElementProps?.['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(selectedElementProps?.['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(selectedElementProps?.['data-effect-inner-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-inner-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-inner-shadow-blur'] || 1), spread: 0 },
+      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 4), spread: 0 },
+      'Background Blur': { blur: parseFloat(selectedElementProps?.['data-effect-background-blur-value'] || 10), spread: 0 }
+    });
+  }, [selectedLayerId, activePageIndex]);
+
+  // Handle updates back to TextEditor
+  useEffect(() => {
+    if (updateTimeoutRef.current) clearTimeout(updateTimeoutRef.current);
+    updateTimeoutRef.current = setTimeout(() => {
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', backgroundColor.fill);
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'opacity', (backgroundColor.fillOpacity / 100).toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
+
+      const dashVal = backgroundColor.strokeType === 'Dashed' ? `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}` : 'none';
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', backgroundColor.strokePosition || 'Center');
+
+      const linecap = backgroundColor.strokeLinecap || 'butt';
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeLinecap', linecap);
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeLinejoin', linecap === 'round' ? 'round' : 'miter');
+
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-tl', radius.tl.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-tr', radius.tr.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-bl', radius.bl.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-br', radius.br.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-corner-linked', isRadiusLinked.toString());
+
+      const maxRadius = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'rx', maxRadius.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'ry', maxRadius.toString());
+
+      const hasDS = activeEffects.includes('Drop Shadow');
+      const hasIS = activeEffects.includes('Inner Shadow');
+      const hasBlur = activeEffects.includes('Blur');
+      const hasBBlur = activeEffects.includes('Background Blur');
+
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow', hasDS.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow', hasIS.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur', hasBlur.toString());
+      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-background-blur', hasBBlur.toString());
+
+      if (hasDS) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-color', effectSettings['Drop Shadow'].color);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-opacity', effectSettings['Drop Shadow'].opacity.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-x', effectSettings['Drop Shadow'].x.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-y', effectSettings['Drop Shadow'].y.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-blur', effectSettings['Drop Shadow'].blur.toString());
+      }
+      if (hasIS) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-color', effectSettings['Inner Shadow'].color);
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-opacity', effectSettings['Inner Shadow'].opacity.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-x', effectSettings['Inner Shadow'].x.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-y', effectSettings['Inner Shadow'].y.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow-blur', effectSettings['Inner Shadow'].blur.toString());
+      }
+      if (hasBlur) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-value', effectSettings['Blur'].blur.toString());
+      }
+      if (hasBBlur) {
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-background-blur-value', effectSettings['Background Blur'].blur.toString());
+      }
+
+      const element = document.getElementById(selectedLayerId);
+      if (element) {
+        syncTextEffect(document, element);
+      }
+    }, 50);
+  }, [backgroundColor, radius, isRadiusLinked, activeEffects, effectSettings, activePageIndex, selectedLayerId]);
+
+  return (
+    <SubComponent
+      tagName="text"
+      openSubSection={openSubSection}
+      setOpenSubSection={setOpenSubSection}
+      backgroundColor={backgroundColor}
+      setBackgroundColor={setBackgroundColor}
+      filters={filters}
+      setFilters={setFilters}
+      radius={radius}
+      setRadius={setRadius}
+      isRadiusLinked={isRadiusLinked}
+      setIsRadiusLinked={setIsRadiusLinked}
+      activeEffects={activeEffects}
+      setActiveEffects={setActiveEffects}
+      effectSettings={effectSettings}
+      setEffectSettings={setEffectSettings}
+      activeColorPicker={activeColorPicker}
+      setActiveColorPicker={setActiveColorPicker}
+      showStrokeSettings={showStrokeSettings}
+      setShowStrokeSettings={setShowStrokeSettings}
+      isStrokeStyleOpen={isStrokeStyleOpen}
+      setIsStrokeStyleOpen={setIsStrokeStyleOpen}
+      dropdownPos={dropdownPos}
+      setDropdownPos={setDropdownPos}
+      strokeSettingsPos={strokeSettingsPos}
+      setStrokeSettingsPos={setStrokeSettingsPos}
+      isDashPosOpen={isDashPosOpen}
+      setIsDashPosOpen={setIsDashPosOpen}
+      activePopup={activePopup}
+      setActivePopup={setActivePopup}
+      colorsOnPage={colorsOnPage}
+      showDetailedPicker={showDetailedPicker}
+      setShowDetailedPicker={setShowDetailedPicker}
+    />
+  );
+};
+
 
 const TextEditor = ({
   selectedElement,
@@ -417,15 +757,14 @@ const TextEditor = ({
 
   const selectedElementProps = useMemo(() => {
     if (!selectedLayerId || !pages[activePageIndex]) return null;
-    
+
     // Find the element in the actual DOM to get computed values if needed
     const el = document.getElementById(selectedLayerId);
     if (!el) return null;
 
     const props = {
       id: selectedLayerId,
-      tagName: 'rect', // Force to 'rect' so ShapeProperties shows Corner Radius accordion
-      'data-shape-type': 'rectangle', // Force to 'rectangle' for the same reason
+      tagName: el.tagName.toLowerCase(),
       fill: el.getAttribute('fill') || (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? window.getComputedStyle(el.firstElementChild).color : null) || '#000000',
       stroke: el.getAttribute('stroke') || 'none',
       strokeWidth: el.getAttribute('stroke-width') || '0',
@@ -442,7 +781,7 @@ const TextEditor = ({
 
     // Extract all data- attributes and fill/stroke extras
     Array.from(el.attributes).forEach(attr => {
-      if (attr.name.startsWith('data-') || attr.name.includes('fill-') || attr.name.includes('stroke-')) {
+      if ((attr.name.startsWith('data-') || attr.name.includes('fill-') || attr.name.includes('stroke-')) && attr.name !== 'data-shape-type') {
         props[attr.name] = attr.value;
       }
     });
@@ -459,24 +798,72 @@ const TextEditor = ({
     if (liveEl && styleProp) {
       const liveTag = liveEl.tagName.toLowerCase();
       console.log(`[TextEditor] Live update: tag=${liveTag}, id=${elId}, attr=${attribute}, val=${value}`);
-      
+
       if (liveTag === 'foreignobject') {
-        const liveProp = styleProp === 'fill' ? 'color' : styleProp;
         if (liveEl.firstElementChild) {
-          liveEl.firstElementChild.style.setProperty(liveProp, finalVal, 'important');
-          Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => {
-             child.style.setProperty(liveProp, finalVal, 'important');
-          });
+          if (styleProp === 'stroke') {
+            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
+            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', finalVal, 'important'));
+          } else if (styleProp === 'strokeWidth') {
+            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
+            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
+          } else {
+            const liveProp = styleProp === 'fill' ? 'color' : styleProp;
+            liveEl.firstElementChild.style.setProperty(liveProp, finalVal, 'important');
+            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(liveProp, finalVal, 'important'));
+          }
+        }
+        if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+          const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
+          const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+          liveEl.firstElementChild.style.setProperty('paint-order', paintOrder, 'important');
+          Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('paint-order', paintOrder, 'important'));
         }
       } else {
-        liveEl.style.setProperty(styleProp, finalVal, 'important');
+        if (styleProp === 'strokeWidth') {
+          liveEl.setAttribute('stroke-width', value);
+          liveEl.style.setProperty('stroke-width', `${value}px`, 'important');
+        } else if (styleProp === 'strokeDasharray') {
+          liveEl.setAttribute('stroke-dasharray', value);
+          liveEl.style.setProperty('stroke-dasharray', value, 'important');
+        } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
+          const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
+          liveEl.setAttribute(attrName, value);
+          liveEl.style.setProperty(attrName, value, 'important');
+        } else {
+          liveEl.style.setProperty(styleProp, finalVal, 'important');
+        }
         if (attribute === 'fill' || attribute === 'stroke') {
           liveEl.setAttribute(attribute, value);
         }
+        if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+          const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
+          const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+          liveEl.setAttribute('paint-order', paintOrder);
+          liveEl.style.setProperty('paint-order', paintOrder, 'important');
+        }
         if (liveTag === 'text' || liveTag === 'g') {
           Array.from(liveEl.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-            child.style.setProperty(styleProp, finalVal, 'important');
-            child.setAttribute(attribute, value);
+            if (styleProp === 'strokeWidth') {
+              child.setAttribute('stroke-width', value);
+              child.style.setProperty('stroke-width', `${value}px`, 'important');
+            } else if (styleProp === 'strokeDasharray') {
+              child.setAttribute('stroke-dasharray', value);
+              child.style.setProperty('stroke-dasharray', value, 'important');
+            } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
+              const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
+              child.setAttribute(attrName, value);
+              child.style.setProperty(attrName, value, 'important');
+            } else {
+              child.style.setProperty(styleProp, finalVal, 'important');
+              child.setAttribute(attribute, value);
+            }
+            if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+              const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
+              const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+              child.setAttribute('paint-order', paintOrder);
+              child.style.setProperty('paint-order', paintOrder, 'important');
+            }
           });
         }
       }
@@ -492,21 +879,23 @@ const TextEditor = ({
       // --- CUSTOM SCROLLABLE & CORNER RADIUS HANDLING ---
       if (liveTag === 'foreignobject' && liveEl.firstElementChild) {
         const isCurrentlyScrollable = liveEl.getAttribute('data-scrollable') === 'true' || attribute === 'data-scrollable' && value === 'true';
-        
+
         if (attribute === 'data-scrollable') {
           if (value === 'true') {
             liveEl.firstElementChild.style.overflowY = 'auto';
+            liveEl.firstElementChild.classList.add('flipbook-text-scrollbar');
             liveEl.firstElementChild.style.height = '100%';
             liveEl.firstElementChild.style.overflowX = 'hidden';
             const rx = liveEl.getAttribute('rx') || '0';
             liveEl.firstElementChild.style.borderRadius = `${rx}px`;
-            
+
             // Apply border to make corner radius visible
             const stroke = liveEl.getAttribute('stroke') || '#6366F1';
             const strokeWidth = liveEl.getAttribute('stroke-width') || '1';
             liveEl.firstElementChild.style.border = `${strokeWidth}px solid ${stroke}`;
           } else {
             liveEl.firstElementChild.style.overflowY = 'visible';
+            liveEl.firstElementChild.classList.remove('flipbook-text-scrollbar');
             liveEl.firstElementChild.style.height = 'auto';
             liveEl.firstElementChild.style.borderRadius = '0';
             liveEl.firstElementChild.style.border = 'none';
@@ -516,11 +905,17 @@ const TextEditor = ({
         if ((attribute === 'rx' || attribute === 'ry') && isCurrentlyScrollable) {
           liveEl.firstElementChild.style.borderRadius = `${value}px`;
         }
-        
-        if ((attribute === 'stroke' || attribute === 'stroke-width') && isCurrentlyScrollable) {
-          const s = attribute === 'stroke' ? value : (liveEl.getAttribute('stroke') || '#6366F1');
-          const sw = attribute === 'stroke-width' ? value : (liveEl.getAttribute('stroke-width') || '1');
-          liveEl.firstElementChild.style.border = `${sw}px solid ${s}`;
+
+        if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'stroke-width') {
+          const isScrollable = liveEl.tagName.toLowerCase() === 'foreignobject' || isCurrentlyScrollable;
+          if (isScrollable && liveEl.firstElementChild) {
+            const s = attribute === 'stroke' ? value : (liveEl.getAttribute('stroke') || 'none');
+            const sw = (attribute === 'strokeWidth' || attribute === 'stroke-width') ? value : (liveEl.getAttribute('strokeWidth') || liveEl.getAttribute('stroke-width') || '0');
+            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', s, 'important');
+            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${sw}px`, 'important');
+            // Remove border just in case it was applied before
+            liveEl.firstElementChild.style.border = 'none';
+          }
         }
       }
     }
@@ -532,7 +927,37 @@ const TextEditor = ({
       if (!page || !page.html) return prevPages;
 
       const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      // Replace <br> with <br/> and replace invalid XML entity &nbsp; with &#160;
+      const cleanHtml = page.html.replace(/<br\s*>/gi, '<br/>').replace(/&nbsp;/gi, '&#160;');
+      const doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
+
+      if (doc.querySelector('parsererror')) {
+        const errorText = doc.querySelector('parsererror').textContent;
+        console.error('XML parsing failed, aborting update to prevent state corruption.', errorText);
+        console.error('Corrupted HTML:', cleanHtml);
+
+        // Display a giant red error on screen so the user can easily screenshot the exact reason
+        if (!document.getElementById('xml-debug-error')) {
+          const errDiv = document.createElement('div');
+          errDiv.id = 'xml-debug-error';
+          errDiv.style.position = 'fixed';
+          errDiv.style.top = '10px';
+          errDiv.style.left = '10px';
+          errDiv.style.zIndex = '999999';
+          errDiv.style.background = '#fff0f0';
+          errDiv.style.color = '#d32f2f';
+          errDiv.style.padding = '20px';
+          errDiv.style.border = '2px solid #d32f2f';
+          errDiv.style.maxWidth = '80vw';
+          errDiv.style.wordWrap = 'break-word';
+          errDiv.style.fontFamily = 'monospace';
+          errDiv.innerText = 'XML PARSE ERROR: ' + errorText;
+          document.body.appendChild(errDiv);
+        }
+
+        return prevPages;
+      }
+
       const element = doc.getElementById(elId);
 
       if (element) {
@@ -552,7 +977,7 @@ const TextEditor = ({
             const lh = element.getAttribute('data-line-height') || '1.2';
             lines.forEach((line, i) => {
               const tspan = doc.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-              tspan.textContent = line || '\u00A0';
+              tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
               tspan.setAttribute('x', x);
               if (i === 0) {
                 if (origTspanY !== null) tspan.setAttribute('y', origTspanY);
@@ -563,90 +988,196 @@ const TextEditor = ({
               element.appendChild(tspan);
             });
           } else if (tag === 'foreignobject' && element.firstElementChild) {
-            element.firstElementChild.innerHTML = latestContent.replace(/\n/g, '<br/>');
+            const tempDoc = new DOMParser().parseFromString(`<div>${latestContent.replace(/\\n/g, '<br/>')}</div>`, 'text/html');
+            element.firstElementChild.innerHTML = '';
+            Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
+              element.firstElementChild.appendChild(doc.importNode(child, true));
+            });
           }
         }
 
         const tag = element.tagName.toLowerCase();
         if (attribute === 'innerText' || attribute === 'innerHTML') {
-            // ... (rest of text update logic same as before) ...
-            if (tag === 'foreignobject' && element.firstElementChild) {
-              element.firstElementChild.innerHTML = value.replace(/\n/g, '<br/>');
-            } else if (tag === 'text') {
-              // Preserve original tspan x/y so text doesn't drift
-              const origFirstTspan2 = element.querySelector('tspan');
-              const origTspanX2 = origFirstTspan2 ? origFirstTspan2.getAttribute('x') : null;
-              const origTspanY2 = origFirstTspan2 ? origFirstTspan2.getAttribute('y') : null;
-              const origTspanDy2 = origFirstTspan2 ? origFirstTspan2.getAttribute('dy') : null;
-              element.innerHTML = '';
+          // --- LIVE DOM UPDATE ---
+          if (liveEl) {
+            const liveTag = liveEl.tagName.toLowerCase();
+            if (liveTag === 'foreignobject' && liveEl.firstElementChild) {
+              const tempDoc = new DOMParser().parseFromString(`<div>${value.replace(/\n/g, '<br/>')}</div>`, 'text/html');
+              liveEl.firstElementChild.innerHTML = '';
+              Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
+                liveEl.firstElementChild.appendChild(liveEl.ownerDocument.importNode(child, true));
+              });
+            } else if (liveTag === 'text') {
+              const origFirstTspan3 = liveEl.querySelector('tspan');
+              const origTspanX3 = origFirstTspan3 ? origFirstTspan3.getAttribute('x') : null;
+              const origTspanY3 = origFirstTspan3 ? origFirstTspan3.getAttribute('y') : null;
+              const origTspanDy3 = origFirstTspan3 ? origFirstTspan3.getAttribute('dy') : null;
+              liveEl.innerHTML = '';
               const lines = value.split('\n');
-              const xVal = origTspanX2 !== null ? origTspanX2 : (element.getAttribute('x') || '0');
+              const xValLive = origTspanX3 !== null ? origTspanX3 : (liveEl.getAttribute('x') || '0');
+              const lhLive = liveEl.getAttribute('data-line-height') || '1.2';
               lines.forEach((line, i) => {
-                const tspan = doc.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                tspan.textContent = line || '\u00A0';
-                tspan.setAttribute('x', xVal);
+                const tspan = liveEl.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
+                tspan.setAttribute('x', xValLive);
                 if (i === 0) {
-                  if (origTspanY2 !== null) tspan.setAttribute('y', origTspanY2);
-                  if (origTspanDy2 !== null) tspan.setAttribute('dy', origTspanDy2);
+                  if (origTspanY3 !== null) tspan.setAttribute('y', origTspanY3);
+                  if (origTspanDy3 !== null) tspan.setAttribute('dy', origTspanDy3);
                 } else {
-                  tspan.setAttribute('dy', '1.2em');
+                  tspan.setAttribute('dy', `${parseFloat(lhLive).toFixed(2)}em`);
                 }
-                element.appendChild(tspan);
+                liveEl.appendChild(tspan);
               });
             }
-        } else if (attribute === 'data-scrollable' && value === 'true' && tag === 'text') {
-           const bbox = liveEl?.getBBox() || { x: 0, y: 0, width: 100, height: 50 };
-           const x = element.getAttribute('x') || bbox.x;
-           const y = element.getAttribute('y') || bbox.y;
-           const w = bbox.width || 100;
-           const h = bbox.height || 50;
-           
-           const newFo = doc.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-           newFo.id = element.id;
-           newFo.setAttribute('x', x);
-           newFo.setAttribute('y', y);
-           newFo.setAttribute('width', w);
-           newFo.setAttribute('height', h);
-           
-           // Copy attributes
-           Array.from(element.attributes).forEach(attr => {
-             if (attr.name !== 'x' && attr.name !== 'y' && attr.name !== 'id') {
-               newFo.setAttribute(attr.name, attr.value);
-             }
-           });
-           newFo.setAttribute('data-scrollable', 'true');
-           
-           const innerDiv = doc.createElement('div');
-           innerDiv.style.width = '100%';
-           innerDiv.style.height = '100%';
-           innerDiv.style.overflowY = 'auto';
-           innerDiv.style.overflowX = 'hidden';
-           innerDiv.style.wordBreak = 'break-word';
-           innerDiv.style.color = element.getAttribute('fill') || '#000000';
-           innerDiv.innerHTML = getDeepContent(liveEl).replace(/\n/g, '<br/>');
-           
-           const rx = element.getAttribute('rx') || '0';
-           if (rx !== '0') innerDiv.style.borderRadius = `${rx}px`;
-           
-           newFo.appendChild(innerDiv);
-           element.replaceWith(newFo);
+          }
+
+          // --- VIRTUAL DOM UPDATE ---
+          if (tag === 'foreignobject' && element.firstElementChild) {
+            const tempDoc = new DOMParser().parseFromString(`<div>${value.replace(/\n/g, '<br/>')}</div>`, 'text/html');
+            element.firstElementChild.innerHTML = '';
+            Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
+              element.firstElementChild.appendChild(doc.importNode(child, true));
+            });
+          } else if (tag === 'text') {
+            // Preserve original tspan x/y so text doesn't drift
+            const origFirstTspan2 = element.querySelector('tspan');
+            const origTspanX2 = origFirstTspan2 ? origFirstTspan2.getAttribute('x') : null;
+            const origTspanY2 = origFirstTspan2 ? origFirstTspan2.getAttribute('y') : null;
+            const origTspanDy2 = origFirstTspan2 ? origFirstTspan2.getAttribute('dy') : null;
+            element.innerHTML = '';
+            const lines = value.split('\n');
+            const xVal = origTspanX2 !== null ? origTspanX2 : (element.getAttribute('x') || '0');
+            const lh = element.getAttribute('data-line-height') || '1.2';
+            lines.forEach((line, i) => {
+              const tspan = doc.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+              tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
+              tspan.setAttribute('x', xVal);
+              if (i === 0) {
+                if (origTspanY2 !== null) tspan.setAttribute('y', origTspanY2);
+                if (origTspanDy2 !== null) tspan.setAttribute('dy', origTspanDy2);
+              } else {
+                tspan.setAttribute('dy', `${parseFloat(lh).toFixed(2)}em`);
+              }
+              element.appendChild(tspan);
+            });
+          }
+        } else if ((attribute === 'data-scrollable' || attribute === 'data-auto-wrap') && value === 'true' && tag === 'text') {
+          const bbox = liveEl?.getBBox() || { x: 0, y: 0, width: 100, height: 50 };
+          let scaleX = 1;
+          let scaleY = 1;
+          let newTransform = element.getAttribute('transform');
+          let newX = parseFloat(element.getAttribute('x') || bbox.x);
+          let newY = parseFloat(element.getAttribute('y') || bbox.y);
+          let newW = bbox.width || 100;
+          let newH = bbox.height || 50;
+
+          if (newTransform && newTransform.includes('matrix')) {
+            const match = newTransform.match(/matrix\(([^)]+)\)/);
+            if (match) {
+              const vals = match[1].split(/[ ,]+/).map(parseFloat);
+              if (vals.length === 6) {
+                const [A, B, C, D, E, F] = vals;
+                scaleX = Math.sqrt(A * A + B * B);
+                scaleY = Math.sqrt(C * C + D * D);
+                if (scaleX > 0 && scaleY > 0) {
+                  const newA = A / scaleX;
+                  const newB = B / scaleX;
+                  const newC = C / scaleY;
+                  const newD = D / scaleY;
+                  const origX = bbox.x * A + bbox.y * C + E;
+                  const origY = bbox.x * B + bbox.y * D + F;
+                  newX = 0;
+                  newY = 0;
+                  newTransform = `matrix(${newA}, ${newB}, ${newC}, ${newD}, ${origX}, ${origY})`;
+                }
+              }
+            }
+          }
+
+          const svgEl = liveEl?.ownerSVGElement || liveEl?.closest('svg');
+          let maxW = 9999;
+          if (svgEl) {
+             const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
+             maxW = Math.max(50, svgWidth - (newX * scaleX) - 10);
+          }
+
+          newW = Math.min(newW * scaleX, maxW) / scaleX;
+          newH = newH; // The innerDiv height is auto, so initial height doesn't matter much
+
+          const newFo = doc.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+          newFo.id = element.id;
+          newFo.setAttribute('x', newX);
+          newFo.setAttribute('y', newY);
+          newFo.setAttribute('width', newW);
+          newFo.setAttribute('height', newH);
+          if (newTransform) newFo.setAttribute('transform', newTransform);
+
+          // Copy attributes
+          Array.from(element.attributes).forEach(attr => {
+            if (attr.name !== 'x' && attr.name !== 'y' && attr.name !== 'id' && attr.name !== 'transform' && attr.name !== 'width' && attr.name !== 'height') {
+              newFo.setAttribute(attr.name, attr.value);
+            }
+          });
+          newFo.setAttribute('data-scrollable', attribute === 'data-scrollable' ? 'true' : 'false');
+          newFo.setAttribute('overflow', attribute === 'data-scrollable' ? 'hidden' : 'visible');
+
+          const innerDiv = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+          if (attribute === 'data-scrollable') {
+             innerDiv.className = 'flipbook-text-scrollbar';
+             innerDiv.style.height = '100%';
+             innerDiv.style.overflowY = 'auto';
+          } else {
+             innerDiv.style.height = 'auto';
+             innerDiv.style.overflowY = 'visible';
+          }
+          innerDiv.style.width = '100%';
+          innerDiv.style.overflowX = 'hidden';
+          innerDiv.style.wordBreak = 'normal';
+          innerDiv.style.overflowWrap = 'anywhere';
+          innerDiv.style.whiteSpace = 'pre-wrap';
+          innerDiv.style.color = element.getAttribute('fill') || '#000000';
+
+          // Bake font-size into innerDiv to prevent inheritance scaling issues
+          const fsStr = element.style.fontSize || element.getAttribute('font-size') || '16px';
+          const fsVal = parseFloat(fsStr) || 16;
+          innerDiv.style.fontSize = `${fsVal * scaleY}px`;
+          innerDiv.innerHTML = '';
+          const tempDoc = new DOMParser().parseFromString(`<div>${getDeepContent(liveEl).replace(/\\n/g, '<br/>')}</div>`, 'text/html');
+          Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
+            innerDiv.appendChild(doc.importNode(child, true));
+          });
+
+          const rx = element.getAttribute('rx') || '0';
+          if (rx !== '0') innerDiv.style.borderRadius = `${rx}px`;
+
+          newFo.appendChild(innerDiv);
+          element.replaceWith(newFo);
         } else if (attribute === 'data-scrollable' && value === 'false' && tag === 'foreignobject') {
-           // Optional: Convert back to text? Usually better to keep as FO for reliability
-           element.setAttribute('data-scrollable', 'false');
-           if (element.firstElementChild) {
-             element.firstElementChild.style.overflowY = 'visible';
-             element.firstElementChild.style.height = 'auto';
-           }
+          // Optional: Convert back to text? Usually better to keep as FO for reliability
+          element.setAttribute('data-scrollable', 'false');
+          if (element.firstElementChild) {
+            element.firstElementChild.style.overflowY = 'visible';
+            element.firstElementChild.classList.remove('flipbook-text-scrollbar');
+            element.firstElementChild.style.height = 'auto';
+          }
         } else if (styleProp) {
-          const finalProp = (tag === 'foreignobject' && styleProp === 'fill') ? 'color' : styleProp;
+          let finalProp = (tag === 'foreignobject' && styleProp === 'fill') ? 'color' : styleProp;
           if (tag === 'foreignobject') {
             if (element.firstElementChild) {
-              element.firstElementChild.style.setProperty(finalProp, finalVal, 'important');
-              
+              if (styleProp === 'stroke') {
+                element.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
+              } else if (styleProp === 'strokeWidth') {
+                element.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
+              } else {
+                const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+                element.firstElementChild.style.setProperty(cssPropName, finalVal, 'important');
+              }
+
               // --- SCROLLABLE PERSISTENCE ---
               const isScrollable = element.getAttribute('data-scrollable') === 'true';
               if (isScrollable) {
                 element.firstElementChild.style.overflowY = 'auto';
+                element.firstElementChild.classList.add('flipbook-text-scrollbar');
                 element.firstElementChild.style.height = '100%';
                 element.firstElementChild.style.overflowX = 'hidden';
                 const rx = element.getAttribute('rx') || '0';
@@ -656,7 +1187,19 @@ const TextEditor = ({
             element.setAttribute(attribute, value);
           } else {
             // For SVG elements (text, g, etc.) set both CSS style and SVG presentation attribute
-            element.style.setProperty(styleProp, finalVal, 'important');
+            if (styleProp === 'strokeWidth') {
+              element.setAttribute('stroke-width', value);
+              element.style.setProperty('stroke-width', `${value}px`, 'important');
+            } else if (styleProp === 'strokeDasharray') {
+              element.setAttribute('stroke-dasharray', value);
+              element.style.setProperty('stroke-dasharray', value, 'important');
+            } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
+              const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
+              element.setAttribute(attrName, value);
+              element.style.setProperty(attrName, value, 'important');
+            } else {
+              element.style.setProperty(styleProp, finalVal, 'important');
+            }
             // Use SVG attribute name (e.g., font-size, font-family, text-anchor)
             const svgAttrName = SVG_ATTR_MAP[attribute] || attribute;
             let svgAttrVal = finalVal;
@@ -670,32 +1213,58 @@ const TextEditor = ({
             if (attribute === 'fill' || attribute === 'stroke') {
               element.setAttribute(attribute, value);
             }
+            if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+              const pos = attribute === 'data-stroke-position' ? value : (element.getAttribute('data-stroke-position') || 'Center');
+              const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+              element.setAttribute('paint-order', paintOrder);
+              element.style.setProperty('paint-order', paintOrder, 'important');
+            }
             // Propagate to tspan children so they inherit the style
             if (tag === 'text' || tag === 'g') {
               Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-                child.style.setProperty(styleProp, finalVal, 'important');
-                if (attribute === 'textAlign') {
-                  child.setAttribute('text-anchor', svgAttrVal);
+                if (styleProp === 'strokeWidth') {
+                  child.setAttribute('stroke-width', value);
+                  child.style.setProperty('stroke-width', `${value}px`, 'important');
+                } else if (styleProp === 'strokeDasharray') {
+                  child.setAttribute('stroke-dasharray', value);
+                  child.style.setProperty('stroke-dasharray', value, 'important');
+                } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
+                  const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
+                  child.setAttribute(attrName, value);
+                  child.style.setProperty(attrName, value, 'important');
                 } else {
-                  child.setAttribute(svgAttrName, finalVal);
+                  child.style.setProperty(styleProp, finalVal, 'important');
+                  if (attribute === 'textAlign') {
+                    child.setAttribute('text-anchor', svgAttrVal);
+                  } else {
+                    child.setAttribute(svgAttrName, finalVal);
+                  }
+                }
+                if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+                  const pos = attribute === 'data-stroke-position' ? value : (element.getAttribute('data-stroke-position') || 'Center');
+                  const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+                  child.setAttribute('paint-order', paintOrder);
+                  child.style.setProperty('paint-order', paintOrder, 'important');
                 }
               });
             }
           }
         } else {
           element.setAttribute(attribute, value);
-          
+
           // Handle scrollable updates for virtual doc
           if (tag === 'foreignobject' && element.firstElementChild) {
             const isScrollable = element.getAttribute('data-scrollable') === 'true';
             if (isScrollable) {
               element.firstElementChild.style.overflowY = 'auto';
+              element.firstElementChild.classList.add('flipbook-text-scrollbar');
               element.firstElementChild.style.height = '100%';
               element.firstElementChild.style.overflowX = 'hidden';
               const rx = element.getAttribute('rx') || '0';
               element.firstElementChild.style.borderRadius = `${rx}px`;
             } else {
               element.firstElementChild.style.overflowY = 'visible';
+              element.firstElementChild.classList.remove('flipbook-text-scrollbar');
               element.firstElementChild.style.height = 'auto';
               element.firstElementChild.style.borderRadius = '0';
             }
@@ -707,7 +1276,7 @@ const TextEditor = ({
         if (attribute.startsWith('fill') || attribute.startsWith('stroke') || isGradientRelated || attribute.includes('stroke-')) {
           const base = (attribute.startsWith('fill') || attribute.includes('fill-')) ? 'fill' : 'stroke';
           syncGradient(doc, element, base);
-          
+
           // Apply synced gradient to live DOM too
           if (liveEl) {
             const liveSvg = liveEl.ownerSVGElement || liveEl.closest('svg');
@@ -721,19 +1290,19 @@ const TextEditor = ({
         const isEffectRelated = attribute.startsWith('data-effect-');
         if (isEffectRelated) {
           syncTextEffect(doc, element);
-          
+
           // Apply to live DOM too
           if (liveEl) {
-             const liveSvg = liveEl.ownerSVGElement || liveEl.closest('svg');
-             if (liveSvg) syncTextEffect(liveSvg, liveEl);
-             else syncTextEffect(null, liveEl);
+            const liveSvg = liveEl.ownerSVGElement || liveEl.closest('svg');
+            if (liveSvg) syncTextEffect(liveSvg, liveEl);
+            else syncTextEffect(null, liveEl);
           }
         }
 
         const newHtml = new XMLSerializer().serializeToString(doc.documentElement);
         page.html = newHtml;
         newPages[pageIdx] = page;
-        
+
         // Notify parent of the update
         onUpdate(newHtml);
       }
@@ -755,7 +1324,7 @@ const TextEditor = ({
     if (property === 'lineHeight') {
       const numVal = value === 'Auto' || value === '' ? 1.2 : parseFloat(value);
       setLineHeight(numVal);
-      
+
       // SVG text: line-height is applied via dy attributes on tspan children
       if (selectedLayerId) {
         const el = document.getElementById(selectedLayerId);
@@ -778,7 +1347,14 @@ const TextEditor = ({
                 const page = { ...next[pageIdx2] };
                 if (!page.html) return prev;
                 const parser = new DOMParser();
-                const doc = parser.parseFromString(page.html, 'image/svg+xml');
+                const cleanHtml = page.html.replace(/<br\s*>/gi, '<br/>').replace(/&nbsp;/gi, '&#160;');
+                const doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
+
+                if (doc.querySelector('parsererror')) {
+                  console.error('XML parsing failed in line height update, aborting.');
+                  return prev;
+                }
+
                 const docEl = doc.getElementById(selectedLayerId);
                 if (docEl) {
                   docEl.setAttribute('data-line-height', numVal.toString());
@@ -802,7 +1378,7 @@ const TextEditor = ({
       return;
     }
     if (property === 'textTransform') setTextTransform(value);
-    
+
     if (property === 'listStyleType') {
       setListStyleType(value);
       // Transform text content to list
@@ -825,7 +1401,7 @@ const TextEditor = ({
       }
       const newText = lines.join('\n');
       setTextContent(newText);
-      
+
       // Live DOM Update for instant feedback
       const el = document.getElementById(selectedLayerId);
       if (el) {
@@ -836,21 +1412,43 @@ const TextEditor = ({
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
         }
       }
-      
+
       if (selectedLayerId && el?.tagName.toLowerCase() !== 'text') {
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
       }
-      return; 
+
+      if (el) {
+        window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
+      }
+      return;
     }
-    
+
     if (selectedLayerId) {
       // Direct DOM manipulation for instant feedback during editing
       const el = document.getElementById(selectedLayerId);
+      let adjustedValue = value;
+
+      if (el && property === 'fontSize' && el.tagName.toLowerCase() !== 'foreignobject') {
+        const transform = el.getAttribute('transform');
+        if (transform && transform.includes('matrix')) {
+          const match = transform.match(/matrix\(([^)]+)\)/);
+          if (match) {
+            const vals = match[1].split(/[ ,]+/).map(parseFloat);
+            if (vals.length >= 4) {
+              const scaleY = Math.sqrt(vals[2] * vals[2] + vals[3] * vals[3]);
+              if (scaleY > 0) {
+                adjustedValue = (parseFloat(value) / scaleY).toFixed(2);
+              }
+            }
+          }
+        }
+      }
+
       if (el) {
         const styleProp = STYLE_MAP[property];
         if (styleProp) {
-          const finalVal = (property === 'fontSize' || property === 'letterSpacing') && !value.toString().includes('px') && !value.toString().includes('em') ? `${value}px` : value;
-          
+          const finalVal = (property === 'fontSize' || property === 'letterSpacing') && !adjustedValue.toString().includes('px') && !adjustedValue.toString().includes('em') ? `${adjustedValue}px` : adjustedValue;
+
           if (el.tagName.toLowerCase() === 'foreignobject') {
             if (el.firstElementChild) {
               el.firstElementChild.style[styleProp] = finalVal;
@@ -878,7 +1476,7 @@ const TextEditor = ({
               });
             }
           }
-          
+
           // Also update the editing overlay if it exists!
           // Search globally within the SVG for the active editing box
           const svgRoot = el.ownerSVGElement || el.closest('svg');
@@ -886,6 +1484,9 @@ const TextEditor = ({
           if (overlay) {
             overlay.style[styleProp] = finalVal;
           }
+
+          // Force MainEditor to redraw the selection box around this element
+          window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
         }
       }
 
@@ -901,15 +1502,15 @@ const TextEditor = ({
         // In a real app, you'd want to handle nested spans properly
         const cssProp = property === 'fontFamily' ? 'font-family' : 'font-size';
         const cssVal = property === 'fontSize' ? `${value}px` : value;
-        
+
         // Find existing innerHTML and wrap selection
         // For now, let's just use spans for simplicity
         const styledText = `${before}<span style="${cssProp}: ${cssVal}">${selected}</span>${after}`;
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerHTML', styledText);
       } else {
         // Whole element styling: apply to container and clear child overrides for this property
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, property, value);
-        
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, property, adjustedValue);
+
         // If it's a rich text element, we might need to clear internal spans to let parent style through
         const el = document.getElementById(selectedLayerId);
         if (el && (el.tagName.toLowerCase() === 'div' || el.tagName.toLowerCase() === 'p')) {
@@ -929,27 +1530,27 @@ const TextEditor = ({
     e.preventDefault();
     const startX = e.clientX;
     const initialVal = property === 'lineHeight' ? (parseFloat(startValue) || 1.2) : (parseFloat(startValue) || 0);
-    
+
     const onMouseMove = (moveEvent) => {
       const deltaX = moveEvent.clientX - startX;
       const deltaValue = (deltaX / 10) * step;
       let newValue = initialVal + deltaValue;
-      
+
       if (property === 'lineHeight') {
         newValue = Math.max(0.1, parseFloat(newValue.toFixed(2)));
       } else {
         newValue = Math.round(newValue);
       }
-      
+
       updateStyle(property, newValue);
     };
-    
+
     const onMouseUp = () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       document.body.style.cursor = 'default';
     };
-    
+
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     document.body.style.cursor = 'ew-resize';
@@ -968,7 +1569,7 @@ const TextEditor = ({
     if (!el) return '';
     const style = window.getComputedStyle(el);
     let val = style[prop];
-    
+
     // If the container style seems default/inherited, search children for a more specific style
     if (val === 'normal' || val === '400' || val.includes('sans-serif') || val === '0px' || val === '16px') {
       const styledChild = el.querySelector(`span[style*="${prop === 'fontFamily' ? 'font-family' : 'font-size'}"], [style*="${prop}"]`);
@@ -982,19 +1583,19 @@ const TextEditor = ({
   const calculateLineHeightMultiplier = () => {
     const el = document.getElementById(selectedLayerId);
     if (!el) return 1.2;
-    
+
     const inlineLH = el.getAttribute('data-line-height');
     if (inlineLH && /^[0-9.]+$/.test(inlineLH)) {
       return parseFloat(inlineLH);
     }
-    
+
     const computed = window.getComputedStyle(el);
     const fontSize = parseFloat(computed.fontSize);
     const lh = computed.lineHeight;
-    
+
     if (lh === 'normal') return 1.2;
     const val = parseFloat(lh);
-    
+
     // If computed is in px (most likely), convert to multiplier
     if (fontSize) return val / fontSize;
     return 1.2;
@@ -1012,7 +1613,7 @@ const TextEditor = ({
 
   const getDeepContent = useCallback((el) => {
     if (!el) return '';
-    
+
     // 1. Check if there is an active editing overlay for this element
     // Search the whole SVG because MainEditor appends overlays to the root SVG
     const svgRoot = el.ownerSVGElement || el.closest('svg');
@@ -1030,7 +1631,7 @@ const TextEditor = ({
       const tspans = Array.from(el.querySelectorAll('tspan'));
       if (tspans.length > 0) return tspans.map(t => t.textContent).join('\n');
     }
-    
+
     // 3. Handle foreignObject child (div/p) - innerText converts <br/> to \n
     return el.innerText || el.textContent || '';
   }, []);
@@ -1060,18 +1661,32 @@ const TextEditor = ({
         const fs = getDeepStyle(el, 'fontSize');
         const style = window.getComputedStyle(el);
 
-        if (ff) setFontFamily(ff.replace(/['\"]/g, '').split(',')[0]);
-        if (fs) setFontSize(parseInt(fs));
-        
+        if (ff) setFontFamily(ff.replace(/['"]/g, '').split(',')[0]);
+        if (fs) {
+          let fontSizeVal = parseInt(fs);
+          const transform = el.getAttribute('transform');
+          if (transform && transform.includes('matrix') && el.tagName.toLowerCase() !== 'foreignobject') {
+            const match = transform.match(/matrix\(([^)]+)\)/);
+            if (match) {
+              const vals = match[1].split(/[ ,]+/).map(parseFloat);
+              if (vals.length >= 4) {
+                const scaleY = Math.sqrt(vals[2] * vals[2] + vals[3] * vals[3]);
+                if (scaleY > 0) fontSizeVal = Math.round(fontSizeVal * scaleY);
+              }
+            }
+          }
+          setFontSize(fontSizeVal);
+        }
+
         const weight = style.fontWeight;
         const normalizedWeight = weight === 'bold' ? '700' : (weight === 'normal' ? '400' : weight);
         if (normalizedWeight) setFontWeight(normalizedWeight.toString());
-        
+
         if (style.fontStyle) setFontStyle(style.fontStyle);
         if (style.textDecoration) setTextDecoration(style.textDecoration);
         if (style.textAlign) setTextAlign(style.textAlign);
         if (style.textTransform) setTextTransform(style.textTransform);
-        
+
         // Sync Letter Spacing
         if (style.letterSpacing && style.letterSpacing !== 'normal') {
           setLetterSpacing(parseFloat(style.letterSpacing));
@@ -1098,16 +1713,17 @@ const TextEditor = ({
         syncFromCanvas();
       }
     };
-    
+
     // 2. Observer for DOM changes (like when MainEditor finishes editing and swaps fo for text)
     const el = document.getElementById(selectedLayerId);
     let observer = null;
     if (el) {
       observer = new MutationObserver((mutations) => {
+        if (el.getAttribute('data-editing') === 'true') return;
         // Optimization: only sync if relevant nodes changed
         syncFromCanvas();
       });
-      
+
       // Observe the element itself and its parent (for sibling overlays)
       observer.observe(el, { characterData: true, childList: true, subtree: true });
       if (el.parentNode) {
@@ -1116,7 +1732,7 @@ const TextEditor = ({
     }
 
     window.addEventListener('input', handleGlobalInput, true);
-    
+
     return () => {
       window.removeEventListener('input', handleGlobalInput, true);
       observer?.disconnect();
@@ -1152,6 +1768,49 @@ const TextEditor = ({
   }, [selectedElement]);
 
 
+  // Auto-convert oversized text elements to foreignObjects upon selection, and self-heal broken foreignObjects
+  useEffect(() => {
+    if (selectedLayerId && selectedElement) {
+      const tag = selectedElement.tagName.toLowerCase();
+      if (tag === 'text' || tag === 'foreignobject') {
+        const svgEl = selectedElement.ownerSVGElement || selectedElement.closest('svg');
+        let maxW = 9999;
+        let scaleX = 1;
+        if (svgEl) {
+           const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
+           const transform = selectedElement.getAttribute('transform');
+           if (transform && transform.includes('matrix')) {
+              const match = transform.match(/matrix\(([^)]+)\)/);
+              if (match) {
+                 const vals = match[1].split(/[ ,]+/).map(parseFloat);
+                 if (vals.length >= 6) scaleX = Math.sqrt(vals[0]*vals[0] + vals[1]*vals[1]);
+              }
+           }
+           const xPos = selectedElement.getBBox ? selectedElement.getBBox().x : (parseFloat(selectedElement.getAttribute('x')) || 0);
+           maxW = Math.max(50, svgWidth - xPos - 10);
+        }
+        
+        if (tag === 'text' && selectedElement.getBBox && selectedElement.getBBox().width > maxW) {
+           // It's too wide! Auto-convert it instantly so it wraps without scrollbars
+           handleStyleChange('data-auto-wrap', 'true', false);
+        } else if (tag === 'foreignobject') {
+           const currentW = parseFloat(selectedElement.getAttribute('width')) || 0;
+           if (currentW * scaleX > maxW + 5) {
+              // Self-heal broken massive foreignObjects
+              const correctedW = maxW / scaleX;
+              handleStyleChange('width', correctedW.toString(), false);
+           }
+           
+           // Self-heal broken CSS on old innerDivs
+           const liveEl = document.getElementById(selectedLayerId);
+           if (liveEl && liveEl.firstElementChild) {
+              liveEl.firstElementChild.style.wordBreak = 'normal';
+              liveEl.firstElementChild.style.overflowWrap = 'anywhere';
+           }
+        }
+      }
+    }
+  }, [selectedLayerId, selectedElement]);
 
   // Reset panels when selectedElement or closePanelsSignal changes
   useEffect(() => {
@@ -1171,8 +1830,7 @@ const TextEditor = ({
       if (weightRef.current && !weightRef.current.contains(event.target)) setShowWeightDropdown(false);
       if (borderStyleRef.current && !borderStyleRef.current.contains(event.target)) setShowBorderStyleDropdown(false);
       if (strokePositionRef.current && !strokePositionRef.current.contains(event.target)) setShowStrokePositionDropdown(false);
-      if (strokePositionRef.current && !strokePositionRef.current.contains(event.target)) setShowStrokePositionDropdown(false);
-      
+
       // Close panels if clicked outside
       if (activePanel) {
         if (activePanel === 'alignment' && alignmentRef.current && !alignmentRef.current.contains(event.target) && !event.target.closest('.alignment-trigger')) setActivePanel(null);
@@ -1246,24 +1904,79 @@ const TextEditor = ({
             isTypingRef.current = true;
             const newVal = e.target.value;
             setTextContent(newVal);
-            
+
             // 1. Instant DOM Preview: Update the live element or overlay immediately
             if (selectedLayerId) {
               const el = document.getElementById(selectedLayerId);
               const svgRoot = el?.ownerSVGElement || el?.closest('svg');
               const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-              
+
               if (overlay) {
                 overlay.innerText = newVal;
               } else if (el) {
                 // If no overlay, we still want a fast preview on the element itself if possible
                 // (Note: updateElementAttributeLocal also does this, but after a React cycle)
                 if (el.tagName.toLowerCase() === 'text') {
-                  // Rebuilding tspans manually is complex, so we'll let the debounced update handle it
+                  const svgEl = el.ownerSVGElement || el.closest('svg');
+                  let maxW = 9999;
+                  if (svgEl) {
+                     const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
+                     const xPos = parseFloat(el.getAttribute('x')) || 0;
+                     maxW = Math.max(50, svgWidth - xPos - 10);
+                  }
+
+                  const dummy = el.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'text');
+                  dummy.textContent = newVal;
+                  dummy.setAttribute('font-family', el.getAttribute('font-family') || '');
+                  dummy.setAttribute('font-size', el.getAttribute('font-size') || '');
+                  svgEl?.appendChild(dummy);
+                  const textW = dummy.getBBox().width;
+                  svgEl?.removeChild(dummy);
+
+                  if (textW > maxW || newVal.includes('\n')) {
+                      // Automatically convert to wrap-enabled (but non-scrollable) foreignObject
+                      handleStyleChange('data-auto-wrap', 'true', false);
+                      
+                      const newEl = document.getElementById(selectedLayerId);
+                      if (newEl && newEl.tagName.toLowerCase() === 'foreignobject' && newEl.firstElementChild) {
+                          newEl.firstElementChild.innerHTML = newVal.replace(/\n/g, '<br/>');
+                          const h = Math.max(newEl.firstElementChild.scrollHeight, 20);
+                          newEl.setAttribute('height', h + 20);
+                      }
+                      return;
+                  }
+
+                  const origFirstTspan = el.querySelector('tspan');
+                  const origTspanX = origFirstTspan ? origFirstTspan.getAttribute('x') : null;
+                  const origTspanY = origFirstTspan ? origFirstTspan.getAttribute('y') : null;
+                  const origTspanDy = origFirstTspan ? origFirstTspan.getAttribute('dy') : null;
+                  el.innerHTML = '';
+                  const lines = newVal.split('\n');
+                  const xValLive = origTspanX !== null ? origTspanX : (el.getAttribute('x') || '0');
+                  const lhLive = el.getAttribute('data-line-height') || '1.2';
+                  lines.forEach((line, i) => {
+                    const tspan = el.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                    tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
+                    tspan.setAttribute('x', xValLive);
+                    if (i === 0) {
+                      if (origTspanY !== null) tspan.setAttribute('y', origTspanY);
+                      if (origTspanDy !== null) tspan.setAttribute('dy', origTspanDy);
+                    } else {
+                      tspan.setAttribute('dy', `${parseFloat(lhLive).toFixed(2)}em`);
+                    }
+                    el.appendChild(tspan);
+                  });
                 } else if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
                   el.firstElementChild.innerHTML = newVal.replace(/\n/g, '<br/>');
+                  if (el.getAttribute('data-scrollable') !== 'true') {
+                    const h = Math.max(el.firstElementChild.scrollHeight, 20);
+                    el.setAttribute('height', h + 20);
+                  }
                 }
               }
+
+              // Force selection box to redraw after text change
+              window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
             }
 
             // 2. Debounced State Sync: Update the underlying state after typing stops
@@ -1349,18 +2062,18 @@ const TextEditor = ({
           )}
         </div>
         <div className="flex-1 flex items-center justify-between border border-gray-400 rounded-[0.75vw] px-[0.6vw] h-[2.5vw] bg-white focus-within:border-indigo-500 transition-colors">
-          <input 
+          <input
             type="text"
             value={letterSpacing === 0 ? 'Auto' : letterSpacing}
             onChange={(e) => {
               const val = e.target.value === 'Auto' || e.target.value === '' ? 0 : parseFloat(e.target.value);
               if (!isNaN(val)) updateStyle('letterSpacing', val);
             }}
-            onFocus={(e) => { if(e.target.value === 'Auto') e.target.value = ''; }}
-            onBlur={(e) => { if(e.target.value === '') e.target.value = 'Auto'; }}
+            onFocus={(e) => { if (e.target.value === 'Auto') e.target.value = ''; }}
+            onBlur={(e) => { if (e.target.value === '') e.target.value = 'Auto'; }}
             className="w-full bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium"
           />
-          <div 
+          <div
             className="flex items-center border-l border-gray-300 pl-[0.4vw] ml-[0.4vw] cursor-ew-resize active:text-indigo-600"
             onMouseDown={handleScrub('letterSpacing', letterSpacing, 1)}
           >
@@ -1368,22 +2081,22 @@ const TextEditor = ({
           </div>
         </div>
         <div className="flex-1 flex items-center justify-between border border-gray-400 rounded-[0.75vw] px-[0.6vw] h-[2.5vw] bg-white focus-within:border-indigo-500 transition-colors">
-          <input 
+          <input
             type="text"
             value={lineHeight === 1.2 ? 'Auto' : lineHeight}
             onChange={(e) => {
               const val = e.target.value === 'Auto' || e.target.value === '' ? 1.2 : parseFloat(e.target.value);
               if (!isNaN(val)) updateStyle('lineHeight', val);
             }}
-            onFocus={(e) => { if(e.target.value === 'Auto') e.target.value = ''; }}
-            onBlur={(e) => { if(e.target.value === '') e.target.value = 'Auto'; }}
+            onFocus={(e) => { if (e.target.value === 'Auto') e.target.value = ''; }}
+            onBlur={(e) => { if (e.target.value === '') e.target.value = 'Auto'; }}
             className="w-full bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium"
           />
-          <div 
+          <div
             className="flex items-center border-l border-gray-300 pl-[0.4vw] ml-[0.4vw] cursor-ew-resize active:text-indigo-600"
             onMouseDown={handleScrub('lineHeight', lineHeight, 0.1)}
           >
-            <Icon icon="solar:paragraph-spacing-bold" className="w-[1.2vw] h-[1.2vw] text-gray-600 pointer-events-none" /> 
+            <Icon icon="solar:paragraph-spacing-bold" className="w-[1.2vw] h-[1.2vw] text-gray-600 pointer-events-none" />
           </div>
         </div>
       </div>
@@ -1394,16 +2107,15 @@ const TextEditor = ({
         <div className="relative" ref={alignmentRef}>
           <button
             onClick={() => togglePanel('alignment')}
-            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
-              activePanel === 'alignment' 
-                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
-                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
-            }`}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${activePanel === 'alignment'
+              ? 'bg-indigo-600 text-white shadow-lg scale-95'
+              : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+              }`}
           >
             {textAlign === 'center' ? <AlignCenter size="1.3vw" strokeWidth={2.5} /> :
-             textAlign === 'right' ? <AlignRight size="1.3vw" strokeWidth={2.5} /> :
-             textAlign === 'justify' ? <AlignJustify size="1.3vw" strokeWidth={2.5} /> :
-             <AlignLeft size="1.3vw" strokeWidth={2.5} />}
+              textAlign === 'right' ? <AlignRight size="1.3vw" strokeWidth={2.5} /> :
+                textAlign === 'justify' ? <AlignJustify size="1.3vw" strokeWidth={2.5} /> :
+                  <AlignLeft size="1.3vw" strokeWidth={2.5} />}
           </button>
           {activePanel === 'alignment' && (
             <div className="absolute top-[3.5vw] left-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
@@ -1419,11 +2131,10 @@ const TextEditor = ({
         <div className="relative" ref={styleRef}>
           <button
             onClick={() => togglePanel('style')}
-            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
-              activePanel === 'style' 
-                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
-                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
-            }`}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${activePanel === 'style'
+              ? 'bg-indigo-600 text-white shadow-lg scale-95'
+              : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+              }`}
           >
             <Bold size="1.3vw" strokeWidth={2.5} />
           </button>
@@ -1441,17 +2152,16 @@ const TextEditor = ({
         <div className="relative" ref={caseRef}>
           <button
             onClick={() => togglePanel('case')}
-            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
-              activePanel === 'case' 
-                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
-                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
-            }`}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${activePanel === 'case'
+              ? 'bg-indigo-600 text-white shadow-lg scale-95'
+              : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+              }`}
           >
             <Minus size="1.3vw" strokeWidth={3} />
           </button>
           {activePanel === 'case' && (
             <div className="absolute top-[3.5vw] left-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
-              <button onClick={() => { updateStyle('textTransform', 'none'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><Minus size="1.1vw" strokeWidth={3}/></button>
+              <button onClick={() => { updateStyle('textTransform', 'none'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}><Minus size="1.1vw" strokeWidth={3} /></button>
               <button onClick={() => { updateStyle('textTransform', 'capitalize'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'capitalize' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>Aa</button>
               <button onClick={() => { updateStyle('textTransform', 'uppercase'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'uppercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>AB</button>
               <button onClick={() => { updateStyle('textTransform', 'lowercase'); togglePanel(null); }} className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${textTransform === 'lowercase' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}>ab</button>
@@ -1463,30 +2173,29 @@ const TextEditor = ({
         <div className="relative" ref={listRef}>
           <button
             onClick={() => togglePanel('list')}
-            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${
-              activePanel === 'list' 
-                ? 'bg-indigo-600 text-white shadow-lg scale-95' 
-                : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
-            }`}
+            className={`w-[3vw] h-[3vw] rounded-[0.8vw] flex items-center justify-center transition-all duration-200 ${activePanel === 'list'
+              ? 'bg-indigo-600 text-white shadow-lg scale-95'
+              : 'bg-[#F1F3F5] text-[#343A40] hover:bg-[#E9ECEF] hover:shadow-sm'
+              }`}
           >
             {listStyleType === 'decimal' ? <ListOrdered size="1.3vw" strokeWidth={2.5} /> : <List size="1.3vw" strokeWidth={2.5} />}
           </button>
           {activePanel === 'list' && (
             <div className="absolute top-[3.5vw] right-0 z-50 p-[0.5vw] bg-white border border-gray-100 rounded-[1vw] flex gap-[0.4vw] shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1),0_8px_10px_-6px_rgba(0,0,0,0.1)] animate-in fade-in zoom-in-95 duration-200">
-              <button 
-                onClick={() => { updateStyle('listStyleType', listStyleType === 'disc' ? 'none' : 'disc'); togglePanel(null); }} 
+              <button
+                onClick={() => { updateStyle('listStyleType', listStyleType === 'disc' ? 'none' : 'disc'); togglePanel(null); }}
                 className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${listStyleType === 'disc' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
               >
                 <List size="1.2vw" />
               </button>
-              <button 
-                onClick={() => { updateStyle('listStyleType', listStyleType === 'decimal' ? 'none' : 'decimal'); togglePanel(null); }} 
+              <button
+                onClick={() => { updateStyle('listStyleType', listStyleType === 'decimal' ? 'none' : 'decimal'); togglePanel(null); }}
                 className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${listStyleType === 'decimal' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
               >
                 <ListOrdered size="1.2vw" />
               </button>
-              <button 
-                onClick={() => { updateStyle('listStyleType', 'none'); togglePanel(null); }} 
+              <button
+                onClick={() => { updateStyle('listStyleType', 'none'); togglePanel(null); }}
                 className={`w-[2.6vw] h-[2.6vw] rounded-[0.7vw] flex items-center justify-center transition-all ${listStyleType === 'none' ? 'bg-indigo-50/80 text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-indigo-600 hover:bg-indigo-50/50'}`}
               >
                 <Minus size="1.2vw" />
@@ -1497,28 +2206,22 @@ const TextEditor = ({
       </div>
 
       {/* Accordions */}
-      <div className="space-y-[0.65vw] mt-[-1vw]">
-      {/* Accordions from ShapeProperties */}
-      <div className="shape-properties-container">
-        <ShapeProperties 
-          selectedElementProps={selectedElementProps || { 
-            fill: '#000000', 
-            opacity: '1', 
-            stroke: 'none', 
-            strokeWidth: '0', 
-            tagName: 'text' 
-          }}
-          activePageIndex={activePageIndex}
-          selectedLayerId={selectedLayerId}
-          updateElementAttribute={updateElementAttributeLocal}
-        />
-      </div>
-
-      <style>{`
-        .shape-properties-container > div > div:first-child {
-          display: none !important;
-        }
-      `}</style>
+      <div className="space-y-[0.65vw] mt-[1vw]">
+        {/* Accordions from ShapeProperties */}
+        <div className="shape-properties-container">
+          <TextEditorSubComponentAdapter
+            selectedElementProps={selectedElementProps || {
+              fill: '#000000',
+              opacity: '1',
+              stroke: 'none',
+              strokeWidth: '0',
+              tagName: 'text'
+            }}
+            activePageIndex={activePageIndex}
+            selectedLayerId={selectedLayerId}
+            updateElementAttributeLocal={updateElementAttributeLocal}
+          />
+        </div>
       </div>
     </div>
   );

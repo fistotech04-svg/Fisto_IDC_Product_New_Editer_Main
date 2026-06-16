@@ -21,6 +21,7 @@ const RightSidebar = ({
   activeTopTool,
   activePageIndex,
   pages,
+  setPages,
   updatePageBackground,
   selectedLayerId,
   updateElementAttribute,
@@ -46,7 +47,7 @@ const RightSidebar = ({
   bgType, setBgType,
   bgColor, setBgColor,
   customBg, setCustomBg,
-  enableAR, setEnableAR,
+    enableAR, setEnableAR,
   qrText, setQrText, qrColor, setQrColor, qrBgType, setQrBgType, qrBgColor, setQrBgColor, qrLevel, setQrLevel, qrDotType, setQrDotType, qrCornerSquareType, setQrCornerSquareType, qrCornerDotType, setQrCornerDotType, qrLogo, setQrLogo,
   topText, setTopText, bottomText, setBottomText
 }) => {
@@ -726,6 +727,7 @@ const RightSidebar = ({
                             }
                           }}
                           pages={pages}
+                          setPages={setPages}
                           activePageIndex={activePageIndex}
                         />
                       ) : selectedElementProps?.isVideo ? (

@@ -102,7 +102,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
     if (!selectedLayerId) return;
 
     // Resolve the live element from the DOM
-    const pageContainer = document.querySelector(`[data-page-index="${activePageIndex}"]`);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
 
     if (!liveElement) {

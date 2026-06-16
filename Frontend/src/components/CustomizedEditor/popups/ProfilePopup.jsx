@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icon } from '@iconify/react';
+import { motion } from 'framer-motion';
 
 const isLightColor = (hex) => {
     if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return false;
@@ -13,6 +14,34 @@ const isLightColor = (hex) => {
 const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, layoutColors, isEditor, isFullscreen, addTextBelowIcons }) => {
     // Select the correct profile data based on activeLayout if profileSettings is keyed by layout ID
     const currentProfile = (profileSettings && profileSettings[activeLayout]) ? profileSettings[activeLayout] : profileSettings;
+
+    const [profileLeft, setProfileLeft] = useState(null);
+
+    useEffect(() => {
+        if (Number(activeLayout) !== 9) return;
+        
+        let animationFrameId;
+
+        const syncPosition = () => {
+            const btn = document.getElementById('layout9-profile-btn');
+            const root = document.getElementById('preview-area-root');
+            const popup = document.getElementById('layout9-profile-panel');
+            
+            if (btn && root && popup) {
+                const btnRect = btn.getBoundingClientRect();
+                const rootRect = root.getBoundingClientRect();
+                const newLeft = btnRect.left - rootRect.left + (btnRect.width / 2);
+                
+                setProfileLeft(prev => prev === null ? newLeft : prev);
+                popup.style.left = `${newLeft}px`;
+            }
+            animationFrameId = requestAnimationFrame(syncPosition);
+        };
+
+        syncPosition();
+
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [activeLayout]);
 
     const name = currentProfile?.name || '';
     const about = currentProfile?.about || '';
@@ -802,8 +831,13 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                 {/* Global click-to-close overlay */}
                 <div className="fixed inset-0 z-[40] cursor-default" onClick={onClose} />
                 <div
-                    className={`absolute ${addTextBelowIcons ? 'top-[0.6vh]' : 'top-[1.2vh]'} ${addTextBelowIcons ? (isSidebarOpen ? 'left-[calc(50%_+_8.9vw)]' : 'left-[calc(50%_+_10.7vw)]') : (isSidebarOpen ? 'left-[calc(50%_+_7.6vw)]' : 'left-[calc(50%_+_10.6vw)]')} -translate-x-[90%] z-[45] animate-in fade-in slide-in-from-top-2 duration-300`}
-                    style={{ filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))' }}
+                    id="layout9-profile-panel"
+                    className={`absolute ${addTextBelowIcons ? 'top-[0.6vh]' : 'top-[1.2vh]'} z-[45] animate-in fade-in slide-in-from-top-2 ${isLayout9 ? 'transition-none' : 'duration-300'}`}
+                    style={{ 
+                        left: profileLeft !== null ? `${profileLeft}px` : (addTextBelowIcons ? (isSidebarOpen ? 'calc(50% + 11.9vw)' : 'calc(50% + 10.7vw)') : (isSidebarOpen ? 'calc(50% + 10.8vw)' : 'calc(50% + 10.6vw)')),
+                        transform: 'translateX(-90%)',
+                        filter: 'drop-shadow(0 1vw 3vw rgba(0,0,0,0.3))' 
+                    }}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className={`relative w-[16.5vw] ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'} h-fit max-h-[80vh] flex flex-col group`}>
@@ -820,8 +854,8 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                                 </defs>
                                 <path
                                     d={hasData ? "M0 162C0 137.1 8.95 117 20 117H180C191.05 117 200 108 200 97V65C200 29.1 211.2 0 225 0C238.8 0 250 29.1 250 65V585C250 610 241.05 630 230 630H20C8.95 630 0 610 0 585V162Z" : "M0 250C0 211.34 8.95 180 20 180H180C191.05 180 200 166.6 200 150V100C200 44.8 211.2 0 225 0C238.8 0 250 44.8 250 100V560C250 598.66 241.05 630 230 630H20C8.95 630 0 598.66 0 560V250Z"}
-                                    fill={dropdownBgHex}
-                                    fillOpacity={0.6}
+                                    fill={toolbarBgHex}
+                                    fillOpacity={0.8}
                                 />
                             </svg>
                         </div>
@@ -831,7 +865,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                             className="relative z-10 flex flex-col flex-1 px-[0.4vw] pb-[0.4vw] backdrop-blur-md pt-[3.7vw]"
                             style={{ clipPath: 'url(#profile-shape-clip)', WebkitClipPath: 'url(#profile-shape-clip)' }}
                         >
-                            <div className={`bg-white rounded-[0.8vw] flex flex-col w-full h-full p-[1vw] shadow-sm overflow-hidden ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'}`}>
+                            <div className={`bg-white/90 rounded-[0.8vw] flex flex-col w-full h-full p-[1vw] shadow-sm overflow-hidden ${hasData ? 'min-h-[13.5vw]' : 'min-h-[7vw]'}`}>
                                 {!hasData ? (
                                     <div className="text-[0.9vw] text-center py-[2vw] italic font-medium" style={{ color: layout9AccentColor, opacity: 0.5 }}>
                                         No profile found
@@ -887,6 +921,125 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                     </div>
                 </div>
             </>
+        );
+    }
+
+    // Mobile Portrait Layout 5 Needle Popup
+    if (isMobile && !isLandscape && layout === 5) {
+        return (
+            <div className="absolute inset-0 z-[5000] pointer-events-auto bg-transparent" onClick={onClose}>
+                <div
+                    className="absolute bottom-[98px] left-[63%] -translate-x-[75%] pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-200"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div className="relative">
+                        <div
+                            className="absolute -bottom-[12px] right-[28%] translate-x-1/2 z-10 pointer-events-none"
+                            style={{ width: '12px', height: '14px' }}
+                        >
+                            <svg width="100%" height="100%" viewBox="0 0 10 20" preserveAspectRatio="none" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M0 0L5 20L10 0" fill="#FFFFFF" />
+                                <path d="M0 0L5 20L10 0" fill={getLayoutColorRgba('toc-bg', '255, 255, 255', '1')} />
+                                <path d="M0 0L5 20L10 0" stroke={getLayoutColorRgba('toc-bg', '87, 92, 156', '0.3')} strokeWidth="1" />
+                            </svg>
+                        </div>
+
+                        {/* Popup Card */}
+                        <div
+                            className="rounded-[16px] shadow-[0_8px_30px_rgba(0,0,0,0.15)] w-[180px] flex flex-col border relative z-20 overflow-hidden"
+                            style={{
+                                backgroundColor: '#FFFFFF',
+                                borderColor: getLayoutColorRgba('toc-bg', '87, 92, 156', '0.2')
+                            }}
+                        >
+                            <div
+                                className="w-full flex flex-col p-3.5 gap-2"
+                                style={{ backgroundColor: getLayoutColorRgba('toc-bg', '255, 255, 255', '1') }}
+                            >
+                                <h2
+                                    className="text-[14px] font-bold tracking-tight"
+                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                >Profile</h2>
+
+                                {!hasData ? (
+                                    <div className="text-gray-400 text-[11px] text-center py-4 italic font-medium">
+                                        No profile found
+                                    </div>
+                                ) : (
+                                    <>
+                                        {/* Name */}
+                                        {name && (
+                                            <div className="flex gap-1.5">
+                                                <span
+                                                    className="text-[12px] font-bold whitespace-nowrap"
+                                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                >Name :</span>
+                                                <span
+                                                    className="text-[12px]"
+                                                    style={{ color: getLayoutColorRgba('toc-text', '55, 65, 81', '0.8') }}
+                                                >{name}</span>
+                                            </div>
+                                        )}
+
+                                        {/* About */}
+                                        {about && (
+                                            <div className="flex flex-col gap-1">
+                                                <span
+                                                    className="text-[12px] font-bold whitespace-nowrap"
+                                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                >About :</span>
+                                                <span
+                                                    className="text-[11px] leading-[1.5] text-justify"
+                                                    style={{ color: getLayoutColorRgba('toc-text', '75, 85, 99', '0.8') }}
+                                                >{about}</span>
+                                            </div>
+                                        )}
+
+                                        {/* Divider */}
+                                        {(name || about) && contacts.length > 0 && (
+                                            <div
+                                                className="h-[1px] opacity-10"
+                                                style={{ backgroundColor: getLayoutColor('toc-text', '#000000') }}
+                                            />
+                                        )}
+
+                                        {/* Contact */}
+                                        {contacts.length > 0 && (
+                                            <div className="flex flex-col gap-1.5 mt-0.5">
+                                                <span
+                                                    className="text-[12px] font-bold"
+                                                    style={{ color: getLayoutColor('toc-text', '#000000') }}
+                                                >Contact</span>
+                                                <div className="flex items-center flex-wrap gap-1.5">
+                                                    {contacts.map((contact) => {
+                                                        if (!contact.value) return null;
+                                                        const style = getSocialIcon(contact.type);
+
+                                                        return (
+                                                            <button
+                                                                key={contact.id}
+                                                                onClick={(e) => handleContactClick(e, contact)}
+                                                                className={`w-[28px] h-[28px] ${style.bg} rounded-[6px] flex items-center justify-center hover:opacity-80 transition-opacity border ${style.bg === 'bg-white' ? 'border-gray-200' : 'border-transparent'}`}
+                                                                title={contact.value}
+                                                            >
+                                                                <Icon
+                                                                    icon={style.icon}
+                                                                    className={`${style.color} w-4 h-4`}
+                                                                    strokeWidth={contact.type === 'phone' ? 3 : 1}
+                                                                />
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         );
     }
 
@@ -1008,10 +1161,10 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
         return (
             <div className="absolute inset-0 z-[5000] pointer-events-auto" onClick={onClose}>
                 <div
-                    className="absolute bottom-[90px] left-1/2 -translate-x-1/2 pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
+                    className="absolute bottom-[190px] right-[40px] pointer-events-auto animate-in fade-in zoom-in-95 duration-200"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="bg-white rounded-md shadow-[0_4px_20px_rgba(0,0,0,0.18)] w-[180px] overflow-hidden border border-gray-100 flex flex-col">
+                    <div className="bg-white rounded-none shadow-[0_4px_20px_rgba(0,0,0,0.18)] w-[180px] overflow-hidden border border-gray-100 flex flex-col">
                         {/* Header — Desktop Layout 8 style */}
                         <div
                             className="w-full px-3 py-2"
@@ -1169,10 +1322,14 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
         return (
             <>
                 <div className="absolute inset-0 z-[110] bg-transparent pointer-events-auto" onClick={onClose} />
-                <div
+                <motion.div
+                    initial={isMobile && !isLandscape && isLayout7 ? { opacity: 0, y: '100%' } : { opacity: 0, scale: 0.95 }}
+                    animate={isMobile && !isLandscape && isLayout7 ? { opacity: 1, y: 0 } : { opacity: 1, scale: 1 }}
+                    exit={isMobile && !isLandscape && isLayout7 ? { opacity: 0, y: '100%' } : { opacity: 0, scale: 0.95 }}
+                    transition={isMobile && !isLandscape && isLayout7 ? { type: 'spring', damping: 30, stiffness: 300 } : { duration: 0.2 }}
                     className={`absolute ${isLayout7 ? (isMobile && !isLandscape ? 'z-[1001]' : 'z-[60]') : 'z-[120]'} pointer-events-auto flex flex-col overflow-hidden
                         ${isLayout7
-                            ? (isMobile && !isLandscape ? 'fixed right-4 top-[15%] bottom-[125px] w-[230px] rounded-[20px] shadow-2xl backdrop-blur-xl border border-white/20' : (isTablet ? `right-[3.1vw] ${isFullscreen && document.fullscreenElement ? 'top-[9vh]' : (isFullscreen ? 'top-[5vh]' : 'top-[1.5vh]')} bottom-0 w-[16vw] backdrop-blur-xl rounded-t-[1.5vw] border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]` : `right-[4.5vw] ${isFullscreen && document.fullscreenElement ? 'top-[11vh]' : (isFullscreen ? 'top-[6vh]' : 'top-[2vh]')} bottom-0 w-[18vw] backdrop-blur-xl rounded-t-[1.5vw] border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]`))
+                            ? (isMobile && !isLandscape ? 'absolute right-4 top-[10%] bottom-0 w-[280px] rounded-t-[20px] shadow-2xl backdrop-blur-xl border border-white/20' : (isTablet ? `right-[3.1vw] ${isFullscreen && document.fullscreenElement ? 'top-[9vh]' : (isFullscreen ? 'top-[5vh]' : 'top-[1.5vh]')} bottom-0 w-[16vw] backdrop-blur-xl rounded-t-[1.5vw] border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]` : `right-[4.5vw] ${isFullscreen && document.fullscreenElement ? 'top-[11vh]' : (isFullscreen ? 'top-[6vh]' : 'top-[2vh]')} bottom-0 w-[18vw] backdrop-blur-xl rounded-t-[1.5vw] border-t-[0.1vw] border-l-[0.1vw] border-r-[0.1vw] shadow-[-10px_0px_40px_rgba(0,0,0,0.15)]`))
                             : isTablet ? "right-[3vw] top-[4.5vh] bottom-[4.5vh] w-[11vw] border border-[#575C9C]/10 shadow-2xl" : (isFullscreen ? "right-[3.5vw] top-[6vh] bottom-[6vh] w-[17.5vw]" : "right-[2vw] top-[5vh] bottom-[5vh] w-[17.5vw]") + " border border-[#575C9C]/10 shadow-2xl"
                         }`}
                     style={isLayout7 ? { backgroundColor: "rgba(var(--toc-bg-rgb, 255, 255, 255), 0.8)", borderColor: getLayoutColor('toc-text', '#575C9C') + '4D' } : { backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
@@ -1253,7 +1410,7 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
                             )}
                         </div>
                     </div>
-                </div>
+                </motion.div>
             </>
         );
     }

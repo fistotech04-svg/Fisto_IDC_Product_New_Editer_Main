@@ -87,7 +87,7 @@ const getShade = (hex, weight = 0.6) => {
 
 
 
-const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, addTextBelowIcons, isMobileLandscape, isTablet, textFont, hideTooltip = false }) => {
+const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClassName = '', mousePos, addTextBelowIcons, isMobileLandscape, isTablet, textFont, hideTooltip = false, tooltipPosition = 'bottom' }) => {
     const btnRef = React.useRef(null);
     const [showTooltip, setShowTooltip] = React.useState(false);
     const [isHovered, setIsHovered] = React.useState(false);
@@ -142,7 +142,7 @@ const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClas
 
             {showTooltip && !hideTooltip && !addTextBelowIcons && (
                 <div
-                    className="absolute top-full mt-[1.5vh] left-1/2 -translate-x-1/2 whitespace-nowrap"
+                    className={`absolute ${tooltipPosition === 'top' ? 'bottom-full mb-[1.5vh]' : 'top-full mt-[1.5vh]'} left-1/2 -translate-x-1/2 whitespace-nowrap`}
                     style={{
                         background: 'rgba(10, 10, 12, 0.55)',
                         backdropFilter: 'blur(30px)',
@@ -161,8 +161,8 @@ const MagneticDockBtnTop = ({ iconEl, label, onClick, extraStyle = {}, extraClas
                 >
                     {label}
                     <div
-                        className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[0.35vw] border-r-[0.35vw] border-b-[0.45vw]"
-                        style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}
+                        className={`absolute ${tooltipPosition === 'top' ? 'top-full border-t-[0.45vw]' : 'bottom-full border-b-[0.45vw]'} left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[0.35vw] border-r-[0.35vw]`}
+                        style={{ [tooltipPosition === 'top' ? 'borderTopColor' : 'borderBottomColor']: 'rgba(10, 10, 12, 0.55)' }}
                     />
                 </div>
             )}
@@ -225,11 +225,12 @@ const Grid3Layout = ({
     isMobileLandscape = false,
     isEditor = false,
     showSharePopup,
-    showExportPopup
+    showExportPopup,
+    offset = 0,
 }) => {
     const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
     const totalPages = pagesCount;
-    const isBigBars = !isEditor || isFullscreen;
+    const isBigBars = !isEditor;
     const progressPercentage = totalPages > 1 ? (currentPage / (totalPages - 1)) * 100 : 0;
 
     const [showThumbnails, setShowThumbnails] = useState(false);
@@ -251,7 +252,7 @@ const Grid3Layout = ({
     const savedZoomRef = useRef(null);
     const zoomTimerRef = useRef(null);
     const dimWidthRef = useRef(dimWidth);
-    useEffect(() => { dimWidthRef.current = dimWidth; }, [dimWidth]);
+    useEffect(() => { dimWidthRef.current = dimWidth; }, [dimWidth, offset]);
 
     // Sync isCanvasHovered to true as soon as we enter fullscreen
     const [prevFS, setPrevFS] = useState(isFullscreen);
@@ -417,6 +418,7 @@ const Grid3Layout = ({
     };
 
     const localOffset = useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -424,7 +426,7 @@ const Grid3Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -541,7 +543,7 @@ const Grid3Layout = ({
     const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons ?? false;
     const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
 
-    const renderToolbarBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '', hideTooltip = false) => (
+    const renderToolbarBtn = (iconEl, label, onClick, extraStyle = {}, extraClassName = '', hideTooltip = false, forceNoText = false, tooltipPosition = 'bottom') => (
         <MagneticDockBtnTop
             iconEl={iconEl}
             label={label}
@@ -549,11 +551,12 @@ const Grid3Layout = ({
             extraStyle={extraStyle}
             extraClassName={extraClassName}
             mousePos={dockMousePos}
-            addTextBelowIcons={addTextBelowIcons}
+            addTextBelowIcons={forceNoText ? false : addTextBelowIcons}
             isMobileLandscape={isMobileLandscape}
             isTablet={isTablet}
             textFont={textFont}
             hideTooltip={hideTooltip}
+            tooltipPosition={tooltipPosition}
         />
     );
 
@@ -573,7 +576,7 @@ const Grid3Layout = ({
             >
                 {/* Layout 3 Top Bar - High Fidelity Match */}
                 <div className={isFullscreen ? 'absolute top-0 left-0 w-full z-[1000] bg-transparent' : 'shrink-0'}>
-                    <div className={`${!isBigBars ? (isMobileLandscape ? 'h-[5.5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[7vh]') : (isMobileLandscape ? 'h-[6vh] pt-[0.5vh]' : isTablet ? 'h-[6.5vh]' : 'h-[7.5vh]')} flex items-center justify-between px-[1.5vw] w-full z-[1001] border-b border-white/5 shadow-lg transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
+                    <div className={`${!isBigBars ? (isMobileLandscape ? 'h-[5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[6.5vh]') : (isMobileLandscape ? 'h-[5.5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[6.5vh]')} flex items-center justify-between px-[1.5vw] w-full z-[1001] border-b border-white/5 shadow-lg transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
                         onClick={(e) => e.stopPropagation()}
                         style={{ backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '1') }}
                         onMouseMove={(e) => setDockMousePos({ x: e.clientX, y: e.clientY })}
@@ -930,7 +933,7 @@ const Grid3Layout = ({
 
                 {/* Layout 3 Bottom Bar - Integrated Progress UI */}
                 <div className={isFullscreen ? 'absolute bottom-0 left-0 w-full z-[1000] bg-transparent' : 'shrink-0'}>
-                    <div className={`${!isBigBars ? (isMobileLandscape ? 'h-[4vh] pt-[0.5vh]' : isTablet ? 'h-[5vh]' : 'h-[6.5vh] pt-[1vh]') : (isMobileLandscape ? 'h-[6vh] pt-[0.5vh]' : isTablet ? 'h-[6.5vh]' : 'h-[8vh] pt-[1vh]')} flex items-start justify-between px-[2vw] w-full z-[1001] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
+                    <div className={`${!isBigBars ? (isMobileLandscape ? 'h-[4vh] pt-[0.5vh]' : isTablet ? 'h-[5vh]' : 'h-[6.5vh] pt-[1vh]') : (isMobileLandscape ? 'h-[4.5vh] pt-[0.5vh]' : isTablet ? 'h-[5.5vh]' : 'h-[6.5vh] pt-[1vh]')} flex items-start justify-between px-[2vw] w-full z-[1001] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
                         onClick={(e) => e.stopPropagation()}
                         style={{ backgroundColor: getLayoutColorRgba('bottom-toolbar-bg', '62, 68, 145', '1') }}>
 
@@ -976,14 +979,17 @@ const Grid3Layout = ({
                         )}
 
                         {/* Center: Playback Control Group */}
-                        <div className={`flex items-center ${isTablet ? 'gap-[0.8vw]' : 'gap-[1.5vw]'}`}>
+                        <div className={`flex items-center ${isTablet ? 'gap-[0.8vw]' : 'gap-[1.5vw]'} transition-transform ${addTextBelowIcons ? '-translate-y-[0.7vh]' : ''} ${isBigBars ? 'translate-x-[2.5vw]' : ''}`}>
                             {/* Previous Spread */}
                             {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
                                 <Icon icon="lucide:skip-back" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />,
                                 'First',
                                 () => onPageClick(0),
                                 { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                'p-[0.3vw]'
+                                'p-[0.3vw]',
+                                false,
+                                false,
+                                'top'
                             )}
                             {/* Play/Pause */}
                             {(settings?.media?.autoFlip ?? true) && renderToolbarBtn(
@@ -991,7 +997,10 @@ const Grid3Layout = ({
                                 isAutoFlipping ? 'Pause' : 'Play',
                                 () => setIsPlaying(!isAutoFlipping),
                                 { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                'p-[0.3vw]'
+                                'p-[0.3vw]',
+                                false,
+                                false,
+                                'top'
                             )}
                             {/* Next Spread */}
                             {(settings?.navigation?.startEndNav ?? true) && renderToolbarBtn(
@@ -999,7 +1008,10 @@ const Grid3Layout = ({
                                 'Last',
                                 () => onPageClick(totalPages - 1),
                                 { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' },
-                                'p-[0.3vw]'
+                                'p-[0.3vw]',
+                                false,
+                                false,
+                                'top'
                             )}
                         </div>
 
@@ -1017,7 +1029,11 @@ const Grid3Layout = ({
                                             <Icon icon="lucide:zoom-out" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
                                             'Zoom Out',
                                             () => zoomOut(),
-                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }
+                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' },
+                                            '',
+                                            false,
+                                            true,
+                                            'top'
                                         )}
                                         <span className={`font-bold ${!isBigBars ? (isTablet ? 'text-[0.55vw]' : 'text-[0.6vw]') : (isTablet ? 'text-[0.65vw]' : 'text-[0.7vw]')} tracking-tight tabular-nums select-none min-w-[2.0vw]`}
                                             style={{ color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }}
@@ -1028,7 +1044,11 @@ const Grid3Layout = ({
                                             <Icon icon="lucide:zoom-in" className={`${isMobileLandscape ? 'w-[0.9vw] h-[0.9vw]' : isTablet ? 'w-[0.7vw] h-[0.7vw]' : 'w-[0.8vw] h-[0.8vw]'}`} />,
                                             'Zoom In',
                                             () => zoomIn(),
-                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' }
+                                            { color: getLayoutColor('search-text-v1', '#575C9C'), opacity: 'var(--search-text-v1-opacity, 1)' },
+                                            '',
+                                            false,
+                                            true,
+                                            'top'
                                         )}
                                     </div>
                                     <button

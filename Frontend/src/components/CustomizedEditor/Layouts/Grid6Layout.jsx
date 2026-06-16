@@ -222,6 +222,7 @@ const Grid6Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -229,7 +230,7 @@ const Grid6Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -425,7 +426,7 @@ const Grid6Layout = ({
         >
             {/* Top Header */}
             <div
-                className={`${isTablet ? 'h-[6vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
+                className={`${isTablet ? 'h-[6vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center justify-between pl-[1.5vw] ${isTablet ? 'pr-[4.5vw]' : (isFullscreen ? 'pr-[6vw]' : 'pr-[4.5vw]')} shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
                     backgroundColor: getLayoutColor('toolbar-bg', '#575C9C'),
                     opacity: isFullscreen && isCanvasHovered ? 0 : getLayoutOpacity('toolbar-bg', 1)
@@ -552,18 +553,31 @@ const Grid6Layout = ({
 
                 {/* Right: Logo */}
                 <div className="flex items-center">
-                    {logoSettings?.src && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setShowProfilePopup(true); }}
-                            className="transition-opacity hover:opacity-80"
-                        >
-                            <img
-                                src={logoSettings.src}
-                                alt="Logo"
-                                className={`${isTablet ? 'h-[2vw]' : 'h-[2.5vw]'} w-auto brightness-110`}
-                                style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
-                            />
-                        </button>
+                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
+                        logoSettings.url ? (
+                            <a 
+                                href={logoSettings.url.startsWith('http') ? logoSettings.url : `https://${logoSettings.url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="transition-opacity hover:opacity-80"
+                            >
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.5vw]'} w-auto brightness-110`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                                />
+                            </a>
+                        ) : (
+                            <button className="transition-opacity hover:opacity-80 cursor-default">
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[2vw]' : 'h-[2.5vw]'} w-auto brightness-110`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
+                                />
+                            </button>
+                        )
                     )}
                 </div>
             </div>

@@ -8,6 +8,7 @@ import multer from "multer";
 import FlipbookAsset from "../../models/FlipbookAsset.js";
 import UserSettings from "../../models/UserSettings.js";
 import ThreedModel from "../../models/ThreedModel.js";
+import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
 
@@ -163,6 +164,19 @@ router.post("/upload-3d-model", (req, res) => {
 
       // Relative URL stored in the page HTML (flipbook-portable)
       const relativeUrl = `./assets/3D_Model/${req.file.filename}`;
+      const type = path.extname(req.file.filename).slice(1);
+      const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
+
+      // ── Save to InteractionThreedModel for flipbook-specific record ────────
+      const newInteractionModel = await InteractionThreedModel.create({
+        userEmail: emailId,
+        flipbookName,
+        folderName,
+        fileName: req.file.filename,
+        url: relativeUrl,
+        size: sizeStr,
+        type: type,
+      });
 
       // ── Also copy to user's global 3D_Modals folder ──────────────────────
       let globalUrl = null;
@@ -182,16 +196,15 @@ router.post("/upload-3d-model", (req, res) => {
 
         // Upsert DB record in ThreedModel so it appears in the user's gallery
         globalUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
-        const type = path.extname(req.file.filename).slice(1);
-        const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
 
         const existingModel = await ThreedModel.findOne({
           userEmail: emailId,
           name: req.file.filename,
         });
 
+        let createdThreedModel = null;
         if (!existingModel) {
-          await ThreedModel.create({
+          createdThreedModel = await ThreedModel.create({
             userEmail: emailId,
             name: req.file.filename,
             url: globalUrl,
@@ -199,6 +212,15 @@ router.post("/upload-3d-model", (req, res) => {
             size: sizeStr,
           });
         }
+        
+        res.status(200).json({
+          message: "3D model uploaded successfully",
+          url: relativeUrl,       // relative path for page HTML
+          globalUrl,              // absolute path in 3D_Modals gallery
+          filename: req.file.filename,
+          v_id: newInteractionModel.v_id,
+        });
+        return;
       }
       // ─────────────────────────────────────────────────────────────────────
 
@@ -207,6 +229,7 @@ router.post("/upload-3d-model", (req, res) => {
         url: relativeUrl,       // relative path for page HTML
         globalUrl,              // absolute path in 3D_Modals gallery
         filename: req.file.filename,
+        v_id: newInteractionModel.v_id,
       });
     } catch (error) {
       console.error("Error processing 3D model upload:", error);
@@ -525,16 +548,18 @@ router.post("/save", async (req, res) => {
       const modelDir = path.join(flipbookDir, "assets", "3D_Model");
       if (fs.existsSync(modelDir)) {
         const existingModels = fs.readdirSync(modelDir);
-        existingModels.forEach((modelFile) => {
+        for (const modelFile of existingModels) {
           if (!activeModels.has(modelFile)) {
             try {
               fs.unlinkSync(path.join(modelDir, modelFile));
               console.log(`Deleted orphaned 3D model: ${modelFile}`);
+              await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: modelFile });
+              console.log(`Deleted DB entry for orphaned 3D model: ${modelFile}`);
             } catch (e) {
               console.error(`Error deleting orphaned 3D model ${modelFile}:`, e);
             }
           }
-        });
+        }
       }
     }
 
@@ -600,6 +625,16 @@ router.post("/save", async (req, res) => {
 
     // UPDATE ASSET URLs IF FLIPBOOK WAS RENAMED
     if (oldFlipbookName && oldFlipbookName !== flipbookName) {
+      try {
+        console.log(`Updating InteractionThreedModel for renamed flipbook...`);
+        await InteractionThreedModel.updateMany(
+          { userEmail: emailId, flipbookName: oldFlipbookName },
+          { $set: { flipbookName: flipbookName } }
+        );
+      } catch (err) {
+        console.error("Error updating InteractionThreedModel after rename:", err);
+      }
+
       try {
         console.log(`Updating assets for renamed flipbook...`);
 

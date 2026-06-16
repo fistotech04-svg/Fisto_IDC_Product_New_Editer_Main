@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { LAYOUT_DEFAULT_COLORS } from '../components/CustomizedEditor/Layout';
@@ -9,6 +9,7 @@ import { Ghost, ArrowLeft, Home, BookOpen } from 'lucide-react';
 const ShareViewBook = () => {
     const { shareId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const [bookData, setBookData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -32,7 +33,18 @@ const ShareViewBook = () => {
     };
 
     // Prepare settings fallback
-    const settings = bookData?.settings || {};
+    const settings = React.useMemo(() => {
+        const baseSettings = bookData?.settings || {};
+        const searchParams = new URLSearchParams(location.search);
+        const queryLayout = searchParams.get('layout');
+        if (queryLayout && !isNaN(Number(queryLayout))) {
+            return {
+                ...baseSettings,
+                layout: Number(queryLayout)
+            };
+        }
+        return baseSettings;
+    }, [bookData?.settings, location.search]);
 
     const layoutColorVars = React.useMemo(() => {
         if (!bookData) return '';

@@ -20,34 +20,97 @@
   background: #94a3b8;
 }
 
-/* Firefox */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f8fafc;
-}
-
 /* Precise Custom Scrollbar for small UI elements */
+
 .custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
+  width: 2px !important;
+  height: 2px !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: #E5E7EB !important;
+  border-radius: 8px !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #e2e8f0;
-  border-radius: 4px;
+  background: #4B5563 !important;
+  border-radius: 8px !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #cbd5e1;
+  background: #374151 !important;
 }
 
-/* Firefox */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
+.custom-scrollbar::-webkit-scrollbar-thumb:active {
+  background: #111827 !important;
+}
+
+.custom-scrollbar::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* Ensure text inside contentEditable boxes and scrollable features wrap correctly */
+.text-edit-box,
+[contenteditable="true"],
+[data-scrollable="true"],
+foreignObject div {
+  white-space: pre-wrap !important;
+  word-wrap: break-word !important;
+  word-break: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Scrollbar styling for text boxes in the editor to match the preview style */
+.flipbook-text-scrollbar::-webkit-scrollbar,
+[data-scrollable="true"]::-webkit-scrollbar,
+[data-scrollable="true"] *::-webkit-scrollbar {
+  width: 2px !important;
+  height: 2px !important;
+  background: transparent !important;
+}
+
+.flipbook-text-scrollbar::-webkit-scrollbar-track,
+[data-scrollable="true"]::-webkit-scrollbar-track,
+[data-scrollable="true"] *::-webkit-scrollbar-track {
+  background: #E5E7EB !important;
+  border-radius: 8px !important;
+}
+
+.flipbook-text-scrollbar::-webkit-scrollbar-thumb,
+[data-scrollable="true"]::-webkit-scrollbar-thumb,
+[data-scrollable="true"] *::-webkit-scrollbar-thumb {
+  background: #4B5563 !important;
+  border-radius: 8px !important;
+}
+
+.flipbook-text-scrollbar::-webkit-scrollbar-thumb:hover,
+[data-scrollable="true"]::-webkit-scrollbar-thumb:hover,
+[data-scrollable="true"] *::-webkit-scrollbar-thumb:hover {
+  background: #374151 !important;
+}
+
+.flipbook-text-scrollbar::-webkit-scrollbar-thumb:active,
+[data-scrollable="true"]::-webkit-scrollbar-thumb:active,
+[data-scrollable="true"] *::-webkit-scrollbar-thumb:active {
+  background: #111827 !important;
+}
+
+foreignObject:not([data-scrollable="true"]):not([data-editing="true"]) div {
+  width: 100% !important;
+  height: auto !important;
+}
+
+/* Removed duplicate scrollbar styles (now consolidated with high specificity above) */
+
+/* Firefox Fallback */
+@-moz-document url-prefix() {
+  .custom-scrollbar,
+  .flipbook-text-scrollbar {
+    scrollbar-width: thin !important;
+    scrollbar-color: #4B5563 #E5E7EB !important;
+  }
 }
 
 .hide-controls::-webkit-media-controls {

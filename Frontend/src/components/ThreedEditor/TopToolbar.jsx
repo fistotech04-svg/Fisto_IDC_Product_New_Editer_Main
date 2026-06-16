@@ -21,12 +21,14 @@ const TopToolbar = ({
     onUndo,
     onRedo,
     canUndo,
-    canRedo
+    canRedo,
+    disableRename = false
 }) => {
     const [isEditingName, setIsEditingName] = useState(false);
     const [tempName, setTempName] = useState("");
 
     const startEditing = () => {
+        if (disableRename) return;
         setTempName(modelName || "");
         setIsEditingName(true);
     };
@@ -87,10 +89,17 @@ const TopToolbar = ({
             {/* Center: Model Name Section (Individual Item) */}
             <div className="absolute top-[1.04vw] left-1/2 -translate-x-1/2 pointer-events-auto">
                 <div 
-                    onClick={!isEditingName ? startEditing : undefined}
-                    className={`flex items-center bg-white h-[2.5vw] px-[1.2vw] gap-[0.6vw] rounded-[0.62vw] ${!isEditingName ? "cursor-pointer hover:bg-gray-50 group border border-transparent hover:border-gray-200" : "border border-blue-500 ring-[0.1vw] ring-blue-100"} transition-all`}
+                    onClick={!isEditingName && !disableRename ? startEditing : undefined}
+                    className={`flex items-center bg-white h-[2.5vw] px-[1.2vw] gap-[0.6vw] rounded-[0.62vw] ${
+                        disableRename
+                            ? 'cursor-default border border-transparent'
+                            : !isEditingName
+                                ? 'cursor-pointer hover:bg-gray-50 group border border-transparent hover:border-gray-200'
+                                : 'border border-blue-500 ring-[0.1vw] ring-blue-100'
+                    } transition-all`}
+                    title={disableRename ? 'Model name cannot be changed when editing via Interaction 3D Viewer' : ''}
                 >
-                    {isEditingName ? (
+                    {isEditingName && !disableRename ? (
                         <input 
                             autoFocus
                             type="text"
@@ -102,8 +111,15 @@ const TopToolbar = ({
                         />
                     ) : (
                         <>
-                            <span className="text-[0.85vw] font-semibold text-gray-600 tracking-tight">{modelName || "Untitled Model"}</span>
-                            <Icon icon="heroicons:pencil-square" width="0.95vw" height="0.95vw" className="text-gray-400 group-hover:text-gray-900 transition-colors" />
+                            <span className={`text-[0.85vw] font-semibold tracking-tight ${disableRename ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {modelName || "Untitled Model"}
+                            </span>
+                            {!disableRename && (
+                                <Icon icon="heroicons:pencil-square" width="0.95vw" height="0.95vw" className="text-gray-400 group-hover:text-gray-900 transition-colors" />
+                            )}
+                            {disableRename && (
+                                <Icon icon="lucide:lock" width="0.85vw" height="0.85vw" className="text-gray-300" />
+                            )}
                         </>
                     )}
                 </div>

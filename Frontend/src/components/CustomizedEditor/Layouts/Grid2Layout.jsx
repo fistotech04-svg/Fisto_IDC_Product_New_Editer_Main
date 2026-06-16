@@ -282,6 +282,7 @@ const Grid2Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -289,7 +290,7 @@ const Grid2Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -323,7 +324,7 @@ const Grid2Layout = ({
     const savedZoomRef = React.useRef(null);
     const zoomTimerRef = React.useRef(null);
     const dimWidthRef = React.useRef(dimWidth);
-    React.useEffect(() => { dimWidthRef.current = dimWidth; }, [dimWidth]);
+    React.useEffect(() => { dimWidthRef.current = dimWidth; }, [dimWidth, offset]);
 
     // Sync isCanvasHovered to true as soon as we enter fullscreen
     const [prevFS, setPrevFS] = useState(isFullscreen);

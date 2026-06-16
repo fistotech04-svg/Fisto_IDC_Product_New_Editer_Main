@@ -103,7 +103,8 @@ const Grid5Layout = ({
     isTablet,
     showTOC,
     isMobileLandscape,
-    isFullscreen: isFullscreenProp
+    isFullscreen: isFullscreenProp,
+    offset = 0,
 }) => {
     // ... rest of the setup logic
     const flipSoundMasterEnabled = otherSetupSettings?.sound?.flipSoundEnabled !== false;
@@ -157,6 +158,7 @@ const Grid5Layout = ({
     }, [aspectRatio, initialWidth]);
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         if (currentPage === 0) {
             return -(dimWidth / 2);
@@ -164,7 +166,7 @@ const Grid5Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages.length, dimWidth]);
+    }, [currentPage, pages.length, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -1368,7 +1370,7 @@ const Grid5Layout = ({
                 <>
                     {/* Main Container - Rounded Capsule */}
                     <div
-                        className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-1/2 -translate-x-1/2 w-[47.3vw] ${spreads.length === 1 ? 'rounded-[0.8vw]' : 'rounded-full'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
+                        className={`absolute z-[150] ${isTablet ? 'bottom-[6.5vh] h-[5vw]' : 'bottom-[8.5vh] h-[5.8vw]'} left-1/2 -translate-x-1/2 w-fit max-w-[47.3vw] ${spreads.length === 1 ? 'rounded-[0.8vw]' : 'rounded-full'} shadow-[0_0.5vw_2vw_rgba(0,0,0,0.08)] flex items-center border overflow-hidden`}
                         style={{
                             backgroundColor: '#FFFFFF',
                             borderColor: getLayoutColor('dropdown-text', '#575C9C')
@@ -1394,7 +1396,7 @@ const Grid5Layout = ({
                             <div
                                 ref={scrollRef}
                                 onScroll={checkScroll}
-                                className="flex-1 flex overflow-x-hidden no-scrollbar scroll-smooth items-center h-full gap-[0.5vw] px-[0.2vw]"
+                                className="shrink flex overflow-x-hidden no-scrollbar scroll-smooth items-center h-full gap-[0.5vw] px-[0.2vw]"
                             >
                                 {spreads.map((spread, idx) => {
                                     const isSelected = spread.indices.includes(currentPage);

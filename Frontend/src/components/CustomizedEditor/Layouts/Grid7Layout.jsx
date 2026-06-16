@@ -138,6 +138,7 @@ const Grid7Layout = ({
     };
 
     const localOffset = React.useMemo(() => {
+        if (offset === 0) return 0; // Use offset prop to respect single page mode
         // Shift left to center the front cover, shift right to center the back cover
         const length = pages?.length || pagesCount || 0;
         if (currentPage === 0) {
@@ -146,7 +147,7 @@ const Grid7Layout = ({
             return (currentPage % 2 === 0) ? -(dimWidth / 2) : (dimWidth / 2);
         }
         return 0;
-    }, [currentPage, pages?.length, pagesCount, dimWidth]);
+    }, [currentPage, pages?.length, pagesCount, dimWidth, offset]);
 
     const originalBuildPageDoc = children && children.props && children.props.buildPageDoc;
     const localBuildPageDoc = React.useCallback((html, pageNum) => {
@@ -332,7 +333,7 @@ const Grid7Layout = ({
             />
             {/* Top Header - Light themed as in screenshot */}
             <div
-                className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
+                className={`${isTablet ? 'h-[7vh]' : 'h-[8vh]'} flex items-center justify-between pl-[1.5vw] ${isTablet ? 'pr-[4vw]' : (isFullscreen ? 'pr-[5.5vw]' : 'pr-[5.5vw]')} shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
                     opacity: isFullscreen && isCanvasHovered ? 0 : 1
                 }}
@@ -466,15 +467,35 @@ const Grid7Layout = ({
 
                 {/* Right: Logo */}
                 <div className="flex items-center">
-                    {logoSettings?.src && (
-                        <div className="bg-transparent p-[0.4vw]">
-                            <img
-                                src={logoSettings.src}
-                                alt="Logo"
-                                className={`${isTablet ? 'h-[1.8vw]' : 'h-[2.2vw]'} w-auto`}
-                                style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
-                            />
-                        </div>
+                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
+                        (() => {
+                            const adj = logoSettings.adjustments || {};
+                            const filterStr = `brightness(${100 + (adj.exposure || 0)}%) contrast(${100 + (adj.contrast || 0)}%) saturate(${100 + (adj.saturation || 0)}%) hue-rotate(${adj.tint || 0}deg) sepia(${adj.temperature > 0 ? adj.temperature : 0}%) brightness(${100 + ((adj.highlights || 0) / 5)}%) contrast(${100 + ((adj.shadows || 0) / 5)}%)`;
+                            
+                            const innerImg = (
+                                <img
+                                    src={logoSettings.src}
+                                    alt="Logo"
+                                    className={`${isTablet ? 'h-[1.8vw]' : 'h-[2.2vw]'} w-auto`}
+                                    style={{ opacity: (logoSettings.opacity ?? 100) / 100, filter: filterStr }}
+                                />
+                            );
+                            
+                            return logoSettings.url ? (
+                                <a 
+                                    href={logoSettings.url.startsWith('http') ? logoSettings.url : `https://${logoSettings.url}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-transparent p-[0.4vw] transition-opacity hover:opacity-80 block"
+                                >
+                                    {innerImg}
+                                </a>
+                            ) : (
+                                <div className="bg-transparent p-[0.4vw] transition-opacity hover:opacity-80 block">
+                                    {innerImg}
+                                </div>
+                            );
+                        })()
                     )}
                 </div>
             </div>
@@ -866,9 +887,8 @@ const Grid7Layout = ({
                     );
                 })()}
 
-                {/* Right Sidebar - EXACT UI FROM SCREENSHOT */}
                 <div
-                    className={`absolute ${isTablet ? `right-[0.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `right-[0.8vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[39%] -translate-y-1/2 flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
+                    className={`absolute ${isTablet ? `right-[0.5vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.4vw]'} py-[1.2vh] gap-[1.8vh] rounded-[0.5vw]` : `right-[0.8vw] ${settings?.toolbar?.addTextBelowIcons ? 'w-[3vw]' : 'w-[2.8vw]'} py-[1.8vh] gap-[2.1vh] rounded-[0.7vw]`} top-[2vh] flex flex-col z-[100] shadow-2xl items-center overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                     style={{
                         opacity: isFullscreen && isCanvasHovered ? 0 : 1
                     }}
@@ -894,7 +914,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="fluent:text-bullet-list-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Table of<br />Contents</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -928,7 +948,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="ph:squares-four-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Thumbnails</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -961,7 +981,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="clarity:image-gallery-solid" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Gallery</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -996,7 +1016,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="solar:music-notes-bold" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Sound</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1030,7 +1050,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="fluent:person-24-filled" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Profile</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1060,7 +1080,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="mage:share-fill" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Share</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1090,7 +1110,7 @@ const Grid7Layout = ({
                         >
                             <Icon icon="meteor-icons:download" width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                             {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>Download</span>}
-                            <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                            <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                                 style={{
                                     background: 'rgba(10, 10, 12, 0.55)',
                                     backdropFilter: 'blur(30px)',
@@ -1120,7 +1140,7 @@ const Grid7Layout = ({
                     >
                         <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} width={isTablet ? '1.1vw' : '1.3vw'} height={isTablet ? '1.1vw' : '1.3vw'} />
                         {settings?.toolbar?.addTextBelowIcons && <span className={`${isTablet ? 'text-[0.45vw]' : 'text-[0.55vw]'} font-semibold leading-tight text-center`} style={{ fontFamily: settings?.toolbar?.textProperties?.font || 'inherit' }}>{isFullscreen ? 'Exit' : 'Fullscreen'}</span>}
-                        <div className="absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden group-hover:block whitespace-nowrap pointer-events-none z-[9999]"
+                        <div className={`absolute right-[calc(100%+1vw)] top-1/2 -translate-y-1/2 hidden ${!settings?.toolbar?.addTextBelowIcons ? 'group-hover:block' : ''} whitespace-nowrap pointer-events-none z-[9999]`}
                             style={{
                                 background: 'rgba(10, 10, 12, 0.55)',
                                 backdropFilter: 'blur(30px)',
@@ -1145,7 +1165,7 @@ const Grid7Layout = ({
                 {/* Page Counter Badge - Floating above footer */}
                 {(settings?.navigation?.pageQuickAccess ?? true) && (
                     <div
-                        className={`absolute right-[0.8vw] ${isTablet ? 'bottom-[4vh] rounded-[0.3vw]' : 'bottom-[2.5vh] rounded-[0.4vw]'} px-[0.8vw] py-[0.4vh] shadow-lg z-30 border min-w-[5vw] flex items-center justify-center transition-all duration-300`}
+                        className={`absolute right-[0.8vw] ${isTablet ? 'bottom-[4vh] rounded-[0.3vw]' : 'bottom-[2.5vh] rounded-[0.4vw]'} px-[0.8vw] py-[0.4vh] shadow-lg z-[70] border min-w-[5vw] flex items-center justify-center transition-all duration-300`}
                         style={{
                             backgroundColor: getLayoutColor('toolbar-text-main', '#FFFFFF'),
                             opacity: getLayoutOpacity('toolbar-text-main', 1),

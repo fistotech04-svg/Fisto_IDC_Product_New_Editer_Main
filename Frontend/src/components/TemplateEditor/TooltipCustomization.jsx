@@ -196,7 +196,7 @@ const TooltipCustomization = ({
           'data-tooltip-settings': JSON.stringify(newSettings)
         });
       }
-    }, 400);
+    }, 800);
   };
 
   const handleDragStart = (e, settingKey, inputEl = null) => {
@@ -295,7 +295,10 @@ const TooltipCustomization = ({
   };
 
   const colorsOnPage = React.useMemo(() => {
-    const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    let doc = document.getElementById('main-flipbook-editor')?.contentDocument;
+    if (!doc) {
+      doc = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`) || document;
+    }
     const elements = doc.querySelectorAll('[data-fill-color], [data-stroke-color], [data-tooltip-settings]');
     const colors = new Set();
     elements.forEach(el => {
@@ -516,7 +519,12 @@ const TooltipCustomization = ({
               animate: { opacity: 1, transition: { duration, ease: [0.16, 1, 0.3, 1] } }
             };
 
-            if (settings.animation === 'Slide Up') {
+            if (settings.animation === 'Default') {
+              animVariants = {
+                initial: { opacity: 1 },
+                animate: { opacity: 1, transition: { duration: 0 } }
+              };
+            } else if (settings.animation === 'Slide Up') {
               animVariants = {
                 initial: { opacity: 0, y: 24 },
                 animate: { opacity: 1, y: 0, transition: { duration, ease: [0.16, 1, 0.3, 1] } }
@@ -722,43 +730,7 @@ const TooltipCustomization = ({
           </div>
         </div>
 
-        {/* Animation Section */}
-        <div className="space-y-[1.2vh]">
-          <div className="flex items-center gap-[0.4vw]">
-            <span className="text-[0.8vw] font-bold text-gray-800 whitespace-nowrap">Animation</span>
-            <div className="h-[1px] flex-grow bg-gray-150"></div>
-          </div>
-          <div className="relative">
-            <select
-              className="w-full appearance-none h-[3.8vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-200 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6] cursor-pointer"
-              value={settings.animation}
-              onChange={(e) => updateSetting('animation', e.target.value, true)}
-            >
-              <option value="Default">Default</option>
-              <option value="Fade In /Out">Fade In /Out</option>
-              <option value="Slide Up">Slide Up</option>
-              <option value="Zoom In">Zoom In</option>
-              <option value="Bounce In">Bounce In</option>
-            </select>
-            <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
-          </div>
 
-          <div className="flex items-center justify-between w-full mt-[1vh]">
-            <span className="text-[0.8vw] text-gray-500 font-medium whitespace-nowrap">Speed :</span>
-            <div className="relative w-[11.2vw]">
-              <select
-                className="w-full appearance-none h-[3.8vh] px-[0.8vw] text-[0.8vw] text-gray-600 border border-gray-200 rounded-[0.4vw] bg-white outline-none focus:border-[#5145F6] cursor-pointer"
-                value={settings.speed}
-                onChange={(e) => updateSetting('speed', e.target.value, true)}
-              >
-                <option value="Slow">Slow</option>
-                <option value="Medium">Medium</option>
-                <option value="Fast">Fast</option>
-              </select>
-              <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
-            </div>
-          </div>
-        </div>
 
         {/* Typography Section */}
         <div className="space-y-[1.2vh]">
