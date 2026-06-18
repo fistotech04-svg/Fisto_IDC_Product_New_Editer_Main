@@ -898,7 +898,7 @@ const BookmarkTab = ({ label, color, pageIndex, currentPage, index, onClick, sty
                 height: '100%',
                 transformOrigin: 'left center',
                 transform: `rotateY(${isFlipped ? -180 : 0}deg)`,
-                zIndex: isFlipped ? 50 - index : 50 + index, 
+                zIndex: isFlipped ? 50 - index : 50 + index,
             }}
         >
             <motion.div
@@ -2891,7 +2891,7 @@ const PreviewArea = React.memo(({
             {backgroundLayers}
 
             {activeDevice === 'Mobile' ? (
-                <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
+                onClose === null ? (
                     <div ref={screenRef} className="w-full h-full relative overflow-hidden">
                         {backgroundLayers}
 
@@ -2926,7 +2926,44 @@ const PreviewArea = React.memo(({
                             />
                         )}
                     </div>
-                </MobileFrame>
+                ) : (
+                    <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
+                        <div ref={screenRef} className="w-full h-full relative overflow-hidden">
+                            {backgroundLayers}
+
+                            <style>{`
+                                #preview-area-root .flipbook-magazine-wrapper {
+                                    transition: transform ${flipTime}ms ease-in-out !important;
+                                }
+                            `}</style>
+
+                            <MobileLayoutRenderer
+                                {...commonLayoutProps}
+                                bookmarks={currentBookmarks}
+                                notes={currentNotes}
+                            >
+                                <TurnJsBookRenderer
+                                    {...bookRendererProps}
+                                    bookmarks={currentBookmarks}
+                                    bookmarkSpacing={5}
+                                    singlePage={true}
+                                />
+                            </MobileLayoutRenderer>
+
+                            {renderSharedOverlays()}
+
+                            {/* Lead Form Overlay */}
+                            {showLeadForm && (
+                                <LeadFormPopup
+                                    leadFormSettings={leadFormSettings}
+                                    isTablet={isTablet}
+                                    isMobile={true}
+                                    onClose={() => setLeadFormSubmitted(true)}
+                                />
+                            )}
+                        </div>
+                    </MobileFrame>
+                )
             ) : (
                 <>
                     {/* Tablet Outer Background Layer */}

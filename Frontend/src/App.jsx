@@ -20,12 +20,14 @@ import ShareViewBook from './pages/shareviewbook';
 import { ToastProvider } from './components/CustomToast';
 import { ModernToastProvider } from './components/ModernToast';
 import ProtectedRoute from './components/ProtectedRoute';
+import NetworkStatus from './pages/NetworkStatus';
 
 function App() {
   return (
     <ToastProvider>
       <ModernToastProvider>
         <Router>
+          <NetworkStatus />
           <Routes>
             {/* Public Routes */}
             <Route path="/" element={<Signin />} />

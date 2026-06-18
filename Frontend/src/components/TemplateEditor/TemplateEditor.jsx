@@ -2715,10 +2715,13 @@ const TemplateEditor = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedLayerId, multiSelectedIds, activePageIndex, clipboard, copyLayer, cutLayer, pasteLayer, deleteLayer, undo, redo, pages]);
 
-  const loadTemplate = async (templateUrl) => {
+  const loadTemplate = async (templateUrl, prefetchedContent = null) => {
     try {
-      const response = await fetch(templateUrl);
-      const content = await response.text();
+      let content = prefetchedContent;
+      if (!content) {
+        const response = await fetch(templateUrl);
+        content = await response.text();
+      }
 
       const parser = new DOMParser();
       const targetIndex = templateTargetIndex !== null ? templateTargetIndex : activePageIndex;
@@ -3167,10 +3170,22 @@ const TemplateEditor = () => {
               lastSavedHtmlsRef.current[pid] = p.html;
             });
 
+            let shareData = res.data.share;
+            if (!shareData || !shareData.shareId) {
+              const newShareId = Math.random().toString(36).substring(2, 14);
+              shareData = { shareId: newShareId, access: 'public' };
+              axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                emailId: user?.emailId,
+                v_id: v_id,
+                share: shareData
+              }).catch(err => console.error('Frontend shareId auto-heal save failed:', err));
+            }
+
             setCurrentBook(prev => ({
               ...res.data.meta,
               ...(prev || {}),
-              flipbookName: prev?.flipbookName || res.data.meta.flipbookName
+              flipbookName: prev?.flipbookName || res.data.meta.flipbookName,
+              share: shareData
             }));
             setHasUnsavedChanges(false);
 

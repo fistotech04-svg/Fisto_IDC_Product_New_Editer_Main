@@ -12,10 +12,121 @@ import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
 import TemplateSVG7 from "../../assets/Templates/Template_7.svg?url";
 import TemplateSVG8 from "../../assets/Templates/Template_8.svg?url";
 
+// Global cache to store fetched template SVG strings so they load instantly on subsequent opens
+const templateCache = {};
+
+// Helper Component for Template Card
+const TemplateCard = ({ template, onClick }) => {
+  const [htmlContent, setHtmlContent] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const iframeRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (templateCache[template.id]) {
+      setHtmlContent(templateCache[template.id]);
+      setLoading(false);
+      return;
+    }
+    fetch(template.src)
+      .then(res => res.text())
+      .then(text => {
+        templateCache[template.id] = text;
+        setHtmlContent(text);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to load template preview:', err);
+        setLoading(false);
+      });
+  }, [template.src, template.id]);
+
+  const detectedFonts = React.useMemo(() => {
+    if (!htmlContent) return [];
+    const fonts = new Set();
+    const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
+    let match;
+    while ((match = cssRegex.exec(htmlContent)) !== null) {
+      let f = match[1] || match[2];
+      f = f.split(',')[0].replace(/['"]/g, '').trim();
+      if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fonts.add(f);
+    }
+    const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
+    while ((match = attrRegex.exec(htmlContent)) !== null) {
+      let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
+      if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fonts.add(f);
+    }
+    return Array.from(fonts);
+  }, [htmlContent]);
+
+  const dynamicFontLinks = detectedFonts.map(f => 
+    `<link href="https://fonts.googleapis.com/css?family=${f.replace(/\s+/g, '+')}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`
+  ).join('\n          ');
+
+  const iframeHtml = htmlContent ? `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;900&family=Montserrat:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Nunito+Sans:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+        ${dynamicFontLinks}
+        <style>
+          body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: white; overflow: hidden; }
+          svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
+        </style>
+      </head>
+      <body>
+        ${htmlContent}
+      </body>
+    </html>
+  ` : '';
+
+  return (
+    <div
+      onClick={onClick}
+      className="group bg-white rounded-[0.8vw] overflow-hidden border border-gray-200 cursor-pointer transition-all duration-300 hover:shadow-[0_1.5vw_3vw_-1.2vw_rgba(0,0,0,0.1)] hover:-translate-y-[0.3vw] hover:border-black/50 relative"
+    >
+      {/* Aspect Ratio Container (A4) */}
+      <div className="relative w-full pt-[141.4%] bg-gray-50 overflow-hidden">
+        
+        {/* SVG Preview Iframe */}
+        {!loading && htmlContent ? (
+          <div className="absolute inset-0 flex items-center justify-center p-[1vw] bg-gray-100">
+             <iframe 
+               srcDoc={iframeHtml}
+               title={template.name}
+               className="w-full h-full border-0 pointer-events-none shadow-sm bg-white"
+               scrolling="no"
+             />
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+              <div className="animate-spin rounded-full h-[2vw] w-[2vw] border-b-[0.15vw] border-black"></div>
+          </div>
+        )}
+
+        {/* Hover Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-[1vw]">
+          <button className="w-full py-[0.5vw] cursor-pointer bg-black text-white rounded-[0.4vw] font-medium text-[0.75vw] shadow-lg transform translate-y-[1vw] group-hover:translate-y-0 transition-transform duration-300">
+            Use Template
+          </button>
+        </div>
+
+
+      </div>
+
+      {/* Card Details */}
+      <div className="p-[1vw] border-t border-gray-50 bg-white relative z-20">
+        <h4 className="font-semibold text-gray-800 text-[0.75vw] truncate group-hover:text-black transition-colors">{template.name}</h4>
+      </div>
+    </div>
+  );
+};
 
 const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, loadTemplate }) => {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
 
 
   // SVG Template data
@@ -101,119 +212,25 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
 
   // Load HTML template
   const handleLoadTemplate = async (template) => {
+    setIsApplying(true);
+    // Yield to browser paint thread so the loading overlay actually renders before heavy parsing
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
     if (template.type === 'svg') {
       // Clear existing page content before applying a full-page template to prevent bloat
       if (typeof clearCanvas === 'function') {
         clearCanvas();
       }
-      await loadTemplate(template.src);
+      // Pass cached content to avoid re-fetching
+      await loadTemplate(template.src, templateCache[template.id]);
     }
+    setIsApplying(false);
     setShowTemplateModal(false);
   };
 
 
 
-  // Helper Component for Template Card
-  const TemplateCard = ({ template, onClick }) => {
-    const [htmlContent, setHtmlContent] = React.useState('');
-    const [loading, setLoading] = React.useState(true);
-    const iframeRef = React.useRef(null);
 
-    React.useEffect(() => {
-      fetch(template.src)
-        .then(res => res.text())
-        .then(text => {
-          setHtmlContent(text);
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error('Failed to load template preview:', err);
-          setLoading(false);
-        });
-    }, [template.src]);
-
-    const detectedFonts = React.useMemo(() => {
-      if (!htmlContent) return [];
-      const fonts = new Set();
-      const cssRegex = /font-family\s*:\s*(?:['"]([^'"]+)['"]|([^;}'"\s]+))/g;
-      let match;
-      while ((match = cssRegex.exec(htmlContent)) !== null) {
-        let f = match[1] || match[2];
-        f = f.split(',')[0].replace(/['"]/g, '').trim();
-        if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fonts.add(f);
-      }
-      const attrRegex = /font-family\s*=\s*['"]([^'"]+)['"]/g;
-      while ((match = attrRegex.exec(htmlContent)) !== null) {
-        let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
-        if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fonts.add(f);
-      }
-      return Array.from(fonts);
-    }, [htmlContent]);
-
-    const dynamicFontLinks = detectedFonts.map(f => 
-      `<link href="https://fonts.googleapis.com/css?family=${f.replace(/\s+/g, '+')}:300,400,500,600,700,800,900&display=swap" rel="stylesheet">`
-    ).join('\n          ');
-
-    const iframeHtml = htmlContent ? `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;900&family=Montserrat:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Nunito+Sans:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
-          ${dynamicFontLinks}
-          <style>
-            body { margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; background: white; overflow: hidden; }
-            svg { width: 100%; height: 100%; max-width: 100%; max-height: 100%; }
-          </style>
-        </head>
-        <body>
-          ${htmlContent}
-        </body>
-      </html>
-    ` : '';
-
-    return (
-      <div
-        onClick={onClick}
-        className="group bg-white rounded-[0.8vw] overflow-hidden border border-gray-200 cursor-pointer transition-all duration-300 hover:shadow-[0_1.5vw_3vw_-1.2vw_rgba(0,0,0,0.1)] hover:-translate-y-[0.3vw] hover:border-black/50 relative"
-      >
-        {/* Aspect Ratio Container (A4) */}
-        <div className="relative w-full pt-[141.4%] bg-gray-50 overflow-hidden">
-          
-          {/* SVG Preview Iframe */}
-          {!loading && htmlContent ? (
-            <div className="absolute inset-0 flex items-center justify-center p-[1vw] bg-gray-100">
-               <iframe 
-                 srcDoc={iframeHtml}
-                 title={template.name}
-                 className="w-full h-full border-0 pointer-events-none shadow-sm bg-white"
-                 scrolling="no"
-               />
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                <div className="animate-spin rounded-full h-[2vw] w-[2vw] border-b-[0.15vw] border-black"></div>
-            </div>
-          )}
-
-          {/* Hover Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-black/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-[1vw]">
-            <button className="w-full py-[0.5vw] bg-black text-white rounded-[0.4vw] font-medium text-[0.75vw] shadow-lg transform translate-y-[1vw] group-hover:translate-y-0 transition-transform duration-300">
-              Use Template
-            </button>
-          </div>
-
-
-        </div>
-
-        {/* Card Details */}
-        <div className="p-[1vw] border-t border-gray-50 bg-white relative z-20">
-          <h4 className="font-semibold text-gray-800 text-[0.75vw] truncate group-hover:text-black transition-colors">{template.name}</h4>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div
@@ -221,9 +238,17 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       onClick={() => setShowTemplateModal(false)}
     >
       <div
-        className="bg-white rounded-[1.2vw] shadow-2xl w-full max-w-[80vw] h-[85vh] flex flex-col overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200"
+        className="bg-white rounded-[1.2vw] shadow-2xl w-full max-w-[80vw] h-[85vh] flex flex-col overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200 relative"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Loading Overlay */}
+        {isApplying && (
+          <div className="absolute inset-0 z-[300] bg-white flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-[3vw] w-[3vw] border-b-[0.2vw] border-black mb-[1vw]"></div>
+            <p className="text-black font-semibold text-[1.2vw]">Applying Template, please wait...</p>
+          </div>
+        )}
+
         {/* Modal Header */}
         <div className="px-[2vw] py-[1.5vw] border-b border-gray-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div>

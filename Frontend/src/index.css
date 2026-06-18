@@ -23,8 +23,8 @@
 /* Precise Custom Scrollbar for small UI elements */
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 2px !important;
-  height: 2px !important;
+  width: 6px !important;
+  height: 6px !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {

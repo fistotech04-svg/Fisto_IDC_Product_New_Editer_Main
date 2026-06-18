@@ -5521,8 +5521,12 @@ const MainEditor = ({
     if (!el) return;
     const handleWheel = (e) => {
       if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
-      e.preventDefault();
-
+      
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 5 : -5;
+        setZoom(prev => Math.min(Math.max(prev + delta, 10), 250));
+      }
     };
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => {

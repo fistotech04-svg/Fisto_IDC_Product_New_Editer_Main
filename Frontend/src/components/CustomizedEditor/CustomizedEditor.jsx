@@ -90,11 +90,17 @@ const CustomizedEditor = () => {
     setIsPanelCollapsed(false);
   }, [activeSubView]);
 
+  const profilePreviewForcedRef = useRef(false);
+
   useEffect(() => {
-    if (activeSubView === 'profile' && !isPanelCollapsed) {
+    const shouldBeOpen = activeSubView === 'profile' && !isPanelCollapsed;
+    
+    if (shouldBeOpen && !profilePreviewForcedRef.current) {
       window.dispatchEvent(new Event('open-profile-preview'));
-    } else {
+      profilePreviewForcedRef.current = true;
+    } else if (!shouldBeOpen && profilePreviewForcedRef.current) {
       window.dispatchEvent(new Event('close-profile-preview'));
+      profilePreviewForcedRef.current = false;
     }
   }, [activeSubView, isPanelCollapsed]);
 
@@ -901,9 +907,18 @@ const CustomizedEditor = () => {
               if (res.data.settings.bookmarks) setBookmarks(res.data.settings.bookmarks);
               if (res.data.settings.notes) setNotes(res.data.settings.notes);
             }
-            if (res.data.share) {
-              setShareSettings(res.data.share);
+            let shareData = res.data.share;
+            if (!shareData || !shareData.shareId) {
+              const newShareId = Math.random().toString(36).substring(2, 14);
+              shareData = { shareId: newShareId, access: 'public' };
+              // Try to save the newly generated shareId to the backend
+              axios.post(`${backendUrl}/api/flipbook/update-settings`, {
+                emailId: user.emailId,
+                v_id: v_id,
+                share: shareData
+              }).catch(err => console.error('Frontend shareId auto-heal save failed:', err));
             }
+            setShareSettings(shareData);
 
           }
         } catch (err) {
@@ -1146,6 +1161,7 @@ const CustomizedEditor = () => {
             baseUrl={projectBaseUrl}
             isLoading={isLoading}
             externalShowTOC={tocOpenTrigger}
+            currentBook={currentBook}
           />
         </div>
       </div>

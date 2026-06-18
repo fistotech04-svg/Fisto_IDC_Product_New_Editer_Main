@@ -1019,26 +1019,55 @@ export default function MyFlipbooks() {
     }).sort((a, b) => {
         const parseDate = (dateVal) => {
             if (!dateVal) return 0;
+            // Handle numeric timestamps
+            if (!isNaN(dateVal) && typeof dateVal !== 'boolean') {
+                return new Date(Number(dateVal)).getTime();
+            }
+
+            if (typeof dateVal === 'string') {
+                const [datePart, timePart, ampm] = dateVal.split(' ');
+                const parts = datePart ? datePart.split(/[-/]/) : [];
+                
+                // Only if it looks like DD-MM-YYYY (year is at the end)
+                if (parts.length === 3 && parts[2].length === 4) {
+                    let year = parseInt(parts[2], 10);
+                    let month = parseInt(parts[1], 10) - 1; // JS months are 0-11
+                    let day = parseInt(parts[0], 10);
+                    let hours = 0;
+                    let minutes = 0;
+                    
+                    if (timePart) {
+                        const timeSplit = timePart.split(':');
+                        hours = parseInt(timeSplit[0] || '0', 10);
+                        minutes = parseInt(timeSplit[1] || '0', 10);
+                        
+                        if (ampm) {
+                            if (ampm.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                            if (ampm.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                        }
+                    }
+                    
+                    let customParsed = new Date(year, month, day, hours, minutes).getTime();
+                    if (!isNaN(customParsed)) return customParsed;
+                }
+            }
+
+            // Fallback for standard strings like ISO
             let parsed = new Date(dateVal).getTime();
             if (!isNaN(parsed)) return parsed;
 
-            // Attempt to parse DD-MM-YYYY or DD/MM/YYYY
-            if (typeof dateVal === 'string') {
-                const parts = dateVal.split(/[-/]/);
-                if (parts.length === 3 && parts[2].length === 4) {
-                    parsed = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
-                    if (!isNaN(parsed)) return parsed;
-                }
-            }
             return 0;
         };
 
         if (sortOption === 'Recently Created') {
+            if (activeFolder === 'Recent Book') {
+                return parseDate(b.mtime || b.created) - parseDate(a.mtime || a.created);
+            }
             return parseDate(b.createdAt || b.created) - parseDate(a.createdAt || a.created);
         }
         if (sortOption === 'Recently Opened' || sortOption === 'Recently Modified') {
             // Fallback to created date if opened/modified fields don't exist
-            return parseDate(b.updatedAt || b.createdAt || b.created) - parseDate(a.updatedAt || a.createdAt || a.created);
+            return parseDate(b.mtime || b.updatedAt || b.createdAt || b.created) - parseDate(a.mtime || a.updatedAt || a.createdAt || a.created);
         }
         if (sortOption === 'Name (A → Z)') {
             return (a.title || '').localeCompare(b.title || '');
@@ -1063,6 +1092,30 @@ export default function MyFlipbooks() {
         }
         return 0;
     });
+
+    const formatDisplayDate = (dateVal) => {
+        if (!dateVal) return '';
+        if (typeof dateVal === 'string' && dateVal.includes('-') && dateVal.includes(' ')) {
+            const parts = dateVal.split(' ')[0].split('-');
+            if (parts.length === 3 && parts[2].length === 4) return dateVal;
+        }
+        
+        const d = new Date(dateVal);
+        if (isNaN(d.getTime())) return dateVal;
+        
+        const pad = (n) => n.toString().padStart(2, '0');
+        const day = pad(d.getDate());
+        const month = pad(d.getMonth() + 1);
+        const year = d.getFullYear();
+        
+        let hours = d.getHours();
+        const minutes = pad(d.getMinutes());
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        hours = hours % 12;
+        hours = hours ? hours : 12;
+        
+        return `${day}-${month}-${year} ${pad(hours)}:${minutes} ${ampm}`;
+    };
 
     const isAllSelected = filteredBooks.length > 0 && selectedBooks.length === filteredBooks.length;
 
@@ -1594,7 +1647,9 @@ export default function MyFlipbooks() {
                                                     </div>
 
                                                     <div className="flex gap-[1.5vw] text-[0.65vw] text-gray-400 font-medium">
-                                                        <span>Created on : {book.created}</span>
+                                                        <span>
+                                                            {activeFolder === 'Recent Book' ? 'Last Updated on' : 'Created on'} : {activeFolder === 'Recent Book' ? formatDisplayDate(book.mtime || book.updatedAt || book.updated || book.createdAt || book.created) : book.created}
+                                                        </span>
                                                         <span>Views : {book.views || 245}</span>
                                                         <span>Size : {book.size || '24MB'}</span>
                                                     </div>

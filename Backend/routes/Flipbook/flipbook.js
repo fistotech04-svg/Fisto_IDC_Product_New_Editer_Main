@@ -1902,17 +1902,26 @@ router.get("/get", async (req, res) => {
     }
 
     // Ensure shareId exists (Auto-heal for legacy data)
-    if (!dbBook.share || !dbBook.share.shareId) {
-      if (!dbBook.share) dbBook.share = {};
-      dbBook.share.shareId = nanoid(12);
-      dbBook.share.access = 'public';
-      await dbBook.save();
+    let finalShare = dbBook ? dbBook.share : {};
+    if (dbBook) {
+      if (!dbBook.share || !dbBook.share.shareId) {
+        finalShare = {
+          shareId: dbBook.share?.shareId || nanoid(12),
+          access: dbBook.share?.access || 'public'
+        };
+        dbBook.set('share', finalShare);
+        try {
+          await dbBook.save();
+        } catch (saveErr) {
+          console.error("Error auto-healing shareId:", saveErr);
+        }
+      }
     }
 
     res.json({
       pages,
       settings: dbBook ? (dbBook.settings || {}) : {},
-      share: dbBook ? dbBook.share : {},
+      share: finalShare,
       meta: {
         flipbookName: effectiveBookName,
         folderName: effectiveFolderName,
