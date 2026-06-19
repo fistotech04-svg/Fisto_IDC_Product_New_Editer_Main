@@ -1007,6 +1007,17 @@ const TextEditor = ({
               Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
                 liveEl.firstElementChild.appendChild(liveEl.ownerDocument.importNode(child, true));
               });
+
+              // Auto-grow live DOM element
+              if (liveEl.getAttribute('data-scrollable') !== 'true' && liveEl.getAttribute('data-auto-wrap') !== 'false') {
+                const oldWidth = liveEl.firstElementChild.style.width;
+                liveEl.firstElementChild.style.width = 'max-content';
+                const contentW = liveEl.firstElementChild.scrollWidth;
+                const contentH = liveEl.firstElementChild.scrollHeight;
+                liveEl.firstElementChild.style.width = oldWidth;
+                liveEl.setAttribute('width', Math.max(contentW, 10));
+                liveEl.setAttribute('height', contentH + 4);
+              }
             } else if (liveTag === 'text') {
               const origFirstTspan3 = liveEl.querySelector('tspan');
               const origTspanX3 = origFirstTspan3 ? origFirstTspan3.getAttribute('x') : null;
@@ -1038,6 +1049,12 @@ const TextEditor = ({
             Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
               element.firstElementChild.appendChild(doc.importNode(child, true));
             });
+
+            // Mirror live DOM dimensions to Virtual DOM
+            if (liveEl && liveEl.getAttribute('data-scrollable') !== 'true' && liveEl.getAttribute('data-auto-wrap') !== 'false') {
+              element.setAttribute('width', liveEl.getAttribute('width'));
+              element.setAttribute('height', liveEl.getAttribute('height'));
+            }
           } else if (tag === 'text') {
             // Preserve original tspan x/y so text doesn't drift
             const origFirstTspan2 = element.querySelector('tspan');
@@ -1097,8 +1114,8 @@ const TextEditor = ({
           const svgEl = liveEl?.ownerSVGElement || liveEl?.closest('svg');
           let maxW = 9999;
           if (svgEl) {
-             const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
-             maxW = Math.max(50, svgWidth - (newX * scaleX) - 10);
+            const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
+            maxW = Math.max(50, svgWidth - (newX * scaleX) - 10);
           }
 
           newW = Math.min(newW * scaleX, maxW) / scaleX;
@@ -1123,12 +1140,12 @@ const TextEditor = ({
 
           const innerDiv = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
           if (attribute === 'data-scrollable') {
-             innerDiv.className = 'flipbook-text-scrollbar';
-             innerDiv.style.height = '100%';
-             innerDiv.style.overflowY = 'auto';
+            innerDiv.className = 'flipbook-text-scrollbar';
+            innerDiv.style.height = '100%';
+            innerDiv.style.overflowY = 'auto';
           } else {
-             innerDiv.style.height = 'auto';
-             innerDiv.style.overflowY = 'visible';
+            innerDiv.style.height = 'auto';
+            innerDiv.style.overflowY = 'visible';
           }
           innerDiv.style.width = '100%';
           innerDiv.style.overflowX = 'hidden';
@@ -1136,6 +1153,9 @@ const TextEditor = ({
           innerDiv.style.overflowWrap = 'anywhere';
           innerDiv.style.whiteSpace = 'pre-wrap';
           innerDiv.style.color = element.getAttribute('fill') || '#000000';
+          innerDiv.style.background = 'transparent';
+          innerDiv.style.backgroundColor = 'transparent';
+          innerDiv.style.outline = 'none';
 
           // Bake font-size into innerDiv to prevent inheritance scaling issues
           const fsStr = element.style.fontSize || element.getAttribute('font-size') || '16px';
@@ -1567,12 +1587,14 @@ const TextEditor = ({
 
   const getDeepStyle = useCallback((el, prop) => {
     if (!el) return '';
-    const style = window.getComputedStyle(el);
+    const targetEl = el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? el.firstElementChild : el;
+    const style = window.getComputedStyle(targetEl);
     let val = style[prop];
 
     // If the container style seems default/inherited, search children for a more specific style
     if (val === 'normal' || val === '400' || val.includes('sans-serif') || val === '0px' || val === '16px') {
-      const styledChild = el.querySelector(`span[style*="${prop === 'fontFamily' ? 'font-family' : 'font-size'}"], [style*="${prop}"]`);
+      const cssPropName = prop.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+      const styledChild = targetEl.querySelector(`span[style*="${cssPropName}"], [style*="${prop}"]`);
       if (styledChild) {
         return window.getComputedStyle(styledChild)[prop];
       }
@@ -1589,7 +1611,9 @@ const TextEditor = ({
       return parseFloat(inlineLH);
     }
 
-    const computed = window.getComputedStyle(el);
+    const targetEl = el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? el.firstElementChild : el;
+
+    const computed = window.getComputedStyle(targetEl);
     const fontSize = parseFloat(computed.fontSize);
     const lh = computed.lineHeight;
 
@@ -1597,7 +1621,8 @@ const TextEditor = ({
     const val = parseFloat(lh);
 
     // If computed is in px (most likely), convert to multiplier
-    if (fontSize) return val / fontSize;
+    if (fontSize && lh.includes('px')) return val / fontSize;
+    if (!isNaN(val)) return val;
     return 1.2;
   };
 
@@ -1614,27 +1639,61 @@ const TextEditor = ({
   const getDeepContent = useCallback((el) => {
     if (!el) return '';
 
-    // 1. Check if there is an active editing overlay for this element
-    // Search the whole SVG because MainEditor appends overlays to the root SVG
+    const tag = el.tagName.toLowerCase();
+
+    // 1. If the element is a foreignObject being edited, read from the editable div
+    if (tag === 'foreignobject') {
+      const div = el.firstElementChild;
+      if (!div) return '';
+      // innerText respects <br> elements and converts them to \n
+      return div.innerText || div.textContent || '';
+    }
+
+    // 2. Check if there is an active editing overlay for a text element
     const svgRoot = el.ownerSVGElement || el.closest('svg');
     if (svgRoot) {
       const editingOverlay = svgRoot.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-      // Ensure this overlay actually corresponds to our element (though usually only one exists)
       if (editingOverlay) {
         return editingOverlay.innerText || editingOverlay.textContent || '';
       }
     }
 
-    const tag = el.tagName.toLowerCase();
-    // 2. Handle SVG <text> with <tspan> children
+    // 3. Handle SVG <text> with <tspan> children (legacy - before conversion)
     if (tag === 'text') {
       const tspans = Array.from(el.querySelectorAll('tspan'));
-      if (tspans.length > 0) return tspans.map(t => t.textContent).join('\n');
+      if (tspans.length > 0) {
+        let result = '';
+        let lastY = null;
+        tspans.forEach((t, i) => {
+          const y = t.getAttribute('y');
+          const dy = t.getAttribute('dy');
+          let isNewLine = false;
+
+          if (i > 0) {
+            if (dy) {
+              isNewLine = true;
+            } else if (y !== null && lastY !== null && Math.abs(parseFloat(y) - parseFloat(lastY)) > 2) {
+              isNewLine = true;
+            }
+          }
+
+          if (y !== null) lastY = y;
+
+          if (isNewLine) {
+            result += '\n' + t.textContent;
+          } else {
+            result += t.textContent;
+          }
+        });
+        return result;
+      }
+      return el.textContent;
     }
 
-    // 3. Handle foreignObject child (div/p) - innerText converts <br/> to \n
+    // 4. Fallback
     return el.innerText || el.textContent || '';
   }, []);
+
 
   // --- CONSOLIDATED SYNCHRONIZATION EFFECT ---
   // This effect handles both the initial load of properties and real-time sync from canvas
@@ -1642,24 +1701,18 @@ const TextEditor = ({
     if (!selectedLayerId) return;
 
     const syncFromCanvas = () => {
-      // Don't sync from canvas if the user is currently typing in the property panel
-      if (document.activeElement === textareaRef.current) return;
-
       const el = document.getElementById(selectedLayerId);
       if (!el) return;
 
       // Update text content
-      // GUARD: Do not overwrite the textarea if the user is currently typing in it
-      if (!isTypingRef.current && document.activeElement !== textareaRef.current) {
-        const content = getDeepContent(el);
-        setTextContent(content);
-      }
+      const content = getDeepContent(el);
+      setTextContent(content);
 
-      // Update styles (only on selection change or if not typing)
-      if (!isTypingRef.current) {
+      // Update styles
         const ff = getDeepStyle(el, 'fontFamily');
         const fs = getDeepStyle(el, 'fontSize');
-        const style = window.getComputedStyle(el);
+        const targetEl = el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? el.firstElementChild : el;
+        const style = window.getComputedStyle(targetEl);
 
         if (ff) setFontFamily(ff.replace(/['"]/g, '').split(',')[0]);
         if (fs) {
@@ -1678,18 +1731,41 @@ const TextEditor = ({
           setFontSize(fontSizeVal);
         }
 
-        const weight = style.fontWeight;
+        const weight = style.fontWeight || el.getAttribute('font-weight');
         const normalizedWeight = weight === 'bold' ? '700' : (weight === 'normal' ? '400' : weight);
         if (normalizedWeight) setFontWeight(normalizedWeight.toString());
 
-        if (style.fontStyle) setFontStyle(style.fontStyle);
-        if (style.textDecoration) setTextDecoration(style.textDecoration);
-        if (style.textAlign) setTextAlign(style.textAlign);
-        if (style.textTransform) setTextTransform(style.textTransform);
+        const fontStyleVal = style.fontStyle || el.getAttribute('font-style');
+        if (fontStyleVal && fontStyleVal !== 'normal') setFontStyle(fontStyleVal);
+        else setFontStyle('normal');
+
+        const textDeco = style.textDecorationLine && style.textDecorationLine !== 'none' ? style.textDecorationLine : (style.textDecoration && !style.textDecoration.includes('none') ? style.textDecoration : el.getAttribute('text-decoration'));
+        if (textDeco && !textDeco.includes('none')) setTextDecoration(textDeco);
+        else setTextDecoration('none');
+
+        let alignVal = style.textAlign;
+        if (el.tagName.toLowerCase() === 'text' || el.tagName.toLowerCase() === 'tspan') {
+           const anchor = el.getAttribute('text-anchor');
+           if (anchor === 'middle') alignVal = 'center';
+           else if (anchor === 'end') alignVal = 'right';
+           else if (anchor === 'start') alignVal = 'left';
+        } else {
+           if (alignVal === 'start') alignVal = 'left';
+           if (alignVal === 'end') alignVal = 'right';
+        }
+        if (alignVal) setTextAlign(alignVal);
+
+        const textTransformVal = style.textTransform || el.getAttribute('text-transform');
+        if (textTransformVal) setTextTransform(textTransformVal);
+        else setTextTransform('none');
 
         // Sync Letter Spacing
-        if (style.letterSpacing && style.letterSpacing !== 'normal') {
-          setLetterSpacing(parseFloat(style.letterSpacing));
+        let ls = style.letterSpacing;
+        if (el.tagName.toLowerCase() === 'text' || el.tagName.toLowerCase() === 'tspan') {
+          ls = el.getAttribute('letter-spacing') || ls;
+        }
+        if (ls && ls !== 'normal') {
+          setLetterSpacing(parseFloat(ls));
         } else {
           setLetterSpacing(0);
         }
@@ -1700,19 +1776,10 @@ const TextEditor = ({
 
         // Sync Effects
         syncTextEffect(null, el);
-      }
     };
 
     // Initial sync
     syncFromCanvas();
-
-    // 1. Real-time sync for direct canvas editing (contenteditable)
-    const handleGlobalInput = (e) => {
-      // If the input happened inside an editing overlay, trigger sync
-      if (e.target.closest('foreignObject[data-editing="true"]')) {
-        syncFromCanvas();
-      }
-    };
 
     // 2. Observer for DOM changes (like when MainEditor finishes editing and swaps fo for text)
     const el = document.getElementById(selectedLayerId);
@@ -1731,10 +1798,7 @@ const TextEditor = ({
       }
     }
 
-    window.addEventListener('input', handleGlobalInput, true);
-
     return () => {
-      window.removeEventListener('input', handleGlobalInput, true);
       observer?.disconnect();
     };
   }, [selectedLayerId, getDeepContent, getDeepStyle]);
@@ -1768,49 +1832,6 @@ const TextEditor = ({
   }, [selectedElement]);
 
 
-  // Auto-convert oversized text elements to foreignObjects upon selection, and self-heal broken foreignObjects
-  useEffect(() => {
-    if (selectedLayerId && selectedElement) {
-      const tag = selectedElement.tagName.toLowerCase();
-      if (tag === 'text' || tag === 'foreignobject') {
-        const svgEl = selectedElement.ownerSVGElement || selectedElement.closest('svg');
-        let maxW = 9999;
-        let scaleX = 1;
-        if (svgEl) {
-           const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
-           const transform = selectedElement.getAttribute('transform');
-           if (transform && transform.includes('matrix')) {
-              const match = transform.match(/matrix\(([^)]+)\)/);
-              if (match) {
-                 const vals = match[1].split(/[ ,]+/).map(parseFloat);
-                 if (vals.length >= 6) scaleX = Math.sqrt(vals[0]*vals[0] + vals[1]*vals[1]);
-              }
-           }
-           const xPos = selectedElement.getBBox ? selectedElement.getBBox().x : (parseFloat(selectedElement.getAttribute('x')) || 0);
-           maxW = Math.max(50, svgWidth - xPos - 10);
-        }
-        
-        if (tag === 'text' && selectedElement.getBBox && selectedElement.getBBox().width > maxW) {
-           // It's too wide! Auto-convert it instantly so it wraps without scrollbars
-           handleStyleChange('data-auto-wrap', 'true', false);
-        } else if (tag === 'foreignobject') {
-           const currentW = parseFloat(selectedElement.getAttribute('width')) || 0;
-           if (currentW * scaleX > maxW + 5) {
-              // Self-heal broken massive foreignObjects
-              const correctedW = maxW / scaleX;
-              handleStyleChange('width', correctedW.toString(), false);
-           }
-           
-           // Self-heal broken CSS on old innerDivs
-           const liveEl = document.getElementById(selectedLayerId);
-           if (liveEl && liveEl.firstElementChild) {
-              liveEl.firstElementChild.style.wordBreak = 'normal';
-              liveEl.firstElementChild.style.overflowWrap = 'anywhere';
-           }
-        }
-      }
-    }
-  }, [selectedLayerId, selectedElement]);
 
   // Reset panels when selectedElement or closePanelsSignal changes
   useEffect(() => {
@@ -1841,31 +1862,7 @@ const TextEditor = ({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [activePanel, showFontDropdown, showFontSizeDropdown, showWeightDropdown, showBorderStyleDropdown, showStrokePositionDropdown]);  // Auto-focus and sync text when MainEditor enters text edit mode (foreignObject creation)
-  // Auto-focus when MainEditor enters text edit mode (foreignObject creation)
-  useEffect(() => {
-    if (!selectedLayerId) return;
-    const el = document.getElementById(selectedLayerId);
-    if (!el || !el.parentNode) return;
-
-    const checkAndFocus = () => {
-      const editingOverlay = el.parentNode?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-      if (editingOverlay && document.activeElement !== editingOverlay) {
-        editingOverlay.focus();
-        const range = document.createRange();
-        range.selectNodeContents(editingOverlay);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
-    };
-
-    checkAndFocus();
-    const observer = new MutationObserver(checkAndFocus);
-    observer.observe(el.parentNode, { childList: true });
-
-    return () => observer.disconnect();
-  }, [selectedLayerId]);
+  }, [activePanel, showFontDropdown, showFontSizeDropdown, showWeightDropdown, showBorderStyleDropdown, showStrokePositionDropdown]);
 
   if (!selectedElement) return null;
 
@@ -1893,118 +1890,6 @@ const TextEditor = ({
         >
           <div className={`w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
         </button>
-      </div>
-
-      {/* Text Area */}
-      <div className="relative border border-gray-400 rounded-[0.75vw] p-[0.75vw]">
-        <textarea
-          ref={textareaRef}
-          value={textContent}
-          onChange={(e) => {
-            isTypingRef.current = true;
-            const newVal = e.target.value;
-            setTextContent(newVal);
-
-            // 1. Instant DOM Preview: Update the live element or overlay immediately
-            if (selectedLayerId) {
-              const el = document.getElementById(selectedLayerId);
-              const svgRoot = el?.ownerSVGElement || el?.closest('svg');
-              const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-
-              if (overlay) {
-                overlay.innerText = newVal;
-              } else if (el) {
-                // If no overlay, we still want a fast preview on the element itself if possible
-                // (Note: updateElementAttributeLocal also does this, but after a React cycle)
-                if (el.tagName.toLowerCase() === 'text') {
-                  const svgEl = el.ownerSVGElement || el.closest('svg');
-                  let maxW = 9999;
-                  if (svgEl) {
-                     const svgWidth = svgEl.viewBox?.baseVal?.width || svgEl.clientWidth || 1000;
-                     const xPos = parseFloat(el.getAttribute('x')) || 0;
-                     maxW = Math.max(50, svgWidth - xPos - 10);
-                  }
-
-                  const dummy = el.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'text');
-                  dummy.textContent = newVal;
-                  dummy.setAttribute('font-family', el.getAttribute('font-family') || '');
-                  dummy.setAttribute('font-size', el.getAttribute('font-size') || '');
-                  svgEl?.appendChild(dummy);
-                  const textW = dummy.getBBox().width;
-                  svgEl?.removeChild(dummy);
-
-                  if (textW > maxW || newVal.includes('\n')) {
-                      // Automatically convert to wrap-enabled (but non-scrollable) foreignObject
-                      handleStyleChange('data-auto-wrap', 'true', false);
-                      
-                      const newEl = document.getElementById(selectedLayerId);
-                      if (newEl && newEl.tagName.toLowerCase() === 'foreignobject' && newEl.firstElementChild) {
-                          newEl.firstElementChild.innerHTML = newVal.replace(/\n/g, '<br/>');
-                          const h = Math.max(newEl.firstElementChild.scrollHeight, 20);
-                          newEl.setAttribute('height', h + 20);
-                      }
-                      return;
-                  }
-
-                  const origFirstTspan = el.querySelector('tspan');
-                  const origTspanX = origFirstTspan ? origFirstTspan.getAttribute('x') : null;
-                  const origTspanY = origFirstTspan ? origFirstTspan.getAttribute('y') : null;
-                  const origTspanDy = origFirstTspan ? origFirstTspan.getAttribute('dy') : null;
-                  el.innerHTML = '';
-                  const lines = newVal.split('\n');
-                  const xValLive = origTspanX !== null ? origTspanX : (el.getAttribute('x') || '0');
-                  const lhLive = el.getAttribute('data-line-height') || '1.2';
-                  lines.forEach((line, i) => {
-                    const tspan = el.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-                    tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
-                    tspan.setAttribute('x', xValLive);
-                    if (i === 0) {
-                      if (origTspanY !== null) tspan.setAttribute('y', origTspanY);
-                      if (origTspanDy !== null) tspan.setAttribute('dy', origTspanDy);
-                    } else {
-                      tspan.setAttribute('dy', `${parseFloat(lhLive).toFixed(2)}em`);
-                    }
-                    el.appendChild(tspan);
-                  });
-                } else if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
-                  el.firstElementChild.innerHTML = newVal.replace(/\n/g, '<br/>');
-                  if (el.getAttribute('data-scrollable') !== 'true') {
-                    const h = Math.max(el.firstElementChild.scrollHeight, 20);
-                    el.setAttribute('height', h + 20);
-                  }
-                }
-              }
-
-              // Force selection box to redraw after text change
-              window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: el.id } }));
-            }
-
-            // 2. Debounced State Sync: Update the underlying state after typing stops
-            if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-            typingTimerRef.current = setTimeout(() => {
-              if (selectedLayerId) {
-                updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newVal);
-              }
-              isTypingRef.current = false;
-            }, 400); // 400ms debounce for performance
-          }}
-          onBlur={() => {
-            // Ensure final content is saved immediately on blur
-            if (selectedLayerId) {
-              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', textContent);
-            }
-            isTypingRef.current = false;
-          }}
-          onSelect={handleTextSelection}
-          onKeyUp={handleTextSelection}
-          onMouseUp={handleTextSelection}
-          onDoubleClick={(e) => e.target.select()}
-          placeholder="Enter text here"
-          className="w-full h-[4vw] bg-transparent resize-none outline-none text-[0.85vw] text-gray-400 placeholder-gray-300 "
-        />
-        <div className="absolute bottom-[0.75vw] right-[0.75vw]">
-          <PencilLine size="1vw" className="text-gray-600" />
-        </div>
       </div>
 
       {/* Font Selectors Row 1 */}
@@ -2064,13 +1949,12 @@ const TextEditor = ({
         <div className="flex-1 flex items-center justify-between border border-gray-400 rounded-[0.75vw] px-[0.6vw] h-[2.5vw] bg-white focus-within:border-indigo-500 transition-colors">
           <input
             type="text"
-            value={letterSpacing === 0 ? 'Auto' : letterSpacing}
+            value={letterSpacing}
             onChange={(e) => {
-              const val = e.target.value === 'Auto' || e.target.value === '' ? 0 : parseFloat(e.target.value);
+              setLetterSpacing(e.target.value);
+              const val = parseFloat(e.target.value);
               if (!isNaN(val)) updateStyle('letterSpacing', val);
             }}
-            onFocus={(e) => { if (e.target.value === 'Auto') e.target.value = ''; }}
-            onBlur={(e) => { if (e.target.value === '') e.target.value = 'Auto'; }}
             className="w-full bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium"
           />
           <div
@@ -2083,13 +1967,12 @@ const TextEditor = ({
         <div className="flex-1 flex items-center justify-between border border-gray-400 rounded-[0.75vw] px-[0.6vw] h-[2.5vw] bg-white focus-within:border-indigo-500 transition-colors">
           <input
             type="text"
-            value={lineHeight === 1.2 ? 'Auto' : lineHeight}
+            value={lineHeight}
             onChange={(e) => {
-              const val = e.target.value === 'Auto' || e.target.value === '' ? 1.2 : parseFloat(e.target.value);
+              setLineHeight(e.target.value);
+              const val = parseFloat(e.target.value);
               if (!isNaN(val)) updateStyle('lineHeight', val);
             }}
-            onFocus={(e) => { if (e.target.value === 'Auto') e.target.value = ''; }}
-            onBlur={(e) => { if (e.target.value === '') e.target.value = 'Auto'; }}
             className="w-full bg-transparent outline-none text-[0.75vw] text-gray-700 font-medium"
           />
           <div

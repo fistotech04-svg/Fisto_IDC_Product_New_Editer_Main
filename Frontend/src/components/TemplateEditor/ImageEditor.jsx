@@ -331,20 +331,31 @@ const ImageEditor = ({
 
   const lastHydratedElementRef = useRef(null);
 
+  // Resolve actual slideshow element if clicked on an inner child
+  const actualSlideshowEl = useMemo(() => {
+    if (!selectedElement) return null;
+    if (selectedElement.hasAttribute('data-is-slideshow') ||
+      selectedElement.getAttribute('data-is-slideshow') === 'true') {
+      return selectedElement;
+    }
+    const parent = selectedElement.closest && selectedElement.closest('[data-is-slideshow="true"]');
+    if (parent) return parent;
+    return selectedElement;
+  }, [selectedElement]);
+
   // Hydrate Slideshow State from DOM
   useEffect(() => {
-    if (selectedElement) {
-      if (selectedElement !== lastHydratedElementRef.current) {
-        const hasSlideshow = selectedElement.dataset.slideshow ||
-          selectedElement.hasAttribute('data-is-slideshow') ||
-          selectedElement.getAttribute('data-is-slideshow') === 'true';
+    if (actualSlideshowEl) {
+      if (actualSlideshowEl !== lastHydratedElementRef.current) {
+        const hasSlideshow = actualSlideshowEl.hasAttribute('data-is-slideshow') ||
+          actualSlideshowEl.getAttribute('data-is-slideshow') === 'true';
         setIsSlideshow(!!hasSlideshow);
-        lastHydratedElementRef.current = selectedElement;
+        lastHydratedElementRef.current = actualSlideshowEl;
       }
     } else {
       lastHydratedElementRef.current = null;
     }
-  }, [selectedElement]);
+  }, [actualSlideshowEl]);
 
 
   useEffect(() => {
@@ -424,8 +435,8 @@ const ImageEditor = ({
 
       liveElement.removeAttribute('data-effect-crop-inset');
       liveElement.removeAttribute('data-crop-data');
-      setImageType('Fill');
-      stateRef.current.imageType = 'Fill';
+      setImageType('Fit');
+      stateRef.current.imageType = 'Fit';
 
       if (onUpdate) onUpdate({ shouldRefresh: true });
 
@@ -511,18 +522,26 @@ const ImageEditor = ({
         });
       } else {
         const clipStyle = selectedElement.style.clipPath || svgImageEl?.style.clipPath || '';
-        const rxMatch = clipStyle.match(/round\s+([.\d]+)px/);
-        const radiusVal = rxMatch ? parseFloat(rxMatch[1]) : 0;
-        if (currentState.radius.tl !== radiusVal) {
-          setRadius({ tl: radiusVal, tr: radiusVal, br: radiusVal, bl: radiusVal });
+        const parts = (clipStyle.match(/round\s+([.\d\s]+)px/) || ['', '0'])[1].trim().split(/\s+/).map(p => parseFloat(p) || 0);
+        let tl = 0, tr = 0, br = 0, bl = 0;
+        if (parts.length === 1) { tl = tr = br = bl = parts[0]; }
+        else if (parts.length === 2) { tl = br = parts[0]; tr = bl = parts[1]; }
+        else if (parts.length === 3) { tl = parts[0]; tr = bl = parts[1]; br = parts[2]; }
+        else if (parts.length >= 4) { tl = parts[0]; tr = parts[1]; br = parts[2]; bl = parts[3]; }
+        if (currentState.radius.tl !== tl || currentState.radius.tr !== tr || currentState.radius.br !== br || currentState.radius.bl !== bl) {
+          setRadius({ tl, tr, br, bl });
         }
       }
     } else {
       const domRadius = selectedElement.style.borderRadius || '0px';
-      const rxMatch = domRadius.match(/([.\d]+)px/);
-      const radiusVal = rxMatch ? parseFloat(rxMatch[1]) : 0;
-      if (currentState.radius.tl !== radiusVal) {
-        setRadius({ tl: radiusVal, tr: radiusVal, br: radiusVal, bl: radiusVal });
+      const parts = domRadius.split(' ').map(p => parseFloat(p) || 0);
+      let tl = 0, tr = 0, br = 0, bl = 0;
+      if (parts.length === 1) { tl = tr = br = bl = parts[0]; }
+      else if (parts.length === 2) { tl = br = parts[0]; tr = bl = parts[1]; }
+      else if (parts.length === 3) { tl = parts[0]; tr = bl = parts[1]; br = parts[2]; }
+      else if (parts.length >= 4) { tl = parts[0]; tr = parts[1]; br = parts[2]; bl = parts[3]; }
+      if (currentState.radius.tl !== tl || currentState.radius.tr !== tr || currentState.radius.br !== br || currentState.radius.bl !== bl) {
+        setRadius({ tl, tr, br, bl });
       }
     }
 
@@ -543,17 +562,17 @@ const ImageEditor = ({
       } else if (par.includes('slice')) {
         newType = 'Fill';
       } else if (par === 'none') {
-        newType = 'Stretch';
+        newType = 'Fit';
       } else {
         newType = 'Fit';
       }
     } else {
       const inlineFit = selectedElement.style.objectFit;
       const cp = selectedElement.style.clipPath || selectedElement.style.webkitClipPath || '';
-      const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'fill': 'Stretch' };
-      const currentFit = inlineFit || window.getComputedStyle(selectedElement).objectFit || 'fill';
+      const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'fill': 'Fit' };
+      const currentFit = inlineFit || window.getComputedStyle(selectedElement).objectFit || 'contain';
       const hasCrop = cp.includes('inset') || isCroppedSrc || selectedElement.hasAttribute('data-effect-crop-inset');
-      newType = hasCrop ? 'Crop' : (fitMapRev[currentFit] || 'Stretch');
+      newType = hasCrop ? 'Crop' : (fitMapRev[currentFit] || 'Fit');
     }
     if (newType !== currentState.imageType) {
       setImageType(newType);
@@ -662,7 +681,7 @@ const ImageEditor = ({
     const stroke = selectedElement.getAttribute('stroke') || selectedElement.getAttribute('data-stroke-color') || 'transparent';
     const fillOp = selectedElement.getAttribute('data-fill-opacity') || selectedElement.getAttribute('fill-opacity') || '1';
     const strokeOp = selectedElement.getAttribute('data-stroke-opacity') || selectedElement.getAttribute('stroke-opacity') || '1';
-    const strokeW = selectedElement.getAttribute('stroke-width') || '1';
+    const strokeW = selectedElement.getAttribute('stroke-width') || '0';
     const strokeArray = selectedElement.getAttribute('stroke-dasharray') || 'none';
 
     let dashLen = 5, dashGap = 5;
@@ -1097,12 +1116,7 @@ const ImageEditor = ({
               cropRect.setAttribute('x', '0');
               cropRect.setAttribute('y', '0');
               cropRect.setAttribute('fill', `url(#${cropPat.id})`);
-              const anyR = radius.tl || radius.tr || radius.br || radius.bl;
-              if (anyR) {
-                cropRect.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl).toString());
-              } else {
-                cropRect.removeAttribute('rx');
-              }
+              cropRect.removeAttribute('rx');
               cropRect.style.removeProperty('display');
 
               cropPat.setAttribute('width', origW.toString());
@@ -1340,12 +1354,7 @@ const ImageEditor = ({
                 cropRect.setAttribute('x', '0');
                 cropRect.setAttribute('y', '0');
                 cropRect.setAttribute('fill', `url(#${cropPat.id})`);
-                const anyR = radius.tl || radius.tr || radius.br || radius.bl;
-                if (anyR) {
-                  cropRect.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl).toString());
-                } else {
-                  cropRect.removeAttribute('rx');
-                }
+                cropRect.removeAttribute('rx');
                 cropRect.style.removeProperty('display');
 
                 cropPat.setAttribute('width', origW.toString());
@@ -1587,15 +1596,45 @@ const ImageEditor = ({
           liveElement.style.setProperty('object-fit', fitMap[effectiveImageType] || 'fill', 'important');
         }
 
-        if (!isSvgEl && anyR) {
-          liveElement.style.removeProperty('clip-path');
-          liveElement.style.setProperty('border-radius', `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`, 'important');
-          liveElement.style.setProperty('overflow', 'hidden', 'important');
-        } else {
-          liveElement.style.removeProperty('clip-path');
+        if (anyR) {
+          const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
+          const clipVal = `inset(0% 0% 0% 0% round ${radiusStr})`;
           if (!isSvgEl) {
+            liveElement.style.removeProperty('clip-path');
+            liveElement.style.setProperty('border-radius', radiusStr, 'important');
+            liveElement.style.setProperty('overflow', 'hidden', 'important');
+          } else {
+            if (svgImageEl && svgImageEl !== liveElement) {
+              svgImageEl.style.setProperty('clip-path', clipVal, 'important');
+              svgImageEl.style.setProperty('-webkit-clip-path', clipVal, 'important');
+              liveElement.style.removeProperty('clip-path');
+              liveElement.style.removeProperty('-webkit-clip-path');
+            } else {
+              liveElement.style.setProperty('clip-path', clipVal, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', clipVal, 'important');
+            }
+            liveElement.style.setProperty('transform-box', 'fill-box', 'important');
+            if (liveElement.tagName && liveElement.tagName.toLowerCase() === 'rect') {
+              const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+              liveElement.setAttribute('rx', maxR.toString());
+            }
+          }
+        } else {
+          if (!isSvgEl) {
+            liveElement.style.removeProperty('clip-path');
             liveElement.style.removeProperty('border-radius');
             liveElement.style.removeProperty('overflow');
+          } else {
+            liveElement.style.removeProperty('clip-path');
+            liveElement.style.removeProperty('-webkit-clip-path');
+            if (svgImageEl && svgImageEl !== liveElement) {
+              svgImageEl.style.removeProperty('clip-path');
+              svgImageEl.style.removeProperty('-webkit-clip-path');
+            }
+            if (liveElement.tagName && liveElement.tagName.toLowerCase() === 'rect') {
+              liveElement.removeAttribute('rx');
+              liveElement.removeAttribute('ry');
+            }
           }
         }
         liveElement.style.removeProperty('transform');
@@ -1651,35 +1690,8 @@ const ImageEditor = ({
       if (isSvgEl) {
         // SVG Inner Shadow via foreignObject + div
         let overlay = liveElement.querySelector('.svg-inner-shadow-overlay');
-        if (activeEffects.includes('Inner Shadow') && shadowString) {
-          if (!overlay) {
-            overlay = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-            overlay.classList.add('svg-inner-shadow-overlay');
-            overlay.style.pointerEvents = 'none';
-            const div = document.createElement('div');
-            div.className = 'inner-shadow-div';
-            div.style.width = '100%';
-            div.style.height = '100%';
-            overlay.appendChild(div);
-            liveElement.appendChild(overlay);
-          }
-          if (overlay) {
-            const targetEl = svgImageEl || liveElement;
-            overlay.setAttribute('x', targetEl.getAttribute('x') || '0');
-            overlay.setAttribute('y', targetEl.getAttribute('y') || '0');
-            overlay.setAttribute('width', targetEl.getAttribute('width') || '100%');
-            overlay.setAttribute('height', targetEl.getAttribute('height') || '100%');
-            overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-
-            const div = overlay.querySelector('.inner-shadow-div');
-            if (div) {
-              div.style.boxShadow = shadowString;
-              div.style.borderRadius = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
-            }
-            overlay.style.setProperty('display', 'block', 'important');
-          }
-        } else if (overlay) {
-          overlay.style.setProperty('display', 'none', 'important');
+        if (overlay) {
+          overlay.remove();
         }
       } else {
         if (selectedElement.tagName !== 'IMG') {
@@ -1783,7 +1795,7 @@ const ImageEditor = ({
         }
       } else {
         const isImageNode = svgImageEl && (svgImageEl.tagName?.toLowerCase() === 'image' || svgImageEl.tagName?.toLowerCase() === 'foreignobject');
-        
+
         liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
         liveElement.setAttribute('data-stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
         liveElement.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
@@ -1809,8 +1821,9 @@ const ImageEditor = ({
         // Dynamic Stroke Overlay for SVG images and foreignObjects (Slideshows)
         if (svgImageEl && (svgImageEl.tagName?.toLowerCase() === 'image' || svgImageEl.tagName?.toLowerCase() === 'foreignobject')) {
           let strokeOverlay = liveElement.querySelector('.svg-image-stroke-overlay');
-          if (!strokeOverlay) {
-            strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!strokeOverlay || strokeOverlay.tagName.toLowerCase() !== 'path') {
+            if (strokeOverlay) strokeOverlay.remove();
+            strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             strokeOverlay.classList.add('svg-image-stroke-overlay');
             strokeOverlay.style.pointerEvents = 'none';
             liveElement.appendChild(strokeOverlay);
@@ -1818,10 +1831,6 @@ const ImageEditor = ({
             const syncOverlay = () => {
               if (!strokeOverlay.isConnected) return;
               const targetEl = svgImageEl || liveElement;
-              strokeOverlay.setAttribute('x', targetEl.getAttribute('x') || '0');
-              strokeOverlay.setAttribute('y', targetEl.getAttribute('y') || '0');
-              strokeOverlay.setAttribute('width', targetEl.getAttribute('width') || '100%');
-              strokeOverlay.setAttribute('height', targetEl.getAttribute('height') || '100%');
               strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
               strokeOverlay.style.transform = targetEl.style.transform;
               strokeOverlay.style.translate = targetEl.style.translate;
@@ -1841,40 +1850,55 @@ const ImageEditor = ({
           if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
             targetElForStroke = svgImageEl.parentNode;
           }
-          let bx = targetElForStroke.getAttribute('x') || '0';
-          let by = targetElForStroke.getAttribute('y') || '0';
-          let bw = targetElForStroke.getAttribute('width') || '100%';
-          let bh = targetElForStroke.getAttribute('height') || '100%';
 
-          if (!bx.includes('%') && !bx.includes('px')) bx = `${bx}px`;
-          if (!by.includes('%') && !by.includes('px')) by = `${by}px`;
-          if (!bw.includes('%') && !bw.includes('px')) bw = `${bw}px`;
-          if (!bh.includes('%') && !bh.includes('px')) bh = `${bh}px`;
+          let bBox = { x: 0, y: 0, width: 100, height: 100 };
+          try { bBox = targetElForStroke.getBBox(); } catch (e) { }
+
+          let bxStr = targetElForStroke.getAttribute('x') || '0';
+          let byStr = targetElForStroke.getAttribute('y') || '0';
+          let bwStr = targetElForStroke.getAttribute('width') || '100%';
+          let bhStr = targetElForStroke.getAttribute('height') || '100%';
+
+          let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+          let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+          let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+          let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
           const pos = backgroundColor.strokePosition || 'Center';
           const sw = backgroundColor.strokeWeight || 0;
 
+          let ox = bx, oy = by, ow = bw, oh = bh;
           if (pos === 'Inside') {
-            strokeOverlay.style.x = `calc(${bx} + ${sw / 2}px)`;
-            strokeOverlay.style.y = `calc(${by} + ${sw / 2}px)`;
-            strokeOverlay.style.width = `calc(${bw} - ${sw}px)`;
-            strokeOverlay.style.height = `calc(${bh} - ${sw}px)`;
+            ox += sw / 2; oy += sw / 2; ow -= sw; oh -= sw;
           } else if (pos === 'Outside') {
-            strokeOverlay.style.x = `calc(${bx} - ${sw / 2}px)`;
-            strokeOverlay.style.y = `calc(${by} - ${sw / 2}px)`;
-            strokeOverlay.style.width = `calc(${bw} + ${sw}px)`;
-            strokeOverlay.style.height = `calc(${bh} + ${sw}px)`;
-          } else {
-            strokeOverlay.style.x = bx;
-            strokeOverlay.style.y = by;
-            strokeOverlay.style.width = bw;
-            strokeOverlay.style.height = bh;
+            ox -= sw / 2; oy -= sw / 2; ow += sw; oh += sw;
           }
 
-          strokeOverlay.removeAttribute('x');
-          strokeOverlay.removeAttribute('y');
-          strokeOverlay.removeAttribute('width');
-          strokeOverlay.removeAttribute('height');
+          const tl = radius.tl || 0;
+          const tr = radius.tr || 0;
+          const br = radius.br || 0;
+          const bl = radius.bl || 0;
+
+          const maxR = Math.min(ow, oh) / 2;
+          const c_tl = Math.max(0, Math.min(tl, maxR));
+          const c_tr = Math.max(0, Math.min(tr, maxR));
+          const c_br = Math.max(0, Math.min(br, maxR));
+          const c_bl = Math.max(0, Math.min(bl, maxR));
+
+          const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
+            return `M ${x + tlv},${y} ` +
+              `L ${x + w - trv},${y} ` +
+              `Q ${x + w},${y} ${x + w},${y + trv} ` +
+              `L ${x + w},${y + h - brv} ` +
+              `Q ${x + w},${y + h} ${x + w - brv},${y + h} ` +
+              `L ${x + blv},${y + h} ` +
+              `Q ${x},${y + h} ${x},${y + h - blv} ` +
+              `L ${x},${y + tlv} ` +
+              `Q ${x},${y} ${x + tlv},${y} Z`;
+          };
+
+          strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
+
           strokeOverlay.setAttribute('transform', targetElForStroke.getAttribute('transform') || '');
           strokeOverlay.style.transform = targetElForStroke.style.transform;
           strokeOverlay.style.translate = targetElForStroke.style.translate;
@@ -1885,7 +1909,7 @@ const ImageEditor = ({
 
           strokeOverlay.setAttribute('fill', 'none');
           strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
-          strokeOverlay.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
+          strokeOverlay.setAttribute('stroke-width', sw.toString());
           strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
           if (backgroundColor.strokeType === 'Dashed') {
@@ -1895,13 +1919,42 @@ const ImageEditor = ({
             strokeOverlay.removeAttribute('stroke-dasharray');
           }
 
-          strokeOverlay.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
+          strokeOverlay.setAttribute('data-stroke-position', pos);
           strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
           strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
 
-          const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
-          if (anyR) strokeOverlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl).toString());
-          else strokeOverlay.removeAttribute('rx');
+          // Add clipPath to clip the image to prevent sharp corners from bleeding
+          let defs = liveElement.querySelector('defs');
+          if (!defs) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            liveElement.insertBefore(defs, liveElement.firstChild);
+          }
+          const clipId = `clip-${liveElement.id || Date.now()}`;
+          let clip = defs.querySelector('clipPath');
+          if (!clip) {
+            clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+            clip.id = clipId;
+            const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            clipPathEl.classList.add('svg-image-clip-path');
+            clip.appendChild(clipPathEl);
+            defs.appendChild(clip);
+          }
+
+          const clipPathEl = clip.querySelector('path');
+          if (clipPathEl) {
+            const innerMaxR = Math.min(bw, bh) / 2;
+            const inner_tl = Math.max(0, Math.min(tl, innerMaxR));
+            const inner_tr = Math.max(0, Math.min(tr, innerMaxR));
+            const inner_br = Math.max(0, Math.min(br, innerMaxR));
+            const inner_bl = Math.max(0, Math.min(bl, innerMaxR));
+            clipPathEl.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
+          }
+
+          if (targetElForStroke) {
+            targetElForStroke.setAttribute('clip-path', `url(#${clip.id})`);
+            targetElForStroke.style.setProperty('clip-path', `url(#${clip.id})`, 'important');
+            targetElForStroke.style.removeProperty('-webkit-clip-path');
+          }
         }
 
         if (!isSvgEl) {
@@ -2047,7 +2100,7 @@ const ImageEditor = ({
           {isSlideshow ? (
             /* ── SLIDESHOW MODE: show only SlideshowProperties ── */
             <SlideshowProperties
-              selectedElement={selectedElement}
+              selectedElement={actualSlideshowEl}
               activePageIndex={activePageIndex}
               isOpen={openSubSection === 'slideshow'}
               onToggle={() => setOpenSubSection(openSubSection === 'slideshow' ? null : 'slideshow')}
@@ -2062,12 +2115,12 @@ const ImageEditor = ({
               flipbookName={flipbookName}
               onDisableSlideshow={() => {
                 setIsSlideshow(false);
-                if (selectedElement) {
+                if (actualSlideshowEl) {
                   const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                  const liveEl = pageContainer?.querySelector(`[id="${selectedElement.id}"]`) || selectedElement;
+                  const liveEl = pageContainer?.querySelector(`[id="${actualSlideshowEl.id}"]`) || actualSlideshowEl;
 
                   let firstImageSrc = null;
-                  const rawSlideshow = liveEl.getAttribute('data-slideshow') || selectedElement.getAttribute('data-slideshow');
+                  const rawSlideshow = liveEl.getAttribute('data-slideshow') || actualSlideshowEl.getAttribute('data-slideshow');
                   if (rawSlideshow) {
                     try {
                       const parsed = JSON.parse(rawSlideshow);
@@ -2078,12 +2131,13 @@ const ImageEditor = ({
                   }
 
                   // Remove from both to ensure sync
-                  const targets = [selectedElement, liveEl];
+                  const targets = [actualSlideshowEl, liveEl];
                   targets.forEach(el => {
                     el.removeAttribute('data-is-slideshow');
                     el.removeAttribute('data-slideshow');
                     el.removeAttribute('data-active-index');
                     el.removeAttribute('data-slideshow-manual');
+                    el.removeAttribute('data-last-slide-time');
                     if (el.dataset) {
                       delete el.dataset.slideshowInitialized;
                     }
@@ -2099,18 +2153,25 @@ const ImageEditor = ({
                     }
 
                     if (el.dataset) {
-                      delete el.dataset.slideshow;
                       delete el.dataset.isSlideshow;
                     }
                   });
 
-                  // Cleanup DOM artifacts
+                  // Cleanup DOM artifacts and clones
                   const container = liveEl.parentElement || liveEl;
                   if (container) {
                     const dots = container.querySelectorAll('.ss-dots-container, .editor-ss-dots-wrap');
                     dots.forEach(d => d.remove());
                     const btns = container.querySelectorAll('.ss-nav-btn, .editor-ss-nav');
                     btns.forEach(b => b.remove());
+                  }
+
+                  // Aggressively remove any leftover clones that might have been mid-animation
+                  const svgRoot = liveEl.closest('svg');
+                  if (svgRoot) {
+                    svgRoot.querySelectorAll('[data-is-slideshow="true"]').forEach(ghost => {
+                      if (ghost !== actualSlideshowEl && ghost !== liveEl) ghost.remove();
+                    });
                   }
 
                   if (pageContainer) {
@@ -2136,46 +2197,50 @@ const ImageEditor = ({
                   onClick={() => {
                     const next = !isSlideshow;
                     setIsSlideshow(next);
-                    if (selectedElement) {
+                    if (actualSlideshowEl) {
                       const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                      const liveEl = pageContainer?.querySelector(`[id="${selectedElement.id}"]`) || selectedElement;
+                      const liveEl = pageContainer?.querySelector(`[id="${actualSlideshowEl.id}"]`) || actualSlideshowEl;
 
                       if (next) {
-                        const initialData = {
-                          settings: {
-                            imageFitType: imageType === 'Fill' || imageType === 'Crop' ? 'Fill All' : 'Fit All',
-                            transitionEffect: 'Linear',
-                            showDots: true,
-                            showArrows: true,
-                            showNav: true,
-                            navStyle: 1,
-                            navIconColor: '#000000',
-                            dotColor: '#4F46E5',
-                            dotOpacity: 100,
-                            autoSlide: true,
-                            autoPlay: true,
-                            speed: 3,
-                            infiniteLoop: true,
-                            dragToSlide: false
-                          },
-                          images: [{
-                            id: Date.now(),
-                            url: previewSrc,
-                            name: 'Slide 1',
-                            isUploading: false
-                          }]
-                        };
-                        const dataStr = JSON.stringify(initialData);
+                        let dataStr = liveEl.getAttribute('data-slideshow') || actualSlideshowEl.getAttribute('data-slideshow');
+
+                        if (!dataStr) {
+                          const initialData = {
+                            settings: {
+                              imageFitType: 'Fill All',
+                              transitionEffect: 'Linear',
+                              showDots: true,
+                              showArrows: true,
+                              showNav: true,
+                              navStyle: 1,
+                              navIconColor: '#000000',
+                              dotColor: '#4F46E5',
+                              dotOpacity: 100,
+                              autoSlide: true,
+                              autoPlay: true,
+                              speed: 3,
+                              infiniteLoop: true,
+                              dragToSlide: false
+                            },
+                            images: [{
+                              id: Date.now(),
+                              url: previewSrc,
+                              name: 'Slide 1',
+                              isUploading: false
+                            }]
+                          };
+                          dataStr = JSON.stringify(initialData);
+                        }
 
                         // Apply to both to ensure sync
-                        [selectedElement, liveEl].forEach(el => {
+                        [actualSlideshowEl, liveEl].forEach(el => {
                           el.setAttribute('data-is-slideshow', 'true');
                           el.setAttribute('data-slideshow', dataStr);
                           el.setAttribute('data-active-index', '0');
                         });
                       } else {
                         let firstImageSrc = null;
-                        const rawSlideshow = liveEl.getAttribute('data-slideshow') || selectedElement.getAttribute('data-slideshow');
+                        const rawSlideshow = liveEl.getAttribute('data-slideshow') || actualSlideshowEl.getAttribute('data-slideshow');
                         if (rawSlideshow) {
                           try {
                             const parsed = JSON.parse(rawSlideshow);
@@ -2186,11 +2251,12 @@ const ImageEditor = ({
                         }
 
                         // Remove from both
-                        [selectedElement, liveEl].forEach(el => {
+                        [actualSlideshowEl, liveEl].forEach(el => {
                           el.removeAttribute('data-is-slideshow');
                           el.removeAttribute('data-slideshow');
                           el.removeAttribute('data-active-index');
                           el.removeAttribute('data-slideshow-manual');
+                          el.removeAttribute('data-last-slide-time');
                           if (el.dataset) {
                             delete el.dataset.slideshowInitialized;
                           }
@@ -2211,13 +2277,21 @@ const ImageEditor = ({
                           }
                         });
 
-                        // Cleanup DOM artifacts
+                        // Cleanup DOM artifacts and clones
                         const container = liveEl.parentElement || liveEl;
                         if (container) {
                           const dots = container.querySelectorAll('.ss-dots-container, .editor-ss-dots-wrap');
                           dots.forEach(d => d.remove());
                           const btns = container.querySelectorAll('.ss-nav-btn, .editor-ss-nav');
                           btns.forEach(b => b.remove());
+                        }
+
+                        // Aggressively remove any leftover clones
+                        const svgRoot = liveEl.closest('svg');
+                        if (svgRoot) {
+                          svgRoot.querySelectorAll('[data-is-slideshow="true"]').forEach(ghost => {
+                            if (ghost !== actualSlideshowEl && ghost !== liveEl) ghost.remove();
+                          });
                         }
 
                         const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
@@ -2489,8 +2563,8 @@ const ImageEditor = ({
 
                 liveElement.removeAttribute('data-effect-crop-inset');
                 liveElement.removeAttribute('data-crop-data');
-                setImageType('Fill');
-                stateRef.current.imageType = 'Fill';
+                setImageType('Fit');
+                stateRef.current.imageType = 'Fit';
 
                 if (onUpdate) onUpdate({ shouldRefresh: true });
 
@@ -2566,20 +2640,26 @@ const ImageEditor = ({
           )}
           {activeColorPicker && createPortal(
             <div
-              className="fixed z-[10000] animate-in fade-in zoom-in-95 duration-200"
-              style={{ top: pickerPosition.top, right: pickerPosition.right }}
+              className="fixed z-[5000]"
+              style={{
+                top: '50%',
+                right: '10vw',
+                transform: 'translateY(-50%)'
+              }}
             >
-              <ColorPicker
-                color={activeColorPicker === 'fill' ? backgroundColor.fill : backgroundColor.stroke}
-                onChange={(color) => {
-                  if (activeColorPicker === 'fill') {
-                    setBackgroundColor(p => ({ ...p, fill: color }));
-                  } else {
-                    setBackgroundColor(p => ({ ...p, stroke: color }));
-                  }
-                }}
-                onClose={() => setActiveColorPicker(null)}
-              />
+              <div className="animate-in fade-in zoom-in-95 duration-200">
+                <ColorPicker
+                  color={activeColorPicker === 'fill' ? backgroundColor.fill : backgroundColor.stroke}
+                  onChange={(color) => {
+                    if (activeColorPicker === 'fill') {
+                      setBackgroundColor(p => ({ ...p, fill: color }));
+                    } else {
+                      setBackgroundColor(p => ({ ...p, stroke: color }));
+                    }
+                  }}
+                  onClose={() => setActiveColorPicker(null)}
+                />
+              </div>
             </div>,
             document.body
           )}
@@ -2619,6 +2699,4 @@ const ImageEditor = ({
   );
 };
 
-
 export default ImageEditor;
-

@@ -35,6 +35,7 @@
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background: #4B5563 !important;
   border-radius: 8px !important;
+  border: none !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -62,44 +63,59 @@ foreignObject div {
   overflow-wrap: anywhere !important;
 }
 
+foreignObject[data-editing="true"] > div {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+  outline: none !important;
+  box-shadow: none !important;
+  resize: none !important;
+}
+
 /* Scrollbar styling for text boxes in the editor to match the preview style */
 .flipbook-text-scrollbar::-webkit-scrollbar,
 [data-scrollable="true"]::-webkit-scrollbar,
 [data-scrollable="true"] *::-webkit-scrollbar {
-  width: 2px !important;
-  height: 2px !important;
+  width: 4px !important;
+  height: 4px !important;
   background: transparent !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-track,
 [data-scrollable="true"]::-webkit-scrollbar-track,
 [data-scrollable="true"] *::-webkit-scrollbar-track {
-  background: #E5E7EB !important;
+  background: transparent !important;
   border-radius: 8px !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-thumb,
 [data-scrollable="true"]::-webkit-scrollbar-thumb,
 [data-scrollable="true"] *::-webkit-scrollbar-thumb {
-  background: #4B5563 !important;
+  background: rgba(156, 163, 175, 0.5) !important;
   border-radius: 8px !important;
+  border: none !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-thumb:hover,
 [data-scrollable="true"]::-webkit-scrollbar-thumb:hover,
 [data-scrollable="true"] *::-webkit-scrollbar-thumb:hover {
-  background: #374151 !important;
+  background: rgba(107, 114, 128, 0.8) !important;
 }
 
 .flipbook-text-scrollbar::-webkit-scrollbar-thumb:active,
 [data-scrollable="true"]::-webkit-scrollbar-thumb:active,
 [data-scrollable="true"] *::-webkit-scrollbar-thumb:active {
-  background: #111827 !important;
+  background: rgba(55, 65, 81, 0.9) !important;
 }
 
-foreignObject:not([data-scrollable="true"]):not([data-editing="true"]) div {
+foreignObject:not([data-scrollable="true"]):not([data-editing="true"]) > div {
   width: 100% !important;
   height: auto !important;
+}
+
+/* Allow dragging of scrollable text boxes in editor by ignoring pointer events when not editing */
+.page-svg-container foreignObject[data-scrollable="true"]:not([data-editing="true"]) > div {
+  pointer-events: none !important;
 }
 
 /* Removed duplicate scrollbar styles (now consolidated with high specificity above) */

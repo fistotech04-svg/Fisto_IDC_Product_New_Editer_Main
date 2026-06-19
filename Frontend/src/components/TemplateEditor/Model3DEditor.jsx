@@ -219,19 +219,19 @@ const Model3DEditor = ({
   };
 
   return (
-    <div className="w-full space-y-[1vw] font-sans text-gray-800 pb-[2vw]">
+    <div className="w-full font-sans text-gray-800 pb-[2vw] relative">
       
       {/* Action Buttons */}
-      <div className="sticky top-0 z-10 bg-[#fbfbfb] pt-[1.5vw] pb-[1vw] px-[1.5vw] -mx-[1.5vw] -mt-[1.5vw] flex gap-[0.75vw] mb-[0.5vw]">
+      <div className="sticky top-0 z-10 bg-[#fbfbfb] pt-[1.5vw] pb-[1vw] px-[1.5vw] flex gap-[0.75vw] border-b border-gray-100 shadow-sm">
         <button 
-          className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold h-[2.5vw] rounded-[0.5vw] flex items-center justify-center gap-[0.5vw] transition-colors"
+          className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold h-[2.5vw] rounded-[0.5vw] flex items-center justify-center gap-[0.5vw] transition-colors shadow-sm"
           onClick={onClose}
         >
           <Icon icon="lucide:check" className="text-[1vw]" />
           <span className="text-[0.85vw]">Save Changes</span>
         </button>
         <button 
-          className="flex-1 bg-white hover:bg-red-50 text-red-500 font-semibold h-[2.5vw] rounded-[0.5vw] border border-gray-300 flex items-center justify-center gap-[0.5vw] transition-colors"
+          className="flex-1 bg-white hover:bg-red-50 text-red-500 font-semibold h-[2.5vw] rounded-[0.5vw] border border-gray-300 flex items-center justify-center gap-[0.5vw] transition-colors shadow-sm"
           onClick={onClose}
         >
           <Icon icon="lucide:x" className="text-[1vw]" />
@@ -239,7 +239,8 @@ const Model3DEditor = ({
         </button>
       </div>
 
-      {/* Text Customization */}
+      <div className="px-[1.5vw] space-y-[1.5vw] pt-[1vw]">
+        {/* Text Customization */}
       <div className="space-y-[0.75vw] pt-[0.5vw]">
         <div className="flex items-center gap-[0.75vw]">
           <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Text Overlays</h2>
@@ -866,6 +867,7 @@ const Model3DEditor = ({
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   );
 };

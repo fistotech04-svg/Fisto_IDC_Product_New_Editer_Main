@@ -590,7 +590,26 @@ const RightSidebar = ({
       )}
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[#fbfbfb]">
-        {activeTopTool === 'editor' ? (
+        {is3DModalOpen ? (
+          <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
+            <Model3DEditor
+              onClose={() => setIs3DModalOpen(false)}
+              shadowStrength={shadowStrength} setShadowStrength={setShadowStrength}
+              shadowSoftness={shadowSoftness} setShadowSoftness={setShadowSoftness}
+              autoRotate={autoRotate} setAutoRotate={setAutoRotate}
+              autoRotateSpeed={autoRotateSpeed} setAutoRotateSpeed={setAutoRotateSpeed}
+              lockMaxZoom={lockMaxZoom} setLockMaxZoom={setLockMaxZoom}
+              maxZoom={maxZoom} setMaxZoom={setMaxZoom}
+              bgType={bgType} setBgType={setBgType}
+              bgColor={bgColor} setBgColor={setBgColor}
+              customBg={customBg} setCustomBg={setCustomBg}
+              enableAR={enableAR} setEnableAR={setEnableAR}
+              qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
+              topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
+              dataUrl={preview3DDataUrl}
+            />
+          </div>
+        ) : activeTopTool === 'editor' ? (
           activeMainTool === 'upload' ? (
             <div className="p-[1.5vw] flex flex-col gap-[3.5vh]">
               <div className="flex flex-col gap-[2.5vh]">
@@ -624,26 +643,7 @@ const RightSidebar = ({
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar">
-              {is3DModalOpen ? (
-                <div className="p-[1.5vw]">
-                  <Model3DEditor
-                    onClose={() => setIs3DModalOpen(false)}
-                    shadowStrength={shadowStrength} setShadowStrength={setShadowStrength}
-                    shadowSoftness={shadowSoftness} setShadowSoftness={setShadowSoftness}
-                    autoRotate={autoRotate} setAutoRotate={setAutoRotate}
-                    autoRotateSpeed={autoRotateSpeed} setAutoRotateSpeed={setAutoRotateSpeed}
-                    lockMaxZoom={lockMaxZoom} setLockMaxZoom={setLockMaxZoom}
-                    maxZoom={maxZoom} setMaxZoom={setMaxZoom}
-                    bgType={bgType} setBgType={setBgType}
-                    bgColor={bgColor} setBgColor={setBgColor}
-                    customBg={customBg} setCustomBg={setCustomBg}
-                    enableAR={enableAR} setEnableAR={setEnableAR}
-                    qrText={qrText} setQrText={setQrText} qrColor={qrColor} setQrColor={setQrColor} qrBgType={qrBgType} setQrBgType={setQrBgType} qrBgColor={qrBgColor} setQrBgColor={setQrBgColor} qrLevel={qrLevel} setQrLevel={setQrLevel} qrDotType={qrDotType} setQrDotType={setQrDotType} qrCornerSquareType={qrCornerSquareType} setQrCornerSquareType={setQrCornerSquareType} qrCornerDotType={qrCornerDotType} setQrCornerDotType={setQrCornerDotType} qrLogo={qrLogo} setQrLogo={setQrLogo}
-                    topText={topText} setTopText={setTopText} bottomText={bottomText} setBottomText={setBottomText}
-                    dataUrl={preview3DDataUrl}
-                  />
-                </div>
-              ) : isPdfProject ? (
+              {isPdfProject ? (
                 <InteractionPanel 
                   selectedElementProps={selectedElementProps}
                   activePageIndex={activePageIndex}
@@ -885,6 +885,8 @@ const RightSidebar = ({
             pages={pages}
             flipbookDimensions={flipbookDimensions}
             onCustomizePopup={onCustomizePopup}
+            setIs3DModalOpen={setIs3DModalOpen}
+            setCurrent3DItem={setCurrent3DItem}
           />
 
         ) : (

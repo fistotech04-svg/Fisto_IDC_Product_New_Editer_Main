@@ -17,7 +17,7 @@ const navIconStyles = [
   { id: 12, left: 'lucide:arrow-left', right: 'lucide:arrow-right' },
 ];
 
-const NavIconStylesPopup = ({ currentStyle = 1, onClose, onSelect }) => {
+const NavIconStylesPopup = ({ currentStyle = 1, onClose, onSelect, positionStyle }) => {
   const [selected, setSelected] = React.useState(currentStyle);
 
   // Corrected icons for style 2 to be simple circle arrows
@@ -29,8 +29,8 @@ const NavIconStylesPopup = ({ currentStyle = 1, onClose, onSelect }) => {
 
   return (
     <div
-      className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.5vw] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 p-[1.2vw]"
-      style={{ width: '22vw', top: '65%', left: '26vw', transform: 'translate(-50%, -50%)' }}
+      className="fixed z-[1000] bg-white border border-gray-100 rounded-[0.5vw] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200 px-[1vw] pt-[1vw] pb-[0.6vw] shadow-2xl"
+      style={{ width: '20vw', ...(positionStyle || { top: '70%', right: '-10vw', transform: 'translateY(-50%)' }) }}
     >
       <div className="w-full flex flex-col" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
@@ -64,7 +64,7 @@ const NavIconStylesPopup = ({ currentStyle = 1, onClose, onSelect }) => {
             onClick={onClose}
             className="flex items-end gap-[0.4vw] px-[1vw] py-[0.4vw] rounded-[0.4vw] border-[1px] border-gray-300 bg-white text-gray-700 font-semibold text-[0.8vw] hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
           >
-            <X size="1vw" /> Cancel
+            <X size="1vw" className="mb-[0.1vw]" /> Cancel
           </button>
           <button
             onClick={() => {
@@ -73,7 +73,7 @@ const NavIconStylesPopup = ({ currentStyle = 1, onClose, onSelect }) => {
             }}
             className="flex items-end gap-[0.4vw] px-[1.2vw] py-[0.4vw] bg-black text-white rounded-[0.4vw] text-[0.8vw] font-semibold hover:bg-zinc-500 transition-all active:scale-95 shadow-lg"
           >
-            <Icon icon="qlementine-icons:replace-16" className="w-[1vw] h-[1vw]" />
+            <Icon icon="qlementine-icons:replace-16" className="w-[1vw] h-[1vw] mb-[0.1vw]" />
             Replace
           </button>
         </div>

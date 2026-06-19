@@ -78,7 +78,7 @@ const GifEditor = ({
   const [activeSection, setActiveSection] = useState('main');
   const [showGallery, setShowGallery] = useState(false);
   const [opacity, setOpacity] = useState(100);
-  const [imageType, setImageType] = useState('Fill');
+  const [imageType, setImageType] = useState('Fit');
   const [showImageTypeDropdown, setShowImageTypeDropdown] = useState(false);
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activePopup, setActivePopup] = useState(null);
@@ -186,19 +186,24 @@ const GifEditor = ({
       });
     } else {
       const domRadius = selectedElement.style.borderRadius || '0px';
-      const rxMatch = domRadius.match(/([.\d]+)px/);
-      let radiusVal = rxMatch ? parseFloat(rxMatch[1]) : 0;
+      const parts = domRadius.split(' ').map(p => parseFloat(p) || 0);
+      let tl = 0, tr = 0, br = 0, bl = 0;
+      if (parts.length === 1) { tl = tr = br = bl = parts[0]; }
+      else if (parts.length === 2) { tl = br = parts[0]; tr = bl = parts[1]; }
+      else if (parts.length === 3) { tl = parts[0]; tr = bl = parts[1]; br = parts[2]; }
+      else if (parts.length >= 4) { tl = parts[0]; tr = parts[1]; br = parts[2]; bl = parts[3]; }
 
-      if (radiusVal === 0 && tagLower === 'rect') {
-        radiusVal = parseFloat(selectedElement.getAttribute('rx') || '0');
+      if (tl === 0 && tr === 0 && br === 0 && bl === 0 && tagLower === 'rect') {
+        const rx = parseFloat(selectedElement.getAttribute('rx') || '0');
+        tl = tr = br = bl = rx;
       }
-      setRadius({ tl: radiusVal, tr: radiusVal, br: radiusVal, bl: radiusVal });
+      setRadius({ tl, tr, br, bl });
     }
 
     // Image Type
-    const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop' };
-    const currentFit = (svgImageEl || selectedElement).style.objectFit || 'cover';
-    setImageType(fitMapRev[currentFit] || 'Fill');
+    const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop', 'fill': 'Fit' };
+    const currentFit = (svgImageEl || selectedElement).style.objectFit || 'contain';
+    setImageType(fitMapRev[currentFit] || 'Fit');
 
     // Filters & Effects
     if (selectedElement.hasAttribute('data-active-effects')) {
@@ -353,7 +358,7 @@ const GifEditor = ({
       const anyR = radius.tl || radius.tr || radius.br || radius.bl;
       if (anyR) {
         const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
-        const clipVal = `inset(0 round ${radiusStr})`;
+        const clipVal = `inset(0% 0% 0% 0% round ${radiusStr})`;
 
         if (isSvgEl) {
           // If it's a group or wrapper containing an image, clip the image, not the wrapper.
@@ -388,6 +393,10 @@ const GifEditor = ({
           if (svgImageEl && svgImageEl !== liveElement) {
             svgImageEl.style.setProperty('border-radius', radiusStr, 'important');
           }
+          liveElement.setAttribute('data-effect-radius-tl', radius.tl.toString());
+          liveElement.setAttribute('data-effect-radius-tr', radius.tr.toString());
+          liveElement.setAttribute('data-effect-radius-br', radius.br.toString());
+          liveElement.setAttribute('data-effect-radius-bl', radius.bl.toString());
         }
       } else {
         // Reset radius
@@ -662,36 +671,7 @@ const GifEditor = ({
       }
 
       // Inner Shadow
-      if (isSvgEl && activeEffects.includes('Inner Shadow')) {
-        const ds = effectSettings['Inner Shadow'];
-        const alpha = Math.round((ds.opacity / 100) * 255).toString(16).padStart(2, '0');
-        const colorWithAlpha = ds.color + (ds.color.length === 7 ? alpha : '');
-        const shadowString = `inset ${ds.x}px ${ds.y}px ${ds.blur}px ${ds.spread}px ${colorWithAlpha}`;
-        let overlay = liveElement.querySelector('.svg-gif-inner-shadow');
-        if (!overlay) {
-          overlay = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-          overlay.classList.add('svg-gif-inner-shadow');
-          overlay.style.pointerEvents = 'none';
-          const div = document.createElement('div');
-          div.className = 'inner-shadow-div';
-          div.style.width = '100%'; div.style.height = '100%';
-          overlay.appendChild(div);
-          liveElement.appendChild(overlay);
-        }
-        if (overlay) {
-          const targetEl = svgImageEl || liveElement;
-          overlay.setAttribute('x', targetEl.getAttribute('x') || '0');
-          overlay.setAttribute('y', targetEl.getAttribute('y') || '0');
-          overlay.setAttribute('width', targetEl.getAttribute('width') || '100%');
-          overlay.setAttribute('height', targetEl.getAttribute('height') || '100%');
-          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-          const div = overlay.querySelector('.inner-shadow-div');
-          if (div) {
-            div.style.boxShadow = shadowString;
-            div.style.borderRadius = anyR ? `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px` : '0px';
-          }
-        }
-      } else if (isSvgEl) {
+      if (isSvgEl) {
         liveElement.querySelector('.svg-gif-inner-shadow')?.remove();
       }
 
@@ -820,7 +800,7 @@ const GifEditor = ({
 
       <div className="flex items-center gap-[0.5vw]">
         <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">GIF Property</span>
-        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+        <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
       <div className="flex items-center gap-[0.5vw] flex-1">
@@ -874,7 +854,7 @@ const GifEditor = ({
         <div className="space-y-[0.5vw]">
           <div className="flex items-center gap-[0.5vw]">
             <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+            <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
           </div>
           <div className="flex items-center gap-[1vw] pb-[0.5vw]">
             <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="flex-1 cursor-pointer" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }} />

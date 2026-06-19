@@ -593,11 +593,26 @@ const MainEditor = ({
   const lastRenderedHtmlRef = useRef({});
 
   const getHtmlToRender = (index, currentHtml) => {
+    let clean = currentHtml || '';
+
+    // Auto-fix for corrupted templates: strip out the pink XML parsererror and any baked-in custom controls
+    if (clean.includes('parsererror') || clean.includes('id="custom-ctrl-')) {
+      try {
+        const temp = document.createElement('div');
+        temp.innerHTML = clean;
+        temp.querySelectorAll('parsererror').forEach(el => el.remove());
+        temp.querySelectorAll('[id^="custom-ctrl-"]').forEach(el => el.remove());
+        clean = temp.innerHTML;
+      } catch (e) {
+        console.error('Error cleaning template HTML:', e);
+      }
+    }
+
     if (isEditingTextRef.current && lastRenderedHtmlRef.current[index]) {
       return lastRenderedHtmlRef.current[index];
     }
-    lastRenderedHtmlRef.current[index] = currentHtml;
-    return currentHtml;
+    lastRenderedHtmlRef.current[index] = clean;
+    return clean;
   };
 
   useEffect(() => {
@@ -818,7 +833,7 @@ const MainEditor = ({
                 transition: 'transform 0.15s, opacity 0.2s',
               });
               const svgSize = 15 * scaleFactor;
-              
+
               // We'll use a container inside the button for React to render into
               const iconContainer = document.createElement('div');
               Object.assign(iconContainer.style, {
@@ -829,13 +844,13 @@ const MainEditor = ({
                 justifyContent: 'center'
               });
               btn.appendChild(iconContainer);
-              
+
               const root = createRoot(iconContainer);
               const iconKey = type === 'prev' ? 'left' : 'right';
               // Default to style 1 if navStyle is missing
               const styleId = settings.navStyle || 1;
               root.render(NavIconRenderer({ styleId, size: svgSize + 'px', color: navIconColor })[iconKey]);
-              
+
               // Attach the root to the btn so we can clean it up later if needed
               btn._reactRoot = root;
 
@@ -1306,6 +1321,7 @@ const MainEditor = ({
       fo.setAttribute('height', displayHeight.toString());
       fo.setAttribute('data-type', 'video');
       fo.setAttribute('data-name', 'Video');
+      fo.setAttribute('data-video-type', 'Fill');
       if (file) fo.setAttribute('data-filename', file.name);
 
       const video = document.createElement('video');
@@ -1452,6 +1468,9 @@ const MainEditor = ({
       el.getAttribute('data-type') === 'frame' ||
       el.getAttribute('data-locked') === 'true';
 
+    // Skip if this text element is currently in text-edit mode (we still want to draw the polygon, but skip handles later)
+    const isBeingEdited = isEditingTextRef.current && el.id === selectedLayerIdRef.current;
+
     if (el.style.visibility === 'hidden' || el.style.opacity === '0' || isOverlay) {
       const existingPoly = overlay.querySelector(`[id="overlay-poly-${type}-${el.id}"]`);
       if (existingPoly) existingPoly.remove();
@@ -1479,6 +1498,7 @@ const MainEditor = ({
         const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
         if (isFrame || clientRect.width / scale > 10 || clientRect.height / scale > 10 || el.tagName.toLowerCase() === 'svg' || el.tagName.toLowerCase() === 'foreignobject') {
           if (clientRect.width > 0 && clientRect.height > 0) {
+            el.dataset.overlayRetries = '0'; // reset retries on success
             const elInverse = ctm.inverse();
             const pt = overlay.createSVGPoint();
 
@@ -1498,20 +1518,30 @@ const MainEditor = ({
         }
       }
 
-      if (bbox.width === 0 && bbox.height === 0) return;
+      if (bbox.width === 0 && bbox.height === 0) {
+        // Element hasn't painted yet or is completely empty. Retry up to 5 times.
+        const retries = parseInt(el.dataset.overlayRetries || '0');
+        if (retries < 5) {
+          el.dataset.overlayRetries = String(retries + 1);
+          setTimeout(() => {
+            // Ensure we query the DOM again in case the element was re-rendered by React
+            const freshEl = document.getElementById(el.id);
+            if (freshEl) drawOverlayHighlight(freshEl, type);
+          }, 50);
+        }
+        return;
+      }
+      el.dataset.overlayRetries = '0'; // reset retries on success
 
       const svgMatrix = overlayCtm.inverse().multiply(ctm);
 
       const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
-      
-      const isScrollable = el.getAttribute('data-scrollable') === 'true' || el.tagName?.toLowerCase() === 'foreignobject';
-      const rightOffset = isScrollable ? (window.innerWidth * 0.005) / scale : 0;
 
       const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
-      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset + rightOffset; pt2.y = bbox.y - localOffset;
-      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset + rightOffset; pt3.y = bbox.y + bbox.height + localOffset;
+      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
+      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
       const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
 
       const pts = [pt1, pt2, pt3, pt4];
@@ -1563,9 +1593,9 @@ const MainEditor = ({
       }
 
       // ── RESIZE HANDLES (8 handles) ──
-      // Only show handles if exactly ONE element is selected
+      // Only show handles if exactly ONE element is selected, and it's not currently being text-edited
       const selectionCount = multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0);
-      if (selectionCount === 1 && (type === 'selected' || type === 'child-selected')) {
+      if (selectionCount === 1 && (type === 'selected' || type === 'child-selected') && !isBeingEdited) {
         const htmlOverlay = getHtmlOverlayForElement(el);
         const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
         const useLBrackets = activeTopTool === 'interaction' || isFreeFrame;
@@ -2068,7 +2098,7 @@ const MainEditor = ({
         // Use setTimeout to ensure SVG layout has fully recalculated before getting the new bounding box
         setTimeout(() => {
           drawOverlayHighlight(el, 'selected');
-          
+
           // Also update hover box if it is currently visible
           const overlay = document.getElementById('highlight-overlay') || el.ownerSVGElement?.nextElementSibling;
           if (overlay) {
@@ -2778,8 +2808,6 @@ const MainEditor = ({
       ? multiSelectedIds
       : (selectedLayerId ? new Set([selectedLayerId]) : new Set());
 
-    if (isEditingTextRef.current) return;
-
     idsToHighlight.forEach(id => {
       document.querySelectorAll(`[id="${id}"]`).forEach(el => {
         // Highlights across multiple pages are drawn in their respective containers
@@ -2794,6 +2822,11 @@ const MainEditor = ({
         el.setAttribute('data-frame-entered', 'true');
         drawOverlayHighlight(el, 'entered');
       });
+    }
+
+    if (isEditingTextRef.current) {
+      document.querySelectorAll('.selection-overlay-layer .resize-handle').forEach(h => h.remove());
+      document.querySelectorAll('[id^="highlight-overlay-html-"] .resize-handle').forEach(h => h.remove());
     }
   }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, activeTopTool]);
 
@@ -2972,6 +3005,21 @@ const MainEditor = ({
               return;
             }
 
+            // Prevent drag if clicking on the scrollbar of a scrollable div inside a foreignObject
+            if (target.tagName?.toLowerCase() === 'div' && target.closest('foreignObject')) {
+              const style = window.getComputedStyle(target);
+              const isScrollable = style.overflow === 'auto' || style.overflow === 'scroll' || style.overflowY === 'auto' || style.overflowY === 'scroll';
+              if (isScrollable) {
+                const rect = target.getBoundingClientRect();
+                const isScrollbarClick = event.clientX > rect.left + target.clientLeft + target.clientWidth ||
+                                         event.clientY > rect.top + target.clientTop + target.clientHeight;
+                if (isScrollbarClick) {
+                  event.interaction.stop();
+                  return;
+                }
+              }
+            }
+
             const startPoint = getSvgPoint(svgElement, event.clientX, event.clientY);
             if (!startPoint) {
               event.interaction.stop();
@@ -3121,7 +3169,8 @@ const MainEditor = ({
                   el.setAttribute('data-dragging', 'true');
                   multiDragItems.push({
                     element: el,
-                    initialMatrix: getElementMatrix(el)
+                    initialMatrix: getElementMatrix(el),
+                    startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY)
                   });
                 }
               }
@@ -3135,6 +3184,7 @@ const MainEditor = ({
             event.interaction.dragState = {
               element: elementToDrag,
               startPoint: startPoint,
+              startPointLocal: getLocalPoint(svgElement, elementToDrag.parentNode, event.clientX, event.clientY),
               initialMatrix: getElementMatrix(elementToDrag),
               svgElement: svgElement,
               pageIndex: activePageIndex,
@@ -3165,16 +3215,15 @@ const MainEditor = ({
               }
             }
 
-            const currentPoint = getSvgPoint(dragState.svgElement, event.clientX, event.clientY);
-            if (!currentPoint) return;
-
-            // Calculate total delta from start for 1:1 cursor sync
-            const dx = currentPoint.x - dragState.startPoint.x;
-            const dy = currentPoint.y - dragState.startPoint.y;
-
             if (dragState.multiDragItems) {
               // Move ALL multi-selected elements
               for (const item of dragState.multiDragItems) {
+                const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                if (!currentPointLocal || !item.startPointLocal) continue;
+                
+                const dx = currentPointLocal.x - item.startPointLocal.x;
+                const dy = currentPointLocal.y - item.startPointLocal.y;
+
                 const translation = new DOMMatrix().translate(dx, dy);
                 const nextMatrix = translation.multiply(item.initialMatrix);
                 item.element.setAttribute('transform', matrixToTransform(nextMatrix));
@@ -3184,6 +3233,12 @@ const MainEditor = ({
             } else {
               // Single element drag
               const target = dragState.element;
+              const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY);
+              if (!currentPointLocal || !dragState.startPointLocal) return;
+
+              const dx = currentPointLocal.x - dragState.startPointLocal.x;
+              const dy = currentPointLocal.y - dragState.startPointLocal.y;
+
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
               target.setAttribute('transform', matrixToTransform(nextMatrix));
@@ -3221,60 +3276,79 @@ const MainEditor = ({
             };
 
             const constrainElement = (el, onComplete) => {
-              const bbox = el.getBBox();
-              const matrix = getElementMatrix(el);
+              try {
+                // 1. Get the bounding box in Root SVG Space
+                const rect = el.getBoundingClientRect();
+                const rootCTM = dragState.svgElement.getScreenCTM();
+                if (!rootCTM) { onComplete(); return false; }
+                const invRootCTM = rootCTM.inverse();
+                
+                const ptTL = new DOMPoint(rect.left, rect.top).matrixTransform(invRootCTM);
+                const ptTR = new DOMPoint(rect.right, rect.top).matrixTransform(invRootCTM);
+                const ptBL = new DOMPoint(rect.left, rect.bottom).matrixTransform(invRootCTM);
+                const ptBR = new DOMPoint(rect.right, rect.bottom).matrixTransform(invRootCTM);
 
-              const pt1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(matrix);
-              const pt2 = new DOMPoint(bbox.x + bbox.width, bbox.y).matrixTransform(matrix);
-              const pt3 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(matrix);
-              const pt4 = new DOMPoint(bbox.x, bbox.y + bbox.height).matrixTransform(matrix);
+                const minX = Math.min(ptTL.x, ptTR.x, ptBL.x, ptBR.x);
+                const maxX = Math.max(ptTL.x, ptTR.x, ptBL.x, ptBR.x);
+                const minY = Math.min(ptTL.y, ptTR.y, ptBL.y, ptBR.y);
+                const maxY = Math.max(ptTL.y, ptTR.y, ptBL.y, ptBR.y);
 
-              const minX = Math.min(pt1.x, pt2.x, pt3.x, pt4.x);
-              const maxX = Math.max(pt1.x, pt2.x, pt3.x, pt4.x);
-              const minY = Math.min(pt1.y, pt2.y, pt3.y, pt4.y);
-              const maxY = Math.max(pt1.y, pt2.y, pt3.y, pt4.y);
+                let dx_root = 0;
+                let dy_root = 0;
 
-              let dx = 0;
-              let dy = 0;
+                if (maxX > baseWidth) dx_root = baseWidth - maxX;
+                if (minX + dx_root < 0) dx_root = -minX;
 
-              if (maxX > baseWidth) dx = baseWidth - maxX;
-              if (minX + dx < 0) dx = -minX;
+                if (maxY > baseHeight) dy_root = baseHeight - maxY;
+                if (minY + dy_root < 0) dy_root = -minY;
 
-              if (maxY > baseHeight) dy = baseHeight - maxY;
-              if (minY + dy < 0) dy = -minY;
+                if (dx_root !== 0 || dy_root !== 0) {
+                  // Map the root delta to the parent's local coordinate system
+                  const parentCTM = el.parentNode.getScreenCTM();
+                  if (!parentCTM) { onComplete(); return false; }
+                  const svgToParent = parentCTM.inverse().multiply(rootCTM);
+                  
+                  const p0 = new DOMPoint(0, 0).matrixTransform(svgToParent);
+                  const p1 = new DOMPoint(dx_root, dy_root).matrixTransform(svgToParent);
+                  
+                  const dx = p1.x - p0.x;
+                  const dy = p1.y - p0.y;
 
-              if (dx !== 0 || dy !== 0) {
-                const startE = matrix.e;
-                const startF = matrix.f;
-                const translation = new DOMMatrix().translate(dx, dy);
-                const endMatrix = translation.multiply(matrix);
-                const endE = endMatrix.e;
-                const endF = endMatrix.f;
+                  const matrix = getElementMatrix(el);
+                  const startE = matrix.e;
+                  const startF = matrix.f;
+                  const translation = new DOMMatrix().translate(dx, dy);
+                  const endMatrix = translation.multiply(matrix);
+                  const endE = endMatrix.e;
+                  const endF = endMatrix.f;
 
-                const duration = 400;
-                const startTime = performance.now();
-                const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
+                  const duration = 400;
+                  const startTime = performance.now();
+                  const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 
-                const animate = (currentTime) => {
-                  const elapsed = currentTime - startTime;
-                  const progress = Math.min(elapsed / duration, 1);
-                  const eased = easeOutQuart(progress);
+                  const animate = (currentTime) => {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const eased = easeOutQuart(progress);
 
-                  matrix.e = startE + (endE - startE) * eased;
-                  matrix.f = startF + (endF - startF) * eased;
+                    matrix.e = startE + (endE - startE) * eased;
+                    matrix.f = startF + (endF - startF) * eased;
 
-                  el.setAttribute('transform', matrixToTransform(matrix));
-                  drawOverlayHighlight(el, currentFrameIdRef.current && el.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+                    el.setAttribute('transform', matrixToTransform(matrix));
+                    drawOverlayHighlight(el, currentFrameIdRef.current && el.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
 
-                  if (progress < 1) {
-                    requestAnimationFrame(animate);
-                  } else {
-                    onComplete();
-                  }
-                };
+                    if (progress < 1) {
+                      requestAnimationFrame(animate);
+                    } else {
+                      onComplete();
+                    }
+                  };
 
-                requestAnimationFrame(animate);
-                return true;
+                  requestAnimationFrame(animate);
+                  return true;
+                }
+              } catch (e) {
+                // Ignore CTM mapping errors
               }
               return false;
             };
@@ -3323,19 +3397,28 @@ const MainEditor = ({
 
             const elId = match[1];
             const dir = match[2];
-            const el = document.getElementById(elId);
+            let el = document.getElementById(elId);
             if (!el) return;
+
+            const svg = el.ownerSVGElement;
+            const startPoint = getSvgPoint(svg, event.clientX, event.clientY);
+            const matrix = getElementMatrix(el);
+            const bbox = el.getBBox();
+
+            // ── CONVERT <text> TO <foreignObject> ON RESIZE START ──
+            if (el.tagName.toLowerCase() === 'text') {
+              const fo = convertTextToForeignObject(el);
+              if (fo) {
+                el.replaceWith(fo);
+                el = fo;
+              }
+            }
 
             // Lock cursor globally while dragging to prevent flicker
             const currentCursor = window.getComputedStyle(handle).cursor;
             document.documentElement.style.setProperty('--resizing-cursor', currentCursor);
             document.body.style.cursor = currentCursor;
             document.body.classList.add('resizing-active');
-
-            const svg = el.ownerSVGElement;
-            const startPoint = getSvgPoint(svg, event.clientX, event.clientY);
-            const matrix = getElementMatrix(el);
-            const bbox = el.getBBox();
 
             // Define anchor point in local space (opposite point)
             let localAnchor;
@@ -3416,8 +3499,8 @@ const MainEditor = ({
             const isText = el.getAttribute('data-type') === 'text' || el.tagName.toLowerCase() === 'text';
             const isForeignObject = el.tagName.toLowerCase() === 'foreignobject';
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
-            
-            if ((isCorner && (event.shiftKey || isImage || isText)) || (!isCorner && isText && !isForeignObject)) {
+
+            if ((isCorner && (event.shiftKey || isImage || (isText && !isForeignObject))) || (!isCorner && isText && !isForeignObject)) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               // For side handles on text (that is not a foreignObject), use the changed dimension as the uniform scale factor
               if (!isCorner && isText && !isForeignObject) {
@@ -3443,10 +3526,75 @@ const MainEditor = ({
               const finalWidth = Math.max(0, Math.abs(newLocalRight - newLocalX));
               const finalHeight = Math.max(0, Math.abs(newLocalBottom - newLocalY));
 
-              el.setAttribute('x', finalX);
-              el.setAttribute('y', finalY);
-              el.setAttribute('width', finalWidth);
-              el.setAttribute('height', finalHeight);
+              let adjustedHeight = finalHeight;
+              let adjustedWidth = finalWidth;
+              let adjustedX = finalX;
+              let adjustedY = finalY;
+
+              if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+                const isScrollable = el.getAttribute('data-scrollable') === 'true';
+                const div = el.firstElementChild;
+                const oldHeight = div.style.height;
+                const oldMinHeight = div.style.minHeight;
+                
+                // Temporarily allow height to shrink to measure true text height
+                div.style.setProperty('height', 'auto', 'important');
+                div.style.setProperty('min-height', '0px', 'important');
+
+                if (!isScrollable) {
+                  if (dir === 'e' || dir === 'w') {
+                    // Resize width -> Auto height (Can shrink)
+                    adjustedHeight = Math.max(10, div.scrollHeight + 4);
+                  } else if (dir === 'n' || dir === 's') {
+                    // Resize height -> Auto width
+                    let minW = 10;
+                    let maxW = 3000;
+                    let bestW = finalWidth;
+                    
+                    for (let i = 0; i < 12; i++) {
+                      let midW = (minW + maxW) / 2;
+                      el.setAttribute('width', midW);
+                      if (div.scrollHeight + 4 <= finalHeight) {
+                        bestW = midW;
+                        maxW = midW - 1; // Try to find a tighter fit
+                      } else {
+                        minW = midW + 1; // Need more width
+                      }
+                    }
+                    adjustedWidth = bestW;
+                    el.setAttribute('width', adjustedWidth);
+                    adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                  } else {
+                    // Corners -> Ensure height isn't hidden
+                    adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                  }
+                } else {
+                  // Scrollable text boxes CAN hide content. We respect the user's manual sizing exactly.
+                  // No auto-height adjustments here.
+                }
+                
+                div.style.setProperty('height', oldHeight || '100%', 'important');
+                div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
+                
+                // Adjust coordinates to respect the handle anchor
+                if (dir === 'w' || dir === 'nw' || dir === 'sw') {
+                  adjustedX = (finalX + finalWidth) - adjustedWidth;
+                } else if (dir === 'n' || dir === 's') {
+                  const widthDiff = adjustedWidth - finalWidth;
+                  const align = window.getComputedStyle(div).textAlign;
+                  if (align === 'center') adjustedX = finalX - (widthDiff / 2);
+                  else if (align === 'right' || align === 'end') adjustedX = finalX - widthDiff;
+                }
+                
+                if (dir === 'n' || dir === 'nw' || dir === 'ne') {
+                  adjustedY = (finalY + finalHeight) - adjustedHeight;
+                }
+              }
+              
+              el.setAttribute('x', adjustedX);
+              el.setAttribute('y', adjustedY);
+              el.setAttribute('width', adjustedWidth);
+              el.setAttribute('height', adjustedHeight);
             } else {
               const scaleMatrix = new DOMMatrix()
                 .translate(worldAnchor.x, worldAnchor.y)
@@ -3534,6 +3682,12 @@ const MainEditor = ({
 
   const handleSvgMouseDown = (pageIndex, e) => {
     if (e.button !== 0 || e.target.closest('.resize-handle')) return;
+
+    // Allow native text selection/interaction inside actively edited text boxes
+    if (e.target.closest('[contenteditable="true"]')) {
+      e.stopPropagation();
+      return;
+    }
 
     const container = e.currentTarget;
     const svg = container.querySelector('svg');
@@ -4452,6 +4606,204 @@ const MainEditor = ({
     }
   };
 
+  // ── Helper: convert SVG <text> element to <foreignObject> for Figma-style editing ──
+  const convertTextToForeignObject = (el) => {
+    if (!el || el.tagName.toLowerCase() !== 'text') return null;
+
+    const bbox = el.getBBox();
+    const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+    fo.id = el.id;
+
+    // Copy all attributes except positional/size ones (we'll set those from bbox)
+    Array.from(el.attributes).forEach(attr => {
+      if (!['x', 'y', 'width', 'height'].includes(attr.name)) {
+        fo.setAttribute(attr.name, attr.value);
+      }
+    });
+
+    fo.setAttribute('data-auto-wrap', 'true');
+    fo.setAttribute('data-type', 'text');
+    fo.setAttribute('x', bbox.x);
+    fo.setAttribute('y', bbox.y);
+    fo.setAttribute('width', Math.max(bbox.width, 10));
+    fo.setAttribute('height', Math.max(bbox.height, 10));
+    // Preserve transform if any
+    const transform = el.getAttribute('transform');
+    if (transform) fo.setAttribute('transform', transform);
+
+    const div = document.createElement('div');
+    div.style.width = '100%';
+    div.style.minHeight = '100%';
+    div.style.color = el.getAttribute('fill') || '#000000';
+    div.style.fontFamily = el.getAttribute('font-family') || 'Inter, sans-serif';
+    div.style.fontSize = (el.getAttribute('font-size') || '10') + 'px';
+    div.style.fontWeight = el.style.fontWeight || el.getAttribute('font-weight') || 'normal';
+    div.style.fontStyle = el.style.fontStyle || el.getAttribute('font-style') || 'normal';
+    div.style.textDecoration = el.style.textDecoration || el.getAttribute('text-decoration') || 'none';
+    const textAnchor = el.style.textAlign || el.getAttribute('text-anchor') || 'start';
+    div.style.textAlign = textAnchor === 'middle' ? 'center' : (textAnchor === 'end' ? 'right' : 'left');
+    div.style.lineHeight = el.getAttribute('data-line-height') || '1.2';
+    div.style.letterSpacing = el.style.letterSpacing || el.getAttribute('letter-spacing') || 'normal';
+    div.style.wordBreak = 'normal';
+    div.style.overflowWrap = 'anywhere';
+    // Use pre-wrap to allow paragraphs to reflow correctly on resize
+    div.style.whiteSpace = 'pre-wrap';
+    div.style.padding = '0px';
+    div.style.margin = '0';
+    div.style.boxSizing = 'border-box';
+    div.style.outline = 'none';
+    div.style.background = 'transparent';
+    div.style.userSelect = 'none';
+    div.style.pointerEvents = 'none';
+
+    // Smart tspan-to-lines conversion: group tspans by Y coordinate change
+    const tspans = Array.from(el.querySelectorAll('tspan'));
+    if (tspans.length > 0) {
+      let linesData = [];
+      let currentLineTspans = [];
+      let lastY = null;
+      let lineHeights = [];
+      
+      tspans.forEach((t, i) => {
+        const y = t.getAttribute('y');
+        const dy = t.getAttribute('dy');
+        const isNewLine = i > 0 && (dy || (y !== null && lastY !== null && Math.abs(parseFloat(y) - parseFloat(lastY)) > 2));
+        
+        if (y !== null && lastY !== null && isNewLine && !dy) {
+           lineHeights.push(Math.abs(parseFloat(y) - parseFloat(lastY)));
+        }
+        
+        if (isNewLine) {
+          linesData.push(currentLineTspans);
+          currentLineTspans = [];
+        }
+        currentLineTspans.push(t);
+        if (y !== null) lastY = y;
+      });
+      if (currentLineTspans.length > 0) {
+        linesData.push(currentLineTspans);
+      }
+      
+      const fontSizeStr = el.getAttribute('font-size') || el.style.fontSize;
+      const fontSize = parseFloat(fontSizeStr) || 10;
+
+      let linesBounds = linesData.map(lineTspans => {
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let textContent = '';
+        lineTspans.forEach(t => {
+           try {
+             const x = parseFloat(t.getAttribute('x'));
+             if (!isNaN(x)) {
+               const w = t.getComputedTextLength ? t.getComputedTextLength() : t.textContent.length * (fontSize * 0.5);
+               minX = Math.min(minX, x);
+               maxX = Math.max(maxX, x + w);
+             } else {
+               const b = t.getBBox();
+               minX = Math.min(minX, b.x);
+               maxX = Math.max(maxX, b.x + b.width);
+             }
+           } catch(e) {}
+           textContent += t.textContent;
+        });
+        return { minX, maxX, textContent };
+      });
+
+      const validBounds = linesBounds.filter(l => l.minX !== Infinity && l.maxX !== -Infinity);
+      const globalMinX = validBounds.length > 0 ? Math.min(...validBounds.map(l => l.minX)) : 0;
+      const globalMaxX = validBounds.length > 0 ? Math.max(...validBounds.map(l => l.maxX)) : 0;
+      
+      let detectedAlign = 'left';
+      if (validBounds.length > 1) {
+         let leftMatchCount = 0;
+         let rightMatchCount = 0;
+         let centerMatchCount = 0;
+         const tolerance = fontSize * 0.8;
+         
+         validBounds.forEach(l => {
+            if (Math.abs(l.minX - globalMinX) < tolerance) leftMatchCount++;
+            if (Math.abs(globalMaxX - l.maxX) < tolerance) rightMatchCount++;
+            const mid = (l.minX + l.maxX) / 2;
+            const gMid = (globalMinX + globalMaxX) / 2;
+            if (Math.abs(mid - gMid) < tolerance) centerMatchCount++;
+         });
+         
+         const thresh = Math.max(1, validBounds.length - 1);
+         if (leftMatchCount >= thresh && rightMatchCount >= thresh && validBounds.length > 1) {
+            detectedAlign = 'justify';
+         } else if (centerMatchCount >= thresh) {
+            detectedAlign = 'center';
+         } else if (rightMatchCount >= thresh) {
+            detectedAlign = 'right';
+         } else {
+            detectedAlign = 'left';
+         }
+      }
+
+      // Paragraph reconstruction
+      let htmlContent = '';
+      for (let i = 0; i < linesBounds.length; i++) {
+         const l = linesBounds[i];
+         let text = l.textContent;
+         let isHardBreak = true;
+         
+         if (i < linesBounds.length - 1 && l.minX !== Infinity) {
+            const lineWidth = l.maxX - l.minX;
+            const globalWidth = globalMaxX - globalMinX;
+            if (lineWidth > globalWidth - (fontSize * 2.5)) {
+               isHardBreak = false; 
+            }
+         }
+         
+         htmlContent += text;
+         if (i < linesBounds.length - 1) {
+             if (isHardBreak) {
+                htmlContent += '<br/>';
+             } else {
+                if (!text.endsWith(' ') && !text.endsWith('-')) {
+                   htmlContent += ' ';
+                }
+             }
+         }
+      }
+      div.innerHTML = htmlContent;
+
+      const originalAlign = el.style.textAlign || el.getAttribute('text-anchor');
+      let finalAlign = 'left';
+      if (originalAlign === 'middle') finalAlign = 'center';
+      else if (originalAlign === 'end') finalAlign = 'right';
+      else if (['left', 'center', 'right', 'justify'].includes(originalAlign)) finalAlign = originalAlign;
+      else if (validBounds.length > 0) finalAlign = detectedAlign;
+      
+      div.style.textAlign = finalAlign;
+
+      if (validBounds.length > 0) {
+        const tightWidth = globalMaxX - globalMinX;
+        // If the SVG renderer included invisible trailing spaces in the bbox, crop the width tightly
+        if (bbox.width - tightWidth > 1) {
+           fo.setAttribute('width', Math.max(tightWidth, 10));
+           fo.setAttribute('x', globalMinX);
+        }
+      }
+
+      if (lineHeights.length > 0 && !el.getAttribute('data-line-height')) {
+        const avgDy = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
+        if (fontSize > 0) {
+          const computedLineHeight = (avgDy / fontSize).toFixed(2);
+          div.style.lineHeight = computedLineHeight;
+          fo.setAttribute('data-line-height', computedLineHeight);
+        }
+      }
+    } else {
+      div.textContent = el.textContent || '';
+      const textAnchor = el.style.textAlign || el.getAttribute('text-anchor') || 'start';
+      div.style.textAlign = textAnchor === 'middle' ? 'center' : (textAnchor === 'end' ? 'right' : 'left');
+    }
+
+    fo.appendChild(div);
+    return fo;
+  };
+
   // ── Helper: set single selection and clear multi-selection ───────────────────
   const setSingleSelection = (id) => {
     if (setSelectedLayerId) {
@@ -4482,419 +4834,335 @@ const MainEditor = ({
 
     multiSelectedIdsRef.current = newSet;
     setMultiSelectedIds(newSet);
+
+    // ── Figma-style: auto-convert <text> to <foreignObject> on first selection ──
+    // This ensures resize handles, click-to-edit, and style panel all work correctly
+    if (id) {
+      const el = document.getElementById(id);
+      if (el && el.tagName.toLowerCase() === 'text') {
+        const fo = convertTextToForeignObject(el);
+        if (fo) {
+          el.replaceWith(fo);
+          
+          // Auto-snap height to perfectly fit the HTML text
+          requestAnimationFrame(() => {
+            const div = fo.firstElementChild;
+            if (div) {
+              const ch = div.scrollHeight;
+              const currentH = parseFloat(fo.getAttribute('height')) || 0;
+
+              if (ch > 0 && Math.abs(ch - currentH) > 2) {
+                fo.setAttribute('height', ch);
+              }
+              
+              // Force interact.js/overlays to redraw bounds
+              const event = new Event('resize');
+              window.dispatchEvent(event);
+              
+              // Explicitly redraw the highlight now that the FO has painted
+              drawOverlayHighlight(fo, 'selected');
+            }
+          });
+
+          // Save the conversion so it persists
+          const svg = fo.ownerSVGElement;
+          const container = fo.closest('.page-svg-container');
+          if (container && svg) {
+            const pageIdx = parseInt(container.getAttribute('data-page-index'));
+            // Use a microtask so React state settles before saving
+            requestAnimationFrame(() => saveModifiedPageHtml(pageIdx, svg));
+          }
+        }
+      }
+    }
   };
 
-  const enterTextEditMode = (target) => {
-    const tagName = target.tagName.toLowerCase();
-    const isText = ['text', 'tspan'].includes(tagName);
-    const isForeignObject = tagName === 'foreignobject';
-    
-    if ((isText || isForeignObject) && target.id) {
-      isEditingTextRef.current = true;
-      const svgContainer = target.closest('.page-svg-container');
-      if (svgContainer) {
-        const divWrapper = svgContainer.querySelector('div');
-        if (divWrapper) divWrapper.style.cursor = 'text';
-      }
-      clearOverlayType('selected');
-      const svgRoot = target.ownerSVGElement;
 
-      // NATIVE FOREIGN OBJECT EDITING
-      if (isForeignObject) {
-        const div = target.firstElementChild;
-        if (!div) return;
+  const enterTextEditMode = (target, clientX = null, clientY = null) => {
+    if (!target || !target.id) return;
+
+    let foTarget = target;
+
+    // If the target is a raw <text> element, convert it to foreignObject first
+    if (target.tagName.toLowerCase() === 'text' || target.tagName.toLowerCase() === 'tspan') {
+      const textEl = target.tagName.toLowerCase() === 'tspan' ? target.closest('text') : target;
+      if (!textEl) return;
+      const fo = convertTextToForeignObject(textEl);
+      if (!fo) return;
+      textEl.replaceWith(fo);
+      foTarget = fo;
+      
+      // Explicitly redraw the highlight now that the FO is in the DOM
+      requestAnimationFrame(() => {
+        const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+        drawOverlayHighlight(foTarget, highlightType);
+      });
+      
+      // Update selection to reflect new FO id (same as original text id)
+      if (setSelectedLayerId) setSelectedLayerId(fo.id);
+      selectedLayerIdRef.current = fo.id;
+      if (setMultiSelectedIds) {
+        setMultiSelectedIds(new Set([fo.id]));
+        multiSelectedIdsRef.current = new Set([fo.id]);
+      }
+    }
+
+    if (foTarget.tagName.toLowerCase() !== 'foreignobject') return;
+
+    const div = foTarget.firstElementChild;
+    if (!div) return;
+
+    isEditingTextRef.current = true;
+    const svgRoot = foTarget.ownerSVGElement;
+
+    // Set cursor for the wrapper container
+    const svgContainer = foTarget.closest('.page-svg-container');
+    if (svgContainer) {
+      const divWrapper = svgContainer.querySelector('div');
+      if (divWrapper) divWrapper.style.cursor = 'text';
+    }
+
+    // Keep the main selection overlay but remove the corner dots
+    document.querySelectorAll('.selection-overlay-layer .resize-handle').forEach(h => h.remove());
+    document.querySelectorAll('[id^="highlight-overlay-html-"] .resize-handle').forEach(h => h.remove());
+
+    clearOverlayType('hover');
+    clearOverlayType('child-hover');
+
+    // Mark as editing
+    foTarget.setAttribute('data-editing', 'true');
+    div.setAttribute('contenteditable', 'true');
+    div.style.outline = 'none';
+    div.style.userSelect = 'text';
+    div.style.pointerEvents = 'auto';
+    div.style.cursor = 'text';
+
+    const handleInput = () => {
+      const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
+      const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
+
+      if (!isScrollable) {
+        const oldWidth = div.style.width;
+        const oldHeight = div.style.height;
+        const oldMinHeight = div.style.minHeight;
         
-        target.setAttribute('data-editing', 'true');
-        div.setAttribute('contenteditable', 'true');
-        div.classList.add('text-edit-box');
-        div.style.cursor = TYPE_CURSOR;
-        div.style.userSelect = 'text';
-        div.style.outline = '1.5px solid #6366F1';
-        div.focus();
+        if (isAutoWrap) {
+           div.style.width = 'max-content';
+        }
         
-        // Move cursor to end
+        // Temporarily allow height to shrink to measure true text height
+        div.style.setProperty('height', 'auto', 'important');
+        div.style.setProperty('min-height', '0px', 'important');
+        
+        const contentW = div.scrollWidth;
+        const contentH = div.scrollHeight;
+        
+        div.style.width = oldWidth;
+        div.style.setProperty('height', oldHeight || '100%', 'important');
+        div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
+
+        const foH = parseFloat(foTarget.getAttribute('height')) || 0;
+        const foW = parseFloat(foTarget.getAttribute('width')) || 0;
+        const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
+
+        let changed = false;
+        if (isAutoWrap && Math.abs(contentW - foW) > 2) {
+           const widthDiff = contentW - foW;
+           const align = window.getComputedStyle(div).textAlign;
+           foTarget.setAttribute('width', Math.max(contentW, 10));
+           
+           if (align === 'center') {
+             foTarget.setAttribute('x', currentX - (widthDiff / 2));
+           } else if (align === 'right' || align === 'end') {
+             foTarget.setAttribute('x', currentX - widthDiff);
+           }
+           changed = true;
+        }
+        if (Math.abs(contentH - foH) > 2) {
+           foTarget.setAttribute('height', contentH + 4);
+           changed = true;
+        }
+        
+        if (changed) {
+          const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
+          drawOverlayHighlight(foTarget, highlightType);
+        }
+      }
+    };
+    div.addEventListener('input', handleInput);
+    div.focus();
+
+    // Place cursor at the clicked position using caretRangeFromPoint if coords are available
+    // Otherwise fall back to end of text
+    const placeCaretAtClick = (cx, cy) => {
+      let placed = false;
+      if (cx !== null && cy !== null) {
+        // Standard (Chrome/Edge/Safari)
+        if (document.caretRangeFromPoint) {
+          const clickRange = document.caretRangeFromPoint(cx, cy);
+          if (clickRange) {
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(clickRange);
+            placed = true;
+          }
+        // Firefox
+        } else if (document.caretPositionFromPoint) {
+          const pos = document.caretPositionFromPoint(cx, cy);
+          if (pos) {
+            const range = document.createRange();
+            range.setStart(pos.offsetNode, pos.offset);
+            range.collapse(true);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+            placed = true;
+          }
+        }
+      }
+      if (!placed) {
+        // Fallback: move to end
         const range = document.createRange();
         range.selectNodeContents(div);
         range.collapse(false);
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-        
-        const cleanup = () => {
-          isEditingTextRef.current = false;
-          const svgContainer = target.closest('.page-svg-container');
-          if (svgContainer) {
-            const divWrapper = svgContainer.querySelector('div');
-            if (divWrapper) {
-              const isPencilActive = activeMainToolRef.current === 'pen' && selectedPenToolRef.current === 'pencil';
-              const isPenToolActive = activeMainToolRef.current === 'pen';
-              const isShapeActive = activeMainToolRef.current === 'shapes';
-              const isTypeActive = activeMainToolRef.current === 'type';
-              divWrapper.style.cursor = isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')));
-            }
-          }
-          target.removeAttribute('data-editing');
-          div.removeAttribute('contenteditable');
-          div.classList.remove('text-edit-box');
-          div.style.outline = '';
-          div.removeEventListener('blur', handleBlur);
-          div.removeEventListener('keydown', handleKeyDown);
-          const sel = window.getSelection();
-          if (sel) sel.removeAllRanges();
-        };
-        
-        const handleBlur = () => {
-          const finalContent = div.innerText.trim();
-          if (finalContent.length === 0) {
-            target.remove();
-            cleanup();
-            if (setSelectedLayerId) setSelectedLayerId(null);
-            selectedLayerIdRef.current = null;
-            if (setMultiSelectedIds) {
-              setMultiSelectedIds(new Set());
-              multiSelectedIdsRef.current = new Set();
-            }
-            const container = target.closest('.page-svg-container');
-            if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
-            return;
-          }
-          cleanup();
-          
-          if (target.id) {
-            if (setSelectedLayerId) setSelectedLayerId(target.id);
-            selectedLayerIdRef.current = target.id;
-            if (setMultiSelectedIds) {
-              setMultiSelectedIds(new Set([target.id]));
-              multiSelectedIdsRef.current = new Set([target.id]);
-            }
-            drawOverlayHighlight(target, 'selected');
-          }
-          
-          const container = target.closest('.page-svg-container');
-          if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
-        };
-        
-        const handleKeyDown = (e) => {
-          if (e.key === 'Enter' && !e.shiftKey) {
-            if (div.innerText.trim() === '') {
-              e.preventDefault();
-              div.blur();
-            }
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            div.blur();
-          }
-        };
-        
-        div.addEventListener('blur', handleBlur);
-        div.addEventListener('keydown', handleKeyDown);
+      }
+    };
+
+    // Use a tiny timeout so the browser has fully rendered the contenteditable before we place the caret
+    setTimeout(() => placeCaretAtClick(clientX, clientY), 0);
+
+    const cleanup = () => {
+      isEditingTextRef.current = false;
+      foTarget.removeAttribute('data-editing');
+      div.removeAttribute('contenteditable');
+      div.style.outline = 'none';
+      div.style.boxShadow = '';
+      div.style.userSelect = 'none';
+      div.style.pointerEvents = 'none';
+      div.style.cursor = '';
+      div.classList.remove('text-edit-box');
+      div.removeEventListener('blur', handleBlur);
+      div.removeEventListener('keydown', handleKeyDown);
+      const s = window.getSelection();
+      if (s) s.removeAllRanges();
+
+      // Restore cursor for wrapper
+      if (svgContainer) {
+        const divWrapper = svgContainer.querySelector('div');
+        if (divWrapper) {
+          const isPencilActive = activeMainToolRef.current === 'pen' && selectedPenToolRef.current === 'pencil';
+          const isPenToolActive = activeMainToolRef.current === 'pen';
+          const isShapeActive = activeMainToolRef.current === 'shapes';
+          const isTypeActive = activeMainToolRef.current === 'type';
+          divWrapper.style.cursor = isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')));
+        }
+      }
+    };
+
+    const handleBlur = () => {
+      const finalContent = div.innerText || '';
+
+      if (finalContent.trim().length === 0) {
+        foTarget.remove();
+        cleanup();
+        if (setSelectedLayerId) setSelectedLayerId(null);
+        selectedLayerIdRef.current = null;
+        if (setMultiSelectedIds) {
+          setMultiSelectedIds(new Set());
+          multiSelectedIdsRef.current = new Set();
+        }
+        const container = foTarget.closest('.page-svg-container');
+        if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
         return;
       }
 
-      // STANDARD TEXT ELEMENT EDITING (CREATES OVERLAY)
-      const bbox = target.getBBox();
-      const style = window.getComputedStyle(target);
-      const transform = target.getAttribute('transform');
+      // Auto-grow height and width to fit content
+      const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
+      const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
 
-      // Hide original text to create illusion of editing in-place
-      target.setAttribute('data-editing', 'true');
-      target.style.opacity = '0';
-      target.style.visibility = 'hidden';
-
-      // Create foreignObject directly inside the SVG
-      const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-      const padX = 1;
-      const padY = 1;
-
-      // Initial calculated dimensions
-      const initialWidth = Math.max(bbox.width + padX * 2, 4);
-      const initialHeight = Math.max(bbox.height + padY * 2, 20);
-
-      const isNewCreation = target.textContent.length === 0;
-
-      fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || bbox.x) - padX);
-
-      if (isNewCreation) {
-        // For new creation, bounding box is empty, derive exact top-left from baseline 'y' manually
-        fo.setAttribute('y', (parseFloat(target.getAttribute('y')) || bbox.y) - 16);
-      } else {
-        // For existing text, use the actual visual top (bbox.y)
-        // Add a tiny -2px offset to perfectly match strict HTML line-height rendering vs SVG baseline
-        fo.setAttribute('y', bbox.y - padY - 2);
-      }
-
-      const isScrollable = target.getAttribute('data-scrollable') === 'true';
-
-      fo.setAttribute('width', isScrollable ? initialWidth : initialWidth + 100); // Leave room for growth initially if not scrollable
-      fo.setAttribute('height', isScrollable ? initialHeight : initialHeight + 50);
-      if (transform) fo.setAttribute('transform', transform);
-
-      // Mark it so interact.js ignores dragging while editing
-      fo.setAttribute('data-editing', 'true');
-      fo.style.cursor = TYPE_CURSOR;
-      fo.style.overflow = isScrollable ? 'hidden' : 'visible';
-
-      const div = document.createElement('div');
-      div.setAttribute('contenteditable', 'true');
-      div.className = 'text-edit-box custom-scrollbar';
-      div.style.width = isScrollable ? '100%' : 'fit-content';
-      div.style.minWidth = '1px';
-      div.style.height = isScrollable ? '100%' : 'fit-content';
-      div.style.minHeight = '1em';
-      div.style.setProperty('background', 'transparent', 'important');
-      div.style.setProperty('background-color', 'transparent', 'important');
-      fo.style.setProperty('background', 'transparent', 'important');
-      fo.style.setProperty('background-color', 'transparent', 'important');
-      div.style.cursor = TYPE_CURSOR;
-      div.style.userSelect = 'text';
-      div.style.overflowY = isScrollable ? 'auto' : 'visible';
-      div.style.overflowX = isScrollable ? 'hidden' : 'visible';
-      
-      // Add padding for scrollbar if scrollable to prevent overlap
-      if (isScrollable) {
-          div.style.paddingRight = '8px';
-      }
-
-      // Copy exact styles over to make it look identical to original text
-      div.style.fontFamily = target.getAttribute('font-family') || style.fontFamily;
-      let fSize = target.getAttribute('font-size') || style.fontSize;
-      if (!fSize.toString().includes('px') && !fSize.toString().includes('em') && !fSize.toString().includes('rem')) {
-        fSize += 'px';
-      }
-      div.style.fontSize = fSize;
-      div.style.fontWeight = target.getAttribute('font-weight') || style.fontWeight;
-
-      let color = target.getAttribute('fill') || style.fill;
-      if (!color || color === 'none' || color === 'transparent') {
-        color = target.getAttribute('stroke') || style.stroke || '#000000';
-      }
-      // HTML color cannot use SVG gradients
-      if (color && color.includes('url(')) {
-        color = '#000000';
-      }
-      div.style.color = color;
-      div.style.letterSpacing = target.getAttribute('letter-spacing') || style.letterSpacing;
-
-      div.style.lineHeight = '1.2';
-      div.style.whiteSpace = 'pre-wrap';
-      div.style.wordWrap = 'normal';
-
-      div.style.padding = `${padY}px ${padX}px`;
-      div.style.margin = '0';
-      div.style.display = 'inline-block';
-      div.style.webkitFontSmoothing = 'antialiased';
-      div.style.mozOsxFontSmoothing = 'grayscale';
-
-      // Alignment mapping
-      const textAnchor = target.getAttribute('text-anchor') || style.textAnchor;
-      if (textAnchor === 'middle') {
-        div.style.textAlign = 'center';
-        fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || (bbox.x + bbox.width / 2)) - padX);
-        div.style.transform = 'translateX(-50%)';
-      } else if (textAnchor === 'end') {
-        div.style.textAlign = 'right';
-        fo.setAttribute('x', (parseFloat(target.getAttribute('x')) || (bbox.x + bbox.width)) - padX);
-        div.style.transform = 'translateX(-100%)';
-      } else {
-        div.style.textAlign = 'left';
-      }
-
-      // Initialize content: Convert tspans to newlines if present, otherwise use textContent
-      const tspans = Array.from(target.querySelectorAll('tspan'));
-      if (tspans.length > 0) {
-        div.innerText = tspans.map(t => {
-          let text = t.textContent || '';
-          return text.replace(/\u00A0/g, ' ');
-        }).join('\n');
-      } else {
-        // Fallback for raw text content without tspans, stripping accidental XML formatting whitespace
-        div.innerText = target.textContent.replace(/\u00A0/g, ' ').trim();
-      }
-      fo.appendChild(div);
-
-      // Insert in exact DOM position next to target to inherit proper z-index and scaling context
-      target.parentNode.insertBefore(fo, target.nextSibling);
-
-      const isMultiLine = tspans.length > 1;
-      const originalMaxW = isMultiLine ? Math.max(bbox.width, 50) : null;
-
-      // Function to sync foreignObject size to content dynamically
-      const syncSize = () => {
-        if (isScrollable) return; // Do not resize if scrollable
+      if (!isScrollable) {
+        const oldWidth = div.style.width;
+        const oldHeight = div.style.height;
+        const oldMinHeight = div.style.minHeight;
         
-        const svgEl = fo.closest('svg');
-        let maxW = 9999;
-        if (svgEl) {
-           const viewBoxWidth = svgEl.viewBox?.baseVal?.width;
-           const clientWidth = svgEl.clientWidth;
-           const svgWidth = viewBoxWidth || clientWidth || 1000;
-           const xPos = parseFloat(fo.getAttribute('x')) || 0;
-           maxW = Math.max(50, svgWidth - xPos - 10);
-        }
-
-        // Restrict to original width if it was a multi-line paragraph from a template
-        if (originalMaxW !== null) {
-           maxW = Math.min(maxW, originalMaxW);
+        if (isAutoWrap) {
+           div.style.width = 'max-content';
         }
         
-        div.style.maxWidth = `${maxW}px`;
-        div.style.whiteSpace = 'pre-wrap';
-        div.style.wordWrap = 'break-word';
-        div.style.wordBreak = 'normal';
+        // Temporarily allow height to shrink to measure true text height
+        div.style.setProperty('height', 'auto', 'important');
+        div.style.setProperty('min-height', '0px', 'important');
+        
+        const contentW = div.scrollWidth;
+        const contentH = div.scrollHeight;
+        
+        div.style.width = oldWidth;
+        div.style.setProperty('height', oldHeight || '100%', 'important');
+        div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
 
-        const w = Math.max(div.scrollWidth, 10);
-        const h = Math.max(div.scrollHeight, 20);
+        const currentW = parseFloat(foTarget.getAttribute('width')) || 0;
+        const currentH = parseFloat(foTarget.getAttribute('height')) || 0;
+        const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
-        fo.setAttribute('width', Math.min(w + 40, maxW + 40));
-        fo.setAttribute('height', h + 20);
-      };
-
-      div.addEventListener('input', syncSize);
-
-      // Timeout ensures the browser paints 'contenteditable' and can focus
-      setTimeout(() => {
-        div.focus();
-        syncSize();
-
-        // Select all text natively if it's not a new creation
-        if (target.textContent.length > 0) {
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(div);
-          selection.removeAllRanges();
-          selection.addRange(range);
+        if (isAutoWrap && Math.abs(contentW - currentW) > 2) {
+           const widthDiff = contentW - currentW;
+           const align = window.getComputedStyle(div).textAlign;
+           foTarget.setAttribute('width', Math.max(contentW, 10));
+           if (align === 'center') {
+             foTarget.setAttribute('x', currentX - (widthDiff / 2));
+           } else if (align === 'right' || align === 'end') {
+             foTarget.setAttribute('x', currentX - widthDiff);
+           }
         }
-      }, 0);
-
-      const initialInnerHTML = target.innerHTML;
-
-      const cleanup = () => {
-        isEditingTextRef.current = false;
-        const svgContainer = target.closest('.page-svg-container');
-        if (svgContainer) {
-          const divWrapper = svgContainer.querySelector('div');
-          if (divWrapper) {
-            const isPencilActive = activeMainToolRef.current === 'pen' && selectedPenToolRef.current === 'pencil';
-            const isPenToolActive = activeMainToolRef.current === 'pen';
-            const isShapeActive = activeMainToolRef.current === 'shapes';
-            const isTypeActive = activeMainToolRef.current === 'type';
-            divWrapper.style.cursor = isPencilActive ? PENCIL_CURSOR : (isPenToolActive ? PEN_CURSOR : (isShapeActive ? SHAPE_CURSOR : (isTypeActive ? TYPE_CURSOR : 'default')));
-          }
+        
+        if (Math.abs(contentH - currentH) > 2) {
+           foTarget.setAttribute('height', contentH + 4);
         }
-        target.removeAttribute('data-editing');
-        target.style.removeProperty('opacity');
-        target.style.removeProperty('visibility');
-        if (target.getAttribute('style') === '') target.removeAttribute('style');
+      }
 
-        div.removeEventListener('blur', handleBlur);
-        div.removeEventListener('keydown', handleKeyDown);
-        div.removeEventListener('input', syncSize);
+      cleanup();
 
-        if (fo.parentNode) {
-          fo.parentNode.removeChild(fo);
+      // Re-select the element and redraw handles
+      if (foTarget.id) {
+        if (setSelectedLayerId) setSelectedLayerId(foTarget.id);
+        selectedLayerIdRef.current = foTarget.id;
+        if (setMultiSelectedIds) {
+          setMultiSelectedIds(new Set([foTarget.id]));
+          multiSelectedIdsRef.current = new Set([foTarget.id]);
         }
+        drawOverlayHighlight(foTarget, 'selected');
+      }
 
-        const sel = window.getSelection();
-        if (sel) sel.removeAllRanges();
-      };
+      const container = foTarget.closest('.page-svg-container');
+      if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
+    };
 
-      const handleBlur = () => {
-        const finalContent = div.innerText;
-        // If the content is entirely empty (or just whitespace), remove the layer.
-        if (finalContent.trim().length === 0) {
-          if (target.parentNode) {
-            target.parentNode.removeChild(target);
-          }
-          cleanup();
+    const handleKeyDown = (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        div.blur();
+      }
+      // Enter naturally inserts a <br> or newline inside the contenteditable div
+    };
 
-          if (setSelectedLayerId) {
-            setSelectedLayerId(null);
-            selectedLayerIdRef.current = null;
-            if (setMultiSelectedIds) {
-              setMultiSelectedIds(new Set());
-              multiSelectedIdsRef.current = new Set();
-            }
-          }
-
-          const container = target.closest('.page-svg-container');
-          if (container) {
-            const pageIdx = parseInt(container.getAttribute('data-page-index'));
-            saveModifiedPageHtml(pageIdx, svgRoot);
-          }
-          return;
-        }
-
-        // Handle multi-line conversion
-        // Trim only the very end to remove the phantom newline added by contenteditable
-        const lines = div.innerText.trimEnd().split(/\r?\n/);
-        target.innerHTML = '';
-        const x = target.getAttribute('x') || '0';
-
-        // Read existing line height if set, fallback to 1.2
-        const computedStyle = window.getComputedStyle(target);
-        const lhStr = computedStyle.lineHeight;
-        let dy = 1.2;
-
-        if (lhStr && lhStr !== 'normal') {
-          const lhPx = parseFloat(lhStr);
-          const fsPx = parseFloat(computedStyle.fontSize) || 24;
-          if (fsPx > 0) dy = lhPx / fsPx;
-        }
-
-        lines.forEach((line, i) => {
-          const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-          tspan.textContent = line.replace(/ +$/, match => '\u00A0'.repeat(match.length)) || '\u00A0';
-          tspan.setAttribute('x', x);
-          if (i > 0) tspan.setAttribute('dy', `${dy.toFixed(2)}em`);
-          target.appendChild(tspan);
-        });
-
-        cleanup();
-
-        // Auto-select and redraw highlight after exit
-        if (target.id) {
-          if (setSelectedLayerId) setSelectedLayerId(target.id);
-          selectedLayerIdRef.current = target.id;
-          if (setMultiSelectedIds) {
-            setMultiSelectedIds(new Set([target.id]));
-            multiSelectedIdsRef.current = new Set([target.id]);
-          }
-          drawOverlayHighlight(target, 'selected');
-        }
-
-        const container = target.closest('.page-svg-container');
-        if (container) {
-          const pageIdx = parseInt(container.getAttribute('data-page-index'));
-          saveModifiedPageHtml(pageIdx, svgRoot);
-        }
-      };
-
-      const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          // Check if it's empty - if so, blur to remove
-          if (div.innerText.trim() === '') {
-            e.preventDefault();
-            div.blur();
-          }
-        }
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          target.innerHTML = initialInnerHTML;
-          if (target.textContent.trim().length === 0) {
-            if (target.parentNode) target.parentNode.removeChild(target);
-          }
-          cleanup();
-        }
-      };
-
-      div.addEventListener('blur', handleBlur);
-      div.addEventListener('keydown', handleKeyDown);
-    }
+    div.addEventListener('blur', handleBlur);
+    div.addEventListener('keydown', handleKeyDown);
   };
+
 
   // ── FIGMA-STYLE CLICK: hierarchical frame drill-down selection ─────────────────
   const handleSvgClick = (e) => {
     if (e.target.closest('.resize-handle')) return;
+
+    // Allow native text selection/interaction inside actively edited text boxes
+    if (e.target.closest('[contenteditable="true"]')) {
+      e.stopPropagation();
+      return;
+    }
 
     e.stopPropagation();
     e.preventDefault(); // Prevent default browser actions (like following <a> links or downloading) on the canvas
@@ -4999,13 +5267,19 @@ const MainEditor = ({
 
         // Normal click on polygon
         if (selectedLayerIdRef.current === polySelectionId && multiSelectedIdsRef.current.size <= 1) {
-          // Already uniquely selected. Do nothing to preserve state for double-click!
+          // Already uniquely selected. Enter text edit mode if text!
+          console.log('[handleSvgClick] Polygon clicked for already selected item:', polySelectionId);
+          const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
+          if (underlyingEl && (underlyingEl.tagName.toLowerCase() === 'text' || underlyingEl.tagName.toLowerCase() === 'tspan' || underlyingEl.tagName.toLowerCase() === 'foreignobject')) {
+            console.log('[handleSvgClick] Entering text edit mode for', underlyingEl);
+            enterTextEditMode(underlyingEl, e.clientX, e.clientY);
+          }
           return;
         }
-        
+
         // Otherwise, select it
         setSingleSelection(polySelectionId);
-        
+
         // Enter frame context if the element is inside a frame
         const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
         if (underlyingEl) {
@@ -5177,6 +5451,10 @@ const MainEditor = ({
               return;
             }
             // Child has no sub-frames → stay selected, nothing deeper to enter
+            if (clickedChild.tagName.toLowerCase() === 'text' || clickedChild.tagName.toLowerCase() === 'tspan' || clickedChild.tagName.toLowerCase() === 'foreignobject') {
+              console.log('[handleSvgClick] Entering text edit mode for child:', clickedChild.id);
+              enterTextEditMode(clickedChild, e.clientX, e.clientY);
+            }
             return;
           } else {
             // ── Different child → SELECT it 
@@ -5193,6 +5471,10 @@ const MainEditor = ({
           }
 
           if (target && target !== frameEl && frameEl.contains(target)) {
+            if (selId === target.id && (target.tagName.toLowerCase() === 'text' || target.tagName.toLowerCase() === 'tspan' || target.tagName.toLowerCase() === 'foreignobject')) {
+              enterTextEditMode(target, e.clientX, e.clientY);
+              return;
+            }
             setSingleSelection(target.id);
             // Persist auto-assigned ids (e.g. template text with no id) immediately
             if (target.tagName?.toLowerCase() === 'text') {
@@ -5204,6 +5486,10 @@ const MainEditor = ({
           // 1. STICKY SELECTION PRIORITY: If clicking near the already-selected element, keep it selected!
           const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
           if (activeSel && frameEl.contains(activeSel) && hitTest(activeSel, e.clientX, e.clientY, 15)) {
+            if (activeSel.tagName.toLowerCase() === 'text' || activeSel.tagName.toLowerCase() === 'tspan' || activeSel.tagName.toLowerCase() === 'foreignobject') {
+              enterTextEditMode(activeSel, e.clientX, e.clientY);
+              return;
+            }
             setSingleSelection(activeSel.id);
             return;
           }
@@ -5297,6 +5583,11 @@ const MainEditor = ({
       }
 
       if (target && target !== hitFrame && hitFrame.contains(target)) {
+        if (selId === target.id && (target.tagName.toLowerCase() === 'text' || target.tagName.toLowerCase() === 'tspan' || target.tagName.toLowerCase() === 'foreignobject')) {
+          console.log('[handleSvgClick] Hit text inside hitFrame, already selected:', target.id);
+          enterTextEditMode(target, e.clientX, e.clientY);
+          return;
+        }
         setCurrentFrameId(hitFrame.id);
         currentFrameIdRef.current = hitFrame.id;
         setSingleSelection(target.id);
@@ -5310,6 +5601,11 @@ const MainEditor = ({
       // STICKY SELECTION PRIORITY (Case 2)
       const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
       if (activeSel && hitFrame.contains(activeSel) && hitTest(activeSel, e.clientX, e.clientY, 15)) {
+        if (activeSel.tagName.toLowerCase() === 'text' || activeSel.tagName.toLowerCase() === 'tspan' || activeSel.tagName.toLowerCase() === 'foreignobject') {
+          console.log('[handleSvgClick] Sticky selection hit on text:', activeSel.id);
+          enterTextEditMode(activeSel, e.clientX, e.clientY);
+          return;
+        }
         setCurrentFrameId(hitFrame.id);
         currentFrameIdRef.current = hitFrame.id;
         setSingleSelection(activeSel.id);
@@ -5350,6 +5646,10 @@ const MainEditor = ({
           return;
         }
         // Frame has no children — stay selected
+        if (hitFrame.tagName.toLowerCase() === 'text' || hitFrame.tagName.toLowerCase() === 'tspan' || hitFrame.tagName.toLowerCase() === 'foreignobject') {
+          console.log('[handleSvgClick] Entering text edit mode for top frame:', hitFrame.id);
+          enterTextEditMode(hitFrame, e.clientX, e.clientY);
+        }
         return;
       } else {
         // User clicked a DIFFERENT top-level frame -> SELECT it (unselects old)
@@ -5360,7 +5660,7 @@ const MainEditor = ({
       }
     } else {
       // 2. Clicked canvas background — deselect everything
-      
+
       // ── STICKY SELECTION PRIORITY (Case 3) ──
       // If we are about to clear the selection, check if the click was VERY close to the active selection!
       // This protects against accidental deselection when trying to double-click text!
@@ -5430,7 +5730,7 @@ const MainEditor = ({
 
     const isText = ['text', 'tspan', 'foreignobject'].includes(target.tagName.toLowerCase());
     if (isText && target.id) {
-      enterTextEditMode(target);
+      enterTextEditMode(target, e.clientX, e.clientY);
       return;
     }
 
@@ -5521,12 +5821,12 @@ const MainEditor = ({
     if (!el) return;
     const handleWheel = (e) => {
       if (e.target.closest('.editor-ss-overlay') || e.target.closest('input')) return;
-      
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         const delta = e.deltaY < 0 ? 5 : -5;
         setZoom(prev => Math.min(Math.max(prev + delta, 10), 250));
       }
+
     };
     el.addEventListener('wheel', handleWheel, { passive: false });
     return () => {

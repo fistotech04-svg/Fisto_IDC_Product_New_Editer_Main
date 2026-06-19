@@ -11,6 +11,7 @@ import TemplateSVG5 from "../../assets/Templates/Template_5.svg?url";
 import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
 import TemplateSVG7 from "../../assets/Templates/Template_7.svg?url";
 import TemplateSVG8 from "../../assets/Templates/Template_8.svg?url";
+import TemplateSVG9 from "../../assets/Templates/Template_9.svg?url";
 
 // Global cache to store fetched template SVG strings so they load instantly on subsequent opens
 const templateCache = {};
@@ -192,6 +193,14 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       name: 'Template 8',
       category: 'Business',
       src: TemplateSVG8,
+      type: 'svg',
+      description: 'Professional A4 business template'
+    },
+    {
+      id: 9,
+      name: 'Template 9',
+      category: 'Business',
+      src: TemplateSVG9,
       type: 'svg',
       description: 'Professional A4 business template'
     }

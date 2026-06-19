@@ -850,11 +850,29 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       }, 50);
     };
 
+    const handleMouseMove = (e) => {
+      const target = getFreshTarget();
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+
+      // Add a small padding (e.g., 20px) to the bounding box to make it easier to hover
+      // and to cover buttons that might be slightly outside the exact element rect
+      const isInside = e.clientX >= (rect.left - 20) && e.clientX <= (rect.right + 20) &&
+        e.clientY >= (rect.top - 20) && e.clientY <= (rect.bottom + 20);
+
+      if (isInside && !isHoveringRef.current) {
+        handleContainerEnter();
+      } else if (!isInside && isHoveringRef.current) {
+        // Don't leave if mouse is directly over the overlay controls
+        const overlay = liveRunnerOverlayRef.current;
+        if (overlay && overlay.contains(e.target)) return;
+        handleContainerLeave();
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+
     const containerTarget = getFreshTarget();
-    if (containerTarget) {
-      containerTarget.addEventListener('mouseenter', handleContainerEnter);
-      containerTarget.addEventListener('mouseleave', handleContainerLeave);
-    }
 
     overlay.style.pointerEvents = 'none'; // Allow clicking through to the SVG for dragging
     let dragStartX = 0, dragStartY = 0;
@@ -903,7 +921,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         if (liveRunnerAutoTimer.current) clearInterval(liveRunnerAutoTimer.current);
       });
       dotsWrap.addEventListener('mouseleave', handleContainerLeave);
-      
+
       slideshowImages.forEach((_, i) => {
         const dot = document.createElement('div');
         dot.className = 'editor-ss-dot';
@@ -951,10 +969,9 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       cleanup();
       resizeObserver.disconnect();
       mutationObserver.disconnect();
+      window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', positionOverlay);
       if (containerTarget) {
-        containerTarget.removeEventListener('mouseenter', handleContainerEnter);
-        containerTarget.removeEventListener('mouseleave', handleContainerLeave);
         containerTarget.removeEventListener('mousedown', handleTargetMouseDown);
         containerTarget.removeEventListener('click', handleTargetClick);
       }
@@ -1460,13 +1477,21 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       {/* Right: Icon Preview Card */}
                       <div
                         onClick={() => setShowNavStylesPopup(true)}
-                        className="bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] rounded-[0.5vw] p-[0.8vw] flex items-center gap-[0.8vw] border border-gray-200 cursor-pointer hover:border-gray-500 transition-all shrink-0"
+                        className="w-[6vw] h-[3.5vw] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] rounded-[0.5vw] flex items-center justify-center relative group/nav shrink-0 cursor-pointer border border-gray-200 hover:border-gray-500 transition-all"
                       >
-                        <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center">
-                          {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).left}
+                        {/* Hover Overlay Button */}
+                        <div className="absolute z-20 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[1.5vw] h-[1.5vw] bg-white shadow-md rounded-[0.3vw] flex items-center justify-center scale-90 opacity-0 group-hover/nav:opacity-100 group-hover/nav:scale-100 transition-all duration-300">
+                          <Icon icon="lucide:arrow-right-left" className="w-[0.8vw] h-[0.8vw] text-gray-700" />
                         </div>
-                        <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center">
-                          {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).right}
+
+                        {/* Icon Content (Blurred on hover) */}
+                        <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:blur-[1px]">
+                          <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center shrink-0">
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).left}
+                          </div>
+                          <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center shrink-0">
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).right}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1561,7 +1586,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           }}
           currentStyle={slideshowSettings.navStyle}
           color={slideshowSettings.navIconColor}
-          positionStyle={{ top: '65%', right: '25vw', transform: 'translate(50%, -50%)' }}
+          positionStyle={{ top: '70%', right: '15vw', transform: 'translateY(-50%)' }}
         />
       )}
 

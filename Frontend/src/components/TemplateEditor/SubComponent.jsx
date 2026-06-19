@@ -231,17 +231,10 @@ const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, max = 1
         )}
 
         {/* Thumb */}
-        {num === 0 ? (
-          <div
-            className="absolute w-[0.7vw] h-[0.7vw] bg-white border border-gray-200 rounded-full shadow-sm pointer-events-none"
-            style={{ left: `calc(${percentage}% - 0.3vw)` }}
-          />
-        ) : (
-          <div
-            className="absolute w-[0.7vw] h-[0.7vw] bg-[#6366f1] rounded-full pointer-events-none shadow-sm"
-            style={{ left: `calc(${percentage}% - 0.25vw)` }}
-          />
-        )}
+        <div
+          className="absolute w-[0.7vw] h-[0.7vw] bg-[#6366f1] rounded-full pointer-events-none shadow-sm"
+          style={{ left: `calc(${percentage}% - 0.35vw)` }}
+        />
 
         {/* Invisible range input for interaction */}
         <input
@@ -268,7 +261,7 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
         onClick={onPickerToggle}
         className="w-full h-full border border-gray-200 cursor-pointer color-field-trigger transition-transform flex-shrink-0"
         style={{
-          background: (color === 'none' || color === '#' || !color)
+          background: (color === 'none' || color === 'transparent' || color === '#' || !color)
             ? 'white'
             : (color.toString().toLowerCase().includes('url(#')
               ? (selectedElementProps && selectedElementProps[`${baseAttr}-stops`]
@@ -277,7 +270,7 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
               : color)
         }}
       />
-      {(color === 'none' || color === '#' || !color) && (
+      {(color === 'none' || color === 'transparent' || color === '#' || !color) && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
       )}
     </div>
@@ -285,7 +278,7 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
     <div className="flex-grow flex items-center border-[0.1vw] border-gray-400 rounded-[0.75vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.7vw]">
       <input
         type="text"
-        value={color === 'none' ? '#' : color.toUpperCase()}
+        value={(color === 'none' || color === 'transparent' || !color) ? '#' : color?.toUpperCase()}
         onChange={(e) => {
           const val = e.target.value;
           if (val === '' || val === '#') {
@@ -519,7 +512,7 @@ const ShapePropertiesUI = ({
               />
 
               {/* STROKE SETTINGS (ONLY SHOW IF STROKE IS NOT NONE) */}
-              {(selectedElementProps.stroke && selectedElementProps.stroke !== 'none' && selectedElementProps.stroke !== '#') && (
+              {(selectedElementProps.stroke && selectedElementProps.stroke !== 'none' && selectedElementProps.stroke !== '#' && selectedElementProps.stroke !== 'transparent') && (
                 <div className="flex items-center gap-[0.4vw] py-[0.1vw]">
                   {/* Aligns with the labels above (3vw + 0.4vw gap) */}
                   <div className="w-[3vw]"></div>
@@ -597,7 +590,7 @@ const ShapePropertiesUI = ({
                       <div
                         className="cursor-ew-resize hover:bg-gray-50 p-[0.2vw] rounded-[0.3vw] transition-colors"
                         onPointerDown={(e) => {
-                          const initialVal = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 2);
+                          const initialVal = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 0);
                           handleScrubHelper(e, initialVal, (val) => {
                             const newVal = Math.max(0, parseInt(val));
                             updateAttr('stroke-width', newVal.toString());
@@ -608,7 +601,7 @@ const ShapePropertiesUI = ({
                       </div>
                       <input
                         type="number"
-                        value={selectedElementProps.strokeWidth !== undefined && !isNaN(parseFloat(selectedElementProps.strokeWidth)) ? parseFloat(selectedElementProps.strokeWidth) : 2}
+                        value={selectedElementProps.strokeWidth !== undefined && !isNaN(parseFloat(selectedElementProps.strokeWidth)) ? parseFloat(selectedElementProps.strokeWidth) : 0}
                         onChange={(e) => updateAttr('stroke-width', e.target.value)}
                         className="w-full text-[0.8vw] font-semibold outline-none text-right bg-transparent text-gray-700 no-spin"
                       />
@@ -645,7 +638,7 @@ const ShapePropertiesUI = ({
                     { key: 'data-bl', roundedClass: 'rounded-bl-[1vw] rounded-tl-0 rounded-tr-0 rounded-br-0' },
                     { key: 'data-br', roundedClass: 'rounded-br-[1vw] rounded-tl-0 rounded-tr-0 rounded-bl-0' }
                   ].map((corner, idx) => {
-                    const val = parseInt(selectedElementProps[corner.key] || selectedElementProps.rx || 0);
+                    const val = parseInt(selectedElementProps[corner.key] !== undefined ? selectedElementProps[corner.key] : (selectedElementProps.rx || 0));
                     const updateVal = (newVal) => {
                       const clamped = Math.max(0, newVal);
                       if (selectedElementProps['data-corner-linked'] !== 'false') {
@@ -1050,7 +1043,7 @@ const ShapePropertiesUI = ({
         >
           {/* Header */}
           <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.85vw] font-semibold text-gray-800">Dashed</span>
+            <span className="text-[0.85vw] font-semibold text-gray-800">Properties</span>
             <div className="h-px flex-grow bg-gray-100"></div>
             <button
               onClick={() => {
@@ -1099,7 +1092,7 @@ const ShapePropertiesUI = ({
           <div className="h-[0.1vw] bg-gray-50 w-full" />
 
           {/* Length & Gap Steppers */}
-          <div className="space-y-[0.75vw]">
+          <div className={`space-y-[0.75vw] ${(!selectedElementProps.strokeDasharray || selectedElementProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
             {[
               { label: 'Length', key: 'dash' },
               { label: 'Gap', key: 'gap' }
@@ -1147,7 +1140,7 @@ const ShapePropertiesUI = ({
           <div className="h-[0.1vw] bg-gray-50 w-full" />
 
           {/* Round Corners Toggle */}
-          <div className="flex items-center justify-between">
+          <div className={`flex items-center justify-between ${(!selectedElementProps.strokeDasharray || selectedElementProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
             <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
             <button
               onClick={(e) => {
@@ -1169,13 +1162,14 @@ const ShapePropertiesUI = ({
       {/* UNIFIED COLOR PICKER PORTAL */}
       {activeColorPicker && createPortal(
         <div
-          className="fixed z-[5000] animate-in fade-in zoom-in-95 duration-200"
+          className="fixed z-[5000]"
           style={{
             top: activeColorPicker.includes('effect-') ? `${effectPopupPos.top}px` : '50%',
-            right: activeColorPicker.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '20vw',
+            right: activeColorPicker.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '10vw',
             transform: activeColorPicker.includes('effect-') ? 'none' : 'translateY(-50%)'
           }}
         >
+          <div className="animate-in fade-in zoom-in-95 duration-200">
           <ColorPicker
             color={(() => {
               if (activeColorPicker.includes('effect-')) {
@@ -1241,6 +1235,7 @@ const ShapePropertiesUI = ({
             onClose={() => setActiveColorPicker(null)}
             colorsOnPage={colorsOnPage}
           />
+          </div>
         </div>,
         document.body
       )}

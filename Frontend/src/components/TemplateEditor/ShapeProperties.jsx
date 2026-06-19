@@ -183,7 +183,7 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
         onClick={onPickerToggle}
         className="w-full h-full border border-gray-200 cursor-pointer color-field-trigger transition-transform flex-shrink-0"
         style={{
-          background: (color === 'none' || color === '#' || !color)
+          background: (color === 'none' || color === 'transparent' || color === '#' || !color)
             ? 'white'
             : (color.toString().toLowerCase().includes('url(#')
               ? (selectedElementProps && selectedElementProps[`${baseAttr}-stops`]
@@ -192,7 +192,7 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
               : color)
         }}
       />
-      {(color === 'none' || color === '#' || !color) && (
+      {(color === 'none' || color === 'transparent' || color === '#' || !color) && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
       )}
     </div>
@@ -200,7 +200,7 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
     <div className="flex-grow flex items-center border-[0.1vw] border-gray-400 rounded-[0.75vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.7vw]">
       <input
         type="text"
-        value={color === 'none' ? '#' : color.toUpperCase()}
+        value={(color === 'none' || color === 'transparent' || !color) ? '#' : color?.toUpperCase()}
         onChange={(e) => {
           const val = e.target.value;
           if (val === '' || val === '#') {
@@ -250,7 +250,7 @@ const ColorFieldCompact = ({ color, opacity, onColorChange, onOpacityChange, onP
         onClick={onPickerToggle}
         className="w-full h-full cursor-pointer color-field-trigger transition-transform flex-shrink-0"
         style={{
-          background: (color === 'none' || color === '#' || !color)
+          background: (color === 'none' || color === 'transparent' || color === '#' || !color)
             ? 'white'
             : (color.toString().toLowerCase().includes('url(#')
               ? (selectedElementProps && selectedElementProps[`${baseAttr}-stops`]
@@ -259,7 +259,7 @@ const ColorFieldCompact = ({ color, opacity, onColorChange, onOpacityChange, onP
               : color)
         }}
       />
-      {(color === 'none' || color === '#' || !color) && (
+      {(color === 'none' || color === 'transparent' || color === '#' || !color) && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
       )}
     </div>
@@ -267,7 +267,7 @@ const ColorFieldCompact = ({ color, opacity, onColorChange, onOpacityChange, onP
     <div className="flex-grow flex items-center border-[0.1vw] border-gray-300 rounded-[0.5vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
       <input
         type="text"
-        value={color === 'none' ? '#' : color.toUpperCase()}
+        value={(color === 'none' || color === 'transparent' || !color) ? '#' : color?.toUpperCase()}
         onChange={(e) => {
           const val = e.target.value;
           if (val === '' || val === '#') {
@@ -486,8 +486,8 @@ const ShapeProperties = ({
         <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'color' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
             <div className="p-[1vw] pt-[0.5vw] space-y-[0.4vw]">
-              <SectionDivider label="Fill Color" solid />
-              <ColorFieldCompact
+              <ColorField
+                label="Fill"
                 color={selectedElementProps.fill}
                 opacity={selectedElementProps.opacity}
                 onColorChange={(val) => updateAttr('fill', val)}
@@ -496,9 +496,8 @@ const ShapeProperties = ({
                 baseAttr="fill"
                 selectedElementProps={selectedElementProps}
               />
-
-              <SectionDivider label="Stroke Color" solid />
-              <ColorFieldCompact
+              <ColorField
+                label="Stroke"
                 color={selectedElementProps.stroke}
                 opacity={selectedElementProps['stroke-opacity']}
                 onColorChange={(val) => updateAttr('stroke', val)}
@@ -509,168 +508,100 @@ const ShapeProperties = ({
               />
 
               {/* STROKE SETTINGS (ONLY SHOW IF STROKE IS NOT NONE) */}
-              {(selectedElementProps.stroke && selectedElementProps.stroke !== 'none' && selectedElementProps.stroke !== '#') && (
-                <div className="space-y-[0.8vw] pt-[0.8vw] pl-[1vw]">
-                  {/* Width & Position Container */}
-                  <div className="flex items-center">
-                    {/* Width */}
-                    <div className="flex-1 flex items-center justify-start">
-                      <span
-                        className="text-[0.8vw] text-gray-600 font-semibold cursor-ew-resize select-none hover:text-indigo-600 transition-colors whitespace-nowrap"
-                        onPointerDown={(e) => {
-                          const initialVal = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 2);
-                          handleScrubHelper(e, initialVal, (val) => updateAttr('stroke-width', Math.max(0, parseInt(val)).toString()), 8);
-                        }}
-                      >Width :</span>
-                      <div className="flex items-center gap-[0.2vw] h-[2.5vw] cursor-ew-resize select-none"
-                        onPointerDown={(e) => {
-                          if (e.target.tagName === 'INPUT') return;
-                          const initialVal = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 2);
-                          handleScrubHelper(e, initialVal, (val) => updateAttr('stroke-width', Math.max(0, parseInt(val)).toString()), 8);
-                        }}
-                      >
-                        <button
-                          onClick={() => {
-                            const val = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 2);
-                            updateAttr('stroke-width', Math.max(0, val - 1).toString());
-                          }}
-                          className="text-gray-400 hover:text-indigo-600 pointer-events-auto"
-                        >
-                          <ChevronLeft size="1vw" />
-                        </button>
-                        <div className="w-[3vw] h-[2vw] border border-gray-200 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm pointer-events-auto">
-                          <input
-                            type="number"
-                            value={selectedElementProps.strokeWidth !== undefined && !isNaN(parseFloat(selectedElementProps.strokeWidth)) ? parseFloat(selectedElementProps.strokeWidth) : 2}
-                            onChange={(e) => updateAttr('stroke-width', Math.max(0, parseInt(e.target.value) || 0).toString())}
-                            className="w-full text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
-                          />
-                        </div>
-                        <button
-                          onClick={() => {
-                            const val = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 2);
-                            updateAttr('stroke-width', (val + 1).toString());
-                          }}
-                          className="text-gray-400 hover:text-indigo-600 pointer-events-auto"
-                        >
-                          <ChevronRight size="1vw" />
-                        </button>
-                      </div>
-                    </div>
+              {(selectedElementProps.stroke && selectedElementProps.stroke !== 'none' && selectedElementProps.stroke !== '#' && selectedElementProps.stroke !== 'transparent') && (
+                <div className="flex items-center gap-[0.4vw] py-[0.1vw]">
+                  {/* Aligns with the labels above (3vw + 0.4vw gap) */}
+                  <div className="w-[3vw]"></div>
 
-                    {/* Position */}
-                    <div className="flex-1 flex items-center gap-[0.4vw]">
-                      <span className="text-[0.8vw] text-gray-600 font-semibold whitespace-nowrap">Position :</span>
-                      <div className="relative flex-grow">
-                        <div
-                          className="flex items-center justify-between border-[0.1vw] border-gray-300 rounded-[0.5vw] h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw] cursor-pointer"
-                          onClick={() => setIsDashPosOpen(!isDashPosOpen)}
-                        >
-                          <span className="text-[0.7vw] font-semibold text-[#1e293b] capitalize">{selectedElementProps['data-stroke-position'] || 'Center'}</span>
-                          <ChevronDown size="1vw" className="text-[#94a3b8]" />
-                        </div>
-                        {isDashPosOpen && (
-                          <div className="absolute top-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
-                            {['Inside', 'Center', 'Outside'].map(pos => (
-                              <div
-                                key={pos}
-                                onClick={() => {
-                                  updateAttr('data-stroke-position', pos);
-                                  updateAttr('paint-order', pos === 'Outside' ? 'stroke fill' : 'normal');
-                                  setIsDashPosOpen(false);
-                                }}
-                                className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
-                              >
-                                {pos}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={`mt-[0.8vw] border-[0.1vw] ml-[-0.7vw] transition-colors duration-300 rounded-[0.5vw] overflow-hidden ${(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'border-gray-200 bg-gray-50/30' : 'border-gray-200 bg-transparent'}`}>
-                    <div className="flex items-center justify-between px-[0.6vw] py-[0.6vw]">
-                      <span className="text-[0.85vw]  font-semibold text-gray-600">Dashed</span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const isDashed = selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none';
-                          updateAttr('stroke-dasharray', isDashed ? 'none' : '5,5');
-                        }}
-                        className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
-                      >
-                        <div className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'left-[0.9vw]' : 'left-[0.1vw]'}`} />
-                      </button>
-                    </div>
-
-                    <div className={`transition-all pr-[1vw] pl-[1vw] duration-300 ease-in-out overflow-hidden ${(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'max-h-[10vw] opacity-100 border-t border-gray-300' : 'max-h-0 opacity-0 border-t border-transparent'}`}>
-                      <div className="flex flex-col gap-[0.8vw] px-[0.8vw] py-[0.8vw]">
-                        {[
-                          { label: 'Length', key: 'dash' },
-                          { label: 'Gap', key: 'gap' }
-                        ].map(item => {
-                          const dashArray = (selectedElementProps.strokeDasharray || '5,5').split(',');
-                          const val = parseInt(item.key === 'dash' ? dashArray[0] : (dashArray[1] || dashArray[0]));
-
-                          const updateValue = (newVal) => {
-                            const v = Math.max(0, newVal);
-                            const d = item.key === 'dash' ? v : dashArray[0];
-                            const g = item.key === 'gap' ? v : (dashArray[1] || dashArray[0]);
-                            updateAttr('stroke-dasharray', `${d},${g}`);
-                          };
-
-                          return (
-                            <div key={item.key} className="w-full flex items-center justify-between">
-                              <span
-                                className="text-[0.8vw] text-gray-600 font-semibold whitespace-nowrap cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                                onPointerDown={(e) => handleScrub(e, val, (v) => updateValue(parseInt(v)))}
-                              >{item.label} :</span>
-                              <div className="flex items-center gap-[0.2vw] h-[2.5vw] cursor-ew-resize select-none"
-                                onPointerDown={(e) => {
-                                  if (e.target.tagName === 'INPUT') return;
-                                  handleScrubHelper(e, val, (newVal) => updateValue(parseInt(newVal)));
-                                }}
-                              >
-                                <button onClick={() => updateValue(val - 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto">
-                                  <ChevronLeft size="1vw" />
-                                </button>
-                                <div className="w-[3vw] h-[2vw] border border-gray-200 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm pointer-events-auto">
-                                  <input
-                                    type="number"
-                                    value={val}
-                                    onChange={(e) => updateValue(parseInt(e.target.value) || 0)}
-                                    onClick={(e) => e.stopPropagation()}
-                                    className="w-full text-center text-[0.8vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
-                                  />
-                                </div>
-                                <button onClick={() => updateValue(val + 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto">
-                                  <ChevronRight size="1vw" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pr-[0.6vw] mt-[0.8vw]">
-                    <span className="text-[0.8vw] font-semibold text-gray-600">Round Corner</span>
-                    <div className="flex-grow h-px border-t border-dashed border-gray-300 mx-[0.8vw]"></div>
-                    <button
+                  {/* Aligns with the color swatches above (2.5vw) */}
+                  <div className="w-[2.5vw] flex items-center justify-center">
+                    <div
+                      className={`flex items-center justify-center h-[2vw] w-[2vw] rounded-[0.5vw] cursor-pointer transition-colors shadow-sm ${showStrokeSettings ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-white text-gray-500'}`}
                       onClick={(e) => {
-                        e.stopPropagation();
-                        const currentCap = selectedElementProps.strokeLinecap || selectedElementProps['stroke-linecap'];
-                        const isRound = currentCap === 'round';
-                        updateAttr('stroke-linecap', isRound ? 'butt' : 'round');
-                        updateAttr('stroke-linejoin', isRound ? 'miter' : 'round');
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const popupHeight = 250; // Estimated height for dash popup
+                        const spaceBelow = window.innerHeight - rect.bottom;
+
+                        const pos = { right: window.innerWidth - rect.right + 50 };
+                        if (spaceBelow < popupHeight) {
+                          pos.bottom = window.innerHeight - rect.top + 10;
+                          pos.top = 'auto';
+                        } else {
+                          pos.top = rect.bottom + 10;
+                          pos.bottom = 'auto';
+                        }
+
+                        setStrokeSettingsPos(pos);
+                        setShowStrokeSettings(!showStrokeSettings);
                       }}
-                      className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${(selectedElementProps.strokeLinecap === 'round' || selectedElementProps['stroke-linecap'] === 'round') ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
                     >
-                      <div className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${(selectedElementProps.strokeLinecap === 'round' || selectedElementProps['stroke-linecap'] === 'round') ? 'left-[0.9vw]' : 'left-[0.1vw]'}`} />
-                    </button>
+                      <SlidersHorizontal size="1.1vw" className="currentColor" />
+                    </div>
+                  </div>
+
+                  {/* This right part matches the ColorField input box width exactly */}
+                  <div className="flex-grow flex items-center gap-[0.4vw]">
+                    <div className="relative flex-grow h-[2.5vw]">
+                      <div
+                        className={`h-full px-[0.7vw] border-[0.1vw] rounded-[0.75vw] flex items-center gap-[0.5vw] cursor-pointer justify-between bg-white transition-all font-semibold ${isStrokeTypeOpen ? 'border-indigo-500 shadow-sm' : 'border-gray-400 hover:border-indigo-400'}`}
+                        onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setDropdownPos({ top: rect.bottom + 5, left: rect.left, width: rect.width });
+                          setIsStrokeStyleOpen(!isStrokeStyleOpen);
+                        }}
+                      >
+                        <span className="text-[0.75vw] text-gray-700 whitespace-nowrap overflow-hidden">
+                          {(selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid'}
+                        </span>
+                        <ChevronDown size="0.9vw" className={`text-gray-500 transition-transform ${isStrokeStyleOpen ? 'rotate-180' : ''}`} />
+                      </div>
+
+                      {isStrokeStyleOpen && createPortal(
+                        <div
+                          className="absolute py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[9999] animate-in fade-in zoom-in duration-200"
+                          style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+                        >
+                          {['Solid', 'Dashed'].map((type) => (
+                            <div
+                              key={type}
+                              className={`px-[1vw] py-[0.5vw] text-[0.8vw] cursor-pointer transition-colors ${(type === 'Solid' && (!selectedElementProps.strokeDasharray || selectedElementProps.strokeDasharray === 'none')) ||
+                                (type === 'Dashed' && selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none')
+                                ? 'bg-indigo-50 text-indigo-700 font-semibold'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600 font-semibold'
+                                }`}
+                              onClick={() => {
+                                updateAttr('stroke-dasharray', type === 'Dashed' ? '5,5' : 'none');
+                                setIsStrokeStyleOpen(false);
+                              }}
+                            >
+                              {type}
+                            </div>
+                          ))}
+                        </div>,
+                        document.body
+                      )}
+                    </div>
+
+                    <div className="h-[2.5vw] w-[4.5vw] border-[0.1vw] border-gray-400 rounded-[0.75vw] flex items-center px-[0.6vw] gap-[0.3vw] bg-white hover:border-indigo-400 transition-colors flex-shrink-0">
+                      <div
+                        className="cursor-ew-resize hover:bg-gray-50 p-[0.2vw] rounded-[0.3vw] transition-colors"
+                        onPointerDown={(e) => {
+                          const initialVal = parseFloat(selectedElementProps.strokeWidth !== undefined ? selectedElementProps.strokeWidth : 0);
+                          handleScrubHelper(e, initialVal, (val) => {
+                            const newVal = Math.max(0, parseInt(val));
+                            updateAttr('stroke-width', newVal.toString());
+                          }, 8);
+                        }}
+                      >
+                        <Icon icon="material-symbols:line-weight" width="1vw" height="1vw" className="text-gray-500 flex-shrink-0" />
+                      </div>
+                      <input
+                        type="number"
+                        value={selectedElementProps.strokeWidth !== undefined && !isNaN(parseFloat(selectedElementProps.strokeWidth)) ? parseFloat(selectedElementProps.strokeWidth) : 0}
+                        onChange={(e) => updateAttr('stroke-width', e.target.value)}
+                        className="w-full text-[0.8vw] font-semibold outline-none text-right bg-transparent text-gray-700 no-spin"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
@@ -1065,80 +996,211 @@ const ShapeProperties = ({
 
 
       {/* UNIFIED COLOR PICKER PORTAL */}
+      {/* PORTALED COLOR SELECTOR PANELS (EXACT TEXT EDITOR STYLE) */}
+      {showStrokeSettings && createPortal(
+        <div
+          id="stroke-settings-popup"
+          className="fixed bg-white border border-gray-200 rounded-[0.75vw] shadow-xl z-[9999] w-[15vw] p-[1vw] animate-in fade-in zoom-in duration-200 font-sans"
+          style={{
+            top: strokeSettingsPos.top,
+            bottom: strokeSettingsPos.bottom,
+            right: strokeSettingsPos.right
+          }}
+        >
+          {/* Header */}
+          <div className="flex items-center gap-[0.5vw]">
+            <span className="text-[0.85vw] font-semibold text-gray-800">Properties</span>
+            <div className="h-px flex-grow bg-gray-100"></div>
+            <button
+              onClick={() => {
+                setShowStrokeSettings(false);
+                if (activeColorPicker?.includes('stroke')) {
+                  setActiveColorPicker(null);
+                  setShowDetailedPicker(false);
+                }
+              }}
+              className="p-[0.3vw] hover:bg-gray-100 rounded-[0.5vw] transition-colors"
+            >
+              <X size="1vw" className="text-gray-400" />
+            </button>
+          </div>
+
+          {/* Position Selection */}
+          <div className="flex items-center justify-between">
+            <span className="text-[0.75vw] font-semibold text-gray-600">Position :</span>
+            <div className="relative flex-grow ml-[1vw]">
+              <div
+                className="h-[2vw] px-[0.7vw] border border-gray-200 rounded-[0.5vw] flex items-center justify-between cursor-pointer hover:bg-gray-50 bg-white min-w-[5.5vw]"
+                onClick={() => setIsDashPosOpen(!isDashPosOpen)}
+              >
+                <span className="text-[0.7vw] font-semibold text-gray-700 capitalize">{selectedElementProps['data-stroke-position'] || 'Center'}</span>
+                <ChevronDown size="0.8vw" className="text-gray-400" />
+              </div>
+              {isDashPosOpen && (
+                <div className="absolute top-[110%] left-0 right-0 bg-white border border-gray-100 rounded-[0.5vw] shadow-xl z-50 py-1 overflow-hidden">
+                  {['Inside', 'Center', 'Outside'].map(pos => (
+                    <div
+                      key={pos}
+                      onClick={() => {
+                        updateAttr('data-stroke-position', pos);
+                        setIsDashPosOpen(false);
+                      }}
+                      className="px-[1vw] py-[0.4vw] text-[0.7vw] font-semibold text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer"
+                    >
+                      {pos}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="h-[0.1vw] bg-gray-50 w-full" />
+
+          {/* Length & Gap Steppers */}
+          <div className={`space-y-[0.75vw] ${(!selectedElementProps.strokeDasharray || selectedElementProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
+            {[
+              { label: 'Length', key: 'dash' },
+              { label: 'Gap', key: 'gap' }
+            ].map(item => {
+              const dashArray = (selectedElementProps.strokeDasharray || '5,5').split(',');
+              const val = parseInt(item.key === 'dash' ? dashArray[0] : (dashArray[1] || dashArray[0]));
+
+              const updateValue = (newVal) => {
+                const v = Math.max(0, newVal);
+                const d = item.key === 'dash' ? v : dashArray[0];
+                const g = item.key === 'gap' ? v : (dashArray[1] || dashArray[0]);
+                updateAttr('stroke-dasharray', `${d},${g}`);
+              };
+
+              return (
+                <div key={item.key} className="flex items-center justify-between">
+                  <span
+                    className="text-[0.75vw] font-semibold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+                    onPointerDown={(e) => handleScrub(e, val, (v) => updateValue(parseInt(v)))}
+                  >{item.label} :</span>
+                  <div
+                    className="flex items-center gap-[0.4vw] h-[2vw] cursor-ew-resize select-none"
+                    onPointerDown={(e) => {
+                      if (e.target.tagName === 'INPUT') return;
+                      handleScrubHelper(e, val, (newVal) => updateValue(parseInt(newVal)));
+                    }}
+                  >
+                    <button onClick={() => updateValue(val - 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronLeft size="0.9vw" /></button>
+                    <div className="w-[3.5vw] h-full border border-gray-200 rounded-[0.3vw] flex items-center justify-center bg-white shadow-sm pointer-events-auto">
+                      <input
+                        type="number"
+                        value={val}
+                        onChange={(e) => updateValue(parseInt(e.target.value) || 0)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
+                      />
+                    </div>
+                    <button onClick={() => updateValue(val + 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronRight size="0.9vw" /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="h-[0.1vw] bg-gray-50 w-full" />
+
+          {/* Round Corners Toggle */}
+          <div className={`flex items-center justify-between ${(!selectedElementProps.strokeDasharray || selectedElementProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
+            <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const currentCap = selectedElementProps.strokeLinecap || selectedElementProps['stroke-linecap'];
+                const isRound = currentCap === 'round';
+                updateAttr('stroke-linecap', isRound ? 'butt' : 'round');
+                updateAttr('stroke-linejoin', isRound ? 'miter' : 'round');
+              }}
+              className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${selectedElementProps.strokeLinecap === 'round' || selectedElementProps['stroke-linecap'] === 'round' ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
+            >
+              <div className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${(selectedElementProps.strokeLinecap === 'round' || selectedElementProps['stroke-linecap'] === 'round') ? 'left-[0.9vw]' : 'left-[0.1vw]'}`} />
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {activeColorPicker && createPortal(
         <div
-          className="fixed z-[5000] animate-in fade-in zoom-in-95 duration-200"
+          className="fixed z-[5000]"
           style={{
             top: activeColorPicker.includes('effect-') ? `${effectPopupPos.top}px` : '50%',
-            right: activeColorPicker.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '20vw',
+            right: activeColorPicker.includes('effect-') ? `calc(${effectPopupPos.right} - 15.8vw)` : '10vw',
             transform: activeColorPicker.includes('effect-') ? 'none' : 'translateY(-50%)'
           }}
         >
-          <ColorPicker
-            color={(() => {
-              if (activeColorPicker.includes('effect-')) {
-                return selectedElementProps[activeColorPicker] || '#000000';
-              }
-              const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
-              const currentVal = selectedElementProps[activeColorPicker] || '#000000';
-              const stopsJson = selectedElementProps[`${activeColorPicker}-stops`];
-              if ((type === 'gradient' || currentVal.toLowerCase().includes('url(#')) && stopsJson) {
-                const stops = JSON.parse(stopsJson || JSON.stringify(defaultStops));
-                const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
-                // Convert back to CSS string for the picker
-                return generateGradientString(
-                  gType.charAt(0).toUpperCase() + gType.slice(1),
-                  stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
-                  parseInt(selectedElementProps[`${activeColorPicker}-angle`] || '0'),
-                  parseInt(selectedElementProps[`${activeColorPicker}-radius`] || '100')
-                );
-              }
-              return selectedElementProps[activeColorPicker] || '#000000';
-            })()}
-            onChange={(newVal) => {
-              if (activeColorPicker.includes('effect-')) {
-                updateAttr(activeColorPicker, newVal);
-                return;
-              }
-
-              if (newVal.includes('gradient')) {
-                const parsed = parseGradient(newVal);
-                if (parsed) {
-                  updateAttr(`${activeColorPicker}-type`, 'gradient');
-                  updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
-                  updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
-                    color: s.color,
-                    offset: s.offset,
-                    opacity: s.opacity / 100
-                  }))));
-                  updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
-                  updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
+          <div className="animate-in fade-in zoom-in-95 duration-200">
+            <ColorPicker
+              color={(() => {
+                if (activeColorPicker.includes('effect-')) {
+                  return selectedElementProps[activeColorPicker] || '#000000';
                 }
-              } else {
-                updateAttr(activeColorPicker, newVal);
-                updateAttr(`${activeColorPicker}-type`, 'solid');
-              }
-            }}
-            opacity={(() => {
-              if (activeColorPicker.includes('effect-')) {
-                const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
-                return selectedElementProps[`data-effect-${effectId}-opacity`] || 35;
-              }
-              return activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100;
-            })()}
-            onOpacityChange={(newOpacity) => {
-              if (activeColorPicker.includes('effect-')) {
-                const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
-                updateAttr(`data-effect-${effectId}-opacity`, newOpacity.toString());
-                return;
-              }
-              if (activeColorPicker === 'fill') {
-                updateAttr('opacity', (newOpacity / 100).toString());
-              }
-            }}
-            onClose={() => setActiveColorPicker(null)}
-            colorsOnPage={colorsOnPage}
-          />
+                const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
+                const currentVal = selectedElementProps[activeColorPicker] || '#000000';
+                const stopsJson = selectedElementProps[`${activeColorPicker}-stops`];
+                if ((type === 'gradient' || currentVal.toLowerCase().includes('url(#')) && stopsJson) {
+                  const stops = JSON.parse(stopsJson || JSON.stringify(defaultStops));
+                  const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
+                  // Convert back to CSS string for the picker
+                  return generateGradientString(
+                    gType.charAt(0).toUpperCase() + gType.slice(1),
+                    stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
+                    parseInt(selectedElementProps[`${activeColorPicker}-angle`] || '0'),
+                    parseInt(selectedElementProps[`${activeColorPicker}-radius`] || '100')
+                  );
+                }
+                return selectedElementProps[activeColorPicker] || '#000000';
+              })()}
+              onChange={(newVal) => {
+                if (activeColorPicker.includes('effect-')) {
+                  updateAttr(activeColorPicker, newVal);
+                  return;
+                }
+
+                if (newVal.includes('gradient')) {
+                  const parsed = parseGradient(newVal);
+                  if (parsed) {
+                    updateAttr(`${activeColorPicker}-type`, 'gradient');
+                    updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
+                    updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
+                      color: s.color,
+                      offset: s.offset,
+                      opacity: s.opacity / 100
+                    }))));
+                    updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
+                    updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
+                  }
+                } else {
+                  updateAttr(activeColorPicker, newVal);
+                  updateAttr(`${activeColorPicker}-type`, 'solid');
+                }
+              }}
+              opacity={(() => {
+                if (activeColorPicker.includes('effect-')) {
+                  const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
+                  return selectedElementProps[`data-effect-${effectId}-opacity`] || 35;
+                }
+                return activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100;
+              })()}
+              onOpacityChange={(newOpacity) => {
+                if (activeColorPicker.includes('effect-')) {
+                  const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
+                  updateAttr(`data-effect-${effectId}-opacity`, newOpacity.toString());
+                  return;
+                }
+                if (activeColorPicker === 'fill') {
+                  updateAttr('opacity', (newOpacity / 100).toString());
+                }
+              }}
+              onClose={() => setActiveColorPicker(null)}
+              colorsOnPage={colorsOnPage}
+            />
+          </div>
         </div>,
         document.body
       )}
