@@ -80,17 +80,106 @@ const MenuBtn = ({ icon, label, onClick }) => (
 );
 
 // Toolbar Icon Button
-const ToolbarIcon = ({ icon, onClick, active = false, className = "" }) => (
-    <button
-        onClick={(e) => {
-            e.stopPropagation();
-            onClick(e);
-        }}
-        className={`p-1.5 rounded-lg transition-all active:scale-90 ${active ? 'bg-white/20 text-white' : 'text-white/80 hover:text-white'} ${className}`}
-    >
-        <Icon icon={icon} className="w-4.5 h-4.5" />
-    </button>
-);
+const ToolbarIcon = ({ icon, onClick, active = false, className = "", title }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    return (
+        <button
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            onTouchStart={() => setShowTooltip(true)}
+            onTouchEnd={() => setShowTooltip(false)}
+            onClick={(e) => {
+                setShowTooltip(false);
+                e.stopPropagation();
+                onClick(e);
+            }}
+            className={`relative p-1.5 rounded-lg transition-all active:scale-90 ${active ? 'bg-white/20 text-white' : 'text-white/80 hover:text-white'} ${className}`}
+        >
+            <Icon icon={icon} className="w-4.5 h-4.5" />
+            <AnimatePresence>
+                {showTooltip && title && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                        className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 whitespace-nowrap"
+                        style={{
+                            background: 'rgba(10, 10, 12, 0.55)',
+                            backdropFilter: 'blur(30px)',
+                            WebkitBackdropFilter: 'blur(30px)',
+                            transform: 'translateZ(0)',
+                            isolation: 'isolate',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#ffffff',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                            pointerEvents: 'none',
+                            zIndex: 9999,
+                        }}
+                    >
+                        {title}
+                        <div
+                            className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[5px] border-r-[5px] border-b-[6px]"
+                            style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </button>
+    );
+};
+
+const BottomControlBtn = ({ icon, onClick, title, iconClass }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    return (
+        <button
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            onTouchStart={() => setShowTooltip(true)}
+            onTouchEnd={() => setShowTooltip(false)}
+            onClick={(e) => {
+                setShowTooltip(false);
+                if (onClick) onClick(e);
+            }}
+            className="relative active:scale-90 transition-transform"
+        >
+            <Icon icon={icon} className={iconClass || "w-4.5 h-4.5"} />
+            <AnimatePresence>
+                {showTooltip && title && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                        className="absolute bottom-[calc(100%+8px)] left-1/2 -translate-x-1/2 whitespace-nowrap"
+                        style={{
+                            background: 'rgba(10, 10, 12, 0.55)',
+                            backdropFilter: 'blur(30px)',
+                            WebkitBackdropFilter: 'blur(30px)',
+                            transform: 'translateZ(0)',
+                            isolation: 'isolate',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#ffffff',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                            pointerEvents: 'none',
+                            zIndex: 9999,
+                        }}
+                    >
+                        {title}
+                        <div
+                            className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[5px] border-r-[5px] border-t-[6px]"
+                            style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </button>
+    );
+};
 
 const MobileLayout2 = (props) => {
     const {
@@ -330,41 +419,6 @@ const MobileLayout2 = (props) => {
                     </>
                 )}
 
-                {/* Notes/Bookmark Sub-menus (Portrait Specific) */}
-                {showNotesMenu && !isLandscape && (
-                    <>
-                        <div className="fixed inset-0 bg-transparent z-[150] pointer-events-auto" onClick={() => setShowNotesMenu(false)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                            className="fixed top-[140px] left-[15%] z-[160] w-[140px] p-[4px] rounded-[24px] bg-white/60 backdrop-blur-xl shadow-2xl border border-white/20 pointer-events-auto"
-                        >
-                            <div className="bg-[#575C9C] rounded-[18px] p-1 shadow-inner overflow-hidden">
-                                <MenuBtn icon="solar:notes-bold" label="Add Notes" onClick={() => { setShowAddNotesPopup(true); setShowNotesMenu(false); }} />
-                                <MenuBtn icon="solar:eye-bold" label="View Notes" onClick={() => { setShowNotesViewer(true); setShowNotesMenu(false); }} />
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-
-                {showBookmarkMenu && !isLandscape && (
-                    <>
-                        <div className="fixed inset-0 bg-transparent z-[150] pointer-events-auto" onClick={() => setShowBookmarkMenu(false)} />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.9, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.9, y: -10 }}
-                            className="fixed top-[140px] right-[20%] z-[160] w-[140px] p-[4px] rounded-[24px] bg-white/60 backdrop-blur-xl shadow-2xl border border-white/20 pointer-events-auto"
-                        >
-                            <div className="bg-[#575C9C] rounded-[18px] p-1 shadow-inner overflow-hidden">
-                                <MenuBtn icon="mdi:bookmark-plus" label="Add Bookmark" onClick={() => { setShowAddBookmarkPopup(true); setShowBookmarkMenu(false); }} />
-                                <MenuBtn icon="mdi:bookmark-multiple" label="View Bookmark" onClick={() => { setShowViewBookmarkPopup(true); setShowBookmarkMenu(false); }} />
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-
                 {/* Thumbnail Bar (Bottom Slide) */}
                 {showThumbnailBar && (
                     <>
@@ -418,7 +472,7 @@ const MobileLayout2 = (props) => {
                     <ProfilePopup onClose={() => setShowProfilePopup(false)} profileSettings={profileSettings} activeLayout={2} isMobile={true} />
                 </div>
             )}
-            <Sound isOpen={showSoundPopup} onClose={() => setShowSoundPopup(false)} activeLayout={2} otherSetupSettings={otherSetupSettings} onUpdateOtherSetup={onUpdateOtherSetup} isMuted={isMuted} setIsMuted={setIsMuted} isFlipMuted={isFlipMuted} setIsFlipMuted={setIsFlipMuted} flipTrigger={flipTrigger} settings={settings} isMobile={true} />
+
             {showExportPopup && (
                 <div className="fixed inset-0 z-[4000] flex items-center justify-center p-4 pointer-events-auto">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowExportPopup(false)} />
@@ -472,10 +526,12 @@ const MobileLayout2 = (props) => {
     }
 
     // PORTRAIT VIEW (Mobile-centric)
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#BDC3D9]">
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]">
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />
+            {!isPhysicalMobile && <div className="h-10 w-full shrink-0 z-50 bg-[#0B0F4E]" />}
             <header className="z-40 bg-[#4B528C] shadow-md border-b border-white/10">
                 <div className="px-5 pt-3 pb-2 flex items-center justify-start">
                     <div className="w-[70%] max-w-[240px] h-7.5 bg-white/80 rounded-full flex items-center px-3 gap-1.5 relative">
@@ -523,6 +579,7 @@ const MobileLayout2 = (props) => {
                 <div className="px-4 py-2 flex items-center justify-between text-white/80 border-t border-white/5">
                     <ToolbarIcon
                         icon="mdi:table-of-contents"
+                        title="TOC"
                         onClick={() => {
                             const next = !showTOC;
                             if (setShowTOC) setShowTOC(next);
@@ -538,6 +595,7 @@ const MobileLayout2 = (props) => {
                     />
                     <ToolbarIcon
                         icon="ep:menu"
+                        title="Thumbnails"
                         onClick={() => {
                             const next = !showRadialThumbnails;
                             setShowRadialThumbnails(next);
@@ -551,38 +609,10 @@ const MobileLayout2 = (props) => {
                         active={showRadialThumbnails}
                         className="!p-1.5"
                     />
-                    <ToolbarIcon
-                        icon="material-symbols-light:add-notes"
-                        onClick={() => {
-                            const next = !showNotesMenu;
-                            setShowNotesMenu(next);
-                            if (next) {
-                                if (setShowTOC) setShowTOC(false);
-                                setShowRadialThumbnails(false);
-                                setShowBookmarkMenu(false);
-                                if (setShowThumbnailBar) setShowThumbnailBar(false);
-                            }
-                        }}
-                        active={showNotesMenu}
-                        className="!p-1.5"
-                    />
-                    <ToolbarIcon
-                        icon="mingcute:bookmark-fill"
-                        onClick={() => {
-                            const next = !showBookmarkMenu;
-                            setShowBookmarkMenu(next);
-                            if (next) {
-                                if (setShowTOC) setShowTOC(false);
-                                setShowRadialThumbnails(false);
-                                setShowNotesMenu(false);
-                                if (setShowThumbnailBar) setShowThumbnailBar(false);
-                            }
-                        }}
-                        active={showBookmarkMenu}
-                        className="!p-1.5"
-                    />
+
                     <ToolbarIcon
                         icon="clarity:image-gallery-solid"
+                        title="Gallery"
                         onClick={() => {
                             // Functionality removed as requested
                         }}
@@ -592,6 +622,7 @@ const MobileLayout2 = (props) => {
 
                     <ToolbarIcon
                         icon="solar:user-bold"
+                        title="Profile"
                         onClick={() => {
                             setShowProfilePopup(true);
                             if (setShowTOC) setShowTOC(false);
@@ -603,8 +634,8 @@ const MobileLayout2 = (props) => {
                         active={showProfilePopup}
                         className="!p-1.5"
                     />
-                    <ToolbarIcon icon="mage:share-fill" onClick={() => handleShare()} className="!p-1.5" />
-                    <ToolbarIcon icon="meteor-icons:download" onClick={() => handleDownload()} className="!p-1.5" />
+                    <ToolbarIcon icon="mage:share-fill" title="Share" onClick={() => handleShare()} className="!p-1.5" />
+                    <ToolbarIcon icon="meteor-icons:download" title="Download" onClick={() => handleDownload()} className="!p-1.5" />
                 </div>
             </header>
 
@@ -615,8 +646,8 @@ const MobileLayout2 = (props) => {
                 <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="absolute right-2 p-3 z-30 text-[#4B528C]/40 active:scale-75 transition-all"><Icon icon="ph:caret-right-bold" className="w-8 h-8" /></button>
 
                 {/* Page Content - Scaled down to look better on mobile */}
-                <div className="flex items-center justify-center">
-                    <div className="transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                <div className="flex items-center justify-center w-full px-10">
+                    <div className="relative transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
                         {children}
                     </div>
                 </div>
@@ -708,17 +739,17 @@ const MobileLayout2 = (props) => {
                 {/* Bottom Control Row */}
                 <div className="flex items-center justify-between text-white">
                     {/* Music Icon on Left */}
-                    <button onClick={(e) => { e.stopPropagation(); setShowSoundPopup(true); }} className="active:scale-90 transition-transform"><Icon icon="solar:music-notes-bold" className="w-4.5 h-4.5" /></button>
+                    <BottomControlBtn title="Music" onClick={(e) => { e.stopPropagation(); setShowSoundPopup(true); }} icon="solar:music-notes-bold" iconClass="w-4.5 h-4.5" />
 
                     {/* Centered Playback */}
                     <div className="flex items-center gap-10">
-                        <button onClick={() => onPageClick(Math.max(0, currentPage - 1))} className="active:scale-75 transition-all"><Icon icon="ph:skip-back-fill" className="w-4.5 h-4.5" /></button>
-                        <button onClick={() => setIsPlaying(!isAutoFlipping)} className="active:scale-90 transition-transform"><Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-5.5 h-5.5" /></button>
-                        <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="active:scale-75 transition-all"><Icon icon="ph:skip-forward-fill" className="w-4.5 h-4.5" /></button>
+                        <BottomControlBtn title="First Page" onClick={() => onPageClick(Math.max(0, currentPage - 1))} icon="ph:skip-back-fill" iconClass="w-4.5 h-4.5" />
+                        <BottomControlBtn title={isAutoFlipping ? "Pause" : "Play"} onClick={() => setIsPlaying(!isAutoFlipping)} icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} iconClass="w-5.5 h-5.5" />
+                        <BottomControlBtn title="Last Page" onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} icon="ph:skip-forward-fill" iconClass="w-4.5 h-4.5" />
                     </div>
 
                     {/* Fullscreen Icon on Right */}
-                    <button onClick={handleFullScreen} className="active:scale-90 transition-transform"><Icon icon="lucide:fullscreen" className="w-4.5 h-4.5" /></button>
+                    <BottomControlBtn title="Full Screen" onClick={handleFullScreen} icon="lucide:fullscreen" iconClass="w-4.5 h-4.5" />
                 </div>
             </footer>
 

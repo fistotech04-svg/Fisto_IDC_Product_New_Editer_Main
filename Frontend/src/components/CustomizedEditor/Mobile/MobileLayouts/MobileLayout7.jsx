@@ -132,6 +132,8 @@ const MobileLayout7 = (props) => {
     const progressRef = useRef(null);
     const scrollRef = useRef(null);
 
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
     const [showNotesOptions, setShowNotesOptions] = useState(false);
     const [showThumbnails, setShowThumbnails] = useState(false);
@@ -202,47 +204,13 @@ const MobileLayout7 = (props) => {
 
     const renderPopups = () => (
         <div className="absolute inset-0 pointer-events-none z-[2000]">
-            <AnimatePresence>
-                {localShowTOC && (
-                    <TableOfContentsPopup
-                        onClose={() => setLocalShowTOC(false)}
-                        settings={settings?.tocSettings}
-                        activeLayout={7}
-                        isMobile={true}
-                        onNavigate={(pageIndex) => {
-                            onPageClick(pageIndex);
-                            setLocalShowTOC(false);
-                        }}
-                    />
-                )}
-            </AnimatePresence>
 
-            
-            
-            
-            
-            {localShowProfile && (
-                <ProfilePopup
-                    onClose={() => setLocalShowProfile(false)}
-                    profileSettings={settings?.profileSettings}
-                    activeLayout={7}
-                    isMobile={true}
-                />
-            )}
-            <Sound
-                isOpen={showSoundPopup}
-                onClose={() => setShowSoundPopup(false)}
-                activeLayout={activeLayout}
-                otherSetupSettings={otherSetupSettings}
-                onUpdateOtherSetup={onUpdateOtherSetup}
-                isMuted={isMuted}
-                setIsMuted={setIsMuted}
-                isFlipMuted={isFlipMuted}
-                setIsFlipMuted={setIsFlipMuted}
-                flipTrigger={flipTrigger}
-                settings={settings}
-                isMobile={true}
-            />
+
+
+
+
+
+
 
             {showExportPopup && (
                 <Export
@@ -267,15 +235,15 @@ const MobileLayout7 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
             {renderPopups()}
 
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
+            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
-            <header className="z-50 px-4 pt-0 pb-3 flex flex-col gap-3 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
-                <div className="flex items-center justify-between px-1">
+            <header className="z-50 px-4 pt-2 pb-4 flex flex-col gap-4 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                <div className="flex items-center justify-between px-1 mt-1">
                     <span className="text-white text-[13px] font-medium opacity-90 truncate flex-1">{bookName}</span>
                     <div className="flex items-center">
                         {settings?.brandingProfile?.logo && logoSettings?.src && (
@@ -289,7 +257,7 @@ const MobileLayout7 = (props) => {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex items-center gap-3">
                     {/* Menu Toggle Button */}
                     <button
                         className="flex items-center justify-center shrink-0 w-10 h-10 bg-white/20 rounded-lg border border-white/20 text-white transition-all active:scale-95"
@@ -378,70 +346,42 @@ const MobileLayout7 = (props) => {
                 {/* Vertical Toolbar on Left */}
                 {isMenuOpen && (
                     <div
-                        className="absolute left-4 top-1/2 -translate-y-1/2 w-10 flex flex-col items-center justify-center gap-5 py-6 shadow-2xl z-40 rounded-xl"
+                        className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-[80%] flex flex-col items-center justify-evenly py-6 shadow-2xl z-40 rounded-xl"
                         style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
                     >
-                        <button onClick={() => setShowThumbnails(!showThumbnails)} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => {
+                            const willShow = !showThumbnails;
+                            setShowThumbnails(willShow);
+                            if (willShow) { setLocalShowTOC(false); setShowSoundPopup(false); setLocalShowProfile(false); }
+                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="ph:squares-four-fill" className="w-[18px] h-[18px]" />
                         </button>
-                        <button onClick={() => setLocalShowTOC(!localShowTOC)} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => {
+                            const willShow = !localShowTOC;
+                            setLocalShowTOC(willShow);
+                            if (willShow) { setShowThumbnails(false); setShowSoundPopup(false); setLocalShowProfile(false); }
+                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="fluent:text-bullet-list-24-filled" className="w-[18px] h-[18px]" />
                         </button>
-                        <div className="relative flex items-center justify-center">
-                            <button onClick={() => setShowNotesOptions(!showNotesOptions)} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                <Icon icon="material-symbols-light:add-notes" className="w-5 h-5" />
-                            </button>
-                            <AnimatePresence>
-                                {showNotesOptions && (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -10 }}
-                                        className="absolute left-full ml-3 bg-[#575C9C] rounded-[4px] shadow-2xl py-1 px-2 z-[170] flex flex-col gap-1 min-w-[110px] border border-white/10"
-                                    >
-                                        <button onClick={() => { setShowAddNotesPopup(true); setShowNotesOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                            <Icon icon="fluent:note-add-24-filled" className="w-3.5 h-3.5 text-white" />
-                                            <span className="text-white text-[12px] font-medium whitespace-nowrap">Add Notes</span>
-                                        </button>
-                                        <button onClick={() => { setShowNotesViewer(true); setShowNotesOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                            <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-white" />
-                                            <span className="text-white text-[12px] font-medium whitespace-nowrap">View Notes</span>
-                                        </button>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                        <div className="relative flex items-center justify-center">
-                            <button onClick={() => setShowBookmarkOptions(!showBookmarkOptions)} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                <Icon icon="fluent:bookmark-24-filled" className="w-[18px] h-[18px]" />
-                            </button>
-                            <AnimatePresence>
-                                {showBookmarkOptions && (
-                                    <motion.div
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: -10 }}
-                                        className="absolute left-full ml-3 bg-[#575C9C] rounded-[4px] shadow-2xl py-1 px-2 z-[170] flex flex-col gap-1 min-w-[130px] border border-white/10"
-                                    >
-                                        <button onClick={() => { setShowAddBookmarkPopup(true); setShowBookmarkOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                            <Icon icon="fluent:bookmark-add-24-filled" className="w-3.5 h-3.5 text-white" />
-                                            <span className="text-white text-[12px] font-medium whitespace-nowrap">Add Bookmark</span>
-                                        </button>
-                                        <button onClick={() => { setShowViewBookmarkPopup(true); setShowBookmarkOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                            <Icon icon="lucide:eye" className="w-3.5 h-3.5 text-white" />
-                                            <span className="text-white text-[12px] font-medium whitespace-nowrap">View Bookmark</span>
-                                        </button>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </div>
-                        <button onClick={() => { if (props.setShowGalleryPopup) props.setShowGalleryPopup(true); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+
+                        <button onClick={() => { 
+                            if (props.setShowGalleryPopup) props.setShowGalleryPopup(true); 
+                            setShowThumbnails(false); setLocalShowTOC(false); setShowSoundPopup(false); setLocalShowProfile(false);
+                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                         </button>
-                        <button onClick={() => setShowSoundPopup(true)} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => {
+                            const willShow = !showSoundPopup;
+                            setShowSoundPopup(willShow);
+                            if (willShow) { setShowThumbnails(false); setLocalShowTOC(false); setLocalShowProfile(false); }
+                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
                         </button>
-                        <button onClick={() => setLocalShowProfile(!localShowProfile)} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                        <button onClick={() => {
+                            const willShow = !localShowProfile;
+                            setLocalShowProfile(willShow);
+                            if (willShow) { setShowThumbnails(false); setLocalShowTOC(false); setShowSoundPopup(false); }
+                        }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                             <Icon icon="fluent:person-24-filled" className="w-[18px] h-[18px]" />
                         </button>
                         <button onClick={() => handleShare()} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
@@ -477,11 +417,38 @@ const MobileLayout7 = (props) => {
                     {/* Flipbook Canvas */}
                     <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-white/20">
                         <div className="relative shadow-2xl">
-                            <div className="transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                            <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
                                 {children}
                             </div>
                         </div>
                     </div>
+
+                    <AnimatePresence>
+                        {localShowTOC && (
+                            <TableOfContentsPopup
+                                onClose={() => setLocalShowTOC(false)}
+                                settings={settings?.tocSettings}
+                                activeLayout={7}
+                                isMobile={true}
+                                onNavigate={(pageIndex) => {
+                                    onPageClick(pageIndex);
+                                    setLocalShowTOC(false);
+                                }}
+                            />
+                        )}
+                    </AnimatePresence>
+
+                    <AnimatePresence>
+                        {localShowProfile && (
+                            <ProfilePopup
+                                onClose={() => setLocalShowProfile(false)}
+                                profileSettings={settings?.profileSettings}
+                                activeLayout={7}
+                                isMobile={true}
+                            />
+                        )}
+                    </AnimatePresence>
+
 
                     {/* Thumbnail Popup (Floating) */}
                     <AnimatePresence>
@@ -491,7 +458,7 @@ const MobileLayout7 = (props) => {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: '100%' }}
                                 transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                                className="absolute right-4 top-[15%] bottom-0 w-[280px] z-[170] flex flex-col shadow-2xl rounded-t-[20px] overflow-hidden border border-white/20 bg-white/50 backdrop-blur-xl"
+                                className="absolute right-4 top-[10%] bottom-0 w-[280px] z-[170] flex flex-col shadow-2xl rounded-t-[20px] overflow-hidden border border-white/20 bg-white/50 backdrop-blur-xl"
                                 style={{ backgroundColor: 'rgba(255, 255, 255, 0.5)' }}
                             >
                                 <div className="flex items-center justify-between px-5 py-4 border-b border-[#575C9C]/10 shrink-0">
@@ -537,23 +504,24 @@ const MobileLayout7 = (props) => {
             <footer className="z-50 shrink-0 flex flex-col pt-3 pb-8 relative" style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
                 {/* Row 1: Page info and Zoom */}
                 <div className="flex items-center justify-between px-6 mb-5">
-                    <div className="bg-white/30 rounded-full px-4 py-1.5 text-white text-[12px] font-bold border border-white/10 shadow-sm backdrop-blur-sm">
-                        Page {currentPage + 1} / {pages.length}
+                    <div />
+                    <div className="flex items-center gap-2 bg-white/20 px-2.5 py-1 rounded-md border border-white/10 shadow-sm backdrop-blur-sm">
+                        <Icon icon="lucide:zoom-out" className="w-3.5 h-3.5 text-white cursor-pointer active:scale-90 transition-transform" />
+                        <span className="text-[11px] text-white font-medium min-w-[28px] text-center">100%</span>
+                        <Icon icon="lucide:zoom-in" className="w-3.5 h-3.5 text-white cursor-pointer active:scale-90 transition-transform" />
+                        <button className="bg-white text-[#575C9C] text-[10px] font-bold px-1.5 py-0.5 ml-1 rounded active:scale-95 transition-transform">Reset</button>
                     </div>
-
-
                 </div>
-
                 {/* Row 2: Playback & Slider */}
                 <div className="flex items-center px-6 gap-6 w-full">
                     <div className="flex items-center gap-6 shrink-0">
-                        <button onClick={() => onPageClick(Math.max(0, currentPage - 1))} className="active:scale-90 transition-transform text-white">
+                        <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform text-white">
                             <Icon icon="lucide:skip-back" strokeWidth="3" className="w-5 h-5" />
                         </button>
                         <button onClick={() => setIsPlaying(!isAutoFlipping)} className="active:scale-90 transition-transform text-white">
                             <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-8 h-8" />
                         </button>
-                        <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="active:scale-90 transition-transform text-white">
+                        <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform text-white">
                             <Icon icon="lucide:skip-forward" strokeWidth="3" className="w-5 h-5" />
                         </button>
                     </div>

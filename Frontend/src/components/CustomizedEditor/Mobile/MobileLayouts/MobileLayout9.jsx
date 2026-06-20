@@ -149,6 +149,8 @@ const MobileLayout9 = ({
     const [isOverflowing, setIsOverflowing] = useState(false);
     const [visibleIndices, setVisibleIndices] = useState([]);
     const [showLocalNotesMenu, setShowLocalNotesMenu] = useState(false);
+
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const [showLocalBookmarkMenu, setShowLocalBookmarkMenu] = useState(false);
     const [showDotMenu, setShowDotMenu] = useState(false);
     const [showTopNotesOptions, setShowTopNotesOptions] = useState(false);
@@ -593,9 +595,9 @@ const MobileLayout9 = ({
     }
 
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: 'var(--page-bg, #BDC3D9)' }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative" style={{ ...layoutVariables, backgroundColor: 'var(--page-bg, #BDC3D9)' }}>
             {/* Notch Area */}
-            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
+            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header: Search and Logo */}
             <header className="px-5 pt-4 pb-2 flex items-center justify-between gap-3 relative" style={{ zIndex: showSuggestions && recommendations.length > 0 ? 3000 : 50 }}>
@@ -697,11 +699,10 @@ const MobileLayout9 = ({
             </header>
 
             {/* Toolbar: 8 Circular Icons */}
-            <div className="px-5 py-2 flex justify-between items-center relative z-[2001] bg-transparent">
+            <div className="px-5 py-2 flex justify-between items-center relative z-[2200] bg-transparent">
                 {[
                     { id: 'toc', icon: 'mdi:table-of-contents', action: (e) => { e.stopPropagation(); setShowTOC(!showTOC); } },
                     { id: 'grid', icon: 'ep:menu', action: (e) => { e.stopPropagation(); setShowThumbnailBar(!showThumbnailBar); } },
-                    { id: 'search', icon: 'material-symbols-light:add-notes', action: (e) => { e.stopPropagation(); setShowTopNotesOptions(!showTopNotesOptions); setShowThumbnailBar(false); setShowTOC(false); } },
                     { id: 'image', icon: 'clarity:image-gallery-solid', action: (e) => { e.stopPropagation(); } },
                     { id: 'music', icon: 'solar:music-notes-bold', action: (e) => { e.stopPropagation(); setShowSoundPopup(!showSoundPopup); } },
                     { id: 'profile', icon: 'solar:user-bold', action: (e) => { e.stopPropagation(); setShowProfilePopup(!showProfilePopup); } },
@@ -736,7 +737,7 @@ const MobileLayout9 = ({
             {/* Main Area: Flipbook */}
             <div className="flex-1 relative overflow-hidden flex flex-col items-center justify-center px-4">
                 <div className="relative">
-                    <div className="transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                    <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
                         {children}
                     </div>
                 </div>
@@ -744,12 +745,7 @@ const MobileLayout9 = ({
 
             {/* Footer: Navigation Controls */}
             <footer className="px-5 pt-4 pb-8 flex items-center justify-between relative z-[2001]">
-                <button
-                    onClick={(e) => { e.stopPropagation(); setShowLocalBookmarkMenu(!showLocalBookmarkMenu); setShowThumbnailBar(false); setShowTOC(false); setShowTopNotesOptions(false); }}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-all ${showLocalBookmarkMenu ? 'bg-white !text-[#575C9C]' : 'bg-[#575C9C] text-white'}`}
-                >
-                    <Icon icon="mingcute:bookmark-fill" className="w-[1.1rem] h-[1.1rem]" />
-                </button>
+                <div className="w-8 h-8" />
 
                 <button
                     onClick={() => onPageClick(0)}
@@ -796,148 +792,19 @@ const MobileLayout9 = ({
 
             {/* Popups and Overlays */}
             <AnimatePresence>
-                {showTopNotesOptions && (
-                    <div key="portrait-notes-container" className="absolute inset-0 z-[2000] pointer-events-none">
-                        <motion.div
-                            key="notes-overlay"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-[100] bg-black/10 pointer-events-auto"
-                            onClick={() => setShowTopNotesOptions(false)}
-                        />
-                        <motion.div
-                            key="notes-panel"
-                            initial={{ opacity: 0, scale: 0.95, y: -20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -20 }}
-                            className="absolute top-[105px] left-[10px] z-[110] pointer-events-auto"
-                            style={{ width: '130px' }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="relative w-full" style={{ aspectRatio: '250/270' }}>
-                                {/* Unified SVG Background */}
-                                <div className="absolute inset-0 z-0 pointer-events-none">
-                                    <svg width="100%" height="100%" viewBox="0 0 260 270" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-                                        <path
-                                            d="M0 115 C0 90.16 20.16 70 45 70 H145 C160 70 165 60 165 40 V30 C165 10 188.75 0 212.5 0 C236.25 0 260 10 260 30 V225 C260 249.84 240 270 215 270 H45 C20.16 270 0 249.84 0 225 V115 Z"
-                                            fill="rgba(87, 92, 156, 0.6)"
-                                            stroke="rgba(255,255,255,0.1)"
-                                            strokeWidth="1.5"
-                                        />
-                                    </svg>
-                                </div>
-
-                                {/* Popup Body Content */}
-                                <div
-                                    className="w-full h-full relative z-10 flex flex-col gap-2 justify-center pt-12 px-2.5"
-                                >
-                                    <button
-                                        className="w-full flex items-center justify-start gap-2 px-2.5 py-1.5 bg-white rounded-full transition-all active:scale-95 text-left shadow-lg"
-                                        onClick={() => {
-                                            setShowAddNotesPopup(true);
-                                            setShowTopNotesOptions(false);
-                                        }}
-                                    >
-                                        <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-50 shrink-0">
-                                            <Icon icon="solar:notes-bold" className="w-3.5 h-3.5 text-[#575C9C]" />
-                                        </div>
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-[9px] font-bold text-[#575C9C]">Add</span>
-                                            <span className="text-[9px] font-bold text-[#575C9C]">Notes</span>
-                                        </div>
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-start gap-2 px-2.5 py-1.5 bg-white rounded-full transition-all active:scale-95 text-left shadow-lg"
-                                        onClick={() => {
-                                            setShowNotesViewer(true);
-                                            setShowTopNotesOptions(false);
-                                        }}
-                                    >
-                                        <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-50 shrink-0">
-                                            <Icon icon="lets-icons:view-duotone" className="w-3.5 h-3.5 text-[#575C9C]" />
-                                        </div>
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-[9px] font-bold text-[#575C9C]">View</span>
-                                            <span className="text-[9px] font-bold text-[#575C9C]">Notes</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
+                {showTOC && (
+                    <TableOfContentsPopup
+                        onClose={() => setShowTOC(false)}
+                        settings={settings?.tocSettings}
+                        activeLayout={9}
+                        isMobile={true}
+                        onNavigate={(pageIndex) => {
+                            onPageClick(pageIndex);
+                            setShowTOC(false);
+                        }}
+                    />
                 )}
-                {showLocalBookmarkMenu && (
-                    <div key="portrait-bookmark-container" className="absolute inset-0 z-[2000] pointer-events-none">
-                        <motion.div
-                            key="bookmark-overlay"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-[100] bg-black/10 pointer-events-auto"
-                            onClick={() => setShowLocalBookmarkMenu(false)}
-                        />
-                        <motion.div
-                            key="bookmark-panel"
-                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                            className="absolute bottom-[30px] left-[12px] z-[110] pointer-events-auto"
-                            style={{ width: '185px' }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="relative w-full" style={{ aspectRatio: '250/265' }}>
-                                {/* Unified SVG Background */}
-                                <div className="absolute inset-0 z-0 pointer-events-none">
-                                    <svg width="100%" height="100%" viewBox="-5 0 255 265" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
-                                        <path
-                                            d="M15 0 H230 C241 0 250 9 250 20 V150 C250 161 241 170 230 170 H75 C60 170 55 190 55 220 V230 C55 250 40 265 25 265 C10 265 -5 250 -5 230 V170 V20 C-5 9 4 0 13 0 Z"
-                                            fill="rgba(87, 92, 156, 0.6)"
-                                            stroke="rgba(255,255,255,0.1)"
-                                            strokeWidth="1.5"
-                                        />
-                                    </svg>
-                                </div>
 
-                                {/* Content Layer */}
-                                <div
-                                    className="w-full h-full relative z-10 flex flex-col gap-2 justify-start pt-6 px-2.5"
-                                >
-                                    <button
-                                        className="w-full flex items-center justify-start gap-2 px-2.5 py-1.5 bg-white rounded-full transition-all active:scale-95 text-left shadow-lg"
-                                        onClick={() => {
-                                            setShowAddBookmarkPopup(true);
-                                            setShowLocalBookmarkMenu(false);
-                                        }}
-                                    >
-                                        <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-50 shrink-0">
-                                            <Icon icon="mingcute:bookmark-fill" className="w-3.5 h-3.5 text-[#575C9C]" />
-                                        </div>
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-[9px] font-bold text-[#575C9C]">Add</span>
-                                            <span className="text-[9px] font-bold text-[#575C9C]">Bookmark</span>
-                                        </div>
-                                    </button>
-                                    <button
-                                        className="w-full flex items-center justify-start gap-2 px-2.5 py-1.5 bg-white rounded-full transition-all active:scale-95 text-left shadow-lg"
-                                        onClick={() => {
-                                            setShowViewBookmarkPopup(true);
-                                            setShowLocalBookmarkMenu(false);
-                                        }}
-                                    >
-                                        <div className="w-6 h-6 flex items-center justify-center rounded-full bg-gray-50 shrink-0">
-                                            <Icon icon="lets-icons:view-duotone" className="w-3.5 h-3.5 text-[#575C9C]" />
-                                        </div>
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-[9px] font-bold text-[#575C9C]">View</span>
-                                            <span className="text-[9px] font-bold text-[#575C9C]">Bookmark</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
                 {showSoundPopup && (
                     <div key="portrait-sound-container" className="absolute inset-0 z-[2000] pointer-events-none">
                         <motion.div
@@ -1035,7 +902,7 @@ const MobileLayout9 = ({
                             onClick={(e) => e.stopPropagation()}
                         >
                             {/* Connector Tab for Thumbnail Icon */}
-                            <div className="absolute top-[-38px] left-[7.5%] w-[82px] h-[42px] z-10 flex items-center justify-center">
+                            <div className="absolute top-[-38px] left-[9%] w-[82px] h-[42px] z-10 flex items-center justify-center">
                                 <svg width="100%" height="100%" viewBox="0 0 113 67" fill="none" xmlns="http://www.w3.org/2000/svg">
                                     <path
                                         d="M24.8182 33.0909C24.8182 14.8153 39.6335 0 57.9091 0C76.1847 0 91 14.8153 91 33.0909V41.7377C91.0109 60.2573 94.967 66.6391 113 67H0C18.7515 67 24.8182 52.7213 24.8182 41.7377V33.0909Z"

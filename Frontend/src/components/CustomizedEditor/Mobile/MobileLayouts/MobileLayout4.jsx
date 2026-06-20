@@ -143,6 +143,8 @@ const MobileLayout4 = (props) => {
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
 
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     const spreads = useMemo(() => {
         const result = [];
         if (pages && pages.length > 0) {
@@ -222,10 +224,10 @@ const MobileLayout4 = (props) => {
                 )}
             </AnimatePresence>
 
-            
-            
-            
-            
+
+
+
+
             {showProfilePopup && (
                 <ProfilePopup
                     onClose={() => setShowProfilePopup(false)}
@@ -272,9 +274,9 @@ const MobileLayout4 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
+            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
             <header className="z-50 px-4 pt-0 pb-3 flex flex-col gap-3 shadow-sm relative shrink-0" style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
@@ -375,9 +377,32 @@ const MobileLayout4 = (props) => {
                         </AnimatePresence>
                     </div>
 
-                    <button onClick={(e) => { e.stopPropagation(); setShowMoreMenu(!showMoreMenu); }}
-                        className={`flex items-center justify-center shrink-0 transition-all ${showMoreMenu ? 'w-8 h-8 rounded-none border-[1.5px] shadow-sm' : 'p-1.5 border border-white/50 rounded'}`}
-                        style={showMoreMenu ? {
+                    <button onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (showLocalThumbnails) {
+                            setShowLocalThumbnails(false);
+                            setShowMoreMenu(true);
+                        } else if (showLocalTOC) {
+                            setShowLocalTOC(false);
+                            setShowMoreMenu(true);
+                        } else if (showLocalProfile) {
+                            setShowLocalProfile(false);
+                            setShowMoreMenu(true);
+                        } else if (props.showGalleryPopup && props.setShowGalleryPopup) {
+                            props.setShowGalleryPopup(false);
+                            setShowMoreMenu(true);
+                        } else if (showSharePopup) {
+                            setShowSharePopup(false);
+                            setShowMoreMenu(true);
+                        } else if (showExportPopup) {
+                            setShowExportPopup(false);
+                            setShowMoreMenu(true);
+                        } else {
+                            setShowMoreMenu(!showMoreMenu); 
+                        }
+                    }}
+                        className={`flex items-center justify-center shrink-0 transition-all ${(showMoreMenu || showLocalThumbnails || showLocalTOC || showLocalProfile || props.showGalleryPopup || showSharePopup || showExportPopup) ? 'w-8 h-8 rounded-none border-[1.5px] shadow-sm' : 'p-1.5 border border-white/50 rounded'}`}
+                        style={(showMoreMenu || showLocalThumbnails || showLocalTOC || showLocalProfile || props.showGalleryPopup || showSharePopup || showExportPopup) ? {
                             backgroundColor: getLayoutColor('search-bg-v2', '#DDE0F4'),
                             color: getLayoutColor('search-text-v1', '#575C9C'),
                             borderColor: getLayoutColor('search-text-v1', '#575C9C')
@@ -392,6 +417,18 @@ const MobileLayout4 = (props) => {
                                     <Icon icon="lucide:x" strokeWidth="2" className="w-[16px] h-[16px]" />
                                 </div>
                             </div>
+                        ) : showLocalThumbnails ? (
+                            <Icon icon="ph:squares-four-fill" className="w-[18px] h-[18px]" />
+                        ) : showLocalTOC ? (
+                            <Icon icon="fluent:text-bullet-list-24-filled" className="w-[18px] h-[18px]" />
+                        ) : showLocalProfile ? (
+                            <Icon icon="fluent:person-24-filled" className="w-[18px] h-[18px]" />
+                        ) : props.showGalleryPopup ? (
+                            <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
+                        ) : showSharePopup ? (
+                            <Icon icon="mage:share-fill" className="w-[18px] h-[18px]" />
+                        ) : showExportPopup ? (
+                            <Icon icon="meteor-icons:download" className="w-[18px] h-[18px]" />
                         ) : (
                             <Icon icon="lucide:menu" className="w-[18px] h-[18px]" />
                         )}
@@ -427,7 +464,7 @@ const MobileLayout4 = (props) => {
                                     animate={{ opacity: 1 }}
                                     exit={{ opacity: 0 }}
                                     transition={{ duration: 0.2 }}
-                                    className="absolute right-4 top-[5%] bottom-[5%] z-[160] w-[10%] max-w-[40px] flex flex-col items-center justify-evenly py-6 shadow-2xl"
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 z-[160] w-[10%] max-w-[40px] flex flex-col items-center justify-center gap-7 py-7 shadow-2xl"
                                     style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
                                 >
                                     {/* Thumbnail Button with Popup (Grid Icon) */}
@@ -440,65 +477,13 @@ const MobileLayout4 = (props) => {
                                         <Icon icon="fluent:text-bullet-list-24-filled" className="w-[17px] h-[17px]" />
                                     </button>
 
-                                    {/* Notes Button with Popup */}
-                                    <div className="relative flex items-center justify-center">
-                                        <button onClick={() => { setShowNotesOptions(!showNotesOptions); setShowBookmarkOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                            <Icon icon="material-symbols-light:add-notes" className="w-[20px] h-[20px]" />
-                                        </button>
-                                        <AnimatePresence>
-                                            {showNotesOptions && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, x: 10 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    exit={{ opacity: 0, x: 10 }}
-                                                    className="absolute right-full mr-3 bg-[#575C9C] rounded-[4px] shadow-2xl py-1 px-2 z-[170] flex flex-col gap-1 min-w-[100px] border border-white/10"
-                                                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
-                                                >
-                                                    <button onClick={() => { setShowAddNotesPopup(true); setShowMoreMenu(false); setShowNotesOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                                        <Icon icon="fluent:note-add-24-filled" className="w-4 h-4 text-white" />
-                                                        <span className="text-white text-[12px] font-medium whitespace-nowrap">Add Notes</span>
-                                                    </button>
-                                                    <button onClick={() => { setShowNotesViewer(true); setShowMoreMenu(false); setShowNotesOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                                        <Icon icon="lucide:eye" className="w-4 h-4 text-white" />
-                                                        <span className="text-white text-[12px] font-medium whitespace-nowrap">View Notes</span>
-                                                    </button>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
 
-                                    {/* Bookmark Button with Popup */}
-                                    <div className="relative flex items-center justify-center">
-                                        <button onClick={() => { setShowBookmarkOptions(!showBookmarkOptions); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                                            <Icon icon="fluent:bookmark-24-filled" className="w-[17px] h-[17px]" />
-                                        </button>
-                                        <AnimatePresence>
-                                            {showBookmarkOptions && (
-                                                <motion.div
-                                                    initial={{ opacity: 0, x: 10 }}
-                                                    animate={{ opacity: 1, x: 0 }}
-                                                    exit={{ opacity: 0, x: 10 }}
-                                                    className="absolute right-full mr-3 bg-[#575C9C] rounded-[4px] shadow-2xl py-1 px-2 z-[170] flex flex-col gap-1 min-w-[124px] border border-white/10"
-                                                    style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}
-                                                >
-                                                    <button onClick={() => { setShowAddBookmarkPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                                        <Icon icon="fluent:bookmark-add-24-filled" className="w-4 h-4 text-white" />
-                                                        <span className="text-white text-[12px] font-medium whitespace-nowrap">Add Bookmark</span>
-                                                    </button>
-                                                    <button onClick={() => { setShowViewBookmarkPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); }} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white/10 transition-colors w-full text-left">
-                                                        <Icon icon="lucide:eye" className="w-4 h-4 text-white" />
-                                                        <span className="text-white text-[12px] font-medium whitespace-nowrap">View Bookmark</span>
-                                                    </button>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
-                                    </div>
 
                                     {/* Gallery Button */}
                                     <button onClick={() => { if (props.setShowGalleryPopup) props.setShowGalleryPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="clarity:image-gallery-solid" className="w-[18px] h-[18px]" />
                                     </button>
-                                    <button onClick={() => { setShowSoundPopup(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
+                                    <button onClick={() => { setShowSoundPopup(true); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
                                         <Icon icon="solar:music-notes-bold" className="w-[18px] h-[18px]" />
                                     </button>
                                     <button onClick={() => { setShowLocalProfile(true); setShowMoreMenu(false); setShowBookmarkOptions(false); setShowNotesOptions(false); }} className="hover:scale-110 active:scale-95 transition-transform p-1" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
@@ -884,7 +869,7 @@ const MobileLayout4 = (props) => {
 
                     {/* Flipbook Canvas */}
                     <div className="flex-1 flex items-center justify-center px-10 relative overflow-hidden">
-                        <div className="relative transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                        <div className="relative transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
                             {children}
                         </div>
                     </div>

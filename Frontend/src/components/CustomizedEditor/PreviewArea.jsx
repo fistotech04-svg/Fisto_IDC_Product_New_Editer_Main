@@ -597,12 +597,10 @@ const getInteractionScript = (pageNumber) => `
                        e.stopPropagation();
                        let modelUrl = value;
                        let configObj = null;
-                       let modelVId = null;
                        if (value && value.startsWith('{')) {
                            try {
                                var parsed = JSON.parse(value);
                                modelUrl = parsed.data || parsed.url || value;
-                               modelVId = parsed.v_id;
                            } catch(e) {}
                        }
                        const configStr = el.dataset.interactionConfig || el.getAttribute('data-interaction-config');
@@ -614,7 +612,6 @@ const getInteractionScript = (pageNumber) => `
                        window.parent.postMessage({
                            type: 'show-3d-viewer',
                            url: modelUrl,
-                           v_id: modelVId,
                            config: configObj
                        }, '*');
                    } else if (type === 'audio' && value) {
@@ -2891,43 +2888,8 @@ const PreviewArea = React.memo(({
             {backgroundLayers}
 
             {activeDevice === 'Mobile' ? (
-                onClose === null ? (
-                    <div ref={screenRef} className="w-full h-full relative overflow-hidden">
-                        {backgroundLayers}
-
-                        <style>{`
-                            #preview-area-root .flipbook-magazine-wrapper {
-                                transition: transform ${flipTime}ms ease-in-out !important;
-                            }
-                        `}</style>
-
-                        <MobileLayoutRenderer
-                            {...commonLayoutProps}
-                            bookmarks={currentBookmarks}
-                            notes={currentNotes}
-                        >
-                            <TurnJsBookRenderer
-                                {...bookRendererProps}
-                                bookmarks={currentBookmarks}
-                                bookmarkSpacing={5}
-                                singlePage={true}
-                            />
-                        </MobileLayoutRenderer>
-
-                        {renderSharedOverlays()}
-
-                        {/* Lead Form Overlay */}
-                        {showLeadForm && (
-                            <LeadFormPopup
-                                leadFormSettings={leadFormSettings}
-                                isTablet={isTablet}
-                                isMobile={true}
-                                onClose={() => setLeadFormSubmitted(true)}
-                            />
-                        )}
-                    </div>
-                ) : (
-                    <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
+                (() => {
+                    const mobileContent = (
                         <div ref={screenRef} className="w-full h-full relative overflow-hidden">
                             {backgroundLayers}
 
@@ -2962,8 +2924,16 @@ const PreviewArea = React.memo(({
                                 />
                             )}
                         </div>
-                    </MobileFrame>
-                )
+                    );
+
+                    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                    return isPhysicalMobile ? mobileContent : (
+                        <MobileFrame isLandscape={isLandscape} hideHomeIndicator={Number(activeLayout) === 1 || Number(activeLayout) === 2 || Number(activeLayout) === 7 || Number(activeLayout) === 8 || (Number(activeLayout) === 3 && !isLandscape)}>
+                            {mobileContent}
+                        </MobileFrame>
+                    );
+                })()
             ) : (
                 <>
                     {/* Tablet Outer Background Layer */}

@@ -68,6 +68,63 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
     );
 });
 
+const TooltipBtn = ({ icon, onClick, title, iconClass, isBottomBar = false, active = false, className = "" }) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    return (
+        <button
+            onMouseEnter={() => setShowTooltip(true)}
+            onMouseLeave={() => setShowTooltip(false)}
+            onTouchStart={() => setShowTooltip(true)}
+            onTouchEnd={() => setShowTooltip(false)}
+            onClick={(e) => {
+                setShowTooltip(false);
+                if (onClick) onClick(e);
+            }}
+            className={`relative active:scale-90 transition-transform ${className} ${active ? 'bg-white/20' : ''}`}
+        >
+            <Icon icon={icon} className={iconClass || "w-4.5 h-4.5"} />
+            <AnimatePresence>
+                {showTooltip && title && (
+                    <motion.div
+                        initial={{ opacity: 0, y: isBottomBar ? 5 : -5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, transition: { duration: 0.1 } }}
+                        className={`absolute ${isBottomBar ? 'bottom-[calc(100%+8px)]' : 'top-[calc(100%+8px)]'} left-1/2 -translate-x-1/2 whitespace-nowrap`}
+                        style={{
+                            background: 'rgba(10, 10, 12, 0.55)',
+                            backdropFilter: 'blur(30px)',
+                            WebkitBackdropFilter: 'blur(30px)',
+                            transform: 'translateZ(0)',
+                            isolation: 'isolate',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: '#ffffff',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
+                            pointerEvents: 'none',
+                            zIndex: 9999,
+                        }}
+                    >
+                        {title}
+                        {isBottomBar ? (
+                            <div
+                                className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[5px] border-r-[5px] border-t-[6px]"
+                                style={{ borderTopColor: 'rgba(10, 10, 12, 0.55)' }}
+                            />
+                        ) : (
+                            <div
+                                className="absolute bottom-full left-1/2 -translate-x-1/2 w-0 h-0 border-solid border-l-transparent border-r-transparent border-l-[5px] border-r-[5px] border-b-[6px]"
+                                style={{ borderBottomColor: 'rgba(10, 10, 12, 0.55)' }}
+                            />
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </button>
+    );
+};
+
 const MobileLayout3 = (props) => {
     const {
         children,
@@ -150,8 +207,6 @@ const MobileLayout3 = (props) => {
     const [localShowSoundPopup, setLocalShowSoundPopup] = useState(false);
     const [localShowExportPopup, setLocalShowExportPopup] = useState(false);
     const [localShowSharePopup, setLocalShowSharePopup] = useState(false);
-    const [showNotesChoicePopup, setShowNotesChoicePopup] = useState(false);
-    const [showBookmarkChoicePopup, setShowBookmarkChoicePopup] = useState(false);
 
     // Actual visibility state (priority: prop > local)
     const showTOC = propShowTOC !== undefined ? propShowTOC : localShowTOC;
@@ -178,25 +233,21 @@ const MobileLayout3 = (props) => {
         setLocalShowAddNotesPopup(val);
         if (propSetShowAddNotesPopup) propSetShowAddNotesPopup(val);
         if (setShowAddNotesPopupMemo) setShowAddNotesPopupMemo(val);
-        if (val) setShowNotesChoicePopup(false);
     };
     const toggleNotesViewer = (val) => {
         setLocalShowNotesViewer(val);
         if (propSetShowNotesViewer) propSetShowNotesViewer(val);
         if (setShowNotesViewerMemo) setShowNotesViewerMemo(val);
-        if (val) setShowNotesChoicePopup(false);
     };
     const toggleAddBookmarkPopup = (val) => {
         setLocalShowAddBookmarkPopup(val);
         if (propSetShowAddBookmarkPopup) propSetShowAddBookmarkPopup(val);
         if (setShowAddBookmarkPopupMemo) setShowAddBookmarkPopupMemo(val);
-        if (val) setShowBookmarkChoicePopup(false);
     };
     const toggleViewBookmarkPopup = (val) => {
         setLocalShowViewBookmarkPopup(val);
         if (propSetShowViewBookmarkPopup) propSetShowViewBookmarkPopup(val);
         if (setShowViewBookmarkPopupMemo) setShowViewBookmarkPopupMemo(val);
-        if (val) setShowBookmarkChoicePopup(false);
     };
     const toggleProfilePopup = (val) => {
         setLocalShowProfilePopup(val);
@@ -299,7 +350,7 @@ const MobileLayout3 = (props) => {
                         }}
                         contents={tocSettings?.content || settings?.tocSettings?.content || settings?.toc?.content || []}
                         settings={tocSettings || settings?.tocSettings || settings?.toc}
-                        isMobile={false}
+                        isMobile={isPhysicalMobile}
                         isLandscape={false}
                         isMobilePortraitOverride={true}
                         activeLayout={3}
@@ -307,114 +358,7 @@ const MobileLayout3 = (props) => {
                     />
                 )}
 
-                {/* Notes Choice Popup */}
-                {showNotesChoicePopup && !isLandscape && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-[5000] bg-transparent pointer-events-auto"
-                            onClick={() => setShowNotesChoicePopup(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                            className="absolute top-[165px] left-[22%] z-[5001] pointer-events-auto rounded-[4px] shadow-[0_4px_16px_rgba(0,0,0,0.15)] bg-white overflow-hidden w-[130px]"
-                        >
-                            <div
-                                className="rounded-[4px] p-[6px] w-full"
-                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1'), fontFamily: "'Poppins', sans-serif" }}
-                            >
-                                <button
-                                    className="w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[4px] transition-colors group"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleAddNotesPopup(true);
-                                    }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 'var(--dropdown-text-opacity, 1)' }}
-                                >
-                                    <Icon icon="solar:notes-bold" className="w-[16px] h-[16px] group-hover:scale-110 transition-transform" />
-                                    <span className="text-[11px] font-bold tracking-tight">Add Notes</span>
-                                </button>
-
-                                <button
-                                    className="w-full flex items-center gap-[10px] px-[10px] py-[8px] rounded-[4px] transition-colors group"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        toggleNotesViewer(true);
-                                    }}
-                                    style={{ color: getLayoutColor('dropdown-text', '#FFFFFF'), opacity: 'var(--dropdown-text-opacity, 1)' }}
-                                >
-                                    <div className="relative w-[16px] h-[16px] flex items-center justify-center group-hover:scale-110 transition-transform">
-                                        {/* Default State: Eye with subtle shade / tinted fill, Pupil in appropriate background color */}
-                                        <div className="absolute inset-0 transition-opacity duration-300 group-hover:opacity-0">
-                                            <Icon
-                                                icon="lets-icons:view-fill"
-                                                className="w-full h-full"
-                                                style={{ color: getLayoutColorRgba('dropdown-text', '87, 92, 156', '0.15') }}
-                                            />
-                                            <div
-                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[4px] rounded-full"
-                                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1') }}
-                                            />
-                                        </div>
-                                        {/* Flip State (Hover): Eye in layout color, Pupil in contrasting color */}
-                                        <div className="absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
-                                            <Icon
-                                                icon="lets-icons:view-fill"
-                                                className="w-full h-full"
-                                                style={{ color: getLayoutColor('dropdown-text', '#FFFFFF') }}
-                                            />
-                                            <div
-                                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[4px] rounded-full transition-colors duration-300"
-                                                style={{ backgroundColor: getLayoutColorRgba('dropdown-bg', '87, 92, 156', '1') }}
-                                            />
-                                        </div>
-                                    </div>
-                                    <span className="text-[11px] font-bold tracking-tight">View Notes</span>
-                                </button>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-
-                {/* Bookmark Choice Popup */}
-                {showBookmarkChoicePopup && !isLandscape && (
-                    <>
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-[5000] bg-transparent pointer-events-auto"
-                            onClick={() => setShowBookmarkChoicePopup(false)}
-                        />
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                            className="absolute bottom-[100px] left-4 z-[5001] pointer-events-auto"
-                        >
-                            <div className="bg-white rounded-2xl shadow-[0_-10px_40px_rgba(0,0,0,0.2)] border border-black/5 overflow-hidden w-[130px] flex flex-col p-1.5">
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleAddBookmarkPopup(true); }}
-                                    className="flex items-center gap-2.5 px-2.5 py-2 hover:bg-gray-50 active:bg-gray-100 rounded-xl transition-colors"
-                                >
-                                    <Icon icon="fluent:bookmark-add-24-filled" className="w-4.5 h-4.5 text-[#575C9C]" />
-                                    <span className="text-[9.5px] font-extrabold text-[#575C9C] whitespace-nowrap">Add Bookmark</span>
-                                </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); toggleViewBookmarkPopup(true); }}
-                                    className="flex items-center gap-2.5 px-2.5 py-2 hover:bg-gray-50 active:bg-gray-100 rounded-xl transition-colors"
-                                >
-                                    <Icon icon="ph:eye-fill" className="w-4.5 h-4.5 text-[#575C9C]" />
-                                    <span className="text-[9.5px] font-extrabold text-[#575C9C] whitespace-nowrap">View Bookmark</span>
-                                </button>
-                            </div>
-                        </motion.div>
-                    </>
-                )}
+                {/* Removed Notes and Bookmark Choice Popups */}
 
                 {showThumbnailBar && !isLandscape && (
                     <>
@@ -504,23 +448,7 @@ const MobileLayout3 = (props) => {
                         isLandscape={false}
                     />
                 )}
-                {showSoundPopup && !isLandscape && (
-                    <Sound
-                        isOpen={showSoundPopup}
-                        onClose={() => toggleSoundPopup(false)}
-                        activeLayout={3}
-                        isMobile={true}
-                        isLandscape={false}
-                        isMuted={isMuted}
-                        setIsMuted={setIsMuted}
-                        isFlipMuted={isFlipMuted}
-                        setIsFlipMuted={setIsFlipMuted}
-                        otherSetupSettings={otherSetupSettings}
-                        onUpdateOtherSetup={onUpdateOtherSetup}
-                        settings={settings}
-                        flipTrigger={flipTrigger}
-                    />
-                )}
+
                 {showExportPopup && !isLandscape && (
                     <Export
                         isOpen={showExportPopup}
@@ -587,10 +515,12 @@ const MobileLayout3 = (props) => {
         );
     }
 
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#DADBE8]">
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#DADBE8]">
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
+            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header Row 2: Search, Logo and Icons (Medium Blue) */}
             <div className="bg-[#575C9C] z-50 shadow-md pt-0">
@@ -666,30 +596,48 @@ const MobileLayout3 = (props) => {
 
                 {/* Icons Row */}
                 <div className="h-14 px-4 flex items-center justify-between">
-                    <button onClick={(e) => { e.stopPropagation(); toggleTOC(true); }} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="fluent:text-bullet-list-24-filled" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); toggleThumbnailBar(!showThumbnailBar); }} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="ph:squares-four-fill" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); setShowNotesChoicePopup(true); }} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="material-symbols-light:add-notes" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); toggleThumbnailBar(true); }} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="clarity:image-gallery-solid" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); toggleSoundPopup(true); }} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="solar:music-notes-bold" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); toggleProfilePopup(true); }} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="fluent:person-24-filled" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={handleShare} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="majesticons:share" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={handleDownload} className="text-white active:scale-90 transition-transform p-1">
-                        <Icon icon="meteor-icons:download" className="w-4.5 h-4.5" />
-                    </button>
+                    <TooltipBtn
+                        title="TOC"
+                        icon="fluent:text-bullet-list-24-filled"
+                        className="text-white p-1"
+                        onClick={(e) => { e.stopPropagation(); toggleTOC(true); }}
+                    />
+                    <TooltipBtn
+                        title="Thumbnails"
+                        icon="ph:squares-four-fill"
+                        className="text-white p-1"
+                        onClick={(e) => { e.stopPropagation(); toggleThumbnailBar(!showThumbnailBar); }}
+                    />
+                    <TooltipBtn
+                        title="Gallery"
+                        icon="clarity:image-gallery-solid"
+                        className="text-white p-1"
+                        onClick={(e) => { e.stopPropagation(); toggleThumbnailBar(true); }}
+                    />
+                    <TooltipBtn
+                        title="Music"
+                        icon="solar:music-notes-bold"
+                        className="text-white p-1"
+                        onClick={(e) => { e.stopPropagation(); toggleSoundPopup(true); }}
+                    />
+                    <TooltipBtn
+                        title="Profile"
+                        icon="fluent:person-24-filled"
+                        className="text-white p-1"
+                        onClick={(e) => { e.stopPropagation(); toggleProfilePopup(true); }}
+                    />
+                    <TooltipBtn
+                        title="Share"
+                        icon="majesticons:share"
+                        className="text-white p-1"
+                        onClick={handleShare}
+                    />
+                    <TooltipBtn
+                        title="Download"
+                        icon="meteor-icons:download"
+                        className="text-white p-1"
+                        onClick={handleDownload}
+                    />
                 </div>
             </div>
 
@@ -717,8 +665,8 @@ const MobileLayout3 = (props) => {
                 </button>
 
                 {/* Flipbook Canvas - Scaled down for better mobile fit */}
-                <div className="flex items-center justify-center overflow-hidden">
-                    <div className="transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                <div className="flex-1 w-full flex items-center justify-center overflow-hidden">
+                    <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
                         {children}
                     </div>
                 </div>
@@ -728,24 +676,38 @@ const MobileLayout3 = (props) => {
             <footer className="bg-[#575C9C] flex flex-col pt-3 pb-6 relative shadow-[0_-5px_20px_rgba(0,0,0,0.2)] z-[60]">
                 {/* Bottom Icons */}
                 <div className="flex items-center justify-center gap-8 text-white mb-3 px-6">
-                    <button onClick={(e) => { e.stopPropagation(); setShowBookmarkChoicePopup(true); }} className="active:scale-90 transition-transform p-1">
-                        <Icon icon="fluent:bookmark-24-filled" className="w-4.5 h-4.5" />
-                    </button>
-                    <button onClick={() => onPageClick(0)} className="active:scale-90 transition-transform p-1">
-                        <Icon icon="lucide:skip-back" className="w-4 h-4" />
-                    </button>
-                    <button
+                    <TooltipBtn
+                        title="First Page"
+                        icon="lucide:skip-back"
+                        iconClass="w-4 h-4"
+                        className="p-1"
+                        isBottomBar={true}
+                        onClick={() => onPageClick(0)}
+                    />
+                    <TooltipBtn
+                        title={isAutoFlipping ? "Pause" : "Play"}
+                        icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"}
+                        iconClass="w-5.5 h-5.5"
+                        className="bg-white/10 rounded-full p-1.5"
+                        isBottomBar={true}
                         onClick={() => setIsPlaying(!isAutoFlipping)}
-                        className="active:scale-90 transition-all bg-white/10 rounded-full p-1.5"
-                    >
-                        <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className="w-5.5 h-5.5" />
-                    </button>
-                    <button onClick={() => onPageClick(pages.length - 1)} className="active:scale-90 transition-transform p-1">
-                        <Icon icon="lucide:skip-forward" className="w-4 h-4" />
-                    </button>
-                    <button onClick={handleFullScreen} className="active:scale-90 transition-transform p-1">
-                        <Icon icon="lucide:fullscreen" className="w-4 h-4" />
-                    </button>
+                    />
+                    <TooltipBtn
+                        title="Last Page"
+                        icon="lucide:skip-forward"
+                        iconClass="w-4 h-4"
+                        className="p-1"
+                        isBottomBar={true}
+                        onClick={() => onPageClick(pages.length - 1)}
+                    />
+                    <TooltipBtn
+                        title="Full Screen"
+                        icon="lucide:fullscreen"
+                        iconClass="w-4 h-4"
+                        className="p-1"
+                        isBottomBar={true}
+                        onClick={handleFullScreen}
+                    />
                 </div>
 
                 {/* Progress Bar */}

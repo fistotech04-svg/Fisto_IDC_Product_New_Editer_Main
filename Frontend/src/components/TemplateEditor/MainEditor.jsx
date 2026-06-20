@@ -174,8 +174,8 @@ const svgGlobalStyles = `
     cursor: var(--resizing-cursor, inherit) !important;
   }
 
-  /* Hide intrinsic stroke of existing Free Frames unless they are actively being drawn */
-  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
+   /* Hide intrinsic stroke of existing Free Frames unless they are actively being drawn */
+  svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
     stroke: transparent !important;
     stroke-width: 0 !important;
   }
@@ -1467,6 +1467,9 @@ const MainEditor = ({
       el.getAttribute('data-type') === 'background' ||
       el.getAttribute('data-type') === 'frame' ||
       el.getAttribute('data-locked') === 'true';
+
+      // Skip Free Frames in the main editor (only show in interaction panel)
+    const isFreeFrameHidden = el.getAttribute('data-name') === 'Free Frame' && activeTopTool !== 'interaction';
 
     // Skip if this text element is currently in text-edit mode (we still want to draw the polygon, but skip handles later)
     const isBeingEdited = isEditingTextRef.current && el.id === selectedLayerIdRef.current;
@@ -2838,10 +2841,11 @@ const MainEditor = ({
   // Helper: get direct children of SVG root that have IDs (top-level frames)
   const getTopLevelFrames = (svg) => {
     return Array.from(svg.children).filter(el =>
-      el.id &&
+     el.id &&
       el.tagName.toLowerCase() !== 'style' &&
       el.tagName.toLowerCase() !== 'defs' &&
-      el.getAttribute('data-hidden') !== 'true'
+      el.getAttribute('data-hidden') !== 'true' &&
+      !(el.getAttribute('data-name') === 'Free Frame' && activeTopTool !== 'interaction')
     );
   };
 
@@ -2852,7 +2856,8 @@ const MainEditor = ({
       child.tagName.toLowerCase() !== 'style' &&
       child.tagName.toLowerCase() !== 'defs' &&
       child.getAttribute('data-hidden') !== 'true' &&
-      child.getAttribute('data-name') !== 'Overlay'
+      child.getAttribute('data-name') !== 'Overlay' &&
+      !(child.getAttribute('data-name') === 'Free Frame' && activeTopTool !== 'interaction')
     );
   };
 

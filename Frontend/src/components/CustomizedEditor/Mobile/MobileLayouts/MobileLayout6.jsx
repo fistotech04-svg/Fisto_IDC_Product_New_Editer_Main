@@ -130,6 +130,8 @@ const MobileLayout6 = ({
     const [showSuggestions, setShowSuggestions] = useState(false);
     const [pageInputValue, setPageInputValue] = useState(String(currentPage + 1));
 
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     useEffect(() => {
         setPageInputValue(String(currentPage + 1));
     }, [currentPage]);
@@ -383,18 +385,7 @@ const MobileLayout6 = ({
                     </motion.div>
                 )}
 
-                {/* Profile Panel - Orientation Aware */}
-                {showProfilePanel && (
-                    <div className="absolute inset-0 z-[100] pointer-events-auto">
-                        <div className="absolute inset-0 bg-black/10 backdrop-blur-[2px]" onClick={() => setShowProfilePanel(false)} />
-                        <ProfilePopup
-                            onClose={() => setShowProfilePanel(false)}
-                            settings={profileSettings}
-                            isMobile={true}
-                            activeLayout={activeLayout}
-                        />
-                    </div>
-                )}
+
             </AnimatePresence>
 
             
@@ -592,7 +583,7 @@ const MobileLayout6 = ({
                         </div>
 
                         {/* Flipbook with Zoom */}
-                        <div className="transition-transform duration-500 ease-out" style={{ transform: `scale(${currentZoom - 0.1})`, transformOrigin: 'center center' }}>
+                        <div className="transition-transform duration-500 ease-out" style={{ transform: `scale(${currentZoom / 0.5 * 1.2})`, transformOrigin: 'center center' }}>
                             {children}
                         </div>
 
@@ -725,7 +716,7 @@ const MobileLayout6 = ({
         /* Portrait Mobile Layout 6 - Matching Screenshot */
         <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
             {/* Top dark blue area */}
-            <div className="h-10 w-full shrink-0" style={{ backgroundColor: '#0B0F4E' }} />
+            {!isPhysicalMobile && <div className="h-10 w-full shrink-0" style={{ backgroundColor: '#0B0F4E' }} />}
 
             {/* Header */}
             <header className="z-50 px-4 pt-3 pb-3 flex flex-col gap-3 relative shrink-0" style={{ backgroundColor: '#575C9C' }}>
@@ -754,7 +745,8 @@ const MobileLayout6 = ({
                                             showAddBookmarkPopup ? "fluent:bookmark-24-filled" :
                                                 showProfilePanel ? "fluent:person-24-filled" :
                                                     showSoundPopup ? "solar:music-notes-bold" :
-                                                        "lucide:menu"
+                                                        showSidebar ? "lucide:x" :
+                                                            "lucide:menu"
                             }
                             className="w-4 h-4"
                         />
@@ -853,7 +845,7 @@ const MobileLayout6 = ({
                 {/* Sidebar Toolbar */}
                 {showSidebar && (
                     <div
-                        className="absolute left-3.8 top-7 bottom-6.8 w-8 z-[60] flex flex-col items-center py-4 gap-5 shadow-2xl rounded-lg"
+                        className="absolute left-3 top-12 bottom-24 w-8 z-[60] flex flex-col items-center justify-evenly py-4 shadow-2xl rounded-lg"
                         style={{ backgroundColor: '#575C9C' }}
                         onClick={(e) => e.stopPropagation()}
                     >
@@ -865,7 +857,7 @@ const MobileLayout6 = ({
                             }}
                             className="text-white hover:scale-110 active:scale-90 transition-all"
                         >
-                            <Icon icon="ph:squares-four-fill" className="w-4 h-4" />
+                            <Icon icon="ph:squares-four-fill" className="w-5 h-5" />
                         </button>
                         <button
                             onClick={() => {
@@ -875,30 +867,11 @@ const MobileLayout6 = ({
                             }}
                             className="text-white hover:scale-110 active:scale-90 transition-all"
                         >
-                            <Icon icon="fluent:text-bullet-list-24-filled" className="w-3 h-3" />
+                            <Icon icon="fluent:text-bullet-list-24-filled" className="w-4 h-4" />
                         </button>
-                        <button
-                            onClick={() => {
-                                const isCurrentlyOpen = showAddNotesPopup;
-                                closeAllPopups();
-                                setShowAddNotesPopup(!isCurrentlyOpen);
-                            }}
-                            className="text-white hover:scale-110 active:scale-90 transition-all"
-                        >
-                            <Icon icon="material-symbols-light:add-notes" className="w-3 h-3" />
-                        </button>
-                        <button
-                            onClick={() => {
-                                const isCurrentlyOpen = showAddBookmarkPopup;
-                                closeAllPopups();
-                                setShowAddBookmarkPopup(!isCurrentlyOpen);
-                            }}
-                            className="text-white hover:scale-110 active:scale-90 transition-all"
-                        >
-                            <Icon icon="fluent:bookmark-24-filled" className="w-3 h-3" />
-                        </button>
+
                         <button className="text-white hover:scale-110 active:scale-90 transition-all">
-                            <Icon icon="solar:gallery-bold" className="w-3 h-3" />
+                            <Icon icon="clarity:image-gallery-solid" className="w-4 h-4" />
                         </button>
                         <button
                             onClick={() => {
@@ -908,7 +881,7 @@ const MobileLayout6 = ({
                             }}
                             className="text-white hover:scale-110 active:scale-90 transition-all"
                         >
-                            <Icon icon="solar:music-notes-bold" className="w-3 h-3" />
+                            <Icon icon="solar:music-notes-bold" className="w-4 h-4" />
                         </button>
 
                         <button
@@ -919,17 +892,17 @@ const MobileLayout6 = ({
                             }}
                             className="text-white hover:scale-110 active:scale-90 transition-all"
                         >
-                            <Icon icon="fluent:person-24-filled" className="w-3 h-3" />
+                            <Icon icon="fluent:person-24-filled" className="w-4 h-4" />
                         </button>
 
                         <button onClick={() => handleShare()} className="text-white hover:scale-110 active:scale-90 transition-all">
-                            <Icon icon="mage:share-fill" className="w-3 h-3" />
+                            <Icon icon="mage:share-fill" className="w-4 h-4" />
                         </button>
                         <button onClick={() => handleDownload()} className="text-white hover:scale-110 active:scale-90 transition-all">
-                            <Icon icon="meteor-icons:download" className="w-3 h-3" />
+                            <Icon icon="meteor-icons:download" className="w-4 h-4" />
                         </button>
                         <button onClick={() => handleFullScreen()} className="text-white hover:scale-110 active:scale-90 transition-all">
-                            <Icon icon="lucide:scan" className="w-3 h-3" />
+                            <Icon icon="lucide:scan" className="w-4 h-4" />
                         </button>
                     </div>
                 )}
@@ -1176,8 +1149,8 @@ const MobileLayout6 = ({
 
                 {/* Book Area */}
                 <div className="flex-1 relative flex items-center justify-center">
-                    <div className="relative -mt-24">
-                        <div className="transition-transform duration-500 ease-out" style={{ transform: `scale(${currentZoom + 0.05})`, transformOrigin: 'center center' }}>
+                    <div className="relative -mt-10">
+                        <div className="transition-transform duration-500 ease-out" style={{ transform: `scale(${currentZoom / 0.5 * 1.2})`, transformOrigin: 'center center' }}>
                             {children}
                         </div>
                     </div>

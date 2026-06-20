@@ -103,6 +103,8 @@ const MobileLayout8 = (props) => {
         setShowSharePopup,
         setSearchQuery,
         handleQuickSearch,
+        isAutoFlipping,
+        setIsPlaying,
     } = props;
 
     const [localSearchQuery, setLocalSearchQuery] = useState('');
@@ -113,6 +115,8 @@ const MobileLayout8 = (props) => {
     const [localShowProfile, setLocalShowProfile] = useState(false);
     const [showNotesOptions, setShowNotesOptions] = useState(false);
     const [showBookmarkOptions, setShowBookmarkOptions] = useState(false);
+
+    const isPhysicalMobile = typeof navigator !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
     const scrollRef = useRef(null);
     const bookRef = useRef(null);
@@ -228,17 +232,17 @@ const MobileLayout8 = (props) => {
     );
 
     return (
-        <div className="flex flex-col h-[812px] w-[375px] overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
+        <div className="flex flex-col h-full w-full overflow-hidden select-none relative bg-[#BDC3D9]" style={{ ...layoutVariables }}>
             {renderPopups()}
 
             {/* Notch Spacer - fills the area near the hardware notch with a dark status bar color */}
-            <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />
+            {!isPhysicalMobile && <div className="shrink-0 h-10 z-50 bg-[#0B0F4E]" />}
 
             {/* Header */}
             <header className="z-50 px-4 pt-0 pb-4 flex flex-col gap-4 shadow-md shrink-0 bg-white/20 backdrop-blur-sm">
                 <div className="flex items-center justify-between px-1">
                     <span className="text-[#575C9C] text-[15px] font-bold truncate flex-1">{bookName || 'Name of the book'}</span>
-                    {logoSettings?.src && (
+                    {(settings?.brandingProfile?.logo !== false) && logoSettings?.src && (
                         <img
                             src={logoSettings.src}
                             alt="Logo"
@@ -336,7 +340,7 @@ const MobileLayout8 = (props) => {
                 {/* Flipbook Area */}
                 <div className="flex-1 flex items-center justify-center relative overflow-hidden px-10 py-8">
                     <div className="relative shadow-2xl">
-                        <div className="transition-transform duration-300" style={{ transform: 'scale(0.85)', transformOrigin: 'center center' }}>
+                        <div className="transition-transform duration-300" style={{ transform: 'scale(1.2)', transformOrigin: 'center center' }}>
                             {children}
                         </div>
                     </div>
@@ -351,138 +355,44 @@ const MobileLayout8 = (props) => {
             >
                 {/* Icon Row */}
                 <div className="flex items-center justify-between px-2">
-                    <button onClick={() => setLocalShowTOC(!localShowTOC)} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={() => {
+                        const willShow = !localShowTOC;
+                        setLocalShowTOC(willShow);
+                        if (willShow) { setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                    }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="fluent:text-bullet-list-24-filled" className="w-6 h-6" />
                     </button>
-                    <button onClick={() => setShowThumbnails(!showThumbnails)} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={() => {
+                        const willShow = !showThumbnails;
+                        setShowThumbnails(willShow);
+                        if (willShow) { setLocalShowTOC(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                    }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="ph:squares-four-fill" className="w-6 h-6" />
                     </button>
-                    <div className="relative">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setShowNotesOptions(!showNotesOptions); }}
-                            className="text-white/80 hover:text-white transition-colors"
-                        >
-                            <Icon icon="material-symbols-light:add-notes" className="w-7 h-7" />
-                        </button>
 
-                        {/* Notes Options Popup */}
-                        <AnimatePresence>
-                            {showNotesOptions && (
-                                <>
-                                    {/* Backdrop */}
-                                    <div
-                                        className="fixed inset-0 z-[180]"
-                                        onClick={() => setShowNotesOptions(false)}
-                                    />
-                                    <motion.div
-                                        key="notes-options-popup"
-                                        initial={{ opacity: 0, scale: 0.9, y: 8 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.9, y: 8 }}
-                                        transition={{ duration: 0.15, ease: 'easeOut' }}
-                                        className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-[190] rounded-xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] border border-white/15 pointer-events-auto"
-                                        style={{
-                                            backgroundColor: 'rgba(87, 92, 156, 0.95)',
-                                            backdropFilter: 'blur(12px)',
-                                            minWidth: '140px'
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <div className="flex flex-col py-1.5 px-1">
-                                            <button
-                                                className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-white/10 active:bg-white/20 transition-colors text-left w-full rounded-lg"
-                                                onClick={() => {
-                                                    setShowAddNotesPopup(true);
-                                                    setShowNotesOptions(false);
-                                                }}
-                                            >
-                                                <Icon icon="material-symbols-light:add-notes" className="w-4 h-4 text-white" />
-                                                <span className="text-white text-[12px] font-semibold whitespace-nowrap">Add Notes</span>
-                                            </button>
-                                            <button
-                                                className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-white/10 active:bg-white/20 transition-colors text-left w-full rounded-lg"
-                                                onClick={() => {
-                                                    setShowNotesViewer(true);
-                                                    setShowNotesOptions(false);
-                                                }}
-                                            >
-                                                <Icon icon="lucide:eye" className="w-4 h-4 text-white" />
-                                                <span className="text-white text-[12px] font-semibold whitespace-nowrap">View Notes</span>
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                </>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                    <div className="relative">
-                        <button
-                            onClick={(e) => { e.stopPropagation(); setShowBookmarkOptions(!showBookmarkOptions); }}
-                            className="text-white/80 hover:text-white transition-colors"
-                        >
-                            <Icon icon="fluent:bookmark-24-filled" className="w-6 h-6" />
-                        </button>
-
-                        {/* Bookmark Options Popup */}
-                        <AnimatePresence>
-                            {showBookmarkOptions && (
-                                <>
-                                    {/* Backdrop */}
-                                    <div
-                                        className="fixed inset-0 z-[180]"
-                                        onClick={() => setShowBookmarkOptions(false)}
-                                    />
-                                    <motion.div
-                                        key="bookmark-options-popup"
-                                        initial={{ opacity: 0, scale: 0.9, y: 8 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.9, y: 8 }}
-                                        transition={{ duration: 0.15, ease: 'easeOut' }}
-                                        className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 z-[190] rounded-xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.45)] border border-white/15 pointer-events-auto"
-                                        style={{
-                                            backgroundColor: 'rgba(87, 92, 156, 0.95)',
-                                            backdropFilter: 'blur(12px)',
-                                            minWidth: '150px'
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <div className="flex flex-col py-1.5 px-1">
-                                            <button
-                                                className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-white/10 active:bg-white/20 transition-colors text-left w-full rounded-lg"
-                                                onClick={() => {
-                                                    setShowAddBookmarkPopup(true);
-                                                    setShowBookmarkOptions(false);
-                                                }}
-                                            >
-                                                <Icon icon="fluent:bookmark-add-24-filled" className="w-4 h-4 text-white" />
-                                                <span className="text-white text-[12px] font-semibold whitespace-nowrap">Add Bookmark</span>
-                                            </button>
-                                            <button
-                                                className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-white/10 active:bg-white/20 transition-colors text-left w-full rounded-lg"
-                                                onClick={() => {
-                                                    setShowViewBookmarkPopup(true);
-                                                    setShowBookmarkOptions(false);
-                                                }}
-                                            >
-                                                <Icon icon="lucide:eye" className="w-4 h-4 text-white" />
-                                                <span className="text-white text-[12px] font-semibold whitespace-nowrap">View Bookmark</span>
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                </>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                    <button onClick={() => {/* Media Action */ }} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={() => {
+                        if (props.setShowGalleryPopup) props.setShowGalleryPopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="clarity:image-gallery-solid" className="w-6 h-6" />
                     </button>
-                    <button onClick={() => setLocalShowProfile(!localShowProfile)} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={() => {
+                        const willShow = !localShowProfile;
+                        setLocalShowProfile(willShow);
+                        if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setShowSharePopup(false); setShowExportPopup(false); }
+                    }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="ph:user-fill" className="w-6 h-6" />
                     </button>
-                    <button onClick={() => setShowSharePopup(true)} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={() => {
+                        setShowSharePopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowExportPopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="mage:share-fill" className="w-6 h-6" />
                     </button>
-                    <button onClick={() => setShowExportPopup(true)} className="text-white/80 hover:text-white transition-colors">
+                    <button onClick={() => {
+                        setShowExportPopup(true);
+                        setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false);
+                    }} className="text-white/80 hover:text-white transition-colors">
                         <Icon icon="meteor-icons:download" className="w-6 h-6" />
                     </button>
                 </div>
@@ -499,18 +409,25 @@ const MobileLayout8 = (props) => {
 
                 {/* Control Row */}
                 <div className="flex items-center justify-between px-2">
-                    <button onClick={() => setIsMuted(!isMuted)} className="text-white/80 hover:text-white transition-colors">
-                        <Icon icon={isMuted ? "solar:music-note-broken" : "solar:music-notes-bold"} className="w-7 h-7" />
+                    <button onClick={() => {
+                        const willShow = !showSoundPopup;
+                        setShowSoundPopup(willShow);
+                        if (willShow) { setLocalShowTOC(false); setShowThumbnails(false); setLocalShowProfile(false); setShowSharePopup(false); setShowExportPopup(false); }
+                    }} className="text-white/80 hover:text-white transition-colors">
+                        <Icon icon="solar:music-notes-bold" className="w-7 h-7" />
                     </button>
 
                     <div className="flex items-center gap-8">
-                        <button onClick={() => onPageClick(Math.max(0, currentPage - 1))} className="text-white hover:scale-110 active:scale-95 transition-all">
+                        <button onClick={() => onPageClick(0)} className="text-white hover:scale-110 active:scale-95 transition-all">
                             <Icon icon="fluent:previous-24-filled" className="w-7 h-7" />
                         </button>
-                        <button className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#575C9C] shadow-lg hover:scale-110 active:scale-95 transition-all">
-                            <Icon icon="fluent:play-24-filled" className="w-7 h-7" />
+                        <button 
+                            onClick={() => setIsPlaying(!isAutoFlipping)}
+                            className="w-12 h-12 bg-white rounded-full flex items-center justify-center text-[#575C9C] shadow-lg hover:scale-110 active:scale-95 transition-all"
+                        >
+                            <Icon icon={isAutoFlipping ? "fluent:pause-24-filled" : "fluent:play-24-filled"} className="w-7 h-7" />
                         </button>
-                        <button onClick={() => onPageClick(Math.min(pages.length - 1, currentPage + 1))} className="text-white hover:scale-110 active:scale-95 transition-all">
+                        <button onClick={() => onPageClick(pages.length - 1)} className="text-white hover:scale-110 active:scale-95 transition-all">
                             <Icon icon="fluent:next-24-filled" className="w-7 h-7" />
                         </button>
                     </div>
