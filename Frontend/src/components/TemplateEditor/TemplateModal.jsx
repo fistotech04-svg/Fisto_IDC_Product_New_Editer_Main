@@ -12,6 +12,10 @@ import TemplateSVG6 from "../../assets/Templates/Template_6.svg?url";
 import TemplateSVG7 from "../../assets/Templates/Template_7.svg?url";
 import TemplateSVG8 from "../../assets/Templates/Template_8.svg?url";
 import TemplateSVG9 from "../../assets/Templates/Template_9.svg?url";
+import TemplateSVG10 from "../../assets/Templates/Template_Car_1.svg?url";
+import TemplateSVG11 from "../../assets/Templates/Template_Car_2.svg?url";
+import TemplateSVG12 from "../../assets/Templates/Template_Car_3.svg?url";
+import TemplateSVG13 from "../../assets/Templates/Template_Car_4.svg?url";
 
 // Global cache to store fetched template SVG strings so they load instantly on subsequent opens
 const templateCache = {};
@@ -203,11 +207,43 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       src: TemplateSVG9,
       type: 'svg',
       description: 'Professional A4 business template'
+    },
+    { 
+      id: 10, 
+      name: 'Template 10', 
+      category: 'Car', 
+      src: TemplateSVG10, 
+      type: 'svg',
+      description: 'Professional A4 business template'
+    },
+    { 
+      id: 11, 
+      name: 'Template 11', 
+      category: 'Car', 
+      src: TemplateSVG11, 
+      type: 'svg',
+      description: 'Professional A4 business template'
+    },
+    { 
+      id: 12, 
+      name: 'Template 12', 
+      category: 'Car', 
+      src: TemplateSVG12, 
+      type: 'svg',
+      description: 'Professional A4 business template'
+    },
+    { 
+      id: 13, 
+      name: 'Template 13', 
+      category: 'Car', 
+      src: TemplateSVG13, 
+      type: 'svg',
+      description: 'Professional A4 business template'
     }
   ];
 
   const categories = [
-    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio'
+    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio', 'Car'
   ];
 
   // Filter templates

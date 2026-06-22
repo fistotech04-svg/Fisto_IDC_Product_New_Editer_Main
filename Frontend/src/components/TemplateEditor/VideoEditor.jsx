@@ -83,7 +83,7 @@ const VideoEditor = ({
 
   const [previewSrc, setPreviewSrc] = useState(null);
   const [posterSrc, setPosterSrc] = useState(null);
-  const [videoType, setVideoType] = useState("fit");
+  const [videoType, setVideoType] = useState("Fill");
   const [showVideoTypeDropdown, setShowVideoTypeDropdown] = useState(false);
   const [autoplay, setAutoplay] = useState(false);
   const [loop, setLoop] = useState(false);
@@ -106,10 +106,10 @@ const VideoEditor = ({
   const [activeEffects, setActiveEffects] = useState([]);
   const [activePopup, setActivePopup] = useState(null);
   const [effectSettings, setEffectSettings] = useState({
-    'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 8, spread: 0 },
-    'Inner Shadow': { color: '#000000', opacity: 35, x: 0, y: 0, blur: 10, spread: 0 },
-    'Blur': { blur: 5, spread: 0 },
-    'Background Blur': { blur: 10, spread: 0 }
+    'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
+    'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
+    'Blur': { blur: 4, spread: 0 },
+    'Background Blur': { blur: 4, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -212,12 +212,19 @@ const VideoEditor = ({
     const dashPos = visualTarget.getAttribute('data-stroke-position') || 'Center';
     const dashCap = visualTarget.getAttribute('stroke-linecap') || 'butt';
 
+    const existingStrokeType = visualTarget.getAttribute('data-stroke-type');
+    const actualStrokeType = existingStrokeType ? existingStrokeType : (isDashed ? 'Dashed' : 'Solid');
+
     setBackgroundColor({
       fill: fill === 'none' ? 'transparent' : fill,
       fillOpacity: 100,
       stroke: stColor === 'none' ? 'transparent' : stColor,
       strokeOpacity: 100,
-      strokeType: isDashed ? 'Dashed' : 'Solid',
+      strokeType: actualStrokeType,
+      strokeGradientType: visualTarget.getAttribute('data-stroke-gradient-type') || 'linear',
+      strokeStops: visualTarget.getAttribute('data-stroke-stops'),
+      strokeAngle: parseFloat(visualTarget.getAttribute('data-stroke-angle') || '0'),
+      strokeRadius: parseFloat(visualTarget.getAttribute('data-stroke-radius') || '100'),
       strokeWeight: stWeight,
       strokeDashLength: dashLen,
       strokeDashGap: dashGap,
@@ -288,9 +295,9 @@ const VideoEditor = ({
       const rawCtrlSize = target.getAttribute('data-controls-size');
       const ctrlSize = rawCtrlSize ? parseInt(rawCtrlSize) : 100;
       setControlsSize(isNaN(ctrlSize) ? 100 : Math.max(0, Math.min(100, ctrlSize)));
-      const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'Fit';
+      const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'Fill';
       const reverseMap = { 'contain': 'Fit', 'cover': 'Fill', 'fill': 'Stretch' };
-      setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fit');
+      setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
       if (target.src && target.src.startsWith("http")) {
@@ -511,7 +518,35 @@ const VideoEditor = ({
         strokeOverlay.style.opacity = visualTarget.style.opacity;
 
         strokeOverlay.setAttribute('fill', 'none');
-        strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+        
+        liveElement.setAttribute('data-stroke-type', backgroundColor.strokeType);
+
+        if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
+          liveElement.setAttribute('data-stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
+          liveElement.setAttribute('data-stroke-stops', backgroundColor.strokeStops || '');
+          liveElement.setAttribute('data-stroke-angle', backgroundColor.strokeAngle || '0');
+          liveElement.setAttribute('data-stroke-radius', backgroundColor.strokeRadius || '100');
+
+          strokeOverlay.setAttribute('stroke-type', 'gradient');
+          strokeOverlay.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
+          strokeOverlay.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
+          strokeOverlay.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
+          strokeOverlay.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+          syncGradient(liveElement.ownerDocument || document, strokeOverlay, 'stroke');
+        } else {
+          liveElement.removeAttribute('data-stroke-gradient-type');
+          liveElement.removeAttribute('data-stroke-stops');
+          liveElement.removeAttribute('data-stroke-angle');
+          liveElement.removeAttribute('data-stroke-radius');
+          
+          strokeOverlay.removeAttribute('stroke-type');
+          strokeOverlay.removeAttribute('stroke-gradient-type');
+          strokeOverlay.removeAttribute('stroke-stops');
+          strokeOverlay.removeAttribute('stroke-angle');
+          strokeOverlay.removeAttribute('stroke-radius');
+
+          strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+        }
         strokeOverlay.setAttribute('stroke-width', weight.toString());
         if (backgroundColor.strokeType === 'Dashed') {
           const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
@@ -639,41 +674,126 @@ const VideoEditor = ({
       }
 
       // Inner Shadow
-      if (isSvgEl && activeEffects.includes('Inner Shadow')) {
+      let innerShadowString = '';
+      if (activeEffects.includes('Inner Shadow')) {
         const ds = effectSettings['Inner Shadow'];
-        const alpha = Math.round((ds.opacity / 100) * 255).toString(16).padStart(2, '0');
-        const colorWithAlpha = ds.color + (ds.color.length === 7 ? alpha : '');
-        const shadowString = `inset ${ds.x}px ${ds.y}px ${ds.blur}px ${ds.spread}px ${colorWithAlpha}`;
-        let overlay = liveElement.querySelector('.svg-video-inner-shadow');
-        if (!overlay) {
-          overlay = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-          overlay.classList.add('svg-video-inner-shadow');
-          overlay.style.pointerEvents = 'none';
-          const div = document.createElement('div');
-          div.className = 'inner-shadow-div';
-          div.style.width = '100%'; div.style.height = '100%';
-          overlay.appendChild(div);
-          liveElement.appendChild(overlay);
-        }
-        if (overlay) {
-          overlay.setAttribute('x', visualTarget.getAttribute('x') || '0');
-          overlay.setAttribute('y', visualTarget.getAttribute('y') || '0');
-          overlay.setAttribute('width', visualTarget.getAttribute('width') || '100%');
-          overlay.setAttribute('height', visualTarget.getAttribute('height') || '100%');
-          overlay.setAttribute('transform', visualTarget.getAttribute('transform') || '');
-          const div = overlay.querySelector('.inner-shadow-div');
-          if (div) {
-            div.style.boxShadow = shadowString;
-            const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
-            div.style.borderRadius = anyR ? `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px` : '0px';
+        const alpha = (ds.opacity !== undefined ? ds.opacity : 35) / 100;
+        const color = ds.color || '#000000';
+        let r = 0, g = 0, b = 0;
+        if (color.startsWith('#')) {
+          const hex = color.replace('#', '');
+          if (hex.length === 3) {
+            r = parseInt(hex[0]+hex[0], 16); g = parseInt(hex[1]+hex[1], 16); b = parseInt(hex[2]+hex[2], 16);
+          } else if (hex.length === 6) {
+            r = parseInt(hex.substring(0,2), 16); g = parseInt(hex.substring(2,4), 16); b = parseInt(hex.substring(4,6), 16);
           }
         }
-      } else if (isSvgEl) {
-        liveElement.querySelector('.svg-video-inner-shadow')?.remove();
+        const rgbaStr = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        innerShadowString = `inset ${ds.x || 0}px ${ds.y || 0}px ${ds.blur || 0}px ${ds.spread || 0}px ${rgbaStr}`;
       }
 
+      if (isSvgEl) {
+        let overlay = liveElement.querySelector('.svg-video-inner-shadow-rect');
+        let oldOverlay = liveElement.querySelector('.svg-video-inner-shadow');
+        if (oldOverlay) oldOverlay.remove();
+        
+        let filterId = liveElement.getAttribute('data-inner-shadow-filter-id');
+
+        if (activeEffects.includes('Inner Shadow')) {
+          const ds = effectSettings['Inner Shadow'];
+          const alpha = (ds.opacity !== undefined ? ds.opacity : 35) / 100;
+          const color = ds.color || '#000000';
+          
+          if (!filterId) {
+            filterId = 'inner-shadow-' + Math.random().toString(36).substr(2, 9);
+            liveElement.setAttribute('data-inner-shadow-filter-id', filterId);
+          }
+          
+          let svgDefs = liveElement.ownerSVGElement?.querySelector('defs');
+          if (!svgDefs && liveElement.ownerSVGElement) {
+            svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            liveElement.ownerSVGElement.prepend(svgDefs);
+          }
+          
+          if (svgDefs) {
+            let filterEl = svgDefs.querySelector(`#${filterId}`);
+            if (!filterEl) {
+              filterEl = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+              filterEl.id = filterId;
+              svgDefs.appendChild(filterEl);
+            }
+            
+            while(filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+            
+            const feOffset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
+            feOffset.setAttribute('dx', ds.x || 0);
+            feOffset.setAttribute('dy', ds.y || 0);
+            
+            const feBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
+            feBlur.setAttribute('stdDeviation', (ds.blur || 0) / 2);
+            feBlur.setAttribute('result', 'offset-blur');
+            
+            const feComp1 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
+            feComp1.setAttribute('operator', 'out');
+            feComp1.setAttribute('in', 'SourceAlpha');
+            feComp1.setAttribute('in2', 'offset-blur');
+            feComp1.setAttribute('result', 'inverse');
+            
+            const feFlood = document.createElementNS('http://www.w3.org/2000/svg', 'feFlood');
+            feFlood.setAttribute('flood-color', color);
+            feFlood.setAttribute('flood-opacity', alpha);
+            feFlood.setAttribute('result', 'color');
+            
+            const feComp2 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
+            feComp2.setAttribute('operator', 'in');
+            feComp2.setAttribute('in', 'color');
+            feComp2.setAttribute('in2', 'inverse');
+            feComp2.setAttribute('result', 'shadow');
+            
+            filterEl.appendChild(feOffset);
+            filterEl.appendChild(feBlur);
+            filterEl.appendChild(feComp1);
+            filterEl.appendChild(feFlood);
+            filterEl.appendChild(feComp2);
+          }
+
+          if (!overlay) {
+            overlay = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            overlay.classList.add('svg-video-inner-shadow-rect');
+            overlay.style.pointerEvents = 'none';
+            overlay.setAttribute('fill', 'white');
+            liveElement.appendChild(overlay);
+          }
+          
+          const targetEl = visualTarget;
+          let box = { x: 0, y: 0, width: 100, height: 100 };
+          try { box = targetEl.getBBox(); } catch(e) {
+            box.x = parseFloat(targetEl.getAttribute('x') || 0);
+            box.y = parseFloat(targetEl.getAttribute('y') || 0);
+            box.width = parseFloat(targetEl.getAttribute('width') || 100);
+            box.height = parseFloat(targetEl.getAttribute('height') || 100);
+          }
+          
+          overlay.setAttribute('x', box.x);
+          overlay.setAttribute('y', box.y);
+          overlay.setAttribute('width', Math.max(1, box.width));
+          overlay.setAttribute('height', Math.max(1, box.height));
+          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          
+          const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
+          if (anyR) overlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl));
+          else overlay.removeAttribute('rx');
+
+          overlay.setAttribute('filter', `url(#${filterId})`);
+        } else {
+          if (overlay) overlay.remove();
+          if (filterId && liveElement.ownerSVGElement) {
+             const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
+             if (f) f.remove();
+          }
+        }
+      } else {
       // Fallback for non-SVG video targets
-      if (!isSvgEl) {
         activeEffects.forEach(eff => {
           const effSet = effectSettings[eff];
           if (!effSet) return;
@@ -681,11 +801,35 @@ const VideoEditor = ({
             const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
             boxShadowStr += `${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.spread}px ${effSet.color}${alpha}, `;
           }
-          if (eff === 'Inner Shadow') {
-            const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
-            boxShadowStr += `inset ${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.spread}px ${effSet.color}${alpha}, `;
-          }
         });
+        
+        let overlay = liveElement.querySelector('.inner-shadow-overlay') || liveElement.parentElement?.querySelector('.inner-shadow-overlay');
+        if (innerShadowString) {
+          const targetParent = (['IMG', 'VIDEO', 'IFRAME'].includes(liveElement.tagName)) ? liveElement.parentElement : liveElement;
+          if (!overlay && targetParent) {
+            overlay = document.createElement('div');
+            overlay.className = 'inner-shadow-overlay';
+            overlay.style.position = 'absolute';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.pointerEvents = 'none';
+            overlay.style.zIndex = '99999'; // High z-index to stay above video
+            overlay.style.boxSizing = 'border-box';
+            if (window.getComputedStyle(targetParent).position === 'static') {
+              targetParent.style.position = 'relative';
+            }
+            targetParent.appendChild(overlay);
+          }
+          if (overlay) {
+            overlay.style.boxShadow = innerShadowString;
+            const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
+            overlay.style.borderRadius = anyR ? `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px` : '0px';
+          }
+        } else if (overlay) {
+          overlay.remove();
+        }
       }
 
       visualTarget.style.filter = filterStr.trim() || 'none';

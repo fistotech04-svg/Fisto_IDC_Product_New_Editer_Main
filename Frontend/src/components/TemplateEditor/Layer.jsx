@@ -301,7 +301,7 @@ const LayerItem = ({
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             className="flex flex-col overflow-hidden"
           >
-            {[...layer.children].reverse().map((child, idx) => (
+            {[...layer.children].filter(c => c.name !== 'Free Frame').reverse().map((child, idx) => (
               <LayerItem
                 key={child.id || idx}
                 layer={child}
@@ -445,6 +445,16 @@ const Layer = ({
       }
     }
   }, [activePageId, activeTab, isVisible]);
+
+  // Switch to layers tab when an element is selected on canvas
+  const prevSelectedLayerIdRef = useRef(selectedLayerId);
+  useEffect(() => {
+    const isRootLayer = pages.some(p => p.layers?.[0]?.id === selectedLayerId);
+    if (selectedLayerId && !isRootLayer && selectedLayerId !== prevSelectedLayerIdRef.current && activeTab === 'pages' && !isPdfProject) {
+      setActiveTab('layers');
+    }
+    prevSelectedLayerIdRef.current = selectedLayerId;
+  }, [selectedLayerId, isPdfProject, pages, activeTab]);
 
   // Fetch all books for uniqueness validation
   useEffect(() => {
@@ -877,7 +887,11 @@ const Layer = ({
             {!isPdfProject && (
               <div className="flex bg-gray-100/50 p-[0.4vw] rounded-[0.8vw] mb-[2vh] gap-[0.4vw]">
                 <button
-                  onClick={() => setActiveTab('pages')}
+                  onClick={() => {
+                    setActiveTab('pages');
+                    setSelectedLayerId(null);
+                    setMultiSelectedIds(new Set());
+                  }}
                   className={`flex-1 py-[0.8vh] rounded-[0.6vw] text-[0.8vw] font-semibold transition-all ${activeTab === 'pages'
                     ? 'bg-white text-gray-900 shadow-sm'
                     : 'text-gray-400 hover:text-gray-600'
@@ -1011,8 +1025,8 @@ const Layer = ({
                               className="overflow-hidden bg-white rounded-b-[0.6vw] border-t border-[#EEF2FF]"
                             >
                               <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
-                                {page.layers && page.layers.length > 0 ? (
-                                  [...page.layers].reverse().map((layer, idx) => (
+                                {page.layers && page.layers.some(l => l.name !== 'Free Frame') ? (
+                                  [...page.layers].filter(l => l.name !== 'Free Frame').reverse().map((layer, idx) => (
                                     <LayerItem
                                       key={layer.id || idx}
                                       layer={layer}
@@ -1077,7 +1091,10 @@ const Layer = ({
                             className={`flex flex-col rounded-[1vw] overflow-hidden bg-white shadow-sm transition-all cursor-pointer relative border-[0.15vw] ${activePageIndex === index ? 'border-indigo-500 shadow-md' : 'border-gray-200 hover:border-gray-300'
                               } ${draggedPageIndex === index ? 'opacity-40 grayscale-[0.5]' : ''}`}
                             id={`page-card-preview-${page.id}`}
-                            onClick={() => setActivePageIndex(index)}
+                            onClick={() => {
+                              setActivePageIndex(index);
+                              if (!isPdfProject) setActiveTab('layers');
+                            }}
                           >
                             {/* Page Header */}
                             <div className={`flex items-center justify-between px-[1vw] py-[1vh] border-b transition-colors ${activePageIndex === index ? 'border-indigo-100 bg-[#EEF2FF]/50' : 'border-gray-100'
@@ -1131,7 +1148,7 @@ const Layer = ({
                                   <div
                                     className="w-full h-full flex items-center justify-center"
                                     dangerouslySetInnerHTML={{
-                                      __html: page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"')
+                                      __html: `<style>#page-card-preview-${page.id} [data-name="Free Frame"] { display: none !important; }</style>` + page.html.replace(/<svg/, '<svg width="100%" height="100%" preserveAspectRatio="xMidYMid meet"')
                                     }}
                                   />
                                 )}

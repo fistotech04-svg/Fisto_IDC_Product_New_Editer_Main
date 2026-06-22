@@ -124,12 +124,7 @@ const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled =
           value={value || 0}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-grow h-[0.1vw] appearance-none cursor-pointer bg-gray-200 rounded-full outline-none disabled:cursor-not-allowed"
-          style={{
-            background: disabled
-              ? '#e5e7eb'
-              : `linear-gradient(to right, #6366f1 0%, #6366f1 ${((value || 0) - min) / (max - min) * 100}%, #e5e7eb ${((value || 0) - min) / (max - min) * 100}%, #e5e7eb 100%)`,
-          }}
+          className="flex-grow h-[0.3vw] accent-[#5d5efc] cursor-pointer outline-none disabled:cursor-not-allowed"
         />
         <div className="w-[2.8vw] h-[1.8vw] flex items-center justify-center bg-white border border-gray-100 rounded-[0.4vw] shadow-sm overflow-hidden">
           <input
@@ -411,18 +406,20 @@ const ShapePropertiesUI = ({
     };
 
     const handleClickOutside = (e) => {
-      if (activeColorPicker || showStrokeSettings) {
+      if (activeColorPicker || showStrokeSettings || activeEffectPopupId) {
         const isSelector = e.target.closest('#main-color-selector');
         const isPicker = e.target.closest('#deep-color-picker');
         const isTrigger = e.target.closest('.color-field-trigger');
         const isStrokePopup = e.target.closest('#stroke-settings-popup');
 
         const isEffectPopup = e.target.closest('.effect-popup-container');
-        if (!isSelector && !isPicker && !isTrigger && !isStrokePopup && !isEffectPopup) {
+        const isEffectRow = e.target.closest('.effect-row');
+        if (!isSelector && !isPicker && !isTrigger && !isStrokePopup && !isEffectPopup && !isEffectRow) {
           setActiveColorPicker(null);
           setShowStrokeSettings(false);
           setShowDetailedPicker(false);
           setIsTypeDropdownOpen(false);
+          setActiveEffectPopupId(null);
         } else if (!e.target.closest('.type-dropdown-container')) {
           setIsTypeDropdownOpen(false);
         }
@@ -900,10 +897,7 @@ const ShapePropertiesUI = ({
                           min="0" max="100"
                           value={selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
-                          className="blue-thumb flex-grow h-[0.15vw] appearance-none cursor-pointer rounded-full outline-none min-w-[5.5vw]"
-                          style={{
-                            background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%, #e5e7eb ${selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%, #e5e7eb 100%)`
-                          }}
+                          className="flex-grow h-[0.3vw] accent-[#5d5efc] cursor-pointer outline-none min-w-[5.5vw]"
                         />
                         <span className="text-[0.5vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0">
                           {selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
@@ -914,7 +908,7 @@ const ShapePropertiesUI = ({
                 </div>
 
                 {/* Axis, Blur, Spread Grid */}
-                <div className="space-y-[0.8vw] pt-[0.2vw] pl-[1vw]">
+                <div className="space-y-[0.8vw] pt-[0.2vw]">
                   {[
                     { id: 'x', label: 'X Axis :', default: 4 },
                     { id: 'y', label: 'Y Axis :', default: 4 },
@@ -1170,71 +1164,72 @@ const ShapePropertiesUI = ({
           }}
         >
           <div className="animate-in fade-in zoom-in-95 duration-200">
-          <ColorPicker
-            color={(() => {
-              if (activeColorPicker.includes('effect-')) {
-                return selectedElementProps[activeColorPicker] || '#000000';
-              }
-              const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
-              const currentVal = selectedElementProps[activeColorPicker] || '#000000';
-              const stopsJson = selectedElementProps[`${activeColorPicker}-stops`];
-              if ((type === 'gradient' || currentVal.toLowerCase().includes('url(#')) && stopsJson) {
-                const stops = JSON.parse(stopsJson || JSON.stringify(defaultStops));
-                const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
-                // Convert back to CSS string for the picker
-                return generateGradientString(
-                  gType.charAt(0).toUpperCase() + gType.slice(1),
-                  stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
-                  parseInt(selectedElementProps[`${activeColorPicker}-angle`] || '0'),
-                  parseInt(selectedElementProps[`${activeColorPicker}-radius`] || '100')
-                );
-              }
-              return selectedElementProps[activeColorPicker] || '#000000';
-            })()}
-            onChange={(newVal) => {
-              if (activeColorPicker.includes('effect-')) {
-                updateAttr(activeColorPicker, newVal);
-                return;
-              }
-
-              if (newVal.includes('gradient')) {
-                const parsed = parseGradient(newVal);
-                if (parsed) {
-                  updateAttr(`${activeColorPicker}-type`, 'gradient');
-                  updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
-                  updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
-                    color: s.color,
-                    offset: s.offset,
-                    opacity: s.opacity / 100
-                  }))));
-                  updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
-                  updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
+            <ColorPicker
+              color={(() => {
+                if (activeColorPicker.includes('effect-')) {
+                  return selectedElementProps[activeColorPicker] || '#000000';
                 }
-              } else {
-                updateAttr(activeColorPicker, newVal);
-                updateAttr(`${activeColorPicker}-type`, 'solid');
-              }
-            }}
-            opacity={(() => {
-              if (activeColorPicker.includes('effect-')) {
-                const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
-                return selectedElementProps[`data-effect-${effectId}-opacity`] || 35;
-              }
-              return activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100;
-            })()}
-            onOpacityChange={(newOpacity) => {
-              if (activeColorPicker.includes('effect-')) {
-                const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
-                updateAttr(`data-effect-${effectId}-opacity`, newOpacity.toString());
-                return;
-              }
-              if (activeColorPicker === 'fill') {
-                updateAttr('opacity', (newOpacity / 100).toString());
-              }
-            }}
-            onClose={() => setActiveColorPicker(null)}
-            colorsOnPage={colorsOnPage}
-          />
+                const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
+                const currentVal = selectedElementProps[activeColorPicker] || '#000000';
+                const stopsJson = selectedElementProps[`${activeColorPicker}-stops`];
+                if (type === 'gradient' || currentVal.toLowerCase().includes('url(#')) {
+                  const stops = stopsJson ? JSON.parse(stopsJson) : defaultStops;
+                  const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
+                  // Convert back to CSS string for the picker
+                  return generateGradientString(
+                    gType.charAt(0).toUpperCase() + gType.slice(1),
+                    stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
+                    parseInt(selectedElementProps[`${activeColorPicker}-angle`] || '0'),
+                    parseInt(selectedElementProps[`${activeColorPicker}-radius`] || '100')
+                  );
+                }
+                return selectedElementProps[activeColorPicker] || '#000000';
+              })()}
+              onChange={(newVal) => {
+                if (activeColorPicker.includes('effect-')) {
+                  updateAttr(activeColorPicker, newVal);
+                  return;
+                }
+
+                if (newVal.includes('gradient')) {
+                  const parsed = parseGradient(newVal);
+                  if (parsed) {
+                    updateAttr(`${activeColorPicker}-type`, 'gradient');
+                    updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
+                    updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
+                      color: s.color,
+                      offset: s.offset,
+                      opacity: s.opacity / 100
+                    }))));
+                    updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
+                    updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
+                    updateAttr(activeColorPicker, newVal);
+                  }
+                } else {
+                  updateAttr(activeColorPicker, newVal);
+                  updateAttr(`${activeColorPicker}-type`, 'solid');
+                }
+              }}
+              opacity={(() => {
+                if (activeColorPicker.includes('effect-')) {
+                  const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
+                  return selectedElementProps[`data-effect-${effectId}-opacity`] || 35;
+                }
+                return activeColorPicker === 'fill' ? (parseFloat(selectedElementProps.opacity || 1) * 100) : 100;
+              })()}
+              onOpacityChange={(newOpacity) => {
+                if (activeColorPicker.includes('effect-')) {
+                  const effectId = activeColorPicker.match(/effect-(.*)-color/)?.[1];
+                  updateAttr(`data-effect-${effectId}-opacity`, newOpacity.toString());
+                  return;
+                }
+                if (activeColorPicker === 'fill') {
+                  updateAttr('opacity', (newOpacity / 100).toString());
+                }
+              }}
+              onClose={() => setActiveColorPicker(null)}
+              colorsOnPage={colorsOnPage}
+            />
           </div>
         </div>,
         document.body
@@ -1245,22 +1240,7 @@ const ShapePropertiesUI = ({
         .hide-opacity-bar .space-y-\\[1vw\\] > div:nth-child(2) {
           display: none !important;
         }
-        input[type='range']::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          height: 1.1vw;
-          width: 1.1vw;
-          border-radius: 50%;
-          background: #ffffff;
-          border: 0.1vw solid #e5e7eb;
-          box-shadow: 0 0.1vw 0.3vw rgba(0,0,0,0.1);
-          cursor: pointer;
-        }
-        input[type='range'].blue-thumb::-webkit-slider-thumb {
-          background: #6366f1;
-          border-color: #6366f1;
-          height: 0.8vw;
-          width: 0.8vw;
-        }
+
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;
@@ -1313,6 +1293,17 @@ const SubComponent = ({
     fill: backgroundColor?.fill || '#000000',
     opacity: (backgroundColor?.fillOpacity || 100) / 100,
     stroke: backgroundColor?.stroke || 'none',
+    'stroke-opacity': (backgroundColor?.strokeOpacity !== undefined ? backgroundColor.strokeOpacity : 100) / 100,
+    'fill-type': backgroundColor?.fillType || 'solid',
+    'fill-gradient-type': backgroundColor?.fillGradientType || 'linear',
+    'fill-stops': backgroundColor?.fillStops,
+    'fill-angle': backgroundColor?.fillAngle || 0,
+    'fill-radius': backgroundColor?.fillRadius || 100,
+    'stroke-type': backgroundColor?.strokeType || 'solid',
+    'stroke-gradient-type': backgroundColor?.strokeGradientType || 'linear',
+    'stroke-stops': backgroundColor?.strokeStops,
+    'stroke-angle': backgroundColor?.strokeAngle || 0,
+    'stroke-radius': backgroundColor?.strokeRadius || 100,
     'stroke-width': backgroundColor?.strokeWeight || 0,
     strokeWidth: backgroundColor?.strokeWeight || 0,
     'stroke-dasharray': backgroundColor?.strokeType === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
@@ -1334,14 +1325,18 @@ const SubComponent = ({
     'data-effect-drop-shadow-opacity': effectSettings?.['Drop Shadow']?.opacity || 35,
     'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x || 4,
     'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y || 4,
-    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur || 4,
+    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur || 1,
+    'data-effect-drop-shadow-spread': effectSettings?.['Drop Shadow']?.spread || 0,
     'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color || '#000000',
     'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity || 35,
-    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x || 0,
-    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y || 0,
-    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur || 10,
-    'data-effect-blur-value': effectSettings?.['Blur']?.blur || 5,
-    'data-effect-background-blur-value': effectSettings?.['Background Blur']?.blur || 10,
+    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x || 4,
+    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y || 4,
+    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur || 1,
+    'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread || 0,
+    'data-effect-blur-value': effectSettings?.['Blur']?.blur || 4,
+    'data-effect-blur-spread': effectSettings?.['Blur']?.spread || 0,
+    'data-effect-background-blur-value': effectSettings?.['Background Blur']?.blur || 4,
+    'data-effect-background-blur-spread': effectSettings?.['Background Blur']?.spread || 0,
     'data-filter-exposure': filters?.exposure || 0,
     'data-filter-contrast': filters?.contrast || 0,
     'data-filter-saturation': filters?.saturation || 0,
@@ -1354,8 +1349,18 @@ const SubComponent = ({
 
   const handleUpdate = (page, layer, attr, value) => {
     if (attr === 'fill' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fill: value }));
+    if (attr === 'fill-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillType: value }));
+    if (attr === 'fill-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillGradientType: value }));
+    if (attr === 'fill-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillStops: value }));
+    if (attr === 'fill-angle' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillAngle: parseFloat(value) }));
+    if (attr === 'fill-radius' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillRadius: parseFloat(value) }));
     if (attr === 'opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillOpacity: parseFloat(value) * 100 }));
     if (attr === 'stroke' && setBackgroundColor) setBackgroundColor(p => ({ ...p, stroke: value }));
+    if (attr === 'stroke-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeType: value }));
+    if (attr === 'stroke-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeGradientType: value }));
+    if (attr === 'stroke-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeStops: value }));
+    if (attr === 'stroke-angle' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeAngle: parseFloat(value) }));
+    if (attr === 'stroke-radius' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeRadius: parseFloat(value) }));
     if (attr === 'stroke-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeOpacity: parseFloat(value) * 100 }));
     if (attr === 'stroke-width' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeWeight: parseFloat(value) }));
     if (attr === 'stroke-dasharray' && setBackgroundColor) {
@@ -1380,7 +1385,7 @@ const SubComponent = ({
     if (attr === 'data-bl' && setRadius) setRadius(p => ({ ...p, bl: parseFloat(value) }));
     if (attr === 'data-br' && setRadius) setRadius(p => ({ ...p, br: parseFloat(value) }));
     if ((attr === 'rx' || attr === 'ry') && setRadius) {
-      setRadius(p => ({ tl: parseFloat(value), tr: parseFloat(value), bl: parseFloat(value), br: parseFloat(value) }));
+      setRadius(p => ({ ...p, tl: parseFloat(value), tr: parseFloat(value), bl: parseFloat(value), br: parseFloat(value) }));
     }
     if (attr === 'data-corner-linked' && setIsRadiusLinked) setIsRadiusLinked(value === 'true');
 
@@ -1392,12 +1397,56 @@ const SubComponent = ({
     if (attr.startsWith('data-effect-')) {
       if (attr === 'data-effect-drop-shadow') {
         if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Drop Shadow'])] : p.filter(e => e !== 'Drop Shadow'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Drop Shadow': {
+              color: p['Drop Shadow']?.color || '#000000',
+              opacity: p['Drop Shadow']?.opacity ?? 35,
+              x: p['Drop Shadow']?.x ?? 4,
+              y: p['Drop Shadow']?.y ?? 4,
+              blur: p['Drop Shadow']?.blur ?? 1,
+              spread: p['Drop Shadow']?.spread ?? 0
+            }
+          }));
+        }
       } else if (attr === 'data-effect-inner-shadow') {
         if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Inner Shadow'])] : p.filter(e => e !== 'Inner Shadow'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Inner Shadow': {
+              color: p['Inner Shadow']?.color || '#000000',
+              opacity: p['Inner Shadow']?.opacity ?? 35,
+              x: p['Inner Shadow']?.x ?? 4,
+              y: p['Inner Shadow']?.y ?? 4,
+              blur: p['Inner Shadow']?.blur ?? 1,
+              spread: p['Inner Shadow']?.spread ?? 0
+            }
+          }));
+        }
       } else if (attr === 'data-effect-blur') {
         if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Blur'])] : p.filter(e => e !== 'Blur'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Blur': {
+              blur: p['Blur']?.blur ?? 4,
+              spread: p['Blur']?.spread ?? 0
+            }
+          }));
+        }
       } else if (attr === 'data-effect-background-blur') {
         if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Background Blur'])] : p.filter(e => e !== 'Background Blur'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Background Blur': {
+              blur: p['Background Blur']?.blur ?? 4,
+              spread: p['Background Blur']?.spread ?? 0
+            }
+          }));
+        }
       } else {
         let effectName = '';
         let setting = '';

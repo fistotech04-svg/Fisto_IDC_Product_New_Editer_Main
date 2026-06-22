@@ -397,18 +397,20 @@ const ShapeProperties = ({
     };
 
     const handleClickOutside = (e) => {
-      if (activeColorPicker || showStrokeSettings) {
+      if (activeColorPicker || showStrokeSettings || activeEffectPopupId) {
         const isSelector = e.target.closest('#main-color-selector');
         const isPicker = e.target.closest('#deep-color-picker');
         const isTrigger = e.target.closest('.color-field-trigger');
         const isStrokePopup = e.target.closest('#stroke-settings-popup');
 
         const isEffectPopup = e.target.closest('.effect-popup-container');
-        if (!isSelector && !isPicker && !isTrigger && !isStrokePopup && !isEffectPopup) {
+        const isEffectRow = e.target.closest('.effect-row');
+        if (!isSelector && !isPicker && !isTrigger && !isStrokePopup && !isEffectPopup && !isEffectRow) {
           setActiveColorPicker(null);
           setShowStrokeSettings(false);
           setShowDetailedPicker(false);
           setIsTypeDropdownOpen(false);
+          setActiveEffectPopupId(null);
         } else if (!e.target.closest('.type-dropdown-container')) {
           setIsTypeDropdownOpen(false);
         }
@@ -877,7 +879,7 @@ const ShapeProperties = ({
                 </div>
 
                 {/* Axis, Blur, Spread Grid */}
-                <div className="space-y-[0.8vw] pt-[0.2vw] pl-[1vw]">
+                <div className="space-y-[0.8vw] pt-[0.2vw]">
                   {[
                     { id: 'x', label: 'X Axis :', default: 4 },
                     { id: 'y', label: 'Y Axis :', default: 4 },
@@ -1143,8 +1145,8 @@ const ShapeProperties = ({
                 const type = selectedElementProps[`${activeColorPicker}-type`] || 'solid';
                 const currentVal = selectedElementProps[activeColorPicker] || '#000000';
                 const stopsJson = selectedElementProps[`${activeColorPicker}-stops`];
-                if ((type === 'gradient' || currentVal.toLowerCase().includes('url(#')) && stopsJson) {
-                  const stops = JSON.parse(stopsJson || JSON.stringify(defaultStops));
+                if (type === 'gradient' || currentVal.toLowerCase().includes('url(#')) {
+                  const stops = stopsJson ? JSON.parse(stopsJson) : defaultStops;
                   const gType = selectedElementProps[`${activeColorPicker}-gradient-type`] || 'linear';
                   // Convert back to CSS string for the picker
                   return generateGradientString(
@@ -1174,6 +1176,7 @@ const ShapeProperties = ({
                     }))));
                     updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
                     updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
+                    updateAttr(activeColorPicker, newVal);
                   }
                 } else {
                   updateAttr(activeColorPicker, newVal);

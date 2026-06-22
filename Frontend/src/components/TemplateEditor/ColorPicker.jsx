@@ -88,7 +88,7 @@ export const parseGradient = (gradientStr) => {
       gradientStr.includes('linear-gradient(to top left') ? 'Diamond' : 'Linear';
 
   // For Diamond, we only want to parse the first gradient's stops
-  const parseStr = type === 'Diamond' ? gradientStr.split('),')[0] : gradientStr;
+  const parseStr = type === 'Diamond' ? gradientStr.split('no-repeat,')[0] : gradientStr;
 
   // Extract stops
   const stops = [];

@@ -113,63 +113,63 @@ const TemplateEditor = () => {
   const [qrCornerSquareType, setQrCornerSquareType] = useState('square');
   const [qrCornerDotType, setQrCornerDotType] = useState('square');
   const [qrLogo, setQrLogo] = useState(null);
-  
+
   const [topText, setTopText] = useState('You can Rotate 3D object');
   const [bottomText, setBottomText] = useState('Machine');
 
   useEffect(() => {
     if (current3DItem && is3DModalOpen) {
-       const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
-       const el = doc.getElementById(current3DItem.id);
-       if (el) {
-          const confStr = el.getAttribute('data-interaction-config');
-          if (confStr) {
-             try {
-                const conf = JSON.parse(confStr);
-                if (conf.shadowStrength !== undefined) setShadowStrength(conf.shadowStrength);
-                if (conf.shadowSoftness !== undefined) setShadowSoftness(conf.shadowSoftness);
-                if (conf.autoRotate !== undefined) setAutoRotate(conf.autoRotate);
-                if (conf.autoRotateSpeed !== undefined) setAutoRotateSpeed(conf.autoRotateSpeed);
-                if (conf.lockMaxZoom !== undefined) setLockMaxZoom(conf.lockMaxZoom);
-                if (conf.maxZoom !== undefined) setMaxZoom(conf.maxZoom);
-                if (conf.bgType !== undefined) setBgType(conf.bgType);
-                if (conf.bgColor !== undefined) setBgColor(conf.bgColor);
-                if (conf.customBg !== undefined) setCustomBg(conf.customBg);
-                if (conf.enableAR !== undefined) setEnableAR(conf.enableAR);
-                if (conf.qrText !== undefined) setQrText(conf.qrText);
-                if (conf.qrColor !== undefined) setQrColor(conf.qrColor);
-                if (conf.qrBgType !== undefined) setQrBgType(conf.qrBgType);
-                if (conf.qrBgColor !== undefined) setQrBgColor(conf.qrBgColor);
-                if (conf.qrLevel !== undefined) setQrLevel(conf.qrLevel);
-                if (conf.qrDotType !== undefined) setQrDotType(conf.qrDotType);
-                if (conf.qrCornerSquareType !== undefined) setQrCornerSquareType(conf.qrCornerSquareType);
-                if (conf.qrCornerDotType !== undefined) setQrCornerDotType(conf.qrCornerDotType);
-                if (conf.qrLogo !== undefined) setQrLogo(conf.qrLogo);
-                if (conf.topText !== undefined) setTopText(conf.topText);
-                if (conf.bottomText !== undefined) setBottomText(conf.bottomText);
-             } catch(e) {}
-          }
-          
-          // Fetch latest displayName from DB for Modal Name
-          const dataVal = el.getAttribute('data-interaction-value');
-          if (dataVal && dataVal.startsWith('{')) {
-              try {
-                  const parsed = JSON.parse(dataVal);
-                  if (parsed.v_id) {
-                      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                      axios.get(`${backendUrl}/api/3d-models/get-model/${parsed.v_id}`)
-                          .then(res => {
-                              if (res.data && res.data.displayName) {
-                                  setBottomText(res.data.displayName);
-                              } else if (res.data && res.data.name) {
-                                  setBottomText(res.data.name);
-                              }
-                          })
-                          .catch(err => console.error("Failed to fetch 3D model name:", err));
+      const doc = new DOMParser().parseFromString(pages[activePageIndex]?.html || '', 'image/svg+xml');
+      const el = doc.getElementById(current3DItem.id);
+      if (el) {
+        const confStr = el.getAttribute('data-interaction-config');
+        if (confStr) {
+          try {
+            const conf = JSON.parse(confStr);
+            if (conf.shadowStrength !== undefined) setShadowStrength(conf.shadowStrength);
+            if (conf.shadowSoftness !== undefined) setShadowSoftness(conf.shadowSoftness);
+            if (conf.autoRotate !== undefined) setAutoRotate(conf.autoRotate);
+            if (conf.autoRotateSpeed !== undefined) setAutoRotateSpeed(conf.autoRotateSpeed);
+            if (conf.lockMaxZoom !== undefined) setLockMaxZoom(conf.lockMaxZoom);
+            if (conf.maxZoom !== undefined) setMaxZoom(conf.maxZoom);
+            if (conf.bgType !== undefined) setBgType(conf.bgType);
+            if (conf.bgColor !== undefined) setBgColor(conf.bgColor);
+            if (conf.customBg !== undefined) setCustomBg(conf.customBg);
+            if (conf.enableAR !== undefined) setEnableAR(conf.enableAR);
+            if (conf.qrText !== undefined) setQrText(conf.qrText);
+            if (conf.qrColor !== undefined) setQrColor(conf.qrColor);
+            if (conf.qrBgType !== undefined) setQrBgType(conf.qrBgType);
+            if (conf.qrBgColor !== undefined) setQrBgColor(conf.qrBgColor);
+            if (conf.qrLevel !== undefined) setQrLevel(conf.qrLevel);
+            if (conf.qrDotType !== undefined) setQrDotType(conf.qrDotType);
+            if (conf.qrCornerSquareType !== undefined) setQrCornerSquareType(conf.qrCornerSquareType);
+            if (conf.qrCornerDotType !== undefined) setQrCornerDotType(conf.qrCornerDotType);
+            if (conf.qrLogo !== undefined) setQrLogo(conf.qrLogo);
+            if (conf.topText !== undefined) setTopText(conf.topText);
+            if (conf.bottomText !== undefined) setBottomText(conf.bottomText);
+          } catch (e) { }
+        }
+
+        // Fetch latest displayName from DB for Modal Name
+        const dataVal = el.getAttribute('data-interaction-value');
+        if (dataVal && dataVal.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(dataVal);
+            if (parsed.v_id) {
+              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+              axios.get(`${backendUrl}/api/3d-models/get-model/${parsed.v_id}`)
+                .then(res => {
+                  if (res.data && res.data.displayName) {
+                    setBottomText(res.data.displayName);
+                  } else if (res.data && res.data.name) {
+                    setBottomText(res.data.name);
                   }
-              } catch (e) {}
-          }
-       }
+                })
+                .catch(err => console.error("Failed to fetch 3D model name:", err));
+            }
+          } catch (e) { }
+        }
+      }
     }
   }, [current3DItem, is3DModalOpen]); // Load only on open
 
@@ -181,47 +181,47 @@ const TemplateEditor = () => {
         qrText, qrColor, qrBgType, qrBgColor, qrLevel, qrDotType, qrCornerSquareType, qrCornerDotType, qrLogo,
         topText, bottomText
       };
-      
-      setPages(prevPages => {
-         const newPages = [...prevPages];
-         if (!newPages[activePageIndex]) return newPages;
-         const page = { ...newPages[activePageIndex] };
-         if (page.html) {
-             const parser = new DOMParser();
-             const doc = parser.parseFromString(page.html, 'image/svg+xml');
-             const el = doc.getElementById(current3DItem.id);
-             if (el) {
-                 el.setAttribute('data-interaction-config', JSON.stringify(configObj));
-                 
-                 // Save the manually updated Modal Name (bottomText) back to DB
-                 const dataVal = el.getAttribute('data-interaction-value');
-                 if (dataVal && dataVal.startsWith('{')) {
-                     try {
-                         const parsed = JSON.parse(dataVal);
-                         if (parsed.v_id) {
-                             parsed.name = bottomText;
-                             el.setAttribute('data-interaction-value', JSON.stringify(parsed));
-                             
-                             const storedUser = localStorage.getItem('user');
-                             const user = storedUser ? JSON.parse(storedUser) : null;
-                             if (user?.emailId) {
-                                 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                                 axios.post(`${backendUrl}/api/3d-models/rename-label`, {
-                                     emailId: user.emailId,
-                                     modelId: parsed.v_id,
-                                     newName: bottomText
-                                 }).catch(err => console.error("Failed to update 3D model name in DB:", err));
-                             }
-                         }
-                     } catch(e) {}
-                 }
 
-                 const serializer = new XMLSerializer();
-                 page.html = serializer.serializeToString(doc.documentElement);
-                 newPages[activePageIndex] = page;
-             }
-         }
-         return newPages;
+      setPages(prevPages => {
+        const newPages = [...prevPages];
+        if (!newPages[activePageIndex]) return newPages;
+        const page = { ...newPages[activePageIndex] };
+        if (page.html) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(page.html, 'image/svg+xml');
+          const el = doc.getElementById(current3DItem.id);
+          if (el) {
+            el.setAttribute('data-interaction-config', JSON.stringify(configObj));
+
+            // Save the manually updated Modal Name (bottomText) back to DB
+            const dataVal = el.getAttribute('data-interaction-value');
+            if (dataVal && dataVal.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(dataVal);
+                if (parsed.v_id) {
+                  parsed.name = bottomText;
+                  el.setAttribute('data-interaction-value', JSON.stringify(parsed));
+
+                  const storedUser = localStorage.getItem('user');
+                  const user = storedUser ? JSON.parse(storedUser) : null;
+                  if (user?.emailId) {
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                    axios.post(`${backendUrl}/api/3d-models/rename-label`, {
+                      emailId: user.emailId,
+                      modelId: parsed.v_id,
+                      newName: bottomText
+                    }).catch(err => console.error("Failed to update 3D model name in DB:", err));
+                  }
+                }
+              } catch (e) { }
+            }
+
+            const serializer = new XMLSerializer();
+            page.html = serializer.serializeToString(doc.documentElement);
+            newPages[activePageIndex] = page;
+          }
+        }
+        return newPages;
       });
     }
   }, [is3DModalOpen, current3DItem, activePageIndex, shadowStrength, shadowSoftness, autoRotate, autoRotateSpeed, lockMaxZoom, maxZoom, bgType, bgColor, customBg, enableAR, qrText, qrColor, qrBgType, qrBgColor, qrLevel, qrDotType, qrCornerSquareType, qrCornerDotType, qrLogo, topText, bottomText]); // Save on close with latest values
@@ -289,106 +289,106 @@ const TemplateEditor = () => {
 
       pagesToSave = await Promise.all(pagesToSave.map(async (p) => {
         if (!p.html || !p.html.includes('data-interaction="3d-viewer"')) return p;
-        
+
         let newHtml = p.html;
         try {
           const parser = new DOMParser();
           const doc = parser.parseFromString(newHtml, 'text/html');
           const threedElements = doc.querySelectorAll('[data-interaction="3d-viewer"]');
-          
+
           for (let el of threedElements) {
-             let dataVal = el.getAttribute('data-interaction-value');
-             if (!dataVal) continue;
-             
-             let actualDataUri = null;
-             
-             if (dataVal.startsWith('{')) {
-                try {
-                   const originalJson = JSON.parse(dataVal);
-                   if (originalJson.data && (originalJson.data.startsWith('data:') || originalJson.data.startsWith('blob:'))) {
-                       actualDataUri = originalJson.data;
-                   }
-                } catch(e){}
-             } else if (dataVal.startsWith('data:') || dataVal.startsWith('blob:')) {
-                actualDataUri = dataVal;
-             }
-             
-             if (actualDataUri) {
-                const res = await fetch(actualDataUri);
-                const blob = await res.blob();
-                
-                 const formData = new FormData();
-                 formData.append('emailId', user?.emailId);
-                 formData.append('folderName', fNameFor3D);
-                 formData.append('flipbookName', bNameFor3D);
-                 
-                 let isFromGallery = false;
-                 let fileName = `model_${Date.now()}.glb`;
-                 try {
-                     if (dataVal.startsWith('{')) {
-                         const originalJson = JSON.parse(dataVal);
-                         if (originalJson.fromGallery) isFromGallery = true;
-                         if (originalJson.name) fileName = originalJson.name;
-                     }
-                 } catch(e) {}
-                 
-                 if (isFromGallery) {
-                     formData.append('skipGlobalGallery', 'true');
-                 }
-                 
-                 formData.append('model', blob, fileName);
-                
-                const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-3d-model`, formData, {
-                   headers: { 'Content-Type': 'multipart/form-data' }
-                });
-                
-                if (uploadRes.data && uploadRes.data.url) {
-                   // url is relative: ./assets/3D_Model/<filename>
-                   const finalUrl = uploadRes.data.url;
-                   const absoluteUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${finalUrl.replace(/^\.\//, '')}`;
-                   
-                   let newHtmlVal = dataVal.replace(actualDataUri, absoluteUrl);
-                   if (dataVal.startsWith('{') && uploadRes.data.v_id) {
-                       try {
-                           const obj = JSON.parse(newHtmlVal);
-                           obj.v_id = uploadRes.data.v_id;
-                           newHtmlVal = JSON.stringify(obj);
-                       } catch(e) {}
-                   }
+            let dataVal = el.getAttribute('data-interaction-value');
+            if (!dataVal) continue;
 
-                   const escapedOld = dataVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-                   const escapedNew = newHtmlVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
-                   
-                   if (newHtml.includes(escapedOld)) {
-                       newHtml = newHtml.replace(escapedOld, escapedNew);
-                   } else if (newHtml.includes(dataVal)) {
-                       newHtml = newHtml.replace(dataVal, newHtmlVal);
-                   } else {
-                       newHtml = newHtml.replace(actualDataUri, absoluteUrl);
-                   }
+            let actualDataUri = null;
 
-                   // Update live DOM immediately to prevent stale interaction states in UI
-                   try {
-                       const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-                       if (editorDoc) {
-                           const liveEls = editorDoc.querySelectorAll('[data-interaction="3d-viewer"]');
-                           liveEls.forEach(lEl => {
-                               const lDataVal = lEl.getAttribute('data-interaction-value');
-                               if (lDataVal && lDataVal === dataVal) {
-                                   lEl.setAttribute('data-interaction-value', newHtmlVal);
-                               } else if (lDataVal && lDataVal.includes(actualDataUri)) {
-                                   lEl.setAttribute('data-interaction-value', lDataVal.replace(actualDataUri, absoluteUrl));
-                               }
-                           });
-                       }
-                   } catch(e) {}
+            if (dataVal.startsWith('{')) {
+              try {
+                const originalJson = JSON.parse(dataVal);
+                if (originalJson.data && (originalJson.data.startsWith('data:') || originalJson.data.startsWith('blob:'))) {
+                  actualDataUri = originalJson.data;
                 }
-             }
+              } catch (e) { }
+            } else if (dataVal.startsWith('data:') || dataVal.startsWith('blob:')) {
+              actualDataUri = dataVal;
+            }
+
+            if (actualDataUri) {
+              const res = await fetch(actualDataUri);
+              const blob = await res.blob();
+
+              const formData = new FormData();
+              formData.append('emailId', user?.emailId);
+              formData.append('folderName', fNameFor3D);
+              formData.append('flipbookName', bNameFor3D);
+
+              let isFromGallery = false;
+              let fileName = `model_${Date.now()}.glb`;
+              try {
+                if (dataVal.startsWith('{')) {
+                  const originalJson = JSON.parse(dataVal);
+                  if (originalJson.fromGallery) isFromGallery = true;
+                  if (originalJson.name) fileName = originalJson.name;
+                }
+              } catch (e) { }
+
+              if (isFromGallery) {
+                formData.append('skipGlobalGallery', 'true');
+              }
+
+              formData.append('model', blob, fileName);
+
+              const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-3d-model`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+              });
+
+              if (uploadRes.data && uploadRes.data.url) {
+                // url is relative: ./assets/3D_Model/<filename>
+                const finalUrl = uploadRes.data.url;
+                const absoluteUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${finalUrl.replace(/^\.\//, '')}`;
+
+                let newHtmlVal = dataVal.replace(actualDataUri, absoluteUrl);
+                if (dataVal.startsWith('{') && uploadRes.data.v_id) {
+                  try {
+                    const obj = JSON.parse(newHtmlVal);
+                    obj.v_id = uploadRes.data.v_id;
+                    newHtmlVal = JSON.stringify(obj);
+                  } catch (e) { }
+                }
+
+                const escapedOld = dataVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+                const escapedNew = newHtmlVal.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+                if (newHtml.includes(escapedOld)) {
+                  newHtml = newHtml.replace(escapedOld, escapedNew);
+                } else if (newHtml.includes(dataVal)) {
+                  newHtml = newHtml.replace(dataVal, newHtmlVal);
+                } else {
+                  newHtml = newHtml.replace(actualDataUri, absoluteUrl);
+                }
+
+                // Update live DOM immediately to prevent stale interaction states in UI
+                try {
+                  const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                  if (editorDoc) {
+                    const liveEls = editorDoc.querySelectorAll('[data-interaction="3d-viewer"]');
+                    liveEls.forEach(lEl => {
+                      const lDataVal = lEl.getAttribute('data-interaction-value');
+                      if (lDataVal && lDataVal === dataVal) {
+                        lEl.setAttribute('data-interaction-value', newHtmlVal);
+                      } else if (lDataVal && lDataVal.includes(actualDataUri)) {
+                        lEl.setAttribute('data-interaction-value', lDataVal.replace(actualDataUri, absoluteUrl));
+                      }
+                    });
+                  }
+                } catch (e) { }
+              }
+            }
           }
         } catch (err) {
-           console.error('Error processing 3D models in page before save', err);
+          console.error('Error processing 3D models in page before save', err);
         }
-        
+
         return { ...p, html: newHtml };
       }));
 
@@ -791,12 +791,12 @@ const TemplateEditor = () => {
         frame.setAttribute('id', `popup-frame-${Math.random().toString(36).substr(2, 9)}`);
 
         // Move children into the frame (leaving defs/style at the root if possible)
-        const childrenToMove = Array.from(svgEl.children).filter(c => 
-          c.tagName.toLowerCase() !== 'defs' && 
+        const childrenToMove = Array.from(svgEl.children).filter(c =>
+          c.tagName.toLowerCase() !== 'defs' &&
           c.tagName.toLowerCase() !== 'style'
         );
         childrenToMove.forEach(c => frame.appendChild(c));
-        
+
         svgEl.appendChild(frame);
       }
 
@@ -2743,7 +2743,7 @@ const TemplateEditor = () => {
         let f = match[1].split(',')[0].replace(/['"]/g, '').trim();
         if (f && !['sans-serif', 'serif', 'monospace', 'inherit'].includes(f.toLowerCase())) fontsToLoad.add(f);
       }
-      
+
       fontsToLoad.forEach(font => {
         const fontId = `dynamic-font-${font.replace(/\s+/g, '-')}`;
         if (!document.getElementById(fontId)) {
@@ -2997,7 +2997,7 @@ const TemplateEditor = () => {
             const importedStyle = imported.getAttribute('style');
             imported.setAttribute('style', importedStyle ? `${svgStyle}; ${importedStyle}` : svgStyle);
           }
-          
+
           // Inherit top-level class
           const svgClass = templateSvg.getAttribute('class');
           if (svgClass) {
@@ -3248,14 +3248,14 @@ const TemplateEditor = () => {
       if (!val) return null;
       let finalVal = val;
       if (val.startsWith('{')) {
-         finalVal = JSON.parse(val).data || JSON.parse(val).url || val;
+        finalVal = JSON.parse(val).data || JSON.parse(val).url || val;
       }
       if (typeof finalVal === 'string' && finalVal.startsWith('/uploads/')) {
-         const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-         finalVal = `${backendUrl}${finalVal}`;
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        finalVal = `${backendUrl}${finalVal}`;
       }
       return finalVal;
-    } catch(e) {
+    } catch (e) {
       return null;
     }
   }, [current3DItem, pages, activePageIndex]);
@@ -3293,93 +3293,93 @@ const TemplateEditor = () => {
     <div className="flex h-[92vh] w-full bg-white overflow-hidden relative">
       <div className={`flex flex-1 transition-all duration-300 ${is3DModalOpen ? 'blur-md pointer-events-none' : ''}`}>
         <Layer
-        pages={pages}
-        activePageIndex={activePageIndex}
-        setActivePageIndex={setActivePageIndex}
-        isDoublePage={isDoublePage}
-        insertPageAfter={insertPageAfter}
-        duplicatePage={duplicatePage}
-        renamePage={renamePage}
-        renameLayer={renameLayer}
-        deletePage={deletePage}
-        movePageUp={movePageUp}
-        movePageDown={movePageDown}
-        movePageToFirst={movePageToFirst}
-        movePageToLast={movePageToLast}
-        movePage={movePage}
-        clearPage={clearPage}
-        onOpenTemplateModal={handleOpenTemplateModal}
-        toggleLayerVisibility={toggleLayerVisibility}
-        toggleLayerLock={toggleLayerLock}
-        bringLayerToFront={bringLayerToFront}
-        sendLayerToBack={sendLayerToBack}
-        moveLayerForward={moveLayerForward}
-        moveLayerBackward={moveLayerBackward}
-        reorderLayer={reorderLayer}
-        deleteLayer={deleteLayer}
-        copyLayer={copyLayer}
-        cutLayer={cutLayer}
-        pasteLayer={pasteLayer}
-        selectedLayerId={selectedLayerId}
-        setSelectedLayerId={setSelectedLayerId}
-        multiSelectedIds={multiSelectedIds}
-        setMultiSelectedIds={setMultiSelectedIds}
-        currentFrameId={currentFrameId}
-        setCurrentFrameId={setCurrentFrameId}
-        clipboard={clipboard}
-        currentBook={currentBook}
-        setCurrentBook={setCurrentBook}
-        onSave={saveFlipbook}
-        onAddFile={handleAddFileClick}
-        onReplaceFile={handleReplaceFileClick}
-        isPopupEditor={!!popupEditContext}
-        isExportModalOpen={isExportModalOpen}
-      />
-
-      <MainEditor
-        isPdfProject={isPdfProject}
-        isDoublePage={isDoublePage}
-        pages={pages}
-        activePageIndex={activePageIndex}
-        setActivePageIndex={setActivePageIndex}
-        insertPageAfter={insertPageAfter}
-        duplicatePage={duplicatePage}
-        clearPage={clearPage}
-        deletePage={deletePage}
-        onOpenTemplateModal={handleOpenTemplateModal}
-        onAddFile={handleAddFileClick}
-        selectedLayerId={selectedLayerId}
-        setSelectedLayerId={setSelectedLayerId}
-        updatePageHtml={updatePageHtml}
-        multiSelectedIds={multiSelectedIds}
-        setMultiSelectedIds={setMultiSelectedIds}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={history.length > 0}
-        canRedo={redoStack.length > 0}
-        currentFrameId={currentFrameId}
-        setCurrentFrameId={setCurrentFrameId}
-        activeMainTool={activeMainTool}
-        setActiveMainTool={setActiveMainTool}
-        activeTopTool={activeTopTool}
-        setActiveTopTool={(tool) => {
-          setActiveTopTool(tool);
-          if (tool !== 'editor') {
-            setActiveMainTool('select');
-          }
-        }}
-        onSave={saveFlipbook}
-        isPopupEditor={!!popupEditContext}
-        flipbookDimensions={popupEditContext ? (popupEditContext.dimensions || { width: 800, height: 600 }) : getFlipbookDimensions()}
-      />
-      {(activeTopTool === 'interaction' || (isPdfProject && activeTopTool === 'editor' && activeMainTool !== 'upload')) && selectedElementInteraction?.['data-interaction'] === 'tooltip' && (
-        <TooltipCustomization
-          selectedElementProps={selectedElementInteraction}
+          pages={pages}
           activePageIndex={activePageIndex}
+          setActivePageIndex={setActivePageIndex}
+          isDoublePage={isDoublePage}
+          insertPageAfter={insertPageAfter}
+          duplicatePage={duplicatePage}
+          renamePage={renamePage}
+          renameLayer={renameLayer}
+          deletePage={deletePage}
+          movePageUp={movePageUp}
+          movePageDown={movePageDown}
+          movePageToFirst={movePageToFirst}
+          movePageToLast={movePageToLast}
+          movePage={movePage}
+          clearPage={clearPage}
+          onOpenTemplateModal={handleOpenTemplateModal}
+          toggleLayerVisibility={toggleLayerVisibility}
+          toggleLayerLock={toggleLayerLock}
+          bringLayerToFront={bringLayerToFront}
+          sendLayerToBack={sendLayerToBack}
+          moveLayerForward={moveLayerForward}
+          moveLayerBackward={moveLayerBackward}
+          reorderLayer={reorderLayer}
+          deleteLayer={deleteLayer}
+          copyLayer={copyLayer}
+          cutLayer={cutLayer}
+          pasteLayer={pasteLayer}
           selectedLayerId={selectedLayerId}
-          updateElementAttribute={updateElementAttribute}
+          setSelectedLayerId={setSelectedLayerId}
+          multiSelectedIds={multiSelectedIds}
+          setMultiSelectedIds={setMultiSelectedIds}
+          currentFrameId={currentFrameId}
+          setCurrentFrameId={setCurrentFrameId}
+          clipboard={clipboard}
+          currentBook={currentBook}
+          setCurrentBook={setCurrentBook}
+          onSave={saveFlipbook}
+          onAddFile={handleAddFileClick}
+          onReplaceFile={handleReplaceFileClick}
+          isPopupEditor={!!popupEditContext}
+          isExportModalOpen={isExportModalOpen}
         />
-      )}
+
+        <MainEditor
+          isPdfProject={isPdfProject}
+          isDoublePage={isDoublePage}
+          pages={pages}
+          activePageIndex={activePageIndex}
+          setActivePageIndex={setActivePageIndex}
+          insertPageAfter={insertPageAfter}
+          duplicatePage={duplicatePage}
+          clearPage={clearPage}
+          deletePage={deletePage}
+          onOpenTemplateModal={handleOpenTemplateModal}
+          onAddFile={handleAddFileClick}
+          selectedLayerId={selectedLayerId}
+          setSelectedLayerId={setSelectedLayerId}
+          updatePageHtml={updatePageHtml}
+          multiSelectedIds={multiSelectedIds}
+          setMultiSelectedIds={setMultiSelectedIds}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={history.length > 0}
+          canRedo={redoStack.length > 0}
+          currentFrameId={currentFrameId}
+          setCurrentFrameId={setCurrentFrameId}
+          activeMainTool={activeMainTool}
+          setActiveMainTool={setActiveMainTool}
+          activeTopTool={activeTopTool}
+          setActiveTopTool={(tool) => {
+            setActiveTopTool(tool);
+            if (tool !== 'editor') {
+              setActiveMainTool('select');
+            }
+          }}
+          onSave={saveFlipbook}
+          isPopupEditor={!!popupEditContext}
+          flipbookDimensions={popupEditContext ? (popupEditContext.dimensions || { width: 800, height: 600 }) : getFlipbookDimensions()}
+        />
+        {(activeTopTool === 'interaction' || (isPdfProject && activeTopTool === 'editor' && activeMainTool !== 'upload')) && selectedElementInteraction?.['data-interaction'] === 'tooltip' && (
+          <TooltipCustomization
+            selectedElementProps={selectedElementInteraction}
+            activePageIndex={activePageIndex}
+            selectedLayerId={selectedLayerId}
+            updateElementAttribute={updateElementAttribute}
+          />
+        )}
       </div>
 
       {/* Dark Overlay for blurred content */}
@@ -3390,7 +3390,7 @@ const TemplateEditor = () => {
       {/* 3D Preview Modal (rendered in place of main editor when active) */}
       {is3DModalOpen && (
         <div className="absolute top-0 left-0 bottom-0 right-[24vw] z-[100] flex p-[2vw]">
-          <Model3DPreviewModal 
+          <Model3DPreviewModal
             isOpen={is3DModalOpen}
             dataUrl={preview3DDataUrl}
             autoRotate={autoRotate}
@@ -3414,6 +3414,7 @@ const TemplateEditor = () => {
         activeTopTool={activeTopTool}
         activePageIndex={activePageIndex}
         pages={pages}
+        setPages={setPages}
         updatePageBackground={updatePageBackground}
         selectedLayerId={selectedLayerId}
         updateElementAttribute={updateElementAttribute}

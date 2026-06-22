@@ -67,7 +67,6 @@ const svgGlobalStyles = `
     outline: 1.5px solid #6366F1 !important;
     box-shadow: 0 0 4px rgba(99, 102, 241, 0.3) !important;
     background: white !important;
-    border-right: 0.5vw solid transparent !important;
     background-clip: padding-box !important;
   }
 
@@ -175,9 +174,14 @@ const svgGlobalStyles = `
   }
 
    /* Hide intrinsic stroke of existing Free Frames unless they are actively being drawn */
-  svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
+  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
     stroke: transparent !important;
     stroke-width: 0 !important;
+  }
+
+  /* Hide Free Frames completely in Animation Mode */
+  .page-svg-container.hide-free-frames [data-name="Free Frame"] {
+    display: none !important;
   }
 `;
 import TopToolbar from './TopToolbar';
@@ -198,9 +202,8 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
         return;
       }
 
-      const el = container.querySelector(`[id="${selectedId}"], [data-name="${selectedId}"]`) ||
-        document.getElementById(selectedId) ||
-        document.querySelector(`[data-name="${selectedId}"]`);
+      const safeId = selectedId ? selectedId.replace(/(:|\.|\[|\]|,|=|@)/g, "\\$1") : '';
+      const el = container.querySelector(`[id="${safeId}"], [data-name="${safeId}"]`);
 
       if (!el) {
         if (pos !== null) setPos(null);
@@ -208,10 +211,19 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
       }
 
       const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
-        el.getAttribute('data-type') === 'background';
+        el.getAttribute('data-type') === 'background' ||
+        el.getAttribute('data-type') === 'frame';
       if (isOverlay) {
         if (pos !== null) setPos(null);
         return;
+      }
+
+      if (el.getAttribute('data-dragging') === 'true') {
+        if (tooltipRef.current) tooltipRef.current.style.opacity = '0';
+        animationFrame = requestAnimationFrame(update);
+        return;
+      } else {
+        if (tooltipRef.current) tooltipRef.current.style.opacity = '1';
       }
 
       try {
@@ -234,6 +246,11 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
           });
         } else {
           rect = el.getBoundingClientRect();
+        }
+
+        if (rect.width === 0 && rect.height === 0) {
+          if (pos !== null) setPos(null);
+          return;
         }
 
         const containerRect = container.getBoundingClientRect();
@@ -425,7 +442,7 @@ const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool
               onMouseEnter={() => setIsHovered(true)}
               onMouseLeave={() => setIsHovered(false)}
               onClick={handleTooltipClick}
-              className="relative w-[2vw] h-[1.8vw] bg-[#333333] rounded-[0.4vw] flex items-center justify-center cursor-pointer shadow-xl group hover:bg-[#444444] transition-all border border-white/10"
+              className="relative w-[2vw] h-[1.8vw] bg-[#333333] rounded-[0.4vw] flex items-center justify-center cursor-pointer shadow-xl group hover:bg-[#444444] transition-colors border border-white/10"
             >
               {activeTopTool === 'interaction' ? (
                 <Icon
@@ -564,6 +581,7 @@ const MainEditor = ({
   const dragStateRef = useRef(null);
   const suppressClickRef = useRef(false);
   const activeMainToolRef = useRef(activeMainTool);
+  const activeTopToolRef = useRef(activeTopTool);
   const selectedSelectToolRef = useRef(selectedSelectTool);
   const isSpaceDownRef = useRef(false);
   const isPanningRef = useRef(false);
@@ -614,6 +632,10 @@ const MainEditor = ({
     lastRenderedHtmlRef.current[index] = clean;
     return clean;
   };
+
+  useEffect(() => {
+    activeTopToolRef.current = activeTopTool;
+  }, [activeTopTool]);
 
   useEffect(() => {
     paperScopeRef.current = new paper.PaperScope();
@@ -1239,6 +1261,367 @@ const MainEditor = ({
     };
   }, []);
 
+  useEffect(() => {
+    // Inject global styles for the progress bar thumb
+    const thumbStyleId = 'global-custom-video-progress-style';
+    if (!document.getElementById(thumbStyleId)) {
+      const ts = document.createElement('style');
+      ts.id = thumbStyleId;
+      ts.textContent = `
+        input.custom-video-progress {
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          accent-color: transparent !important;
+        }
+        input.custom-video-progress::-webkit-slider-thumb {
+          -webkit-appearance: none !important;
+          appearance: none !important;
+          width: 6px !important;
+          height: 6px !important;
+          border-radius: 50% !important;
+          background: #ffffff !important;
+          cursor: pointer !important;
+          box-shadow: none !important;
+          border: none !important;
+          margin-top: -2.5px !important;
+        }
+        input.custom-video-progress::-moz-range-thumb {
+          width: 6px !important;
+          height: 6px !important;
+          border-radius: 50% !important;
+          background: #ffffff !important;
+          cursor: pointer !important;
+          border: none !important;
+          box-shadow: none !important;
+        }
+        input.custom-video-progress::-webkit-slider-runnable-track {
+          height: 1px !important;
+          background: rgba(255,255,255,0.4) !important;
+          border-radius: 1px !important;
+        }
+      `;
+      document.head.appendChild(ts);
+    }
+
+    let intervalId;
+    const renderVideoControls = () => {
+      // Disable native controls globally
+      document.querySelectorAll('[data-page-index] video, foreignObject video').forEach(v => {
+        if (!v.hasAttribute('data-custom-ctrl-active')) {
+          v.controls = false;
+          v.removeAttribute('controls');
+        }
+      });
+
+      const videos = document.querySelectorAll('.page-svg-container video');
+      videos.forEach(video => {
+        const fo = video.closest('foreignObject');
+        const liveEl = fo ? (fo.closest('[id]') || fo) : (video.closest('[id]') || video);
+        const layerId = liveEl.id;
+        if (!layerId) return;
+
+        const showControls = video.getAttribute('data-show-controls') !== 'false';
+        const ctrlId = `custom-ctrl-${layerId}`;
+        let bar = document.getElementById(ctrlId);
+
+        if (!showControls) {
+          if (bar) {
+            if (bar._cleanup) bar._cleanup();
+            bar.remove();
+          }
+          return;
+        }
+
+        const mountPoint = video.parentElement || fo || liveEl;
+        if (!mountPoint) return;
+
+        // Force recreate on updates to support HMR seamlessly
+        if (bar) {
+          if (bar._cleanup) bar._cleanup();
+          bar.remove();
+          bar = null;
+        }
+
+        if (!bar) {
+
+          video.controls = false;
+          video.removeAttribute('controls');
+          video.setAttribute('data-custom-ctrl-active', 'true');
+
+          if (mountPoint.style) {
+            mountPoint.style.position = 'relative';
+            if (!mountPoint._prevPointerEvents) {
+              mountPoint._prevPointerEvents = mountPoint.style.pointerEvents || '';
+            }
+            mountPoint.style.pointerEvents = 'none';
+          }
+
+          bar = document.createElement('div');
+          bar.id = ctrlId;
+          Object.assign(bar.style, {
+            position: 'absolute',
+            top: '0',
+            bottom: '0',
+            left: '0',
+            right: '0',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            padding: '5%',
+            boxSizing: 'border-box',
+            background: 'transparent',
+            zIndex: '9999',
+            pointerEvents: 'none',
+          });
+
+          // Establish a base font-size linked to width for proportional scaling
+          const ro = new ResizeObserver(entries => {
+            for (let entry of entries) {
+              const w = entry.contentRect.width || entry.target.offsetWidth;
+              if (w > 0) {
+                bar.style.fontSize = (w * 0.01) + 'px'; // 1% of width = 1em
+              }
+            }
+          });
+          ro.observe(mountPoint);
+
+          // Top Right: Volume
+          const topContainer = document.createElement('div');
+          Object.assign(topContainer.style, {
+            display: 'flex',
+            justifyContent: 'flex-end',
+            width: '100%',
+          });
+
+          const volumeBtn = document.createElement('button');
+          Object.assign(volumeBtn.style, {
+            background: 'none',
+            border: 'none',
+            color: 'white',
+            cursor: 'pointer',
+            padding: '0',
+            width: '8%',
+            height: 'auto',
+            aspectRatio: '1',
+            pointerEvents: 'auto',
+            opacity: '0.8',
+          });
+
+          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+          
+          const updateVolumeIcon = () => {
+            volumeBtn.innerHTML = (video.muted || video.volume === 0) ? VOL_OFF_SVG : VOL_ON_SVG;
+          };
+          updateVolumeIcon();
+          
+          volumeBtn.onclick = (e) => {
+            e.stopPropagation();
+            video.muted = !video.muted;
+            updateVolumeIcon();
+            if (setSelectedLayerId) setSelectedLayerId(layerId);
+          };
+          topContainer.appendChild(volumeBtn);
+
+          // Center: Rewind, Play/Pause, Forward
+          const centerContainer = document.createElement('div');
+          Object.assign(centerContainer.style, {
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10%',
+            width: '65%',
+            pointerEvents: 'none',
+          });
+
+          const REWIND_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
+          const FORWARD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
+          const PLAY_SVG = `<svg width="50%" height="50%" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+          const PAUSE_SVG = `<svg width="50%" height="50%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+
+          const rewindBtn = document.createElement('button');
+          Object.assign(rewindBtn.style, {
+            background: 'none', border: 'none', color: 'white',
+            cursor: 'pointer', padding: '0', width: '10%', height: 'auto', aspectRatio: '1',
+            pointerEvents: 'auto', opacity: '0.9'
+          });
+          rewindBtn.innerHTML = REWIND_SVG;
+          rewindBtn.onclick = (e) => { e.stopPropagation(); video.currentTime -= 10; if (setSelectedLayerId) setSelectedLayerId(layerId); };
+
+          const playBtn = document.createElement('button');
+          Object.assign(playBtn.style, {
+            background: 'rgba(0, 0, 0, 0.4)', border: '0.3em solid white', color: 'white',
+            boxShadow: '0 0 0 0.15em rgba(0,0,0,0.8)', // Creates the black outer ring
+            cursor: 'pointer', padding: '0', width: '15%', height: 'auto', aspectRatio: '1',
+            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'auto'
+          });
+          
+          const onPlay = () => { playBtn.innerHTML = PAUSE_SVG; };
+          const onPause = () => { playBtn.innerHTML = PLAY_SVG; };
+          playBtn.innerHTML = video.paused ? PLAY_SVG : PAUSE_SVG;
+          
+          video.addEventListener('play', onPlay);
+          video.addEventListener('pause', onPause);
+          video.addEventListener('volumechange', updateVolumeIcon);
+
+          playBtn.onclick = (e) => {
+            e.stopPropagation();
+            video.paused ? video.play() : video.pause();
+            if (setSelectedLayerId) setSelectedLayerId(layerId);
+          };
+
+          const forwardBtn = document.createElement('button');
+          Object.assign(forwardBtn.style, {
+            background: 'none', border: 'none', color: 'white',
+            cursor: 'pointer', padding: '0', width: '10%', height: 'auto', aspectRatio: '1',
+            pointerEvents: 'auto', opacity: '0.9'
+          });
+          forwardBtn.innerHTML = FORWARD_SVG;
+          forwardBtn.onclick = (e) => { e.stopPropagation(); video.currentTime += 10; if (setSelectedLayerId) setSelectedLayerId(layerId); };
+
+          centerContainer.appendChild(rewindBtn);
+          centerContainer.appendChild(playBtn);
+          centerContainer.appendChild(forwardBtn);
+
+          // Bottom: Progress and Time
+          const bottomContainer = document.createElement('div');
+          Object.assign(bottomContainer.style, {
+            display: 'flex',
+            flexDirection: 'column',
+            width: '100%',
+            gap: '1em',
+          });
+
+          const timeDisplay = document.createElement('div');
+          Object.assign(timeDisplay.style, {
+            alignSelf: 'flex-start',
+            color: 'white',
+            fontSize: '5em',
+            fontFamily: 'sans-serif',
+            opacity: '0.9',
+            marginBottom: '1em',
+          });
+          
+          const formatTime = (sec) => {
+            if (isNaN(sec)) return "00:00";
+            const m = Math.floor(sec / 60).toString().padStart(2, '0');
+            const s = Math.floor(sec % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+          };
+
+          const progContainer = document.createElement('div');
+          Object.assign(progContainer.style, {
+            width: '100%',
+            height: '1.5em',
+            minHeight: '2px',
+            background: 'transparent',
+            position: 'relative',
+            cursor: 'pointer',
+            pointerEvents: 'auto',
+          });
+
+          const progTrack = document.createElement('div');
+          Object.assign(progTrack.style, {
+            position: 'absolute',
+            top: '0', left: '0', right: '0', bottom: '0',
+            background: 'white',
+            opacity: '0.3',
+            pointerEvents: 'none',
+          });
+          progContainer.appendChild(progTrack);
+
+          const progFill = document.createElement('div');
+          Object.assign(progFill.style, {
+            position: 'absolute',
+            top: '0', left: '0', bottom: '0',
+            width: '0%',
+            background: 'white',
+            pointerEvents: 'none',
+          });
+          progContainer.appendChild(progFill);
+
+          const onTimeUpdate = () => {
+            if (video.duration) {
+              const pct = (video.currentTime / video.duration) * 100;
+              progFill.style.width = `${pct}%`;
+              timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+            }
+          };
+          video.addEventListener('timeupdate', onTimeUpdate);
+          video.addEventListener('loadedmetadata', onTimeUpdate);
+          onTimeUpdate();
+
+          progContainer.onpointerdown = (e) => {
+            e.stopPropagation();
+            const rect = progContainer.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            if (video.duration) video.currentTime = pct * video.duration;
+            
+            const onMove = (me) => {
+              const p = Math.max(0, Math.min(1, (me.clientX - rect.left) / rect.width));
+              if (video.duration) video.currentTime = p * video.duration;
+            };
+            const onUp = () => {
+              document.removeEventListener('pointermove', onMove);
+              document.removeEventListener('pointerup', onUp);
+            };
+            document.addEventListener('pointermove', onMove);
+            document.addEventListener('pointerup', onUp);
+            
+            if (setSelectedLayerId) setSelectedLayerId(layerId);
+          };
+
+          bottomContainer.appendChild(timeDisplay);
+          bottomContainer.appendChild(progContainer);
+
+          bar.appendChild(topContainer);
+          bar.appendChild(centerContainer);
+          bar.appendChild(bottomContainer);
+          
+          mountPoint.appendChild(bar);
+
+          bar._cleanup = () => {
+            if (ro) ro.disconnect();
+            video.removeEventListener('play', onPlay);
+            video.removeEventListener('pause', onPause);
+            video.removeEventListener('timeupdate', onTimeUpdate);
+            video.removeEventListener('loadedmetadata', onTimeUpdate);
+            video.removeEventListener('volumechange', updateVolumeIcon);
+            video.removeAttribute('data-custom-ctrl-active');
+            if (mountPoint.style && mountPoint._prevPointerEvents !== undefined) {
+              mountPoint.style.pointerEvents = mountPoint._prevPointerEvents;
+              delete mountPoint._prevPointerEvents;
+            }
+          };
+        }
+      });
+
+      // Cleanup orphan controls
+      document.querySelectorAll('[id^="custom-ctrl-"]').forEach(bar => {
+        const layerId = bar.id.replace('custom-ctrl-', '');
+        // Escape ID properly or use a broad query
+        try {
+          const video = document.getElementById(layerId)?.querySelector('video') || document.querySelector(`[id="${layerId}"] video`);
+          if (!video || !document.body.contains(video)) {
+            if (bar._cleanup) bar._cleanup();
+            bar.remove();
+          }
+        } catch (e) {
+          if (bar._cleanup) bar._cleanup();
+          bar.remove();
+        }
+      });
+    };
+
+    intervalId = setInterval(renderVideoControls, 500);
+    return () => clearInterval(intervalId);
+  }, [setSelectedLayerId]);
+
   // Handle external asset insertion events
   useEffect(() => {
     const handleAddIcon = (e) => {
@@ -1321,7 +1704,7 @@ const MainEditor = ({
       fo.setAttribute('height', displayHeight.toString());
       fo.setAttribute('data-type', 'video');
       fo.setAttribute('data-name', 'Video');
-      fo.setAttribute('data-video-type', 'Fill');
+      fo.setAttribute('data-object-fit', 'Fill');
       if (file) fo.setAttribute('data-filename', file.name);
 
       const video = document.createElement('video');
@@ -1329,7 +1712,8 @@ const MainEditor = ({
       video.setAttribute('width', '100%');
       video.setAttribute('height', '100%');
       video.setAttribute('controls', 'true');
-      video.style.objectFit = 'contain';
+      video.style.objectFit = 'cover';
+      // video.style.backgroundColor = 'transparent';
 
       fo.appendChild(video);
 
@@ -1468,8 +1852,6 @@ const MainEditor = ({
       el.getAttribute('data-type') === 'frame' ||
       el.getAttribute('data-locked') === 'true';
 
-      // Skip Free Frames in the main editor (only show in interaction panel)
-    const isFreeFrameHidden = el.getAttribute('data-name') === 'Free Frame' && activeTopTool !== 'interaction';
 
     // Skip if this text element is currently in text-edit mode (we still want to draw the polygon, but skip handles later)
     const isBeingEdited = isEditingTextRef.current && el.id === selectedLayerIdRef.current;
@@ -1561,7 +1943,7 @@ const MainEditor = ({
 
         if (el.getAttribute('data-name') === 'Free Frame') {
           polygon.setAttribute('stroke', '#000000');
-        } else if (activeTopTool === 'interaction' && (type === 'selected' || type === 'child-selected')) {
+        } else if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && (type === 'selected' || type === 'child-selected')) {
           polygon.setAttribute('stroke', '#000000');
         } else if (type === 'hover' || type === 'child-hover') {
           polygon.setAttribute('stroke', '#6366F1');
@@ -1580,7 +1962,7 @@ const MainEditor = ({
       if (el.getAttribute('data-name') === 'Free Frame') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-      } else if (activeTopTool === 'interaction' && (type === 'selected' || type === 'child-selected')) {
+      } else if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && (type === 'selected' || type === 'child-selected')) {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
@@ -1601,9 +1983,19 @@ const MainEditor = ({
       if (selectionCount === 1 && (type === 'selected' || type === 'child-selected') && !isBeingEdited) {
         const htmlOverlay = getHtmlOverlayForElement(el);
         const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
-        const useLBrackets = activeTopTool === 'interaction' || isFreeFrame;
-        const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
-        const handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+        const hideHandles = (activeTopTool === 'interaction' || activeTopTool === 'animation') && !isFreeFrame;
+
+        if (hideHandles) {
+          if (htmlOverlay) {
+            const existingHandles = htmlOverlay.querySelectorAll(`[id^="resize-handle-${el.id}-"]`);
+            existingHandles.forEach(h => h.remove());
+          }
+        }
+
+        if (!hideHandles) {
+          const useLBrackets = activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame;
+          const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
+          const handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
 
         // Define all points in world space
         const worldPts = [...mapped]; // Corners
@@ -1634,6 +2026,9 @@ const MainEditor = ({
               handle.style.backgroundColor = 'transparent';
               handle.style.border = 'none';
               handle.style.boxShadow = 'none';
+              if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && el.getAttribute('data-name') !== 'Free Frame') {
+                handle.style.pointerEvents = 'none';
+              }
 
               // Create the L-shape using inner divs
               const hBar = document.createElement('div');
@@ -1643,6 +2038,7 @@ const MainEditor = ({
                 bar.style.backgroundColor = '#000000';
                 bar.style.border = 'none';
                 bar.style.boxSizing = 'border-box';
+                bar.style.pointerEvents = 'none';
               });
 
               const barThickness = 3;
@@ -1714,6 +2110,7 @@ const MainEditor = ({
             handle.style.cursor = getRotatingCursor(name, rotation);
           }
         });
+        } // Close if (!hideHandles)
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
         if (activeTopTool === 'interaction') {
@@ -2841,11 +3238,10 @@ const MainEditor = ({
   // Helper: get direct children of SVG root that have IDs (top-level frames)
   const getTopLevelFrames = (svg) => {
     return Array.from(svg.children).filter(el =>
-     el.id &&
+      el.id &&
       el.tagName.toLowerCase() !== 'style' &&
       el.tagName.toLowerCase() !== 'defs' &&
-      el.getAttribute('data-hidden') !== 'true' &&
-      !(el.getAttribute('data-name') === 'Free Frame' && activeTopTool !== 'interaction')
+      el.getAttribute('data-hidden') !== 'true'
     );
   };
 
@@ -2856,8 +3252,7 @@ const MainEditor = ({
       child.tagName.toLowerCase() !== 'style' &&
       child.tagName.toLowerCase() !== 'defs' &&
       child.getAttribute('data-hidden') !== 'true' &&
-      child.getAttribute('data-name') !== 'Overlay' &&
-      !(child.getAttribute('data-name') === 'Free Frame' && activeTopTool !== 'interaction')
+      child.getAttribute('data-name') !== 'Overlay'
     );
   };
 
@@ -3144,6 +3539,14 @@ const MainEditor = ({
               return;
             }
 
+            let allowDrag = true;
+            // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame
+            if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && elementToDrag.getAttribute('data-name') !== 'Free Frame') {
+              allowDrag = false;
+              event.interaction.stop();
+              // We STILL want to allow auto-select to run below, so we don't return here.
+            }
+
             // 2. AUTO-SELECT if not already selected
             const isSelected = (selectedLayerIdRef.current === elementToDrag.id) ||
               (multiSelectedIdsRef.current && multiSelectedIdsRef.current.has(elementToDrag.id));
@@ -3165,25 +3568,41 @@ const MainEditor = ({
             const multiIds = multiSelectedIdsRef.current;
             const multiDragItems = [];
 
-            if (multiIds.size > 1) {
-              for (const id of multiIds) {
-                const el = container?.querySelector(`[id="${id}"]`);
-                if (el && el !== svgElement &&
-                  el.getAttribute('data-hidden') !== 'true' &&
-                  el.getAttribute('data-locked') !== 'true') {
-                  el.setAttribute('data-dragging', 'true');
-                  multiDragItems.push({
-                    element: el,
-                    initialMatrix: getElementMatrix(el),
-                    startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY)
-                  });
+            const getLocalPoint = (svgElement, targetNode, clientX, clientY) => {
+              if (!svgElement || !targetNode) return null;
+              const pt = svgElement.createSVGPoint();
+              pt.x = clientX;
+              pt.y = clientY;
+              try {
+                const ctm = targetNode.getScreenCTM();
+                if (!ctm) return null;
+                return pt.matrixTransform(ctm.inverse());
+              } catch (e) {
+                return null;
+              }
+            };
+
+            if (allowDrag) {
+              if (multiIds.size > 1) {
+                for (const id of multiIds) {
+                  const el = container?.querySelector(`[id="${id}"]`);
+                  if (el && el !== svgElement &&
+                    el.getAttribute('data-hidden') !== 'true' &&
+                    el.getAttribute('data-locked') !== 'true') {
+                    el.setAttribute('data-dragging', 'true');
+                    multiDragItems.push({
+                      element: el,
+                      initialMatrix: getElementMatrix(el),
+                      startPointLocal: getLocalPoint(svgElement, el.parentNode, event.clientX, event.clientY)
+                    });
+                  }
                 }
               }
-            }
 
-            // If no multi items, just add the primary element
-            if (multiDragItems.length === 0) {
-              elementToDrag.setAttribute('data-dragging', 'true');
+              // If no multi items, just add the primary element
+              if (multiDragItems.length === 0) {
+                elementToDrag.setAttribute('data-dragging', 'true');
+              }
             }
 
             event.interaction.dragState = {
@@ -3219,6 +3638,20 @@ const MainEditor = ({
                 }
               }
             }
+
+            const getLocalPoint = (svgElement, targetNode, clientX, clientY) => {
+              if (!svgElement || !targetNode) return null;
+              const pt = svgElement.createSVGPoint();
+              pt.x = clientX;
+              pt.y = clientY;
+              try {
+                const ctm = targetNode.getScreenCTM();
+                if (!ctm) return null;
+                return pt.matrixTransform(ctm.inverse());
+              } catch (e) {
+                return null;
+              }
+            };
 
             if (dragState.multiDragItems) {
               // Move ALL multi-selected elements
@@ -3280,80 +3713,81 @@ const MainEditor = ({
               }
             };
 
-            const constrainElement = (el, onComplete) => {
+             const constrainElement = (el, onComplete) => {
+              if (!el || typeof el.getBBox !== 'function') return false;
+              
+              let ctm, rootCtm, parentCtm;
               try {
-                // 1. Get the bounding box in Root SVG Space
-                const rect = el.getBoundingClientRect();
-                const rootCTM = dragState.svgElement.getScreenCTM();
-                if (!rootCTM) { onComplete(); return false; }
-                const invRootCTM = rootCTM.inverse();
+                ctm = el.getScreenCTM();
+                rootCtm = dragState.svgElement.getScreenCTM();
+                parentCtm = el.parentNode.getScreenCTM();
+              } catch(e) {
+                return false;
+              }
+              if (!ctm || !rootCtm || !parentCtm) return false;
+
+              const bbox = el.getBBox();
+              const localToRoot = rootCtm.inverse().multiply(ctm);
+
+              const pt1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(localToRoot);
+              const pt2 = new DOMPoint(bbox.x + bbox.width, bbox.y).matrixTransform(localToRoot);
+              const pt3 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(localToRoot);
+              const pt4 = new DOMPoint(bbox.x, bbox.y + bbox.height).matrixTransform(localToRoot);
+
+              const minX = Math.min(pt1.x, pt2.x, pt3.x, pt4.x);
+              const maxX = Math.max(pt1.x, pt2.x, pt3.x, pt4.x);
+              const minY = Math.min(pt1.y, pt2.y, pt3.y, pt4.y);
+              const maxY = Math.max(pt1.y, pt2.y, pt3.y, pt4.y);
+
+              let dx_root = 0;
+              let dy_root = 0;
+
+              if (maxX > baseWidth) dx_root = baseWidth - maxX;
+              if (minX + dx_root < 0) dx_root = -minX;
+
+              if (maxY > baseHeight) dy_root = baseHeight - maxY;
+              if (minY + dy_root < 0) dy_root = -minY;
+
+              if (dx_root !== 0 || dy_root !== 0) {
+                const rootToParent = parentCtm.inverse().multiply(rootCtm);
+                const p0 = new DOMPoint(0, 0).matrixTransform(rootToParent);
+                const p1 = new DOMPoint(dx_root, dy_root).matrixTransform(rootToParent);
                 
-                const ptTL = new DOMPoint(rect.left, rect.top).matrixTransform(invRootCTM);
-                const ptTR = new DOMPoint(rect.right, rect.top).matrixTransform(invRootCTM);
-                const ptBL = new DOMPoint(rect.left, rect.bottom).matrixTransform(invRootCTM);
-                const ptBR = new DOMPoint(rect.right, rect.bottom).matrixTransform(invRootCTM);
+                const dx = p1.x - p0.x;
+                const dy = p1.y - p0.y;
 
-                const minX = Math.min(ptTL.x, ptTR.x, ptBL.x, ptBR.x);
-                const maxX = Math.max(ptTL.x, ptTR.x, ptBL.x, ptBR.x);
-                const minY = Math.min(ptTL.y, ptTR.y, ptBL.y, ptBR.y);
-                const maxY = Math.max(ptTL.y, ptTR.y, ptBL.y, ptBR.y);
+                const matrix = getElementMatrix(el);
+                const startE = matrix.e;
+                const startF = matrix.f;
+                const translation = new DOMMatrix().translate(dx, dy);
+                const endMatrix = translation.multiply(matrix);
+                const endE = endMatrix.e;
+                const endF = endMatrix.f;
 
-                let dx_root = 0;
-                let dy_root = 0;
+                const duration = 400;
+                const startTime = performance.now();
+                const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
 
-                if (maxX > baseWidth) dx_root = baseWidth - maxX;
-                if (minX + dx_root < 0) dx_root = -minX;
+                const animate = (currentTime) => {
+                  const elapsed = currentTime - startTime;
+                  const progress = Math.min(elapsed / duration, 1);
+                  const eased = easeOutQuart(progress);
 
-                if (maxY > baseHeight) dy_root = baseHeight - maxY;
-                if (minY + dy_root < 0) dy_root = -minY;
+                  matrix.e = startE + (endE - startE) * eased;
+                  matrix.f = startF + (endF - startF) * eased;
 
-                if (dx_root !== 0 || dy_root !== 0) {
-                  // Map the root delta to the parent's local coordinate system
-                  const parentCTM = el.parentNode.getScreenCTM();
-                  if (!parentCTM) { onComplete(); return false; }
-                  const svgToParent = parentCTM.inverse().multiply(rootCTM);
-                  
-                  const p0 = new DOMPoint(0, 0).matrixTransform(svgToParent);
-                  const p1 = new DOMPoint(dx_root, dy_root).matrixTransform(svgToParent);
-                  
-                  const dx = p1.x - p0.x;
-                  const dy = p1.y - p0.y;
+                  el.setAttribute('transform', matrixToTransform(matrix));
+                  drawOverlayHighlight(el, currentFrameIdRef.current && el.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
 
-                  const matrix = getElementMatrix(el);
-                  const startE = matrix.e;
-                  const startF = matrix.f;
-                  const translation = new DOMMatrix().translate(dx, dy);
-                  const endMatrix = translation.multiply(matrix);
-                  const endE = endMatrix.e;
-                  const endF = endMatrix.f;
+                  if (progress < 1) {
+                    requestAnimationFrame(animate);
+                  } else {
+                    onComplete();
+                  }
+                };
 
-                  const duration = 400;
-                  const startTime = performance.now();
-                  const easeOutQuart = (t) => 1 - Math.pow(1 - t, 4);
-
-                  const animate = (currentTime) => {
-                    const elapsed = currentTime - startTime;
-                    const progress = Math.min(elapsed / duration, 1);
-                    const eased = easeOutQuart(progress);
-
-                    matrix.e = startE + (endE - startE) * eased;
-                    matrix.f = startF + (endF - startF) * eased;
-
-                    el.setAttribute('transform', matrixToTransform(matrix));
-                    drawOverlayHighlight(el, currentFrameIdRef.current && el.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
-
-                    if (progress < 1) {
-                      requestAnimationFrame(animate);
-                    } else {
-                      onComplete();
-                    }
-                  };
-
-                  requestAnimationFrame(animate);
-                  return true;
-                }
-              } catch (e) {
-                // Ignore CTM mapping errors
+                requestAnimationFrame(animate);
+                return true;
               }
               return false;
             };
@@ -3419,6 +3853,10 @@ const MainEditor = ({
               }
             }
 
+            // ── BRING TO FRONT ──
+            // Removed to prevent unintentional layer reordering when resizing
+
+
             // Lock cursor globally while dragging to prevent flicker
             const currentCursor = window.getComputedStyle(handle).cursor;
             document.documentElement.style.setProperty('--resizing-cursor', currentCursor);
@@ -3438,6 +3876,28 @@ const MainEditor = ({
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
+            let childrenData = null;
+            if (el.tagName.toLowerCase() === 'g') {
+              childrenData = Array.from(el.children).map(child => {
+                const cb = child.getBBox();
+                const cMatrix = getElementMatrix(child);
+                const p1 = new DOMPoint(cb.x, cb.y).matrixTransform(cMatrix);
+                const p2 = new DOMPoint(cb.x + cb.width, cb.y).matrixTransform(cMatrix);
+                const p3 = new DOMPoint(cb.x, cb.y + cb.height).matrixTransform(cMatrix);
+                const p4 = new DOMPoint(cb.x + cb.width, cb.y + cb.height).matrixTransform(cMatrix);
+                const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+                const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+                const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+                const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+                const bound = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+
+                const fracX = (bbox.width - bound.width) <= 0.001 ? 0.5 : (bound.x - bbox.x) / (bbox.width - bound.width);
+                const fracY = (bbox.height - bound.height) <= 0.001 ? 0.5 : (bound.y - bbox.y) / (bbox.height - bound.height);
+
+                return { child, initialMatrix: cMatrix, bound, fracX, fracY };
+              });
+            }
+
             event.interaction.resizeState = {
               el,
               dir,
@@ -3447,6 +3907,7 @@ const MainEditor = ({
               localAnchor,
               startPoint,
               svg,
+              childrenData,
               cursor: currentCursor // Store for reinforcement
             };
           },
@@ -3463,10 +3924,14 @@ const MainEditor = ({
               }
             }
 
-            const currentPoint = getSvgPoint(state.svg, event.clientX, event.clientY);
-            if (!currentPoint) return;
-
             const { el, bbox, worldAnchor, matrix, dir } = state;
+
+            const parentCTM = el.parentNode ? el.parentNode.getScreenCTM() : state.svg.getScreenCTM();
+            if (!parentCTM) return;
+            const pt = state.svg.createSVGPoint();
+            pt.x = event.clientX;
+            pt.y = event.clientY;
+            const currentPoint = pt.matrixTransform(parentCTM.inverse());
 
             // Vector from anchor to current cursor position
             const vCurrent = { x: currentPoint.x - worldAnchor.x, y: currentPoint.y - worldAnchor.y };
@@ -3503,12 +3968,13 @@ const MainEditor = ({
             const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image';
             const isText = el.getAttribute('data-type') === 'text' || el.tagName.toLowerCase() === 'text';
             const isForeignObject = el.tagName.toLowerCase() === 'foreignobject';
+            const isGroup = el.tagName.toLowerCase() === 'g';
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
 
-            if ((isCorner && (event.shiftKey || isImage || (isText && !isForeignObject))) || (!isCorner && isText && !isForeignObject)) {
+            if ((isCorner && (event.shiftKey || isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               // For side handles on text (that is not a foreignObject), use the changed dimension as the uniform scale factor
-              if (!isCorner && isText && !isForeignObject) {
+              if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
                 scaleY = sSide;
@@ -3520,7 +3986,7 @@ const MainEditor = ({
 
             const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName.toLowerCase() === 'rect') || el.tagName.toLowerCase() === 'foreignobject';
 
-            if (isFreeFrame) {
+            if (isFreeFrame || isGroup) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
               const newLocalY = state.localAnchor.y + (bbox.y - state.localAnchor.y) * scaleY;
               const newLocalRight = state.localAnchor.x + ((bbox.x + bbox.width) - state.localAnchor.x) * scaleX;
@@ -3531,75 +3997,88 @@ const MainEditor = ({
               const finalWidth = Math.max(0, Math.abs(newLocalRight - newLocalX));
               const finalHeight = Math.max(0, Math.abs(newLocalBottom - newLocalY));
 
-              let adjustedHeight = finalHeight;
-              let adjustedWidth = finalWidth;
-              let adjustedX = finalX;
-              let adjustedY = finalY;
+              if (isFreeFrame) {
+                let adjustedHeight = finalHeight;
+                let adjustedWidth = finalWidth;
+                let adjustedX = finalX;
+                let adjustedY = finalY;
 
-              if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
-                const isScrollable = el.getAttribute('data-scrollable') === 'true';
-                const div = el.firstElementChild;
-                const oldHeight = div.style.height;
-                const oldMinHeight = div.style.minHeight;
-                
-                // Temporarily allow height to shrink to measure true text height
-                div.style.setProperty('height', 'auto', 'important');
-                div.style.setProperty('min-height', '0px', 'important');
+                if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+                  const isScrollable = el.getAttribute('data-scrollable') === 'true';
+                  const div = el.firstElementChild;
+                  const oldHeight = div.style.height;
+                  const oldMinHeight = div.style.minHeight;
+                  
+                  // Temporarily allow height to shrink to measure true text height
+                  div.style.setProperty('height', 'auto', 'important');
+                  div.style.setProperty('min-height', '0px', 'important');
 
-                if (!isScrollable) {
-                  if (dir === 'e' || dir === 'w') {
-                    // Resize width -> Auto height (Can shrink)
-                    adjustedHeight = Math.max(10, div.scrollHeight + 4);
-                  } else if (dir === 'n' || dir === 's') {
-                    // Resize height -> Auto width
-                    let minW = 10;
-                    let maxW = 3000;
-                    let bestW = finalWidth;
-                    
-                    for (let i = 0; i < 12; i++) {
-                      let midW = (minW + maxW) / 2;
-                      el.setAttribute('width', midW);
-                      if (div.scrollHeight + 4 <= finalHeight) {
-                        bestW = midW;
-                        maxW = midW - 1; // Try to find a tighter fit
-                      } else {
-                        minW = midW + 1; // Need more width
+                  if (!isScrollable) {
+                    if (dir === 'e' || dir === 'w') {
+                      // Resize width -> Auto height (Can shrink)
+                      adjustedHeight = Math.max(10, div.scrollHeight + 4);
+                    } else if (dir === 'n' || dir === 's') {
+                      // Resize height -> Auto width
+                      let minW = 10;
+                      let maxW = 3000;
+                      let bestW = finalWidth;
+                      
+                      for (let i = 0; i < 12; i++) {
+                        let midW = (minW + maxW) / 2;
+                        el.setAttribute('width', midW);
+                        if (div.scrollHeight + 4 <= finalHeight) {
+                          bestW = midW;
+                          maxW = midW - 1; // Try to find a tighter fit
+                        } else {
+                          minW = midW + 1; // Need more width
+                        }
                       }
+                      adjustedWidth = bestW;
+                      el.setAttribute('width', adjustedWidth);
+                      adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                    } else {
+                      // Corners -> Ensure height isn't hidden
+                      adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
                     }
-                    adjustedWidth = bestW;
-                    el.setAttribute('width', adjustedWidth);
-                    adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
                   } else {
-                    // Corners -> Ensure height isn't hidden
-                    adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                    // Scrollable text boxes CAN hide content. We respect the user's manual sizing exactly.
+                    // No auto-height adjustments here.
                   }
-                } else {
-                  // Scrollable text boxes CAN hide content. We respect the user's manual sizing exactly.
-                  // No auto-height adjustments here.
+                  
+                  div.style.setProperty('height', oldHeight || '100%', 'important');
+                  div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
+                  
+                  // Adjust coordinates to respect the handle anchor
+                  if (dir === 'w' || dir === 'nw' || dir === 'sw') {
+                    adjustedX = (finalX + finalWidth) - adjustedWidth;
+                  } else if (dir === 'n' || dir === 's') {
+                    const widthDiff = adjustedWidth - finalWidth;
+                    const align = window.getComputedStyle(div).textAlign;
+                    if (align === 'center') adjustedX = finalX - (widthDiff / 2);
+                    else if (align === 'right' || align === 'end') adjustedX = finalX - widthDiff;
+                  }
+                  
+                  if (dir === 'n' || dir === 'nw' || dir === 'ne') {
+                    adjustedY = (finalY + finalHeight) - adjustedHeight;
+                  }
                 }
                 
-                div.style.setProperty('height', oldHeight || '100%', 'important');
-                div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
-                
-                // Adjust coordinates to respect the handle anchor
-                if (dir === 'w' || dir === 'nw' || dir === 'sw') {
-                  adjustedX = (finalX + finalWidth) - adjustedWidth;
-                } else if (dir === 'n' || dir === 's') {
-                  const widthDiff = adjustedWidth - finalWidth;
-                  const align = window.getComputedStyle(div).textAlign;
-                  if (align === 'center') adjustedX = finalX - (widthDiff / 2);
-                  else if (align === 'right' || align === 'end') adjustedX = finalX - widthDiff;
-                }
-                
-                if (dir === 'n' || dir === 'nw' || dir === 'ne') {
-                  adjustedY = (finalY + finalHeight) - adjustedHeight;
-                }
+                el.setAttribute('x', adjustedX);
+                el.setAttribute('y', adjustedY);
+                el.setAttribute('width', adjustedWidth);
+                el.setAttribute('height', adjustedHeight);
+              } else if (isGroup && state.childrenData) {
+                state.childrenData.forEach(cData => {
+                  const { child, initialMatrix, bound, fracX, fracY } = cData;
+                  const newCbX = finalX + fracX * (finalWidth - bound.width);
+                  const newCbY = finalY + fracY * (finalHeight - bound.height);
+                  const dx = newCbX - bound.x;
+                  const dy = newCbY - bound.y;
+                  const translateMatrix = new DOMMatrix().translate(dx, dy);
+                  const newChildMatrix = translateMatrix.multiply(initialMatrix);
+                  child.setAttribute('transform', matrixToTransform(newChildMatrix));
+                });
               }
-              
-              el.setAttribute('x', adjustedX);
-              el.setAttribute('y', adjustedY);
-              el.setAttribute('width', adjustedWidth);
-              el.setAttribute('height', adjustedHeight);
             } else {
               const scaleMatrix = new DOMMatrix()
                 .translate(worldAnchor.x, worldAnchor.y)
@@ -4619,9 +5098,9 @@ const MainEditor = ({
     const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
     fo.id = el.id;
 
-    // Copy all attributes except positional/size ones (we'll set those from bbox)
+    // Copy all attributes except positional/size/clip ones (we'll set those from bbox, and clip-path causes issues on resize)
     Array.from(el.attributes).forEach(attr => {
-      if (!['x', 'y', 'width', 'height'].includes(attr.name)) {
+      if (!['x', 'y', 'width', 'height', 'clip-path'].includes(attr.name)) {
         fo.setAttribute(attr.name, attr.value);
       }
     });
@@ -4647,8 +5126,9 @@ const MainEditor = ({
     div.style.textDecoration = el.style.textDecoration || el.getAttribute('text-decoration') || 'none';
     const textAnchor = el.style.textAlign || el.getAttribute('text-anchor') || 'start';
     div.style.textAlign = textAnchor === 'middle' ? 'center' : (textAnchor === 'end' ? 'right' : 'left');
-    div.style.lineHeight = el.getAttribute('data-line-height') || '1.2';
-    div.style.letterSpacing = el.style.letterSpacing || el.getAttribute('letter-spacing') || 'normal';
+    div.style.lineHeight = el.getAttribute('data-line-height') || '1.5';
+    div.style.letterSpacing = el.style.letterSpacing || el.getAttribute('letter-spacing') || '';
+    div.style.wordSpacing = el.style.wordSpacing || el.getAttribute('word-spacing') || '';
     div.style.wordBreak = 'normal';
     div.style.overflowWrap = 'anywhere';
     // Use pre-wrap to allow paragraphs to reflow correctly on resize
@@ -4669,13 +5149,25 @@ const MainEditor = ({
       let lastY = null;
       let lineHeights = [];
       
+      const fontSizeStr = el.getAttribute('font-size') || el.style.fontSize;
+      const fontSize = parseFloat(fontSizeStr) || 10;
+
       tspans.forEach((t, i) => {
         const y = t.getAttribute('y');
         const dy = t.getAttribute('dy');
         const isNewLine = i > 0 && (dy || (y !== null && lastY !== null && Math.abs(parseFloat(y) - parseFloat(lastY)) > 2));
         
-        if (y !== null && lastY !== null && isNewLine && !dy) {
-           lineHeights.push(Math.abs(parseFloat(y) - parseFloat(lastY)));
+        if (isNewLine) {
+           let deltaY = null;
+           if (dy) {
+              if (dy.endsWith('em')) deltaY = parseFloat(dy) * fontSize;
+              else deltaY = parseFloat(dy);
+           } else if (y !== null && lastY !== null) {
+              deltaY = Math.abs(parseFloat(y) - parseFloat(lastY));
+           }
+           if (deltaY !== null && !isNaN(deltaY) && deltaY > 0) {
+              lineHeights.push(deltaY);
+           }
         }
         
         if (isNewLine) {
@@ -4688,9 +5180,12 @@ const MainEditor = ({
       if (currentLineTspans.length > 0) {
         linesData.push(currentLineTspans);
       }
-      
-      const fontSizeStr = el.getAttribute('font-size') || el.style.fontSize;
-      const fontSize = parseFloat(fontSizeStr) || 10;
+
+      // Apply dynamic line height if multiple tspans exist and data-line-height is absent
+      if (!el.hasAttribute('data-line-height') && lineHeights.length > 0) {
+        const avgPx = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
+        div.style.lineHeight = (avgPx / fontSize).toFixed(2);
+      }
 
       let linesBounds = linesData.map(lineTspans => {
         let minX = Infinity;
@@ -4782,22 +5277,17 @@ const MainEditor = ({
       
       div.style.textAlign = finalAlign;
 
-      if (validBounds.length > 0) {
-        const tightWidth = globalMaxX - globalMinX;
-        // If the SVG renderer included invisible trailing spaces in the bbox, crop the width tightly
-        if (bbox.width - tightWidth > 1) {
-           fo.setAttribute('width', Math.max(tightWidth, 10));
-           fo.setAttribute('x', globalMinX);
-        }
-      }
-
-      if (lineHeights.length > 0 && !el.getAttribute('data-line-height')) {
-        const avgDy = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
-        if (fontSize > 0) {
-          const computedLineHeight = (avgDy / fontSize).toFixed(2);
-          div.style.lineHeight = computedLineHeight;
-          fo.setAttribute('data-line-height', computedLineHeight);
-        }
+      // Use the exact original bounding box to preserve accurate visual alignment.
+      // Add a tiny buffer width to prevent HTML rendering differences from accidentally wrapping the text
+      const buffer = 4;
+      const currentWidth = parseFloat(fo.getAttribute('width'));
+      const currentX = parseFloat(fo.getAttribute('x'));
+      fo.setAttribute('width', currentWidth + buffer);
+      
+      if (finalAlign === 'right') {
+         fo.setAttribute('x', currentX - buffer);
+      } else if (finalAlign === 'center') {
+         fo.setAttribute('x', currentX - (buffer / 2));
       }
     } else {
       div.textContent = el.textContent || '';
@@ -4885,6 +5375,7 @@ const MainEditor = ({
 
   const enterTextEditMode = (target, clientX = null, clientY = null) => {
     if (!target || !target.id) return;
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
 
     let foTarget = target;
 
@@ -4947,42 +5438,20 @@ const MainEditor = ({
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
 
       if (!isScrollable) {
-        const oldWidth = div.style.width;
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
-        
-        if (isAutoWrap) {
-           div.style.width = 'max-content';
-        }
-        
         // Temporarily allow height to shrink to measure true text height
         div.style.setProperty('height', 'auto', 'important');
         div.style.setProperty('min-height', '0px', 'important');
         
-        const contentW = div.scrollWidth;
         const contentH = div.scrollHeight;
         
-        div.style.width = oldWidth;
         div.style.setProperty('height', oldHeight || '100%', 'important');
         div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
 
         const foH = parseFloat(foTarget.getAttribute('height')) || 0;
-        const foW = parseFloat(foTarget.getAttribute('width')) || 0;
-        const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
         let changed = false;
-        if (isAutoWrap && Math.abs(contentW - foW) > 2) {
-           const widthDiff = contentW - foW;
-           const align = window.getComputedStyle(div).textAlign;
-           foTarget.setAttribute('width', Math.max(contentW, 10));
-           
-           if (align === 'center') {
-             foTarget.setAttribute('x', currentX - (widthDiff / 2));
-           } else if (align === 'right' || align === 'end') {
-             foTarget.setAttribute('x', currentX - widthDiff);
-           }
-           changed = true;
-        }
         if (Math.abs(contentH - foH) > 2) {
            foTarget.setAttribute('height', contentH + 4);
            changed = true;
@@ -5652,8 +6121,10 @@ const MainEditor = ({
         }
         // Frame has no children — stay selected
         if (hitFrame.tagName.toLowerCase() === 'text' || hitFrame.tagName.toLowerCase() === 'tspan' || hitFrame.tagName.toLowerCase() === 'foreignobject') {
-          console.log('[handleSvgClick] Entering text edit mode for top frame:', hitFrame.id);
-          enterTextEditMode(hitFrame, e.clientX, e.clientY);
+          if (activeTopTool !== 'interaction' && activeTopTool !== 'animation') {
+            console.log('[handleSvgClick] Entering text edit mode for top frame:', hitFrame.id);
+            enterTextEditMode(hitFrame, e.clientX, e.clientY);
+          }
         }
         return;
       } else {
@@ -5735,7 +6206,9 @@ const MainEditor = ({
 
     const isText = ['text', 'tspan', 'foreignobject'].includes(target.tagName.toLowerCase());
     if (isText && target.id) {
-      enterTextEditMode(target, e.clientX, e.clientY);
+      if (activeTopTool !== 'interaction' && activeTopTool !== 'animation') {
+        enterTextEditMode(target, e.clientX, e.clientY);
+      }
       return;
     }
 
@@ -6577,7 +7050,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={isDoublePage ? spreadStartIndex : activePageIndex}>
                     <style>{svgGlobalStyles}</style>
                     {(() => {
                       const displayIndex = isDoublePage ? spreadStartIndex : activePageIndex;
@@ -6772,7 +7245,7 @@ const MainEditor = ({
                   }}
                 >
                   {/* Page Content */}
-                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
+                  <div className={`flex-1 w-full relative page-svg-container tool-${selectedSelectTool} ${(activeTopTool !== 'animation' && activeTopTool !== 'interaction') ? 'hide-free-frames' : ''} ${(activeMainTool === 'pen' && selectedPenTool === 'pencil' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pencil-mode' : ''} ${(activeMainTool === 'pen' && ['pen', 'curve'].includes(selectedPenTool) && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'pen-mode' : ''} ${(activeMainTool === 'shapes' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'shape-mode' : ''} ${(activeMainTool === 'type' && (activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) ? 'type-mode' : ''}`} data-page-index={activePageIndex === 0 ? 0 : spreadStartIndex + 1}>
 
                     <style>{svgGlobalStyles}</style>
                     {(() => {

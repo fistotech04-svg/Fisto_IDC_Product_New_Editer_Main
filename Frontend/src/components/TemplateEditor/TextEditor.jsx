@@ -795,85 +795,112 @@ const TextEditor = ({
     const styleProp = STYLE_MAP[attribute];
     const finalVal = (attribute === 'fontSize' || attribute === 'letterSpacing') && !value?.toString().includes('px') && !value?.toString().includes('em') ? `${value}px` : value;
 
-    if (liveEl && styleProp) {
+    if (liveEl) {
       const liveTag = liveEl.tagName.toLowerCase();
       console.log(`[TextEditor] Live update: tag=${liveTag}, id=${elId}, attr=${attribute}, val=${value}`);
 
-      if (liveTag === 'foreignobject') {
-        if (liveEl.firstElementChild) {
-          if (styleProp === 'stroke') {
-            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
-            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', finalVal, 'important'));
-          } else if (styleProp === 'strokeWidth') {
-            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
-            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
-          } else {
-            const liveProp = styleProp === 'fill' ? 'color' : styleProp;
-            liveEl.firstElementChild.style.setProperty(liveProp, finalVal, 'important');
-            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(liveProp, finalVal, 'important'));
+      if (styleProp || attribute === 'data-stroke-position') {
+        if (liveTag === 'foreignobject') {
+          if (liveEl.firstElementChild && styleProp) {
+            if (styleProp === 'stroke') {
+              liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
+              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', finalVal, 'important'));
+            } else if (styleProp === 'strokeWidth') {
+              liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
+              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
+            } else {
+              const liveProp = styleProp === 'fill' ? 'color' : styleProp;
+              const cssPropName = liveProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+              liveEl.firstElementChild.style.setProperty(cssPropName, finalVal, 'important');
+              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(cssPropName, finalVal, 'important'));
+            }
+            
+            // General Auto-resize for layout-affecting properties
+            const layoutProps = ['fontSize', 'lineHeight', 'letterSpacing', 'fontFamily', 'fontWeight', 'textAlign', 'textTransform'];
+            if (layoutProps.includes(attribute) && liveEl.getAttribute('data-scrollable') !== 'true') {
+              const div = liveEl.firstElementChild;
+              div.style.setProperty('height', 'auto', 'important');
+              div.style.setProperty('min-height', '0px', 'important');
+              
+              const contentH = div.scrollHeight;
+              const foH = parseFloat(liveEl.getAttribute('height')) || 0;
+              
+              if (Math.abs(contentH - foH) > 2) {
+                 liveEl.setAttribute('height', contentH + 4);
+                 window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+              }
+            }
           }
-        }
-        if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
-          const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
-          const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
-          liveEl.firstElementChild.style.setProperty('paint-order', paintOrder, 'important');
-          Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('paint-order', paintOrder, 'important'));
-        }
-      } else {
-        if (styleProp === 'strokeWidth') {
-          liveEl.setAttribute('stroke-width', value);
-          liveEl.style.setProperty('stroke-width', `${value}px`, 'important');
-        } else if (styleProp === 'strokeDasharray') {
-          liveEl.setAttribute('stroke-dasharray', value);
-          liveEl.style.setProperty('stroke-dasharray', value, 'important');
-        } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
-          const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
-          liveEl.setAttribute(attrName, value);
-          liveEl.style.setProperty(attrName, value, 'important');
+          if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+            const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
+            const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+            liveEl.firstElementChild.style.setProperty('paint-order', paintOrder, 'important');
+            Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('paint-order', paintOrder, 'important'));
+          }
         } else {
-          liveEl.style.setProperty(styleProp, finalVal, 'important');
-        }
-        if (attribute === 'fill' || attribute === 'stroke') {
-          liveEl.setAttribute(attribute, value);
-        }
-        if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
-          const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
-          const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
-          liveEl.setAttribute('paint-order', paintOrder);
-          liveEl.style.setProperty('paint-order', paintOrder, 'important');
-        }
-        if (liveTag === 'text' || liveTag === 'g') {
-          Array.from(liveEl.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+          if (styleProp) {
             if (styleProp === 'strokeWidth') {
-              child.setAttribute('stroke-width', value);
-              child.style.setProperty('stroke-width', `${value}px`, 'important');
+              liveEl.setAttribute('stroke-width', value);
+              liveEl.style.setProperty('stroke-width', `${value}px`, 'important');
             } else if (styleProp === 'strokeDasharray') {
-              child.setAttribute('stroke-dasharray', value);
-              child.style.setProperty('stroke-dasharray', value, 'important');
+              liveEl.setAttribute('stroke-dasharray', value);
+              liveEl.style.setProperty('stroke-dasharray', value, 'important');
             } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
               const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
-              child.setAttribute(attrName, value);
-              child.style.setProperty(attrName, value, 'important');
+              liveEl.setAttribute(attrName, value);
+              liveEl.style.setProperty(attrName, value, 'important');
             } else {
-              child.style.setProperty(styleProp, finalVal, 'important');
-              child.setAttribute(attribute, value);
+              const cssPropName = styleProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+              liveEl.style.setProperty(cssPropName, finalVal, 'important');
             }
-            if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
-              const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
-              const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
-              child.setAttribute('paint-order', paintOrder);
-              child.style.setProperty('paint-order', paintOrder, 'important');
-            }
-          });
+          }
+          if (attribute === 'fill' || attribute === 'stroke') {
+            liveEl.setAttribute(attribute, value);
+          }
+          if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+            const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
+            const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+            liveEl.setAttribute('paint-order', paintOrder);
+            liveEl.style.setProperty('paint-order', paintOrder, 'important');
+          }
+          if (liveTag === 'text' || liveTag === 'g') {
+            Array.from(liveEl.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+              if (styleProp) {
+                if (styleProp === 'strokeWidth') {
+                  child.setAttribute('stroke-width', value);
+                  child.style.setProperty('stroke-width', `${value}px`, 'important');
+                } else if (styleProp === 'strokeDasharray') {
+                  child.setAttribute('stroke-dasharray', value);
+                  child.style.setProperty('stroke-dasharray', value, 'important');
+                } else if (styleProp === 'strokeLinecap' || styleProp === 'strokeLinejoin') {
+                  const attrName = styleProp === 'strokeLinecap' ? 'stroke-linecap' : 'stroke-linejoin';
+                  child.setAttribute(attrName, value);
+                  child.style.setProperty(attrName, value, 'important');
+                } else {
+                  const cssPropName = styleProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+                  child.style.setProperty(cssPropName, finalVal, 'important');
+                  child.setAttribute(attribute, value);
+                }
+              }
+              if (attribute === 'stroke' || attribute === 'strokeWidth' || attribute === 'data-stroke-position') {
+                const pos = attribute === 'data-stroke-position' ? value : (liveEl.getAttribute('data-stroke-position') || 'Center');
+                const paintOrder = pos === 'Outside' ? 'stroke fill' : 'normal';
+                child.setAttribute('paint-order', paintOrder);
+                child.style.setProperty('paint-order', paintOrder, 'important');
+              }
+            });
+          }
         }
       }
 
       // Update active editing overlay
-      const svgRoot = liveEl.ownerSVGElement || liveEl.closest('svg');
-      const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
-      if (overlay) {
-        const overlayProp = styleProp === 'fill' ? 'color' : styleProp;
-        overlay.style.setProperty(overlayProp, finalVal, 'important');
+      if (styleProp) {
+        const svgRoot = liveEl.ownerSVGElement || liveEl.closest('svg');
+        const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+        if (overlay) {
+          const overlayProp = styleProp === 'fill' ? 'color' : styleProp;
+          overlay.style.setProperty(overlayProp, finalVal, 'important');
+        }
       }
 
       // --- CUSTOM SCROLLABLE & CORNER RADIUS HANDLING ---
@@ -899,6 +926,14 @@ const TextEditor = ({
             liveEl.firstElementChild.style.height = 'auto';
             liveEl.firstElementChild.style.borderRadius = '0';
             liveEl.firstElementChild.style.border = 'none';
+            
+            // Immediately recalculate and expand the height since the scrollable constraint is removed
+            const contentH = liveEl.firstElementChild.scrollHeight;
+            const foH = parseFloat(liveEl.getAttribute('height')) || 0;
+            if (Math.abs(contentH - foH) > 2) {
+               liveEl.setAttribute('height', contentH + 4);
+               window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+            }
           }
         }
 
@@ -1009,14 +1044,17 @@ const TextEditor = ({
               });
 
               // Auto-grow live DOM element
-              if (liveEl.getAttribute('data-scrollable') !== 'true' && liveEl.getAttribute('data-auto-wrap') !== 'false') {
-                const oldWidth = liveEl.firstElementChild.style.width;
-                liveEl.firstElementChild.style.width = 'max-content';
-                const contentW = liveEl.firstElementChild.scrollWidth;
+              if (liveEl.getAttribute('data-scrollable') !== 'true') {
+                liveEl.firstElementChild.style.setProperty('height', 'auto', 'important');
+                liveEl.firstElementChild.style.setProperty('min-height', '0px', 'important');
+                
                 const contentH = liveEl.firstElementChild.scrollHeight;
-                liveEl.firstElementChild.style.width = oldWidth;
-                liveEl.setAttribute('width', Math.max(contentW, 10));
-                liveEl.setAttribute('height', contentH + 4);
+                const foH = parseFloat(liveEl.getAttribute('height')) || 0;
+                
+                if (Math.abs(contentH - foH) > 2) {
+                  liveEl.setAttribute('height', contentH + 4);
+                  window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+                }
               }
             } else if (liveTag === 'text') {
               const origFirstTspan3 = liveEl.querySelector('tspan');
@@ -1319,6 +1357,16 @@ const TextEditor = ({
           }
         }
 
+        // --- SYNC LIVE DIMENSIONS ---
+        // If the live DOM auto-resized itself (e.g. text wrap expanded the height),
+        // we must sync those dimensions to the virtual DOM before saving!
+        if (liveEl && liveEl.tagName.toLowerCase() === 'foreignobject') {
+          element.setAttribute('width', liveEl.getAttribute('width'));
+          element.setAttribute('height', liveEl.getAttribute('height'));
+          element.setAttribute('x', liveEl.getAttribute('x'));
+          element.setAttribute('y', liveEl.getAttribute('y'));
+        }
+
         const newHtml = new XMLSerializer().serializeToString(doc.documentElement);
         page.html = newHtml;
         newPages[pageIdx] = page;
@@ -1342,7 +1390,7 @@ const TextEditor = ({
       setLetterSpacing(numVal);
     }
     if (property === 'lineHeight') {
-      const numVal = value === 'Auto' || value === '' ? 1.2 : parseFloat(value);
+      const numVal = value === 'Auto' || value === '' ? 1.5 : parseFloat(value);
       setLineHeight(numVal);
 
       // SVG text: line-height is applied via dy attributes on tspan children
@@ -1397,7 +1445,26 @@ const TextEditor = ({
       }
       return;
     }
-    if (property === 'textTransform') setTextTransform(value);
+    if (property === 'textTransform') {
+      setTextTransform(value);
+      if (value === 'capitalize') {
+        const newText = textContent.toLowerCase();
+        if (newText !== textContent) {
+          setTextContent(newText);
+          const el = document.getElementById(selectedLayerId);
+          if (el) {
+            if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+              el.firstElementChild.innerHTML = newText.replace(/\n/g, '<br/>');
+            } else if (el.tagName.toLowerCase() === 'text') {
+              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
+            }
+          }
+          if (selectedLayerId && el?.tagName.toLowerCase() !== 'text') {
+            updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
+          }
+        }
+      }
+    }
 
     if (property === 'listStyleType') {
       setListStyleType(value);
@@ -1471,7 +1538,8 @@ const TextEditor = ({
 
           if (el.tagName.toLowerCase() === 'foreignobject') {
             if (el.firstElementChild) {
-              el.firstElementChild.style[styleProp] = finalVal;
+              const div = el.firstElementChild;
+              div.style[styleProp] = finalVal;
             }
           } else {
             // SVG text element — set both CSS style and SVG presentation attribute
@@ -1604,11 +1672,40 @@ const TextEditor = ({
 
   const calculateLineHeightMultiplier = () => {
     const el = document.getElementById(selectedLayerId);
-    if (!el) return 1.2;
+    if (!el) return 1.5;
 
     const inlineLH = el.getAttribute('data-line-height');
     if (inlineLH && /^[0-9.]+$/.test(inlineLH)) {
       return parseFloat(inlineLH);
+    }
+
+    if (el.tagName.toLowerCase() === 'text') {
+      const tspans = el.querySelectorAll('tspan');
+      if (tspans.length > 1) {
+        const dy = tspans[1].getAttribute('dy');
+        if (dy && dy.endsWith('em')) {
+           return parseFloat(dy);
+        }
+        
+        // Calculate from consecutive y coordinates (Figma logic)
+        const y1 = parseFloat(tspans[0].getAttribute('y'));
+        let y2 = NaN;
+        for (let i = 1; i < tspans.length; i++) {
+          const currentY = parseFloat(tspans[i].getAttribute('y'));
+          if (!isNaN(currentY) && currentY !== y1) {
+            y2 = currentY;
+            break;
+          }
+        }
+        if (!isNaN(y1) && !isNaN(y2)) {
+           const dyPx = Math.abs(y2 - y1);
+           const fontSizeStr = el.getAttribute('font-size') || el.style.fontSize;
+           const fontSize = parseFloat(fontSizeStr) || 16;
+           return parseFloat((dyPx / fontSize).toFixed(2));
+        }
+      } else if (tspans.length === 1) {
+        return 1.5;
+      }
     }
 
     const targetEl = el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? el.firstElementChild : el;
@@ -1617,13 +1714,15 @@ const TextEditor = ({
     const fontSize = parseFloat(computed.fontSize);
     const lh = computed.lineHeight;
 
-    if (lh === 'normal') return 1.2;
+    if (lh === 'normal') return 1.5;
     const val = parseFloat(lh);
 
     // If computed is in px (most likely), convert to multiplier
-    if (fontSize && lh.includes('px')) return val / fontSize;
+    if (fontSize && lh.includes('px')) {
+      return parseFloat((val / fontSize).toFixed(2));
+    }
     if (!isNaN(val)) return val;
-    return 1.2;
+    return 1.5;
   };
 
   // --- EFFECTS ---
