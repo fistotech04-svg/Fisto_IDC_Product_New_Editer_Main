@@ -1657,7 +1657,13 @@ export default function MyFlipbooks() {
 
                                                 {/* Action Row */}
                                                 <div className="flex items-center justify-between w-full mt-auto pt-[0.5vw]">
-                                                    <button className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors">
+                                                    <button 
+                                                        onClick={() => {
+                                                            const shareId = book.shareId || book.share?.shareId || book.v_id || encodeURIComponent(book.realName);
+                                                            window.open(`/share=public/${shareId}`, '_blank');
+                                                        }}
+                                                        className="flex items-center cursor-pointer gap-[0.375vw] text-[0.75vw] font-semibold text-gray-600 hover:text-gray-900 transition-colors"
+                                                    >
                                                         <Eye size="0.9vw" /> View Book
                                                     </button>
                                                     <button

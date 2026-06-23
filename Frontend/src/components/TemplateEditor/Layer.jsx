@@ -12,7 +12,7 @@ import {
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import axios from 'axios';
 import AlertModal from '../AlertModal';
-import { Icon as FileReplaceIcon } from '@iconify/react';
+import { Icon as FileReplaceIcon, Icon } from '@iconify/react';
 
 const LayerItem = ({
   layer,
@@ -651,9 +651,9 @@ const Layer = ({
             transition={{ duration: 0.15, ease: "easeOut" }}
             style={(() => {
               // Safely clamp the menu within the viewport
-              // Menu width is roughly 10vw, height is estimated at 350px
+              // Menu width is roughly 10vw, height is estimated higher to accommodate new options
               const menuWidth = window.innerWidth * 0.11;
-              const menuHeight = 350;
+              const menuHeight = 450;
               return {
                 position: 'fixed',
                 left: `${Math.min(activeLayerMenu.x, window.innerWidth - menuWidth)}px`,
@@ -669,27 +669,49 @@ const Layer = ({
                 : [activeLayerMenu.layerId];
 
               const page = pages[activePageIndex];
-              const isRootLayer = activeLayerMenu.isOverlay ||
+              const clickedLayerName = page?.layers?.find(l => l.id === activeLayerMenu.layerId)?.name;
+              
+              const realLayers = page?.layers ? page.layers.filter(l => l.name !== 'Free Frame') : [];
+              const rootGroupLayer = (realLayers.length === 1 && (realLayers[0].name === page?.name || realLayers[0].name?.startsWith('Page '))) ? realLayers[0] : null;
+              
+              const isPageBackground = activeLayerMenu.isOverlay || 
+                                       (page && activeLayerMenu.layerId === page.id) || 
+                                       clickedLayerName === 'Free Frame' ||
+                                       (rootGroupLayer && activeLayerMenu.layerId === rootGroupLayer.id);
+
+              const isRootLayer = isPageBackground ||
                 (page && page.layers && page.layers.some(l => l.id === activeLayerMenu.layerId));
 
               if (isRootLayer) {
+                let pageLayerIds = [];
+                if (rootGroupLayer) {
+                  pageLayerIds = (rootGroupLayer.children || []).filter(c => c.name !== 'Free Frame').map(l => l.id);
+                } else {
+                  pageLayerIds = realLayers.map(l => l.id);
+                }
+                
+                const cutCopyTargets = isPageBackground ? pageLayerIds : targetIds;
+                const disableCutCopy = isPageBackground && cutCopyTargets.length === 0;
+
                 return (
                   <>
                     <button
+                      disabled={disableCutCopy}
                       onClick={() => {
-                        cutLayer(activePageIndex, targetIds);
+                        cutLayer(activePageIndex, cutCopyTargets);
                         setActiveLayerMenu(null);
                       }}
-                      className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                      className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${disableCutCopy ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}
                     >
                       <Scissors size="0.9vw" /> Cut
                     </button>
                     <button
+                      disabled={disableCutCopy}
                       onClick={() => {
-                        copyLayer(activePageIndex, targetIds);
+                        copyLayer(activePageIndex, cutCopyTargets);
                         setActiveLayerMenu(null);
                       }}
-                      className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"
+                      className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors ${disableCutCopy ? 'text-gray-400 cursor-not-allowed grayscale-[0.5] opacity-60' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'}`}
                     >
                       <Copy size="0.9vw" /> Copy
                     </button>
@@ -710,6 +732,13 @@ const Layer = ({
                 );
               }
 
+              const hasGroup = targetIds.some(id => {
+                const el = document.getElementById(id);
+                return el && el.tagName.toLowerCase() === 'g';
+              });
+              const canUngroup = hasGroup;
+              const canGroup = targetIds.length > 0 && !(targetIds.length === 1 && hasGroup);
+
               return (
                 <>
                   {multiSelectedIds.size <= 1 && (
@@ -723,9 +752,39 @@ const Layer = ({
                       >
                         <Edit2 size="0.9vw" /> Rename
                       </button>
-                      <div className="h-px bg-gray-100 my-[0.2vw]"></div>
                     </>
                   )}
+                  
+                  <button
+                    onClick={() => {
+                      if (!canGroup) return;
+                      window.dispatchEvent(new CustomEvent('trigger-group'));
+                      setActiveLayerMenu(null);
+                    }}
+                    disabled={!canGroup}
+                    className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left ${
+                      !canGroup ? 'text-gray-400 cursor-not-allowed opacity-60' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                    }`}
+                  >
+                    <Icon icon="mdi-light:group" className="w-[0.9vw] h-[0.9vw] min-w-[0.9vw] min-h-[0.9vw]" />
+                    Group
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!canUngroup) return;
+                      window.dispatchEvent(new CustomEvent('trigger-ungroup'));
+                      setActiveLayerMenu(null);
+                    }}
+                    disabled={!canUngroup}
+                    className={`flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left ${
+                      !canUngroup ? 'text-gray-400 cursor-not-allowed opacity-60' : 'text-gray-700 hover:bg-gray-50 cursor-pointer'
+                    }`}
+                  >
+                    <Icon icon="mdi-light:ungroup" className="w-[0.9vw] h-[0.9vw] min-w-[0.9vw] min-h-[0.9vw]" />
+                    Ungroup
+                  </button>
+
+                  <div className="h-px bg-gray-100 my-[0.2vw]"></div>
 
                   <button
                     onClick={() => {
@@ -1093,7 +1152,6 @@ const Layer = ({
                             id={`page-card-preview-${page.id}`}
                             onClick={() => {
                               setActivePageIndex(index);
-                              if (!isPdfProject) setActiveTab('layers');
                             }}
                           >
                             {/* Page Header */}

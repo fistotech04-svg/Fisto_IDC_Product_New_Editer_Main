@@ -594,7 +594,23 @@ const TemplateEditor = () => {
   }, [setSaveHandler]);
 
   // Register Preview Handler to Navbar
-  const stablePreviewHandler = useCallback(() => window.open('/preview', '_blank'), []);
+  const stablePreviewHandler = useCallback(() => {
+    // Force save first
+    if (document.activeElement && document.activeElement.blur) {
+      document.activeElement.blur();
+    }
+    window.dispatchEvent(new CustomEvent('trigger-manual-save'));
+
+    setTimeout(() => {
+      const shareId = currentBook?.shareId || currentBook?.share?.shareId;
+      if (shareId) {
+        window.open(`/preview?shareId=${shareId}`, '_blank');
+      } else {
+        window.open('/preview', '_blank');
+      }
+    }, 500); // Give save a moment to complete
+  }, [currentBook]);
+  
   useEffect(() => {
     if (setPreviewHandler) {
       setPreviewHandler(() => stablePreviewHandler);
@@ -2699,21 +2715,25 @@ const TemplateEditor = () => {
       } else {
         // Handle physical Delete and Backspace keys (no modifiers)
         if (e.key === 'Delete' || e.key === 'Backspace') {
-          // if (multiSelectedIds.size > 0) {
-          //   deleteLayer(activePageIndex, multiSelectedIds);
-          //   setMultiSelectedIds(new Set());
-          //   setSelectedLayerId(null);
-          // } else if (selectedLayerId) {
-          //   deleteLayer(activePageIndex, selectedLayerId);
-          //   setSelectedLayerId(null);
-          // }
+          // Only allow deletion in the main editor mode. 
+          // Prevent accidental deletion while interacting with Interaction/Animation panels.
+          if (activeTopTool === 'editor') {
+            if (multiSelectedIds.size > 0) {
+              deleteLayer(activePageIndex, multiSelectedIds);
+              setMultiSelectedIds(new Set());
+              setSelectedLayerId(null);
+            } else if (selectedLayerId) {
+              deleteLayer(activePageIndex, selectedLayerId);
+              setSelectedLayerId(null);
+            }
+          }
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLayerId, multiSelectedIds, activePageIndex, clipboard, copyLayer, cutLayer, pasteLayer, deleteLayer, undo, redo, pages]);
+  }, [selectedLayerId, multiSelectedIds, activePageIndex, clipboard, copyLayer, cutLayer, pasteLayer, deleteLayer, undo, redo, pages, activeTopTool]);
 
   const loadTemplate = async (templateUrl, prefetchedContent = null) => {
     try {

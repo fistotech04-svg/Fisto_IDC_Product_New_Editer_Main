@@ -1,12 +1,87 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
+import axios from 'axios';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { getFromDB } from '../utils/dbUtils';
 
 const PreviewPage = () => {
   const [data, setData] = useState(null);
+  const location = useLocation();
 
   useEffect(() => {
     const loadData = async () => {
+      const searchParams = new URLSearchParams(location.search);
+      const shareId = searchParams.get('shareId');
+
+      if (shareId) {
+        try {
+          const getBackendUrl = () => {
+              if (import.meta.env.VITE_BACKEND_URL) return import.meta.env.VITE_BACKEND_URL;
+              const origin = window.location.origin;
+              if (origin.includes('devtunnels.ms')) return origin.replace('-5173', '-5000');
+              if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+                  const portMatch = origin.match(/:(\d+)/);
+                  if (portMatch) return origin.replace(portMatch[0], ':5000');
+              }
+              return 'http://localhost:5000';
+          };
+          const backendUrl = getBackendUrl();
+          const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`);
+          
+          if (res.data && res.data.pages) {
+            let processedData = res.data;
+            const userStr = localStorage.getItem('user');
+            const user = userStr ? JSON.parse(userStr) : null;
+            const currentUserEmail = user?.emailId || user?.email;
+            
+            if (currentUserEmail) {
+                try {
+                    const checkRes = await axios.get(`${backendUrl}/api/flipbook/check-owner/${shareId}?emailId=${encodeURIComponent(currentUserEmail)}`);
+                    if (!checkRes.data.isOwner) {
+                        setData({ error: true, errorMessage: "You do not have permission to preview this book." });
+                        return;
+                    }
+                } catch (err) {
+                    setData({ error: true, errorMessage: "You do not have permission to preview this book." });
+                    return;
+                }
+            } else {
+                setData({ error: true, errorMessage: "Please login to preview this book." });
+                return;
+            }
+
+            const bUrl = processedData.meta?.baseUrl ? `${backendUrl}${processedData.meta.baseUrl}` : '';
+            
+            processedData.pages = processedData.pages.map(p => {
+                let html = p.html || p.content || '';
+                html = html.replace(/(src|href|xlink:href)=(["'])https?:\/\/[^\/]+\/uploads\//g, `$1=$2${backendUrl}/uploads/`);
+                if (html.includes('nullassets/')) html = html.split('nullassets/').join(`${bUrl}assets/`);
+                if (html.includes('./assets/')) html = html.split('./assets/').join(`${bUrl}assets/`);
+                if (html.includes('src="/uploads/') || html.includes("src='/uploads/")) {
+                    html = html.replace(/src="\/uploads\//g, `src="${backendUrl}/uploads/`).replace(/src='\/uploads\//g, `src='${backendUrl}/uploads/`);
+                }
+                return { ...p, html };
+            });
+
+            // Extra 3s loading time to match preview behavior
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            setData({
+                ...processedData,
+                projectBaseUrl: bUrl,
+                settings: processedData.settings || {},
+                pageName: processedData.meta?.flipbookName || 'Preview'
+            });
+          } else {
+            setData({ error: true });
+          }
+        } catch (err) {
+          console.error(err);
+          setData({ error: true });
+        }
+        return;
+      }
+
       const saved = await getFromDB('editor_autosave');
       if (saved && saved.pages) {
         // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
@@ -64,7 +139,7 @@ const PreviewPage = () => {
   if (data.error) {
     return (
       <div className="flex items-center justify-center h-screen w-full bg-gray-100">
-        <div className="text-xl text-gray-600">No preview data found. Please return to the editor.</div>
+        <div className="text-xl text-gray-600">{data.errorMessage || "No preview data found. Please return to the editor."}</div>
       </div>
     );
   }

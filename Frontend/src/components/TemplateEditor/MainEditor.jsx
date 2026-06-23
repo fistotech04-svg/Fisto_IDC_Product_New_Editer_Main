@@ -2339,6 +2339,10 @@ const MainEditor = ({
     e.preventDefault();
     e.stopPropagation();
 
+    if (activeTopTool === 'interaction' || activeTopTool === 'animation') {
+      return;
+    }
+
     const container = e.currentTarget.closest('.page-svg-container');
     const svg = container?.querySelector('svg');
     if (!svg) return;
@@ -2648,6 +2652,143 @@ const MainEditor = ({
       } else if (e.key === 'P' && e.shiftKey) {
         setActiveMainTool('pen');
         setSelectedPenTool('pencil');
+      } else if (e.key.toLowerCase() === 'g' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        
+        const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        const svg = activeContainer?.querySelector('svg');
+        if (!svg) return;
+
+        const ids = multiSelectedIdsRef.current.size > 0 
+          ? Array.from(multiSelectedIdsRef.current) 
+          : (selectedLayerIdRef.current ? [selectedLayerIdRef.current] : []);
+
+        const isUngroup = e.shiftKey;
+
+        if (!isUngroup && ids.length > 0) {
+          // GROUP
+          const elements = ids.map(id => svg.querySelector(`[id="${id}"]`)).filter(Boolean);
+          if (elements.length > 0) {
+            const parent = elements[0].parentNode;
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.id = 'group-' + Date.now();
+            group.setAttribute('data-name', 'Group');
+            group.setAttribute('data-type', 'group');
+
+            parent.insertBefore(group, elements[elements.length - 1].nextSibling);
+
+            elements.forEach(el => {
+              group.appendChild(el);
+            });
+
+            if (updatePageHtml) updatePageHtml(activePageIndex, svg.outerHTML);
+            
+            if (setSelectedLayerId) setSelectedLayerId(group.id);
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set([group.id]));
+          }
+        } else if (isUngroup && ids.length > 0) {
+          // UNGROUP
+          let hasChanges = false;
+          const newSelectedIds = new Set();
+
+          // Collect unique group elements to ungroup
+          const groupsToUngroup = new Set();
+          ids.forEach(id => {
+            let el = svg.querySelector(`[id="${id}"]`);
+            if (el && el.tagName.toLowerCase() !== 'g') {
+               let parentG = el.closest('g');
+               if (parentG) el = parentG;
+            }
+            if (el && el.tagName.toLowerCase() === 'g') {
+              const elName = el.getAttribute('data-name') || '';
+              const elType = el.getAttribute('data-type') || '';
+              const isLocked = el.getAttribute('data-locked') === 'true';
+
+              if (!isLocked && !elName.includes('PDF Background') && !elName.includes('Overlay') && elType !== 'frame' && elType !== 'background' && el.parentNode !== svg) {
+                groupsToUngroup.add(el);
+              }
+            }
+          });
+
+          groupsToUngroup.forEach(el => {
+            const parent = el.parentNode;
+            const children = Array.from(el.childNodes);
+            
+            const groupTransform = el.getAttribute('transform') || '';
+            const inheritableAttrs = ['fill', 'stroke', 'stroke-width', 'opacity', 'font-family', 'font-size', 'font-weight', 'color', 'letter-spacing', 'stroke-linecap', 'stroke-linejoin'];
+            const inheritedStyles = {};
+            inheritableAttrs.forEach(attr => {
+              if (el.hasAttribute(attr)) inheritedStyles[attr] = el.getAttribute(attr);
+            });
+
+            children.forEach((child, idx) => {
+               if (child.nodeType === 1) { // ELEMENT_NODE
+                 if (!child.id) {
+                   child.id = `ungrouped-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`;
+                 }
+
+                 if (groupTransform) {
+                   const childTransform = child.getAttribute('transform') || '';
+                   child.setAttribute('transform', `${groupTransform} ${childTransform}`.trim());
+                 }
+
+                 // Apply inherited styles to child if it doesn't override them
+                 Object.entries(inheritedStyles).forEach(([attr, val]) => {
+                   if (!child.hasAttribute(attr)) {
+                     child.setAttribute(attr, val);
+                   }
+                 });
+
+                 parent.insertBefore(child, el);
+                 if (child.id) newSelectedIds.add(child.id);
+               }
+            });
+            
+            parent.removeChild(el);
+            hasChanges = true;
+          });
+
+          if (hasChanges) {
+            if (updatePageHtml) updatePageHtml(activePageIndex, svg.outerHTML);
+            const newIdsArr = Array.from(newSelectedIds);
+            if (setSelectedLayerId) setSelectedLayerId(newIdsArr.length === 1 ? newIdsArr[0] : null);
+            if (setMultiSelectedIds) setMultiSelectedIds(new Set(newIdsArr));
+          }
+        }
+      } else if (e.key === 'Backspace' || e.key === 'Delete') {
+        // Core Logic: Delete selected element
+        e.preventDefault();
+
+        const ids = multiSelectedIdsRef.current.size > 0 
+          ? Array.from(multiSelectedIdsRef.current) 
+          : (selectedLayerIdRef.current ? [selectedLayerIdRef.current] : []);
+
+        if (ids.length === 0) return;
+
+        const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        const svg = activeContainer?.querySelector('svg');
+        if (!svg) return;
+
+        let deleted = false;
+        ids.forEach(id => {
+          const el = svg.querySelector(`[id="${id}"]`);
+          if (!el) return;
+
+          const elName = el.getAttribute('data-name') || '';
+          const elType = el.getAttribute('data-type') || '';
+          const isLocked = el.getAttribute('data-locked') === 'true';
+
+          if (!isLocked && !elName.includes('PDF Background') && !elName.includes('Overlay') && elType !== 'frame' && elType !== 'background') {
+            el.remove();
+            deleted = true;
+          }
+        });
+
+        if (deleted && updatePageHtml) {
+          updatePageHtml(activePageIndex, svg.outerHTML);
+          if (setSelectedLayerId) setSelectedLayerId(null);
+          if (setMultiSelectedIds) setMultiSelectedIds(new Set());
+        }
       } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         // Core Logic: Move selected element with arrow keys
         e.preventDefault();
@@ -2697,7 +2838,21 @@ const MainEditor = ({
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    const handleTriggerGroup = () => {
+      handleKeyDown({ key: 'g', ctrlKey: true, preventDefault: () => {} });
+    };
+    const handleTriggerUngroup = () => {
+      handleKeyDown({ key: 'G', ctrlKey: true, shiftKey: true, preventDefault: () => {} });
+    };
+    window.addEventListener('trigger-group', handleTriggerGroup);
+    window.addEventListener('trigger-ungroup', handleTriggerUngroup);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('trigger-group', handleTriggerGroup);
+      window.removeEventListener('trigger-ungroup', handleTriggerUngroup);
+    };
   }, [setSelectedLayerId, setMultiSelectedIds, setCurrentFrameId, activePageIndex, updatePageHtml, setActiveMainTool, setSelectedSelectTool, activeTopTool]);
 
   useEffect(() => {
@@ -3742,11 +3897,11 @@ const MainEditor = ({
               let dx_root = 0;
               let dy_root = 0;
 
-              if (maxX > baseWidth) dx_root = baseWidth - maxX;
-              if (minX + dx_root < 0) dx_root = -minX;
+              if (minX >= baseWidth) dx_root = (baseWidth - 10) - minX;
+              else if (maxX <= 0) dx_root = 10 - maxX;
 
-              if (maxY > baseHeight) dy_root = baseHeight - maxY;
-              if (minY + dy_root < 0) dy_root = -minY;
+              if (minY >= baseHeight) dy_root = (baseHeight - 10) - minY;
+              else if (maxY <= 0) dy_root = 10 - maxY;
 
               if (dx_root !== 0 || dy_root !== 0) {
                 const rootToParent = parentCtm.inverse().multiply(rootCtm);
@@ -4236,18 +4391,47 @@ const MainEditor = ({
 
       if (parentEl) {
         const id = `text-${Math.random().toString(36).substr(2, 9)}`;
-        const newText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        newText.setAttribute('id', id);
-        newText.setAttribute('x', pt.x); // top-left x align
-        newText.setAttribute('y', pt.y + 12); // visually balance so the click anchors closer to the top left 
-        newText.setAttribute('fill', '#000000');
-        newText.setAttribute('font-family', 'Inter, sans-serif');
-        newText.setAttribute('font-size', '16');
+        const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
+        const ptToMmScale = 0.3527316451072693;
+        fo.setAttribute('id', id);
+        // Scale the local x,y,width,height inversely so it renders at the mouse cursor
+        fo.setAttribute('x', pt.x / ptToMmScale);
+        fo.setAttribute('y', pt.y / ptToMmScale);
+        fo.setAttribute('width', '50');
+        fo.setAttribute('height', '28');
+        fo.setAttribute('transform', `matrix(${ptToMmScale} 0 0 ${ptToMmScale} 0 0)`);
+        fo.setAttribute('fill', '#000000');
+        fo.setAttribute('font-family', 'Inter, sans-serif');
+        fo.setAttribute('font-size', '16');
+        fo.setAttribute('data-auto-wrap', 'true');
+        fo.setAttribute('data-type', 'text');
 
-        // Satisfying user requirement: precisely populate dummy text and let user double-click manually
-        newText.textContent = 'Text';
+        const div = document.createElement('div');
+        div.style.width = '100%';
+        div.style.minHeight = '100%';
+        div.style.color = '#000000';
+        div.style.fontFamily = 'Inter, sans-serif';
+        div.style.fontSize = '16px';
+        div.style.fontWeight = 'normal';
+        div.style.fontStyle = 'normal';
+        div.style.textDecoration = 'none';
+        div.style.textAlign = 'left';
+        div.style.lineHeight = '1';
+        div.style.wordBreak = 'normal';
+        div.style.overflowWrap = 'anywhere';
+        div.style.whiteSpace = 'pre-wrap';
+        div.style.padding = '0px';
+        div.style.margin = '0';
+        div.style.boxSizing = 'border-box';
+        div.style.outline = 'none';
+        div.style.background = 'transparent';
+        div.style.userSelect = 'none';
+        div.style.pointerEvents = 'none';
+        
+        div.innerText = 'Text';
+        fo.appendChild(div);
 
-        parentEl.appendChild(newText);
+        parentEl.appendChild(fo);
 
         if (updatePageHtml) {
           saveModifiedPageHtml(pageIndex, svg);
@@ -5109,15 +5293,21 @@ const MainEditor = ({
     fo.setAttribute('data-type', 'text');
     fo.setAttribute('x', bbox.x);
     fo.setAttribute('y', bbox.y);
-    fo.setAttribute('width', Math.max(bbox.width, 10));
+    fo.setAttribute('width', Math.max(bbox.width + 1.5, 10));
     fo.setAttribute('height', Math.max(bbox.height, 10));
+    fo.setAttribute('overflow', 'visible');
     // Preserve transform if any
     const transform = el.getAttribute('transform');
     if (transform) fo.setAttribute('transform', transform);
 
     const div = document.createElement('div');
-    div.style.width = '100%';
+    const isScrollable = el.getAttribute('data-scrollable') === 'true';
+    div.style.width = isScrollable ? '100%' : 'calc(100% + 4px)'; // keep scrollbar inside if scrollable
     div.style.minHeight = '100%';
+    if (isScrollable) {
+        div.style.overflowY = 'auto';
+        div.style.overflowX = 'hidden';
+    }
     div.style.color = el.getAttribute('fill') || '#000000';
     div.style.fontFamily = el.getAttribute('font-family') || 'Inter, sans-serif';
     div.style.fontSize = (el.getAttribute('font-size') || '10') + 'px';
@@ -5126,20 +5316,27 @@ const MainEditor = ({
     div.style.textDecoration = el.style.textDecoration || el.getAttribute('text-decoration') || 'none';
     const textAnchor = el.style.textAlign || el.getAttribute('text-anchor') || 'start';
     div.style.textAlign = textAnchor === 'middle' ? 'center' : (textAnchor === 'end' ? 'right' : 'left');
-    div.style.lineHeight = el.getAttribute('data-line-height') || '1.5';
+    div.style.lineHeight = el.getAttribute('data-line-height') || '1';
     div.style.letterSpacing = el.style.letterSpacing || el.getAttribute('letter-spacing') || '';
     div.style.wordSpacing = el.style.wordSpacing || el.getAttribute('word-spacing') || '';
     div.style.wordBreak = 'normal';
     div.style.overflowWrap = 'anywhere';
     // Use pre-wrap to allow paragraphs to reflow correctly on resize
     div.style.whiteSpace = 'pre-wrap';
-    div.style.padding = '0px';
+    div.style.padding = '0px'; // Push down 1.5px and right 1px to match SVG baseline
     div.style.margin = '0';
     div.style.boxSizing = 'border-box';
     div.style.outline = 'none';
     div.style.background = 'transparent';
     div.style.userSelect = 'none';
     div.style.pointerEvents = 'none';
+
+    if (!isScrollable) {
+        // Vertically center the text to match SVG bbox placement and prevent upward shift
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.justifyContent = 'center';
+    }
 
     // Smart tspan-to-lines conversion: group tspans by Y coordinate change
     const tspans = Array.from(el.querySelectorAll('tspan'));
@@ -5166,7 +5363,10 @@ const MainEditor = ({
               deltaY = Math.abs(parseFloat(y) - parseFloat(lastY));
            }
            if (deltaY !== null && !isNaN(deltaY) && deltaY > 0) {
-              lineHeights.push(deltaY);
+              // Ignore massive jumps (e.g. paragraph gaps) so they don't inflate the average line-height
+              if (deltaY < fontSize * 3) {
+                 lineHeights.push(deltaY);
+              }
            }
         }
         
@@ -5244,7 +5444,7 @@ const MainEditor = ({
       let htmlContent = '';
       for (let i = 0; i < linesBounds.length; i++) {
          const l = linesBounds[i];
-         let text = l.textContent;
+         let text = l.textContent.replace(/[\r\n]+/g, '');
          let isHardBreak = true;
          
          if (i < linesBounds.length - 1 && l.minX !== Infinity) {
@@ -5278,16 +5478,14 @@ const MainEditor = ({
       div.style.textAlign = finalAlign;
 
       // Use the exact original bounding box to preserve accurate visual alignment.
-      // Add a tiny buffer width to prevent HTML rendering differences from accidentally wrapping the text
-      const buffer = 4;
       const currentWidth = parseFloat(fo.getAttribute('width'));
       const currentX = parseFloat(fo.getAttribute('x'));
-      fo.setAttribute('width', currentWidth + buffer);
+      fo.setAttribute('width', currentWidth);
       
       if (finalAlign === 'right') {
-         fo.setAttribute('x', currentX - buffer);
+         fo.setAttribute('x', currentX);
       } else if (finalAlign === 'center') {
-         fo.setAttribute('x', currentX - (buffer / 2));
+         fo.setAttribute('x', currentX);
       }
     } else {
       div.textContent = el.textContent || '';
@@ -6312,6 +6510,141 @@ const MainEditor = ({
     };
   }, [setZoom]);
 
+  const handleAlign = (type) => {
+    const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
+    if (ids.length === 0) return;
+
+    const svg = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"] svg`);
+    if (!svg) return;
+
+    const elements = ids.map(id => svg.querySelector(`[id="${id}"]`)).filter(Boolean);
+    if (elements.length === 0) return;
+
+    const getElBBox = (el) => {
+      try {
+        const rect = el.getBoundingClientRect();
+        const ctm = svg.getScreenCTM().inverse();
+        const p1 = new DOMPoint(rect.left, rect.top).matrixTransform(ctm);
+        const p2 = new DOMPoint(rect.right, rect.bottom).matrixTransform(ctm);
+        const p3 = new DOMPoint(rect.left, rect.bottom).matrixTransform(ctm);
+        const p4 = new DOMPoint(rect.right, rect.top).matrixTransform(ctm);
+        
+        const minX = Math.min(p1.x, p2.x, p3.x, p4.x);
+        const maxX = Math.max(p1.x, p2.x, p3.x, p4.x);
+        const minY = Math.min(p1.y, p2.y, p3.y, p4.y);
+        const maxY = Math.max(p1.y, p2.y, p3.y, p4.y);
+        
+        return {
+          minX, maxX, minY, maxY,
+          width: maxX - minX,
+          height: maxY - minY,
+          midX: (minX + maxX) / 2,
+          midY: (minY + maxY) / 2
+        };
+      } catch (e) {
+        return null;
+      }
+    };
+
+    const elBBoxes = elements.map(el => ({ el, bbox: getElBBox(el) })).filter(item => item.bbox);
+    if (elBBoxes.length === 0) return;
+
+    let targetBBox;
+    if (elements.length === 1) {
+      const el = elements[0];
+      const parent = el.parentNode;
+      let parentBBox = null;
+      
+      if (parent && parent.tagName && parent.tagName.toLowerCase() === 'g' && parent !== svg) {
+        parentBBox = getElBBox(parent);
+      }
+
+      if (parentBBox) {
+        targetBBox = parentBBox;
+      } else {
+        const viewBox = svg.getAttribute('viewBox');
+        const [vx, vy, vw, vh] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 595, 842];
+        targetBBox = { minX: vx, minY: vy, maxX: vx + vw, maxY: vy + vh, midX: vx + vw/2, midY: vy + vh/2 };
+      }
+    } else {
+      targetBBox = {
+        minX: Math.min(...elBBoxes.map(e => e.bbox.minX)),
+        maxX: Math.max(...elBBoxes.map(e => e.bbox.maxX)),
+        minY: Math.min(...elBBoxes.map(e => e.bbox.minY)),
+        maxY: Math.max(...elBBoxes.map(e => e.bbox.maxY)),
+      };
+      targetBBox.midX = (targetBBox.minX + targetBBox.maxX) / 2;
+      targetBBox.midY = (targetBBox.minY + targetBBox.maxY) / 2;
+    }
+    
+    const applyTranslation = (el, dx, dy) => {
+      if (dx === 0 && dy === 0) return;
+      try {
+        const parentCTM = el.parentNode.getCTM() || new DOMMatrix();
+        const invParentCTM = parentCTM.inverse();
+        
+        const p0 = new DOMPoint(0, 0).matrixTransform(invParentCTM);
+        const p1 = new DOMPoint(dx, dy).matrixTransform(invParentCTM);
+        const localDx = p1.x - p0.x;
+        const localDy = p1.y - p0.y;
+        
+        const matrix = typeof getElementMatrix === 'function' ? getElementMatrix(el) : new DOMMatrix(el.getAttribute('transform') || '');
+        const nextMatrix = new DOMMatrix().translate(localDx, localDy).multiply(matrix);
+        if (typeof matrixToTransform === 'function') el.setAttribute('transform', matrixToTransform(nextMatrix));
+      } catch (e) { }
+    };
+
+    if (type === 'distribute-h' && elBBoxes.length > 2) {
+      elBBoxes.sort((a, b) => a.bbox.minX - b.bbox.minX);
+      const first = elBBoxes[0];
+      const last = elBBoxes[elBBoxes.length - 1];
+      const totalSpace = last.bbox.minX - first.bbox.maxX;
+      const innerWidth = elBBoxes.slice(1, -1).reduce((sum, item) => sum + item.bbox.width, 0);
+      const gap = (totalSpace - innerWidth) / (elBBoxes.length - 1);
+      
+      let currentX = first.bbox.maxX + gap;
+      for (let i = 1; i < elBBoxes.length - 1; i++) {
+        const item = elBBoxes[i];
+        const dx = currentX - item.bbox.minX;
+        applyTranslation(item.el, dx, 0);
+        currentX += item.bbox.width + gap;
+      }
+    } else if (type === 'distribute-v' && elBBoxes.length > 2) {
+      elBBoxes.sort((a, b) => a.bbox.minY - b.bbox.minY);
+      const first = elBBoxes[0];
+      const last = elBBoxes[elBBoxes.length - 1];
+      const totalSpace = last.bbox.minY - first.bbox.maxY;
+      const innerHeight = elBBoxes.slice(1, -1).reduce((sum, item) => sum + item.bbox.height, 0);
+      const gap = (totalSpace - innerHeight) / (elBBoxes.length - 1);
+      
+      let currentY = first.bbox.maxY + gap;
+      for (let i = 1; i < elBBoxes.length - 1; i++) {
+        const item = elBBoxes[i];
+        const dy = currentY - item.bbox.minY;
+        applyTranslation(item.el, 0, dy);
+        currentY += item.bbox.height + gap;
+      }
+    } else {
+      elBBoxes.forEach(({ el, bbox }) => {
+        let dx = 0, dy = 0;
+        switch (type) {
+          case 'left': dx = targetBBox.minX - bbox.minX; break;
+          case 'center': dx = targetBBox.midX - bbox.midX; break;
+          case 'right': dx = targetBBox.maxX - bbox.maxX; break;
+          case 'top': dy = targetBBox.minY - bbox.minY; break;
+          case 'middle': dy = targetBBox.midY - bbox.midY; break;
+          case 'bottom': dy = targetBBox.maxY - bbox.maxY; break;
+        }
+        if (dx !== 0 || dy !== 0) {
+          const matrix = typeof getElementMatrix === 'function' ? getElementMatrix(el) : new DOMMatrix(el.getAttribute('transform') || '');
+          const nextMatrix = new DOMMatrix().translate(dx, dy).multiply(matrix);
+          if (typeof matrixToTransform === 'function') el.setAttribute('transform', matrixToTransform(nextMatrix));
+        }
+      });
+    }
+
+    if (updatePageHtml) updatePageHtml(activePageIndex, svg.outerHTML);
+  };
 
   return (
     <div
@@ -6332,7 +6665,9 @@ const MainEditor = ({
         onRotate={handleRotate}
         onFlipH={() => handleFlip('h')}
         onFlipV={() => handleFlip('v')}
+        onAlign={handleAlign}
         hideTools={isPdfProject}
+
         hasSelection={(() => {
           const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
           if (ids.length === 0) return false;

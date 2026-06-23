@@ -647,6 +647,11 @@ const CustomizedEditor = () => {
   const stableExportHandler = useCallback((...args) => handleExportRef.current?.(...args), []);
 
   const handlePreview = useCallback(async () => {
+    // Save to backend first so the shareId link has the latest data
+    if (handleSaveRef.current) {
+        await handleSaveRef.current();
+    }
+    
     await saveToDB('editor_autosave', {
       v_id: v_id,
       pages: pages,
@@ -668,8 +673,13 @@ const CustomizedEditor = () => {
         visibility: visibilitySettings
       }
     });
-    window.open('/preview', '_blank');
-  }, [v_id, pages, bookName, projectBaseUrl, targetPage, logoSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings]);
+    const shareId = shareSettings?.shareId;
+    if (shareId) {
+      window.open(`/preview?shareId=${shareId}`, '_blank');
+    } else {
+      window.open('/preview', '_blank');
+    }
+  }, [v_id, pages, bookName, projectBaseUrl, targetPage, logoSettings, profileSettings, backgroundSettings, bookAppearanceSettings, layoutSettings, layoutColors, menuBarSettings, otherSetupSettings, leadFormSettings, visibilitySettings, shareSettings]);
 
   const handlePreviewRef = useRef(handlePreview);
   handlePreviewRef.current = handlePreview;

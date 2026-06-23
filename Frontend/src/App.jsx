@@ -34,7 +34,7 @@ function App() {
             <Route path="/signup" element={<Signup />} />
             <Route path="/unauthorized" element={<Unauthorized />} />
             <Route path="/share=public/:shareId" element={<ShareViewBook />} />
-            <Route path="/preview" element={<PreviewPage />} />
+            <Route path="/preview" element={<ProtectedRoute><PreviewPage /></ProtectedRoute>} />
             <Route path="/ar-view" element={<ARView />} />
 
             {/* Protected Editor Layout */}

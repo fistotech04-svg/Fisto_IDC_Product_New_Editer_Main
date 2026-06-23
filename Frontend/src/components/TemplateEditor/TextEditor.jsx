@@ -962,8 +962,9 @@ const TextEditor = ({
       if (!page || !page.html) return prevPages;
 
       const parser = new DOMParser();
-      // Replace <br> with <br/> and replace invalid XML entity &nbsp; with &#160;
-      const cleanHtml = page.html.replace(/<br\s*>/gi, '<br/>').replace(/&nbsp;/gi, '&#160;');
+      // Replace any variation of <br> (with or without attributes/slashes) with a clean <br/>
+      // and replace invalid XML entity &nbsp; with &#160;
+      const cleanHtml = page.html.replace(/<br[^>]*>/gi, '<br/>').replace(/&nbsp;/gi, '&#160;');
       const doc = parser.parseFromString(cleanHtml, 'image/svg+xml');
 
       if (doc.querySelector('parsererror')) {
@@ -1023,7 +1024,8 @@ const TextEditor = ({
               element.appendChild(tspan);
             });
           } else if (tag === 'foreignobject' && element.firstElementChild) {
-            const tempDoc = new DOMParser().parseFromString(`<div>${latestContent.replace(/\\n/g, '<br/>')}</div>`, 'text/html');
+            // Safely parse the live HTML using an HTML parser, then import nodes to the XML Virtual DOM
+            const tempDoc = new DOMParser().parseFromString(`<div>${liveEl.firstElementChild.innerHTML}</div>`, 'text/html');
             element.firstElementChild.innerHTML = '';
             Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
               element.firstElementChild.appendChild(doc.importNode(child, true));
@@ -1200,7 +1202,7 @@ const TextEditor = ({
           const fsVal = parseFloat(fsStr) || 16;
           innerDiv.style.fontSize = `${fsVal * scaleY}px`;
           innerDiv.innerHTML = '';
-          const tempDoc = new DOMParser().parseFromString(`<div>${getDeepContent(liveEl).replace(/\\n/g, '<br/>')}</div>`, 'text/html');
+          const tempDoc = new DOMParser().parseFromString(`<div>${getDeepContent(liveEl).replace(/\n/g, '<br/>')}</div>`, 'text/html');
           Array.from(tempDoc.body.firstChild.childNodes).forEach(child => {
             innerDiv.appendChild(doc.importNode(child, true));
           });
@@ -1210,13 +1212,26 @@ const TextEditor = ({
 
           newFo.appendChild(innerDiv);
           element.replaceWith(newFo);
-        } else if (attribute === 'data-scrollable' && value === 'false' && tag === 'foreignobject') {
-          // Optional: Convert back to text? Usually better to keep as FO for reliability
-          element.setAttribute('data-scrollable', 'false');
+        } else if (attribute === 'data-scrollable' && tag === 'foreignobject') {
+          element.setAttribute('data-scrollable', value);
+          element.setAttribute('overflow', value === 'true' ? 'hidden' : 'visible');
           if (element.firstElementChild) {
-            element.firstElementChild.style.overflowY = 'visible';
-            element.firstElementChild.classList.remove('flipbook-text-scrollbar');
-            element.firstElementChild.style.height = 'auto';
+            if (value === 'true') {
+              element.firstElementChild.style.overflowY = 'auto';
+              element.firstElementChild.style.overflowX = 'hidden';
+              element.firstElementChild.classList.add('flipbook-text-scrollbar');
+              element.firstElementChild.style.height = '100%';
+              element.firstElementChild.style.width = '100%';
+              element.firstElementChild.style.display = 'block'; // Remove flex to fix top-cutoff bug
+            } else {
+              element.firstElementChild.style.overflowY = 'visible';
+              element.firstElementChild.classList.remove('flipbook-text-scrollbar');
+              element.firstElementChild.style.height = '100%';
+              element.firstElementChild.style.width = 'calc(100% + 4px)';
+              element.firstElementChild.style.display = 'flex'; // Restore perfect vertical alignment
+              element.firstElementChild.style.flexDirection = 'column';
+              element.firstElementChild.style.justifyContent = 'center';
+            }
           }
         } else if (styleProp) {
           let finalProp = (tag === 'foreignobject' && styleProp === 'fill') ? 'color' : styleProp;

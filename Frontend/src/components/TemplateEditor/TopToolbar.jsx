@@ -15,6 +15,7 @@ const TopToolbar = ({
   onRotate,
   onFlipH,
   onFlipV,
+  onAlign,
   hasSelection,
   hideTools = false
 }) => {
@@ -132,36 +133,36 @@ const TopToolbar = ({
         <div className={`flex items-center gap-[1vw] ${!hasSelection ? 'opacity-30 pointer-events-none' : ''}`}>
           {/* Group 1 */}
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('top')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="mdi:format-align-top" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('middle')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="mdi:format-align-middle" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div className="p-[0.4vw] bg-white rounded-[0.4vw] cursor-pointer shadow-sm">
+            <div onClick={() => onAlign && onAlign('bottom')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="mdi:format-align-bottom" width="1.1vw" className="text-[#374151]" />
             </div>
           </div>
 
           {/* Group 2 */}
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('left')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="line-md:arrow-align-left" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('center')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="line-md:arrow-align-center" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('right')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="line-md:arrow-align-right" width="1.1vw" className="text-[#374151]" />
             </div>
           </div>
 
           {/* Group 3 */}
           <div className="flex items-center gap-[0.2vw] bg-[#F3F4F6] p-[0.3vw] rounded-[0.6vw]">
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('distribute-v')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="icon-park-outline:distribute-vertically" width="1.1vw" className="text-[#374151]" />
             </div>
-            <div className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
+            <div onClick={() => onAlign && onAlign('distribute-h')} className="p-[0.4vw] hover:bg-white rounded-[0.4vw] cursor-pointer transition-all hover:shadow-sm">
               <Icon icon="icon-park-outline:distribute-horizontally" width="1.1vw" className="text-[#374151]" />
             </div>
           </div>
@@ -266,9 +267,10 @@ const TopToolbar = ({
           {/* Reset Action */}
           <button 
             onClick={onReset}
-            className="h-[1.9vw] px-[0.7vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm group"
+            title="Reset Zoom"
+            className="w-[1.9vw] h-[1.9vw] flex items-center justify-center hover:bg-white rounded-full cursor-pointer transition-all hover:shadow-sm text-[#374151] hover:text-black group"
           >
-            <span className="text-[0.55vw] text-[#6B7280] uppercase font-bold tracking-wider group-hover:text-black transition-colors">Reset</span>
+            <RotateCcw size="0.9vw" strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
           </button>
         </div>
       </div>

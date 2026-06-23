@@ -1016,19 +1016,7 @@ const InteractionPanel = ({
         </div>
       </div>
 
-      {/* Add Interaction Button */}
-      {activeLayerId && !openCardIds[activeLayerId] && (
-        <div className="mt-[0.5vh] flex justify-center">
-          <button
-            onClick={() => { }}
-            className="w-[92%] mx-auto h-[5.8vh] bg-[#3F3F46] rounded-[0.5vw] flex items-center justify-center text-white shadow-sm hover:bg-[#27272A] transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <span className="text-[0.85vw] font-semibold tracking-wide flex items-center gap-[0.4vw]">
-              <span className="text-[1.2vw] font-light leading-[1]">+</span> Add Interaction to {activeLayerId ? detectElementDisplayInfo(activeLayerId).name : 'Group 432'}
-            </span>
-          </button>
-        </div>
-      )}      {/* Interactions in this Page Section */}
+      {/* Add Interaction Button Removed */}      {/* Interactions in this Page Section */}
       <div className="space-y-[1.5vh] mt-[2vh]">
         <div className="flex items-center gap-[0.75vw]">
           <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Interactions in this Page</span>

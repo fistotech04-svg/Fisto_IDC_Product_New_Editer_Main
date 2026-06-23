@@ -2064,6 +2064,29 @@ router.get("/public/get/:shareId", async (req, res) => {
   }
 });
 
+// @route   GET /api/flipbook/check-owner/:shareId
+// @desc    Check if a flipbook belongs to a specific user email via shareId
+router.get("/check-owner/:shareId", async (req, res) => {
+  try {
+    const { shareId } = req.params;
+    const { emailId } = req.query;
+    
+    if (!shareId || !emailId) return res.status(400).json({ message: "Missing shareId or emailId" });
+
+    const dbDoc = await Flipbook.findOne({ "share.shareId": shareId });
+    if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
+
+    if (dbDoc.userEmail !== emailId) {
+      return res.status(403).json({ message: "Unauthorized", isOwner: false });
+    }
+
+    res.json({ message: "Authorized", isOwner: true });
+  } catch (err) {
+    console.error("Error in check-owner:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // @route DELETE /api/flipbook/folder
 router.delete("/folder", async (req, res) => {
   try {
