@@ -404,9 +404,21 @@ router.post("/save", async (req, res) => {
     const savedFileNames = new Set();
     const newPageIds = new Set();
 
+    // Create Default Assets Folders first so we can write to them
+    const assetsDir = path.join(flipbookDir, "assets");
+    ["Image", "gif", "video", "3D_Model", "audio"].forEach((sub) => {
+      const subDir = path.join(assetsDir, sub);
+      if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
+    });
+
+    // Cache to prevent saving the same base64 string multiple times
+    const savedBase64Map = new Map();
+    const newFlipbookAssets = [];
+    const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
+
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
-      const { pageName, content, v_id } = page;
+      const { pageName, content, v_id: incomingPageVId } = page;
       if (!pageName) continue;
 
       const fileName = pageName.endsWith(".html")
@@ -414,8 +426,70 @@ router.post("/save", async (req, res) => {
         : `${pageName}.html`;
       const filePath = path.join(flipbookDir, fileName);
 
+      // Resolve pageVId early so we can use it for DB assets
+      let pageVId = incomingPageVId;
+      if (!pageVId && existingDoc && existingDoc.pages) {
+        const existingPage = existingDoc.pages.find((p) => p.name === pageName);
+        if (existingPage && existingPage.v_id) {
+          pageVId = existingPage.v_id;
+        }
+      }
+      if (!pageVId) {
+        pageVId = nanoid();
+      }
+
       if (content !== undefined && content !== null) {
-        fs.writeFileSync(filePath, content, "utf8");
+        let processedContent = content;
+        
+        // Extract base64 and save to assets
+        // Handles data:(image|audio|video)/ext;base64,data
+        const base64Regex = /data:(image|audio|video)\/([a-zA-Z0-9-.+]+);base64,([^"'\s\)]+)/g;
+        processedContent = processedContent.replace(base64Regex, (match, type, ext, base64Data) => {
+          if (savedBase64Map.has(base64Data)) {
+            return savedBase64Map.get(base64Data);
+          }
+
+          let subfolder = type;
+          let normalizedExt = ext;
+          if (type === 'image') subfolder = 'Image';
+          if (type === 'audio') subfolder = 'audio';
+          if (ext === 'gif') subfolder = 'gif';
+          if (ext.includes('+')) normalizedExt = ext.split('+')[0]; // e.g. svg+xml -> svg
+          
+          const assetFileName = `${nanoid()}.${normalizedExt}`;
+          const assetSubDir = path.join(assetsDir, subfolder);
+          if (!fs.existsSync(assetSubDir)) fs.mkdirSync(assetSubDir, { recursive: true });
+          
+          const assetPath = path.join(assetSubDir, assetFileName);
+          try {
+            const buffer = Buffer.from(base64Data, 'base64');
+            fs.writeFileSync(assetPath, buffer);
+            const relativePath = `./assets/${subfolder}/${assetFileName}`;
+            
+            // Build absolute URL for DB
+            const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
+            
+            newFlipbookAssets.push({
+              flipbook_v_id: flipbook_v_id,
+              file_v_id: nanoid(),
+              assetType: subfolder,
+              fileName: assetFileName,
+              page_v_id: pageVId,
+              flipbookName: flipbookName,
+              folderName: physicalFolderName,
+              url: absoluteUrl,
+              size: buffer.length
+            });
+
+            savedBase64Map.set(base64Data, relativePath);
+            return relativePath;
+          } catch(err) {
+            console.error("Error saving base64 asset:", err);
+            return match; // fallback to original if failed
+          }
+        });
+
+        fs.writeFileSync(filePath, processedContent, "utf8");
       } else if (page.contentChunkId) {
         // Reassemble from chunks
         const tempDir = path.join(__dirname, "../../temp_uploads", page.contentChunkId);
@@ -440,22 +514,6 @@ router.post("/save", async (req, res) => {
       savedPages.push(fileName);
       savedFileNames.add(fileName);
 
-      // PRESERVE existing v_id: Use incoming v_id if present, else fallback to matching by name
-      let pageVId = v_id; // Use incoming v_id from frontend (especially for new PDF uploads)
-      
-      if (!pageVId && existingDoc && existingDoc.pages) {
-        // Fallback: match by name (for backward compatibility on legacy projects)
-        const existingPage = existingDoc.pages.find((p) => p.name === pageName);
-        if (existingPage && existingPage.v_id) {
-          pageVId = existingPage.v_id; // Reuse existing v_id
-        }
-      }
-
-      // Only generate new v_id if page doesn't exist and wasn't provided
-      if (!pageVId) {
-        pageVId = nanoid();
-      }
-
       newPageIds.add(pageVId);
 
       dbPages.push({
@@ -464,6 +522,16 @@ router.post("/save", async (req, res) => {
         fileName: fileName,
         v_id: pageVId,
       });
+    }
+
+    // Insert new base64 assets into DB
+    if (newFlipbookAssets.length > 0) {
+      try {
+        await FlipbookAsset.insertMany(newFlipbookAssets);
+        console.log(`Inserted ${newFlipbookAssets.length} extracted base64 assets into DB`);
+      } catch (err) {
+        console.error("Error inserting extracted assets:", err);
+      }
     }
 
     // Handle Cascading Deletion of Assets for Deleted Pages
@@ -507,10 +575,10 @@ router.post("/save", async (req, res) => {
       console.error("Error cleaning up orphaned assets:", err);
     }
 
-    // Clean up orphaned HTML files (Deleted or Renamed pages) and orphaned 3D models
+    // Clean up orphaned HTML files (Deleted or Renamed pages) and all orphaned assets
     if (fs.existsSync(flipbookDir)) {
       const existingFiles = fs.readdirSync(flipbookDir);
-      const activeModels = new Set();
+      const activeAssets = new Set();
 
       existingFiles.forEach((file) => {
         const expectedNames = new Set(
@@ -528,35 +596,45 @@ router.post("/save", async (req, res) => {
           if (!expectedNames.has(file)) {
             fs.unlinkSync(path.join(flipbookDir, file));
           } else {
-            // If it's an expected HTML file, scan it for 3D model usages
+            // If it's an expected HTML file, scan it for all asset usages
             try {
               const filePath = path.join(flipbookDir, file);
               const content = fs.readFileSync(filePath, "utf8");
               // Extract filenames correctly avoiding HTML entities like &quot;
-              const matches = content.match(/\.\/assets\/3D_Model\/([a-zA-Z0-9_.-]+)/g);
+              const matches = content.match(/\.\/assets\/(3D_Model|Image|image|gif|video|audio)\/([a-zA-Z0-9_.-]+)/gi);
               if (matches) {
-                matches.forEach(m => activeModels.add(m.replace('./assets/3D_Model/', '')));
+                matches.forEach(m => {
+                  const parts = m.split('/');
+                  activeAssets.add(parts[parts.length - 1]);
+                });
               }
             } catch (err) {
-              console.error(`Error reading ${file} for 3D models scan:`, err);
+              console.error(`Error reading ${file} for assets scan:`, err);
             }
           }
         }
       });
 
-      // Now cleanup 3D_Model folder
-      const modelDir = path.join(flipbookDir, "assets", "3D_Model");
-      if (fs.existsSync(modelDir)) {
-        const existingModels = fs.readdirSync(modelDir);
-        for (const modelFile of existingModels) {
-          if (!activeModels.has(modelFile)) {
-            try {
-              fs.unlinkSync(path.join(modelDir, modelFile));
-              console.log(`Deleted orphaned 3D model: ${modelFile}`);
-              await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: modelFile });
-              console.log(`Deleted DB entry for orphaned 3D model: ${modelFile}`);
-            } catch (e) {
-              console.error(`Error deleting orphaned 3D model ${modelFile}:`, e);
+      // Now cleanup all asset folders
+      const subFolders = ["3D_Model", "Image", "image", "gif", "video", "audio"];
+      for (const subFolder of subFolders) {
+        const assetSubDir = path.join(flipbookDir, "assets", subFolder);
+        if (fs.existsSync(assetSubDir)) {
+          const existingAssetsInDir = fs.readdirSync(assetSubDir);
+          for (const assetFile of existingAssetsInDir) {
+            if (!activeAssets.has(assetFile)) {
+              try {
+                fs.unlinkSync(path.join(assetSubDir, assetFile));
+                console.log(`Deleted orphaned asset: ${assetFile} from ${subFolder}`);
+                if (subFolder === "3D_Model") {
+                  await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: assetFile });
+                } else {
+                  await FlipbookAsset.deleteMany({ flipbook_v_id: flipbook_v_id, fileName: assetFile });
+                }
+                console.log(`Deleted DB entry for orphaned asset: ${assetFile}`);
+              } catch (e) {
+                console.error(`Error deleting orphaned asset ${assetFile}:`, e);
+              }
             }
           }
         }
@@ -573,16 +651,15 @@ router.post("/save", async (req, res) => {
 
     // Save Metadata to MongoDB
     // We find by primary keys. We update folderName to include Recent Book if missing.
-    // Create Default Assets Folders
-    const assetsDir = path.join(flipbookDir, "assets");
-    ["Image", "gif", "video","3D_Model"].forEach((sub) => {
+    // Create Default Assets Folders (just ensuring they exist if they weren't created before)
+    ["Image", "gif", "video", "3D_Model", "audio"].forEach((sub) => {
       const subDir = path.join(assetsDir, sub);
       if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
     });
 
     // SAVE METADATA TO MONGO
     // We find by primary keys. We update folderName to include Recent Book if missing.
-    const v_id = existingDoc ? existingDoc.v_id : nanoid(20);
+    const v_id = flipbook_v_id; // Use the one we generated at the top
 
     if (oldFlipbookName) {
       console.log(
@@ -2538,6 +2615,17 @@ router.delete("/delete", async (req, res) => {
         console.log(`Deleted ${assets.length} asset records.`);
       } catch (assetErr) {
         console.error("Error cleaning up assets:", assetErr);
+      }
+
+      try {
+        const deleted3DModels = await InteractionThreedModel.deleteMany({
+          userEmail: emailId,
+          flipbookName: bookName,
+          folderName: folderName,
+        });
+        console.log(`Deleted ${deleted3DModels.deletedCount} 3D model records.`);
+      } catch (modelErr) {
+        console.error("Error cleaning up 3D model records:", modelErr);
       }
     }
 

@@ -11,7 +11,8 @@ import AnimationPanel from './AnimationPanel';
 import InteractionPanel from './InteractionPanel';
 import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
-
+import { useParams, useLocation } from 'react-router-dom';
+import axios from 'axios';
 
 const RightSidebar = ({ 
   isDoublePage, 
@@ -57,6 +58,8 @@ const RightSidebar = ({
   const baseWidthPx = Math.round(baseWidth * 96 / 25.4);
   const baseHeightPx = Math.round(baseHeight * 96 / 25.4);
   const fileInputRef = useRef(null);
+  const { folder, v_id } = useParams();
+  const location = useLocation();
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('px');
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
@@ -119,7 +122,7 @@ const RightSidebar = ({
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -138,17 +141,80 @@ const RightSidebar = ({
     const isVideo = file.type.startsWith('video/');
     const isGif = file.type === 'image/gif';
     const isSvg = file.type === 'image/svg+xml';
+    
+    const storedUser = localStorage.getItem('user');
+    const user = storedUser ? JSON.parse(storedUser) : null;
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
     if (isVideo) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const videoUrl = event.target.result;
-        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-          detail: { videoUrl, pageIndex: activePageIndex, file }
-        }));
-      };
-      reader.readAsDataURL(file);
+      if (!user) {
+        alert("You must be logged in to upload videos.");
+        e.target.value = '';
+        return;
+      }
+      // Instantly show using blob URL, then upload in background and dispatch event
+      const videoUrl = URL.createObjectURL(file);
+      window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+        detail: { videoUrl, pageIndex: activePageIndex, file, isTemporary: true }
+      }));
       e.target.value = ''; // Reset input
+
+      const formData = new FormData();
+      formData.append('emailId', user.emailId);
+      if (v_id) formData.append('v_id', v_id);
+      formData.append('folderName', location.state?.folderName || folder || 'Recent Book');
+      formData.append('flipbookName', location.state?.flipbookName || 'Untitled Flipbook');
+      formData.append('type', 'video');
+      formData.append('page_v_id', 'global');
+      formData.append('file', file);
+
+      try {
+        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+        if (res.data.url) {
+          const serverUrl = `${backendUrl}${res.data.url}`;
+          window.dispatchEvent(new CustomEvent('update-video-src', {
+            detail: { oldSrc: videoUrl, newSrc: serverUrl }
+          }));
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+      }
+      return;
+    }
+
+    if (isGif) {
+      if (!user) {
+        alert("You must be logged in to upload GIFs.");
+        e.target.value = '';
+        return;
+      }
+      const tempUrl = URL.createObjectURL(file);
+      window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+        detail: { dataUrl: tempUrl, pageIndex: activePageIndex, dataType: 'gif', file, isTemporary: true }
+      }));
+      e.target.value = '';
+
+      const formData = new FormData();
+      formData.append('emailId', user.emailId);
+      if (v_id) formData.append('v_id', v_id);
+      formData.append('folderName', location.state?.folderName || folder || 'Recent Book');
+      formData.append('flipbookName', location.state?.flipbookName || 'Untitled Flipbook');
+      formData.append('type', 'gif');
+      formData.append('assetType', 'gif');
+      formData.append('page_v_id', 'global');
+      formData.append('file', file);
+
+      try {
+        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+        if (res.data.url) {
+          const serverUrl = `${backendUrl}${res.data.url}`;
+          window.dispatchEvent(new CustomEvent('update-image-src', {
+            detail: { oldSrc: tempUrl, newSrc: serverUrl }
+          }));
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+      }
       return;
     }
 
@@ -167,7 +233,7 @@ const RightSidebar = ({
         detail: { 
           dataUrl: finalUrl, 
           pageIndex: activePageIndex,
-          dataType: isGif ? 'gif' : (isSvg ? 'svg' : 'image')
+          dataType: isSvg ? 'svg' : 'image'
         }
       }));
     };
@@ -695,8 +761,8 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                          folderName="My Flipbooks"
-                          flipbookName="Untitled"
+                          folderName={location.state?.folderName || folder || 'Recent Book'}
+                          flipbookName={location.state?.flipbookName || 'Untitled Flipbook'}
                         />
                       ) : selectedElementProps?.isText ? (
                         <TextEditor

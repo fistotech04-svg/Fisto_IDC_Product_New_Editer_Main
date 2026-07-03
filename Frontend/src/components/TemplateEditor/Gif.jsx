@@ -1074,39 +1074,35 @@ const GifEditor = ({
     if (!file) return;
     if (file.type !== "image/gif") return;
 
-    const reader = new FileReader();
-    reader.onload = async (event) => {
-      const url = event.target.result;
-      const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-      const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement;
-      const targetImg = getSvgImageEl(liveElement) || liveElement;
-      setSrc(targetImg, url);
-      liveElement.dataset.mediaType = "gif";
-      onUpdateRef.current?.({ shouldRefresh: true });
+    const url = URL.createObjectURL(file);
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+    const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement;
+    const targetImg = getSvgImageEl(liveElement) || liveElement;
+    setSrc(targetImg, url);
+    liveElement.dataset.mediaType = "gif";
+    onUpdateRef.current?.({ shouldRefresh: true });
 
-      const storedUser = localStorage.getItem('user');
-      if (storedUser && (activeVId || (folderName && flipbookName))) {
-        const user = JSON.parse(storedUser);
-        const formData = new FormData();
-        formData.append('emailId', user.emailId);
-        if (activeVId) formData.append('v_id', activeVId);
-        formData.append('type', 'gif');
-        formData.append('assetType', 'gif');
-        formData.append('page_v_id', currentPageVId || 'global');
-        formData.append('file', file);
-        try {
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-          if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
-            setSrc(targetImg, serverUrl);
-            liveElement.dataset.fileVid = res.data.file_v_id;
-            onUpdateRef.current?.();
-          }
-        } catch (err) { console.error("GIF upload failed:", err); }
-      }
-    };
-    reader.readAsDataURL(file);
+    const storedUser = localStorage.getItem('user');
+    if (storedUser && (activeVId || (folderName && flipbookName))) {
+      const user = JSON.parse(storedUser);
+      const formData = new FormData();
+      formData.append('emailId', user.emailId);
+      if (activeVId) formData.append('v_id', activeVId);
+      formData.append('type', 'gif');
+      formData.append('assetType', 'gif');
+      formData.append('page_v_id', currentPageVId || 'global');
+      formData.append('file', file);
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+        if (res.data.url) {
+          const serverUrl = `${backendUrl}${res.data.url}`;
+          setSrc(targetImg, serverUrl);
+          liveElement.dataset.fileVid = res.data.file_v_id;
+          onUpdateRef.current?.();
+        }
+      } catch (err) { console.error("GIF upload failed:", err); }
+    }
   };
 
   if (!selectedElement) return null;

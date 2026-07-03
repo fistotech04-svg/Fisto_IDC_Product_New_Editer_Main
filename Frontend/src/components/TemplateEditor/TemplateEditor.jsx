@@ -366,12 +366,12 @@ const TemplateEditor = () => {
       const bNameFor3D = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
 
       pagesToSave = await Promise.all(pagesToSave.map(async (p) => {
-        if (!p.html || !p.html.includes('data-interaction="3d-viewer"')) return p;
+        if (!p.html || (!p.html.includes('data-interaction="3d-viewer"') && !p.html.includes('data-interaction="download"') && !p.html.includes('data-interaction="audio"'))) return p;
 
         let newHtml = p.html;
         try {
           const parser = new DOMParser();
-          const doc = parser.parseFromString(newHtml, 'text/html');
+          const doc = parser.parseFromString(newHtml, 'image/svg+xml');
           const threedElements = doc.querySelectorAll('[data-interaction="3d-viewer"]');
 
           for (let el of threedElements) {
@@ -392,8 +392,26 @@ const TemplateEditor = () => {
             }
 
             if (actualDataUri) {
-              const res = await fetch(actualDataUri);
-              const blob = await res.blob();
+              let blob;
+              if (actualDataUri.startsWith('blob:')) {
+                const res = await fetch(actualDataUri);
+                blob = await res.blob();
+              } else {
+                const parts = actualDataUri.split(',');
+                const mimeString = parts[0].split(':')[1].split(';')[0];
+                let byteString;
+                if (parts[0].indexOf('base64') >= 0) {
+                    byteString = atob(parts[1]);
+                } else {
+                    byteString = decodeURI(parts[1]);
+                }
+                const ab = new ArrayBuffer(byteString.length);
+                const ia = new Uint8Array(ab);
+                for (let i = 0; i < byteString.length; i++) {
+                    ia[i] = byteString.charCodeAt(i);
+                }
+                blob = new Blob([ab], { type: mimeString });
+              }
 
               const formData = new FormData();
               formData.append('emailId', user?.emailId);
@@ -463,8 +481,115 @@ const TemplateEditor = () => {
               }
             }
           }
+          // --- DIRECT STRING SEARCH base64 extraction and upload ---
+          // Regex engines often fail silently or hit length limits on 3MB+ contiguous strings.
+          // We use a pure indexOf search to safely extract huge data URIs.
+          const uniqueDataUris = new Set();
+          let searchIndex = 0;
+          while (searchIndex < newHtml.length) {
+            const imgIdx = newHtml.indexOf('data:image/', searchIndex);
+            const audIdx = newHtml.indexOf('data:audio/', searchIndex);
+            
+            let foundIdx = -1;
+            if (imgIdx !== -1 && audIdx !== -1) foundIdx = Math.min(imgIdx, audIdx);
+            else if (imgIdx !== -1) foundIdx = imgIdx;
+            else if (audIdx !== -1) foundIdx = audIdx;
+            
+            if (foundIdx === -1) break;
+
+            // The data URI is embedded in a JSON string, so it ends at &quot; or "
+            const endIdx1 = newHtml.indexOf('&quot;', foundIdx);
+            const endIdx2 = newHtml.indexOf('"', foundIdx);
+            
+            let endIdx = -1;
+            if (endIdx1 !== -1 && endIdx2 !== -1) endIdx = Math.min(endIdx1, endIdx2);
+            else if (endIdx1 !== -1) endIdx = endIdx1;
+            else if (endIdx2 !== -1) endIdx = endIdx2;
+            
+            if (endIdx !== -1) {
+              const dataUri = newHtml.substring(foundIdx, endIdx);
+              if (dataUri.includes(';base64,')) {
+                uniqueDataUris.add(dataUri);
+              }
+              searchIndex = endIdx;
+            } else {
+              break;
+            }
+          }
+
+          for (const actualDataUri of uniqueDataUris) {
+            try {
+              // Browsers (like Chrome) limit fetch() URLs to ~2MB.
+              // To handle 3MB+ data URIs, we manually convert base64 to Blob.
+              const parts = actualDataUri.split(',');
+              const mimeString = parts[0].split(':')[1].split(';')[0];
+              
+              // Handle URL encoded data URIs (e.g. svg+xml) or pure base64
+              let byteString;
+              if (parts[0].indexOf('base64') >= 0) {
+                  byteString = atob(parts[1]);
+              } else {
+                  byteString = decodeURI(parts[1]);
+              }
+              
+              const ab = new ArrayBuffer(byteString.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteString.length; i++) {
+                  ia[i] = byteString.charCodeAt(i);
+              }
+              const blob = new Blob([ab], { type: mimeString });
+
+              const isAudio = blob.type.startsWith('audio/');
+              const assetType = isAudio ? 'audio' : 'image';
+
+              const formData = new FormData();
+              formData.append('emailId', user?.emailId);
+              formData.append('folderName', fNameFor3D);
+              formData.append('flipbookName', bNameFor3D);
+              formData.append('type', assetType);
+              formData.append('page_v_id', 'global');
+              if (currentVId || v_id) {
+                formData.append('v_id', currentVId || v_id);
+              }
+              formData.append('file', blob, `asset_${Date.now()}`);
+
+              const uploadRes = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+              });
+
+              if (uploadRes.data && uploadRes.data.url) {
+                const finalUrl = uploadRes.data.url;
+                const assetPathMatch = finalUrl.match(/assets\/[^/]+\/[^/]+$/);
+                const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
+                const absoluteUrl = assetPathMatch
+                  ? `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${assetPathMatch[0]}`
+                  : finalUrl;
+
+                // Replace the data URI directly in the raw HTML
+                newHtml = newHtml.split(actualDataUri).join(absoluteUrl);
+
+                // Update the live DOM element so InteractionPanel shows the image immediately
+                try {
+                  const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                  if (editorDoc) {
+                    const liveEls = editorDoc.querySelectorAll(`[data-interaction="download"], [data-interaction="audio"]`);
+                    liveEls.forEach(lEl => {
+                      const lDataVal = lEl.getAttribute('data-interaction-value');
+                      if (lDataVal && lDataVal.includes(actualDataUri)) {
+                        lEl.setAttribute('data-interaction-value', lDataVal.split(actualDataUri).join(absoluteUrl));
+                      }
+                    });
+                  }
+                } catch (e) { }
+
+                console.log(`[Save] Uploaded large asset directly: ${absoluteUrl}`);
+              }
+            } catch (err) {
+              console.error('[Save] Failed to upload large asset directly:', err);
+            }
+          }
         } catch (err) {
-          console.error('Error processing 3D models in page before save', err);
+          console.error('Error processing 3D models or assets in page before save', err);
         }
 
         return { ...p, html: newHtml };
@@ -513,7 +638,8 @@ const TemplateEditor = () => {
             let content = isModified ? p.html : undefined;
             let contentChunkId = undefined;
 
-            const fName = Array.isArray(currentBook?.folderName) ? currentBook.folderName[0] : (currentBook?.folderName || location.state?.folderName || 'Recent Book');
+            const folderNameArr = Array.isArray(currentBook?.folderName) ? currentBook.folderName : [currentBook?.folderName || location.state?.folderName || 'Recent Book'];
+            const fName = folderNameArr.find(f => f !== 'Recent Book' && f !== 'All Books') || folderNameArr[0] || 'Recent Book';
             const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
             const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fName}/${bName}/`;
 
@@ -738,6 +864,31 @@ const TemplateEditor = () => {
       });
     }
   }, [pages, activePageIndex, isLoading, currentBook, location.state, v_id, popupEditContext]);
+
+  useEffect(() => {
+    const handleUpdateSrc = (e) => {
+      const { oldSrc, newSrc } = e.detail;
+      setPages(prevPages => prevPages.map(page => {
+        if (page.html && page.html.includes(oldSrc)) {
+          return { ...page, html: page.html.split(oldSrc).join(newSrc) };
+        }
+        return page;
+      }));
+      // Update live DOM elements with the temporary URL
+      const els = document.querySelectorAll(`[src="${oldSrc}"], [href="${oldSrc}"]`);
+      els.forEach(el => {
+        if (el.hasAttribute('src')) el.setAttribute('src', newSrc);
+        if (el.hasAttribute('href')) el.setAttribute('href', newSrc);
+        if (el.hasAttribute('xlink:href')) el.setAttributeNS('http://www.w3.org/1999/xlink', 'href', newSrc);
+      });
+    };
+    window.addEventListener('update-video-src', handleUpdateSrc);
+    window.addEventListener('update-image-src', handleUpdateSrc);
+    return () => {
+      window.removeEventListener('update-video-src', handleUpdateSrc);
+      window.removeEventListener('update-image-src', handleUpdateSrc);
+    };
+  }, []);
 
   // Helper to get flipbook dimensions. Prioritizes the first page with a PDF background
   // to ensure the project maintains its primary aspect ratio.
@@ -3224,9 +3375,10 @@ const TemplateEditor = () => {
           if (res.data && res.data.pages) {
             const parser = new DOMParser();
             const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
-            const folderName = res.data.meta.folderName;
-            const bookName = res.data.meta.flipbookName;
-            const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
+            const folderNameArr = Array.isArray(res.data.meta.folderName) ? res.data.meta.folderName : [res.data.meta.folderName || 'Recent Book'];
+            const actualFolderName = folderNameArr.find(f => f !== 'Recent Book' && f !== 'All Books') || folderNameArr[0] || 'Recent Book';
+            const bookName = res.data.meta.flipbookName || 'Untitled Flipbook';
+            const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${actualFolderName}/${bookName}/`;
 
             const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
               const name = p.name || `Page ${i + 1}`;

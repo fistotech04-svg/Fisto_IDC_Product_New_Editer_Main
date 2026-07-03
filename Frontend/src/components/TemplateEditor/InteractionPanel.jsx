@@ -10,6 +10,7 @@ import AlertModal from '../AlertModal';
 import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import axios from 'axios';
 
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
@@ -286,38 +287,47 @@ const CommonDropBox = ({
   renderPreview,
   boxClassName, // override entire box classes if needed
   hideInput = false,
+  isUploading = false,
 }) => {
+  const inputRef = useRef(null);
+  
   return (
-    <div className="flex flex-col items-center justify-center w-full">
+    <div className="flex flex-col items-center justify-center w-full relative">
       {!hideInput && (
         <input
           type="file"
           id={id}
+          ref={inputRef}
           className="hidden"
           accept={accept}
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file && onFileSelect) onFileSelect(file);
+            if (e.target) e.target.value = '';
           }}
         />
       )}
       <div
-        onClick={() => document.getElementById(id)?.click()}
-        onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
+        onClick={() => { if (!isUploading) { if (inputRef.current) inputRef.current.click(); else document.getElementById(id)?.click(); } }}
+        onDragOver={(e) => { e.preventDefault(); if (!isUploading) e.currentTarget.classList.add('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
         onDragLeave={(e) => { e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5'); }}
         onDrop={(e) => {
           e.preventDefault();
           e.currentTarget.classList.remove('border-[#5145F6]', 'bg-[#5145F6]/5');
+          if (isUploading) return;
           const file = e.dataTransfer.files?.[0];
           if (file && onFileSelect) onFileSelect(file);
         }}
         className={
-          boxClassName || (fileMeta
-            ? "w-[7.5vw] h-[8.5vh] border-[1.8px] border-dashed border-gray-400 rounded-[1vw] bg-[#F4F5F7] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-100 transition-all overflow-hidden p-[0.3vw]"
-            : "w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all gap-[0.5vh]")
+          boxClassName || "w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-all overflow-hidden p-[0.3vw] gap-[0.5vh]"
         }
       >
-        {fileMeta ? (
+        {isUploading ? (
+          <div className="flex flex-col items-center justify-center w-full h-full bg-transparent">
+            <Icon icon="eos-icons:loading" className="text-[#5145F6] text-[1.8vw]" />
+            <span className="text-[0.65vw] text-[#5145F6] mt-2 font-medium">Uploading...</span>
+          </div>
+        ) : fileMeta ? (
           renderPreview ? renderPreview(fileMeta) : (
             <>
               <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />
@@ -371,6 +381,7 @@ const InteractionPanel = ({
   const [itemTriggerOverrides, setItemTriggerOverrides] = useState({});
   const [localInputValues, setLocalInputValues] = useState({});
   const [dropdownDirectionOverrides, setDropdownDirectionOverrides] = useState({});
+  const [uploadingItems, setUploadingItems] = useState({});
 
   // Audio playback state
   const [playingAudioId, setPlayingAudioId] = useState(null);
@@ -1307,40 +1318,46 @@ const InteractionPanel = ({
                               (() => {
                                 let fileMeta = null;
                                 try {
-                                  if (item.value && item.value.startsWith('{')) {
-                                    fileMeta = JSON.parse(item.value);
+                                  if (resolvedValue && resolvedValue.startsWith('{')) {
+                                    fileMeta = JSON.parse(resolvedValue);
                                   }
                                 } catch (e) { }
 
                                 return (
                                   <div className="flex-1 flex flex-col items-center justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
                                     <CommonDropBox
+                                      className="w-full"
                                       id={`download-upload-${item.id}`}
                                       accept="image/*"
                                       onFileSelect={(file) => {
                                         if (file && file.type.startsWith('image/') && updateElementAttribute) {
+                                          const storedUser = localStorage.getItem('user');
+                                          if (!storedUser) { alert("You must be logged in to upload a file."); return; }
+                                          const user = JSON.parse(storedUser);
                                           const reader = new FileReader();
                                           reader.onload = () => {
                                             const storedVal = JSON.stringify({
-                                              name: file.name,
-                                              type: file.type,
-                                              size: file.size,
-                                              data: reader.result
+                                              name: file.name, type: file.type, size: file.size, data: reader.result
                                             });
+                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                             const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
                                             updateElementAttribute(targetIdx, item.id, {
                                               'data-interaction': 'download',
                                               'data-interaction-value': storedVal
                                             });
+                                            setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                           };
+                                          reader.onerror = () => setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                           reader.readAsDataURL(file);
                                         }
                                       }}
+                                      isUploading={uploadingItems[item.id]}
                                       fileMeta={fileMeta}
                                       renderPreview={(meta) => {
                                         const isImage = meta.type?.startsWith('image/') || meta.name?.match(/\.(jpg|jpeg|png|gif)$/i);
-                                        if (isImage && meta.data) {
-                                          return <img src={meta.data} alt={meta.name} className="w-full h-full object-contain" />;
+                                        const cleanData = meta.data ? meta.data.trim() : '';
+                                        if (isImage && cleanData) {
+                                          return <img src={cleanData} alt={meta.name} className="w-full h-full object-contain" />;
                                         }
                                         return <Icon icon="fluent:document-checkmark-24-regular" className="text-[#5145F6] text-[2vw]" />;
                                       }}
@@ -1422,16 +1439,22 @@ const InteractionPanel = ({
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file && updateElementAttribute) {
+                                          const storedUser = localStorage.getItem('user');
+                                          if (!storedUser) { alert("You must be logged in to upload audio."); return; }
+                                          const user = JSON.parse(storedUser);
                                           const reader = new FileReader();
                                           reader.onload = () => {
                                             const base64Data = reader.result;
                                             const tempAudio = new Audio(base64Data);
+                                            
                                             const saveAudioMetadata = (durationStr) => {
                                               const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
                                               setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
                                               const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
                                               updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
+                                              setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                             };
+                                            
                                             tempAudio.onloadedmetadata = () => {
                                               const durationSec = tempAudio.duration;
                                               let durationStr = '3:15';
@@ -1444,6 +1467,7 @@ const InteractionPanel = ({
                                             };
                                             tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
                                           };
+                                          reader.onerror = () => setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                           reader.readAsDataURL(file);
                                         }
                                       }}
@@ -1460,9 +1484,10 @@ const InteractionPanel = ({
                                                   if (activeAudioRef.current) activeAudioRef.current.pause();
                                                   setPlayingAudioId(null);
                                                 } else {
-                                                  if (activeAudioRef.current) activeAudioRef.current.pause();
-                                                  const audioSrc = audioMeta?.data || resolvedValue;
-                                                  if (audioSrc) {
+                                                    if (activeAudioRef.current) activeAudioRef.current.pause();
+                                                    let rawData = audioMeta?.data || resolvedValue;
+                                                    const audioSrc = rawData ? rawData.trim() : '';
+                                                    if (audioSrc) {
                                                     try {
                                                       const audio = new Audio(audioSrc);
                                                       activeAudioRef.current = audio;
@@ -1507,28 +1532,66 @@ const InteractionPanel = ({
                                           onFileSelect={(file) => {
                                             const isAudio = file && (file.type.startsWith('audio/') || file.name.toLowerCase().endsWith('.mp3') || file.name.toLowerCase().endsWith('.wav') || file.name.toLowerCase().endsWith('.m4a') || file.name.toLowerCase().endsWith('.ogg'));
                                             if (isAudio && updateElementAttribute) {
-                                              const reader = new FileReader();
-                                              reader.onload = () => {
-                                                const base64Data = reader.result;
-                                                const tempAudio = new Audio(base64Data);
-                                                const saveAudioMetadata = (durationStr) => {
-                                                  const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
-                                                  setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
-                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                  updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
-                                                };
-                                                tempAudio.onloadedmetadata = () => {
-                                                  const durationSec = tempAudio.duration;
-                                                  let durationStr = '3:15';
-                                                  if (!isNaN(durationSec) && isFinite(durationSec)) { const mins = Math.floor(durationSec / 60); const secs = Math.floor(durationSec % 60); durationStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`; }
-                                                  saveAudioMetadata(durationStr);
-                                                };
-                                                tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
+                                              const storedUser = localStorage.getItem('user');
+                                              if (!storedUser) {
+                                                alert("You must be logged in to upload audio.");
+                                                return;
+                                              }
+                                              const user = JSON.parse(storedUser);
+                                              const tempUrl = URL.createObjectURL(file);
+                                              const tempAudio = new Audio(tempUrl);
+                                              
+                                              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                                              let activeVId = '';
+                                              let folderName = 'Recent Book';
+                                              // flipbookName should ideally be passed, but the backend uses Recent Book if it's new.
+                                              // We'll extract what we can from URL.
+                                              let flipbookName = 'Untitled Flipbook';
+                                              const match = window.location.pathname.match(/\/editor\/([^/]+)\/([^/]+)/);
+                                              if (match) {
+                                                  folderName = decodeURIComponent(match[1]);
+                                                  activeVId = match[2];
+                                              } else {
+                                                const match2 = window.location.pathname.match(/\/editor\/([^/]+)/);
+                                                if (match2) { folderName = decodeURIComponent(match2[1]); }
+                                              }
+
+                                              const formData = new FormData();
+                                              formData.append('emailId', user.emailId);
+                                              if (activeVId) formData.append('v_id', activeVId);
+                                              formData.append('folderName', folderName);
+                                              formData.append('flipbookName', flipbookName);
+                                              formData.append('type', 'audio');
+                                              formData.append('assetType', 'audio');
+                                              formData.append('page_v_id', 'global');
+                                              formData.append('file', file);
+
+                                              const saveAudioMetadata = async (durationStr) => {
+                                                try {
+                                                  const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+                                                  if (res.data.url) {
+                                                    const serverUrl = `${backendUrl}${res.data.url}`;
+                                                    const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: serverUrl });
+                                                    setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
+                                                    const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                                    updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
+                                                  }
+                                                } catch (err) {
+                                                  console.error("Audio upload error", err);
+                                                }
                                               };
-                                              reader.readAsDataURL(file);
+
+                                              tempAudio.onloadedmetadata = () => {
+                                                const durationSec = tempAudio.duration;
+                                                let durationStr = '3:15';
+                                                if (!isNaN(durationSec) && isFinite(durationSec)) { const mins = Math.floor(durationSec / 60); const secs = Math.floor(durationSec % 60); durationStr = `${mins}:${secs < 10 ? '0' : ''}${secs}`; }
+                                                saveAudioMetadata(durationStr);
+                                              };
+                                              tempAudio.onerror = () => { saveAudioMetadata('3:15'); };
                                             }
                                           }}
                                           fileMeta={null}
+                                          isUploading={uploadingItems[item.id]}
                                           emptyIcon="material-symbols:audio-file"
                                           subText="File Format : MP3, WAV, OGG"
                                         />
