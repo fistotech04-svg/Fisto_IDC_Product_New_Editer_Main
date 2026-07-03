@@ -520,18 +520,17 @@ const ShapeProperties = ({
                     <div
                       className={`flex items-center justify-center h-[2vw] w-[2vw] rounded-[0.5vw] cursor-pointer transition-colors shadow-sm ${showStrokeSettings ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-white text-gray-500'}`}
                       onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
+                        const row = e.currentTarget.closest('.flex.items-center.gap-\\[0\\.4vw\\].py-\\[0\\.1vw\\]') || e.currentTarget;
+                        const rowRect = row.getBoundingClientRect();
+                        const btnRect = e.currentTarget.getBoundingClientRect();
                         const popupHeight = 250; // Estimated height for dash popup
-                        const spaceBelow = window.innerHeight - rect.bottom;
 
-                        const pos = { right: window.innerWidth - rect.right + 50 };
-                        if (spaceBelow < popupHeight) {
-                          pos.bottom = window.innerHeight - rect.top + 10;
-                          pos.top = 'auto';
-                        } else {
-                          pos.top = rect.bottom + 10;
-                          pos.bottom = 'auto';
-                        }
+                        // Add 1.5vw to offset the popup cleanly from the sidebar's left edge
+                        const pos = { right: `calc(100vw - ${rowRect.left}px + 1.5vw)` };
+                        
+                        // Vertically center relative to the button, keeping within screen bounds
+                        const centerY = btnRect.top + (btnRect.height / 2) - (popupHeight / 2);
+                        pos.top = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
 
                         setStrokeSettingsPos(pos);
                         setShowStrokeSettings(!showStrokeSettings);
@@ -997,12 +996,11 @@ const ShapeProperties = ({
 
 
 
-      {/* UNIFIED COLOR PICKER PORTAL */}
       {/* PORTALED COLOR SELECTOR PANELS (EXACT TEXT EDITOR STYLE) */}
       {showStrokeSettings && createPortal(
         <div
           id="stroke-settings-popup"
-          className="fixed bg-white border border-gray-200 rounded-[0.75vw] shadow-xl z-[9999] w-[15vw] p-[1vw] animate-in fade-in zoom-in duration-200 font-sans"
+          className="fixed z-[4000] w-[15vw] bg-white rounded-[1vw] shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] border border-gray-100 flex flex-col p-[1vw] space-y-[1vw] animate-in fade-in zoom-in-95 duration-200"
           style={{
             top: strokeSettingsPos.top,
             bottom: strokeSettingsPos.bottom,
@@ -1127,6 +1125,9 @@ const ShapeProperties = ({
         document.body
       )}
 
+      {/* UNIFIED COLOR PICKER PORTAL */}
+
+
       {activeColorPicker && createPortal(
         <div
           className="fixed z-[5000]"
@@ -1167,20 +1168,24 @@ const ShapeProperties = ({
                 if (newVal.includes('gradient')) {
                   const parsed = parseGradient(newVal);
                   if (parsed) {
-                    updateAttr(`${activeColorPicker}-type`, 'gradient');
-                    updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
-                    updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
-                      color: s.color,
-                      offset: s.offset,
-                      opacity: s.opacity / 100
-                    }))));
-                    updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
-                    updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
-                    updateAttr(activeColorPicker, newVal);
+                    updateElementAttribute(activePageIndex, selectedLayerId, {
+                      [`${activeColorPicker}-type`]: 'gradient',
+                      [`${activeColorPicker}-gradient-type`]: parsed.type.toLowerCase(),
+                      [`${activeColorPicker}-stops`]: JSON.stringify(parsed.stops.map(s => ({
+                        color: s.color,
+                        offset: s.offset,
+                        opacity: s.opacity / 100
+                      }))),
+                      [`${activeColorPicker}-angle`]: (parsed.angle || 0).toString(),
+                      [`${activeColorPicker}-radius`]: (parsed.radius || 100).toString(),
+                      [activeColorPicker]: newVal
+                    });
                   }
                 } else {
-                  updateAttr(activeColorPicker, newVal);
-                  updateAttr(`${activeColorPicker}-type`, 'solid');
+                  updateElementAttribute(activePageIndex, selectedLayerId, {
+                    [activeColorPicker]: newVal,
+                    [`${activeColorPicker}-type`]: 'solid'
+                  });
                 }
               }}
               opacity={(() => {

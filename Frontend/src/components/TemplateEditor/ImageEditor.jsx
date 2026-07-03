@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Icon } from '@iconify/react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
+import { getVisualBBox } from './MainEditor';
 import {
   Image as ImageIcon,
   Upload,
@@ -32,7 +33,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
-import ColorPicker from './ColorPicker';
+import ColorPicker, { parseGradient } from './ColorPicker';
 import GalleryImage from './GalleryImage';
 import SlideshowProperties from './SlideshowProperties';
 import SubComponent from './SubComponent';
@@ -287,6 +288,25 @@ const ImageEditor = ({
     // 1. Check if the element itself is an image
     if (tag === 'image' || tag === 'img') return el;
 
+    const resolveUse = (node) => {
+      const useEl = node.tagName?.toLowerCase() === 'use' ? node : node.querySelector('use');
+      if (useEl) {
+        const refId = (useEl.getAttribute('href') || useEl.getAttribute('xlink:href'))?.replace('#', '');
+        if (refId) {
+          const doc = useEl.ownerDocument;
+          const ownerSvg = useEl.closest('svg');
+          const refEl = doc?.getElementById(refId) || ownerSvg?.querySelector(`[id="${refId}"]`);
+          if (refEl && (refEl.tagName?.toLowerCase() === 'image' || refEl.tagName?.toLowerCase() === 'img')) {
+            return refEl;
+          }
+        }
+      }
+      return null;
+    };
+
+    const useTarget = resolveUse(el);
+    if (useTarget) return useTarget;
+
     // 2. Helper to find image inside a pattern fill
     const findInPattern = (node) => {
       const fill = node.getAttribute?.('fill') || '';
@@ -302,12 +322,7 @@ const ImageEditor = ({
             // SVG patterns might have an <image> directly or a <use> pointing to one
             const img = pattern.querySelector('image');
             if (img) return img;
-
-            const useEl = pattern.querySelector('use');
-            if (useEl) {
-              const refId = (useEl.getAttribute('href') || useEl.getAttribute('xlink:href'))?.replace('#', '');
-              if (refId) return doc?.getElementById(refId) || ownerSvg?.querySelector(`[id="${refId}"]`);
-            }
+            return resolveUse(pattern);
           }
         }
       }
@@ -383,7 +398,14 @@ const ImageEditor = ({
 
   const [backgroundColor, setBackgroundColor] = useState(() => {
     if (!selectedElement) return { fill: 'transparent', fillOpacity: 100, stroke: 'transparent', strokeOpacity: 100, strokeType: 'Solid', strokeWeight: 0 };
-    const fill = selectedElement.getAttribute('fill') || selectedElement.getAttribute('data-fill-color') || 'transparent';
+    let fill = selectedElement.getAttribute('data-fill-color');
+    if (!fill) {
+      fill = selectedElement.getAttribute('fill');
+      if (fill && fill.startsWith('url(')) {
+        fill = 'transparent';
+      }
+    }
+    fill = fill || 'transparent';
     const stroke = selectedElement.getAttribute('stroke') || selectedElement.getAttribute('data-stroke-color') || 'transparent';
     const strokeW = selectedElement.getAttribute('stroke-width') || '0';
     const dash = selectedElement.getAttribute('stroke-dasharray') || 'none';
@@ -768,12 +790,19 @@ const ImageEditor = ({
     });
 
     // 8. Sync Background Color
-    const fill = selectedElement.getAttribute('fill') || selectedElement.getAttribute('data-fill-color') || 'transparent';
+    let fill = selectedElement.getAttribute('data-fill-color');
+    if (!fill) {
+      fill = selectedElement.getAttribute('fill');
+      if (fill && fill.startsWith('url(')) {
+        fill = 'transparent';
+      }
+    }
+    fill = fill || 'transparent';
     const stroke = selectedElement.getAttribute('stroke') || selectedElement.getAttribute('data-stroke-color') || 'transparent';
     const fillOp = selectedElement.getAttribute('data-fill-opacity') || selectedElement.getAttribute('fill-opacity') || '1';
     const strokeOp = selectedElement.getAttribute('data-stroke-opacity') || selectedElement.getAttribute('stroke-opacity') || '1';
     const strokeW = selectedElement.getAttribute('data-stroke-width') || selectedElement.getAttribute('stroke-width') || '0';
-    const strokeArray = selectedElement.getAttribute('stroke-dasharray') || 'none';
+    const strokeArray = selectedElement.getAttribute('data-stroke-dasharray') || selectedElement.getAttribute('stroke-dasharray') || 'none';
 
     let dashLen = 5, dashGap = 5;
     if (strokeArray !== 'none' && strokeArray !== '') {
@@ -850,34 +879,33 @@ const ImageEditor = ({
     let svgImageEl = getSvgImageEl(liveElement);
     let isSvgEl = !!svgImageEl || (liveElement instanceof SVGElement && tagLower !== 'svg');
 
-    // --- GROUP WITHIN IMAGE FIX ---
-    // If liveElement is a direct <image> or <foreignObject>, wrap it in a <g> so overlays and casters are grouped inside it
-    if (isSvgEl && (tagLower === 'image' || tagLower === 'foreignobject') && !liveElement.classList.contains('image-grouped-element')) {
-      const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      newGroup.id = liveElement.id;
-      liveElement.removeAttribute('id');
+    // --- FORCE IMAGE GROUP STRUCTURE FOR IMAGES ---
+    if (isSvgEl && svgImageEl && liveElement.getAttribute('data-is-image-group') !== 'true') {
+      if (tagLower === 'image') {
+        const parent = liveElement.parentNode;
+        const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        newGroup.id = liveElement.id; // Keep selection intact
+        newGroup.setAttribute('data-type', liveElement.getAttribute('data-type') || 'image');
+        newGroup.setAttribute('data-name', 'Image Group');
+        newGroup.setAttribute('data-is-image-group', 'true');
 
-      Array.from(liveElement.attributes).forEach(attr => {
-        if (attr.name.startsWith('data-') || attr.name === 'class' || attr.name === 'style' || attr.name === 'transform') {
-          newGroup.setAttribute(attr.name, attr.value);
-          liveElement.removeAttribute(attr.name);
+        const newImgId = `image-${Math.random().toString(36).substr(2, 9)}`;
+        liveElement.id = newImgId;
+        liveElement.setAttribute('data-name', 'Image');
+
+        if (liveElement.hasAttribute('transform')) {
+          newGroup.setAttribute('transform', liveElement.getAttribute('transform'));
+          liveElement.removeAttribute('transform');
         }
-      });
 
-      liveElement.parentNode.insertBefore(newGroup, liveElement);
-      newGroup.appendChild(liveElement);
-      liveElement.classList.add('image-grouped-element');
-      liveElement = newGroup;
+        if (parent) parent.insertBefore(newGroup, liveElement);
+        newGroup.appendChild(liveElement);
 
-      // Re-evaluate tags since liveElement is now a <g>
-      tagLower = 'g';
-      svgImageEl = liveElement.querySelector('image, img') || liveElement.querySelector('foreignObject');
-
-      if (onUpdateRef.current) setTimeout(() => onUpdateRef.current({ shouldRefresh: true }), 0);
-    } else if (isSvgEl && liveElement.classList.contains('image-grouped-element') && liveElement.parentElement) {
-      liveElement = liveElement.parentElement;
-      tagLower = liveElement.tagName?.toLowerCase() || '';
-      svgImageEl = liveElement.querySelector('image, img') || liveElement.querySelector('foreignObject');
+        liveElement = newGroup;
+        tagLower = 'g';
+      } else {
+        liveElement.setAttribute('data-is-image-group', 'true');
+      }
     }
 
     // Helper: get current src
@@ -902,6 +930,17 @@ const ImageEditor = ({
 
     isUpdatingDOM.current = true;
     try {
+      const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
+        return `M ${x + tlv},${y} ` +
+          `L ${x + w - trv},${y} ` +
+          `Q ${x + w},${y} ${x + w},${y + trv} ` +
+          `L ${x + w},${y + h - brv} ` +
+          `Q ${x + w},${y + h} ${x + w - brv},${y + h} ` +
+          `L ${x + blv},${y + h} ` +
+          `Q ${x},${y + h} ${x},${y + h - blv} ` +
+          `L ${x},${y + tlv} ` +
+          `Q ${x},${y} ${x + tlv},${y} Z`;
+      };
       // Safe access to filters
       const f = filters || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
 
@@ -955,53 +994,77 @@ const ImageEditor = ({
 
       // Apply filters to DOM
       if (isSvgEl) {
-        const hasClip = (imageType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl);
 
         // 1. Apply Adjustments to the actual image content (leaf)
         if (svgImageEl) {
           svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
         }
 
-        // 2. Apply Drop Shadow to a sibling caster (best for SVG with clips)
-        let shadowCaster = liveElement.querySelector('.svg-drop-shadow-caster');
+        // 2. Restore shadowCaster for images with clip-paths (Crop/Radius) to prevent shadow clipping
+        const isImageElement = liveElement.tagName?.toLowerCase() === 'image';
+        const targetContainer = isImageElement ? (liveElement.parentElement || liveElement) : liveElement;
+
+        if (isImageElement) {
+          const buggyCaster = liveElement.querySelector('.svg-drop-shadow-caster');
+          if (buggyCaster) buggyCaster.remove();
+        }
+
+        let shadowCaster = targetContainer.querySelector('.svg-drop-shadow-caster');
+        const effImgType = liveElement.getAttribute('data-object-fit') || imageType;
+        // Only images use CSS clip-path which clips shadows. Shapes use native rx/ry.
+        const hasClip = isImageElement && ((effImgType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl));
+
         if (shadowOnlyFilter !== 'none' && hasClip) {
-          if (!shadowCaster) {
-            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'path') {
+            if (shadowCaster) shadowCaster.remove();
+            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             shadowCaster.classList.add('svg-drop-shadow-caster');
             shadowCaster.style.pointerEvents = 'none';
-            liveElement.insertBefore(shadowCaster, liveElement.firstChild);
           }
+
           if (shadowCaster) {
-            if (shadowCaster !== liveElement.firstChild) {
-              liveElement.insertBefore(shadowCaster, liveElement.firstChild);
+            const targetInsertNode = (effImgType === 'Crop' && liveElement.parentElement?.classList.contains('svg-crop-wrapper'))
+              ? liveElement.parentElement
+              : liveElement;
+
+            if (liveElement.getAttribute('data-is-image-group') === 'true') {
+              liveElement.appendChild(shadowCaster);
+            } else if (shadowCaster.nextSibling !== targetInsertNode && targetInsertNode.parentElement) {
+              targetInsertNode.parentElement.insertBefore(shadowCaster, targetInsertNode);
             }
+
             let targetElForShadow = svgImageEl || liveElement;
-            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+            if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
               targetElForShadow = svgImageEl.parentNode;
             }
-            shadowCaster.setAttribute('x', targetElForShadow.getAttribute('x') || '0');
-            shadowCaster.setAttribute('y', targetElForShadow.getAttribute('y') || '0');
-            shadowCaster.setAttribute('width', targetElForShadow.getAttribute('width') || '100%');
-            shadowCaster.setAttribute('height', targetElForShadow.getAttribute('height') || '100%');
-            shadowCaster.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
 
-            // Fix: Correct fill and opacity for shadow casting. 
-            // Intensity of CSS drop-shadow depends on source alpha; use element's opacity.
+            let bb = { x: 0, y: 0, width: 100, height: 100 };
+            try { bb = targetElForShadow.getBBox(); } catch (e) { }
+
+            let cxStr = targetElForShadow.getAttribute('x') || '0';
+            let cyStr = targetElForShadow.getAttribute('y') || '0';
+            let cwStr = targetElForShadow.getAttribute('width') || '100%';
+            let chStr = targetElForShadow.getAttribute('height') || '100%';
+
+            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+
+            shadowCaster.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', (opacity / 100).toString());
-
-            // Reset attributes to prevent stale state
             shadowCaster.style.removeProperty('clip-path');
-            shadowCaster.removeAttribute('rx');
 
-            if (imageType === 'Crop') {
-              // Do not apply clip-path to caster as it would clip the shadow itself.
+            if (effImgType === 'Crop') {
+              shadowCaster.setAttribute('d', getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), 0, 0, 0, 0));
             } else {
-              // Match the image's rounding for the shadow shape
-              const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
-              if (maxR > 0) {
-                shadowCaster.setAttribute('rx', maxR.toString());
-              }
+              const maxR = Math.min(cw, ch) / 2;
+              const c_tl = Math.max(0, Math.min((radius.tl || 0), maxR));
+              const c_tr = Math.max(0, Math.min((radius.tr || 0), maxR));
+              const c_br = Math.max(0, Math.min((radius.br || 0), maxR));
+              const c_bl = Math.max(0, Math.min((radius.bl || 0), maxR));
+              shadowCaster.setAttribute('d', getPathD(cx, cy, Math.max(0, cw), Math.max(0, ch), c_tl, c_tr, c_br, c_bl));
             }
 
             shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
@@ -1011,14 +1074,18 @@ const ImageEditor = ({
           shadowCaster.style.setProperty('display', 'none', 'important');
         }
 
-        // 3. Apply geometry-level filters to the selection element itself
-        if (!hasClip) {
+        // 3. Apply geometry-level filters
+        if (!isImageElement) {
           liveElement.style.setProperty('filter', totalFilter, 'important');
-        } else if (svgImageEl === liveElement) {
-          // If the selection element IS the image, keep adjustments but exclude shadow (shadow is in caster)
-          liveElement.style.setProperty('filter', adjustOnlyFilter, 'important');
         } else {
-          liveElement.style.removeProperty('filter');
+          if (hasClip) {
+            liveElement.style.setProperty('filter', adjustOnlyFilter, 'important');
+          } else {
+            liveElement.style.setProperty('filter', totalFilter, 'important');
+          }
+          if (liveElement.parentElement?.classList.contains('svg-crop-wrapper')) {
+            liveElement.parentElement.style.removeProperty('filter');
+          }
         }
         if (liveElement.parentElement) {
           if (!liveElement.parentElement.classList.contains('svg-crop-wrapper')) {
@@ -1068,11 +1135,21 @@ const ImageEditor = ({
 
       // --- Opacity (works for both; also persist via SVG attribute) ---
       const opacityVal = (opacity / 100).toString();
-      liveElement.style.setProperty('opacity', opacityVal, 'important');
-      if (isSvgEl) {
-        liveElement.setAttribute('opacity', opacityVal);
+      const isImageGroup = isSvgEl && liveElement.getAttribute('data-is-image-group') === 'true';
+
+      if (isImageGroup && svgImageEl) {
+        liveElement.style.removeProperty('opacity');
+        liveElement.removeAttribute('opacity');
         liveElement.setAttribute('data-effect-opacity', opacity.toString());
-        if (svgImageEl && svgImageEl !== liveElement) svgImageEl.setAttribute('opacity', opacityVal);
+        svgImageEl.style.setProperty('opacity', opacityVal, 'important');
+        svgImageEl.setAttribute('opacity', opacityVal);
+      } else {
+        liveElement.style.setProperty('opacity', opacityVal, 'important');
+        if (isSvgEl) {
+          liveElement.setAttribute('opacity', opacityVal);
+          liveElement.setAttribute('data-effect-opacity', opacity.toString());
+          if (svgImageEl && svgImageEl !== liveElement) svgImageEl.setAttribute('opacity', opacityVal);
+        }
       }
 
       if (isSvgEl) {
@@ -1366,117 +1443,10 @@ const ImageEditor = ({
               liveElement.style.removeProperty('transform-origin');
               liveElement.style.removeProperty('clip-path');
             } else {
-              // --- SVG <image> Element (or our <svg> wrapper) ---
-              let targetEl = liveElement;
-              let imgEl = liveElement;
-
-              let wrapper = liveElement.parentNode;
-              if (wrapper?.tagName?.toLowerCase() === 'svg' && wrapper.classList.contains('svg-crop-wrapper')) {
-                targetEl = wrapper;
-                imgEl = liveElement;
-              } else if (liveElement.tagName?.toLowerCase() === 'svg' && liveElement.classList.contains('svg-crop-wrapper')) {
-                targetEl = liveElement;
-                imgEl = liveElement.querySelector('image');
-              } else if (liveElement.tagName?.toLowerCase() === 'image') {
-                // Wrap direct <image> with <svg viewBox> to prevent Paper.js selection box explosion
-                wrapper = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                wrapper.id = liveElement.id;
-                liveElement.removeAttribute('id');
-
-                const w = liveElement.getAttribute('width') || liveElement.style.width || '100';
-                const h = liveElement.getAttribute('height') || liveElement.style.height || '100';
-                const x = liveElement.getAttribute('x') || '0';
-                const y = liveElement.getAttribute('y') || '0';
-
-                wrapper.setAttribute('width', w);
-                wrapper.setAttribute('height', h);
-                wrapper.setAttribute('x', x);
-                wrapper.setAttribute('y', y);
-                wrapper.style.setProperty('overflow', 'hidden', 'important');
-                wrapper.setAttribute('data-crop-orig-w', w);
-                wrapper.setAttribute('data-crop-orig-h', h);
-                wrapper.setAttribute('data-crop-orig-x', x);
-                wrapper.setAttribute('data-crop-orig-y', y);
-                wrapper.classList.add('svg-crop-wrapper');
-
-                liveElement.parentNode.insertBefore(wrapper, liveElement);
-                wrapper.appendChild(liveElement);
-
-                liveElement.setAttribute('x', '0');
-                liveElement.setAttribute('y', '0');
-                liveElement.setAttribute('width', w);
-                liveElement.setAttribute('height', h);
-
-                targetEl = wrapper;
-                imgEl = liveElement;
-              }
-
-              if (targetEl && imgEl) {
-                const origW = parseFloat(targetEl.getAttribute('data-crop-orig-w') || targetEl.getAttribute('width') || '100');
-                const origH = parseFloat(targetEl.getAttribute('data-crop-orig-h') || targetEl.getAttribute('height') || '100');
-                const origX = parseFloat(targetEl.getAttribute('data-crop-orig-x') || targetEl.getAttribute('x') || '0');
-                const origY = parseFloat(targetEl.getAttribute('data-crop-orig-y') || targetEl.getAttribute('y') || '0');
-
-                const cropX_val = (parseFloat(crop.left) / 100) * origW;
-                const cropY_val = (parseFloat(crop.top) / 100) * origH;
-                const cropW_val = (parseFloat(crop.width) / 100) * origW;
-                const cropH_val = (parseFloat(crop.height) / 100) * origH;
-
-                targetEl.removeAttribute('viewBox');
-
-                targetEl.setAttribute('width', origW.toString());
-                targetEl.setAttribute('height', origH.toString());
-                targetEl.setAttribute('x', origX.toString());
-                targetEl.setAttribute('y', origY.toString());
-
-                imgEl.style.setProperty('display', 'none', 'important');
-
-                let cropRect = targetEl.querySelector('.internal-crop-rect');
-                let cropPat = targetEl.querySelector('.internal-crop-pattern');
-
-                if (!cropRect) {
-                  cropRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                  cropRect.classList.add('internal-crop-rect');
-                  targetEl.appendChild(cropRect);
-                }
-                if (!cropPat) {
-                  cropPat = document.createElementNS('http://www.w3.org/2000/svg', 'pattern');
-                  cropPat.classList.add('internal-crop-pattern');
-                  cropPat.id = `crop-pat-${Math.random().toString(36).substr(2, 9)}`;
-                  cropPat.setAttribute('patternUnits', 'userSpaceOnUse');
-                  targetEl.appendChild(cropPat);
-
-                  const patImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-                  patImg.classList.add('internal-crop-image');
-                  cropPat.appendChild(patImg);
-                }
-
-                cropRect.setAttribute('width', origW.toString());
-                cropRect.setAttribute('height', origH.toString());
-                cropRect.setAttribute('x', '0');
-                cropRect.setAttribute('y', '0');
-                cropRect.setAttribute('fill', `url(#${cropPat.id})`);
-                cropRect.removeAttribute('rx');
-                cropRect.style.removeProperty('display');
-
-                cropPat.setAttribute('width', origW.toString());
-                cropPat.setAttribute('height', origH.toString());
-                cropPat.setAttribute('x', '0');
-                cropPat.setAttribute('y', '0');
-                cropPat.setAttribute('viewBox', `${cropX_val} ${cropY_val} ${cropW_val} ${cropH_val}`);
-                cropPat.setAttribute('preserveAspectRatio', 'none');
-
-                const patImg = cropPat.querySelector('.internal-crop-image');
-                if (patImg) {
-                  patImg.setAttribute('href', imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.src || '');
-                  patImg.setAttribute('width', origW.toString());
-                  patImg.setAttribute('height', origH.toString());
-                  patImg.setAttribute('preserveAspectRatio', 'none');
-                }
-              }
-
-              const htmlClipVal = `inset(0% 0% 0% 0%${radiusStr})`;
-              targetEl.style.setProperty('clip-path', htmlClipVal, 'important');
+              // --- SVG <image> Element (Native CSS Clip-Path) ---
+              const svgClipVal = `inset(${crop.top}% ${100 - crop.left - crop.width}% ${100 - crop.top - crop.height}% ${crop.left}%${radiusStr})`;
+              liveElement.style.setProperty('clip-path', svgClipVal, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', svgClipVal, 'important');
             }
 
             // Shared Fallback Cleanup
@@ -1790,9 +1760,9 @@ const ImageEditor = ({
         if (color.startsWith('#')) {
           const hex = color.replace('#', '');
           if (hex.length === 3) {
-            r = parseInt(hex[0]+hex[0], 16); g = parseInt(hex[1]+hex[1], 16); b = parseInt(hex[2]+hex[2], 16);
+            r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16);
           } else if (hex.length === 6) {
-            r = parseInt(hex.substring(0,2), 16); g = parseInt(hex.substring(2,4), 16); b = parseInt(hex.substring(4,6), 16);
+            r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16);
           }
         }
         const rgbaStr = `rgba(${r}, ${g}, ${b}, ${alpha})`;
@@ -1800,28 +1770,42 @@ const ImageEditor = ({
       }
 
       if (isSvgEl) {
-        let overlay = liveElement.querySelector('.svg-inner-shadow-rect');
-        let oldOverlay = liveElement.querySelector('.svg-inner-shadow-overlay');
+        const isContainer = ['g', 'svg'].includes(liveElement.tagName?.toLowerCase());
+        const targetContainer = isContainer ? liveElement : (liveElement.parentElement || liveElement);
+        const ownerId = liveElement.id || selectedLayerId;
+
+        if (!isContainer) {
+          const buggyOverlay = liveElement.querySelector('.svg-inner-shadow-rect');
+          if (buggyOverlay) buggyOverlay.remove();
+        }
+
+        // Use data-owner to find the overlay belonging to THIS specific element
+        let overlay = targetContainer.querySelector(`.svg-inner-shadow-rect[data-owner="${ownerId}"]`);
+        if (!overlay) {
+          // Fallback: find any unowned overlay in container (for backwards compat)
+          overlay = isContainer ? targetContainer.querySelector('.svg-inner-shadow-rect') : null;
+        }
+        let oldOverlay = targetContainer.querySelector('.svg-inner-shadow-overlay');
         if (oldOverlay) oldOverlay.remove(); // Clean up old foreignObject approach
-        
+
         let filterId = liveElement.getAttribute('data-inner-shadow-filter-id');
 
         if (activeEffects.includes('Inner Shadow')) {
           const ds = effectSettings['Inner Shadow'];
           const alpha = (ds.opacity !== undefined ? ds.opacity : 35) / 100;
           const color = ds.color || '#000000';
-          
+
           if (!filterId) {
             filterId = 'inner-shadow-' + Math.random().toString(36).substr(2, 9);
             liveElement.setAttribute('data-inner-shadow-filter-id', filterId);
           }
-          
+
           let svgDefs = liveElement.ownerSVGElement?.querySelector('defs');
           if (!svgDefs && liveElement.ownerSVGElement) {
             svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             liveElement.ownerSVGElement.prepend(svgDefs);
           }
-          
+
           if (svgDefs) {
             let filterEl = svgDefs.querySelector(`#${filterId}`);
             if (!filterEl) {
@@ -1829,34 +1813,34 @@ const ImageEditor = ({
               filterEl.id = filterId;
               svgDefs.appendChild(filterEl);
             }
-            
-            while(filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
-            
+
+            while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+
             const feOffset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
             feOffset.setAttribute('dx', ds.x || 0);
             feOffset.setAttribute('dy', ds.y || 0);
-            
+
             const feBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
             feBlur.setAttribute('stdDeviation', (ds.blur || 0) / 2);
             feBlur.setAttribute('result', 'offset-blur');
-            
+
             const feComp1 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
             feComp1.setAttribute('operator', 'out');
             feComp1.setAttribute('in', 'SourceAlpha');
             feComp1.setAttribute('in2', 'offset-blur');
             feComp1.setAttribute('result', 'inverse');
-            
+
             const feFlood = document.createElementNS('http://www.w3.org/2000/svg', 'feFlood');
             feFlood.setAttribute('flood-color', color);
             feFlood.setAttribute('flood-opacity', alpha);
             feFlood.setAttribute('result', 'color');
-            
+
             const feComp2 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
             feComp2.setAttribute('operator', 'in');
             feComp2.setAttribute('in', 'color');
             feComp2.setAttribute('in2', 'inverse');
             feComp2.setAttribute('result', 'shadow');
-            
+
             filterEl.appendChild(feOffset);
             filterEl.appendChild(feBlur);
             filterEl.appendChild(feComp1);
@@ -1864,39 +1848,49 @@ const ImageEditor = ({
             filterEl.appendChild(feComp2);
           }
 
-          if (!overlay) {
-            overlay = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!overlay || overlay.tagName.toLowerCase() !== 'path') {
+            if (overlay) overlay.remove();
+            overlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             overlay.classList.add('svg-inner-shadow-rect');
+            overlay.setAttribute('data-owner', ownerId);
             overlay.style.pointerEvents = 'none';
             overlay.setAttribute('fill', 'white'); // Must have solid fill to generate SourceAlpha
-            liveElement.appendChild(overlay);
+            if (!isContainer && liveElement.parentElement) {
+              liveElement.parentElement.insertBefore(overlay, liveElement.nextSibling);
+            } else {
+              targetContainer.appendChild(overlay);
+            }
           }
-          
-          const targetEl = svgImageEl || liveElement;
-          let box = { x: 0, y: 0, width: 100, height: 100 };
-          try { box = targetEl.getBBox(); } catch(e) {
-            box.x = parseFloat(targetEl.getAttribute('x') || 0);
-            box.y = parseFloat(targetEl.getAttribute('y') || 0);
-            box.width = parseFloat(targetEl.getAttribute('width') || 100);
-            box.height = parseFloat(targetEl.getAttribute('height') || 100);
-          }
-          
-          overlay.setAttribute('x', box.x);
-          overlay.setAttribute('y', box.y);
-          overlay.setAttribute('width', Math.max(1, box.width));
-          overlay.setAttribute('height', Math.max(1, box.height));
-          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-          
-          const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
-          if (anyR) overlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl));
-          else overlay.removeAttribute('rx');
 
+          const targetEl = isContainer ? (svgImageEl || liveElement) : liveElement;
+          let box = { x: 0, y: 0, width: 100, height: 100 };
+          try { box = targetEl.getBBox(); } catch (e) { }
+
+          let ixStr = targetEl.getAttribute('x') || '0';
+          let iyStr = targetEl.getAttribute('y') || '0';
+          let iwStr = targetEl.getAttribute('width') || '100%';
+          let ihStr = targetEl.getAttribute('height') || '100%';
+
+          let ix = ixStr.includes('%') ? box.x : parseFloat(ixStr) || 0;
+          let iy = iyStr.includes('%') ? box.y : parseFloat(iyStr) || 0;
+          let iw = iwStr.includes('%') ? box.width : parseFloat(iwStr) || 100;
+          let ih = ihStr.includes('%') ? box.height : parseFloat(ihStr) || 100;
+
+          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+
+          const maxIR = Math.min(iw, ih) / 2;
+          const i_tl = Math.max(0, Math.min(radius.tl || 0, maxIR));
+          const i_tr = Math.max(0, Math.min(radius.tr || 0, maxIR));
+          const i_br = Math.max(0, Math.min(radius.br || 0, maxIR));
+          const i_bl = Math.max(0, Math.min(radius.bl || 0, maxIR));
+
+          overlay.setAttribute('d', getPathD(ix, iy, Math.max(0, iw), Math.max(0, ih), i_tl, i_tr, i_br, i_bl));
           overlay.setAttribute('filter', `url(#${filterId})`);
         } else {
           if (overlay) overlay.remove();
           if (filterId && liveElement.ownerSVGElement) {
-             const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
-             if (f) f.remove();
+            const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
+            if (f) f.remove();
           }
         }
       } else {
@@ -1928,50 +1922,157 @@ const ImageEditor = ({
           overlay.remove();
         }
       }
-          // Deck Effect for Slideshow (Only for HTML containers, skip for SVG)
-          const isSvgParent = selectedElement.parentElement && selectedElement.parentElement instanceof SVGElement;
-          if (isSlideshow && selectedElement.parentElement && !isSvgParent) {
-            let stack1 = selectedElement.parentElement.querySelector('.slideshow-stack-1');
-            let stack2 = selectedElement.parentElement.querySelector('.slideshow-stack-2');
-            if (!stack1) {
-              stack1 = document.createElement('div');
-              stack1.className = 'slideshow-stack-1';
-              stack1.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:-1;background:white;border:1px solid rgba(0,0,0,0.05);box-shadow:0 4px 12px rgba(0,0,0,0.08)';
-              selectedElement.parentElement.insertBefore(stack1, selectedElement);
-            }
-            if (!stack2) {
-              stack2 = document.createElement('div');
-              stack2.className = 'slideshow-stack-2';
-              stack2.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:-2;background:white;border:1px solid rgba(0,0,0,0.05);box-shadow:0 4px 12px rgba(0,0,0,0.08)';
-              selectedElement.parentElement.insertBefore(stack2, selectedElement);
-            }
-            const commonRadius = selectedElement.style.borderRadius || '12px';
-            stack1.style.borderRadius = commonRadius;
-            stack1.style.transform = 'translate(6px, 6px) rotate(1.5deg)';
-            stack1.style.display = 'block';
-            stack2.style.borderRadius = commonRadius;
-            stack2.style.transform = 'translate(12px, 12px) rotate(3deg)';
-            stack2.style.display = 'block';
-            selectedElement.style.setProperty('border', '4px solid white', 'important');
-            selectedElement.style.setProperty('box-shadow', '0 8px 25px rgba(0,0,0,0.12)', 'important');
-            selectedElement.style.setProperty('z-index', '1', 'important');
-            if (window.getComputedStyle(selectedElement.parentElement).position === 'static') {
-              selectedElement.parentElement.style.position = 'relative';
-            }
-            selectedElement.parentElement.style.setProperty('overflow', 'visible', 'important');
-          } else if (!isSvgParent) {
-            selectedElement.parentElement?.querySelector('.slideshow-stack-1')?.remove();
-            selectedElement.parentElement?.querySelector('.slideshow-stack-2')?.remove();
-            selectedElement.style.removeProperty('border');
-            selectedElement.style.removeProperty('z-index');
-            if (!activeEffects.includes('Drop Shadow')) selectedElement.style.removeProperty('box-shadow');
-          }
+      // Deck Effect for Slideshow (Only for HTML containers, skip for SVG)
+      const isSvgParent = selectedElement.parentElement && selectedElement.parentElement instanceof SVGElement;
+      if (isSlideshow && selectedElement.parentElement && !isSvgParent) {
+        let stack1 = selectedElement.parentElement.querySelector('.slideshow-stack-1');
+        let stack2 = selectedElement.parentElement.querySelector('.slideshow-stack-2');
+        if (!stack1) {
+          stack1 = document.createElement('div');
+          stack1.className = 'slideshow-stack-1';
+          stack1.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:-1;background:white;border:1px solid rgba(0,0,0,0.05);box-shadow:0 4px 12px rgba(0,0,0,0.08)';
+          selectedElement.parentElement.insertBefore(stack1, selectedElement);
+        }
+        if (!stack2) {
+          stack2 = document.createElement('div');
+          stack2.className = 'slideshow-stack-2';
+          stack2.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;z-index:-2;background:white;border:1px solid rgba(0,0,0,0.05);box-shadow:0 4px 12px rgba(0,0,0,0.08)';
+          selectedElement.parentElement.insertBefore(stack2, selectedElement);
+        }
+        const commonRadius = selectedElement.style.borderRadius || '12px';
+        stack1.style.borderRadius = commonRadius;
+        stack1.style.transform = 'translate(6px, 6px) rotate(1.5deg)';
+        stack1.style.display = 'block';
+        stack2.style.borderRadius = commonRadius;
+        stack2.style.transform = 'translate(12px, 12px) rotate(3deg)';
+        stack2.style.display = 'block';
+        selectedElement.style.setProperty('border', '4px solid white', 'important');
+        selectedElement.style.setProperty('box-shadow', '0 8px 25px rgba(0,0,0,0.12)', 'important');
+        selectedElement.style.setProperty('z-index', '1', 'important');
+        if (window.getComputedStyle(selectedElement.parentElement).position === 'static') {
+          selectedElement.parentElement.style.position = 'relative';
+        }
+        selectedElement.parentElement.style.setProperty('overflow', 'visible', 'important');
+      } else if (!isSvgParent) {
+        selectedElement.parentElement?.querySelector('.slideshow-stack-1')?.remove();
+        selectedElement.parentElement?.querySelector('.slideshow-stack-2')?.remove();
+        selectedElement.style.removeProperty('border');
+        selectedElement.style.removeProperty('z-index');
+        if (!activeEffects.includes('Drop Shadow')) selectedElement.style.removeProperty('box-shadow');
+      }
       if (activeEffects.includes('Drop Shadow') || activeEffects.includes('Blur')) {
         if (liveElement.parentElement) liveElement.parentElement.style.setProperty('overflow', 'visible', 'important');
       }
       // --- Background Color ---
-      // Only apply solid fill if it's not a pattern fill, or if explicitly changed to a solid color
-      if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none' && !backgroundColor.fill.startsWith('url(')) {
+      let fillLayerParent = liveElement;
+      let isPatternShape = false;
+      let patternEl = null;
+
+      if (tagLower !== 'g' && liveElement.hasAttribute('fill') && liveElement.getAttribute('fill')?.toString().includes('url(#')) {
+        isPatternShape = true;
+        const fillUrl = liveElement.getAttribute('fill');
+        const match = fillUrl.match(/url\s*\(\s*['"]?#([^'"()]+)['"]?\s*\)/i);
+        if (match) {
+          patternEl = liveElement.closest('svg')?.querySelector(`pattern[id="${match[1].trim()}"]`) || document.getElementById(match[1].trim());
+          if (patternEl) fillLayerParent = patternEl;
+        }
+      }
+
+      if (liveElement.getAttribute('data-is-image-group') === 'true' || isPatternShape) {
+        let fillLayer = fillLayerParent.querySelector('.image-fill-layer');
+        if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
+          if (!fillLayer) {
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            fillLayer.classList.add('image-fill-layer');
+            fillLayer.setAttribute('data-name', 'Fill Color');
+            fillLayer.style.pointerEvents = 'none';
+          }
+          if (fillLayerParent.firstChild !== fillLayer) {
+            fillLayerParent.insertBefore(fillLayer, fillLayerParent.firstChild);
+          }
+          let targetElForFill = svgImageEl || liveElement;
+          if (svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
+            targetElForFill = svgImageEl.parentNode;
+          }
+
+          let bBox = { x: 0, y: 0, width: 100, height: 100 };
+          try { bBox = targetElForFill.getBBox(); } catch (e) { }
+
+          let bxStr = targetElForFill.getAttribute('x') || '0';
+          let byStr = targetElForFill.getAttribute('y') || '0';
+          let bwStr = targetElForFill.getAttribute('width') || '100%';
+          let bhStr = targetElForFill.getAttribute('height') || '100%';
+
+          let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+          let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+          let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+          let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+          if (isPatternShape && patternEl) {
+            fillLayer.setAttribute('x', '0');
+            fillLayer.setAttribute('y', '0');
+            fillLayer.setAttribute('width', patternEl.getAttribute('width') || '100%');
+            fillLayer.setAttribute('height', patternEl.getAttribute('height') || '100%');
+          } else {
+            fillLayer.setAttribute('x', bx.toString());
+            fillLayer.setAttribute('y', by.toString());
+            fillLayer.setAttribute('width', bw.toString());
+            fillLayer.setAttribute('height', bh.toString());
+          }
+
+          let parsedFill = null;
+          if (backgroundColor.fill && backgroundColor.fill.toLowerCase().includes('gradient')) {
+            parsedFill = parseGradient(backgroundColor.fill);
+          }
+
+          if (parsedFill && parsedFill.stops) {
+            fillLayer.setAttribute('data-fill-type', 'gradient');
+            fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+            fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+            fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            // syncGradient reads non-data-prefixed attributes
+            fillLayer.setAttribute('fill-type', 'gradient');
+            fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
+            fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+            fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+            syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
+
+            liveElement.setAttribute('data-fill-type', 'gradient');
+            liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+            liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+            liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+          } else {
+            fillLayer.setAttribute('fill', backgroundColor.fill);
+            fillLayer.removeAttribute('data-fill-type');
+            fillLayer.removeAttribute('data-fill-stops');
+            fillLayer.removeAttribute('fill-type');
+            fillLayer.removeAttribute('fill-stops');
+            fillLayer.removeAttribute('fill-gradient-type');
+            fillLayer.removeAttribute('fill-angle');
+            liveElement.removeAttribute('data-fill-type');
+            liveElement.removeAttribute('data-fill-stops');
+          }
+
+          fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+
+          if (!isPatternShape) {
+            const maxR = Math.min(bw, bh) / 2;
+            if (radius.tl || radius.tr || radius.br || radius.bl) {
+              fillLayer.setAttribute('rx', Math.max(0, Math.min(Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0), maxR)).toString());
+            } else {
+              fillLayer.removeAttribute('rx');
+            }
+            if (targetElForFill.getAttribute('transform')) fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
+          }
+
+          liveElement.setAttribute('data-fill-color', backgroundColor.fill);
+          liveElement.setAttribute('data-fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+        } else {
+          if (fillLayer) fillLayer.remove();
+          liveElement.removeAttribute('data-fill-color');
+          liveElement.removeAttribute('data-fill-opacity');
+        }
+      } else if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none' && !backgroundColor.fill.startsWith('url(')) {
         liveElement.setAttribute('fill', backgroundColor.fill);
         liveElement.setAttribute('data-fill-color', backgroundColor.fill);
         liveElement.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
@@ -1999,15 +2100,37 @@ const ImageEditor = ({
           liveElement.style.borderWidth = '0px';
         }
       } else {
-        const isImageNode = svgImageEl && (svgImageEl.tagName?.toLowerCase() === 'image' || svgImageEl.tagName?.toLowerCase() === 'foreignobject');
+        const isShapeNode = ['rect', 'circle', 'ellipse', 'polygon', 'polyline', 'path'].includes(liveElement.tagName?.toLowerCase());
+        const isImageNode = !isShapeNode && svgImageEl && (svgImageEl.tagName?.toLowerCase() === 'image' || svgImageEl.tagName?.toLowerCase() === 'foreignobject');
 
         liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
         liveElement.setAttribute('data-stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
         liveElement.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
         liveElement.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
 
+        if (backgroundColor.strokeType === 'Dashed') {
+          liveElement.setAttribute('data-stroke-dasharray', `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`);
+        } else {
+          liveElement.setAttribute('data-stroke-dasharray', 'none');
+        }
+
         if (!isImageNode) {
-          liveElement.setAttribute('stroke', backgroundColor.stroke);
+          if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
+            liveElement.setAttribute('stroke-type', 'gradient');
+            liveElement.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
+            liveElement.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
+            liveElement.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
+            liveElement.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            syncGradient(liveElement.ownerDocument || document, liveElement, 'stroke');
+          } else {
+            liveElement.removeAttribute('stroke-type');
+            liveElement.removeAttribute('stroke-gradient-type');
+            liveElement.removeAttribute('stroke-stops');
+            liveElement.removeAttribute('stroke-angle');
+            liveElement.removeAttribute('stroke-radius');
+            liveElement.setAttribute('stroke', backgroundColor.stroke);
+          }
+
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
           liveElement.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
           if (backgroundColor.strokeType === 'Dashed') {
@@ -2026,13 +2149,25 @@ const ImageEditor = ({
 
         // Dynamic Stroke Overlay for SVG images and foreignObjects (Slideshows)
         if (svgImageEl && (svgImageEl.tagName?.toLowerCase() === 'image' || svgImageEl.tagName?.toLowerCase() === 'foreignobject')) {
-          let strokeOverlay = liveElement.querySelector('.svg-image-stroke-overlay');
+          const isImageElement = liveElement.tagName?.toLowerCase() === 'image';
+          const targetContainer = isImageElement ? (liveElement.parentElement || liveElement) : liveElement;
+
+          if (isImageElement) {
+            const buggyOverlay = liveElement.querySelector('.svg-image-stroke-overlay');
+            if (buggyOverlay) buggyOverlay.remove();
+          }
+
+          let strokeOverlay = targetContainer.querySelector('.svg-image-stroke-overlay');
           if (!strokeOverlay || strokeOverlay.tagName.toLowerCase() !== 'path') {
             if (strokeOverlay) strokeOverlay.remove();
             strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             strokeOverlay.classList.add('svg-image-stroke-overlay');
             strokeOverlay.style.pointerEvents = 'none';
-            liveElement.appendChild(strokeOverlay);
+            if (isImageElement && liveElement.parentElement) {
+              liveElement.parentElement.insertBefore(strokeOverlay, liveElement.nextSibling);
+            } else {
+              targetContainer.appendChild(strokeOverlay);
+            }
 
             const syncOverlay = () => {
               if (!strokeOverlay.isConnected) return;
@@ -2091,18 +2226,6 @@ const ImageEditor = ({
           const c_br = Math.max(0, Math.min(br, maxR));
           const c_bl = Math.max(0, Math.min(bl, maxR));
 
-          const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
-            return `M ${x + tlv},${y} ` +
-              `L ${x + w - trv},${y} ` +
-              `Q ${x + w},${y} ${x + w},${y + trv} ` +
-              `L ${x + w},${y + h - brv} ` +
-              `Q ${x + w},${y + h} ${x + w - brv},${y + h} ` +
-              `L ${x + blv},${y + h} ` +
-              `Q ${x},${y + h} ${x},${y + h - blv} ` +
-              `L ${x},${y + tlv} ` +
-              `Q ${x},${y} ${x + tlv},${y} Z`;
-          };
-
           strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
 
           strokeOverlay.setAttribute('transform', targetElForStroke.getAttribute('transform') || '');
@@ -2111,13 +2234,12 @@ const ImageEditor = ({
           strokeOverlay.style.scale = targetElForStroke.style.scale;
           strokeOverlay.style.rotate = targetElForStroke.style.rotate;
           strokeOverlay.style.transformOrigin = targetElForStroke.style.transformOrigin;
-          strokeOverlay.style.opacity = targetElForStroke.style.opacity;
 
           strokeOverlay.setAttribute('fill', 'none');
-          
+
           liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
           liveElement.setAttribute('data-stroke-type', backgroundColor.strokeType);
-          
+
           if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
             liveElement.setAttribute('data-stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
             liveElement.setAttribute('data-stroke-stops', backgroundColor.strokeStops || '');
@@ -2135,7 +2257,7 @@ const ImageEditor = ({
             liveElement.removeAttribute('data-stroke-stops');
             liveElement.removeAttribute('data-stroke-angle');
             liveElement.removeAttribute('data-stroke-radius');
-            
+
             strokeOverlay.removeAttribute('stroke-type');
             strokeOverlay.removeAttribute('stroke-gradient-type');
             strokeOverlay.removeAttribute('stroke-stops');
@@ -2158,11 +2280,21 @@ const ImageEditor = ({
           strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
           strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
 
+          // Apply drop shadow to the stroke overlay so it casts its own shadow seamlessly
+          strokeOverlay.style.setProperty('filter', shadowOnlyFilter, 'important');
+
           // Add clipPath to clip the image to prevent sharp corners from bleeding
-          let defs = liveElement.querySelector('defs');
+          const defsOwner = isImageElement ? (liveElement.ownerSVGElement || liveElement.parentElement || liveElement) : liveElement;
+
+          if (isImageElement) {
+            const buggyDefs = liveElement.querySelector('defs');
+            if (buggyDefs) buggyDefs.remove();
+          }
+
+          let defs = defsOwner.querySelector('defs');
           if (!defs) {
             defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-            liveElement.insertBefore(defs, liveElement.firstChild);
+            defsOwner.insertBefore(defs, defsOwner.firstChild);
           }
           const clipId = `clip-${liveElement.id || Date.now()}`;
           let clip = defs.querySelector('clipPath');
@@ -2224,6 +2356,45 @@ const ImageEditor = ({
             liveElement.style.outlineOffset = `-${weight / 2}px`;
           }
         }
+      }
+
+      // Enforce proper Z-indexing for SVG overlays to prevent the stroke from covering the inner shadow
+      const isImgNode = liveElement.tagName?.toLowerCase() === 'image';
+      if (isImgNode && liveElement.parentElement) {
+        const strokeOl = liveElement.parentElement.querySelector('.svg-image-stroke-overlay');
+        const innerShadowOl = liveElement.parentElement.querySelector('.svg-inner-shadow-rect');
+        // Ensure inner shadow is drawn on top of the stroke overlay
+        if (strokeOl && innerShadowOl) {
+          // If inner shadow is physically before the stroke overlay, move it after
+          if (innerShadowOl.compareDocumentPosition(strokeOl) & Node.DOCUMENT_POSITION_FOLLOWING) {
+            liveElement.parentElement.insertBefore(innerShadowOl, strokeOl.nextSibling);
+          }
+        }
+      }
+
+      // --- STRICT LAYER REORDERING FOR IMAGE GROUPS ---
+      if (liveElement.getAttribute('data-is-image-group') === 'true') {
+        const dropShadow = liveElement.querySelector('.svg-drop-shadow-caster');
+        const fillLayer = liveElement.querySelector('.image-fill-layer');
+        const innerShadow = liveElement.querySelector('.svg-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-overlay');
+        const stroke = liveElement.querySelector('.svg-image-stroke-overlay');
+
+        if (dropShadow) { dropShadow.setAttribute('data-name', 'Drop Shadow'); liveElement.appendChild(dropShadow); }
+        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); liveElement.appendChild(fillLayer); }
+
+        // Find the main image content (it could be an <svg> crop wrapper or raw <image> or pattern rect)
+        // If there's an image that isn't a child of crop wrapper, append it
+        if (svgImageEl) {
+          const imageNode = svgImageEl.closest('svg.svg-crop-wrapper') ||
+            svgImageEl.closest('rect') ||
+            svgImageEl;
+          if (imageNode && imageNode.parentNode === liveElement) {
+            liveElement.appendChild(imageNode);
+          }
+        }
+
+        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); liveElement.appendChild(innerShadow); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
       }
 
       // Debounce onUpdate
@@ -2469,6 +2640,51 @@ const ImageEditor = ({
 
                         // Apply to both to ensure sync
                         [actualSlideshowEl, liveEl].forEach(el => {
+                          if (el.hasAttribute('data-crop-data')) {
+                            try {
+                              let bbox;
+                              if (typeof el.getBBox === 'function') {
+                                bbox = getVisualBBox(el);
+                              } else {
+                                const baseBBox = {
+                                  x: parseFloat(el.style.left || 0),
+                                  y: parseFloat(el.style.top || 0),
+                                  width: parseFloat(el.style.width || el.clientWidth || 0),
+                                  height: parseFloat(el.style.height || el.clientHeight || 0)
+                                };
+                                const cropStr = el.getAttribute('data-crop-data');
+                                if (cropStr && cropStr !== 'null') {
+                                  const crop = JSON.parse(cropStr);
+                                  bbox = {
+                                    x: baseBBox.x + (parseFloat(crop.left) / 100) * baseBBox.width,
+                                    y: baseBBox.y + (parseFloat(crop.top) / 100) * baseBBox.height,
+                                    width: baseBBox.width * (parseFloat(crop.width) / 100),
+                                    height: baseBBox.height * (parseFloat(crop.height) / 100)
+                                  };
+                                } else {
+                                  bbox = baseBBox;
+                                }
+                              }
+
+                              const isHtmlImg = el.tagName?.toLowerCase() === 'img' && !(el instanceof SVGElement);
+                              if (isHtmlImg) {
+                                el.style.width = bbox.width + 'px';
+                                el.style.height = bbox.height + 'px';
+                                el.style.left = bbox.x + 'px';
+                                el.style.top = bbox.y + 'px';
+                                el.style.removeProperty('background-image');
+                              } else {
+                                el.setAttribute('x', bbox.x);
+                                el.setAttribute('y', bbox.y);
+                                el.setAttribute('width', bbox.width);
+                                el.setAttribute('height', bbox.height);
+                              }
+                              el.removeAttribute('data-crop-data');
+                              el.removeAttribute('data-effect-crop-inset');
+                              el.style.removeProperty('clip-path');
+                              el.style.removeProperty('-webkit-clip-path');
+                            } catch (e) { }
+                          }
                           el.setAttribute('data-is-slideshow', 'true');
                           el.setAttribute('data-slideshow', dataStr);
                           el.setAttribute('data-active-index', '0');
@@ -2580,9 +2796,17 @@ const ImageEditor = ({
                               } else {
                                 setImageType(type);
                                 stateRef.current.imageType = type;
+
+                                const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
+
                                 if (selectedElement) {
                                   selectedElement.removeAttribute('data-effect-crop-inset');
                                   selectedElement.removeAttribute('data-crop-data');
+                                }
+                                if (liveEl && liveEl !== selectedElement) {
+                                  liveEl.removeAttribute('data-effect-crop-inset');
+                                  liveEl.removeAttribute('data-crop-data');
                                 }
                               }
                             }}

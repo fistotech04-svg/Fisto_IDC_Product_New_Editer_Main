@@ -138,29 +138,37 @@ const LayerItem = ({
 
   const handleItemClick = (e) => {
     e.stopPropagation();
+    
+    const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
+
     if (e.shiftKey) {
       // ── Shift+Click: Multi-select block ───────────────────────────────────
       const newSet = new Set(multiSelectedIds);
-      if (newSet.has(layer.id)) newSet.delete(layer.id);
-      else newSet.add(layer.id);
+      if (newSet.has(targetId)) newSet.delete(targetId);
+      else newSet.add(targetId);
       if (setMultiSelectedIds) setMultiSelectedIds(newSet);
     } else {
       // ── Plain click: single select, clear multi-selection ─────────────
-      if (setSelectedLayerId) setSelectedLayerId(layer.id);
-      if (setMultiSelectedIds) setMultiSelectedIds(new Set([layer.id]));
+      if (setSelectedLayerId) setSelectedLayerId(targetId);
+      if (setMultiSelectedIds) setMultiSelectedIds(new Set([targetId]));
       if (isGroup) setIsOpen(!isOpen);
     }
   };
 
-  const handleContextMenu = (e) => {
+const handleContextMenu = (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (onLayerContextMenu) {
-      onLayerContextMenu(layer.id, e.clientX, e.clientY);
+      const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
+      onLayerContextMenu(targetId, e.clientX, e.clientY);
     }
   };
 
   const handleDragStart = (e) => {
+    if (layer.isVirtualImageChild) {
+      e.preventDefault();
+      return;
+    }
     e.dataTransfer.setData('text/plain', JSON.stringify({ pageIndex, layerId: layer.id }));
     e.dataTransfer.effectAllowed = 'move';
   };
@@ -186,6 +194,7 @@ const LayerItem = ({
 
   const handleDoubleClick = (e) => {
     e.stopPropagation();
+    if (layer.isVirtualImageChild) return; // Disallow renaming effect layers
     setIsEditing(true);
   };
 
@@ -273,7 +282,8 @@ const LayerItem = ({
             className="text-gray-400 hover:text-indigo-600"
             onClick={(e) => {
               e.stopPropagation();
-              const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
+              const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
+              const ids = multiSelectedIds.has(targetId) ? Array.from(multiSelectedIds) : [targetId];
               onToggleVisibility && onToggleVisibility(ids);
             }}
           >
@@ -283,7 +293,8 @@ const LayerItem = ({
             className="text-gray-400 hover:text-indigo-600"
             onClick={(e) => {
               e.stopPropagation();
-              const ids = multiSelectedIds.has(layer.id) ? Array.from(multiSelectedIds) : [layer.id];
+              const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
+              const ids = multiSelectedIds.has(targetId) ? Array.from(multiSelectedIds) : [targetId];
               onToggleLock && onToggleLock(ids);
             }}
           >

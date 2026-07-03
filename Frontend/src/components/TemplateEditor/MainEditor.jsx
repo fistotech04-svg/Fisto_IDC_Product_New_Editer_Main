@@ -14,6 +14,24 @@ const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/
 const BENDING_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='%23000' d='M5.5 3.483c0-1.248 1.436-1.95 2.421-1.184l13.514 10.513c1.128.877.508 2.684-.92 2.684h-6.853c-.505 0-.981.23-1.294.626l-4.191 5.3c-.882 1.116-2.677.492-2.677-.93zm15.014 10.513L7 3.483v17.009l4.191-5.3a3.15 3.15 0 0 1 2.47-1.196z' /></svg>") 5 3, auto`;
 const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto`;
 
+export const getVisualBBox = (el) => {
+  if (!el || typeof el.getBBox !== 'function') return { x: 0, y: 0, width: 0, height: 0 };
+  const bbox = el.getBBox();
+  const cropStr = el.getAttribute('data-crop-data');
+  if (cropStr && cropStr !== 'null') {
+    try {
+      const crop = JSON.parse(cropStr);
+      return {
+        x: bbox.x + (parseFloat(crop.left) / 100) * bbox.width,
+        y: bbox.y + (parseFloat(crop.top) / 100) * bbox.height,
+        width: bbox.width * (parseFloat(crop.width) / 100),
+        height: bbox.height * (parseFloat(crop.height) / 100)
+      };
+    } catch (e) { return bbox; }
+  }
+  return bbox;
+};
+
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
   .page-svg-container svg {
@@ -799,7 +817,32 @@ const MainEditor = ({
         }
 
         const containerRect = pageContainer.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
+        
+        let elRect;
+        try {
+          const bbox = getVisualBBox(el);
+          const ctm = el.getScreenCTM();
+          const pt = el.ownerSVGElement.createSVGPoint();
+          const corners = [
+            { x: bbox.x, y: bbox.y },
+            { x: bbox.x + bbox.width, y: bbox.y },
+            { x: bbox.x, y: bbox.y + bbox.height },
+            { x: bbox.x + bbox.width, y: bbox.y + bbox.height }
+          ];
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (let c of corners) {
+            pt.x = c.x; pt.y = c.y;
+            const mapped = pt.matrixTransform(ctm);
+            if (mapped.x < minX) minX = mapped.x;
+            if (mapped.y < minY) minY = mapped.y;
+            if (mapped.x > maxX) maxX = mapped.x;
+            if (mapped.y > maxY) maxY = mapped.y;
+          }
+          elRect = { left: minX, top: minY, right: maxX, bottom: maxY, width: maxX - minX, height: maxY - minY };
+        } catch (e) {
+          elRect = el.getBoundingClientRect();
+        }
+
         const scaleX = containerRect.width / (pageContainer.offsetWidth || 1);
         const scaleY = containerRect.height / (pageContainer.offsetHeight || 1);
         const localLeft = (elRect.left - containerRect.left) / scaleX;
@@ -831,8 +874,8 @@ const MainEditor = ({
             ['prev', 'next'].forEach(type => {
               const btn = document.createElement('button');
               btn.className = 'editor-ss-nav editor-ss-nav-' + type;
-              const size = 26 * scaleFactor;
-              const offset = 6 * scaleFactor;
+              const size = 48 * scaleFactor;
+              const offset = 12 * scaleFactor;
               Object.assign(btn.style, {
                 position: 'absolute',
                 top: '50%',
@@ -854,7 +897,7 @@ const MainEditor = ({
                 opacity: '0',
                 transition: 'transform 0.15s, opacity 0.2s',
               });
-              const svgSize = 15 * scaleFactor;
+              const svgSize = 32 * scaleFactor;
 
               // We'll use a container inside the button for React to render into
               const iconContainer = document.createElement('div');
@@ -1719,7 +1762,12 @@ const MainEditor = ({
 
       // 2. Append to root frame or page container and center it
       const topFrames = getTopLevelFrames(svg);
-      const rootFrame = topFrames[0] || svg.querySelector('g') || svg;
+      let rootFrame = topFrames.find(f => 
+        !f.getAttribute('data-is-image-group') && 
+        !f.getAttribute('data-is-gif-group') && 
+        !f.getAttribute('data-is-video-group') &&
+        f.getAttribute('data-name') !== 'Overlay'
+      ) || svg;
 
       if (rootFrame) {
         try {
@@ -1868,7 +1916,7 @@ const MainEditor = ({
     }
 
     try {
-      let bbox = el.getBBox();
+      let bbox = getVisualBBox(el);
       const ctm = el.getScreenCTM();
       const overlayCtm = overlay.getScreenCTM();
       if (!ctm || !overlayCtm) return;
@@ -3014,16 +3062,39 @@ const MainEditor = ({
       return;
     }
 
-    // 2. Create SVG <image>
+    // 2. Create SVG <g> for Image Group
+    const groupId = `image-group-${Math.random().toString(36).substr(2, 9)}`;
+    const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    newGroup.id = groupId;
+    newGroup.setAttribute('data-type', dataType || 'image');
+    if (dataType === 'gif') {
+      newGroup.setAttribute('data-name', 'GIF Group');
+      newGroup.setAttribute('data-is-gif-group', 'true');
+    } else if (dataType === 'video') {
+      newGroup.setAttribute('data-name', 'Video Group');
+      newGroup.setAttribute('data-is-video-group', 'true');
+    } else {
+      newGroup.setAttribute('data-name', 'Image Group');
+      newGroup.setAttribute('data-is-image-group', 'true');
+    }
+
+    // 3. Create SVG <image>
     const imgId = `image-${Math.random().toString(36).substr(2, 9)}`;
     const newImg = document.createElementNS('http://www.w3.org/2000/svg', 'image');
     newImg.id = imgId;
     // Set both for maximum cross-browser/renderer compatibility
     newImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', dataUrl);
     newImg.setAttribute('href', dataUrl);
-    newImg.setAttribute('data-type', dataType || 'image');
-    newImg.setAttribute('data-name', 'Image'); // Ensure it shows up clearly in layers
+    if (dataType === 'gif') {
+      newImg.setAttribute('data-name', 'GIF');
+    } else if (dataType === 'video') {
+      newImg.setAttribute('data-name', 'Video');
+    } else {
+      newImg.setAttribute('data-name', 'Image');
+    }
     newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    newGroup.appendChild(newImg);
 
     // Load image to get dimensions
     const i = new Image();
@@ -3065,19 +3136,19 @@ const MainEditor = ({
           newImg.setAttribute('width', displayWidth.toString());
           newImg.setAttribute('height', displayHeight.toString());
 
-          rootFrame.appendChild(newImg);
+          rootFrame.appendChild(newGroup);
 
           // CRITICAL: Synchronize changes back to the state
           if (updatePageHtml) {
             saveModifiedPageHtml(pageIdx, svg);
           }
 
-          // Select the newly added image
-          if (setSelectedLayerId) setSelectedLayerId(imgId);
-          if (setMultiSelectedIds) setMultiSelectedIds(new Set([imgId]));
+          // Select the newly added group
+          if (setSelectedLayerId) setSelectedLayerId(groupId);
+          if (setMultiSelectedIds) setMultiSelectedIds(new Set([groupId]));
           if (setActiveMainTool) setActiveMainTool('select');
 
-          console.log(`[MainEditor] Image ${imgId} uploaded and inserted into page ${pageIdx}`);
+          console.log(`[MainEditor] Image ${groupId} uploaded and inserted into page ${pageIdx}`);
         } catch (err) {
           console.error("[MainEditor] Failed to insert image into SVG frame:", err);
         }
@@ -3880,8 +3951,7 @@ const MainEditor = ({
                 return false;
               }
               if (!ctm || !rootCtm || !parentCtm) return false;
-
-              const bbox = el.getBBox();
+              const bbox = getVisualBBox(el);
               const localToRoot = rootCtm.inverse().multiply(ctm);
 
               const pt1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(localToRoot);
@@ -3997,7 +4067,7 @@ const MainEditor = ({
             const svg = el.ownerSVGElement;
             const startPoint = getSvgPoint(svg, event.clientX, event.clientY);
             const matrix = getElementMatrix(el);
-            const bbox = el.getBBox();
+            const bbox = getVisualBBox(el);
 
             // ── CONVERT <text> TO <foreignObject> ON RESIZE START ──
             if (el.tagName.toLowerCase() === 'text') {
@@ -4034,7 +4104,7 @@ const MainEditor = ({
             let childrenData = null;
             if (el.tagName.toLowerCase() === 'g') {
               childrenData = Array.from(el.children).map(child => {
-                const cb = child.getBBox();
+                const cb = getVisualBBox(child);
                 const cMatrix = getElementMatrix(child);
                 const p1 = new DOMPoint(cb.x, cb.y).matrixTransform(cMatrix);
                 const p2 = new DOMPoint(cb.x + cb.width, cb.y).matrixTransform(cMatrix);
@@ -5443,28 +5513,28 @@ const MainEditor = ({
       // Paragraph reconstruction
       let htmlContent = '';
       for (let i = 0; i < linesBounds.length; i++) {
-         const l = linesBounds[i];
-         let text = l.textContent.replace(/[\r\n]+/g, '');
-         let isHardBreak = true;
-         
-         if (i < linesBounds.length - 1 && l.minX !== Infinity) {
-            const lineWidth = l.maxX - l.minX;
-            const globalWidth = globalMaxX - globalMinX;
-            if (lineWidth > globalWidth - (fontSize * 2.5)) {
-               isHardBreak = false; 
+        const l = linesBounds[i];
+        let text = l.textContent;
+        let isHardBreak = true;
+
+        if (i < linesBounds.length - 1 && l.minX !== Infinity) {
+          const lineWidth = l.maxX - l.minX;
+          const globalWidth = globalMaxX - globalMinX;
+          if (lineWidth > globalWidth - (fontSize * 2.5)) {
+            isHardBreak = false;
+          }
+        }
+
+        htmlContent += text;
+        if (i < linesBounds.length - 1) {
+          if (isHardBreak) {
+            htmlContent += '<br/>';
+          } else {
+            if (!text.endsWith(' ') && !text.endsWith('-')) {
+              htmlContent += ' ';
             }
-         }
-         
-         htmlContent += text;
-         if (i < linesBounds.length - 1) {
-             if (isHardBreak) {
-                htmlContent += '<br/>';
-             } else {
-                if (!text.endsWith(' ') && !text.endsWith('-')) {
-                   htmlContent += ' ';
-                }
-             }
-         }
+          }
+        }
       }
       div.innerHTML = htmlContent;
 
@@ -5840,9 +5910,15 @@ const MainEditor = ({
     e.preventDefault(); // Prevent default browser actions (like following <a> links or downloading) on the canvas
 
     const now = Date.now();
-    const timeSinceLast = now - lastClickRef.current.time;
-    const isDoubleClick = timeSinceLast > 0 && timeSinceLast < 500;
-    lastClickRef.current.time = now;
+    const timeSinceLast = now - (lastClickRef.current.time || 0);
+    const dx = e.clientX - (lastClickRef.current.x || 0);
+    const dy = e.clientY - (lastClickRef.current.y || 0);
+    const distance = Math.hypot(dx, dy);
+    
+    // A double click must happen within 500ms AND the mouse must not have moved more than 10 pixels
+    const isDoubleClick = timeSinceLast > 0 && timeSinceLast < 500 && distance < 10;
+    
+    lastClickRef.current = { time: now, target: e.target, x: e.clientX, y: e.clientY };
 
     if (isDoubleClick) {
       if (activeMainTool === 'pen' && selectedPenTool === 'pen' && drawingPathRef.current) {
@@ -6580,8 +6656,11 @@ const MainEditor = ({
     const applyTranslation = (el, dx, dy) => {
       if (dx === 0 && dy === 0) return;
       try {
-        const parentCTM = el.parentNode.getCTM() || new DOMMatrix();
-        const invParentCTM = parentCTM.inverse();
+        const svgEl = el.ownerSVGElement || el.closest('svg');
+        const svgCTMInv = svgEl.getScreenCTM().inverse();
+        const parentScreenCTM = el.parentNode.getScreenCTM();
+        const parentToUserCTM = svgCTMInv.multiply(parentScreenCTM);
+        const invParentCTM = parentToUserCTM.inverse();
         
         const p0 = new DOMPoint(0, 0).matrixTransform(invParentCTM);
         const p1 = new DOMPoint(dx, dy).matrixTransform(invParentCTM);
@@ -6595,34 +6674,32 @@ const MainEditor = ({
     };
 
     if (type === 'distribute-h' && elBBoxes.length > 2) {
-      elBBoxes.sort((a, b) => a.bbox.minX - b.bbox.minX);
+      elBBoxes.sort((a, b) => a.bbox.midX - b.bbox.midX);
       const first = elBBoxes[0];
       const last = elBBoxes[elBBoxes.length - 1];
-      const totalSpace = last.bbox.minX - first.bbox.maxX;
-      const innerWidth = elBBoxes.slice(1, -1).reduce((sum, item) => sum + item.bbox.width, 0);
-      const gap = (totalSpace - innerWidth) / (elBBoxes.length - 1);
+      const totalDistance = last.bbox.midX - first.bbox.midX;
+      const gap = totalDistance / (elBBoxes.length - 1);
       
-      let currentX = first.bbox.maxX + gap;
+      let currentMidX = first.bbox.midX + gap;
       for (let i = 1; i < elBBoxes.length - 1; i++) {
         const item = elBBoxes[i];
-        const dx = currentX - item.bbox.minX;
+        const dx = currentMidX - item.bbox.midX;
         applyTranslation(item.el, dx, 0);
-        currentX += item.bbox.width + gap;
+        currentMidX += gap;
       }
     } else if (type === 'distribute-v' && elBBoxes.length > 2) {
-      elBBoxes.sort((a, b) => a.bbox.minY - b.bbox.minY);
+      elBBoxes.sort((a, b) => a.bbox.midY - b.bbox.midY);
       const first = elBBoxes[0];
       const last = elBBoxes[elBBoxes.length - 1];
-      const totalSpace = last.bbox.minY - first.bbox.maxY;
-      const innerHeight = elBBoxes.slice(1, -1).reduce((sum, item) => sum + item.bbox.height, 0);
-      const gap = (totalSpace - innerHeight) / (elBBoxes.length - 1);
+      const totalDistance = last.bbox.midY - first.bbox.midY;
+      const gap = totalDistance / (elBBoxes.length - 1);
       
-      let currentY = first.bbox.maxY + gap;
+      let currentMidY = first.bbox.midY + gap;
       for (let i = 1; i < elBBoxes.length - 1; i++) {
         const item = elBBoxes[i];
-        const dy = currentY - item.bbox.minY;
+        const dy = currentMidY - item.bbox.midY;
         applyTranslation(item.el, 0, dy);
-        currentY += item.bbox.height + gap;
+        currentMidY += gap;
       }
     } else {
       elBBoxes.forEach(({ el, bbox }) => {
@@ -6635,11 +6712,7 @@ const MainEditor = ({
           case 'middle': dy = targetBBox.midY - bbox.midY; break;
           case 'bottom': dy = targetBBox.maxY - bbox.maxY; break;
         }
-        if (dx !== 0 || dy !== 0) {
-          const matrix = typeof getElementMatrix === 'function' ? getElementMatrix(el) : new DOMMatrix(el.getAttribute('transform') || '');
-          const nextMatrix = new DOMMatrix().translate(dx, dy).multiply(matrix);
-          if (typeof matrixToTransform === 'function') el.setAttribute('transform', matrixToTransform(nextMatrix));
-        }
+        applyTranslation(el, dx, dy);
       });
     }
 

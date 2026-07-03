@@ -191,6 +191,33 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 };
             });
         }
+
+        // Auto-correct legacy saved colors for Style B layouts (light background / vibrant text)
+        const styleBLayouts = [3, 4, 5, 6, 7, 9];
+        const popupPrimaryIds = ['toc-bg', 'dropdown-bg', 'thumbnail-outer-v2', 'thumbnail-inner-v2', 'toc-overlay'];
+        const popupSecondaryIds = ['toc-text', 'dropdown-text', 'dropdown-icon', 'toc-icon'];
+
+        const masterPrimary = merged[1]?.find(c => popupPrimaryIds.includes(c.id))?.hex;
+        const masterSecondary = merged[1]?.find(c => popupSecondaryIds.includes(c.id))?.hex;
+
+        if (masterPrimary && masterSecondary) {
+            styleBLayouts.forEach(layoutIdx => {
+                if (merged[layoutIdx]) {
+                    const currentPrimary = merged[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex;
+                    const currentSecondary = merged[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex;
+
+                    // If a Style B layout has the exact same popup colors as Layout 1, it's either an old save or a bad default. Fix it by swapping.
+                    if (currentPrimary === masterPrimary && currentSecondary === masterSecondary) {
+                        merged[layoutIdx] = merged[layoutIdx].map(c => {
+                            if (popupPrimaryIds.includes(c.id)) return { ...c, hex: masterSecondary };
+                            if (popupSecondaryIds.includes(c.id)) return { ...c, hex: masterPrimary };
+                            return c;
+                        });
+                    }
+                }
+            });
+        }
+
         return merged;
     });
 
@@ -288,13 +315,28 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                 }
             } else if (isPopupAction) {
                 const isPrimary = popupPrimaryIds.includes(colorId);
+                const styleBLayouts = [3, 4, 5, 6, 7, 9];
+                const sourceIsStyleB = styleBLayouts.includes(layoutIdx);
+
+                const currentSourcePrimary = updated[layoutIdx].find(c => popupPrimaryIds.includes(c.id))?.hex || newHex;
+                const currentSourceSecondary = updated[layoutIdx].find(c => popupSecondaryIds.includes(c.id))?.hex || newHex;
+
+                const sourcePrimaryHex = isPrimary ? newHex : currentSourcePrimary;
+                const sourceSecondaryHex = !isPrimary ? newHex : currentSourceSecondary;
+
                 for (let i = 1; i <= 9; i++) {
-                    const primaryHex = isPrimary ? newHex : (updated[i].find(c => popupPrimaryIds.includes(c.id))?.hex || newHex);
-                    const secondaryHex = !isPrimary ? newHex : (updated[i].find(c => popupSecondaryIds.includes(c.id))?.hex || newHex);
+                    const targetIsStyleB = styleBLayouts.includes(i);
+                    let targetPrimaryHex = sourcePrimaryHex;
+                    let targetSecondaryHex = sourceSecondaryHex;
+
+                    if (sourceIsStyleB !== targetIsStyleB) {
+                        targetPrimaryHex = sourceSecondaryHex;
+                        targetSecondaryHex = sourcePrimaryHex;
+                    }
 
                     updated[i] = updated[i].map(c => {
-                        if (popupPrimaryIds.includes(c.id)) return { ...c, hex: primaryHex };
-                        if (popupSecondaryIds.includes(c.id)) return { ...c, hex: secondaryHex };
+                        if (popupPrimaryIds.includes(c.id)) return { ...c, hex: targetPrimaryHex };
+                        if (popupSecondaryIds.includes(c.id)) return { ...c, hex: targetSecondaryHex };
                         return c;
                     });
                 }
@@ -385,8 +427,8 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                                 }
                             }}
                             className={`flex-1 py-[0.50vw] text-[0.85vw] font-semibold rounded-[0.5vw] transition-all active:scale-95 border border-transparent ${activeTab === tab
-                                    ? 'text-black bg-white shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)] border-gray-500/20'
-                                    : 'text-gray-400 bg-white shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
+                                ? 'text-black bg-white shadow-[inset_0.2vw_0.2vw_0.4vw_rgba(0,0,0,0.08),inset_-0.2vw_-0.2vw_0.4vw_rgba(255,255,255,0.9)] border-gray-500/20'
+                                : 'text-gray-400 bg-white shadow-[0.2vw_0.2vw_0.5vw_rgba(0,0,0,0.05),-0.1vw_-0.1vw_0.3vw_rgba(255,255,255,1)] hover:shadow-[0.3vw_0.3vw_0.7vw_rgba(0,0,0,0.08)]'
                                 }`}
                         >
                             {tab}
@@ -532,8 +574,8 @@ const Layout = ({ activeLayout, onUpdateLayout, layoutColors, onUpdateLayoutColo
                                     <button
                                         key={i}
                                         className={`relative aspect-square rounded-[0.5vw] border shadow-sm transition-all hover:scale-110 overflow-hidden ${isActive
-                                                ? 'border-[#3E4491] border-[0.125vw] ring-[0.125vw] ring-indigo-100 scale-110'
-                                                : 'border-gray-200 hover:border-gray-300'
+                                            ? 'border-[#3E4491] border-[0.125vw] ring-[0.125vw] ring-indigo-100 scale-110'
+                                            : 'border-gray-200 hover:border-gray-300'
                                             }`}
                                         onClick={() => {
                                             handleInlineColorChange(activeLayout, primaryColor.id, preset.primary);

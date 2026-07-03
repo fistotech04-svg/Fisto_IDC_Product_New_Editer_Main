@@ -391,7 +391,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         if (targetImg.tagName?.toLowerCase() === 'image') {
           const val = slideshowSettings.imageFitType === 'Fill All' ? 'xMidYMid slice' : 'xMidYMid meet';
           targetImg.setAttribute('preserveAspectRatio', val);
-        } else {
+        } else if (targetImg.tagName?.toLowerCase() === 'img') {
           const val = slideshowSettings.imageFitType === 'Fill All' ? 'cover' : 'contain';
           targetImg.style.objectFit = val;
           targetImg.style.width = '100%';
@@ -601,6 +601,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     realAnim.onfinish = () => {
       clone.remove();
       if (newPattern) newPattern.remove();
+      animEl.style.transformBox = '';
+      animEl.style.transformOrigin = '';
       finalize();
     };
   }, [activePageIndex, selectedElement, slideshowSettings, opacity, setIsUpdatingDOM]);
@@ -657,6 +659,19 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       const freshTarget = getFreshTarget();
       if (!overlay || !freshTarget || !pageContainer.parentElement) return;
 
+      // Re-enforce manual flag in case the element was replaced/cloned during a stroke update
+      // This prevents the global runner from spawning a duplicate overlay.
+      if (!freshTarget.hasAttribute('data-slideshow-manual')) {
+        freshTarget.setAttribute('data-slideshow-manual', 'true');
+        
+        // If the global runner already spawned an overlay in the split-second before we caught it, remove it
+        if (freshTarget._globalSsOverlay) {
+          if (freshTarget._globalSsOverlay._cleanupHover) freshTarget._globalSsOverlay._cleanupHover();
+          freshTarget._globalSsOverlay.remove();
+          delete freshTarget._globalSsOverlay;
+        }
+      }
+
       const containerRect = pageContainer.parentElement.getBoundingClientRect();
       const elRect = freshTarget.getBoundingClientRect();
 
@@ -681,17 +696,17 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
       // Update Arrows
       overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
-        const size = 26 * scaleFactor;
+        const size = 48 * scaleFactor; // Significantly increased size
         btn.style.width = size + 'px';
         btn.style.height = size + 'px';
-        const offset = 6 * scaleFactor;
+        const offset = 12 * scaleFactor; // Increased offset for breathing room
         if (btn.style.left) btn.style.left = offset + 'px';
         if (btn.style.right) btn.style.right = offset + 'px';
 
         const svg = btn.querySelector('svg');
         if (svg) {
-          svg.style.width = (15 * scaleFactor) + 'px';
-          svg.style.height = (15 * scaleFactor) + 'px';
+          svg.style.width = (32 * scaleFactor) + 'px'; // Significantly increased inner SVG size
+          svg.style.height = (32 * scaleFactor) + 'px';
         }
       });
 
@@ -721,6 +736,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       pointerEvents: 'none', // children opt-in with pointerEvents: 'auto'
       zIndex: '9999',
       overflow: 'visible',
+      transition: 'none', // Prevent lag during drag
     });
     const prevOverflow = pageContainer.style.overflow;
     pageContainer.style.overflow = 'visible';
@@ -732,9 +748,14 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     liveRunnerOverlayRef.current = overlay;
     positionOverlay();
 
-    // Also reposition on scroll (editor canvas may be inside a scrollable area)
-    const scrollableAncestor = pageContainer.closest('[class*="overflow"]') || document.documentElement;
-    scrollableAncestor.addEventListener('scroll', positionOverlay, { passive: true });
+    // Use requestAnimationFrame for perfectly synchronous tracking during drag, scroll, and stroke updates
+    // This eliminates 1-frame ghosting and desynchronization without relying on discrete events.
+    let trackingRafId;
+    const trackPosition = () => {
+      positionOverlay();
+      trackingRafId = requestAnimationFrame(trackPosition);
+    };
+    trackPosition();
 
     const { navIconColor = '#000000', navStyle: styleId = 1, showDots = true,
       showArrows = true, showNav = true, dotColor = '#4F46E5',
@@ -785,8 +806,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           background: 'transparent',
           border: 'none',
           borderRadius: '50%',
-          width: '32px',
-          height: '32px',
+          width: '60px',
+          height: '60px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -799,7 +820,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         });
         const iconKey = type === 'prev' ? 'left' : 'right';
         const root = createRoot(btn);
-        root.render(NavIconRenderer({ styleId, size: '22px', color: navIconColor })[iconKey]);
+        root.render(NavIconRenderer({ styleId, size: '36px', color: navIconColor })[iconKey]);
         roots.push(root);
         btn.addEventListener('mouseenter', () => {
           if (leaveTimeout) clearTimeout(leaveTimeout);
@@ -949,10 +970,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     resizeObserver.observe(pageContainer);
 
     const mutationObserver = new MutationObserver(positionOverlay);
-    const targetNode = getFreshTarget();
-    if (targetNode) {
-      mutationObserver.observe(targetNode, {
+    if (pageContainer) {
+      mutationObserver.observe(pageContainer, {
         attributes: true,
+        subtree: true,
         attributeFilter: ['transform', 'x', 'y', 'width', 'height', 'style']
       });
     }
@@ -966,6 +987,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     }
 
     return () => {
+      if (trackingRafId) cancelAnimationFrame(trackingRafId);
       cleanup();
       resizeObserver.disconnect();
       mutationObserver.disconnect();
@@ -975,7 +997,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         containerTarget.removeEventListener('mousedown', handleTargetMouseDown);
         containerTarget.removeEventListener('click', handleTargetClick);
       }
-      scrollableAncestor.removeEventListener('scroll', positionOverlay);
       // Restore original overflow
       pageContainer.style.overflow = prevOverflow;
     };

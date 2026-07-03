@@ -8,6 +8,7 @@ import axios from 'axios';
 import { getFromDB } from '../../utils/dbUtils';
 import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
+import useDeviceDetection from '../../hooks/useDeviceDetection';
 
 const GlbModelViewer = React.memo(({ url }) => {
   const { scene } = useGLTF(url);
@@ -55,7 +56,7 @@ const AttachedCurve = ({ position }) => {
 
 import Interaction3DPreview from './Interaction3DPreview';
 
-const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, v_id: propVId }) => {
+const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobileProp, isDoublePage, settings, targetPage, v_id: propVId, isPublishedPreview }) => {
   const params = useParams();
   const v_id = propVId || params.v_id;
   const [localSettings, setLocalSettings] = useState(settings || {});
@@ -121,7 +122,26 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
     fetchSettings();
   }, [settings, v_id]);
 
-  const [activeDevice, setActiveDevice] = useState(localStorage.getItem('previewDevice') || (isMobileProp ? 'Mobile' : 'Desktop'));
+  const { isMobile: deviceIsMobile, isTablet: deviceIsTablet } = useDeviceDetection();
+
+  const [activeDevice, setActiveDevice] = useState(() => {
+    // In Editor mode (onClose exists), respect their saved setting
+    if (onClose) {
+      return localStorage.getItem('previewDevice') || (isMobileProp ? 'Mobile' : 'Desktop');
+    }
+    // In Public Shared mode, adapt dynamically to their real physical screen
+    if (deviceIsMobile) return 'Mobile';
+    if (deviceIsTablet) return 'Tablet';
+    return 'Desktop';
+  });
+
+  useEffect(() => {
+    if (!onClose) {
+      if (deviceIsMobile) setActiveDevice('Mobile');
+      else if (deviceIsTablet) setActiveDevice('Tablet');
+      else setActiveDevice('Desktop');
+    }
+  }, [deviceIsMobile, deviceIsTablet, onClose]);
 
   useEffect(() => {
     const handleGlobalDeviceChange = (e) => {
@@ -414,6 +434,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         isDoublePage={isDoublePage}
         useNativeFullscreen={true}
         disableAutoGallery={true}
+        isPublishedPreview={isPublishedPreview}
       />
 
       {/* Draggable Device Settings - Tablet/Mobile: outside device frame */}

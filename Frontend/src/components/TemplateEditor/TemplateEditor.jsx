@@ -21,10 +21,23 @@ import Model3DPreviewModal from './Interaction3DPreview';
  */
 const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
-    .filter(child =>
-      !['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase()) &&
-      child.getAttribute('data-name') !== 'Overlay'
-    )
+    .filter(child => {
+      if (['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase())) return false;
+      if (child.getAttribute('data-name') === 'Overlay') return false;
+      if (child.classList.contains('svg-drop-shadow-caster')) return false;
+      if (child.classList.contains('internal-crop-rect')) return false;
+      if (child.classList.contains('internal-crop-pattern')) return false;
+
+      const isEffectNode = Array.from(child.classList).some(cls =>
+        cls.includes('-stroke-overlay') ||
+        cls.includes('-inner-shadow') ||
+        cls.includes('-fill-layer') ||
+        cls === 'inner-shadow-overlay'
+      );
+      if (isEffectNode) return false;
+
+      return true;
+    })
     .map(child => {
       // Ensure element has a unique ID for selection and state tracking
       if (!child.id) {
@@ -45,6 +58,71 @@ const parseLayersFromSVG = (element) => {
       if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
         const subLayers = parseLayersFromSVG(child);
         if (subLayers.length > 0) layer.children = subLayers;
+      }
+
+      // VIRTUAL EFFECT LAYERS FOR IMAGE/VIDEO/GIF GROUP
+      const isGroup = child.getAttribute('data-is-image-group') === 'true' ||
+        child.getAttribute('data-is-video-group') === 'true' ||
+        child.getAttribute('data-is-gif-group') === 'true';
+
+      if (isGroup) {
+        const activeEffectsStr = child.getAttribute('data-active-effects') || '';
+        const activeEffects = activeEffectsStr.split(',').filter(Boolean);
+
+        const strokeAttr = child.getAttribute('stroke') || child.getAttribute('data-stroke-color');
+        const hasStroke = strokeAttr && strokeAttr !== 'none' && strokeAttr !== 'transparent';
+        const fillAttr = child.getAttribute('fill') || child.getAttribute('data-fill-color');
+        const hasFill = fillAttr && fillAttr !== 'none' && fillAttr !== 'transparent';
+
+        const virtualLayers = [];
+
+        // Order for UI rendering (will be reversed in Layer.jsx): Drop Shadow, Fill Color, Image/Video/GIF, Inner Shadow, Stroke
+        if (activeEffects.includes('Drop Shadow')) {
+          virtualLayers.push({ id: `${layer.id}-effect-drop-shadow`, name: 'Drop Shadow', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
+        }
+        if (hasFill) {
+          virtualLayers.push({ id: `${layer.id}-effect-fill`, name: 'Fill Color', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
+        }
+
+        // Ensure core layer is present
+        let coreType = 'image';
+        let coreName = 'Image';
+        if (child.getAttribute('data-is-video-group') === 'true') {
+          coreType = 'video';
+          coreName = 'Video';
+        } else if (child.getAttribute('data-is-gif-group') === 'true') {
+          coreType = 'image';
+          coreName = 'GIF';
+        }
+
+        const imgChildIdx = layer.children ? layer.children.findIndex(c => c.type === coreType || c.name === coreName || c.name === 'Image') : -1;
+        let imgLayer = null;
+        if (imgChildIdx !== -1) {
+          imgLayer = layer.children.splice(imgChildIdx, 1)[0];
+        } else {
+          imgLayer = { id: `${layer.id}-core`, name: coreName, type: coreType, visible: layer.visible, locked: true };
+        }
+        imgLayer.parentId = layer.id;
+        imgLayer.isVirtualImageChild = true;
+        virtualLayers.push(imgLayer);
+
+        if (activeEffects.includes('Inner Shadow')) {
+          virtualLayers.push({ id: `${layer.id}-effect-inner-shadow`, name: 'Inner Shadow', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
+        }
+        if (hasStroke) {
+          virtualLayers.push({ id: `${layer.id}-effect-stroke`, name: 'Stroke', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
+        }
+
+        // Include any other remaining children
+        if (layer.children && layer.children.length > 0) {
+          layer.children.forEach(c => {
+            c.parentId = layer.id;
+            c.isVirtualImageChild = true;
+            virtualLayers.push(c);
+          });
+        }
+
+        layer.children = virtualLayers;
       }
 
       return layer;
@@ -1949,6 +2027,7 @@ const TemplateEditor = () => {
     if (element.tagName.toLowerCase() === 'g') {
       Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
         child.removeAttribute(baseAttr);
+        if (child.style) child.style.removeProperty(baseAttr);
       });
     }
   };
@@ -2032,17 +2111,22 @@ const TemplateEditor = () => {
       const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
       // a. Spread (Morphology)
-      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
-      morph.setAttribute('radius', Math.abs(spread));
-      morph.setAttribute('in', 'SourceAlpha');
-      morph.setAttribute('result', 'ds_morph');
-      filterEl.appendChild(morph);
+      let dsSource = 'SourceAlpha';
+      if (spread !== 0) {
+        // a. Spread (Morphology)
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spread));
+        morph.setAttribute('in', 'SourceAlpha');
+        morph.setAttribute('result', 'ds_morph');
+        filterEl.appendChild(morph);
+        dsSource = 'ds_morph';
+      }
 
       // b. Blur
       const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
       gauss.setAttribute('stdDeviation', blur);
-      gauss.setAttribute('in', 'ds_morph');
+      gauss.setAttribute('in', dsSource);
       gauss.setAttribute('result', 'ds_blur');
       filterEl.appendChild(gauss);
 
@@ -2170,7 +2254,18 @@ const TemplateEditor = () => {
         const updated = [...prev];
         const page = updated[pageIndex];
         if (!page) return updated;
-        updated[pageIndex] = { ...page, html: value };
+
+        let newLayers = page.layers;
+        if (value) {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(value, 'image/svg+xml');
+          const svgEl = doc.querySelector('svg');
+          if (svgEl) {
+            newLayers = parseLayersFromSVG(svgEl);
+          }
+        }
+
+        updated[pageIndex] = { ...page, html: value, layers: newLayers };
         return updated;
       });
       return;
@@ -2320,10 +2415,12 @@ const TemplateEditor = () => {
               updates.forEach(([attr]) => {
                 if (attr === 'fill' || attr === 'stroke' || attr === 'stroke-width' || attr === 'stroke-dasharray' || attr === 'opacity') {
                   child.removeAttribute(attr);
+                  if (child.style) child.style.removeProperty(attr);
                 }
               });
               if (typeof attribute === 'object' && attribute !== null ? Object.keys(attribute).some(a => a.includes('-stops') || a.includes('-gradient-type') || a.includes('-type')) : (attribute.includes('-stops') || attribute.includes('-gradient-type') || attribute.includes('-type'))) {
                 child.removeAttribute(base);
+                if (child.style) child.style.removeProperty(base);
               }
             });
           }

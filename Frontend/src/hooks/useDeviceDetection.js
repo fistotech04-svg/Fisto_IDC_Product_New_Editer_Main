@@ -20,8 +20,8 @@ const useDeviceDetection = () => {
       
       // Breakpoints
       const isMobile = width < 768;
-      const isTablet = width >= 768 && width < 1024;
-      const isDesktop = width >= 1024;
+      const isTablet = width >= 768 && width < 1280;
+      const isDesktop = width >= 1280;
       
       let breakpoint = 'desktop';
       if (isMobile) breakpoint = 'mobile';

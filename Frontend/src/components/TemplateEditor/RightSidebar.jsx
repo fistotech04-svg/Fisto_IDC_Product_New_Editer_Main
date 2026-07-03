@@ -123,9 +123,14 @@ const RightSidebar = ({
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Switch to cursor tool instantly
+    if (setActiveMainTool) {
+      setActiveMainTool('select');
+    }
+
     // Optional: Limit raw file size to 15MB
-    if (file.size > 15 * 1024 * 1024) {
-        alert("File is too large! Please upload images smaller than 15MB.");
+    if (file.size > 20 * 1024 * 1024) {
+        alert("File is too large! Please upload images smaller than 20MB.");
         e.target.value = '';
         return;
     }

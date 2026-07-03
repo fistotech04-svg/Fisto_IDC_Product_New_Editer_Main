@@ -38,7 +38,7 @@ import {
   Pencil
 } from "lucide-react";
 import GalleryGif from "./GalleryGif";
-import ColorPicker from './ColorPicker';
+import ColorPicker, { parseGradient } from './ColorPicker';
 import { Icon } from '@iconify/react';
 import SubComponent from './SubComponent';
 
@@ -224,9 +224,17 @@ const GifEditor = ({
     }
 
     // Background & Stroke
-    const fill = selectedElement.style.backgroundColor || selectedElement.getAttribute('fill') || 'transparent';
-    const stroke = selectedElement.style.borderColor || selectedElement.getAttribute('stroke') || 'transparent';
-    const strokeW = parseInt(selectedElement.style.borderWidth) || parseInt(selectedElement.getAttribute('stroke-width')) || 0;
+    let fill = selectedElement.getAttribute('data-fill-color');
+    if (!fill) {
+      fill = selectedElement.getAttribute('fill');
+      if (fill && fill.startsWith('url(')) {
+        fill = 'transparent';
+      }
+    }
+    fill = fill || selectedElement.style.backgroundColor || 'transparent';
+
+    const stroke = selectedElement.style.borderColor || selectedElement.getAttribute('data-stroke-color') || selectedElement.getAttribute('stroke') || 'transparent';
+    const strokeW = parseInt(selectedElement.style.borderWidth) || parseInt(selectedElement.getAttribute('data-stroke-width')) || parseInt(selectedElement.getAttribute('stroke-width')) || 0;
 
     const strokeArray = selectedElement.getAttribute('stroke-dasharray') || 'none';
     const isDashed = (selectedElement.style.borderStyle === 'dashed' || strokeArray.includes(','));
@@ -303,27 +311,36 @@ const GifEditor = ({
       let isSvgEl = liveElement.namespaceURI === "http://www.w3.org/2000/svg";
       let tagLower = liveElement.tagName.toLowerCase();
 
-      // --- GROUP WITHIN IMAGE FIX ---
-      if (isSvgEl && tagLower === 'image') {
-        const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        newGroup.id = liveElement.id;
-        liveElement.removeAttribute('id');
+      // --- FORCE GIF GROUP STRUCTURE FOR GIFS ---
+      if (isSvgEl && liveElement.getAttribute('data-is-gif-group') !== 'true') {
+        if (tagLower === 'image' || tagLower === 'foreignobject' || tagLower === 'img') {
+          const parent = liveElement.parentNode;
+          const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          newGroup.id = liveElement.id; // Keep selection intact
+          newGroup.setAttribute('data-type', liveElement.getAttribute('data-type') || 'image');
+          newGroup.setAttribute('data-name', 'GIF Group');
+          newGroup.setAttribute('data-is-gif-group', 'true');
 
-        Array.from(liveElement.attributes).forEach(attr => {
-          if (attr.name.startsWith('data-') || attr.name === 'class' || attr.name === 'style') {
-            newGroup.setAttribute(attr.name, attr.value);
-            liveElement.removeAttribute(attr.name);
+          const newImgId = `gif-${Math.random().toString(36).substr(2, 9)}`;
+          liveElement.id = newImgId;
+          liveElement.setAttribute('data-name', 'GIF');
+
+          if (liveElement.hasAttribute('transform')) {
+            newGroup.setAttribute('transform', liveElement.getAttribute('transform'));
+            liveElement.removeAttribute('transform');
           }
-        });
 
-        liveElement.parentNode.insertBefore(newGroup, liveElement);
-        newGroup.appendChild(liveElement);
-        liveElement = newGroup;
+          if (parent) parent.insertBefore(newGroup, liveElement);
+          newGroup.appendChild(liveElement);
 
-        tagLower = 'g';
-        svgImageEl = liveElement.querySelector('image, img');
-
-        if (onUpdateRef.current) setTimeout(() => onUpdateRef.current({ shouldRefresh: true }), 0);
+          liveElement = newGroup;
+          tagLower = 'g';
+        } else {
+          liveElement.setAttribute('data-is-gif-group', 'true');
+          liveElement.setAttribute('data-name', 'GIF Group');
+          const innerImg = getSvgImageEl(liveElement);
+          if (innerImg) innerImg.setAttribute('data-name', 'GIF');
+        }
       }
 
       const f = filters;
@@ -358,8 +375,20 @@ const GifEditor = ({
 
       // --- Opacity ---
       const opacityVal = (opacity / 100).toString();
-      liveElement.style.opacity = opacityVal;
-      if (isSvgEl) liveElement.setAttribute('opacity', opacityVal);
+      if (isSvgEl && svgImageEl) {
+        liveElement.style.removeProperty('opacity');
+        liveElement.removeAttribute('opacity');
+        liveElement.setAttribute('data-effect-opacity', opacity.toString());
+        svgImageEl.style.setProperty('opacity', opacityVal, 'important');
+        svgImageEl.setAttribute('opacity', opacityVal);
+      } else {
+        liveElement.style.setProperty('opacity', opacityVal, 'important');
+        if (isSvgEl) {
+          liveElement.setAttribute('opacity', opacityVal);
+          liveElement.setAttribute('data-effect-opacity', opacity.toString());
+          if (svgImageEl && svgImageEl !== liveElement) svgImageEl.setAttribute('opacity', opacityVal);
+        }
+      }
 
       // --- Radius & Clip-path ---
       const anyR = radius.tl || radius.tr || radius.br || radius.bl;
@@ -516,8 +545,106 @@ const GifEditor = ({
 
       // --- Background & Stroke ---
       if (isSvgEl) {
-        if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') liveElement.setAttribute('fill', backgroundColor.fill);
-        else liveElement.removeAttribute('fill');
+        let fillLayer = liveElement.querySelector('.gif-fill-layer');
+        if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
+          if (!fillLayer) {
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            fillLayer.classList.add('gif-fill-layer');
+            fillLayer.setAttribute('data-name', 'Fill Color');
+            fillLayer.style.pointerEvents = 'none';
+            // Insert it as the first child so it acts as a background
+            liveElement.insertBefore(fillLayer, liveElement.firstChild);
+
+            const syncFillOverlay = () => {
+              if (!fillLayer.isConnected) return;
+              const targetEl = svgImageEl || liveElement;
+              fillLayer.setAttribute('x', targetEl.getAttribute('x') || '0');
+              fillLayer.setAttribute('y', targetEl.getAttribute('y') || '0');
+              fillLayer.setAttribute('width', targetEl.getAttribute('width') || '100%');
+              fillLayer.setAttribute('height', targetEl.getAttribute('height') || '100%');
+              fillLayer.setAttribute('transform', targetEl.getAttribute('transform') || '');
+              fillLayer.style.transform = targetEl.style.transform;
+              fillLayer.style.translate = targetEl.style.translate;
+              fillLayer.style.scale = targetEl.style.scale;
+              fillLayer.style.rotate = targetEl.style.rotate;
+              fillLayer.style.transformOrigin = targetEl.style.transformOrigin;
+            };
+            const obsFill = new MutationObserver(syncFillOverlay);
+            obsFill.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            if (svgImageEl && svgImageEl !== liveElement) {
+              obsFill.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            }
+          }
+
+          const targetEl = svgImageEl || liveElement;
+          fillLayer.setAttribute('x', targetEl.getAttribute('x') || '0');
+          fillLayer.setAttribute('y', targetEl.getAttribute('y') || '0');
+          fillLayer.setAttribute('width', targetEl.getAttribute('width') || '100%');
+          fillLayer.setAttribute('height', targetEl.getAttribute('height') || '100%');
+          fillLayer.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          fillLayer.style.transform = targetEl.style.transform;
+          fillLayer.style.translate = targetEl.style.translate;
+          fillLayer.style.scale = targetEl.style.scale;
+          fillLayer.style.rotate = targetEl.style.rotate;
+          fillLayer.style.transformOrigin = targetEl.style.transformOrigin;
+
+          let parsedFill = null;
+          if (backgroundColor.fill && backgroundColor.fill.toLowerCase().includes('gradient')) {
+            parsedFill = parseGradient(backgroundColor.fill);
+          }
+
+          if (parsedFill && parsedFill.stops) {
+            fillLayer.setAttribute('data-fill-type', 'gradient');
+            fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+            fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+            fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+
+            fillLayer.setAttribute('fill-type', 'gradient');
+            fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
+            fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+            fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+
+            syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
+            liveElement.setAttribute('data-fill-type', 'gradient');
+            liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+            liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+            liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+          } else {
+            fillLayer.setAttribute('fill', backgroundColor.fill);
+            fillLayer.removeAttribute('data-fill-type');
+            fillLayer.removeAttribute('data-fill-stops');
+            fillLayer.removeAttribute('data-fill-gradient-type');
+            fillLayer.removeAttribute('data-fill-angle');
+
+            fillLayer.removeAttribute('fill-type');
+            fillLayer.removeAttribute('fill-stops');
+            fillLayer.removeAttribute('fill-gradient-type');
+            fillLayer.removeAttribute('fill-angle');
+
+            liveElement.removeAttribute('data-fill-type');
+            liveElement.removeAttribute('data-fill-stops');
+            liveElement.removeAttribute('data-fill-gradient-type');
+            liveElement.removeAttribute('data-fill-angle');
+          }
+          fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+
+          const bw = parseFloat(targetEl.getAttribute('width')) || 100;
+          const bh = parseFloat(targetEl.getAttribute('height')) || 100;
+          const maxR = Math.min(bw, bh) / 2;
+          const maxRFill = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+          if (maxRFill > 0) {
+            fillLayer.setAttribute('rx', Math.max(0, Math.min(maxRFill, maxR)).toString());
+          } else {
+            fillLayer.removeAttribute('rx');
+          }
+
+          liveElement.setAttribute('data-fill-color', backgroundColor.fill);
+        } else {
+          if (fillLayer) fillLayer.remove();
+          liveElement.removeAttribute('data-fill-color');
+          liveElement.removeAttribute('data-fill-type');
+        }
+        liveElement.setAttribute('data-fill-opacity', (backgroundColor.fillOpacity / 100).toString());
 
         // To support stroke on <image> elements (which ignore stroke attributes natively), we create a <rect> overlay
         if (backgroundColor.stroke !== 'transparent' && backgroundColor.stroke !== 'none') {
@@ -558,7 +685,6 @@ const GifEditor = ({
                 strokeOverlay.style.scale = targetEl.style.scale;
                 strokeOverlay.style.rotate = targetEl.style.rotate;
                 strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
-                strokeOverlay.style.opacity = targetEl.style.opacity;
               };
               const obs = new MutationObserver(syncOverlay);
               obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
@@ -609,10 +735,9 @@ const GifEditor = ({
             strokeOverlay.style.scale = targetEl.style.scale;
             strokeOverlay.style.rotate = targetEl.style.rotate;
             strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
-            strokeOverlay.style.opacity = targetEl.style.opacity;
 
             strokeOverlay.setAttribute('fill', 'none');
-            
+
             liveElement.setAttribute('data-stroke-type', backgroundColor.strokeType);
 
             if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
@@ -620,7 +745,7 @@ const GifEditor = ({
               liveElement.setAttribute('data-stroke-stops', backgroundColor.strokeStops || '');
               liveElement.setAttribute('data-stroke-angle', backgroundColor.strokeAngle || '0');
               liveElement.setAttribute('data-stroke-radius', backgroundColor.strokeRadius || '100');
-              
+
               strokeOverlay.setAttribute('stroke-type', 'gradient');
               strokeOverlay.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
               strokeOverlay.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
@@ -632,7 +757,7 @@ const GifEditor = ({
               liveElement.removeAttribute('data-stroke-stops');
               liveElement.removeAttribute('data-stroke-angle');
               liveElement.removeAttribute('data-stroke-radius');
-              
+
               strokeOverlay.removeAttribute('stroke-type');
               strokeOverlay.removeAttribute('stroke-gradient-type');
               strokeOverlay.removeAttribute('stroke-stops');
@@ -715,9 +840,9 @@ const GifEditor = ({
         if (color.startsWith('#')) {
           const hex = color.replace('#', '');
           if (hex.length === 3) {
-            r = parseInt(hex[0]+hex[0], 16); g = parseInt(hex[1]+hex[1], 16); b = parseInt(hex[2]+hex[2], 16);
+            r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16);
           } else if (hex.length === 6) {
-            r = parseInt(hex.substring(0,2), 16); g = parseInt(hex.substring(2,4), 16); b = parseInt(hex.substring(4,6), 16);
+            r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16);
           }
         }
         const rgbaStr = `rgba(${r}, ${g}, ${b}, ${alpha})`;
@@ -728,25 +853,25 @@ const GifEditor = ({
         let overlay = liveElement.querySelector('.svg-gif-inner-shadow-rect');
         let oldOverlay = liveElement.querySelector('.svg-gif-inner-shadow');
         if (oldOverlay) oldOverlay.remove();
-        
+
         let filterId = liveElement.getAttribute('data-inner-shadow-filter-id');
 
         if (activeEffects.includes('Inner Shadow')) {
           const ds = effectSettings['Inner Shadow'];
           const alpha = (ds.opacity !== undefined ? ds.opacity : 35) / 100;
           const color = ds.color || '#000000';
-          
+
           if (!filterId) {
             filterId = 'inner-shadow-' + Math.random().toString(36).substr(2, 9);
             liveElement.setAttribute('data-inner-shadow-filter-id', filterId);
           }
-          
+
           let svgDefs = liveElement.ownerSVGElement?.querySelector('defs');
           if (!svgDefs && liveElement.ownerSVGElement) {
             svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             liveElement.ownerSVGElement.prepend(svgDefs);
           }
-          
+
           if (svgDefs) {
             let filterEl = svgDefs.querySelector(`#${filterId}`);
             if (!filterEl) {
@@ -754,34 +879,34 @@ const GifEditor = ({
               filterEl.id = filterId;
               svgDefs.appendChild(filterEl);
             }
-            
-            while(filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
-            
+
+            while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+
             const feOffset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
             feOffset.setAttribute('dx', ds.x || 0);
             feOffset.setAttribute('dy', ds.y || 0);
-            
+
             const feBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
             feBlur.setAttribute('stdDeviation', (ds.blur || 0) / 2);
             feBlur.setAttribute('result', 'offset-blur');
-            
+
             const feComp1 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
             feComp1.setAttribute('operator', 'out');
             feComp1.setAttribute('in', 'SourceAlpha');
             feComp1.setAttribute('in2', 'offset-blur');
             feComp1.setAttribute('result', 'inverse');
-            
+
             const feFlood = document.createElementNS('http://www.w3.org/2000/svg', 'feFlood');
             feFlood.setAttribute('flood-color', color);
             feFlood.setAttribute('flood-opacity', alpha);
             feFlood.setAttribute('result', 'color');
-            
+
             const feComp2 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
             feComp2.setAttribute('operator', 'in');
             feComp2.setAttribute('in', 'color');
             feComp2.setAttribute('in2', 'inverse');
             feComp2.setAttribute('result', 'shadow');
-            
+
             filterEl.appendChild(feOffset);
             filterEl.appendChild(feBlur);
             filterEl.appendChild(feComp1);
@@ -796,22 +921,22 @@ const GifEditor = ({
             overlay.setAttribute('fill', 'white');
             liveElement.appendChild(overlay);
           }
-          
+
           const targetEl = svgImageEl || liveElement;
           let box = { x: 0, y: 0, width: 100, height: 100 };
-          try { box = targetEl.getBBox(); } catch(e) {
+          try { box = targetEl.getBBox(); } catch (e) {
             box.x = parseFloat(targetEl.getAttribute('x') || 0);
             box.y = parseFloat(targetEl.getAttribute('y') || 0);
             box.width = parseFloat(targetEl.getAttribute('width') || 100);
             box.height = parseFloat(targetEl.getAttribute('height') || 100);
           }
-          
+
           overlay.setAttribute('x', box.x);
           overlay.setAttribute('y', box.y);
           overlay.setAttribute('width', Math.max(1, box.width));
           overlay.setAttribute('height', Math.max(1, box.height));
           overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-          
+
           const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
           if (anyR) overlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl));
           else overlay.removeAttribute('rx');
@@ -820,8 +945,8 @@ const GifEditor = ({
         } else {
           if (overlay) overlay.remove();
           if (filterId && liveElement.ownerSVGElement) {
-             const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
-             if (f) f.remove();
+            const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
+            if (f) f.remove();
           }
         }
       } else {
@@ -864,6 +989,27 @@ const GifEditor = ({
       liveElement.setAttribute('data-effect-shadows', s.toString());
       liveElement.setAttribute('data-effect-opacity', opacity.toString());
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
+
+      // --- STRICT LAYER REORDERING FOR GIF GROUPS ---
+      if (liveElement.getAttribute('data-is-gif-group') === 'true') {
+        const dropShadow = liveElement.querySelector('.svg-drop-shadow-caster');
+        const fillLayer = liveElement.querySelector('.gif-fill-layer') || liveElement.querySelector('.image-fill-layer');
+        const innerShadow = liveElement.querySelector('.svg-gif-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-overlay');
+        const stroke = liveElement.querySelector('.svg-gif-stroke-overlay') || liveElement.querySelector('.svg-image-stroke-overlay');
+
+        if (dropShadow) { dropShadow.setAttribute('data-name', 'Drop Shadow'); liveElement.appendChild(dropShadow); }
+        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); liveElement.appendChild(fillLayer); }
+
+        if (svgImageEl) {
+          const imageNode = svgImageEl.closest('svg.svg-crop-wrapper') || svgImageEl.closest('rect') || svgImageEl;
+          if (imageNode && imageNode.parentNode === liveElement) {
+            liveElement.appendChild(imageNode);
+          }
+        }
+
+        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); liveElement.appendChild(innerShadow); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
+      }
 
       if (onUpdateRef.current) {
         clearTimeout(onUpdateTimerRef.current);
@@ -1083,7 +1229,7 @@ const GifEditor = ({
   );
 };
 
-const syncGradient = (doc, element, baseAttr) => {
+function syncGradient(doc, element, baseAttr) {
   const type = element.getAttribute(`${baseAttr}-type`);
   const currentValue = element.getAttribute(baseAttr);
   const isUrl = currentValue && currentValue.toLowerCase().startsWith('url(#');

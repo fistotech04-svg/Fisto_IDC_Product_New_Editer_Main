@@ -197,10 +197,15 @@ const VideoEditor = ({
     setOpacity(Math.round(op * 100));
 
     // 3. Colors & Stroke
-    const fill = visualTarget.getAttribute('data-bg-color') || visualTarget.style.backgroundColor || visualTarget.getAttribute('fill') || "transparent";
-    const stColor = visualTarget.getAttribute('data-stroke-color') || visualTarget.style.borderColor || visualTarget.getAttribute('stroke') || "transparent";
-    const stWeight = parseFloat(visualTarget.getAttribute('data-stroke-width') || visualTarget.style.borderWidth || visualTarget.getAttribute('stroke-width') || "0");
-    const dashData = visualTarget.getAttribute('stroke-dasharray') || 'none';
+    let fill = liveElement.getAttribute('data-fill-color');
+    if (!fill) {
+      fill = visualTarget.getAttribute('data-bg-color') || visualTarget.style.backgroundColor || visualTarget.getAttribute('fill');
+    }
+    fill = fill || 'transparent';
+
+    const stColor = liveElement.getAttribute('data-stroke-color') || visualTarget.getAttribute('data-stroke-color') || visualTarget.style.borderColor || visualTarget.getAttribute('stroke') || "transparent";
+    const stWeight = parseFloat(liveElement.getAttribute('data-stroke-width') || visualTarget.getAttribute('data-stroke-width') || visualTarget.style.borderWidth || visualTarget.getAttribute('stroke-width') || "0");
+    const dashData = liveElement.getAttribute('stroke-dasharray') || visualTarget.getAttribute('stroke-dasharray') || 'none';
     const isDashed = dashData !== 'none' && dashData !== '';
 
     let dashLen = 5, dashGap = 5;
@@ -270,7 +275,7 @@ const VideoEditor = ({
     if (target.tagName === "VIDEO") {
       const src = target.currentSrc || target.src || target.querySelector("source")?.src || null;
       setPreviewSrc(src);
-      
+
       if (src && src.startsWith("http") && !src.includes("blob:")) {
         setInputUrl(src);
         setIsUrlAdded(true);
@@ -378,31 +383,41 @@ const VideoEditor = ({
     const target = container ? container.querySelector("video, iframe") : (liveElement.tagName === "VIDEO" || liveElement.tagName === "IFRAME" ? liveElement : liveElement.querySelector("video, iframe"));
 
     if (!target) return;
+    if (!target) return;
     const visualTarget = container || target;
 
     let tagLower = liveElement.tagName?.toLowerCase();
     const isSvgEl = liveElement.namespaceURI === "http://www.w3.org/2000/svg";
 
-    // --- GROUP WITHIN VIDEO FIX ---
-    if (isSvgEl && tagLower === 'foreignobject') {
-      const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      newGroup.id = liveElement.id;
-      liveElement.removeAttribute('id');
+    // --- FORCE VIDEO GROUP STRUCTURE FOR VIDEOS ---
+    if (isSvgEl && liveElement.getAttribute('data-is-video-group') !== 'true') {
+      if (tagLower === 'foreignobject' || tagLower === 'video' || tagLower === 'iframe') {
+        const parent = liveElement.parentNode;
+        const newGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        newGroup.id = liveElement.id; // Keep selection intact
+        newGroup.setAttribute('data-type', liveElement.getAttribute('data-type') || 'video');
+        newGroup.setAttribute('data-name', 'Video Group');
+        newGroup.setAttribute('data-is-video-group', 'true');
 
-      Array.from(liveElement.attributes).forEach(attr => {
-        if (attr.name.startsWith('data-') || attr.name === 'class' || attr.name === 'style') {
-          newGroup.setAttribute(attr.name, attr.value);
-          liveElement.removeAttribute(attr.name);
+        const newVidId = `video-${Math.random().toString(36).substr(2, 9)}`;
+        liveElement.id = newVidId;
+        liveElement.setAttribute('data-name', 'Video');
+
+        if (liveElement.hasAttribute('transform')) {
+          newGroup.setAttribute('transform', liveElement.getAttribute('transform'));
+          liveElement.removeAttribute('transform');
         }
-      });
 
-      liveElement.parentNode.insertBefore(newGroup, liveElement);
-      newGroup.appendChild(liveElement);
-      liveElement = newGroup;
+        if (parent) parent.insertBefore(newGroup, liveElement);
+        newGroup.appendChild(liveElement);
 
-      tagLower = 'g';
-
-      if (onUpdateRef.current) setTimeout(() => onUpdateRef.current({ shouldRefresh: true }), 0);
+        liveElement = newGroup;
+        tagLower = 'g';
+      } else {
+        liveElement.setAttribute('data-is-video-group', 'true');
+        liveElement.setAttribute('data-name', 'Video Group');
+        if (target) target.setAttribute('data-name', 'Video');
+      }
     }
 
     isUpdatingDOM.current = true;
@@ -428,8 +443,103 @@ const VideoEditor = ({
       visualTarget.setAttribute('data-opacity', opVal);
 
       // Styling
-      visualTarget.style.backgroundColor = backgroundColor.fill;
-      visualTarget.setAttribute('data-bg-color', backgroundColor.fill);
+      let fillLayer = liveElement.querySelector('.video-fill-layer');
+      if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
+        if (!fillLayer) {
+          fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          fillLayer.classList.add('video-fill-layer');
+          fillLayer.setAttribute('data-name', 'Fill Color');
+          fillLayer.style.pointerEvents = 'none';
+          liveElement.insertBefore(fillLayer, liveElement.firstChild);
+
+          const syncFillOverlay = () => {
+            if (!fillLayer.isConnected) return;
+            fillLayer.setAttribute('x', visualTarget.getAttribute('x') || '0');
+            fillLayer.setAttribute('y', visualTarget.getAttribute('y') || '0');
+            fillLayer.setAttribute('width', visualTarget.getAttribute('width') || '100%');
+            fillLayer.setAttribute('height', visualTarget.getAttribute('height') || '100%');
+            fillLayer.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+            fillLayer.style.transform = visualTarget.style.transform;
+            fillLayer.style.translate = visualTarget.style.translate;
+            fillLayer.style.scale = visualTarget.style.scale;
+            fillLayer.style.rotate = visualTarget.style.rotate;
+            fillLayer.style.transformOrigin = visualTarget.style.transformOrigin;
+          };
+          const obsFill = new MutationObserver(syncFillOverlay);
+          obsFill.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+          if (visualTarget !== liveElement) {
+            obsFill.observe(visualTarget, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+          }
+        }
+
+        fillLayer.setAttribute('x', visualTarget.getAttribute('x') || '0');
+        fillLayer.setAttribute('y', visualTarget.getAttribute('y') || '0');
+        fillLayer.setAttribute('width', visualTarget.getAttribute('width') || '100%');
+        fillLayer.setAttribute('height', visualTarget.getAttribute('height') || '100%');
+        fillLayer.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+        fillLayer.style.transform = visualTarget.style.transform;
+        fillLayer.style.translate = visualTarget.style.translate;
+        fillLayer.style.scale = visualTarget.style.scale;
+        fillLayer.style.rotate = visualTarget.style.rotate;
+        fillLayer.style.transformOrigin = visualTarget.style.transformOrigin;
+
+        let parsedFill = null;
+        if (backgroundColor.fill && backgroundColor.fill.toLowerCase().includes('gradient')) {
+          parsedFill = parseGradient(backgroundColor.fill);
+        }
+
+        if (parsedFill && parsedFill.stops) {
+          fillLayer.setAttribute('data-fill-type', 'gradient');
+          fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+          fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+          fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+
+          fillLayer.setAttribute('fill-type', 'gradient');
+          fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
+          fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+          fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+
+          syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
+          liveElement.setAttribute('data-fill-type', 'gradient');
+          liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+          liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
+          liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+        } else {
+          fillLayer.setAttribute('fill', backgroundColor.fill);
+          fillLayer.removeAttribute('data-fill-type');
+          fillLayer.removeAttribute('data-fill-stops');
+          fillLayer.removeAttribute('data-fill-gradient-type');
+          fillLayer.removeAttribute('data-fill-angle');
+
+          fillLayer.removeAttribute('fill-type');
+          fillLayer.removeAttribute('fill-stops');
+          fillLayer.removeAttribute('fill-gradient-type');
+          fillLayer.removeAttribute('fill-angle');
+
+          liveElement.removeAttribute('data-fill-type');
+          liveElement.removeAttribute('data-fill-stops');
+          liveElement.removeAttribute('data-fill-gradient-type');
+          liveElement.removeAttribute('data-fill-angle');
+        }
+        fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+
+        const maxRFill = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+        if (maxRFill > 0) {
+          fillLayer.setAttribute('rx', maxRFill.toString());
+        } else {
+          fillLayer.removeAttribute('rx');
+        }
+
+        visualTarget.style.backgroundColor = 'transparent'; // clear foreignObject background
+        visualTarget.setAttribute('data-bg-color', backgroundColor.fill);
+        liveElement.setAttribute('data-fill-color', backgroundColor.fill);
+      } else {
+        if (fillLayer) fillLayer.remove();
+        visualTarget.style.backgroundColor = 'transparent';
+        visualTarget.removeAttribute('data-bg-color');
+        liveElement.removeAttribute('data-fill-color');
+        liveElement.removeAttribute('data-fill-type');
+      }
 
       // Helper to convert hex to rgba for CSS border
       const hexToRgba = (hex, alpha) => {
@@ -450,6 +560,7 @@ const VideoEditor = ({
       const style = backgroundColor.strokeType === 'Dashed' ? 'dashed' : 'solid';
 
       visualTarget.setAttribute('data-stroke-color', backgroundColor.stroke);
+      liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
       visualTarget.setAttribute('stroke-width', weight);
       visualTarget.setAttribute('data-stroke-width', weight); // Keep for legacy
 
@@ -486,7 +597,6 @@ const VideoEditor = ({
             strokeOverlay.style.scale = visualTarget.style.scale;
             strokeOverlay.style.rotate = visualTarget.style.rotate;
             strokeOverlay.style.transformOrigin = visualTarget.style.transformOrigin;
-            strokeOverlay.style.opacity = visualTarget.style.opacity;
           };
           const obs = new MutationObserver(syncOverlay);
           obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
@@ -515,10 +625,9 @@ const VideoEditor = ({
         strokeOverlay.style.scale = visualTarget.style.scale;
         strokeOverlay.style.rotate = visualTarget.style.rotate;
         strokeOverlay.style.transformOrigin = visualTarget.style.transformOrigin;
-        strokeOverlay.style.opacity = visualTarget.style.opacity;
 
         strokeOverlay.setAttribute('fill', 'none');
-        
+
         liveElement.setAttribute('data-stroke-type', backgroundColor.strokeType);
 
         if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
@@ -538,7 +647,7 @@ const VideoEditor = ({
           liveElement.removeAttribute('data-stroke-stops');
           liveElement.removeAttribute('data-stroke-angle');
           liveElement.removeAttribute('data-stroke-radius');
-          
+
           strokeOverlay.removeAttribute('stroke-type');
           strokeOverlay.removeAttribute('stroke-gradient-type');
           strokeOverlay.removeAttribute('stroke-stops');
@@ -683,9 +792,9 @@ const VideoEditor = ({
         if (color.startsWith('#')) {
           const hex = color.replace('#', '');
           if (hex.length === 3) {
-            r = parseInt(hex[0]+hex[0], 16); g = parseInt(hex[1]+hex[1], 16); b = parseInt(hex[2]+hex[2], 16);
+            r = parseInt(hex[0] + hex[0], 16); g = parseInt(hex[1] + hex[1], 16); b = parseInt(hex[2] + hex[2], 16);
           } else if (hex.length === 6) {
-            r = parseInt(hex.substring(0,2), 16); g = parseInt(hex.substring(2,4), 16); b = parseInt(hex.substring(4,6), 16);
+            r = parseInt(hex.substring(0, 2), 16); g = parseInt(hex.substring(2, 4), 16); b = parseInt(hex.substring(4, 6), 16);
           }
         }
         const rgbaStr = `rgba(${r}, ${g}, ${b}, ${alpha})`;
@@ -696,25 +805,25 @@ const VideoEditor = ({
         let overlay = liveElement.querySelector('.svg-video-inner-shadow-rect');
         let oldOverlay = liveElement.querySelector('.svg-video-inner-shadow');
         if (oldOverlay) oldOverlay.remove();
-        
+
         let filterId = liveElement.getAttribute('data-inner-shadow-filter-id');
 
         if (activeEffects.includes('Inner Shadow')) {
           const ds = effectSettings['Inner Shadow'];
           const alpha = (ds.opacity !== undefined ? ds.opacity : 35) / 100;
           const color = ds.color || '#000000';
-          
+
           if (!filterId) {
             filterId = 'inner-shadow-' + Math.random().toString(36).substr(2, 9);
             liveElement.setAttribute('data-inner-shadow-filter-id', filterId);
           }
-          
+
           let svgDefs = liveElement.ownerSVGElement?.querySelector('defs');
           if (!svgDefs && liveElement.ownerSVGElement) {
             svgDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
             liveElement.ownerSVGElement.prepend(svgDefs);
           }
-          
+
           if (svgDefs) {
             let filterEl = svgDefs.querySelector(`#${filterId}`);
             if (!filterEl) {
@@ -722,34 +831,34 @@ const VideoEditor = ({
               filterEl.id = filterId;
               svgDefs.appendChild(filterEl);
             }
-            
-            while(filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
-            
+
+            while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
+
             const feOffset = document.createElementNS('http://www.w3.org/2000/svg', 'feOffset');
             feOffset.setAttribute('dx', ds.x || 0);
             feOffset.setAttribute('dy', ds.y || 0);
-            
+
             const feBlur = document.createElementNS('http://www.w3.org/2000/svg', 'feGaussianBlur');
             feBlur.setAttribute('stdDeviation', (ds.blur || 0) / 2);
             feBlur.setAttribute('result', 'offset-blur');
-            
+
             const feComp1 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
             feComp1.setAttribute('operator', 'out');
             feComp1.setAttribute('in', 'SourceAlpha');
             feComp1.setAttribute('in2', 'offset-blur');
             feComp1.setAttribute('result', 'inverse');
-            
+
             const feFlood = document.createElementNS('http://www.w3.org/2000/svg', 'feFlood');
             feFlood.setAttribute('flood-color', color);
             feFlood.setAttribute('flood-opacity', alpha);
             feFlood.setAttribute('result', 'color');
-            
+
             const feComp2 = document.createElementNS('http://www.w3.org/2000/svg', 'feComposite');
             feComp2.setAttribute('operator', 'in');
             feComp2.setAttribute('in', 'color');
             feComp2.setAttribute('in2', 'inverse');
             feComp2.setAttribute('result', 'shadow');
-            
+
             filterEl.appendChild(feOffset);
             filterEl.appendChild(feBlur);
             filterEl.appendChild(feComp1);
@@ -764,22 +873,22 @@ const VideoEditor = ({
             overlay.setAttribute('fill', 'white');
             liveElement.appendChild(overlay);
           }
-          
+
           const targetEl = visualTarget;
           let box = { x: 0, y: 0, width: 100, height: 100 };
-          try { box = targetEl.getBBox(); } catch(e) {
+          try { box = targetEl.getBBox(); } catch (e) {
             box.x = parseFloat(targetEl.getAttribute('x') || 0);
             box.y = parseFloat(targetEl.getAttribute('y') || 0);
             box.width = parseFloat(targetEl.getAttribute('width') || 100);
             box.height = parseFloat(targetEl.getAttribute('height') || 100);
           }
-          
+
           overlay.setAttribute('x', box.x);
           overlay.setAttribute('y', box.y);
           overlay.setAttribute('width', Math.max(1, box.width));
           overlay.setAttribute('height', Math.max(1, box.height));
           overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-          
+
           const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
           if (anyR) overlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl));
           else overlay.removeAttribute('rx');
@@ -788,12 +897,12 @@ const VideoEditor = ({
         } else {
           if (overlay) overlay.remove();
           if (filterId && liveElement.ownerSVGElement) {
-             const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
-             if (f) f.remove();
+            const f = liveElement.ownerSVGElement.querySelector(`#${filterId}`);
+            if (f) f.remove();
           }
         }
       } else {
-      // Fallback for non-SVG video targets
+        // Fallback for non-SVG video targets
         activeEffects.forEach(eff => {
           const effSet = effectSettings[eff];
           if (!effSet) return;
@@ -802,7 +911,7 @@ const VideoEditor = ({
             boxShadowStr += `${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.spread}px ${effSet.color}${alpha}, `;
           }
         });
-        
+
         let overlay = liveElement.querySelector('.inner-shadow-overlay') || liveElement.parentElement?.querySelector('.inner-shadow-overlay');
         if (innerShadowString) {
           const targetParent = (['IMG', 'VIDEO', 'IFRAME'].includes(liveElement.tagName)) ? liveElement.parentElement : liveElement;
@@ -835,6 +944,7 @@ const VideoEditor = ({
       visualTarget.style.filter = filterStr.trim() || 'none';
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
+      liveElement.setAttribute('data-active-effects', activeEffects.join(','));
 
       visualTarget.setAttribute('data-effect-exposure', exposure.toString());
       visualTarget.setAttribute('data-effect-contrast', contrast.toString());
@@ -907,6 +1017,25 @@ const VideoEditor = ({
         } catch (e) {
           // Ignore invalid URLs
         }
+      }
+
+      // --- STRICT LAYER REORDERING FOR VIDEO GROUPS ---
+      if (liveElement.getAttribute('data-is-video-group') === 'true') {
+        const dropShadow = liveElement.querySelector('.svg-drop-shadow-caster');
+        const fillLayer = liveElement.querySelector('.video-fill-layer') || liveElement.querySelector('.image-fill-layer');
+        const innerShadow = liveElement.querySelector('.svg-video-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-overlay');
+        const stroke = liveElement.querySelector('.svg-video-stroke-overlay');
+
+        if (dropShadow) { dropShadow.setAttribute('data-name', 'Drop Shadow'); liveElement.appendChild(dropShadow); }
+        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); liveElement.appendChild(fillLayer); }
+
+        const videoNode = liveElement.querySelector('foreignObject') || liveElement.querySelector('video') || liveElement.querySelector('iframe');
+        if (videoNode && videoNode.parentNode === liveElement) {
+          liveElement.appendChild(videoNode);
+        }
+
+        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); liveElement.appendChild(innerShadow); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
       }
 
       // Trigger parent update
@@ -1511,11 +1640,10 @@ const VideoEditor = ({
             <button
               onClick={handleAddUrl}
               disabled={isAddingUrl || !inputUrl}
-              className={`flex items-center justify-center h-[2vw] px-[0.8vw] rounded-[0.4vw] text-[0.75vw] font-medium transition-all ${
-                isUrlAdded ? 'bg-green-500 text-white' : 
-                isAddingUrl ? 'bg-indigo-100 text-indigo-600' : 
-                'bg-indigo-600 text-white hover:bg-indigo-700'
-              }`}
+              className={`flex items-center justify-center h-[2vw] px-[0.8vw] rounded-[0.4vw] text-[0.75vw] font-medium transition-all ${isUrlAdded ? 'bg-green-500 text-white' :
+                isAddingUrl ? 'bg-indigo-100 text-indigo-600' :
+                  'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
             >
               {isUrlAdded ? (
                 'Added'
@@ -1699,6 +1827,97 @@ const VideoEditor = ({
       )}
     </div>
   );
+};
+
+function syncGradient(doc, element, baseAttr) {
+  const type = element.getAttribute(`${baseAttr}-type`);
+  const currentValue = element.getAttribute(baseAttr);
+  const isUrl = currentValue && currentValue.toLowerCase().startsWith('url(#');
+  const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear';
+  const stopsJson = element.getAttribute(`${baseAttr}-stops`);
+
+  if (type === 'solid' || type === 'none') return;
+
+  if (isUrl && !stopsJson) {
+    if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
+      Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+        child.setAttribute(baseAttr, currentValue);
+        if (child.style) child.style.setProperty(baseAttr, currentValue, 'important');
+      });
+    }
+    return;
+  }
+
+  if (!type && !isUrl) return;
+  if (!stopsJson) return;
+
+  let stops = [];
+  try { stops = JSON.parse(stopsJson); } catch (e) { return; }
+  if (!stops || !Array.isArray(stops)) return;
+
+  const svgRoot = element.closest('svg') || doc.querySelector('svg') || (doc.tagName?.toLowerCase() === 'svg' ? doc : null);
+  if (!svgRoot) return;
+
+  const ownerDoc = doc.ownerDocument || doc;
+
+  let defs = svgRoot.querySelector('defs');
+  if (!defs) {
+    defs = ownerDoc.createElementNS("http://www.w3.org/2000/svg", "defs");
+    svgRoot.insertBefore(defs, svgRoot.firstChild);
+  }
+
+  if (!element.id) {
+    element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  const gradIdPrefix = `grad-${element.id}-${baseAttr}`;
+  Array.from(defs.querySelectorAll(`[id^="${gradIdPrefix}"]`)).forEach(oldGrad => oldGrad.remove());
+
+  const gradId = `${gradIdPrefix}-${Math.random().toString(36).substr(2, 4)}`;
+  let gradEl = null;
+
+  const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
+
+  if (!gradEl) {
+    gradEl = ownerDoc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
+    gradEl.id = gradId;
+    if (svgGradType === 'linear') {
+      const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
+      const angleRad = (angle * Math.PI) / 180;
+      gradEl.setAttribute('x1', Math.round(50 - Math.cos(angleRad) * 50) + '%');
+      gradEl.setAttribute('y1', Math.round(50 - Math.sin(angleRad) * 50) + '%');
+      gradEl.setAttribute('x2', Math.round(50 + Math.cos(angleRad) * 50) + '%');
+      gradEl.setAttribute('y2', Math.round(50 + Math.sin(angleRad) * 50) + '%');
+    } else {
+      const radius = parseFloat(element.getAttribute(`${baseAttr}-radius`) || '50');
+      gradEl.setAttribute('cx', '50%');
+      gradEl.setAttribute('cy', '50%');
+      gradEl.setAttribute('r', radius + '%');
+    }
+    defs.appendChild(gradEl);
+  }
+
+  while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
+  stops.forEach(s => {
+    const stop = ownerDoc.createElementNS("http://www.w3.org/2000/svg", "stop");
+    stop.setAttribute('offset', `${s.offset}%`);
+    stop.setAttribute('stop-color', s.color);
+    stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
+    gradEl.appendChild(stop);
+  });
+
+  const finalUrl = `url(#${gradId})`;
+  element.setAttribute(baseAttr, finalUrl);
+  if (element.style) {
+    element.style.setProperty(baseAttr, finalUrl, 'important');
+  }
+
+  if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
+    Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
+      child.setAttribute(baseAttr, finalUrl);
+      if (child.style) child.style.setProperty(baseAttr, finalUrl, 'important');
+    });
+  }
 };
 
 export default VideoEditor;

@@ -16,6 +16,29 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
     const currentProfile = (profileSettings && profileSettings[activeLayout]) ? profileSettings[activeLayout] : profileSettings;
 
     const [profileLeft, setProfileLeft] = useState(null);
+    const [dynamicPos, setDynamicPos] = useState({ left: 0, bottom: 0, ready: false });
+    const profileContainerRef = React.useRef(null);
+
+    useEffect(() => {
+        const layoutId = Number(activeLayout);
+        if (isTablet && layoutId === 1 && !isMobile) {
+            const findAnchor = () => {
+                const anchor = document.querySelector('.tablet-layout-1-profile-icon-anchor');
+                if (anchor && profileContainerRef.current) {
+                    const rect = anchor.getBoundingClientRect();
+                    const containerRect = profileContainerRef.current.getBoundingClientRect();
+                    const left = rect.left - containerRect.left + (rect.width / 2);
+                    const bottom = containerRect.bottom - rect.top + 15;
+                    setDynamicPos({ left, bottom, ready: true });
+                } else {
+                    setDynamicPos({ ready: false });
+                }
+            };
+            setTimeout(findAnchor, 50);
+        } else {
+            setDynamicPos({ ready: false });
+        }
+    }, [activeLayout, isTablet, isMobile]);
 
     useEffect(() => {
         if (Number(activeLayout) !== 9) return;
@@ -1431,8 +1454,15 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
 
     return (
         <>
-            <div className={`absolute inset-0 z-[159] ${isLayout3 ? 'bg-transparent' : 'bg-black/5'} pointer-events-auto`} onClick={onClose} />
-            <div className={`absolute ${getPosition()} z-[160] pointer-events-auto`}>
+            <div ref={profileContainerRef} className={`absolute inset-0 z-[159] ${isLayout3 ? 'bg-transparent' : 'bg-black/5'} pointer-events-auto`} onClick={onClose} />
+            <div 
+                className={`absolute ${(!dynamicPos.ready && (!isTablet || Number(activeLayout) !== 1)) ? getPosition() : ''} z-[160] pointer-events-auto`}
+                style={(dynamicPos.ready && isTablet && Number(activeLayout) === 1) ? {
+                    bottom: `${dynamicPos.bottom}px`,
+                    left: `${dynamicPos.left}px`,
+                    transform: 'translateX(-50%)'
+                } : {}}
+            >
                 <div
                     className={`
                         ${isLayout3

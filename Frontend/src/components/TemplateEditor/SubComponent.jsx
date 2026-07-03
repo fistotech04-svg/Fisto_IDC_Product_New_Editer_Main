@@ -519,18 +519,17 @@ const ShapePropertiesUI = ({
                     <div
                       className={`flex items-center justify-center h-[2vw] w-[2vw] rounded-[0.5vw] cursor-pointer transition-colors shadow-sm ${showStrokeSettings ? 'bg-indigo-50 text-indigo-600' : 'hover:bg-white text-gray-500'}`}
                       onClick={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
+                        const row = e.currentTarget.closest('.flex.items-center.gap-\\[0\\.4vw\\].py-\\[0\\.1vw\\]') || e.currentTarget;
+                        const rowRect = row.getBoundingClientRect();
+                        const btnRect = e.currentTarget.getBoundingClientRect();
                         const popupHeight = 250; // Estimated height for dash popup
-                        const spaceBelow = window.innerHeight - rect.bottom;
 
-                        const pos = { right: window.innerWidth - rect.right + 50 };
-                        if (spaceBelow < popupHeight) {
-                          pos.bottom = window.innerHeight - rect.top + 10;
-                          pos.top = 'auto';
-                        } else {
-                          pos.top = rect.bottom + 10;
-                          pos.bottom = 'auto';
-                        }
+                        // Add 1.5vw to offset the popup cleanly from the sidebar's left edge
+                        const pos = { right: `calc(100vw - ${rowRect.left}px + 1.5vw)` };
+
+                        // Vertically center relative to the button, keeping within screen bounds
+                        const centerY = btnRect.top + (btnRect.height / 2) - (popupHeight / 2);
+                        pos.top = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
 
                         setStrokeSettingsPos(pos);
                         setShowStrokeSettings(!showStrokeSettings);
@@ -1306,8 +1305,8 @@ const SubComponent = ({
     'stroke-radius': backgroundColor?.strokeRadius || 100,
     'stroke-width': backgroundColor?.strokeWeight || 0,
     strokeWidth: backgroundColor?.strokeWeight || 0,
-    'stroke-dasharray': backgroundColor?.strokeType === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
-    strokeDasharray: backgroundColor?.strokeType === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
+    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
+    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
     'stroke-linecap': backgroundColor?.strokeLinecap || 'butt',
     'data-stroke-position': backgroundColor?.strokePosition || 'Center',
     'data-tl': radius?.tl || 0,
@@ -1348,6 +1347,12 @@ const SubComponent = ({
   };
 
   const handleUpdate = (page, layer, attr, value) => {
+    if (typeof attr === 'object' && attr !== null) {
+      Object.entries(attr).forEach(([k, v]) => {
+        handleUpdate(page, layer, k, v);
+      });
+      return;
+    }
     if (attr === 'fill' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fill: value }));
     if (attr === 'fill-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillType: value }));
     if (attr === 'fill-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillGradientType: value }));
@@ -1365,12 +1370,12 @@ const SubComponent = ({
     if (attr === 'stroke-width' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeWeight: parseFloat(value) }));
     if (attr === 'stroke-dasharray' && setBackgroundColor) {
       if (value === 'none') {
-        setBackgroundColor(p => ({ ...p, strokeType: 'Solid' }));
+        setBackgroundColor(p => ({ ...p, strokeDashStyle: 'Solid' }));
       } else {
         const parts = value.split(',');
         setBackgroundColor(p => ({
           ...p,
-          strokeType: 'Dashed',
+          strokeDashStyle: 'Dashed',
           strokeDashLength: parseInt(parts[0]) || 5,
           strokeDashGap: parseInt(parts[1] || parts[0]) || 5
         }));

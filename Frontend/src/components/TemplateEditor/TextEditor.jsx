@@ -249,6 +249,30 @@ const syncGradient = (doc, element, baseAttr) => {
     element.style.setProperty(baseAttr, finalUrl, 'important');
   }
 
+  // Handle foreignObject css gradients
+  if (element.tagName.toLowerCase() === 'foreignobject' && element.firstElementChild) {
+    if (baseAttr === 'fill') {
+      let cssGradStr = '';
+      if (svgGradType === 'linear') {
+        const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
+        cssGradStr = `linear-gradient(${angle}deg, ${stops.map(s => `${s.color} ${s.offset}%`).join(', ')})`;
+      } else {
+        cssGradStr = `radial-gradient(circle, ${stops.map(s => `${s.color} ${s.offset}%`).join(', ')})`;
+      }
+      
+      const applyCssGradToElement = (el) => {
+          el.style.setProperty('background-image', cssGradStr, 'important');
+          el.style.setProperty('-webkit-background-clip', 'text', 'important');
+          el.style.setProperty('background-clip', 'text', 'important');
+          el.style.setProperty('color', 'transparent', 'important');
+          el.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+      };
+      
+      applyCssGradToElement(element.firstElementChild);
+      Array.from(element.firstElementChild.querySelectorAll('*')).forEach(applyCssGradToElement);
+    }
+  }
+
   // Force inheritance for all nested children
   if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
     Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
@@ -341,16 +365,20 @@ const syncTextEffect = (doc, element) => {
     const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
     const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
-    const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-    morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
-    morph.setAttribute('radius', Math.abs(spread));
-    morph.setAttribute('in', 'SourceAlpha');
-    morph.setAttribute('result', 'ds_morph');
-    filterEl.appendChild(morph);
+    let dsSource = 'SourceAlpha';
+    if (spread !== 0) {
+      const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spread));
+      morph.setAttribute('in', 'SourceAlpha');
+      morph.setAttribute('result', 'ds_morph');
+      filterEl.appendChild(morph);
+      dsSource = 'ds_morph';
+    }
 
     const gauss = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
     gauss.setAttribute('stdDeviation', blur);
-    gauss.setAttribute('in', 'ds_morph');
+    gauss.setAttribute('in', dsSource);
     gauss.setAttribute('result', 'ds_blur');
     filterEl.appendChild(gauss);
 
@@ -394,16 +422,20 @@ const syncTextEffect = (doc, element) => {
     const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
     const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
 
-    const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-    morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
-    morph.setAttribute('radius', Math.abs(spread));
-    morph.setAttribute('in', 'SourceAlpha');
-    morph.setAttribute('result', 'is_morph');
-    filterEl.appendChild(morph);
+    let isSource = 'SourceAlpha';
+    if (spread !== 0) {
+      const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spread));
+      morph.setAttribute('in', 'SourceAlpha');
+      morph.setAttribute('result', 'is_morph');
+      filterEl.appendChild(morph);
+      isSource = 'is_morph';
+    }
 
     const gauss = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
     gauss.setAttribute('stdDeviation', blur);
-    gauss.setAttribute('in', 'is_morph');
+    gauss.setAttribute('in', isSource);
     gauss.setAttribute('result', 'is_blur');
     filterEl.appendChild(gauss);
 
@@ -462,10 +494,22 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
   const [backgroundColor, setBackgroundColor] = useState({
     fill: selectedElementProps?.fill || '#000000',
     fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
+    fillType: selectedElementProps?.['fill-type'] || 'solid',
+    fillGradientType: selectedElementProps?.['fill-gradient-type'] || 'linear',
+    fillStops: selectedElementProps?.['fill-stops'],
+    fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
+    fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
     stroke: selectedElementProps?.stroke || 'none',
     strokeOpacity: 100,
-    strokeType: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
+    strokeDashStyle: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
     strokeWeight: parseFloat(selectedElementProps?.strokeWidth || 0),
+    strokeType: selectedElementProps?.['stroke-type'] || 'solid',
+    strokeGradientType: selectedElementProps?.['stroke-gradient-type'] || 'linear',
+    strokeStops: selectedElementProps?.['stroke-stops'],
+    strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
+    strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
+    strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
+    strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[1] || (selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
   });
 
   const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
@@ -514,10 +558,20 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     setBackgroundColor({
       fill: selectedElementProps?.fill || '#000000',
       fillOpacity: parseFloat(selectedElementProps?.opacity || 1) * 100,
+      fillType: selectedElementProps?.['fill-type'] || 'solid',
+      fillGradientType: selectedElementProps?.['fill-gradient-type'] || 'linear',
+      fillStops: selectedElementProps?.['fill-stops'],
+      fillAngle: parseFloat(selectedElementProps?.['fill-angle'] || 0),
+      fillRadius: parseFloat(selectedElementProps?.['fill-radius'] || 100),
       stroke: selectedElementProps?.stroke || 'none',
       strokeOpacity: 100,
-      strokeType: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
+      strokeDashStyle: selectedElementProps?.strokeDasharray && selectedElementProps?.strokeDasharray !== 'none' ? 'Dashed' : 'Solid',
       strokeWeight: parseFloat(selectedElementProps?.strokeWidth || 0),
+      strokeType: selectedElementProps?.['stroke-type'] || 'solid',
+      strokeGradientType: selectedElementProps?.['stroke-gradient-type'] || 'linear',
+      strokeStops: selectedElementProps?.['stroke-stops'],
+      strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
+      strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
       strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
       strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[1] || (selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
     });
@@ -550,10 +604,25 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     updateTimeoutRef.current = setTimeout(() => {
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill', backgroundColor.fill);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'opacity', (backgroundColor.fillOpacity / 100).toString());
+      if (backgroundColor.fillType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-type', backgroundColor.fillType);
+      if (backgroundColor.fillGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-gradient-type', backgroundColor.fillGradientType);
+      if (backgroundColor.fillStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-stops', backgroundColor.fillStops);
+      if (backgroundColor.fillAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-angle', backgroundColor.fillAngle.toString());
+      if (backgroundColor.fillRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'fill-radius', backgroundColor.fillRadius.toString());
+
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
+      if (backgroundColor.strokeType === 'gradient' || backgroundColor.strokeStops) {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'gradient');
+          if (backgroundColor.strokeGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-gradient-type', backgroundColor.strokeGradientType);
+          if (backgroundColor.strokeStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-stops', backgroundColor.strokeStops);
+          if (backgroundColor.strokeAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-angle', backgroundColor.strokeAngle.toString());
+          if (backgroundColor.strokeRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-radius', backgroundColor.strokeRadius.toString());
+      } else if (backgroundColor.stroke !== 'none' && !backgroundColor.stroke.includes('url(#')) {
+          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
+      }
 
-      const dashVal = backgroundColor.strokeType === 'Dashed' ? `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}` : 'none';
+      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}` : 'none';
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', backgroundColor.strokePosition || 'Center');
 

@@ -23,6 +23,7 @@ import Grid6Layout from './Layouts/Grid6Layout';
 import Grid7Layout from './Layouts/Grid7Layout';
 import Grid8Layout from './Layouts/Grid8Layout';
 import Grid9Layout from './Layouts/Grid9Layout';
+import TabletLayout1 from './Tablet/TabletLayouts/TabletLayout1';
 import GalleryPopup from './popups/GalleryPopup';
 import { getBookmarkClipPath, getBookmarkBorderRadius, getBookmarkSVGPath } from './BookmarkStylesPopup';
 import FlipBookEngine from './FlipBookEngine';
@@ -1519,6 +1520,7 @@ const PreviewArea = React.memo(({
     const isSinglePage = activeDevice === 'Mobile' || (activeDevice === 'Tablet' && isPortraitLayout);
     const isTablet = activeDevice === 'Tablet';
     const isMobile = activeDevice === 'Mobile';
+    const isPhysicalTablet = typeof navigator !== 'undefined' && (/(iPad|Tablet|PlayBook|Silk)|(Android(?!.*Mobile))/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 
     const [isLandscape, setIsLandscape] = useState(activeDevice === 'Desktop' ? window.innerWidth > window.innerHeight : false);
 
@@ -2710,7 +2712,7 @@ const PreviewArea = React.memo(({
                 isLoading={isLoading}
             />
 
-            {showTOC && !((isMobile && !isLandscape) || [4, 5, 6, 7].includes(Number(activeLayout))) && (
+            {showTOC && !((isMobile && !isLandscape) || [4, 5, 6, 7].includes(Number(activeLayout))) && !(isTablet && (!activeLayout || Number(activeLayout) === 1)) && (
                 <TableOfContentsPopup
                     onClose={() => setShowTOC(false)}
                     onNavigate={(pageIndex) => {
@@ -2937,21 +2939,21 @@ const PreviewArea = React.memo(({
             ) : (
                 <>
                     {/* Tablet Outer Background Layer */}
-                    {activeDevice === 'Tablet' && !isPublishedPreview && (
+                    {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && (
                         <div
                             className="absolute inset-0 z-0 pointer-events-none"
                             style={{ ...backgroundStyle, opacity: 0.4 }}
                         />
                     )}
-                    {activeDevice === 'Tablet' && !isPublishedPreview && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
+                    {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && backgroundSettings?.style === 'ReactBits' && backgroundSettings.reactBitType && backgroundComponents[backgroundSettings.reactBitType] && (
                         <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden opacity-50">
                             {React.createElement(backgroundComponents[backgroundSettings.reactBitType])}
                         </div>
                     )}
 
-                    <div style={{ ...((activeDevice === 'Tablet' && !isPublishedPreview) ? deviceStyles.Tablet : deviceStyles.Desktop), zIndex: 10 }} className="relative">
+                    <div style={{ ...((activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet) ? deviceStyles.Tablet : deviceStyles.Desktop), zIndex: 10 }} className="relative">
                         {/* Floor shadow effect for Tablet bottom (using the style of the SVG) */}
-                        {activeDevice === 'Tablet' && !isPublishedPreview && (
+                        {activeDevice === 'Tablet' && !isPublishedPreview && !isPhysicalTablet && (
                             <svg
                                 viewBox="0 0 1000 100"
                                 preserveAspectRatio="none"
@@ -3462,8 +3464,8 @@ const PreviewArea = React.memo(({
                                         bookmarkSpacing={5}
                                     />
                                 </Grid9Layout>
-                            ) : (
-                                <Grid1Layout
+                            ) : activeDevice === 'Tablet' && (!activeLayout || Number(activeLayout) === 1) ? (
+                                <TabletLayout1
                                     settings={settings}
                                     bookName={bookName}
                                     activeLayout={activeLayout}
@@ -3516,6 +3518,79 @@ const PreviewArea = React.memo(({
                                     isMobile={isMobile}
                                     isLandscape={isLandscape}
                                     isMobileLandscape={isMobileLandscape}
+                                >
+                                    <TurnJsBookRenderer
+                                        {...bookRendererProps}
+                                        bookmarks={layout1Bookmarks}
+                                        bookmarkSpacing={5}
+                                    />
+                                </TabletLayout1>
+                            ) : (
+                                <Grid1Layout
+                                    settings={settings}
+                                    bookName={bookName}
+                                    activeLayout={activeLayout}
+                                    hideHeader={hideHeader}
+                                    searchQuery={searchQuery}
+                                    setSearchQuery={setSearchQuery}
+                                    handleQuickSearch={handleQuickSearch}
+                                    logoSettings={logoSettings}
+                                    logoObjectFit={logoObjectFit}
+                                    logoCropStyle={logoCropStyle}
+                                    onPageClick={onPageClick}
+                                    currentPage={currentPage}
+                                    pages={pages}
+                                    bookRef={bookRef}
+                                    showSoundPopup={showSoundPopup}
+                                    setShowSoundPopupMemo={setShowSoundPopupMemo}
+                                    backgroundSettings={backgroundSettings}
+                                    backgroundStyle={backgroundStyle}
+                                    isMuted={isMuted}
+                                    onToggleAudio={handleToggleAudio}
+                                    setShowGalleryPopupMemo={setShowGalleryPopupMemo}
+                                    showGalleryPopup={showGalleryPopup}
+                                    showSharePopup={showSharePopup}
+                                    showExportPopup={showExportPopup}
+                                    isSidebarOpen={isSidebarOpen}
+                                    isMobile={activeDevice === 'Mobile'}
+                                    isLandscape={isLandscape}
+                                    isMobileLandscape={isMobileLandscape}
+                                    notes={notes}
+                                    showBookmarkMenu={showBookmarkMenu}
+                                    setShowBookmarkMenuMemo={setShowBookmarkMenuMemo}
+                                    showMoreMenu={showMoreMenu}
+                                    setShowMoreMenuMemo={setShowMoreMenuMemo}
+                                    showThumbnailBar={showThumbnailBar}
+                                    setShowThumbnailBarMemo={setShowThumbnailBarMemo}
+                                    showTOC={showTOC}
+                                    setShowTOCMemo={setShowTOCMemo}
+                                    setShowAddNotesPopupMemo={setShowAddNotesPopupMemo}
+                                    setShowNotesViewerMemo={setShowNotesViewerMemo}
+                                    setShowNotesMenuMemo={setShowNotesMenuMemo}
+                                    showNotesMenu={showNotesMenu}
+                                    setShowAddBookmarkPopupMemo={setShowAddBookmarkPopupMemo}
+                                    setShowViewBookmarkPopup={setShowViewBookmarkPopup}
+                                    showViewBookmarkPopup={showViewBookmarkPopup}
+                                    setShowProfilePopup={setShowProfilePopup}
+                                    showProfilePopup={showProfilePopup}
+                                    setIsPlaying={setIsPlaying}
+                                    isAutoFlipping={isAutoFlipping}
+                                    currentZoom={currentZoom}
+                                    handleZoomIn={handleZoomIn}
+                                    handleZoomOut={handleZoomOut}
+                                    handleFullScreen={handleFullScreen}
+                                    handleShare={handleShare}
+                                    handleDownload={handleDownload}
+                                    offset={isSinglePage ? 0 : offset}
+                                    bookmarks={layout1Bookmarks}
+                                    isFullscreen={isFullscreen}
+                                    layoutColors={settings?.layoutColors?.[1] ? {
+                                        primary: settings.layoutColors[1].find(c => c.label === 'Icons color')?.hex || '#575C9C',
+                                        secondary: settings.layoutColors[1].find(c => c.label === 'Bottom bar BG color')?.hex || '#E3E4EF'
+                                    } : {
+                                        primary: '#575C9C',
+                                        secondary: '#E3E4EF'
+                                    }}
                                 >
                                     <TurnJsBookRenderer
                                         {...bookRendererProps}
