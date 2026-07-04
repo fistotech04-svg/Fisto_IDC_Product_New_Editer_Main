@@ -406,7 +406,7 @@ router.post("/save", async (req, res) => {
 
     // Create Default Assets Folders first so we can write to them
     const assetsDir = path.join(flipbookDir, "assets");
-    ["Image", "gif", "video", "3D_Model", "audio"].forEach((sub) => {
+    ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
       const subDir = path.join(assetsDir, sub);
       if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
     });
@@ -415,6 +415,69 @@ router.post("/save", async (req, res) => {
     const savedBase64Map = new Map();
     const newFlipbookAssets = [];
     const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
+
+    const extractBase64AndSave = (htmlContent, pageVId) => {
+      const base64Regex = /data:([^;]+);base64,([^"&<\s]+)/g;
+      return htmlContent.replace(base64Regex, (match, mimeType, base64Data) => {
+        if (savedBase64Map.has(base64Data)) {
+          return savedBase64Map.get(base64Data);
+        }
+
+        let isDownload = false;
+        let actualMimeType = mimeType;
+        if (mimeType.startsWith('download-')) {
+          isDownload = true;
+          actualMimeType = mimeType.replace('download-', '');
+        }
+
+        const [type, ext] = actualMimeType.split('/');
+        let subfolder = type;
+        let normalizedExt = ext;
+        
+        if (isDownload) {
+          subfolder = 'download';
+        } else {
+          if (type === 'image') subfolder = 'Image';
+          else if (type === 'audio') subfolder = 'audio';
+          else if (type === 'video') subfolder = 'video';
+          else subfolder = 'download';
+        }
+        
+        if (ext === 'gif') subfolder = 'gif';
+        if (ext.includes('+')) normalizedExt = ext.split('+')[0];
+        
+        const assetFileName = `${nanoid()}.${normalizedExt}`;
+        const assetSubDir = path.join(assetsDir, subfolder);
+        if (!fs.existsSync(assetSubDir)) fs.mkdirSync(assetSubDir, { recursive: true });
+        
+        const assetPath = path.join(assetSubDir, assetFileName);
+        try {
+          const buffer = Buffer.from(base64Data, 'base64');
+          fs.writeFileSync(assetPath, buffer);
+          const relativePath = `./assets/${subfolder}/${assetFileName}`;
+          
+          const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
+          
+          newFlipbookAssets.push({
+            flipbook_v_id: flipbook_v_id,
+            file_v_id: nanoid(),
+            assetType: subfolder,
+            fileName: assetFileName,
+            page_v_id: pageVId,
+            flipbookName: flipbookName,
+            folderName: physicalFolderName,
+            url: absoluteUrl,
+            size: buffer.length
+          });
+
+          savedBase64Map.set(base64Data, relativePath);
+          return relativePath;
+        } catch(err) {
+          console.error("Error saving base64 asset:", err);
+          return match;
+        }
+      });
+    };
 
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
@@ -439,56 +502,7 @@ router.post("/save", async (req, res) => {
       }
 
       if (content !== undefined && content !== null) {
-        let processedContent = content;
-        
-        // Extract base64 and save to assets
-        // Handles data:(image|audio|video)/ext;base64,data
-        const base64Regex = /data:(image|audio|video)\/([a-zA-Z0-9-.+]+);base64,([^"'\s\)]+)/g;
-        processedContent = processedContent.replace(base64Regex, (match, type, ext, base64Data) => {
-          if (savedBase64Map.has(base64Data)) {
-            return savedBase64Map.get(base64Data);
-          }
-
-          let subfolder = type;
-          let normalizedExt = ext;
-          if (type === 'image') subfolder = 'Image';
-          if (type === 'audio') subfolder = 'audio';
-          if (ext === 'gif') subfolder = 'gif';
-          if (ext.includes('+')) normalizedExt = ext.split('+')[0]; // e.g. svg+xml -> svg
-          
-          const assetFileName = `${nanoid()}.${normalizedExt}`;
-          const assetSubDir = path.join(assetsDir, subfolder);
-          if (!fs.existsSync(assetSubDir)) fs.mkdirSync(assetSubDir, { recursive: true });
-          
-          const assetPath = path.join(assetSubDir, assetFileName);
-          try {
-            const buffer = Buffer.from(base64Data, 'base64');
-            fs.writeFileSync(assetPath, buffer);
-            const relativePath = `./assets/${subfolder}/${assetFileName}`;
-            
-            // Build absolute URL for DB
-            const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
-            
-            newFlipbookAssets.push({
-              flipbook_v_id: flipbook_v_id,
-              file_v_id: nanoid(),
-              assetType: subfolder,
-              fileName: assetFileName,
-              page_v_id: pageVId,
-              flipbookName: flipbookName,
-              folderName: physicalFolderName,
-              url: absoluteUrl,
-              size: buffer.length
-            });
-
-            savedBase64Map.set(base64Data, relativePath);
-            return relativePath;
-          } catch(err) {
-            console.error("Error saving base64 asset:", err);
-            return match; // fallback to original if failed
-          }
-        });
-
+        const processedContent = extractBase64AndSave(content, pageVId);
         fs.writeFileSync(filePath, processedContent, "utf8");
       } else if (page.contentChunkId) {
         // Reassemble from chunks
@@ -498,12 +512,13 @@ router.post("/save", async (req, res) => {
             return parseInt(a.split('_')[1]) - parseInt(b.split('_')[1]);
           });
           
-          const writeStream = fs.createWriteStream(filePath);
+          let assembledContent = "";
           for (const chunkFile of chunks) {
-            const chunkContent = fs.readFileSync(path.join(tempDir, chunkFile));
-            writeStream.write(chunkContent);
+            assembledContent += fs.readFileSync(path.join(tempDir, chunkFile), "utf8");
           }
-          writeStream.end();
+          
+          const processedContent = extractBase64AndSave(assembledContent, pageVId);
+          fs.writeFileSync(filePath, processedContent, "utf8");
           
           // Cleanup chunks after save (optional, but good practice)
           setTimeout(() => {

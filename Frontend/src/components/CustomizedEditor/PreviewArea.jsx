@@ -2067,23 +2067,32 @@ const PreviewArea = React.memo(({
                 // Step 2: after transition, clear completely
                 setTimeout(() => setInteractionZoom(null), 550);
             } else if (e.data && e.data.type === 'download-file') {
-                try {
-                    const meta = JSON.parse(e.data.value);
-                    if (meta.data) {
+                const forceDownload = async (url, filename) => {
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error("Network error during download");
+                        const blob = await response.blob();
+                        const blobUrl = window.URL.createObjectURL(blob);
                         const link = document.createElement('a');
-                        link.href = meta.data;
-                        link.download = meta.name || 'download';
+                        link.href = blobUrl;
+                        link.download = filename || 'download';
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
+                        window.URL.revokeObjectURL(blobUrl);
+                    } catch (error) {
+                        console.error('Download failed, falling back to open:', error);
+                        window.open(url, '_blank');
+                    }
+                };
+                
+                try {
+                    const meta = JSON.parse(e.data.value);
+                    if (meta.data) {
+                        forceDownload(meta.data, meta.name || 'download');
                     }
                 } catch (err) {
-                    const link = document.createElement('a');
-                    link.href = e.data.value;
-                    link.download = 'download';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
+                    forceDownload(e.data.value, 'download');
                 }
             } else if (e.data && e.data.type === 'show-tooltip') {
                 setActiveTooltip(e.data);
