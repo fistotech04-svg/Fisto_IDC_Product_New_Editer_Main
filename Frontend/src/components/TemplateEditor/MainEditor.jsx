@@ -191,14 +191,28 @@ const svgGlobalStyles = `
     cursor: var(--resizing-cursor, inherit) !important;
   }
 
-   /* Hide intrinsic stroke of existing Free Frames unless they are actively being drawn */
-  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
-    stroke: transparent !important;
-    stroke-width: 0 !important;
+  /* Free Frame rects must always catch pointer events for hover/selection, 
+     even when fill and stroke are transparent (SVG default is visiblePainted which skips transparent elements) */
+  .page-svg-container svg rect[data-name="Free Frame"] {
+    pointer-events: all !important;
+    transition: fill 0.2s ease, stroke 0.2s ease;
   }
 
-  /* Hide Free Frames completely in Animation Mode */
-  .page-svg-container.hide-free-frames [data-name="Free Frame"] {
+  /* By default, hide Free Frame completely (transparent stroke and fill) unless drawing */
+  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]) {
+    stroke: transparent !important;
+    fill: transparent !important;
+  }
+
+  /* On Hover: show light indigo fill (but NOT when selected) */
+  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]):not([data-selected-frame="true"]):hover,
+  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]):not([data-selected-frame="true"])[data-hovered="true"],
+  .page-svg-container svg rect[data-name="Free Frame"]:not([data-drawing="true"]):not([data-selected-frame="true"])[data-child-hovered="true"] {
+    fill: rgba(99, 102, 241, 0.3) !important;
+  }
+
+  /* Hide Free Frames completely in non-interaction/animation mode, but keep visible while being drawn */
+  .page-svg-container.hide-free-frames [data-name="Free Frame"]:not([data-drawing="true"]) {
     display: none !important;
   }
 `;
@@ -584,6 +598,14 @@ const MainEditor = ({
   const [isSpaceDown, setIsSpaceDown] = useState(false);
   const [openMenuIndex, setOpenMenuIndex] = useState(null); // Track which page's menu is open
   const [rotation, setRotation] = useState(0);
+
+  const pdfDefaultsSetRef = useRef(false);
+  useEffect(() => {
+    if (isPdfProject && !pdfDefaultsSetRef.current) {
+      if (setActiveTopTool) setActiveTopTool('interaction');
+      pdfDefaultsSetRef.current = true;
+    }
+  }, [isPdfProject, setActiveTopTool]);
 
   // ── Refs ─────────────────────────────────────────────────────────────
   const isCtrlPressedRef = useRef(false);
@@ -1990,11 +2012,20 @@ const MainEditor = ({
         polygon.setAttribute('fill', 'none');
 
         if (el.getAttribute('data-name') === 'Free Frame') {
-          polygon.setAttribute('stroke', '#000000');
+          if (type === 'hover' || type === 'child-hover') {
+            polygon.setAttribute('stroke', 'transparent');
+          } else {
+            polygon.setAttribute('stroke', '#000000');
+          }
         } else if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && (type === 'selected' || type === 'child-selected')) {
           polygon.setAttribute('stroke', '#000000');
         } else if (type === 'hover' || type === 'child-hover') {
           polygon.setAttribute('stroke', '#6366F1');
+          if (activeTopTool === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
+            polygon.setAttribute('fill', 'rgba(99, 102, 241, 0.3)');
+          } else {
+            polygon.setAttribute('fill', 'none');
+          }
         } else if (type === 'selected' || type === 'child-selected') {
           polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'entered') {
@@ -2463,6 +2494,18 @@ const MainEditor = ({
   useEffect(() => { multiSelectedIdsRef.current = multiSelectedIds; }, [multiSelectedIds]);
   useEffect(() => { updatePageHtmlRef.current = updatePageHtml; }, [updatePageHtml]);
   useEffect(() => { currentFrameIdRef.current = currentFrameId; }, [currentFrameId]);
+
+  useEffect(() => {
+    document.querySelectorAll('rect[data-name="Free Frame"][data-selected-frame="true"]').forEach(el => {
+      el.removeAttribute('data-selected-frame');
+    });
+    multiSelectedIds.forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.getAttribute('data-name') === 'Free Frame') {
+        el.setAttribute('data-selected-frame', 'true');
+      }
+    });
+  }, [multiSelectedIds]);
 
   // ── Listen for interaction badge icon update events ───────────────────────
   useEffect(() => {
@@ -6931,7 +6974,7 @@ const MainEditor = ({
         )}
 
         {/* Floating Menu Button (Top Right Edge for Popup Editor) */}
-        {!isPdfProject && isPopupEditor && (
+        {!isPdfProject && isPopupEditor && activeTopTool !== 'animation' && activeTopTool !== 'interaction' && (
           <div className="absolute right-0 top-[2.5vh] z-50">
             <div className="bg-[#F1F3F4] rounded-l-[0.8vw] border-y border-l border-gray-300 p-[0.3vw] flex flex-col shadow-sm relative">
               {/* Perfect Inverted Corner Top */}
@@ -7368,7 +7411,7 @@ const MainEditor = ({
 
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top) */}
-                {!isPdfProject && !isPopupEditor && ((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
+                {!isPdfProject && !isPopupEditor && activeTopTool !== 'animation' && activeTopTool !== 'interaction' && ((isDoublePage ? spreadStartIndex : activePageIndex) === activePageIndex) && (
                   <div className="absolute top-[-2.5vw] z-30" style={{ [isCurrentlySpread ? 'left' : 'right']: '0vw' }}>
                     <button
                       onClick={(e) => {
@@ -7563,7 +7606,7 @@ const MainEditor = ({
 
               <div className="relative group/page">
                 {/* Page Control Button (Floating Above Top - Right Side) */}
-                {!isPdfProject && !isPopupEditor && ((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
+                {!isPdfProject && !isPopupEditor && activeTopTool !== 'animation' && activeTopTool !== 'interaction' && ((activePageIndex === 0 ? 0 : spreadStartIndex + 1) === activePageIndex) && (
                   <div className="absolute top-[-2.5vw] right-0 z-30">
                     <button
                       onClick={(e) => {

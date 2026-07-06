@@ -6,21 +6,8 @@ import { Icon } from '@iconify/react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getFromDB } from '../../utils/dbUtils';
-import { Canvas } from '@react-three/fiber';
-import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import useDeviceDetection from '../../hooks/useDeviceDetection';
 
-const GlbModelViewer = React.memo(({ url }) => {
-  const { scene } = useGLTF(url);
-  return (
-    <Canvas camera={{ fov: 50, position: [0, 0, 5] }} style={{ background: 'transparent', width: '100%', height: '100%' }}>
-      <Stage environment="city" adjustCamera={1.5} intensity={1}>
-        <primitive object={scene} />
-      </Stage>
-      <OrbitControls makeDefault enableZoom={true} enablePan={true} autoRotate={true} autoRotateSpeed={2} />
-    </Canvas>
-  );
-});
 
 const AttachedCurve = ({ position }) => {
   const isTop = position.includes('top');
@@ -60,9 +47,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
   const params = useParams();
   const v_id = propVId || params.v_id;
   const [localSettings, setLocalSettings] = useState(settings || {});
-  const [active3DModelUrl, setActive3DModelUrl] = useState(null);
-  const [active3DModelVId, setActive3DModelVId] = useState(null);
-  const [active3DModelConfig, setActive3DModelConfig] = useState(null);
+  // 3D model states moved to PreviewArea
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -151,26 +136,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
     return () => window.removeEventListener('previewDeviceChange', handleGlobalDeviceChange);
   }, []);
 
-  useEffect(() => {
-    const handleMessage = (e) => {
-      if (e.data && e.data.type === 'show-3d-viewer' && e.data.url) {
-        let finalUrl = e.data.url;
-        if (typeof finalUrl === 'string' && finalUrl.startsWith('/uploads/')) {
-           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-           finalUrl = `${backendUrl}${finalUrl}`;
-        }
-        setActive3DModelUrl(finalUrl);
-        setActive3DModelVId(e.data.v_id || null);
-        if (e.data.config) {
-           setActive3DModelConfig(e.data.config);
-        } else {
-           setActive3DModelConfig(null);
-        }
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  // 3D viewer is handled natively by PreviewArea now.
 
   const handleDeviceChange = (device) => {
     setActiveDevice(device);
@@ -534,33 +500,7 @@ const FlipbookPreview = ({ pages, pageName, bookName, onClose, isMobile: isMobil
         return settingsContent;
       })()}
 
-      {/* 3D Model Viewer Modal */}
-      {active3DModelUrl && (
-        <div className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-[2vw]">
-          <div className="relative w-full h-full max-w-[80vw] max-h-[80vh] bg-white rounded-[1vw] shadow-2xl flex flex-col overflow-hidden">
-            <div className="absolute top-[1vw] right-[1vw] z-50 flex gap-[1vw]">
-               <button 
-                 onClick={() => setActive3DModelUrl(null)}
-                 className="w-[2.5vw] h-[2.5vw] bg-white hover:bg-gray-100 rounded-full flex items-center justify-center shadow-md transition-colors"
-               >
-                 <Icon icon="lucide:x" className="w-[1.2vw] h-[1.2vw] text-gray-800" />
-               </button>
-            </div>
-            <div className="flex-1 w-full h-full relative">
-              {active3DModelConfig ? (
-                <Interaction3DPreview 
-                   isOpen={true}
-                   dataUrl={active3DModelUrl}
-                   vId={active3DModelVId}
-                   {...active3DModelConfig}
-                />
-              ) : (
-                <GlbModelViewer url={active3DModelUrl} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 3D viewer rendering is handled natively by PreviewArea */}
 
     </div>
   );

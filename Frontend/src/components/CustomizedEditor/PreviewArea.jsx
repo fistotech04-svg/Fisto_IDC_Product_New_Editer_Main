@@ -23,6 +23,9 @@ import Grid6Layout from './Layouts/Grid6Layout';
 import Grid7Layout from './Layouts/Grid7Layout';
 import Grid8Layout from './Layouts/Grid8Layout';
 import Grid9Layout from './Layouts/Grid9Layout';
+
+import Interaction3DPreview from '../TemplateEditor/Interaction3DPreview';
+
 import TabletLayout1 from './Tablet/TabletLayouts/TabletLayout1';
 import GalleryPopup from './popups/GalleryPopup';
 import { getBookmarkClipPath, getBookmarkBorderRadius, getBookmarkSVGPath } from './BookmarkStylesPopup';
@@ -518,7 +521,8 @@ const getInteractionScript = (pageNumber) => `
     [data-interaction="popup"],
     [data-interaction="tooltip"],
     [data-interaction="call"],
-    [data-interaction="audio"] { 
+    [data-interaction="audio"],
+    [data-interaction="3d-viewer"] { 
       cursor: pointer !important; 
     }
   </style>
@@ -1551,6 +1555,9 @@ const PreviewArea = React.memo(({
     useEffect(() => { manualZoomRef.current = manualZoom; }, [manualZoom]);
     const [interactionZoom, setInteractionZoom] = useState(null);
     const [activeTooltip, setActiveTooltip] = useState(null);
+    const [active3DModelUrl, setActive3DModelUrl] = useState(null);
+    const [active3DModelVId, setActive3DModelVId] = useState(null);
+    const [active3DModelConfig, setActive3DModelConfig] = useState(null);
     const [fitScale, setFitScale] = useState(1);
     // Declare isFullscreen here (before the computeFitScale effect that depends on it)
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -2102,6 +2109,19 @@ const PreviewArea = React.memo(({
                 setActivePopupInteraction(e.data);
             } else if (e.data && e.data.type === 'hide-popup-interaction') {
                 setActivePopupInteraction(null);
+            } else if (e.data && e.data.type === 'show-3d-viewer' && e.data.url) {
+                let finalUrl = e.data.url;
+                if (typeof finalUrl === 'string' && finalUrl.startsWith('/uploads/')) {
+                   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                   finalUrl = `${backendUrl}${finalUrl}`;
+                }
+                setActive3DModelUrl(finalUrl);
+                setActive3DModelVId(e.data.v_id || null);
+                if (e.data.config) {
+                   setActive3DModelConfig(e.data.config);
+                } else {
+                   setActive3DModelConfig(null);
+                }
             }
         };
         window.addEventListener('message', handleMessage);
@@ -3670,6 +3690,42 @@ const PreviewArea = React.memo(({
                                         <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
                                     </button>
                                     <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full" dangerouslySetInnerHTML={{ __html: activePopupInteraction.html }} />
+                                </motion.div>
+                            </motion.div>
+                        )}
+                        {active3DModelUrl && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute inset-0 z-[100000] bg-black/80 flex items-center justify-center p-[2vw]"
+                                onClick={() => setActive3DModelUrl(null)}
+                            >
+                                <motion.div
+                                    initial={{ scale: 0.95, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.95, opacity: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
+                                    className="relative w-full h-full max-w-[80vw] max-h-[80vh] bg-white rounded-[1vw] shadow-2xl flex flex-col overflow-hidden pointer-events-auto"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <div className="absolute top-[1vw] right-[1vw] z-50 flex gap-[1vw]">
+                                        <button 
+                                            onClick={() => setActive3DModelUrl(null)}
+                                            className="w-[2.5vw] h-[2.5vw] bg-white hover:bg-gray-100 rounded-full flex items-center justify-center shadow-md transition-colors"
+                                        >
+                                            <Icon icon="lucide:x" className="w-[1.2vw] h-[1.2vw] text-gray-800" />
+                                        </button>
+                                    </div>
+                                    <div className="flex-1 w-full h-full relative">
+                                        <Interaction3DPreview 
+                                           isOpen={true}
+                                           dataUrl={active3DModelUrl}
+                                           vId={active3DModelVId}
+                                           {...(active3DModelConfig || {})}
+                                        />
+                                    </div>
                                 </motion.div>
                             </motion.div>
                         )}

@@ -417,8 +417,19 @@ router.post("/save", async (req, res) => {
     const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
 
     const extractBase64AndSave = (htmlContent, pageVId) => {
+      // Temporarily protect base64 inside tags containing data-name="PDF Background"
+      let protectedContent = htmlContent;
+      const protectedMap = new Map();
+      let placeholderCounter = 0;
+
+      protectedContent = protectedContent.replace(/<(?:image|img)[^>]+data-name=["']PDF Background["'][^>]*>/gi, (match) => {
+        const placeholder = `__PROTECTED_PDF_BG_${placeholderCounter++}__`;
+        protectedMap.set(placeholder, match);
+        return placeholder;
+      });
+
       const base64Regex = /data:([^;]+);base64,([^"&<\s]+)/g;
-      return htmlContent.replace(base64Regex, (match, mimeType, base64Data) => {
+      protectedContent = protectedContent.replace(base64Regex, (match, mimeType, base64Data) => {
         if (savedBase64Map.has(base64Data)) {
           return savedBase64Map.get(base64Data);
         }
@@ -430,7 +441,9 @@ router.post("/save", async (req, res) => {
           actualMimeType = mimeType.replace('download-', '');
         }
 
-        const [type, ext] = actualMimeType.split('/');
+        const parts = actualMimeType ? actualMimeType.split('/') : ['unknown', 'bin'];
+        const type = parts[0] || 'unknown';
+        const ext = parts[1] || 'bin';
         let subfolder = type;
         let normalizedExt = ext;
         
@@ -443,8 +456,8 @@ router.post("/save", async (req, res) => {
           else subfolder = 'download';
         }
         
-        if (ext === 'gif') subfolder = 'gif';
-        if (ext.includes('+')) normalizedExt = ext.split('+')[0];
+        if (!isDownload && ext === 'gif') subfolder = 'gif';
+        if (normalizedExt.includes('+')) normalizedExt = normalizedExt.split('+')[0];
         
         const assetFileName = `${nanoid()}.${normalizedExt}`;
         const assetSubDir = path.join(assetsDir, subfolder);
@@ -477,6 +490,13 @@ router.post("/save", async (req, res) => {
           return match;
         }
       });
+
+      // Restore protected tags
+      for (const [placeholder, originalMatch] of protectedMap.entries()) {
+        protectedContent = protectedContent.replace(placeholder, originalMatch);
+      }
+
+      return protectedContent;
     };
 
     for (let i = 0; i < pages.length; i++) {
@@ -616,7 +636,7 @@ router.post("/save", async (req, res) => {
               const filePath = path.join(flipbookDir, file);
               const content = fs.readFileSync(filePath, "utf8");
               // Extract filenames correctly avoiding HTML entities like &quot;
-              const matches = content.match(/\.\/assets\/(3D_Model|Image|image|gif|video|audio)\/([a-zA-Z0-9_.-]+)/gi);
+              const matches = content.match(/\.\/assets\/(3D_Model|Image|image|gif|video|audio|download)\/([a-zA-Z0-9_.-]+)/gi);
               if (matches) {
                 matches.forEach(m => {
                   const parts = m.split('/');
@@ -631,7 +651,7 @@ router.post("/save", async (req, res) => {
       });
 
       // Now cleanup all asset folders
-      const subFolders = ["3D_Model", "Image", "image", "gif", "video", "audio"];
+      const subFolders = ["3D_Model", "Image", "image", "gif", "video", "audio", "download"];
       for (const subFolder of subFolders) {
         const assetSubDir = path.join(flipbookDir, "assets", subFolder);
         if (fs.existsSync(assetSubDir)) {
@@ -667,7 +687,7 @@ router.post("/save", async (req, res) => {
     // Save Metadata to MongoDB
     // We find by primary keys. We update folderName to include Recent Book if missing.
     // Create Default Assets Folders (just ensuring they exist if they weren't created before)
-    ["Image", "gif", "video", "3D_Model", "audio"].forEach((sub) => {
+    ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
       const subDir = path.join(assetsDir, sub);
       if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
     });

@@ -11,7 +11,7 @@ import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import axios from 'axios';
-
+import { motion, AnimatePresence } from 'framer-motion';
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
   return (
@@ -129,36 +129,38 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
           width: '100%',
           height: '100%',
           border: `1px solid ${borderColor}`,
-          borderRadius: '0.5vw',
-          fontSize: '0.8vw',
+          borderRadius: '0.6vw',
+          fontSize: '0.85vw',
           color: textColor,
           fontWeight: '500',
           paddingLeft: '3.4vw',
           backgroundColor: '#FFFFFF',
           outline: 'none',
-          boxShadow: 'none',
-          transition: 'border-color 0.2s'
+          boxShadow: isUnsavedValid ? '0 0 0 3px rgba(34,197,94,0.15)' : '0 1px 2px rgba(0,0,0,0.05)',
+          transition: 'all 0.3s ease'
         }}
         buttonStyle={{
           backgroundColor: bgColor,
           border: `1px solid ${borderColor}`,
           borderRight: 'none',
-          borderRadius: '0.5vw 0 0 0.5vw',
-          width: '2.8vw',
+          borderRadius: '0.6vw 0 0 0.6vw',
+          width: '3vw',
           height: '100%',
           top: '0',
           left: '0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0'
+          padding: '0',
+          transition: 'all 0.3s ease'
         }}
         dropdownStyle={{
           width: '14vw',
           maxHeight: '20vh',
-          fontSize: '0.75vw',
-          borderRadius: '0.4vw',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          fontSize: '0.8vw',
+          borderRadius: '0.6vw',
+          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+          border: '1px solid #E5E7EB',
           textAlign: 'left'
         }}
       />
@@ -187,7 +189,7 @@ const CallInteractionInput = ({ initialValue, onSave }) => {
 };
 
 
-const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setOpenDropdownId, updateElementAttribute, activePageIndex, setCardActionOverrides }) => {
+const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setOpenDropdownId, updateElementAttribute, activePageIndex, setCardActionOverrides, setItemValueOverrides, setLocalInputValues, setTooltipSettingsOverrides }) => {
   const triggerRef = useRef(null);
   const [dropdownStyles, setDropdownStyles] = useState({});
 
@@ -223,14 +225,14 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       <div
         ref={triggerRef}
         data-dropdown-trigger="true"
-        className="py-[0.8vh] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer hover:bg-gray-200 transition-colors relative select-none"
+        className="py-[0.7vh] bg-white border border-gray-200/80 shadow-sm hover:shadow-md hover:border-[#5145F6]/40 rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] px-[0.8vw] cursor-pointer transition-all duration-300 relative select-none group"
         onClick={(e) => {
           e.stopPropagation();
           setOpenDropdownId(isDropdownOpen ? null : item.id);
         }}
       >
-        <span className="text-[0.9vw] text-gray-700 font-normal font-sans">{currentAction.label}</span>
-        <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" stroke="#4B5563" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <span className="text-[0.85vw] text-gray-700 font-medium font-sans group-hover:text-[#5145F6] transition-colors">{currentAction.label}</span>
+        <svg width="0.8vw" height="0.8vw" viewBox="0 0 24 24" fill="none" className="stroke-gray-500 group-hover:stroke-[#5145F6] transition-colors" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 7h16M16 3l4 4-4 4M20 17H4M8 13l-4 4 4 4" />
         </svg>
       </div>
@@ -238,22 +240,29 @@ const ActionDropdown = ({ item, currentAction, actionTypes, isDropdownOpen, setO
       {isDropdownOpen && dropdownStyles.left && createPortal(
         <div
           data-dropdown-menu="true"
-          className="bg-white border border-gray-200 rounded-[0.6vw] shadow-xl flex flex-col py-[0.5vh] max-h-[39vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 origin-bottom-left"
+          className="bg-white/95 backdrop-blur-md border border-gray-100 rounded-[0.8vw] shadow-[0_12px_40px_rgba(0,0,0,0.12)] flex flex-col p-[0.4vw] max-h-[39vh] overflow-y-auto no-scrollbar animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-200 origin-bottom-left"
           style={dropdownStyles}
         >
           {actionTypes.map(action => (
             <div
               key={action.id}
-              className="flex items-center gap-[0.8vw] px-[1vw] py-[0.7vh] hover:bg-gray-50 cursor-pointer transition-colors"
+              className="flex items-center gap-[0.8vw] px-[0.8vw] py-[0.7vh] rounded-[0.4vw] hover:bg-indigo-50/60 cursor-pointer transition-colors group"
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdownId(null);
                 setCardActionOverrides(prev => ({ ...prev, [item.id]: action.id }));
+                if (setItemValueOverrides) setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                if (setLocalInputValues) setLocalInputValues(prev => ({ ...prev, [item.id]: '' }));
+                if (setTooltipSettingsOverrides) setTooltipSettingsOverrides(prev => ({ ...prev, [item.id]: null }));
 
                 setTimeout(() => {
                   if (updateElementAttribute) {
                     const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                    updateElementAttribute(targetIdx, item.id, 'data-interaction', action.id);
+                    updateElementAttribute(targetIdx, item.id, {
+                      'data-interaction': action.id,
+                      'data-interaction-value': null,
+                      'data-tooltip-settings': null
+                    });
                   }
                   window.dispatchEvent(new CustomEvent('update-interaction-badge', {
                     detail: {
@@ -1085,9 +1094,9 @@ const InteractionPanel = ({
                       detail: { layerId: item.id }
                     }));
                   }}
-                  className={`w-full mx-auto bg-white border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-200 ${isSelected
-                    ? 'border-[#4A3AFF] ring-2 ring-[#4A3AFF]/15 shadow-[0_4px_16px_rgba(74,58,255,0.08)]'
-                    : 'border-gray-200 hover:border-gray-300'
+                  className={`w-full mx-auto bg-white/70 backdrop-blur-md border rounded-[0.8vw] shadow-[0_2px_10px_rgba(0,0,0,0.04)] flex flex-col relative transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] ${isSelected
+                    ? 'border-[#5145F6]/50 ring-2 ring-[#5145F6]/15 bg-white/95'
+                    : 'border-white/40 hover:border-[#5145F6]/30'
                     }`}
                 >
 
@@ -1114,6 +1123,9 @@ const InteractionPanel = ({
                               updateElementAttribute={updateElementAttribute}
                               activePageIndex={activePageIndex}
                               setCardActionOverrides={setCardActionOverrides}
+                              setItemValueOverrides={setItemValueOverrides}
+                              setLocalInputValues={setLocalInputValues}
+                              setTooltipSettingsOverrides={setTooltipSettingsOverrides}
                             />
 
                             {/* Trigger Pill Custom Dropdown */}
@@ -1213,48 +1225,47 @@ const InteractionPanel = ({
                         </svg>
                       </div>
                     </div>
+                  </div>
 
-                    {/* Input Row */}
-                    <div className={isCollapsed ? 'hidden' : 'block'}>
-                      <>
-                        <div className="w-full border-t border-gray-100"></div>
-                        <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[5vh] pb-[5vh]">
-                          {/* Label + Arrow row */}
+                  {/* Input Row */}
+                  <AnimatePresence initial={false}>
+                      {!isCollapsed && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                          animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
+                          exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                          transition={{ duration: 0.3, ease: 'easeInOut' }}
+                          className="bg-gradient-to-b from-gray-50/40 to-transparent"
+                        >
+                          <div className="w-full border-t border-gray-100/60"></div>
+                          <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[4vh] pb-[4vh]">
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
-                              let hasFile = false;
-                              if (resolvedActionId === '3d-viewer' || resolvedActionId === 'download' || resolvedActionId === 'audio' || resolvedActionId === 'popup') {
-                                try {
-                                  if (resolvedValue && resolvedValue.startsWith('{')) hasFile = true;
-                                  if (resolvedActionId === 'popup' && resolvedValue) hasFile = true;
-                                  if (resolvedActionId === 'audio' && resolvedValue) hasFile = true;
-                                } catch (e) {}
-                              }
-
-                              const labelMtValue = 
-                                  resolvedActionId === 'popup' ? (hasFile ? '4vh' : '4vh') :
-                                  resolvedActionId === '3d-viewer' ? (hasFile ? '2.25vh' : '3.5vh') :
-                                  resolvedActionId === 'download' ? (hasFile ? '2.25vh' : '3vh') :
-                                  resolvedActionId === 'audio' ? (hasFile ? '0.8vh' : '2.25vh') :
-                                  resolvedActionId === 'zoom' ? '3vh' :
-                                  resolvedActionId === 'tooltip' ? '1.6vh' :
-                                  resolvedActionId === 'call' ? '0.1vh' : '0vh';
+                              const labelMarginClass = 
+                                ['download', 'audio', '3d-viewer', 'popup', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
+                                resolvedActionId === 'tooltip' ? 'mt-[1.6vh]' :
+                                resolvedActionId === 'call' ? 'mt-[0.1vh]' : 'mt-0';
+                              
+                              const hasAudioFile = resolvedActionId === 'audio' && !!resolvedValue;
+                              const shouldStretchArrow = resolvedActionId === 'tooltip' || hasAudioFile;
 
                               return (
-                                <div 
-                                  className="flex items-center gap-[0.5vw]"
-                                  style={{ marginTop: labelMtValue }}
-                                >
-                                  <div className="h-[4vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center flex-shrink-0 max-w-[7vw] overflow-hidden">
-                                    <span className="text-[0.75vw] text-gray-600 font-medium truncate">{item.label}</span>
+                                <>
+                                  <div className={`flex items-center transition-all duration-300 flex-shrink-0 ${labelMarginClass}`}>
+                                    <div className="h-[4vh] px-[0.8vw] bg-[#F3F4F6] rounded-[0.5vw] flex items-center justify-center max-w-[7vw] overflow-hidden">
+                                      <span className="text-[0.75vw] text-gray-600 font-medium truncate">{item.label}</span>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center justify-center px-[0.2vw] text-[#9CA3AF]">
-                                    <svg width="1.6vw" height="0.8vw" viewBox="0 0 24 12" fill="none">
-                                      <path d="M0 6h18" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />
-                                      <path d="M16 2l6 4-6 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                  
+                                  <div className={`flex items-center text-[#9CA3AF] transition-all duration-300 ${shouldStretchArrow ? 'flex-1 mx-[0.5vw]' : 'flex-shrink-0 ml-[0.5vw] mr-[0.2vw] w-[1.6vw]'} ${labelMarginClass} h-[4vh]`}>
+                                    <svg width="100%" height="2" className={`${shouldStretchArrow ? 'flex-1' : 'w-full'} mr-[-1px]`} preserveAspectRatio="none">
+                                      <line x1="0" y1="1" x2="100%" y2="1" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />
+                                    </svg>
+                                    <svg width="0.6vw" height="0.8vw" viewBox="0 0 8 12" fill="none" className="flex-shrink-0">
+                                      <path d="M1 2l6 4-6 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                                     </svg>
                                   </div>
-                                </div>
+                                </>
                               );
                             })()}
 
@@ -1395,7 +1406,7 @@ const InteractionPanel = ({
                               })()
                             ) : resolvedActionId === 'tooltip' ? (
                               <div
-                                className="flex-grow flex items-center justify-end"
+                                className="flex-1 flex items-center justify-end"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setActiveLayerId(item.id);
@@ -1433,7 +1444,7 @@ const InteractionPanel = ({
                                 const hasAudio = !!resolvedValue;
                                 const audioName = audioMeta ? audioMeta.name : (resolvedValue ? resolvedValue.split('/').pop() : 'Audio File');
                                 return (
-                                  <div className="flex-grow flex flex-col items-end justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
+                                  <div className="flex-1 flex flex-col items-end justify-center gap-[0.5vh]" onClick={(e) => e.stopPropagation()}>
                                     <input
                                       type="file"
                                       id={`audio-upload-${item.id}`}
@@ -2108,12 +2119,9 @@ const InteractionPanel = ({
                             </div>
                           )}
                         </div>
-                      </>
-                    </div>
-                  </div>
 
                   {/* Card Footer (Highlight Component) */}
-                  <div className={`bg-white border-t border-gray-100 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw] ${isCollapsed ? 'hidden' : 'flex'}`}>
+                  <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
                       <div className="flex items-center gap-[0.6vw]">
                         {/* Custom Radio Button */}
                         <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-full border-[0.15vw] border-[#5145F6] flex items-center justify-center bg-white">
@@ -2171,7 +2179,9 @@ const InteractionPanel = ({
                         <Icon icon="material-symbols-light:delete-outline-rounded" className="text-[1.5vw]" />
                       </button>
                     </div>
-
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                 </div>
               );
             })
