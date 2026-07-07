@@ -541,9 +541,14 @@ const getInteractionScript = (pageNumber) => `
                 }
                 return null;
             };
+            let lastInteractionTime = 0;
             const handleStart = (e) => {
                const el = findInteractionEl(e.target);
                if (el) {
+                   const now = Date.now();
+                   if (now - lastInteractionTime < 300) return;
+                   lastInteractionTime = now;
+                   
                    const type = el.dataset.interaction || el.getAttribute('data-interaction');
                    const value = el.dataset.interactionValue || el.getAttribute('data-interaction-value');
                    if ((type === 'link' || type === 'open-link') && value) {
@@ -692,8 +697,9 @@ const getInteractionScript = (pageNumber) => `
                         }
                     }
                } else {
-                    // Forward mousedown to parent for dragging
-                    try {
+                    // Forward mousedown to parent for dragging (only for mouse/touch down, not click)
+                    if (e.type === 'mousedown' || e.type === 'touchstart') {
+                        try {
                         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
                         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
                         window.parent.postMessage({
@@ -704,10 +710,12 @@ const getInteractionScript = (pageNumber) => `
                         }, '*');
                     } catch (err) {}
                }
+                }
             };
             
             document.addEventListener('mousedown', handleStart);
             document.addEventListener('touchstart', handleStart, { passive: true });
+            document.addEventListener('click', handleStart);
 
             // Hover logic for tooltips
             const handleHover = (e, isEnter) => {

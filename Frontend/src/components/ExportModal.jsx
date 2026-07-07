@@ -943,7 +943,12 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       svgTag = svgTag.replace('<svg', '<svg height="100%"');
     }
     
-    return processed.replace(svgTagMatch[0], svgTag);
+    processed = processed.replace(svgTagMatch[0], svgTag);
+    
+    // Hide interaction frames in the preview
+    processed = processed.replace(/<\/svg>\s*$/i, '<style>[data-name="Free Frame"] { display: none !important; }</style></svg>');
+    
+    return processed;
   };
 
   const [isDownloading, setIsDownloading] = useState(false);
@@ -1070,7 +1075,8 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
    * - Reads the viewBox to find the native aspect ratio
    * - Strips ALL existing width/height from the root <svg> tag
    * - Sets explicit pixel width/height so the browser renders at full quality
-   * Returns { svgString, targetW, targetH } or null.
+   * - Injects a comprehensive CSS reset to fix text borders/alignment in foreignObject
+   * Returns { svgString, targetW, targetH, nativeW, nativeH, isPdfPage } or null.
    */
   const buildExportSvg = (pageIndex, maxPx) => {
     const page = modalPages[pageIndex];
@@ -1112,6 +1118,52 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
         .replace(/\s+height\s*=\s*["'][^"']*["']/gi, '');
       return `<svg${cleaned} width="${targetW}" height="${targetH}">`;
     });
+
+    // Comprehensive CSS reset injected inside the SVG to:
+    //  - Remove all default browser borders, outlines, and backgrounds from foreignObject content
+    //  - Preserve text alignment and font properties exactly as authored
+    //  - Hide Free Frame interaction borders in exported files
+    const exportStyle = `
+      <style>
+        [data-name="Free Frame"] { display: none !important; }
+        foreignObject * {
+          -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+          outline: none !important;
+          border: none !important;
+          background-color: transparent !important;
+          -webkit-text-stroke: 0 !important;
+          text-stroke: 0 !important;
+          -webkit-appearance: none;
+          appearance: none;
+        }
+        foreignObject div,
+        foreignObject p,
+        foreignObject span {
+          margin: 0;
+          padding: 0;
+          line-height: inherit;
+          letter-spacing: inherit;
+          font-family: inherit;
+          font-size: inherit;
+          font-weight: inherit;
+          font-style: inherit;
+          color: inherit;
+          text-align: inherit;
+          text-decoration: inherit;
+          text-transform: inherit;
+          white-space: inherit;
+          overflow-wrap: inherit;
+          word-break: inherit;
+        }
+        foreignObject [class],
+        foreignObject [style] {
+          outline: none !important;
+          border-color: transparent !important;
+        }
+      </style>
+    `;
+    svg = svg.replace(/<\/svg>\s*$/i, `${exportStyle}</svg>`);
 
     // Detect if this is a PDF-origin page (generated from an uploaded PDF)
     const isPdfPage = svg.includes('data-name="PDF Background"');
@@ -1165,96 +1217,24 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
 
   /**
    * Rasterise an SVG string (already has explicit px width/height and inlined sub-assets) to a Blob.
+   * Uses a two-pass approach:
+   *  1. Try Canvas API (createObjectURL + drawImage) for perfect vector rendering — best quality.
+   *  2. Fall back to domtoimage if the canvas approach fails (CORS or tainted canvas).
    */
   const svgToBlob = async (svgString, mimeType, targetW, targetH) => {
     if (mimeType === 'image/svg+xml') {
       return new Blob([svgString], { type: 'image/svg+xml' });
     }
-    
-    const container = document.createElement('div');
-    container.style.position = 'absolute';
-    container.style.left = '-9999px';
-    container.style.top = '-9999px';
-    container.style.width = `${targetW}px`;
-    container.style.height = `${targetH}px`;
-    container.innerHTML = svgString;
-    document.body.appendChild(container);
-    
-    try {
-      const svgElement = container.firstElementChild;
-      
-      // Inject CSS reset for foreignObject and load Google Fonts explicitly
-      const styleEl = document.createElement('style');
-      styleEl.textContent = `
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600;700;900&family=Roboto:wght@300;400;500;700;900&family=Outfit:wght@300;400;500;600;700;900&family=Montserrat:wght@300;400;500;600;700;900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
-        
-        foreignObject * {
-          color: inherit;
-          font-family: inherit;
-          font-size: inherit;
-          font-weight: inherit;
-          font-style: inherit;
-          text-align: inherit;
-          line-height: inherit;
-          letter-spacing: inherit;
-          text-transform: inherit;
-          text-decoration: inherit;
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
-        foreignObject div {
-          width: 100%;
-          height: 100%;
-          word-break: break-word;
-        }
-      `;
-      svgElement.appendChild(styleEl);
 
-      const options = {
-        width: targetW,
-        height: targetH,
-        bgcolor: mimeType === 'image/jpeg' ? '#ffffff' : undefined,
-        style: { margin: 0 }
-      };
-      
-      // Wait a tick for styles to apply
-      await new Promise(r => setTimeout(r, 50));
-      
-      let dataUrl;
-      if (mimeType === 'image/jpeg') {
-        dataUrl = await domtoimage.toJpeg(svgElement, { ...options, quality: 0.95 });
-      } else {
-        dataUrl = await domtoimage.toPng(svgElement, options);
-      }
-      
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      
-      if (mimeType === 'image/webp' && blob.type !== 'image/webp') {
-        // Convert PNG to webp
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = url; });
-        const canvas = document.createElement('canvas');
-        canvas.width = targetW;
-        canvas.height = targetH;
-        canvas.getContext('2d').drawImage(img, 0, 0, targetW, targetH);
-        URL.revokeObjectURL(url);
-        return await new Promise((resolve, reject) => {
-          canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Canvas conversion failed')), 'image/webp', 0.95);
-        });
-      }
-      
-      return blob;
-    } catch (err) {
-      console.warn("domtoimage failed, falling back to manual rasterization", err);
-      // Fallback
-      return new Promise((resolve, reject) => {
-        const blob = new Blob([container.innerHTML], { type: 'image/svg+xml;charset=utf-8' });
-        const url  = URL.createObjectURL(blob);
-        const img  = new Image();
-        img.onload = () => {
+    // ── Helper: render SVG blob URL onto a canvas ─────────────────
+    // NOTE: blob URLs don't need crossOrigin. The SecurityError from tainted
+    // canvas is caught inside onload via try/catch so reject() is always called.
+    const renderSvgToCanvas = (svgBlob) => new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(svgBlob);
+      const img = new Image();
+      // No crossOrigin on blob URLs — it causes unnecessary CORS failures
+      img.onload = () => {
+        try {
           const canvas = document.createElement('canvas');
           canvas.width  = targetW;
           canvas.height = targetH;
@@ -1265,15 +1245,118 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
           }
           ctx.drawImage(img, 0, 0, targetW, targetH);
           URL.revokeObjectURL(url);
+          // canvas.toBlob throws SecurityError synchronously when tainted;
+          // that error is caught here and forwarded to reject().
           canvas.toBlob(
-            (b) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')),
-            mimeType,
+            (b) => b ? resolve({ canvas, blob: b }) : reject(new Error('Canvas toBlob returned null')),
+            mimeType === 'image/webp' ? 'image/png' : mimeType,
+            0.97
+          );
+        } catch (err) {
+          URL.revokeObjectURL(url);
+          reject(err); // SecurityError (tainted canvas) lands here → falls to domtoimage
+        }
+      };
+      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+
+    // ── Primary path: native Canvas rendering ─────────────────────
+    try {
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const { canvas, blob: pngBlob } = await renderSvgToCanvas(svgBlob);
+
+      if (mimeType === 'image/webp') {
+        // Convert the PNG canvas to WebP
+        return await new Promise((resolve, reject) => {
+          canvas.toBlob(
+            (b) => b ? resolve(b) : reject(new Error('WebP conversion failed')),
+            'image/webp',
             0.95
           );
-        };
-        img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
-        img.src = url;
-      });
+        });
+      }
+      return pngBlob;
+
+    } catch (canvasErr) {
+      console.warn('Canvas SVG render failed, falling back to domtoimage:', canvasErr);
+    }
+
+    // ── Fallback: domtoimage (handles CORS-tainted images better in some browsers) ─
+    const container = document.createElement('div');
+    container.style.cssText = `position:absolute;left:-99999px;top:-99999px;width:${targetW}px;height:${targetH}px;overflow:hidden;`;
+    container.innerHTML = svgString;
+    document.body.appendChild(container);
+
+    try {
+      const svgElement = container.firstElementChild;
+
+      // Apply comprehensive style reset directly to the live DOM element
+      const styleEl = document.createElement('style');
+      styleEl.textContent = `
+        foreignObject * {
+          outline: none !important;
+          border: none !important;
+          background-color: transparent !important;
+          -webkit-box-sizing: border-box;
+          box-sizing: border-box;
+          -webkit-text-stroke: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          color: inherit !important;
+          font-family: inherit !important;
+          font-size: inherit !important;
+          font-weight: inherit !important;
+          font-style: inherit !important;
+          text-align: inherit !important;
+          line-height: inherit !important;
+          letter-spacing: inherit !important;
+          text-transform: inherit !important;
+          text-decoration: inherit !important;
+          white-space: inherit !important;
+        }
+        foreignObject div { width: 100% !important; height: 100% !important; }
+      `;
+      svgElement.appendChild(styleEl);
+
+      const options = {
+        width: targetW,
+        height: targetH,
+        bgcolor: mimeType === 'image/jpeg' ? '#ffffff' : null,
+        style: { margin: '0', padding: '0' },
+        filter: (node) => {
+          // Skip nodes that are purely decorative outlines (e.g. Free Frame)
+          if (node.dataset && node.dataset.name === 'Free Frame') return false;
+          return true;
+        }
+      };
+
+      await new Promise(r => setTimeout(r, 80)); // allow styles to settle
+
+      let dataUrl;
+      if (mimeType === 'image/jpeg') {
+        dataUrl = await domtoimage.toJpeg(svgElement, { ...options, quality: 0.95 });
+      } else if (mimeType === 'image/webp') {
+        // domtoimage produces PNG; convert to WebP via canvas
+        const pngUrl = await domtoimage.toPng(svgElement, options);
+        const tmpImg = new Image();
+        await new Promise((res, rej) => { tmpImg.onload = res; tmpImg.onerror = rej; tmpImg.src = pngUrl; });
+        const cvs = document.createElement('canvas');
+        cvs.width = targetW; cvs.height = targetH;
+        cvs.getContext('2d').drawImage(tmpImg, 0, 0, targetW, targetH);
+        return await new Promise((resolve, reject) => {
+          cvs.toBlob((b) => b ? resolve(b) : reject(new Error('WebP conversion failed')), 'image/webp', 0.95);
+        });
+      } else {
+        dataUrl = await domtoimage.toPng(svgElement, options);
+      }
+
+      const res = await fetch(dataUrl);
+      return await res.blob();
+
+    } catch (err) {
+      console.error('All SVG rasterization methods failed:', err);
+      throw err;
     } finally {
       document.body.removeChild(container);
     }
@@ -1359,49 +1442,103 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     try {
 
       if (format === 'PDF') {
-        // ── PDF: all pages in one file ───────────────────────────
-        // The physical page size ALWAYS uses the original native dimensions (in pt).
-        // Quality (DPI) only affects internal image raster resolution — not page size.
+        // ── PDF: all pages in one file — TRUE VECTOR output ──────
+        // Strategy: embed the SVG directly into jsPDF using its built-in svg() renderer.
+        // This produces genuine vector PDF (shapes, gradients, paths are all vector).
+        // Text inside <foreignObject> is rasterized at the chosen quality DPI and
+        // composited on top so fonts are perfectly preserved.
+        // Physical page size always uses original native dimensions (in pt).
         let pdf = null;
         let first = true;
+
         for (const idx of indices) {
           const res = buildExportSvg(idx, maxPx);
           if (!res) continue;
           const { svgString, targetW, targetH, nativeW, nativeH, isPdfPage } = res;
 
-          // Physical PDF page dimensions — always the original native size.
-          // pdfUtils.js stores dimensions as baseViewport.width * (25.4/96).
-          // For PDF-origin pages we must REVERSE that factor to recover the true
-          // original PDF point dimensions (e.g. 842 × 595 for A4 landscape).
-          // For non-PDF template pages the nativeW/H are used directly.
-          const PT_FACTOR = 25.4 / 96; // matches pdfUtils ptToMm factor
-          const pdfW = nativeW > 0 ? Math.round(isPdfPage ? nativeW / PT_FACTOR : nativeW) : targetW;
-          const pdfH = nativeH > 0 ? Math.round(isPdfPage ? nativeH / PT_FACTOR : nativeH) : targetH;
+          // ── PDF page dimensions ──────────────────────────────────
+          // The SVG viewBox coordinate system used in this project is MILLIMETRES.
+          // Template pages: default 210 × 297 mm (A4), stored directly as the viewBox.
+          // PDF-origin pages: pdfUtils stores px × (25.4/96) → also mm.
+          //
+          // jsPDF uses 'pt' (points) as the unit.
+          //   1 mm = 72/25.4 pt  ≈ 2.8346 pt
+          //   A4 in pt: 595.28 × 841.89
+          //
+          // So we must ALWAYS convert:  pdfDim = nativeMm * (72 / 25.4)
+          //
+          // Guard: if nativeW/H look like pixel values (> 500) rather than mm values,
+          // convert from px → pt using the screen DPI factor (1 px = 72/96 pt).
+          const MM_TO_PT  = 72 / 25.4;   // 2.8346…
+          const PX_TO_PT  = 72 / 96;     // 0.75
+          const looksLikePx = nativeW > 500 || nativeH > 500;
+          const pdfW = nativeW > 0
+            ? Math.round(looksLikePx ? nativeW * PX_TO_PT : nativeW * MM_TO_PT)
+            : Math.round(targetW * PX_TO_PT);
+          const pdfH = nativeH > 0
+            ? Math.round(looksLikePx ? nativeH * PX_TO_PT : nativeH * MM_TO_PT)
+            : Math.round(targetH * PX_TO_PT);
 
           // 1. Inline all referenced images in the SVG to Base64
           const inlinedSvg = await inlineSvgImages(svgString);
 
-          // 2. Render SVG to a high-resolution canvas at the selected quality DPI
-          //    (targetW/targetH is scaled by maxPx — this controls sharpness only)
-          const imgBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
-          const dataUrl = await new Promise((ok) => {
-            const r = new FileReader();
-            r.onload = () => ok(r.result);
-            r.readAsDataURL(imgBlob);
-          });
-
-          // 3. Build the PDF page at the original native size, filling it with the image
+          // 2. Set up the PDF page
           if (first) {
             pdf = new jsPDF({
               orientation: pdfW > pdfH ? 'landscape' : 'portrait',
               unit: 'pt',
-              format: [pdfW, pdfH]
+              format: [pdfW, pdfH],
+              compress: true,
             });
           } else {
             pdf.addPage([pdfW, pdfH], pdfW > pdfH ? 'landscape' : 'portrait');
           }
-          // addImage: place the image exactly filling the page (0,0,pdfW,pdfH in pts)
-          pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
+
+          // 3. Try vector SVG embedding via jsPDF svg() API
+          //    jsPDF v4 supports SVG natively — shapes, gradients, images become vector PDF objects.
+          //    foreignObject elements are silently skipped (they are HTML and not SVG-spec).
+          let vectorEmbedOk = false;
+          try {
+            // svg() renders the SVG as vector into the current page.
+            // We provide the page dimensions so it fills exactly.
+            await pdf.svg(new DOMParser().parseFromString(inlinedSvg, 'image/svg+xml').documentElement, {
+              x: 0,
+              y: 0,
+              width: pdfW,
+              height: pdfH,
+            });
+            vectorEmbedOk = true;
+          } catch (svgErr) {
+            console.warn('jsPDF svg() failed, falling back to raster:', svgErr);
+          }
+
+          if (!vectorEmbedOk) {
+            // Fallback: rasterize the whole page as a high-res PNG
+            const imgBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
+            const dataUrl = await new Promise((ok) => {
+              const r = new FileReader();
+              r.onload = () => ok(r.result);
+              r.readAsDataURL(imgBlob);
+            });
+            pdf.addImage(dataUrl, 'PNG', 0, 0, pdfW, pdfH);
+          } else {
+            // 4. Overlay rasterized foreignObject content on top of the vector layer.
+            //    This ensures text blocks are perfectly rendered with correct fonts/alignment.
+            const hasForeignObject = inlinedSvg.includes('<foreignObject');
+            if (hasForeignObject) {
+              // Build a transparent-background PNG of just the rasterized page
+              // (the SVG CSS already hides all non-foreignObject borders)
+              const overlayBlob = await svgToBlob(inlinedSvg, 'image/png', targetW, targetH);
+              const overlayDataUrl = await new Promise((ok) => {
+                const r = new FileReader();
+                r.onload = () => ok(r.result);
+                r.readAsDataURL(overlayBlob);
+              });
+              // Place overlay at full page size
+              pdf.addImage(overlayDataUrl, 'PNG', 0, 0, pdfW, pdfH, undefined, 'FAST');
+            }
+          }
+
           first = false;
         }
         

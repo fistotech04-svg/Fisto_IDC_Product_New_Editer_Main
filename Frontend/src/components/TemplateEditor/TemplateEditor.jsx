@@ -592,6 +592,22 @@ const TemplateEditor = () => {
           console.error('Error processing 3D models or assets in page before save', err);
         }
 
+        if (newHtml && !newHtml.includes('id="global-fonts-style"')) {
+          const fontsStyle = `<style id="global-fonts-style">
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;900&amp;family=Inter:wght@300;400;500;600;700;900&amp;family=Roboto:wght@300;400;500;700;900&amp;family=Outfit:wght@300;400;500;600;700;900&amp;family=Montserrat:wght@300;400;500;600;700;900&amp;family=Playfair+Display:ital,wght@0,400..900;1,400..900&amp;family=Nunito+Sans:wght@300;400;500;600;700;900&amp;display=swap');
+@font-face { font-family: 'Designer_Signature'; src: url('${window.location.origin}/lib/Fonts/designer_signature/Designer_Signature.otf') format('opentype'); }
+@font-face { font-family: 'Open Sans'; src: url('${window.location.origin}/lib/Fonts/Open_Sans/OpenSans-VariableFont_wdth,wght.ttf') format('truetype'); }
+@font-face { font-family: 'Lato'; src: url('${window.location.origin}/lib/Fonts/Lato/Lato-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Oswald'; src: url('${window.location.origin}/lib/Fonts/Oswald/Oswald-VariableFont_wght.ttf') format('truetype'); }
+@font-face { font-family: 'Merriweather'; src: url('${window.location.origin}/lib/Fonts/Merriweather/Merriweather-VariableFont_opsz,wdth,wght.ttf') format('truetype'); }
+</style>`;
+          if (newHtml.includes('<defs>')) {
+            newHtml = newHtml.replace('<defs>', '<defs>' + fontsStyle);
+          } else {
+            newHtml = newHtml.replace(/<svg[^>]*>/i, '$&<defs>' + fontsStyle + '</defs>');
+          }
+        }
+
         return { ...p, html: newHtml };
       }));
 
@@ -744,7 +760,7 @@ const TemplateEditor = () => {
   // Listen for the select-layer custom event to select elements by ID
   useEffect(() => {
     const handleSelectLayer = (e) => {
-      const targetLayerId = e.detail?.layerId;
+      const targetLayerId = e.detail?.layerId || (e.detail?.ids && e.detail.ids.length > 0 ? e.detail.ids[0] : null);
       if (targetLayerId) {
         // Find which page this layer belongs to
         let foundIdx = -1;

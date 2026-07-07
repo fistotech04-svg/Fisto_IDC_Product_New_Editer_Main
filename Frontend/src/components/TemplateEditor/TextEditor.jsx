@@ -18,7 +18,8 @@ import {
 const fontFamilies = [
   'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
   'Helvetica', 'Poppins', 'Roboto', 'Open Sans', 'Lato', 'Montserrat',
-  'Inter', 'Playfair Display', 'Oswald', 'Merriweather'
+  'Inter', 'Playfair Display', 'Oswald', 'Merriweather',
+  'Designer_Signature'
 ];
 
 const fontWeights = [
@@ -871,6 +872,10 @@ const TextEditor = ({
       if (styleProp || attribute === 'data-stroke-position') {
         if (liveTag === 'foreignobject') {
           if (liveEl.firstElementChild && styleProp) {
+            let applyVal = finalVal;
+            if (styleProp === 'fontFamily' && typeof applyVal === 'string' && !applyVal.includes("'") && !applyVal.includes('"')) {
+               applyVal = `'${applyVal}'`;
+            }
             if (styleProp === 'stroke') {
               liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
               Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', finalVal, 'important'));
@@ -880,8 +885,8 @@ const TextEditor = ({
             } else {
               const liveProp = styleProp === 'fill' ? 'color' : styleProp;
               const cssPropName = liveProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
-              liveEl.firstElementChild.style.setProperty(cssPropName, finalVal, 'important');
-              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(cssPropName, finalVal, 'important'));
+              liveEl.firstElementChild.style.setProperty(cssPropName, applyVal, 'important');
+              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(cssPropName, applyVal, 'important'));
             }
             
             // General Auto-resize for layout-affecting properties
@@ -908,6 +913,10 @@ const TextEditor = ({
           }
         } else {
           if (styleProp) {
+            let applyVal = finalVal;
+            if (styleProp === 'fontFamily' && typeof applyVal === 'string' && !applyVal.includes("'") && !applyVal.includes('"')) {
+               applyVal = `'${applyVal}'`;
+            }
             if (styleProp === 'strokeWidth') {
               liveEl.setAttribute('stroke-width', value);
               liveEl.style.setProperty('stroke-width', `${value}px`, 'important');
@@ -920,7 +929,7 @@ const TextEditor = ({
               liveEl.style.setProperty(attrName, value, 'important');
             } else {
               const cssPropName = styleProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
-              liveEl.style.setProperty(cssPropName, finalVal, 'important');
+              liveEl.style.setProperty(cssPropName, applyVal, 'important');
             }
           }
           if (attribute === 'fill' || attribute === 'stroke') {
@@ -967,8 +976,12 @@ const TextEditor = ({
         const svgRoot = liveEl.ownerSVGElement || liveEl.closest('svg');
         const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
         if (overlay) {
+          let overlayVal = finalVal;
+          if (styleProp === 'fontFamily' && typeof overlayVal === 'string' && !overlayVal.includes("'") && !overlayVal.includes('"')) {
+             overlayVal = `'${overlayVal}'`;
+          }
           const overlayProp = styleProp === 'fill' ? 'color' : styleProp;
-          overlay.style.setProperty(overlayProp, finalVal, 'important');
+          overlay.style.setProperty(overlayProp, overlayVal, 'important');
         }
       }
 
@@ -2082,13 +2095,13 @@ const TextEditor = ({
             onClick={() => setShowFontDropdown(!showFontDropdown)}
             className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
           >
-            <span className="text-[0.85vw] truncate" style={{ fontFamily }}>{fontFamily}</span>
+            <span className="text-[0.85vw] truncate" style={{ fontFamily: `'${fontFamily}'` }}>{fontFamily === 'Designer_Signature' ? 'Designer Signature' : fontFamily}</span>
             <ChevronDown size="1vw" className="text-gray-500" />
           </button>
           {showFontDropdown && (
             <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-[0.75vw] shadow-lg max-h-[12vw] overflow-y-auto">
               {fontFamilies.map(font => (
-                <div key={font} onClick={() => { updateStyle('fontFamily', font); setShowFontDropdown(false); }} className="px-[0.75vw] py-[0.4vw] hover:bg-gray-100 cursor-pointer text-[0.85vw]" style={{ fontFamily: font }}>{font}</div>
+                <div key={font} onClick={() => { updateStyle('fontFamily', font); setShowFontDropdown(false); }} className="px-[0.75vw] py-[0.4vw] hover:bg-gray-100 cursor-pointer text-[0.85vw]" style={{ fontFamily: `'${font}'` }}>{font === 'Designer_Signature' ? 'Designer Signature' : font}</div>
               ))}
             </div>
           )}

@@ -101,6 +101,28 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
     useEffect(() => { onFlipRef.current = onFlip; }, [onFlip]);
     useEffect(() => { onTurningRef.current = onTurning; }, [onTurning]);
 
+    const isProgrammaticRef = useRef(false);
+
+    // Helper to focus the active iframe after a page turn, preventing the "first click is swallowed" bug
+    const refocusActiveIframe = useCallback((logicalPage) => {
+        try {
+            if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+            const wrapper = document.querySelector('.fbe-wrapper');
+            if (!wrapper) return;
+            
+            // Focus the active pages based on the logical page index
+            const p1 = logicalPage + 1;
+            const p2 = logicalPage + 2;
+            const iframes = wrapper.querySelectorAll(`iframe[title="Page ${p1}"], iframe[title="Page ${p2}"]`);
+            
+            for (let i = 0; i < iframes.length; i++) {
+                const iframe = iframes[i];
+                iframe.focus();
+                if (iframe.contentWindow) iframe.contentWindow.focus();
+            }
+        } catch (err) {}
+    }, []);
+
     // The broken IFRAME_MOUSEMOVE listener was removed because it was blasting turn.js with invalid coordinates.
 
     /* ── Engine-selection logic ── */
@@ -425,7 +447,8 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
             autoCenter: false,
             when: {
                 start: (e, pageObject, corner) => {
-                    if (bookEl.current) bookEl.current.classList.add('fbe-is-dragging');
+                    // Only apply dragging overlay if it's a manual drag (corner is provided)
+                    if (bookEl.current && corner) bookEl.current.classList.add('fbe-is-dragging');
                     // Prevent peel animation for the last page of an odd-numbered flipbook
                     if (!singlePage && augmented.length % 2 !== 0) {
                         // pageObject.page is the 1-based page being dragged.
@@ -452,6 +475,12 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                     setCurrentPage(logical);
                     // Use the ref so we always call the latest onFlip from PreviewArea
                     if (onFlipRef.current) onFlipRef.current({ data: logical });
+                    
+                    // Remove dragging class to restore iframe pointer events after programmatic flip
+                    if (bookEl.current) bookEl.current.classList.remove('fbe-is-dragging');
+                    document.querySelectorAll('.fbe-is-dragging').forEach(el => el.classList.remove('fbe-is-dragging'));
+                    
+                    refocusActiveIframe(logical);
                 },
             },
         });
@@ -478,32 +507,43 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
 
     /* ── Imperative API (exposed via ref) ── */
     const flipNextFn = useCallback(() => {
+        // Force blur the navigation button so the iframe can receive interactions natively
+        if (document.activeElement) document.activeElement.blur();
+        
         // Block auto-turning past the last page if the pages count is odd
         if (!singlePage && pages.length % 2 !== 0 && currentPage >= pages.length - 2) {
             return;
         }
 
+        isProgrammaticRef.current = true;
         if (showingTurnJs && bookEl.current && window.jQuery) {
             window.jQuery(bookEl.current).turn('next');
         } else if (showingReactFlip && reactFlipRef.current) {
             reactFlipRef.current.pageFlip().flipNext();
         }
+        setTimeout(() => isProgrammaticRef.current = false, 50);
     }, [showingTurnJs, showingReactFlip, pages.length, singlePage, currentPage]);
 
     const flipPrevFn = useCallback(() => {
+        if (document.activeElement) document.activeElement.blur();
+
+        isProgrammaticRef.current = true;
         if (showingTurnJs && bookEl.current && window.jQuery) {
             window.jQuery(bookEl.current).turn('previous');
         } else if (showingReactFlip && reactFlipRef.current) {
             reactFlipRef.current.pageFlip().flipPrev();
         }
+        setTimeout(() => isProgrammaticRef.current = false, 50);
     }, [showingTurnJs, showingReactFlip]);
 
     const flipToPageFn = useCallback((idx) => {
+        isProgrammaticRef.current = true;
         if (showingTurnJs && bookEl.current && window.jQuery) {
             window.jQuery(bookEl.current).turn('page', idx + 1);
         } else if (reactFlipRef.current) {
             reactFlipRef.current.pageFlip().turnToPage(idx);
         }
+        setTimeout(() => isProgrammaticRef.current = false, 50);
     }, [showingTurnJs]);
 
     useImperativeHandle(ref, () => ({
@@ -730,7 +770,7 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                             onChangeState={(e) => {
                                 const wrapper = document.querySelector('.fbe-react-wrapper');
                                 if (wrapper) {
-                                    if (e.data !== 'read') wrapper.classList.add('fbe-is-dragging');
+                                    if (e.data !== 'read' && !isProgrammaticRef.current) wrapper.classList.add('fbe-is-dragging');
                                     else wrapper.classList.remove('fbe-is-dragging');
                                 }
                             }}
@@ -739,6 +779,13 @@ const FlipBookEngine = forwardRef(function FlipBookEngine(
                                 const logical = e.data;
                                 setCurrentPage(logical);
                                 if (onFlipRef.current) onFlipRef.current({ data: logical });
+                                
+                                // Remove dragging class to restore iframe pointer events
+                                const wrapper = document.querySelector('.fbe-react-wrapper');
+                                if (wrapper) wrapper.classList.remove('fbe-is-dragging');
+                                document.querySelectorAll('.fbe-is-dragging').forEach(el => el.classList.remove('fbe-is-dragging'));
+                                
+                                refocusActiveIframe(logical);
                             }}
                         >
                             {memoizedReactPages}

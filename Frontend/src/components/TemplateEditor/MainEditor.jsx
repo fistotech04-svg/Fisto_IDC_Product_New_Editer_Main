@@ -17,6 +17,7 @@ const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.or
 export const getVisualBBox = (el) => {
   if (!el || typeof el.getBBox !== 'function') return { x: 0, y: 0, width: 0, height: 0 };
   const bbox = el.getBBox();
+
   const cropStr = el.getAttribute('data-crop-data');
   if (cropStr && cropStr !== 'null') {
     try {
@@ -4274,6 +4275,13 @@ const MainEditor = ({
                 if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
                   const isScrollable = el.getAttribute('data-scrollable') === 'true';
                   const div = el.firstElementChild;
+                  
+                  // Enable reflow when resizing horizontally
+                  if (dir === 'e' || dir === 'w' || dir === 'se' || dir === 'sw' || dir === 'ne' || dir === 'nw') {
+                      el.setAttribute('data-resized', 'true');
+                      div.style.whiteSpace = 'pre-wrap';
+                  }
+                  
                   const oldHeight = div.style.height;
                   const oldMinHeight = div.style.minHeight;
                   
@@ -4510,12 +4518,13 @@ const MainEditor = ({
         // Scale the local x,y,width,height inversely so it renders at the mouse cursor
         fo.setAttribute('x', pt.x / ptToMmScale);
         fo.setAttribute('y', pt.y / ptToMmScale);
-        fo.setAttribute('width', '50');
-        fo.setAttribute('height', '28');
+        fo.setAttribute('width', '250');
+        fo.setAttribute('height', '40');
         fo.setAttribute('transform', `matrix(${ptToMmScale} 0 0 ${ptToMmScale} 0 0)`);
         fo.setAttribute('fill', '#000000');
-        fo.setAttribute('font-family', 'Inter, sans-serif');
-        fo.setAttribute('font-size', '16');
+        fo.setAttribute('font-family', "'Outfit', sans-serif");
+        fo.setAttribute('font-size', '24');
+        fo.setAttribute('letter-spacing', '0');
         fo.setAttribute('data-auto-wrap', 'true');
         fo.setAttribute('data-type', 'text');
 
@@ -4523,13 +4532,14 @@ const MainEditor = ({
         div.style.width = '100%';
         div.style.minHeight = '100%';
         div.style.color = '#000000';
-        div.style.fontFamily = 'Inter, sans-serif';
-        div.style.fontSize = '16px';
+        div.style.fontFamily = "'Outfit', sans-serif";
+        div.style.fontSize = '24px';
         div.style.fontWeight = 'normal';
         div.style.fontStyle = 'normal';
         div.style.textDecoration = 'none';
         div.style.textAlign = 'left';
-        div.style.lineHeight = '1';
+        div.style.lineHeight = '1.2';
+        div.style.letterSpacing = '0px';
         div.style.wordBreak = 'normal';
         div.style.overflowWrap = 'anywhere';
         div.style.whiteSpace = 'pre-wrap';
@@ -4541,7 +4551,7 @@ const MainEditor = ({
         div.style.userSelect = 'none';
         div.style.pointerEvents = 'none';
         
-        div.innerText = 'Text';
+        div.innerText = 'Type your text';
         fo.appendChild(div);
 
         parentEl.appendChild(fo);
@@ -4549,6 +4559,8 @@ const MainEditor = ({
         if (updatePageHtml) {
           saveModifiedPageHtml(pageIndex, svg);
           window.dispatchEvent(new CustomEvent('expand-layer-parent', { detail: { id: id } }));
+          if (setActiveMainTool) setActiveMainTool('select');
+          window.dispatchEvent(new CustomEvent('select-layer', { detail: { layerId: id } }));
         }
 
         skipClearSelectionRef.current = true;
@@ -5406,7 +5418,7 @@ const MainEditor = ({
     fo.setAttribute('data-type', 'text');
     fo.setAttribute('x', bbox.x);
     fo.setAttribute('y', bbox.y);
-    fo.setAttribute('width', Math.max(bbox.width + 1.5, 10));
+    fo.setAttribute('width', Math.max(bbox.width, 10) + 0.1); // 2px micro-buffer to prevent Chrome zoom wrap bugs without altering layout
     fo.setAttribute('height', Math.max(bbox.height, 10));
     fo.setAttribute('overflow', 'visible');
     // Preserve transform if any
@@ -5415,7 +5427,7 @@ const MainEditor = ({
 
     const div = document.createElement('div');
     const isScrollable = el.getAttribute('data-scrollable') === 'true';
-    div.style.width = isScrollable ? '100%' : 'calc(100% + 4px)'; // keep scrollbar inside if scrollable
+    div.style.width = '100%';
     div.style.minHeight = '100%';
     if (isScrollable) {
         div.style.overflowY = 'auto';
@@ -5434,7 +5446,7 @@ const MainEditor = ({
     div.style.wordSpacing = el.style.wordSpacing || el.getAttribute('word-spacing') || '';
     div.style.wordBreak = 'normal';
     div.style.overflowWrap = 'anywhere';
-    // Use pre-wrap to allow paragraphs to reflow correctly on resize
+    // Use pre-wrap to allow paragraphs to reflow correctly
     div.style.whiteSpace = 'pre-wrap';
     div.style.padding = '0px'; // Push down 1.5px and right 1px to match SVG baseline
     div.style.margin = '0';
@@ -5496,8 +5508,9 @@ const MainEditor = ({
 
       // Apply dynamic line height if multiple tspans exist and data-line-height is absent
       if (!el.hasAttribute('data-line-height') && lineHeights.length > 0) {
-        const avgPx = lineHeights.reduce((a, b) => a + b, 0) / lineHeights.length;
-        div.style.lineHeight = (avgPx / fontSize).toFixed(2);
+        // Use the minimum deltaY instead of the average to prevent paragraph breaks from inflating the line-height
+        const minPx = Math.min(...lineHeights);
+        div.style.lineHeight = (minPx / fontSize).toFixed(2);
       }
 
       let linesBounds = linesData.map(lineTspans => {
@@ -5525,6 +5538,14 @@ const MainEditor = ({
       const validBounds = linesBounds.filter(l => l.minX !== Infinity && l.maxX !== -Infinity);
       const globalMinX = validBounds.length > 0 ? Math.min(...validBounds.map(l => l.minX)) : 0;
       const globalMaxX = validBounds.length > 0 ? Math.max(...validBounds.map(l => l.maxX)) : 0;
+
+      // Chrome's getBBox() often incorrectly includes trailing whitespace or newlines, inflating the width.
+      // We override it here with the exact calculated mathematical bounds of the ink to ensure perfect wrapping.
+      if (validBounds.length > 0) {
+          const trueWidth = globalMaxX - globalMinX;
+          fo.setAttribute('x', globalMinX);
+          fo.setAttribute('width', Math.max(trueWidth, 10) + 0.5);
+      }
       
       let detectedAlign = 'left';
       if (validBounds.length > 1) {
@@ -5541,13 +5562,33 @@ const MainEditor = ({
             if (Math.abs(mid - gMid) < tolerance) centerMatchCount++;
          });
          
-         const thresh = Math.max(1, validBounds.length - 1);
-         if (leftMatchCount >= thresh && rightMatchCount >= thresh && validBounds.length > 1) {
-            detectedAlign = 'justify';
-         } else if (centerMatchCount >= thresh) {
+         const thresh = Math.max(1, validBounds.length * 0.8);
+         
+         if (centerMatchCount >= thresh) {
             detectedAlign = 'center';
-         } else if (rightMatchCount >= thresh) {
+         } else if (rightMatchCount >= thresh && leftMatchCount < thresh) {
             detectedAlign = 'right';
+         } else if (leftMatchCount >= thresh && validBounds.length > 1) {
+            // Strict justify detection: All "full lines" must perfectly hit the right edge
+            let fullLineCount = 0;
+            let justifiedFullLineCount = 0;
+            const strictTolerance = 3; // 3 pixels max deviation for a true justified edge
+            
+            validBounds.forEach((l, idx) => {
+               const isLastInParagraph = (idx === validBounds.length - 1) || (l.maxX < globalMaxX - (fontSize * 2.0));
+               if (!isLastInParagraph) {
+                   fullLineCount++;
+                   if (Math.abs(globalMaxX - l.maxX) <= strictTolerance) {
+                       justifiedFullLineCount++;
+                   }
+               }
+            });
+
+            if (fullLineCount > 0 && justifiedFullLineCount >= fullLineCount * 0.9) {
+                detectedAlign = 'justify';
+            } else {
+                detectedAlign = 'left';
+            }
          } else {
             detectedAlign = 'left';
          }
@@ -5557,7 +5598,7 @@ const MainEditor = ({
       let htmlContent = '';
       for (let i = 0; i < linesBounds.length; i++) {
         const l = linesBounds[i];
-        let text = l.textContent;
+        let text = l.textContent.replace(/[\r\n]+/g, ' '); // Strip literal newlines because pre-wrap will render them, causing double newlines
         let isHardBreak = true;
 
         if (i < linesBounds.length - 1 && l.minX !== Infinity) {
@@ -5571,7 +5612,7 @@ const MainEditor = ({
         htmlContent += text;
         if (i < linesBounds.length - 1) {
           if (isHardBreak) {
-            htmlContent += '<br/>';
+            htmlContent = htmlContent.replace(/\s+$/, '') + '<br/>';
           } else {
             if (!text.endsWith(' ') && !text.endsWith('-')) {
               htmlContent += ' ';
@@ -5581,29 +5622,28 @@ const MainEditor = ({
       }
       div.innerHTML = htmlContent;
 
-      const originalAlign = el.style.textAlign || el.getAttribute('text-anchor');
-      let finalAlign = 'left';
-      if (originalAlign === 'middle') finalAlign = 'center';
-      else if (originalAlign === 'end') finalAlign = 'right';
-      else if (['left', 'center', 'right', 'justify'].includes(originalAlign)) finalAlign = originalAlign;
-      else if (validBounds.length > 0) finalAlign = detectedAlign;
+      const textAnchor = el.getAttribute('text-anchor');
+      const textAlignStyle = el.style.textAlign;
+      
+      // Use visual detection as primary truth for paragraphs, since exporters 
+      // often just use text-anchor="start" and manually position lines.
+      let finalAlign = detectedAlign; 
+      
+      if (textAlignStyle && ['left', 'center', 'right', 'justify'].includes(textAlignStyle)) {
+          finalAlign = textAlignStyle;
+      } else if (textAnchor === 'middle') {
+          finalAlign = 'center';
+      } else if (textAnchor === 'end') {
+          finalAlign = 'right';
+      }
       
       div.style.textAlign = finalAlign;
 
-      // Use the exact original bounding box to preserve accurate visual alignment.
-      const currentWidth = parseFloat(fo.getAttribute('width'));
-      const currentX = parseFloat(fo.getAttribute('x'));
-      fo.setAttribute('width', currentWidth);
-      
-      if (finalAlign === 'right') {
-         fo.setAttribute('x', currentX);
-      } else if (finalAlign === 'center') {
-         fo.setAttribute('x', currentX);
-      }
     } else {
       div.textContent = el.textContent || '';
       const textAnchor = el.style.textAlign || el.getAttribute('text-anchor') || 'start';
-      div.style.textAlign = textAnchor === 'middle' ? 'center' : (textAnchor === 'end' ? 'right' : 'left');
+      const finalAlign = textAnchor === 'middle' ? 'center' : (textAnchor === 'end' ? 'right' : 'left');
+      div.style.textAlign = finalAlign;
     }
 
     fo.appendChild(div);

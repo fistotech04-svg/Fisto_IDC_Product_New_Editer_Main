@@ -180,6 +180,57 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   const [gradientRadius, setGradientRadius] = useState(100);
   const [editingStopIndex, setEditingStopIndex] = useState(null);
 
+  const displayColors = useMemo(() => {
+    const colors = new Set();
+    
+    // 1. Add any valid colors explicitly passed from parent
+    if (colorsOnPage && Array.isArray(colorsOnPage)) {
+      colorsOnPage.forEach(c => {
+        if (typeof c === 'string' && c.startsWith('#')) colors.add(c.toUpperCase());
+      });
+    }
+
+    // 2. Deep extract from the flipbook DOM to catch everything
+    const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const elements = doc.querySelectorAll('*');
+    
+    
+    const addColor = (c) => {
+      if (!c || typeof c !== 'string' || c === 'none' || c === 'transparent' || c.includes('url(') || c.includes('gradient')) return;
+      let hex = c.trim().toLowerCase();
+      // Handle rgb/rgba
+      if (hex.startsWith('rgb')) {
+        const match = hex.match(/\d+/g);
+        if (match && match.length >= 3) {
+          hex = rgbToHex(parseInt(match[0]), parseInt(match[1]), parseInt(match[2])).toLowerCase();
+        }
+      }
+      if (hex.startsWith('#')) {
+        if (hex.length === 4) hex = '#' + hex[1]+hex[1] + hex[2]+hex[2] + hex[3]+hex[3];
+        colors.add(hex.toUpperCase().substring(0, 7)); // strip alpha for palette display
+      }
+    };
+
+    elements.forEach(el => {
+      addColor(el.getAttribute('fill'));
+      addColor(el.getAttribute('stroke'));
+      addColor(el.getAttribute('color'));
+      addColor(el.getAttribute('data-fill-color'));
+      addColor(el.getAttribute('data-stroke-color'));
+      if (el.style) {
+        addColor(el.style.fill);
+        addColor(el.style.stroke);
+        addColor(el.style.color);
+        addColor(el.style.backgroundColor);
+      }
+    });
+    
+    colors.add('#DADBE8');
+    colors.add('#FFFFFF');
+    colors.add('#000000');
+    return Array.from(colors).slice(0, 12);
+  }, [colorsOnPage]);
+
   useEffect(() => {
     if (color) {
       if (color.includes("gradient")) {
@@ -469,14 +520,14 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
           {mode === 'solid' ? (
             <div className="flex flex-col gap-[1.5vw]">
               {/* Colors on this page */}
-              {colorsOnPage && colorsOnPage.length > 0 && (
+              {displayColors && displayColors.length > 0 && (
                 <div className="mb-[0.5vw]">
                   <div className="flex items-center gap-[1vw] mb-[1.25vw]">
                     <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Colors on this page</span>
                     <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
                   </div>
                   <div className="grid grid-cols-6 gap-[0.6vw]">
-                    {colorsOnPage.map((c, i) => (
+                    {displayColors.map((c, i) => (
                       <button
                         key={i}
                         type="button"
