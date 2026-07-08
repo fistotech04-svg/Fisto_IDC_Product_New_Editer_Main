@@ -77,8 +77,15 @@ foreignObject[data-editing="true"] > div {
   height: 100% !important;
   min-height: 100% !important;
   outline: none !important;
+  border: none !important;
   box-shadow: none !important;
   resize: none !important;
+}
+
+foreignObject[data-editing="true"] > div * {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 /* Scrollbar styling for text boxes in the editor to match the preview style */

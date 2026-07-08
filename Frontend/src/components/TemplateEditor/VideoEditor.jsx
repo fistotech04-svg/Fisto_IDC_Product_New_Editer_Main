@@ -211,8 +211,10 @@ const VideoEditor = ({
     let dashLen = 5, dashGap = 5;
     if (isDashed) {
       const parts = dashData.split(',');
-      dashLen = parseInt(parts[0]) || 5;
-      dashGap = parseInt(parts[1] || parts[0]) || 5;
+      const parsedLen = parseInt(parts[0]);
+      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+      dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
     const dashPos = visualTarget.getAttribute('data-stroke-position') || 'Center';
     const dashCap = visualTarget.getAttribute('stroke-linecap') || 'butt';

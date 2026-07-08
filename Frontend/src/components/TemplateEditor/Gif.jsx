@@ -85,7 +85,7 @@ const GifEditor = ({
 
   const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
   const [radius, setRadius] = useState({ tl: 0, tr: 0, br: 0, bl: 0 });
-  const [isRadiusLinked, setIsRadiusLinked] = useState(false);
+  const [isRadiusLinked, setIsRadiusLinked] = useState(true);
   const [activeEffects, setActiveEffects] = useState([]);
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
@@ -241,8 +241,10 @@ const GifEditor = ({
     let dashLen = 5, dashGap = 5;
     if (isDashed && strokeArray !== 'none') {
       const parts = strokeArray.split(',');
-      dashLen = parseInt(parts[0]) || 5;
-      dashGap = parseInt(parts[1] || parts[0]) || 5;
+      const parsedLen = parseInt(parts[0]);
+      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+      dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
     const dashPos = selectedElement.getAttribute('data-stroke-position') || 'Center';
     const dashCap = selectedElement.getAttribute('stroke-linecap') || 'butt';
@@ -256,6 +258,7 @@ const GifEditor = ({
       stroke: stroke === 'none' ? 'transparent' : stroke,
       strokeOpacity: 100,
       strokeType: actualStrokeType,
+      strokeDashStyle: isDashed ? 'Dashed' : 'Solid',
       strokeGradientType: selectedElement.getAttribute('data-stroke-gradient-type') || 'linear',
       strokeStops: selectedElement.getAttribute('data-stroke-stops'),
       strokeAngle: parseFloat(selectedElement.getAttribute('data-stroke-angle') || '0'),
@@ -343,6 +346,18 @@ const GifEditor = ({
         }
       }
 
+      const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
+        return `M ${x + tlv},${y} ` +
+          `L ${x + w - trv},${y} ` +
+          `Q ${x + w},${y} ${x + w},${y + trv} ` +
+          `L ${x + w},${y + h - brv} ` +
+          `Q ${x + w},${y + h} ${x + w - brv},${y + h} ` +
+          `L ${x + blv},${y + h} ` +
+          `Q ${x},${y + h} ${x},${y + h - blv} ` +
+          `L ${x},${y + tlv} ` +
+          `Q ${x},${y} ${x + tlv},${y} Z`;
+      };
+
       const f = filters;
       const exposure = f.exposure || 0;
       const contrast = f.contrast || 0;
@@ -409,7 +424,7 @@ const GifEditor = ({
             liveElement.style.webkitClipPath = clipVal;
           }
           liveElement.removeAttribute('clip-path');
-          liveElement.style.transformBox = 'fill-box';
+          liveElement.style.transformBox = '';
 
           if (tagLower === 'rect') {
             const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
@@ -440,6 +455,7 @@ const GifEditor = ({
         liveElement.style.webkitClipPath = '';
         liveElement.style.borderRadius = '';
         liveElement.style.overflow = '';
+        liveElement.style.transformBox = '';
         liveElement.removeAttribute('clip-path');
         liveElement.removeAttribute('data-effect-radius-tl');
         liveElement.removeAttribute('data-effect-radius-tr');
@@ -472,8 +488,9 @@ const GifEditor = ({
         // 2. Apply Drop Shadow to a sibling caster (best for SVG with clips)
         let shadowCaster = liveElement.querySelector('.svg-drop-shadow-caster');
         if (shadowOnlyFilter !== 'none' && hasClip) {
-          if (!shadowCaster) {
-            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'path') {
+            if (shadowCaster) shadowCaster.remove();
+            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             shadowCaster.classList.add('svg-drop-shadow-caster');
             shadowCaster.style.pointerEvents = 'none';
             liveElement.insertBefore(shadowCaster, liveElement.firstChild);
@@ -483,22 +500,37 @@ const GifEditor = ({
               liveElement.insertBefore(shadowCaster, liveElement.firstChild);
             }
             const targetEl = svgImageEl || liveElement;
-            shadowCaster.setAttribute('x', targetEl.getAttribute('x') || '0');
-            shadowCaster.setAttribute('y', targetEl.getAttribute('y') || '0');
-            shadowCaster.setAttribute('width', targetEl.getAttribute('width') || '100%');
-            shadowCaster.setAttribute('height', targetEl.getAttribute('height') || '100%');
+            let bBox = { x: 0, y: 0, width: 100, height: 100 };
+            try { bBox = targetEl.getBBox(); } catch (e) { }
+
+            let bxStr = targetEl.getAttribute('x') || '0';
+            let byStr = targetEl.getAttribute('y') || '0';
+            let bwStr = targetEl.getAttribute('width') || '100%';
+            let bhStr = targetEl.getAttribute('height') || '100%';
+
+            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+            const tl = radius.tl || 0;
+            const tr = radius.tr || 0;
+            const br = radius.br || 0;
+            const bl = radius.bl || 0;
+
+            const maxR = Math.min(bw, bh) / 2;
+            const c_tl = Math.max(0, Math.min(tl, maxR));
+            const c_tr = Math.max(0, Math.min(tr, maxR));
+            const c_br = Math.max(0, Math.min(br, maxR));
+            const c_bl = Math.max(0, Math.min(bl, maxR));
+
+            shadowCaster.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), c_tl, c_tr, c_br, c_bl));
             shadowCaster.setAttribute('transform', targetEl.getAttribute('transform') || '');
 
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', opacityVal);
 
             shadowCaster.style.removeProperty('clip-path');
-            shadowCaster.removeAttribute('rx');
-
-            const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
-            if (maxR > 0) {
-              shadowCaster.setAttribute('rx', maxR.toString());
-            }
 
             shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
             shadowCaster.style.setProperty('display', 'block', 'important');
@@ -557,7 +589,10 @@ const GifEditor = ({
 
             const syncFillOverlay = () => {
               if (!fillLayer.isConnected) return;
-              const targetEl = svgImageEl || liveElement;
+              let targetEl = svgImageEl || liveElement;
+              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+                targetEl = svgImageEl.parentNode;
+              }
               fillLayer.setAttribute('x', targetEl.getAttribute('x') || '0');
               fillLayer.setAttribute('y', targetEl.getAttribute('y') || '0');
               fillLayer.setAttribute('width', targetEl.getAttribute('width') || '100%');
@@ -571,12 +606,19 @@ const GifEditor = ({
             };
             const obsFill = new MutationObserver(syncFillOverlay);
             obsFill.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
-            if (svgImageEl && svgImageEl !== liveElement) {
-              obsFill.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            let targetForObs = svgImageEl || liveElement;
+            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+              targetForObs = svgImageEl.parentNode;
+            }
+            if (targetForObs && targetForObs !== liveElement) {
+              obsFill.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
             }
           }
 
-          const targetEl = svgImageEl || liveElement;
+          let targetEl = svgImageEl || liveElement;
+          if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+            targetEl = svgImageEl.parentNode;
+          }
           fillLayer.setAttribute('x', targetEl.getAttribute('x') || '0');
           fillLayer.setAttribute('y', targetEl.getAttribute('y') || '0');
           fillLayer.setAttribute('width', targetEl.getAttribute('width') || '100%');
@@ -651,7 +693,7 @@ const GifEditor = ({
           liveElement.setAttribute('stroke', backgroundColor.stroke);
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
 
-          if (backgroundColor.strokeType === 'Dashed') {
+          if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
             const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
             liveElement.setAttribute('stroke-dasharray', dashArray);
           } else {
@@ -665,8 +707,9 @@ const GifEditor = ({
           // Dynamic Stroke Overlay for SVG images
           if (svgImageEl && svgImageEl.tagName?.toLowerCase() === 'image') {
             let strokeOverlay = liveElement.querySelector('.svg-gif-stroke-overlay');
-            if (!strokeOverlay) {
-              strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            if (!strokeOverlay || strokeOverlay.tagName.toLowerCase() !== 'path') {
+              if (strokeOverlay) strokeOverlay.remove();
+              strokeOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
               strokeOverlay.classList.add('svg-gif-stroke-overlay');
               strokeOverlay.style.pointerEvents = 'none';
               liveElement.appendChild(strokeOverlay);
@@ -674,11 +717,10 @@ const GifEditor = ({
               // Attach a mutation observer to keep the overlay perfectly synced with the image's layout
               const syncOverlay = () => {
                 if (!strokeOverlay.isConnected) return; // Stop if removed
-                const targetEl = svgImageEl || liveElement;
-                strokeOverlay.setAttribute('x', targetEl.getAttribute('x') || '0');
-                strokeOverlay.setAttribute('y', targetEl.getAttribute('y') || '0');
-                strokeOverlay.setAttribute('width', targetEl.getAttribute('width') || '100%');
-                strokeOverlay.setAttribute('height', targetEl.getAttribute('height') || '100%');
+                let targetEl = svgImageEl || liveElement;
+                if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+                  targetEl = svgImageEl.parentNode;
+                }
                 strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
                 strokeOverlay.style.transform = targetEl.style.transform;
                 strokeOverlay.style.translate = targetEl.style.translate;
@@ -688,47 +730,55 @@ const GifEditor = ({
               };
               const obs = new MutationObserver(syncOverlay);
               obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
-              if (svgImageEl && svgImageEl !== liveElement) {
-                obs.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+              let targetForObs = svgImageEl || liveElement;
+              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+                targetForObs = svgImageEl.parentNode;
+              }
+              if (targetForObs && targetForObs !== liveElement) {
+                obs.observe(targetForObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
               }
             }
 
             // Initial sync
-            const targetEl = svgImageEl || liveElement;
-            let bx = targetEl.getAttribute('x') || '0';
-            let by = targetEl.getAttribute('y') || '0';
-            let bw = targetEl.getAttribute('width') || '100%';
-            let bh = targetEl.getAttribute('height') || '100%';
+            let targetEl = svgImageEl || liveElement;
+            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+              targetEl = svgImageEl.parentNode;
+            }
+            let bBox = { x: 0, y: 0, width: 100, height: 100 };
+            try { bBox = targetEl.getBBox(); } catch (e) { }
 
-            if (!bx.includes('%') && !bx.includes('px')) bx = `${bx}px`;
-            if (!by.includes('%') && !by.includes('px')) by = `${by}px`;
-            if (!bw.includes('%') && !bw.includes('px')) bw = `${bw}px`;
-            if (!bh.includes('%') && !bh.includes('px')) bh = `${bh}px`;
+            let bxStr = targetEl.getAttribute('x') || '0';
+            let byStr = targetEl.getAttribute('y') || '0';
+            let bwStr = targetEl.getAttribute('width') || '100%';
+            let bhStr = targetEl.getAttribute('height') || '100%';
+
+            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
             const pos = backgroundColor.strokePosition || 'Center';
             const sw = backgroundColor.strokeWeight || 0;
 
+            let ox = bx, oy = by, ow = bw, oh = bh;
             if (pos === 'Inside') {
-              strokeOverlay.style.x = `calc(${bx} + ${sw / 2}px)`;
-              strokeOverlay.style.y = `calc(${by} + ${sw / 2}px)`;
-              strokeOverlay.style.width = `calc(${bw} - ${sw}px)`;
-              strokeOverlay.style.height = `calc(${bh} - ${sw}px)`;
+              ox += sw / 2; oy += sw / 2; ow -= sw; oh -= sw;
             } else if (pos === 'Outside') {
-              strokeOverlay.style.x = `calc(${bx} - ${sw / 2}px)`;
-              strokeOverlay.style.y = `calc(${by} - ${sw / 2}px)`;
-              strokeOverlay.style.width = `calc(${bw} + ${sw}px)`;
-              strokeOverlay.style.height = `calc(${bh} + ${sw}px)`;
-            } else {
-              strokeOverlay.style.x = bx;
-              strokeOverlay.style.y = by;
-              strokeOverlay.style.width = bw;
-              strokeOverlay.style.height = bh;
+              ox -= sw / 2; oy -= sw / 2; ow += sw; oh += sw;
             }
 
-            strokeOverlay.removeAttribute('x');
-            strokeOverlay.removeAttribute('y');
-            strokeOverlay.removeAttribute('width');
-            strokeOverlay.removeAttribute('height');
+            const tl = radius.tl || 0;
+            const tr = radius.tr || 0;
+            const br = radius.br || 0;
+            const bl = radius.bl || 0;
+
+            const maxR = Math.min(ow, oh) / 2;
+            const c_tl = Math.max(0, Math.min(tl, maxR));
+            const c_tr = Math.max(0, Math.min(tr, maxR));
+            const c_br = Math.max(0, Math.min(br, maxR));
+            const c_bl = Math.max(0, Math.min(bl, maxR));
+
+            strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
             strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
             strokeOverlay.style.transform = targetEl.style.transform;
             strokeOverlay.style.translate = targetEl.style.translate;
@@ -769,7 +819,7 @@ const GifEditor = ({
             strokeOverlay.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
             strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
-            if (backgroundColor.strokeType === 'Dashed') {
+            if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
               const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
               strokeOverlay.setAttribute('stroke-dasharray', dashArray);
             } else {
@@ -779,9 +829,6 @@ const GifEditor = ({
             strokeOverlay.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
             strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
             strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
-
-            if (anyR) strokeOverlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl).toString());
-            else strokeOverlay.removeAttribute('rx');
           }
         } else {
           liveElement.removeAttribute('stroke');
@@ -805,9 +852,9 @@ const GifEditor = ({
           return hex;
         };
 
-        let style = backgroundColor.strokeType.toLowerCase();
+        let style = (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') ? 'dashed' : backgroundColor.strokeType.toLowerCase();
         if (backgroundColor.stroke !== 'transparent' && backgroundColor.stroke !== 'none' && (!backgroundColor.strokeType || backgroundColor.strokeType === 'none')) {
-          style = 'solid';
+          style = (backgroundColor.strokeDashStyle === 'Dashed') ? 'dashed' : 'solid';
         }
 
         const pos = backgroundColor.strokePosition || 'Center';
@@ -914,8 +961,9 @@ const GifEditor = ({
             filterEl.appendChild(feComp2);
           }
 
-          if (!overlay) {
-            overlay = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!overlay || overlay.tagName.toLowerCase() !== 'path') {
+            if (overlay) overlay.remove();
+            overlay = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             overlay.classList.add('svg-gif-inner-shadow-rect');
             overlay.style.pointerEvents = 'none';
             overlay.setAttribute('fill', 'white');
@@ -931,15 +979,24 @@ const GifEditor = ({
             box.height = parseFloat(targetEl.getAttribute('height') || 100);
           }
 
-          overlay.setAttribute('x', box.x);
-          overlay.setAttribute('y', box.y);
-          overlay.setAttribute('width', Math.max(1, box.width));
-          overlay.setAttribute('height', Math.max(1, box.height));
-          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          const bx = box.x;
+          const by = box.y;
+          const bw = Math.max(1, box.width);
+          const bh = Math.max(1, box.height);
 
-          const anyR = radius.tl > 0 || radius.tr > 0 || radius.br > 0 || radius.bl > 0;
-          if (anyR) overlay.setAttribute('rx', Math.max(radius.tl, radius.tr, radius.br, radius.bl));
-          else overlay.removeAttribute('rx');
+          const tl = radius.tl || 0;
+          const tr = radius.tr || 0;
+          const br = radius.br || 0;
+          const bl = radius.bl || 0;
+
+          const maxR = Math.min(bw, bh) / 2;
+          const c_tl = Math.max(0, Math.min(tl, maxR));
+          const c_tr = Math.max(0, Math.min(tr, maxR));
+          const c_br = Math.max(0, Math.min(br, maxR));
+          const c_bl = Math.max(0, Math.min(bl, maxR));
+
+          overlay.setAttribute('d', getPathD(bx, by, bw, bh, c_tl, c_tr, c_br, c_bl));
+          overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
 
           overlay.setAttribute('filter', `url(#${filterId})`);
         } else {

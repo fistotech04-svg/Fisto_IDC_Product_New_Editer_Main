@@ -217,6 +217,8 @@ const svgGlobalStyles = `
     display: none !important;
   }
 `;
+import CanvasRuler from './CanvasRuler';
+import GuidesOverlay from './GuidesOverlay';
 import TopToolbar from './TopToolbar';
 
 const SelectionTooltip = ({ selectedId, multiSelectedIds, zoom, setActiveTopTool, pageIndex, activePageIndex, updateElementAttribute, activeTopTool }) => {
@@ -2190,7 +2192,7 @@ const MainEditor = ({
             handle.style.cursor = getRotatingCursor(name, rotation);
           }
         });
-        } // Close if (!hideHandles)
+      } // Close if (!hideHandles)
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
         if (activeTopTool === 'interaction') {
@@ -4234,10 +4236,10 @@ const MainEditor = ({
             if (dir === 'e' || dir === 'w') scaleY = 1;
 
             // Maintain Aspect Ratio for images, text, or if Shift key is held (only for corners, but force for text on all handles to prevent distortion)
-            const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image';
+            const isImage = el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif';
             const isText = el.getAttribute('data-type') === 'text' || el.tagName.toLowerCase() === 'text';
             const isForeignObject = el.tagName.toLowerCase() === 'foreignobject';
-            const isGroup = el.tagName.toLowerCase() === 'g';
+            const isGroup = el.tagName.toLowerCase() === 'g' && !el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group');
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
 
             if ((isCorner && (event.shiftKey || isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
@@ -5810,7 +5812,22 @@ const MainEditor = ({
         
         if (changed) {
           const highlightType = document.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`) ? 'child-selected' : 'selected';
-          drawOverlayHighlight(foTarget, highlightType);
+          setTimeout(() => {
+            const container = foTarget.closest('.page-svg-container');
+            if (container) {
+              const pageIdx = container.getAttribute('data-page-index');
+              const overlay = document.getElementById(`highlight-overlay-${pageIdx}`);
+              if (overlay) {
+                const oldSel = overlay.querySelector(`[id="overlay-poly-selected-${foTarget.id}"]`);
+                if (oldSel) oldSel.remove();
+                const oldChildSel = overlay.querySelector(`[id="overlay-poly-child-selected-${foTarget.id}"]`);
+                if (oldChildSel) oldChildSel.remove();
+              }
+            }
+            drawOverlayHighlight(foTarget, highlightType);
+            clearOverlayType('hover');
+            clearOverlayType('child-hover');
+          }, 0);
         }
       }
     };
@@ -6899,6 +6916,7 @@ const MainEditor = ({
             if (zoomContainerRef.current) {
               zoomContainerRef.current.style.transform = `translate(${boundedX}px, ${boundedY}px) scale(${currentScale})`;
             }
+            window.dispatchEvent(new CustomEvent('editor-pan-update', { detail: { x: boundedX, y: boundedY } }));
           }
         }}
         onMouseUp={(e) => {
@@ -6944,6 +6962,38 @@ const MainEditor = ({
           <div className="absolute inset-0 z-[9999]" style={{ cursor: isPanningRef.current ? 'grabbing' : 'grab' }} />
         )}
 
+        {/* Canvas Ruler */}
+        <CanvasRuler
+          zoom={zoom}
+          pan={currentPanRef.current}
+          baseCanvasWidth={(() => {
+            const spreadStartIndex = (isDoublePage && activePageIndex > 0)
+              ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+              : activePageIndex;
+            const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+            const baseVhHeight = window.innerHeight * 0.78;
+            const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+            return baseVhHeight * (totalWidth / baseHeight);
+          })()}
+          baseCanvasHeight={window.innerHeight * 0.78}
+        />
+        
+        {/* Guides Overlay */}
+        <GuidesOverlay
+          zoom={zoom}
+          pan={currentPanRef.current}
+          baseCanvasWidth={(() => {
+            const spreadStartIndex = (isDoublePage && activePageIndex > 0)
+              ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+              : activePageIndex;
+            const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+            const baseVhHeight = window.innerHeight * 0.78;
+            const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+            return baseVhHeight * (totalWidth / baseHeight);
+          })()}
+          baseCanvasHeight={window.innerHeight * 0.78}
+        />
+
         {/* Top Group: Selection & Primary Tools - Independent Position */}
         {!isPdfProject && !isPopupEditor && (
           <div className="absolute right-[1.05vw] top-[1.9vh] z-50">
@@ -6971,44 +7021,6 @@ const MainEditor = ({
               >
                 <Icon icon="tdesign:animation-1" width="1.2vw" height="1.2vw" />
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Top-Left: Animated Lordicon Card - Vertical Column */}
-        {!isPdfProject && (
-          <div className="absolute left-[0.8vw] top-[0.8vw] z-50">
-            <div className="bg-white rounded-[0.5vw] border border-gray-100/50 p-[0.3vw] shadow-sm flex flex-col items-center gap-[0.5vw]">
-              {/* Animated Hotspot Icon */}
-              <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
-                <lord-icon
-                  src="https://cdn.lordicon.com/erxuunyq.json"
-                  trigger="loop"
-                  colors="primary:#E88F23"
-                  style={{ width: '1.4vw', height: '1.4vw' }}
-                ></lord-icon>
-              </div>
-
-              {/* Animated Notification/Follow Icon */}
-              <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
-                <lord-icon
-                  src="https://cdn.lordicon.com/kwnsnjyg.json"
-                  trigger="loop"
-                  colors="primary:#00ACEE"
-                  style={{ width: '1.4vw', height: '1.4vw' }}
-                ></lord-icon>
-              </div>
-
-              {/* Animated Third Icon */}
-              <div className="group cursor-pointer w-[1.8vw] h-[1.8vw] flex items-center justify-center hover:bg-[#F3F4F6] rounded-[0.3vw] transition-colors">
-                <lord-icon
-                  src="https://cdn.lordicon.com/shquqxad.json"
-                  trigger="loop"
-                  delay="2000"
-                  colors="primary:#9381FF"
-                  style={{ width: '1.4vw', height: '1.4vw' }}
-                ></lord-icon>
-              </div>
             </div>
           </div>
         )}

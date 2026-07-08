@@ -288,6 +288,70 @@ const syncGradient = (doc, element, baseAttr) => {
 const syncTextEffect = (doc, element) => {
   if (!element) return;
 
+  const isForeignObject = element.tagName.toLowerCase() === 'foreignobject';
+  const getVal = (attr, defVal) => element.getAttribute(attr) || defVal;
+
+  const hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
+  const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
+  const hasBlur = element.getAttribute('data-effect-blur') === 'true';
+  const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
+
+  // --- HTML TEXT (ForeignObject) FIX ---
+  if (isForeignObject && !hasInnerShadow) {
+    const inner = element.firstElementChild;
+    if (inner) {
+      if (!hasDropShadow && !hasBlur && !hasBackgroundBlur) {
+        inner.style.removeProperty('filter');
+        inner.style.removeProperty('backdrop-filter');
+        inner.style.removeProperty('-webkit-backdrop-filter');
+      } else {
+        let cssFilter = '';
+        if (hasBlur) {
+          const blurVal = getVal('data-effect-blur-value', '4');
+          cssFilter += `blur(${blurVal}px) `;
+        }
+        if (hasDropShadow) {
+          const color = getVal('data-effect-drop-shadow-color', '#000000');
+          const dx = getVal('data-effect-drop-shadow-x', '0');
+          const dy = getVal('data-effect-drop-shadow-y', '4');
+          const blur = getVal('data-effect-drop-shadow-blur', '4');
+          const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
+
+          const r = parseInt(color.slice(1, 3), 16) || 0;
+          const g = parseInt(color.slice(3, 5), 16) || 0;
+          const b = parseInt(color.slice(5, 7), 16) || 0;
+
+          cssFilter += `drop-shadow(${dx}px ${dy}px ${blur}px rgba(${r},${g},${b},${opacity})) `;
+        }
+
+        if (cssFilter.trim()) {
+          inner.style.setProperty('filter', cssFilter.trim(), 'important');
+        } else {
+          inner.style.removeProperty('filter');
+        }
+
+        if (hasBackgroundBlur) {
+          const bBlur = getVal('data-effect-background-blur-value', '10');
+          inner.style.setProperty('backdrop-filter', `blur(${bBlur}px)`, 'important');
+          inner.style.setProperty('-webkit-backdrop-filter', `blur(${bBlur}px)`, 'important');
+        } else {
+          inner.style.removeProperty('backdrop-filter');
+          inner.style.removeProperty('-webkit-backdrop-filter');
+        }
+      }
+    }
+
+    // Clean up any stale SVG filter that caused the glitch
+    element.removeAttribute('filter');
+    const filterId = `filter-${element.id || element.getAttribute('data-name') || 'text-effect'}`;
+    const svgRoot = element.ownerSVGElement || element.closest('svg') || (doc && doc.querySelector ? doc.querySelector('svg') : null);
+    if (svgRoot) {
+      const staleFilter = svgRoot.querySelector(`defs [id="${filterId}"]`);
+      if (staleFilter) staleFilter.remove();
+    }
+    return;
+  }
+
   // Clear any stale CSS filters
   element.style.removeProperty('filter');
   if (element.tagName.toLowerCase() === 'text' || element.tagName.toLowerCase() === 'g') {
@@ -309,11 +373,6 @@ const syncTextEffect = (doc, element) => {
   const filterId = `filter-${element.id || element.getAttribute('data-name') || 'text-effect'}`;
   let filterEl = defs.querySelector(`[id="${filterId}"]`);
 
-  const hasDropShadow = element.getAttribute('data-effect-drop-shadow') === 'true';
-  const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
-  const hasBlur = element.getAttribute('data-effect-blur') === 'true';
-  const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
-
   if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
     if (filterEl) filterEl.remove();
     element.removeAttribute('filter');
@@ -334,7 +393,6 @@ const syncTextEffect = (doc, element) => {
 
   while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
 
-  const getVal = (attr, defVal) => element.getAttribute(attr) || defVal;
   let currentIn = "SourceGraphic";
 
   if (hasBlur) {
@@ -477,15 +535,32 @@ const syncTextEffect = (doc, element) => {
     currentIn = "inner_shadow_merged";
   }
 
-  element.setAttribute('filter', `url(#${filterId})`);
+  const finalFilterUrl = `url(#${filterId})`;
+  if (isForeignObject) {
+    const inner = element.firstElementChild;
+    if (inner) inner.style.setProperty('filter', finalFilterUrl, 'important');
+    element.removeAttribute('filter'); // Make sure wrapper doesn't have it
+  } else {
+    element.setAttribute('filter', finalFilterUrl);
+  }
 
   if (hasBackgroundBlur) {
     const bBlur = getVal('data-effect-background-blur-value', '10');
-    element.style.backdropFilter = `blur(${bBlur}px)`;
-    element.style.webkitBackdropFilter = `blur(${bBlur}px)`;
+    if (isForeignObject && element.firstElementChild) {
+      element.firstElementChild.style.backdropFilter = `blur(${bBlur}px)`;
+      element.firstElementChild.style.webkitBackdropFilter = `blur(${bBlur}px)`;
+    } else {
+      element.style.backdropFilter = `blur(${bBlur}px)`;
+      element.style.webkitBackdropFilter = `blur(${bBlur}px)`;
+    }
   } else {
-    element.style.backdropFilter = '';
-    element.style.webkitBackdropFilter = '';
+    if (isForeignObject && element.firstElementChild) {
+      element.firstElementChild.style.backdropFilter = '';
+      element.firstElementChild.style.webkitBackdropFilter = '';
+    } else {
+      element.style.backdropFilter = '';
+      element.style.webkitBackdropFilter = '';
+    }
   }
 };
 
@@ -832,12 +907,25 @@ const TextEditor = ({
     const el = document.getElementById(selectedLayerId);
     if (!el) return null;
 
+    let fillStyle = el.getAttribute('fill') || '#000000';
+    let strokeStyle = el.getAttribute('stroke') || 'none';
+    let strokeWidthStr = el.getAttribute('stroke-width') || el.getAttribute('strokeWidth') || '0';
+
+    if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+      const comp = window.getComputedStyle(el.firstElementChild);
+      if (!el.hasAttribute('fill')) fillStyle = comp.color || fillStyle;
+      if (!el.hasAttribute('stroke') && comp.webkitTextStrokeColor) strokeStyle = comp.webkitTextStrokeColor;
+      if (!el.hasAttribute('stroke-width') && !el.hasAttribute('strokeWidth') && comp.webkitTextStrokeWidth) {
+        strokeWidthStr = parseFloat(comp.webkitTextStrokeWidth).toString();
+      }
+    }
+
     const props = {
       id: selectedLayerId,
       tagName: el.tagName.toLowerCase(),
-      fill: el.getAttribute('fill') || (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? window.getComputedStyle(el.firstElementChild).color : null) || '#000000',
-      stroke: el.getAttribute('stroke') || 'none',
-      strokeWidth: el.getAttribute('stroke-width') || '0',
+      fill: fillStyle,
+      stroke: strokeStyle,
+      strokeWidth: strokeWidthStr,
       strokeDasharray: el.getAttribute('stroke-dasharray') || 'none',
       opacity: el.getAttribute('opacity') || '1',
       rx: el.getAttribute('rx') || '0',

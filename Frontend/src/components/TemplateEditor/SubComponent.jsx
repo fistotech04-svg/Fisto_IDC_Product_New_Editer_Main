@@ -1373,11 +1373,15 @@ const SubComponent = ({
         setBackgroundColor(p => ({ ...p, strokeDashStyle: 'Solid' }));
       } else {
         const parts = value.split(',');
+        const parsedLen = parseInt(parts[0]);
+        const dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+        const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+        const dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
         setBackgroundColor(p => ({
           ...p,
           strokeDashStyle: 'Dashed',
-          strokeDashLength: parseInt(parts[0]) || 5,
-          strokeDashGap: parseInt(parts[1] || parts[0]) || 5
+          strokeDashLength: dashLen,
+          strokeDashGap: dashGap
         }));
       }
     }

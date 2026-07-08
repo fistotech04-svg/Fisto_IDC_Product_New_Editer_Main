@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   ChevronLeft,
@@ -158,9 +159,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [libraryTargetIndex, setLibraryTargetIndex] = useState(null);
   const [showDotColorPicker, setShowDotColorPicker] = useState(false);
-  const [dotPickerPos, setDotPickerPos] = useState({ x: 0, y: 0 });
   const [showNavColorPicker, setShowNavColorPicker] = useState(false);
-  const [navPickerPos, setNavPickerPos] = useState({ x: 0, y: 0 });
   const [showNavStylesPopup, setShowNavStylesPopup] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -598,13 +597,31 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     }
 
     // Cleanup and finalize when animation finishes
+    const cleanupAnim = () => {
+      if (clone && clone.parentNode) clone.parentNode.removeChild(clone);
+      if (newPattern && newPattern.parentNode) newPattern.parentNode.removeChild(newPattern);
+      
+      // Additional failsafe for SVG filters in Safari
+      if (animEl.style.filter === 'none') {
+        animEl.style.removeProperty('filter');
+      }
+    };
+    
     realAnim.onfinish = () => {
-      clone.remove();
-      if (newPattern) newPattern.remove();
+      cleanupAnim();
       animEl.style.transformBox = '';
       animEl.style.transformOrigin = '';
       finalize();
     };
+    
+    // Fallback in case onfinish doesn't fire (especially for 0 duration)
+    setTimeout(() => {
+        cleanupAnim();
+        animEl.style.transformBox = '';
+        animEl.style.transformOrigin = '';
+        finalize();
+    }, duration + 20);
+
   }, [activePageIndex, selectedElement, slideshowSettings, opacity, setIsUpdatingDOM]);
 
   useEffect(() => {
@@ -820,7 +837,33 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         });
         const iconKey = type === 'prev' ? 'left' : 'right';
         const root = createRoot(btn);
-        root.render(NavIconRenderer({ styleId, size: '36px', color: navIconColor })[iconKey]);
+        
+        const isGrad = navIconColor && navIconColor.toUpperCase().includes('GRADIENT');
+        let stops = [];
+        if (isGrad) {
+          const regex = /(rgba?\([^)]+\)|#[a-fA-F0-9]+|[a-zA-Z]+)\s+(\d+%)/gi;
+          let match;
+          while ((match = regex.exec(navIconColor)) !== null) {
+            stops.push({ color: match[1], offset: match[2] });
+          }
+        }
+        const gradId = `nav-grad-${type}-${Math.random().toString(36).substring(2, 7)}`;
+        
+        root.render(
+          <>
+            {isGrad && stops.length > 0 && (
+              <svg width="0" height="0" style={{ position: 'absolute' }}>
+                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                  {stops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.color} />)}
+                </linearGradient>
+                <style>{`.grad-icon-${gradId} svg path, .grad-icon-${gradId} svg circle, .grad-icon-${gradId} svg rect { fill: url(#${gradId}) !important; color: transparent !important; }`}</style>
+              </svg>
+            )}
+            <div className={isGrad && stops.length > 0 ? `grad-icon-${gradId}` : ''}>
+              {NavIconRenderer({ styleId, size: '36px', color: isGrad ? 'currentColor' : navIconColor })[iconKey]}
+            </div>
+          </>
+        );
         roots.push(root);
         btn.addEventListener('mouseenter', () => {
           if (leaveTimeout) clearTimeout(leaveTimeout);
@@ -1232,9 +1275,24 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   }, [libraryTargetIndex, activeSlideIndex]);
 
   const updateSetting = (key, value) => {
-    setSlideshowSettings({ ...slideshowSettings, [key]: value });
+    setSlideshowSettings(prev => ({ ...prev, [key]: value }));
   };
   const effects = ['Linear', 'Fade', 'Slide', 'Push', 'Flip', 'Reveal'];
+
+  const colorsOnPage = React.useMemo(() => {
+    const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const elements = doc.querySelectorAll('[data-fill-color], [data-stroke-color]');
+    const colors = new Set();
+    elements.forEach(el => {
+      const fill = el.getAttribute('data-fill-color');
+      const stroke = el.getAttribute('data-stroke-color');
+      if (fill && fill !== 'none' && fill !== '#' && !fill.includes('gradient')) colors.add(fill.toUpperCase());
+      if (stroke && stroke !== 'none' && stroke !== '#' && !stroke.includes('gradient')) colors.add(stroke.toUpperCase());
+    });
+    colors.add('#FFFFFF');
+    colors.add('#000000');
+    return Array.from(colors).slice(0, 12);
+  }, [activePageIndex]);
 
   return (
     <div ref={sidebarRef} className="space-y-[1vw]">
@@ -1481,17 +1539,14 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       <div className="flex items-center gap-[0.4vw] shrink-0">
                         <div
                           className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100"
-                          style={{ backgroundColor: slideshowSettings.navIconColor || '#000000' }}
+                          style={{ background: slideshowSettings.navIconColor || '#000000' }}
                           onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const sidebarRect = sidebarRef.current?.getBoundingClientRect() || { left: 0 };
-                            setNavPickerPos({ x: sidebarRect.left - 200, y: rect.bottom - 40 });
                             setShowNavColorPicker(true);
                           }}
                         />
                         <div className="flex items-center justify-between border border-gray-400 rounded-[0.5vw] px-[0.75vw] bg-white h-[2.2vw] w-[8vw]">
-                          <span className="text-[0.75vw] text-gray-700 font-semibold uppercase">{slideshowSettings.navIconColor || '#000000'}</span>
-                          <span className="text-[0.75vw] text-gray-400">100%</span>
+                          <span className="text-[0.75vw] text-gray-700 font-semibold uppercase truncate block w-[4.5vw]" title={slideshowSettings.navIconColor || '#000000'}>{slideshowSettings.navIconColor || '#000000'}</span>
+                          <span className="text-[0.75vw] text-gray-400 shrink-0">100%</span>
                         </div>
                       </div>
 
@@ -1534,22 +1589,15 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                     <div className="flex items-center gap-[0.4vw]  mt-[0.5vw]">
                       <div
                         className="w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-400 overflow-hidden relative cursor-pointer shadow-sm transition-all hover:scale-105 active:scale-95"
-                        style={{ backgroundColor: slideshowSettings.dotColor || '#4F46E5' }}
+                        style={{ background: slideshowSettings.dotColor || '#4F46E5' }}
                         onClick={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const sidebarRect = sidebarRef.current?.getBoundingClientRect() || { left: 0 };
-                          const pickerWidth = window.innerWidth * 0.15;
-                          setDotPickerPos({
-                            x: sidebarRect.left - (pickerWidth / 2),
-                            y: Math.min(window.innerHeight - 350, rect.top - 150)
-                          });
                           setShowDotColorPicker(true);
                         }}
                       />
                       {/* Hex code */}
                       <div className="flex items-center justify-between border border-gray-500 rounded-[0.4vw] px-[0.5vw] bg-white h-[1.8vw] w-[6.5vw]">
-                        <span className="text-[0.75vw] text-gray-700 font-medium uppercase">{slideshowSettings.dotColor || '#4F46E5'}</span>
-                        <span className="text-[0.75vw] text-gray-700">100%</span>
+                        <span className="text-[0.75vw] text-gray-700 font-medium uppercase truncate block w-[3.5vw]" title={slideshowSettings.dotColor || '#4F46E5'}>{slideshowSettings.dotColor || '#4F46E5'}</span>
+                        <span className="text-[0.75vw] text-gray-700 shrink-0">100%</span>
                       </div>
                     </div>
                   </div>
@@ -1567,34 +1615,40 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
 
       {/* Popups & Pickers */}
-      {showDotColorPicker && (
-        <>
-          <div className="fixed inset-0 z-[200]" onClick={() => setShowDotColorPicker(false)} />
-          <ColorPicker
-            color={slideshowSettings.dotColor || '#4F46E5'}
-            onChange={(val) => updateSetting('dotColor', val)}
-            opacity={slideshowSettings.dotOpacity ?? 100}
-            onOpacityChange={(val) => updateSetting('dotOpacity', val)}
-            onClose={() => setShowDotColorPicker(false)}
-            className="fixed z-[210]"
-            style={{ left: dotPickerPos.x, top: dotPickerPos.y }}
-          />
-        </>
+      {showDotColorPicker && createPortal(
+        <div id="slideshow-color-picker" className="fixed z-[9999]" style={{ top: '160px', right: '10.5vw' }}>
+          <div className="relative">
+            <div className="fixed inset-0" onClick={() => setShowDotColorPicker(false)} />
+            <ColorPicker
+              color={slideshowSettings.dotColor || '#4F46E5'}
+              onChange={(val) => updateSetting('dotColor', val)}
+              opacity={slideshowSettings.dotOpacity ?? 100}
+              onOpacityChange={(val) => updateSetting('dotOpacity', val)}
+              onClose={() => setShowDotColorPicker(false)}
+              className="relative z-[10000]"
+              colorsOnPage={colorsOnPage}
+            />
+          </div>
+        </div>,
+        document.body
       )}
 
-      {showNavColorPicker && (
-        <>
-          <div className="fixed inset-0 z-[200]" onClick={() => setShowNavColorPicker(false)} />
-          <ColorPicker
-            color={slideshowSettings.navIconColor || '#000000'}
-            onChange={(val) => updateSetting('navIconColor', val)}
-            opacity={slideshowSettings.navIconOpacity ?? 100}
-            onOpacityChange={(val) => updateSetting('navIconOpacity', val)}
-            onClose={() => setShowNavColorPicker(false)}
-            className="fixed z-[210]"
-            style={{ left: navPickerPos.x, top: navPickerPos.y }}
-          />
-        </>
+      {showNavColorPicker && createPortal(
+        <div id="slideshow-nav-color-picker" className="fixed z-[9999]" style={{ top: '160px', right: '10.5vw' }}>
+          <div className="relative">
+            <div className="fixed inset-0" onClick={() => setShowNavColorPicker(false)} />
+            <ColorPicker
+              color={slideshowSettings.navIconColor || '#000000'}
+              onChange={(val) => updateSetting('navIconColor', val)}
+              opacity={slideshowSettings.navIconOpacity ?? 100}
+              onOpacityChange={(val) => updateSetting('navIconOpacity', val)}
+              onClose={() => setShowNavColorPicker(false)}
+              className="relative z-[10000]"
+              colorsOnPage={colorsOnPage}
+            />
+          </div>
+        </div>,
+        document.body
       )}
 
       {showNavStylesPopup && (

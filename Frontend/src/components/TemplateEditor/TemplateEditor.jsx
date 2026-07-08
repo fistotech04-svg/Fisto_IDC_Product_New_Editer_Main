@@ -40,11 +40,15 @@ const parseLayersFromSVG = (element) => {
     })
     .map(child => {
       // Ensure element has a unique ID for selection and state tracking
-      if (!child.id) {
-        child.id = `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+      let id = child.getAttribute('id') || child.id;
+      if (!id) {
+        id = `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+        child.setAttribute('id', id);
+        if ('id' in child) {
+          try { child.id = id; } catch(e) {}
+        }
       }
-      const id = child.id;
-      const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+      const rawName = child.getAttribute('data-name') || id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
       const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
 
       const layer = {
@@ -65,14 +69,23 @@ const parseLayersFromSVG = (element) => {
         child.getAttribute('data-is-video-group') === 'true' ||
         child.getAttribute('data-is-gif-group') === 'true';
 
-      if (isGroup) {
-        const activeEffectsStr = child.getAttribute('data-active-effects') || '';
-        const activeEffects = activeEffectsStr.split(',').filter(Boolean);
+      const isText = child.tagName.toLowerCase() === 'text' || child.tagName.toLowerCase() === 'foreignobject';
+
+      if (isGroup || isText) {
+        let activeEffects = [];
+        
+        if (isGroup) {
+          const activeEffectsStr = child.getAttribute('data-active-effects') || '';
+          activeEffects = activeEffectsStr.split(',').filter(Boolean);
+        } else if (isText) {
+          if (child.getAttribute('data-effect-drop-shadow') === 'true') activeEffects.push('Drop Shadow');
+          if (child.getAttribute('data-effect-inner-shadow') === 'true') activeEffects.push('Inner Shadow');
+        }
 
         const strokeAttr = child.getAttribute('stroke') || child.getAttribute('data-stroke-color');
         const hasStroke = strokeAttr && strokeAttr !== 'none' && strokeAttr !== 'transparent';
         const fillAttr = child.getAttribute('fill') || child.getAttribute('data-fill-color');
-        const hasFill = fillAttr && fillAttr !== 'none' && fillAttr !== 'transparent';
+        const hasFill = (fillAttr && fillAttr !== 'none' && fillAttr !== 'transparent') || isText; // text almost always has a fill
 
         const virtualLayers = [];
 
@@ -93,9 +106,12 @@ const parseLayersFromSVG = (element) => {
         } else if (child.getAttribute('data-is-gif-group') === 'true') {
           coreType = 'image';
           coreName = 'GIF';
+        } else if (isText) {
+          coreType = 'text';
+          coreName = 'Text';
         }
 
-        const imgChildIdx = layer.children ? layer.children.findIndex(c => c.type === coreType || c.name === coreName || c.name === 'Image') : -1;
+        const imgChildIdx = layer.children ? layer.children.findIndex(c => c.type === coreType || c.name === coreName || c.name === 'Image' || c.name === 'Text') : -1;
         let imgLayer = null;
         if (imgChildIdx !== -1) {
           imgLayer = layer.children.splice(imgChildIdx, 1)[0];
@@ -339,6 +355,8 @@ const TemplateEditor = () => {
   });
 
   const lastSavedHtmlsRef = useRef({});
+  // Ref to prevent the page-selection effect from resetting to root during paste
+  const skipPasteResetRef = useRef(false);
 
   // Sync state to ExportModal context
   useEffect(() => {
@@ -489,11 +507,13 @@ const TemplateEditor = () => {
           while (searchIndex < newHtml.length) {
             const imgIdx = newHtml.indexOf('data:image/', searchIndex);
             const audIdx = newHtml.indexOf('data:audio/', searchIndex);
+            const vidIdx = newHtml.indexOf('data:video/', searchIndex);
             
             let foundIdx = -1;
-            if (imgIdx !== -1 && audIdx !== -1) foundIdx = Math.min(imgIdx, audIdx);
-            else if (imgIdx !== -1) foundIdx = imgIdx;
-            else if (audIdx !== -1) foundIdx = audIdx;
+            const indices = [imgIdx, audIdx, vidIdx].filter(idx => idx !== -1);
+            if (indices.length > 0) {
+              foundIdx = Math.min(...indices);
+            }
             
             if (foundIdx === -1) break;
 
@@ -540,7 +560,8 @@ const TemplateEditor = () => {
               const blob = new Blob([ab], { type: mimeString });
 
               const isAudio = blob.type.startsWith('audio/');
-              const assetType = isAudio ? 'audio' : 'image';
+              const isVideo = blob.type.startsWith('video/');
+              const assetType = isAudio ? 'audio' : (isVideo ? 'video' : 'image');
 
               const formData = new FormData();
               formData.append('emailId', user?.emailId);
@@ -1239,8 +1260,9 @@ const TemplateEditor = () => {
           setCurrentFrameId(activeRoot);
         } else {
           // Selection became empty — restore roots (Only if not using a tool)
+          // Skip reset if a paste operation just happened (skipPasteResetRef guard)
           const currentIds = multiSelectedIds || new Set();
-          if (currentIds.size === 0 && activeMainTool === 'select') {
+          if (!skipPasteResetRef.current && currentIds.size === 0 && activeMainTool === 'select') {
             setMultiSelectedIds(new Set([root1, root2]));
             setSelectedLayerId(activeRoot);
             setCurrentFrameId(activeRoot);
@@ -1254,8 +1276,9 @@ const TemplateEditor = () => {
         const rootId = page.layers[0].id;
 
         // Auto-select root ONLY if we just landed here OR selection became empty (Only if not using a tool)
+        // Skip reset if a paste operation just happened (skipPasteResetRef guard)
         const currentIds = multiSelectedIds || new Set();
-        if (hasSwitchedPage || (currentIds.size === 0 && activeMainTool === 'select')) {
+        if (!skipPasteResetRef.current && (hasSwitchedPage || (currentIds.size === 0 && activeMainTool === 'select'))) {
           setMultiSelectedIds(new Set([rootId]));
           setSelectedLayerId(rootId);
           setCurrentFrameId(rootId);
@@ -2932,10 +2955,26 @@ const TemplateEditor = () => {
       return updated;
     });
 
-    // Select all newly pasted elements
+    // Select all newly pasted elements.
+    // Set guard first so the page-selection useEffect (which reacts to pages changing)
+    // doesn't reset selection back to the root frame during this paste operation.
     const newIds = new Set(newItems.map(item => item.newLayer.id));
+    const lastNewId = newItems.length > 0 ? newItems[newItems.length - 1].newLayer.id : null;
+
+    skipPasteResetRef.current = true;
+    
+    // We can set multiSelectedIds immediately for visual handles
     setMultiSelectedIds(newIds);
-    if (newItems.length > 0) setSelectedLayerId(newItems[newItems.length - 1].newLayer.id);
+    
+    // Defer setSelectedLayerId so that when RightSidebar renders the properties panel (e.g. TextEditor),
+    // the LIVE DOM has already been updated with the new HTML. Otherwise, document.getElementById
+    // during render will return null and the property editors will crash/return null.
+    setTimeout(() => {
+      if (lastNewId) setSelectedLayerId(lastNewId);
+      
+      // Clear the guard after the selection has been safely applied
+      setTimeout(() => { skipPasteResetRef.current = false; }, 50);
+    }, 50);
   };
 
   // ── KEYBOARD SHORTCUTS (Cut, Copy, Paste) ──────────────────────────────────
@@ -3313,10 +3352,10 @@ const TemplateEditor = () => {
             child.getAttribute('data-name') !== 'Overlay'
           )
           .map((child) => {
-            const id = child.id || `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
-            if (!child.id) child.setAttribute('id', id);
+            const id = child.getAttribute('id') || child.id || `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
+            if (!child.getAttribute('id') && !child.id) child.setAttribute('id', id);
 
-            const rawName = child.getAttribute('data-name') || child.id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
+            const rawName = child.getAttribute('data-name') || id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
             // Strip the unique template prefix for cleaner display (e.g. tpl-a1b2-MyLayer -> MyLayer)
             const cleanName = rawName.replace(/^tpl-[a-z0-9]{4}-/, '');
 

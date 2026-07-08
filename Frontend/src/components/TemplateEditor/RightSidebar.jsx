@@ -144,77 +144,10 @@ const RightSidebar = ({
     
     const storedUser = localStorage.getItem('user');
     const user = storedUser ? JSON.parse(storedUser) : null;
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-
-    if (isVideo) {
-      if (!user) {
-        alert("You must be logged in to upload videos.");
-        e.target.value = '';
-        return;
-      }
-      // Instantly show using blob URL, then upload in background and dispatch event
-      const videoUrl = URL.createObjectURL(file);
-      window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-        detail: { videoUrl, pageIndex: activePageIndex, file, isTemporary: true }
-      }));
-      e.target.value = ''; // Reset input
-
-      const formData = new FormData();
-      formData.append('emailId', user.emailId);
-      if (v_id) formData.append('v_id', v_id);
-      formData.append('folderName', location.state?.folderName || folder || 'Recent Book');
-      formData.append('flipbookName', location.state?.flipbookName || 'Untitled Flipbook');
-      formData.append('type', 'video');
-      formData.append('page_v_id', 'global');
-      formData.append('file', file);
-
-      try {
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-        if (res.data.url) {
-          const serverUrl = `${backendUrl}${res.data.url}`;
-          window.dispatchEvent(new CustomEvent('update-video-src', {
-            detail: { oldSrc: videoUrl, newSrc: serverUrl }
-          }));
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
-      }
-      return;
-    }
-
-    if (isGif) {
-      if (!user) {
-        alert("You must be logged in to upload GIFs.");
-        e.target.value = '';
-        return;
-      }
-      const tempUrl = URL.createObjectURL(file);
-      window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
-        detail: { dataUrl: tempUrl, pageIndex: activePageIndex, dataType: 'gif', file, isTemporary: true }
-      }));
+    
+    if ((isVideo || isGif) && !user) {
+      alert(`You must be logged in to upload ${isVideo ? 'videos' : 'GIFs'}.`);
       e.target.value = '';
-
-      const formData = new FormData();
-      formData.append('emailId', user.emailId);
-      if (v_id) formData.append('v_id', v_id);
-      formData.append('folderName', location.state?.folderName || folder || 'Recent Book');
-      formData.append('flipbookName', location.state?.flipbookName || 'Untitled Flipbook');
-      formData.append('type', 'gif');
-      formData.append('assetType', 'gif');
-      formData.append('page_v_id', 'global');
-      formData.append('file', file);
-
-      try {
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-        if (res.data.url) {
-          const serverUrl = `${backendUrl}${res.data.url}`;
-          window.dispatchEvent(new CustomEvent('update-image-src', {
-            detail: { oldSrc: tempUrl, newSrc: serverUrl }
-          }));
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
-      }
       return;
     }
 
@@ -223,19 +156,25 @@ const RightSidebar = ({
       const dataUrl = event.target.result;
 
       let finalUrl = dataUrl;
-      // Skip compression for GIFs and SVGs to preserve animation/vector quality
-      if (!isGif && !isSvg) {
+      // Skip compression for GIFs, SVGs, and Videos to preserve quality
+      if (!isGif && !isSvg && !isVideo) {
         finalUrl = await compressImage(dataUrl);
       }
 
-      // Dispatch event to MainEditor
-      window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
-        detail: { 
-          dataUrl: finalUrl, 
-          pageIndex: activePageIndex,
-          dataType: isSvg ? 'svg' : 'image'
-        }
-      }));
+      if (isVideo) {
+        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+          detail: { videoUrl: finalUrl, pageIndex: activePageIndex, file, isTemporary: true }
+        }));
+      } else {
+        // Dispatch event to MainEditor
+        window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
+          detail: { 
+            dataUrl: finalUrl, 
+            pageIndex: activePageIndex,
+            dataType: isSvg ? 'svg' : (isGif ? 'gif' : 'image')
+          }
+        }));
+      }
     };
     reader.readAsDataURL(file);
     e.target.value = ''; // Reset input
@@ -370,15 +309,25 @@ const RightSidebar = ({
            if (parseFloat(y) === 0) y = el.getAttribute('y') || '0';
         }
 
-        const fillStyle = el.getAttribute('fill') || '#000000';
-        const strokeStyle = el.getAttribute('stroke') || 'none';
+        let fillStyle = el.getAttribute('fill') || '#000000';
+        let strokeStyle = el.getAttribute('stroke') || 'none';
+        let strokeWidthStr = el.getAttribute('stroke-width') || el.getAttribute('strokeWidth') || '0';
+
+        if (el.tagName.toLowerCase() === 'foreignobject' && actualEl && actualEl.firstElementChild) {
+          const comp = window.getComputedStyle(actualEl.firstElementChild);
+          if (!el.hasAttribute('fill')) fillStyle = comp.color || fillStyle;
+          if (!el.hasAttribute('stroke') && comp.webkitTextStrokeColor) strokeStyle = comp.webkitTextStrokeColor;
+          if (!el.hasAttribute('stroke-width') && !el.hasAttribute('strokeWidth') && comp.webkitTextStrokeWidth) {
+            strokeWidthStr = parseFloat(comp.webkitTextStrokeWidth).toString();
+          }
+        }
 
         const props = {
           id: selectedLayerId,
           tagName: el.tagName,
           fill: fillStyle,
           stroke: strokeStyle,
-          strokeWidth: el.getAttribute('stroke-width') || '0',
+          strokeWidth: strokeWidthStr,
           strokeDasharray: el.getAttribute('stroke-dasharray') || 'none',
           opacity: el.getAttribute('opacity') || '1',
           fontSize: el.getAttribute('font-size') || '16',
@@ -522,7 +471,7 @@ const RightSidebar = ({
       )}
 
       {/* Persistent Dimension Section (Common for all) */}
-      {activeTopTool === 'editor' && !is3DModalOpen && (
+      {!is3DModalOpen && (
         <div className="bg-[#f6f6f6] px-[1.5vw] py-[0.8vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
             <div className="flex items-center gap-[0.4vw]">
@@ -964,6 +913,9 @@ const RightSidebar = ({
           /* Animation Mode */
           <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar p-[1.5vw]">
             <AnimationPanel 
+               selectedElementProps={selectedElementProps}
+               flipbookDimensions={flipbookDimensions}
+               selectedLayerId={selectedLayerId}
                selectedElement={(() => {
                  if (!selectedLayerId) return null;
                  const container = document.querySelector(`.page-svg-container [id="${selectedLayerId}"]`);

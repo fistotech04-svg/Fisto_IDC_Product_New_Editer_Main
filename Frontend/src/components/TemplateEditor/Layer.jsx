@@ -124,7 +124,8 @@ const LayerItem = ({
 
     switch (layer.type) {
       case 'g': return <Folder size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
-      case 'text': return <Type size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
+      case 'text':
+      case 'foreignobject': return <Type size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'rect': return <Square size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
       case 'circle':
       case 'ellipse': return <Circle size="0.85vw" className="text-gray-400 group-hover/layer:text-[#6366F1]" />;
