@@ -939,7 +939,7 @@ const ShapeProperties = ({
             {(activeEffectPopupId === 'blur' || activeEffectPopupId === 'background-blur') && (
               <div className="space-y-[0.8vw] pt-[0.2vw]">
                 {[
-                  { id: 'value', label: 'Blur % :', default: 4 },
+                  { id: 'value', label: 'Blur % :', default: 1 },
                   { id: 'spread', label: 'Spread :', default: 0 }
                 ].map((row) => (
                   <div key={row.id} className="flex items-center">
@@ -1182,10 +1182,18 @@ const ShapeProperties = ({
                     });
                   }
                 } else {
-                  updateElementAttribute(activePageIndex, selectedLayerId, {
+                  const updates = {
                     [activeColorPicker]: newVal,
                     [`${activeColorPicker}-type`]: 'solid'
-                  });
+                  };
+                  if (activeColorPicker === 'stroke') {
+                    const currentWeight = parseFloat(selectedElementProps.strokeWidth || selectedElementProps['stroke-width'] || 0);
+                    if (currentWeight === 0 && newVal !== 'transparent' && newVal !== 'none') {
+                      updates['strokeWidth'] = '2';
+                      updates['stroke-width'] = '2';
+                    }
+                  }
+                  updateElementAttribute(activePageIndex, selectedLayerId, updates);
                 }
               }}
               opacity={(() => {

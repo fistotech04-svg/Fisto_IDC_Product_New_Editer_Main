@@ -740,6 +740,55 @@ const Layer = ({
                     >
                       <Clipboard size="0.9vw" /> Paste
                     </button>
+
+                    {isPageBackground && (
+                      <>
+                        <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                        {!isPdfProject && (
+                          <button
+                            onClick={() => { insertPageAfter && insertPageAfter(activePageIndex); setActiveLayerMenu(null); }}
+                            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <Plus size="0.9vw" /> Add Page
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { onAddFile && onAddFile(activePageIndex); setActiveLayerMenu(null); }}
+                          className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-gray-700 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <FilePlus size="0.9vw" /> Add File
+                        </button>
+                        <button
+                          onClick={() => { duplicatePage && duplicatePage(activePageIndex); setActiveLayerMenu(null); }}
+                          className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-gray-700 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <Copy size="0.9vw" /> Duplicate
+                        </button>
+                        {!isPdfProject && (
+                          <button
+                            onClick={() => { onOpenTemplateModal && onOpenTemplateModal(activePageIndex); setActiveLayerMenu(null); }}
+                            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <Layout size="0.9vw" /> Template
+                          </button>
+                        )}
+                        <div className="h-px bg-gray-100 my-[0.2vw]"></div>
+                        {!isPdfProject && (
+                          <button
+                            onClick={() => { clearPage && clearPage(activePageIndex); setActiveLayerMenu(null); }}
+                            className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          >
+                            <Ban size="0.9vw" /> Clear
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { deletePage && deletePage(activePageIndex); setActiveLayerMenu(null); }}
+                          className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium rounded-[0.4vw] text-left transition-colors text-red-500 hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 size="0.9vw" /> Delete
+                        </button>
+                      </>
+                    )}
                   </>
                 );
               }

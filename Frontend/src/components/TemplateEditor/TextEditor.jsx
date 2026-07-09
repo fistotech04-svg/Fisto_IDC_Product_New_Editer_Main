@@ -307,7 +307,7 @@ const syncTextEffect = (doc, element) => {
       } else {
         let cssFilter = '';
         if (hasBlur) {
-          const blurVal = getVal('data-effect-blur-value', '4');
+          const blurVal = getVal('data-effect-blur-value', '1');
           cssFilter += `blur(${blurVal}px) `;
         }
         if (hasDropShadow) {
@@ -396,7 +396,7 @@ const syncTextEffect = (doc, element) => {
   let currentIn = "SourceGraphic";
 
   if (hasBlur) {
-    const blurVal = parseFloat(getVal('data-effect-blur-value', '4'));
+    const blurVal = parseFloat(getVal('data-effect-blur-value', '1'));
     const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
     let blurSource = currentIn;
     if (spreadVal !== 0) {
@@ -612,8 +612,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     return {
       'Drop Shadow': { color: p['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(p['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(p['data-effect-drop-shadow-x'] || 4), y: parseFloat(p['data-effect-drop-shadow-y'] || 4), blur: parseFloat(p['data-effect-drop-shadow-blur'] || 4), spread: 0 },
       'Inner Shadow': { color: p['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(p['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(p['data-effect-inner-shadow-x'] || 4), y: parseFloat(p['data-effect-inner-shadow-y'] || 4), blur: parseFloat(p['data-effect-inner-shadow-blur'] || 1), spread: 0 },
-      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 4), spread: 0 },
-      'Background Blur': { blur: parseFloat(p['data-effect-background-blur-value'] || 10), spread: 0 }
+      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 1), spread: 0 },
+      'Background Blur': { blur: parseFloat(p['data-effect-background-blur-value'] || 1), spread: 0 }
     };
   });
 
@@ -669,8 +669,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     setEffectSettings({
       'Drop Shadow': { color: selectedElementProps?.['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(selectedElementProps?.['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(selectedElementProps?.['data-effect-drop-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-drop-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-drop-shadow-blur'] || 4), spread: 0 },
       'Inner Shadow': { color: selectedElementProps?.['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(selectedElementProps?.['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(selectedElementProps?.['data-effect-inner-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-inner-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-inner-shadow-blur'] || 1), spread: 0 },
-      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 4), spread: 0 },
-      'Background Blur': { blur: parseFloat(selectedElementProps?.['data-effect-background-blur-value'] || 10), spread: 0 }
+      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 1), spread: 0 },
+      'Background Blur': { blur: parseFloat(selectedElementProps?.['data-effect-background-blur-value'] || 1), spread: 0 }
     });
   }, [selectedLayerId, activePageIndex]);
 

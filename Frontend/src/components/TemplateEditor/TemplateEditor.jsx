@@ -22,7 +22,7 @@ import Model3DPreviewModal from './Interaction3DPreview';
 const parseLayersFromSVG = (element) => {
   return Array.from(element.children)
     .filter(child => {
-      if (['defs', 'metadata', 'style', 'title', 'desc'].includes(child.tagName.toLowerCase())) return false;
+      if (['defs', 'metadata', 'style', 'title', 'desc', 'parsererror'].includes(child.tagName.toLowerCase())) return false;
       if (child.getAttribute('data-name') === 'Overlay') return false;
       if (child.classList.contains('svg-drop-shadow-caster')) return false;
       if (child.classList.contains('internal-crop-rect')) return false;
@@ -38,7 +38,11 @@ const parseLayersFromSVG = (element) => {
 
       return true;
     })
-    .map(child => {
+    .flatMap(child => {
+      // If this is an inner crop wrapper, unwrap it by returning its children directly
+      if (child.tagName.toLowerCase() === 'svg' && child.classList.contains('svg-crop-wrapper')) {
+        return parseLayersFromSVG(child);
+      }
       // Ensure element has a unique ID for selection and state tracking
       let id = child.getAttribute('id') || child.id;
       if (!id) {
@@ -69,7 +73,8 @@ const parseLayersFromSVG = (element) => {
         child.getAttribute('data-is-video-group') === 'true' ||
         child.getAttribute('data-is-gif-group') === 'true';
 
-      const isText = child.tagName.toLowerCase() === 'text' || child.tagName.toLowerCase() === 'foreignobject';
+      const isText = child.tagName.toLowerCase() === 'text' ||
+        (child.tagName.toLowerCase() === 'foreignobject' && child.getAttribute('data-type') !== 'video' && child.getAttribute('data-type') !== 'iframe');
 
       if (isGroup || isText) {
         let activeEffects = [];
@@ -141,7 +146,7 @@ const parseLayersFromSVG = (element) => {
         layer.children = virtualLayers;
       }
 
-      return layer;
+      return [layer];
     });
 };
 
@@ -173,6 +178,7 @@ const TemplateEditor = () => {
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isDoublePage, setIsDoublePage] = useState(false);
+  const [isRulerEnabled, setIsRulerEnabled] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
@@ -2266,7 +2272,7 @@ const TemplateEditor = () => {
 
     // 1. Layer Blur
     if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-value', '4'));
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '1'));
       const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
 
       let blurSource = currentIn;
@@ -2440,6 +2446,19 @@ const TemplateEditor = () => {
     saveToHistory();
     // Special case: ImageEditor serializes the whole SVG and passes it directly
     if (attribute === '__dom_sync__') {
+      const safeParseSVG = (htmlStr) => {
+        let safeStr = htmlStr;
+        if (!safeStr.includes('xmlns:xlink=')) {
+          safeStr = safeStr.replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ');
+        }
+        const parser = new DOMParser();
+        let doc = parser.parseFromString(safeStr, 'image/svg+xml');
+        if (doc.querySelector('parsererror')) {
+          console.warn("Strict XML parsing failed, falling back to HTML parsing for layers");
+          doc = parser.parseFromString(safeStr, 'text/html');
+        }
+        return doc;
+      };
       setPages(prev => {
         const updated = [...prev];
         const page = updated[pageIndex];
@@ -2447,8 +2466,7 @@ const TemplateEditor = () => {
 
         let newLayers = page.layers;
         if (value) {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(value, 'image/svg+xml');
+          const doc = safeParseSVG(value);
           const svgEl = doc.querySelector('svg');
           if (svgEl) {
             newLayers = parseLayersFromSVG(svgEl);
@@ -2466,7 +2484,10 @@ const TemplateEditor = () => {
       if (!page || !page.html) return prev;
 
       const parser = new DOMParser();
-      const doc = parser.parseFromString(page.html, 'image/svg+xml');
+      let safeStr = page.html;
+      if (!safeStr.includes('xmlns:xlink=')) safeStr = safeStr.replace('<svg ', '<svg xmlns:xlink="http://www.w3.org/1999/xlink" ');
+      let doc = parser.parseFromString(safeStr, 'image/svg+xml');
+      if (doc.querySelector('parsererror')) doc = parser.parseFromString(safeStr, 'text/html');
       let element = doc.getElementById(elementId);
       if (!element) {
         element = doc.querySelector(`[data-name="${elementId}"]`);
@@ -3464,10 +3485,28 @@ const TemplateEditor = () => {
                 updatedHtml = updatedHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
               }
 
+              if (updatedHtml.includes('parsererror') || updatedHtml.includes('id="custom-ctrl-')) {
+                const temp = document.createElement('div');
+                temp.innerHTML = updatedHtml;
+                temp.querySelectorAll('parsererror').forEach(el => el.remove());
+                temp.querySelectorAll('[id^="custom-ctrl-"]').forEach(el => el.remove());
+                updatedHtml = temp.innerHTML;
+              }
+
               // Re-parse layers from HTML if missing or invalid (source of truth)
               const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
               const svgEl = doc.querySelector('svg');
-              let layers = p.layers;
+              const filterLayers = (layers) => {
+                if (!layers) return layers;
+                return layers
+                  .filter(l => l.type !== 'parsererror')
+                  .map(l => ({
+                    ...l,
+                    children: l.children ? filterLayers(l.children) : undefined
+                  }));
+              };
+
+              let layers = filterLayers(p.layers);
               if (!layers || layers.length === 0) {
                 if (svgEl) {
                   layers = parseLayersFromSVG(svgEl);
@@ -3663,6 +3702,7 @@ const TemplateEditor = () => {
         <MainEditor
           isPdfProject={isPdfProject}
           isDoublePage={isDoublePage}
+          isRulerEnabled={isRulerEnabled}
           pages={pages}
           activePageIndex={activePageIndex}
           setActivePageIndex={setActivePageIndex}
@@ -3733,6 +3773,8 @@ const TemplateEditor = () => {
       <RightSidebar
         isDoublePage={isDoublePage}
         setIsDoublePage={setIsDoublePage}
+        isRulerEnabled={isRulerEnabled}
+        setIsRulerEnabled={setIsRulerEnabled}
         activeMainTool={activeMainTool}
         setActiveMainTool={setActiveMainTool}
         activeTopTool={activeTopTool}

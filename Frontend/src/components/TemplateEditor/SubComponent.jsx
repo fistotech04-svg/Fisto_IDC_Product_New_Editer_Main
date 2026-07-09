@@ -968,7 +968,7 @@ const ShapePropertiesUI = ({
             {(activeEffectPopupId === 'blur' || activeEffectPopupId === 'background-blur') && (
               <div className="space-y-[0.8vw] pt-[0.2vw]">
                 {[
-                  { id: 'value', label: 'Blur % :', default: 4 },
+                  { id: 'value', label: 'Blur % :', default: 1 },
                   { id: 'spread', label: 'Spread :', default: 0 }
                 ].map((row) => (
                   <div key={row.id} className="flex items-center">
@@ -1332,9 +1332,9 @@ const SubComponent = ({
     'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y || 4,
     'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur || 1,
     'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread || 0,
-    'data-effect-blur-value': effectSettings?.['Blur']?.blur || 4,
+    'data-effect-blur-value': effectSettings?.['Blur']?.blur || 1,
     'data-effect-blur-spread': effectSettings?.['Blur']?.spread || 0,
-    'data-effect-background-blur-value': effectSettings?.['Background Blur']?.blur || 4,
+    'data-effect-background-blur-value': effectSettings?.['Background Blur']?.blur || 1,
     'data-effect-background-blur-spread': effectSettings?.['Background Blur']?.spread || 0,
     'data-filter-exposure': filters?.exposure || 0,
     'data-filter-contrast': filters?.contrast || 0,
@@ -1360,7 +1360,7 @@ const SubComponent = ({
     if (attr === 'fill-angle' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillAngle: parseFloat(value) }));
     if (attr === 'fill-radius' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillRadius: parseFloat(value) }));
     if (attr === 'opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillOpacity: parseFloat(value) * 100 }));
-    if (attr === 'stroke' && setBackgroundColor) setBackgroundColor(p => ({ ...p, stroke: value }));
+    if (attr === 'stroke' && setBackgroundColor) setBackgroundColor(p => ({ ...p, stroke: value, strokeWeight: (p.strokeWeight === 0 && value !== 'transparent' && value !== 'none') ? 2 : p.strokeWeight }));
     if (attr === 'stroke-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeType: value }));
     if (attr === 'stroke-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeGradientType: value }));
     if (attr === 'stroke-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeStops: value }));

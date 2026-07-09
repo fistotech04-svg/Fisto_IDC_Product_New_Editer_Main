@@ -108,8 +108,8 @@ const VideoEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 4, spread: 0 },
-    'Background Blur': { blur: 4, spread: 0 }
+    'Blur': { blur: 1, spread: 0 },
+    'Background Blur': { blur: 1, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -219,47 +219,61 @@ const VideoEditor = ({
     const dashPos = visualTarget.getAttribute('data-stroke-position') || 'Center';
     const dashCap = visualTarget.getAttribute('stroke-linecap') || 'butt';
 
-    const existingStrokeType = visualTarget.getAttribute('data-stroke-type');
-    const actualStrokeType = existingStrokeType ? existingStrokeType : (isDashed ? 'Dashed' : 'Solid');
+    const existingStrokeType = visualTarget.getAttribute('data-stroke-type') || liveElement.getAttribute('data-stroke-type');
+    const actualStrokeType = existingStrokeType && existingStrokeType !== 'Dashed' ? existingStrokeType : 'Solid';
 
-    setBackgroundColor({
-      fill: fill === 'none' ? 'transparent' : fill,
-      fillOpacity: 100,
-      stroke: stColor === 'none' ? 'transparent' : stColor,
-      strokeOpacity: 100,
-      strokeType: actualStrokeType,
-      strokeGradientType: visualTarget.getAttribute('data-stroke-gradient-type') || 'linear',
-      strokeStops: visualTarget.getAttribute('data-stroke-stops'),
-      strokeAngle: parseFloat(visualTarget.getAttribute('data-stroke-angle') || '0'),
-      strokeRadius: parseFloat(visualTarget.getAttribute('data-stroke-radius') || '100'),
-      strokeWeight: stWeight,
-      strokeDashLength: dashLen,
-      strokeDashGap: dashGap,
-      strokePosition: dashPos,
-      strokeLinecap: dashCap
+    setBackgroundColor(prev => {
+      const next = {
+        fill: fill === 'none' ? 'transparent' : fill,
+        fillOpacity: 100,
+        stroke: stColor === 'none' ? 'transparent' : stColor,
+        strokeOpacity: 100,
+        strokeType: actualStrokeType,
+        strokeDashStyle: isDashed ? 'Dashed' : 'Solid',
+        strokeGradientType: visualTarget.getAttribute('data-stroke-gradient-type') || 'linear',
+        strokeStops: visualTarget.getAttribute('data-stroke-stops'),
+        strokeAngle: parseFloat(visualTarget.getAttribute('data-stroke-angle') || '0'),
+        strokeRadius: parseFloat(visualTarget.getAttribute('data-stroke-radius') || '100'),
+        strokeWeight: stWeight,
+        strokeDashLength: dashLen,
+        strokeDashGap: dashGap,
+        strokePosition: dashPos,
+        strokeLinecap: dashCap
+      };
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
     });
 
     // Filters
-    setFilters({
-      exposure: parseFloat(visualTarget.getAttribute('data-effect-exposure') || '0'),
-      contrast: parseFloat(visualTarget.getAttribute('data-effect-contrast') || '0'),
-      saturation: parseFloat(visualTarget.getAttribute('data-effect-saturation') || '0'),
-      temperature: parseFloat(visualTarget.getAttribute('data-effect-temperature') || '0'),
-      tint: parseFloat(visualTarget.getAttribute('data-effect-tint') || '0'),
-      highlights: parseFloat(visualTarget.getAttribute('data-effect-highlights') || '0'),
-      shadows: parseFloat(visualTarget.getAttribute('data-effect-shadows') || '0'),
+    setFilters(prev => {
+      const next = {
+        exposure: parseFloat(visualTarget.getAttribute('data-effect-exposure') || '0'),
+        contrast: parseFloat(visualTarget.getAttribute('data-effect-contrast') || '0'),
+        saturation: parseFloat(visualTarget.getAttribute('data-effect-saturation') || '0'),
+        temperature: parseFloat(visualTarget.getAttribute('data-effect-temperature') || '0'),
+        tint: parseFloat(visualTarget.getAttribute('data-effect-tint') || '0'),
+        highlights: parseFloat(visualTarget.getAttribute('data-effect-highlights') || '0'),
+        shadows: parseFloat(visualTarget.getAttribute('data-effect-shadows') || '0'),
+      };
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
     });
 
     // 4. Radius
     const brData = visualTarget.getAttribute('data-radius');
     if (brData) {
-      try { setRadius(JSON.parse(brData)); } catch (e) { }
+      try {
+        const parsed = JSON.parse(brData);
+        setRadius(prev => JSON.stringify(prev) === JSON.stringify(parsed) ? prev : parsed);
+      } catch (e) { }
     } else {
       const br = visualTarget.style.borderRadius || "";
       if (br) {
         const parts = br.split(' ').map(p => parseInt(p) || 0);
-        if (parts.length === 1) setRadius({ tl: parts[0], tr: parts[0], br: parts[0], bl: parts[0] });
-        else if (parts.length === 4) setRadius({ tl: parts[0], tr: parts[1], br: parts[2], bl: parts[3] });
+        let nextRadius = null;
+        if (parts.length === 1) nextRadius = { tl: parts[0], tr: parts[0], br: parts[0], bl: parts[0] };
+        else if (parts.length === 4) nextRadius = { tl: parts[0], tr: parts[1], br: parts[2], bl: parts[3] };
+        if (nextRadius) {
+          setRadius(prev => JSON.stringify(prev) === JSON.stringify(nextRadius) ? prev : nextRadius);
+        }
       }
     }
 
@@ -268,8 +282,15 @@ const VideoEditor = ({
     if (effectsData) {
       try {
         const parsed = JSON.parse(effectsData);
-        if (parsed.activeEffects) setActiveEffects(parsed.activeEffects);
-        if (parsed.effectSettings) setEffectSettings(prev => ({ ...prev, ...parsed.effectSettings }));
+        if (parsed.activeEffects) {
+          setActiveEffects(prev => JSON.stringify(prev) === JSON.stringify(parsed.activeEffects) ? prev : parsed.activeEffects);
+        }
+        if (parsed.effectSettings) {
+          setEffectSettings(prev => {
+            const next = { ...prev, ...parsed.effectSettings };
+            return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+          });
+        }
       } catch (e) { }
     }
 
@@ -559,14 +580,20 @@ const VideoEditor = ({
       const pos = backgroundColor.strokePosition || 'Center';
       const color = hexToRgba(backgroundColor.stroke, backgroundColor.strokeOpacity / 100);
       const weight = backgroundColor.strokeWeight;
-      const style = backgroundColor.strokeType === 'Dashed' ? 'dashed' : 'solid';
+      const style = backgroundColor.strokeDashStyle === 'Dashed' ? 'dashed' : 'solid';
 
       visualTarget.setAttribute('data-stroke-color', backgroundColor.stroke);
       liveElement.setAttribute('data-stroke-color', backgroundColor.stroke);
+
+      // Strip stroke from the <g> group so it doesn't cascade down to fillLayer and cause solid border leaks
+      liveElement.removeAttribute('stroke');
+      liveElement.removeAttribute('stroke-width');
+      liveElement.removeAttribute('stroke-dasharray');
+
       visualTarget.setAttribute('stroke-width', weight);
       visualTarget.setAttribute('data-stroke-width', weight); // Keep for legacy
 
-      if (backgroundColor.strokeType === 'Dashed') {
+      if (backgroundColor.strokeDashStyle === 'Dashed') {
         const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
         visualTarget.setAttribute('stroke-dasharray', dashArray);
       } else {
@@ -589,10 +616,6 @@ const VideoEditor = ({
 
           const syncOverlay = () => {
             if (!strokeOverlay.isConnected) return;
-            strokeOverlay.setAttribute('x', visualTarget.getAttribute('x') || '0');
-            strokeOverlay.setAttribute('y', visualTarget.getAttribute('y') || '0');
-            strokeOverlay.setAttribute('width', visualTarget.getAttribute('width') || '100%');
-            strokeOverlay.setAttribute('height', visualTarget.getAttribute('height') || '100%');
             strokeOverlay.setAttribute('transform', visualTarget.getAttribute('transform') || '');
             strokeOverlay.style.transform = visualTarget.style.transform;
             strokeOverlay.style.translate = visualTarget.style.translate;
@@ -607,20 +630,30 @@ const VideoEditor = ({
           }
         }
 
-        let bx = visualTarget.getAttribute('x') || '0';
-        let by = visualTarget.getAttribute('y') || '0';
-        let bw = visualTarget.getAttribute('width') || '100%';
-        let bh = visualTarget.getAttribute('height') || '100%';
+        let bBox = { x: 0, y: 0, width: 100, height: 100 };
+        try { bBox = visualTarget.getBBox(); } catch (e) { }
 
-        if (!bx.includes('%') && !bx.includes('px')) bx = `${bx}px`;
-        if (!by.includes('%') && !by.includes('px')) by = `${by}px`;
-        if (!bw.includes('%') && !bw.includes('px')) bw = `${bw}px`;
-        if (!bh.includes('%') && !bh.includes('px')) bh = `${bh}px`;
+        let bxStr = visualTarget.getAttribute('x') || '0';
+        let byStr = visualTarget.getAttribute('y') || '0';
+        let bwStr = visualTarget.getAttribute('width') || '100%';
+        let bhStr = visualTarget.getAttribute('height') || '100%';
 
-        strokeOverlay.style.setProperty('x', bx, 'important');
-        strokeOverlay.style.setProperty('y', by, 'important');
-        strokeOverlay.style.setProperty('width', bw, 'important');
-        strokeOverlay.style.setProperty('height', bh, 'important');
+        let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+        let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+        let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+        let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+        let ox = bx, oy = by, ow = bw, oh = bh;
+        if (pos === 'Inside') {
+          ox += weight / 2; oy += weight / 2; ow -= weight; oh -= weight;
+        } else if (pos === 'Outside') {
+          ox -= weight / 2; oy -= weight / 2; ow += weight; oh += weight;
+        }
+
+        strokeOverlay.style.setProperty('x', `${ox}px`, 'important');
+        strokeOverlay.style.setProperty('y', `${oy}px`, 'important');
+        strokeOverlay.style.setProperty('width', `${Math.max(0, ow)}px`, 'important');
+        strokeOverlay.style.setProperty('height', `${Math.max(0, oh)}px`, 'important');
         strokeOverlay.setAttribute('transform', visualTarget.getAttribute('transform') || '');
         strokeOverlay.style.transform = visualTarget.style.transform;
         strokeOverlay.style.translate = visualTarget.style.translate;
@@ -659,7 +692,7 @@ const VideoEditor = ({
           strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
         }
         strokeOverlay.setAttribute('stroke-width', weight.toString());
-        if (backgroundColor.strokeType === 'Dashed') {
+        if (backgroundColor.strokeDashStyle === 'Dashed') {
           const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
           strokeOverlay.setAttribute('stroke-dasharray', dashArray);
         } else {
@@ -672,17 +705,10 @@ const VideoEditor = ({
         if (maxR > 0) strokeOverlay.setAttribute('rx', maxR.toString());
         else strokeOverlay.removeAttribute('rx');
 
-        if (pos === 'Inside') {
-          strokeOverlay.style.outline = 'none';
-          strokeOverlay.style.borderWidth = `${weight}px`;
-          visualTarget.style.outline = 'none';
-          visualTarget.style.borderWidth = '0px';
-        } else {
-          strokeOverlay.style.outline = 'none';
-          strokeOverlay.style.borderWidth = '0px';
-          visualTarget.style.outline = 'none';
-          visualTarget.style.borderWidth = '0px';
-        }
+        strokeOverlay.style.outline = 'none';
+        strokeOverlay.style.removeProperty('border-width');
+        visualTarget.style.outline = 'none';
+        visualTarget.style.borderWidth = '0px';
         strokeOverlay.style.display = 'block';
       } else {
         liveElement.querySelector('.svg-video-stroke-overlay')?.remove();
@@ -1024,31 +1050,44 @@ const VideoEditor = ({
       // --- STRICT LAYER REORDERING FOR VIDEO GROUPS ---
       if (liveElement.getAttribute('data-is-video-group') === 'true') {
         const dropShadow = liveElement.querySelector('.svg-drop-shadow-caster');
-        const fillLayer = liveElement.querySelector('.video-fill-layer') || liveElement.querySelector('.image-fill-layer');
-        const innerShadow = liveElement.querySelector('.svg-video-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-overlay');
-        const stroke = liveElement.querySelector('.svg-video-stroke-overlay');
-
-        if (dropShadow) { dropShadow.setAttribute('data-name', 'Drop Shadow'); liveElement.appendChild(dropShadow); }
-        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); liveElement.appendChild(fillLayer); }
-
+        const fillLayer = liveElement.querySelector('.svg-fill-layer');
+        const innerShadows = Array.from(liveElement.querySelectorAll('.svg-inner-shadow-caster'));
+        const strokeLayer = liveElement.querySelector('.svg-stroke-layer');
         const videoNode = liveElement.querySelector('foreignObject') || liveElement.querySelector('video') || liveElement.querySelector('iframe');
-        if (videoNode && videoNode.parentNode === liveElement) {
-          liveElement.appendChild(videoNode);
-        }
 
-        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); liveElement.appendChild(innerShadow); }
-        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
+        // We only move the specific layers to avoid detaching the videoNode itself
+        if (dropShadow && videoNode) {
+          dropShadow.setAttribute('data-name', 'Drop Shadow');
+          if (dropShadow.nextElementSibling !== videoNode) {
+            liveElement.insertBefore(dropShadow, videoNode);
+          }
+        }
+        if (fillLayer && videoNode) {
+          fillLayer.setAttribute('data-name', 'Fill Color');
+          if (fillLayer.nextElementSibling !== videoNode) {
+            liveElement.insertBefore(fillLayer, videoNode);
+          }
+        }
+        // Inner shadows and stroke layer must be placed AFTER videoNode.
+        innerShadows.forEach(inner => {
+          inner.setAttribute('data-name', 'Inner Shadow');
+          if (liveElement.lastElementChild !== inner) {
+            liveElement.appendChild(inner);
+          }
+        });
+        if (strokeLayer) {
+          strokeLayer.setAttribute('data-name', 'Stroke');
+          if (liveElement.lastElementChild !== strokeLayer) {
+            liveElement.appendChild(strokeLayer);
+          }
+        }
       }
 
       // Trigger parent update
+      window.__skipCanvasUpdateForPage = activePageIndex;
       debouncedUpdate();
-    } finally {
-      if (isUpdatingDOMTimeoutRef.current) clearTimeout(isUpdatingDOMTimeoutRef.current);
-      // Keep isUpdatingDOM true for long enough to cover the debouncedUpdate (800ms)
-      // plus the subsequent React re-render cycle.
-      isUpdatingDOMTimeoutRef.current = setTimeout(() => {
-        isUpdatingDOM.current = false;
-      }, 1000);
+    } catch (e) {
+      console.error("Error applying video visuals:", e);
     }
   }, [selectedElement, selectedLayerId, activePageIndex, width, height, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, debouncedUpdate]);
 
@@ -1517,9 +1556,10 @@ const VideoEditor = ({
   return (
     <div className="flex flex-col w-full font-sans text-gray-700 space-y-[1.5vw]">
       <style>{`
-        input[type='range']::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
-        input[type='range']::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         body.is-scrubbing { overflow: hidden !important; }
       `}</style>
 
@@ -1704,7 +1744,7 @@ const VideoEditor = ({
                 }
               }}
               onMouseUp={() => debouncedUpdate()}
-              className="w-full cursor-pointer"
+              className="w-full cursor-pointer custom-range-slider"
               style={{ background: `linear-gradient(to right, indigo 0%, indigo ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
             />
           </div>

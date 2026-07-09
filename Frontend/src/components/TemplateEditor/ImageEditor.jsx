@@ -388,8 +388,8 @@ const ImageEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 4, spread: 0 },
-    'Background Blur': { blur: 4, spread: 0 }
+    'Blur': { blur: 1, spread: 0 },
+    'Background Blur': { blur: 1, spread: 0 }
   });
 
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -1582,8 +1582,22 @@ const ImageEditor = ({
             svgImageEl.style.removeProperty('transform-box');
           }
 
-          if (anyR) {
-            // Radius logic
+          const isCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
+
+          if (isCropped) {
+            if (anyR) {
+              liveElement.setAttribute('data-effect-radius-tl', radius.tl.toString());
+              liveElement.setAttribute('data-effect-radius-tr', radius.tr.toString());
+              liveElement.setAttribute('data-effect-radius-br', radius.br.toString());
+              liveElement.setAttribute('data-effect-radius-bl', radius.bl.toString());
+            } else {
+              liveElement.removeAttribute('data-effect-radius-tl');
+              liveElement.removeAttribute('data-effect-radius-tr');
+              liveElement.removeAttribute('data-effect-radius-br');
+              liveElement.removeAttribute('data-effect-radius-bl');
+            }
+          } else if (anyR) {
+            // Radius logic for uncropped images
             const clipVal = `inset(0% 0% 0% 0% round ${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px)`;
 
             if (liveElement.tagName?.toLowerCase() === 'rect') {
@@ -1855,7 +1869,10 @@ const ImageEditor = ({
             }
           }
 
-          const targetEl = isContainer ? (svgImageEl || liveElement) : liveElement;
+          let targetEl = isContainer ? (svgImageEl || liveElement) : liveElement;
+          if (svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
+            targetEl = svgImageEl.parentNode;
+          }
           let box = { x: 0, y: 0, width: 100, height: 100 };
           try { box = targetEl.getBBox(); } catch (e) { }
 
@@ -1868,6 +1885,18 @@ const ImageEditor = ({
           let iy = iyStr.includes('%') ? box.y : parseFloat(iyStr) || 0;
           let iw = iwStr.includes('%') ? box.width : parseFloat(iwStr) || 100;
           let ih = ihStr.includes('%') ? box.height : parseFloat(ihStr) || 100;
+
+          // Apply crop mathematically to inner shadow dimensions
+          const cropStr = targetEl.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+          if (cropStr && cropStr !== 'null') {
+            try {
+              const crop = JSON.parse(cropStr);
+              ix = ix + (parseFloat(crop.left) / 100) * iw;
+              iy = iy + (parseFloat(crop.top) / 100) * ih;
+              iw = iw * (parseFloat(crop.width) / 100);
+              ih = ih * (parseFloat(crop.height) / 100);
+            } catch (e) {}
+          }
 
           overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
 
@@ -2000,6 +2029,17 @@ const ImageEditor = ({
           let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
           let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
           let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+          const cropStrFill = targetElForFill.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+          if (cropStrFill && cropStrFill !== 'null') {
+            try {
+              const crop = JSON.parse(cropStrFill);
+              bx = bx + (parseFloat(crop.left) / 100) * bw;
+              by = by + (parseFloat(crop.top) / 100) * bh;
+              bw = bw * (parseFloat(crop.width) / 100);
+              bh = bh * (parseFloat(crop.height) / 100);
+            } catch (e) {}
+          }
 
           if (isPatternShape && patternEl) {
             fillLayer.setAttribute('x', '0');
@@ -2198,6 +2238,17 @@ const ImageEditor = ({
           let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
           let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+          const cropStrStroke = targetElForStroke.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+          if (cropStrStroke && cropStrStroke !== 'null') {
+            try {
+              const crop = JSON.parse(cropStrStroke);
+              bx = bx + (parseFloat(crop.left) / 100) * bw;
+              by = by + (parseFloat(crop.top) / 100) * bh;
+              bw = bw * (parseFloat(crop.width) / 100);
+              bh = bh * (parseFloat(crop.height) / 100);
+            } catch (e) {}
+          }
+
           const pos = backgroundColor.strokePosition || 'Center';
           const sw = backgroundColor.strokeWeight || 0;
 
@@ -2290,7 +2341,7 @@ const ImageEditor = ({
             defsOwner.insertBefore(defs, defsOwner.firstChild);
           }
           const clipId = `clip-${liveElement.id || Date.now()}`;
-          let clip = defs.querySelector('clipPath');
+          let clip = defs.querySelector(`clipPath[id="${clipId}"]`);
           if (!clip) {
             clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
             clip.id = clipId;
@@ -2310,7 +2361,9 @@ const ImageEditor = ({
             clipPathEl.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
           }
 
-          if (targetElForStroke) {
+          const isStrokeCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
+
+          if (targetElForStroke && !isStrokeCropped) {
             targetElForStroke.setAttribute('clip-path', `url(#${clip.id})`);
             targetElForStroke.style.setProperty('clip-path', `url(#${clip.id})`, 'important');
             targetElForStroke.style.removeProperty('-webkit-clip-path');
@@ -2447,10 +2500,10 @@ const ImageEditor = ({
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 0.25vw; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 0.5vw; }
-        input[type='range'] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type='range']::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
-        input[type='range']::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         
         .image-editor-toggle {
           appearance: none;
@@ -2863,7 +2916,7 @@ const ImageEditor = ({
                       max="100"
                       value={opacity}
                       onChange={(e) => setOpacity(Number(e.target.value))}
-                      className="w-full cursor-pointer"
+                      className="w-full cursor-pointer custom-range-slider"
                       style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
                     />
                   </div>
@@ -3062,7 +3115,7 @@ const ImageEditor = ({
                     if (activeColorPicker === 'fill') {
                       setBackgroundColor(p => ({ ...p, fill: color }));
                     } else {
-                      setBackgroundColor(p => ({ ...p, stroke: color }));
+                      setBackgroundColor(p => ({ ...p, stroke: color, strokeWeight: (p.strokeWeight === 0 && color !== 'transparent' && color !== 'none') ? 2 : p.strokeWeight }));
                     }
                   }}
                   onClose={() => setActiveColorPicker(null)}

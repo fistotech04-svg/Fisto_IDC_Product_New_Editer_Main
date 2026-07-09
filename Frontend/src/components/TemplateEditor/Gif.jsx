@@ -90,8 +90,8 @@ const GifEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 4, spread: 0 },
-    'Background Blur': { blur: 4, spread: 0 }
+    'Blur': { blur: 1, spread: 0 },
+    'Background Blur': { blur: 1, spread: 0 }
   });
 
   const [backgroundColor, setBackgroundColor] = useState({
@@ -968,21 +968,69 @@ const GifEditor = ({
             overlay.style.pointerEvents = 'none';
             overlay.setAttribute('fill', 'white');
             liveElement.appendChild(overlay);
+
+            // MutationObserver to keep inner shadow perfectly synced when dragged or resized
+            const syncInnerShadow = () => {
+              if (!overlay.isConnected) return;
+              let tEl = svgImageEl || liveElement;
+              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+                tEl = svgImageEl.parentNode;
+              }
+              let bBox = { x: 0, y: 0, width: 100, height: 100 };
+              try { bBox = tEl.getBBox(); } catch (e) {}
+              
+              let xStr = tEl.getAttribute('x') || '0';
+              let yStr = tEl.getAttribute('y') || '0';
+              let wStr = tEl.getAttribute('width') || '100%';
+              let hStr = tEl.getAttribute('height') || '100%';
+              
+              let obx = xStr.includes('%') ? bBox.x : parseFloat(xStr) || 0;
+              let oby = yStr.includes('%') ? bBox.y : parseFloat(yStr) || 0;
+              let obw = wStr.includes('%') ? bBox.width : parseFloat(wStr) || 100;
+              let obh = hStr.includes('%') ? bBox.height : parseFloat(hStr) || 100;
+
+              const mxR = Math.min(obw, obh) / 2;
+              const ctl = Math.max(0, Math.min(radius.tl || 0, mxR));
+              const ctr = Math.max(0, Math.min(radius.tr || 0, mxR));
+              const cbr = Math.max(0, Math.min(radius.br || 0, mxR));
+              const cbl = Math.max(0, Math.min(radius.bl || 0, mxR));
+
+              overlay.setAttribute('d', getPathD(obx, oby, Math.max(0, obw), Math.max(0, obh), ctl, ctr, cbr, cbl));
+              overlay.setAttribute('transform', tEl.getAttribute('transform') || '');
+              overlay.style.transform = tEl.style.transform;
+              overlay.style.translate = tEl.style.translate;
+              overlay.style.scale = tEl.style.scale;
+              overlay.style.rotate = tEl.style.rotate;
+              overlay.style.transformOrigin = tEl.style.transformOrigin;
+            };
+            const obs = new MutationObserver(syncInnerShadow);
+            obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            let tObs = svgImageEl || liveElement;
+            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+              tObs = svgImageEl.parentNode;
+            }
+            if (tObs && tObs !== liveElement) {
+              obs.observe(tObs, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            }
           }
 
-          const targetEl = svgImageEl || liveElement;
+          let targetEl = svgImageEl || liveElement;
+          if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+            targetEl = svgImageEl.parentNode;
+          }
+
           let box = { x: 0, y: 0, width: 100, height: 100 };
-          try { box = targetEl.getBBox(); } catch (e) {
-            box.x = parseFloat(targetEl.getAttribute('x') || 0);
-            box.y = parseFloat(targetEl.getAttribute('y') || 0);
-            box.width = parseFloat(targetEl.getAttribute('width') || 100);
-            box.height = parseFloat(targetEl.getAttribute('height') || 100);
-          }
+          try { box = targetEl.getBBox(); } catch (e) { }
 
-          const bx = box.x;
-          const by = box.y;
-          const bw = Math.max(1, box.width);
-          const bh = Math.max(1, box.height);
+          let bxStr = targetEl.getAttribute('x') || '0';
+          let byStr = targetEl.getAttribute('y') || '0';
+          let bwStr = targetEl.getAttribute('width') || '100%';
+          let bhStr = targetEl.getAttribute('height') || '100%';
+
+          let bx = bxStr.includes('%') ? box.x : parseFloat(bxStr) || 0;
+          let by = byStr.includes('%') ? box.y : parseFloat(byStr) || 0;
+          let bw = bwStr.includes('%') ? box.width : parseFloat(bwStr) || 100;
+          let bh = bhStr.includes('%') ? box.height : parseFloat(bhStr) || 100;
 
           const tl = radius.tl || 0;
           const tr = radius.tr || 0;
@@ -995,8 +1043,13 @@ const GifEditor = ({
           const c_br = Math.max(0, Math.min(br, maxR));
           const c_bl = Math.max(0, Math.min(bl, maxR));
 
-          overlay.setAttribute('d', getPathD(bx, by, bw, bh, c_tl, c_tr, c_br, c_bl));
+          overlay.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), c_tl, c_tr, c_br, c_bl));
           overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+          overlay.style.transform = targetEl.style.transform;
+          overlay.style.translate = targetEl.style.translate;
+          overlay.style.scale = targetEl.style.scale;
+          overlay.style.rotate = targetEl.style.rotate;
+          overlay.style.transformOrigin = targetEl.style.transformOrigin;
 
           overlay.setAttribute('filter', `url(#${filterId})`);
         } else {
@@ -1169,10 +1222,10 @@ const GifEditor = ({
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        input[type='range'] { -webkit-appearance: none; width: 100%; background: transparent; }
-        input[type='range']::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
-        input[type='range']::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       `}</style>
 
@@ -1235,7 +1288,7 @@ const GifEditor = ({
             <div className="h-[0.0925vw] bg-gray-200 flex-1"> </div>
           </div>
           <div className="flex items-center gap-[1vw] pb-[0.5vw]">
-            <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="flex-1 cursor-pointer" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }} />
+            <input type="range" min="0" max="100" value={opacity} onChange={(e) => setOpacity(Number(e.target.value))} className="flex-1 cursor-pointer custom-range-slider" style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }} />
             <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{opacity}%</span>
           </div>
         </div>
