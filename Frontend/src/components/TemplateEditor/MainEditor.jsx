@@ -2332,7 +2332,7 @@ const MainEditor = ({
 
               handle.style.left = `${posX}px`;
               handle.style.top = `${posY}px`;
-              handle.style.transform = `translate(-50%, -50%) scale(${1 / zoomScale})`;
+              handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
             }
             handle.style.cursor = getRotatingCursor(name, rotation);
           }
@@ -4025,7 +4025,6 @@ const MainEditor = ({
                   if (el && el !== svgElement &&
                     el.getAttribute('data-hidden') !== 'true' &&
                     el.getAttribute('data-locked') !== 'true') {
-                    el.setAttribute('data-dragging', 'true');
                     multiDragItems.push({
                       element: el,
                       initialMatrix: getElementMatrix(el),
@@ -4033,11 +4032,6 @@ const MainEditor = ({
                     });
                   }
                 }
-              }
-
-              // If no multi items, just add the primary element
-              if (multiDragItems.length === 0) {
-                elementToDrag.setAttribute('data-dragging', 'true');
               }
             }
 
@@ -4049,7 +4043,10 @@ const MainEditor = ({
               svgElement: svgElement,
               pageIndex: activePageIndex,
               // Multi-drag support
-              multiDragItems: multiDragItems.length > 0 ? multiDragItems : null
+              multiDragItems: multiDragItems.length > 0 ? multiDragItems : null,
+              initialClientX: event.clientX,
+              initialClientY: event.clientY,
+              thresholdMet: false
             };
           },
           move(event) {
@@ -4089,6 +4086,31 @@ const MainEditor = ({
               }
             };
 
+            if (!dragState.thresholdMet) {
+               const DRAG_THRESHOLD = 10;
+               const dxClient = event.clientX - dragState.initialClientX;
+               const dyClient = event.clientY - dragState.initialClientY;
+               const distance = Math.sqrt(dxClient * dxClient + dyClient * dyClient);
+               
+               if (distance < DRAG_THRESHOLD) {
+                 return; // Do nothing until threshold is met
+               }
+               
+               // Threshold crossed!
+               dragState.thresholdMet = true;
+               
+               // Prevent jumping by resetting start points to current mouse pos
+               dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY);
+               if (dragState.multiDragItems) {
+                 for (const item of dragState.multiDragItems) {
+                   item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                   item.element.setAttribute('data-dragging', 'true');
+                 }
+               } else {
+                 dragState.element.setAttribute('data-dragging', 'true');
+               }
+            }
+
             if (dragState.multiDragItems) {
               // Move ALL multi-selected elements
               for (const item of dragState.multiDragItems) {
@@ -4124,6 +4146,11 @@ const MainEditor = ({
           end(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
+            
+            if (!dragState.thresholdMet) {
+              delete event.interaction.dragState;
+              return;
+            }
 
             const viewBox = dragState.svgElement.getAttribute('viewBox');
             const [vX, vY, baseWidth, baseHeight] = viewBox ? viewBox.split(' ').map(Number) : [0, 0, 210, 297];
@@ -5113,10 +5140,11 @@ const MainEditor = ({
             shape.setAttribute('height', '0');
             break;
           case 'circle':
-            shape = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            shape = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
             shape.setAttribute('cx', pt.x);
             shape.setAttribute('cy', pt.y);
-            shape.setAttribute('r', '0');
+            shape.setAttribute('rx', '0');
+            shape.setAttribute('ry', '0');
             break;
           case 'line':
             shape = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -5246,8 +5274,8 @@ const MainEditor = ({
     }
 
     // 3. Marquee Start Detection
-    // Start marquee if user holds Ctrl OR if they clicked on the background/base frame
-    const shouldStartMarquee = e.ctrlKey || (!hitCandidate || hitBaseFrame);
+    // Start marquee if user holds Ctrl OR if they clicked on the background/base frame (but require Ctrl for direct tool, and don't start if exiting text edit)
+    const shouldStartMarquee = e.ctrlKey || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -5430,16 +5458,32 @@ const MainEditor = ({
 
         switch (selectedShapeTool) {
           case 'rectangle':
-          case 'free-frame':
-            shape.setAttribute('x', Math.min(start.x, pt.x));
-            shape.setAttribute('y', Math.min(start.y, pt.y));
-            shape.setAttribute('width', Math.abs(dx));
-            shape.setAttribute('height', Math.abs(dy));
+          case 'free-frame': {
+            let width = Math.abs(dx);
+            let height = Math.abs(dy);
+            if (e.shiftKey) {
+              const maxDim = Math.max(width, height);
+              width = maxDim;
+              height = maxDim;
+            }
+            shape.setAttribute('x', dx < 0 ? start.x - width : start.x);
+            shape.setAttribute('y', dy < 0 ? start.y - height : start.y);
+            shape.setAttribute('width', width);
+            shape.setAttribute('height', height);
             break;
-          case 'circle':
-            const radius = Math.sqrt(dx * dx + dy * dy);
-            shape.setAttribute('r', radius);
+          }
+          case 'circle': {
+            let rx = Math.abs(dx);
+            let ry = Math.abs(dy);
+            if (e.shiftKey) {
+              const maxR = Math.max(rx, ry);
+              rx = maxR;
+              ry = maxR;
+            }
+            shape.setAttribute('rx', rx);
+            shape.setAttribute('ry', ry);
             break;
+          }
           case 'line':
             shape.setAttribute('x2', pt.x);
             shape.setAttribute('y2', pt.y);
@@ -6321,6 +6365,9 @@ const MainEditor = ({
     };
 
     const handleBlur = () => {
+      suppressClickRef.current = true;
+      setTimeout(() => { suppressClickRef.current = false; }, 200);
+
       const finalContent = div.innerText || '';
 
       if (finalContent.trim().length === 0) {

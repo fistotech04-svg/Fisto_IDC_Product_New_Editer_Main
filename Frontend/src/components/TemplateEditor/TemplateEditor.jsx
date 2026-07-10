@@ -77,73 +77,22 @@ const parseLayersFromSVG = (element) => {
         (child.tagName.toLowerCase() === 'foreignobject' && child.getAttribute('data-type') !== 'video' && child.getAttribute('data-type') !== 'iframe');
 
       if (isGroup || isText) {
-        let activeEffects = [];
-        
-        if (isGroup) {
-          const activeEffectsStr = child.getAttribute('data-active-effects') || '';
-          activeEffects = activeEffectsStr.split(',').filter(Boolean);
-        } else if (isText) {
-          if (child.getAttribute('data-effect-drop-shadow') === 'true') activeEffects.push('Drop Shadow');
-          if (child.getAttribute('data-effect-inner-shadow') === 'true') activeEffects.push('Inner Shadow');
-        }
-
-        const strokeAttr = child.getAttribute('stroke') || child.getAttribute('data-stroke-color');
-        const hasStroke = strokeAttr && strokeAttr !== 'none' && strokeAttr !== 'transparent';
-        const fillAttr = child.getAttribute('fill') || child.getAttribute('data-fill-color');
-        const hasFill = (fillAttr && fillAttr !== 'none' && fillAttr !== 'transparent') || isText; // text almost always has a fill
-
-        const virtualLayers = [];
-
-        // Order for UI rendering (will be reversed in Layer.jsx): Drop Shadow, Fill Color, Image/Video/GIF, Inner Shadow, Stroke
-        if (activeEffects.includes('Drop Shadow')) {
-          virtualLayers.push({ id: `${layer.id}-effect-drop-shadow`, name: 'Drop Shadow', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
-        }
-        if (hasFill) {
-          virtualLayers.push({ id: `${layer.id}-effect-fill`, name: 'Fill Color', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
-        }
-
-        // Ensure core layer is present
-        let coreType = 'image';
         let coreName = 'Image';
+        let coreType = 'image';
         if (child.getAttribute('data-is-video-group') === 'true') {
-          coreType = 'video';
           coreName = 'Video';
+          coreType = 'video';
         } else if (child.getAttribute('data-is-gif-group') === 'true') {
-          coreType = 'image';
           coreName = 'GIF';
+          coreType = 'image';
         } else if (isText) {
-          coreType = 'text';
           coreName = 'Text';
+          coreType = 'text';
         }
-
-        const imgChildIdx = layer.children ? layer.children.findIndex(c => c.type === coreType || c.name === coreName || c.name === 'Image' || c.name === 'Text') : -1;
-        let imgLayer = null;
-        if (imgChildIdx !== -1) {
-          imgLayer = layer.children.splice(imgChildIdx, 1)[0];
-        } else {
-          imgLayer = { id: `${layer.id}-core`, name: coreName, type: coreType, visible: layer.visible, locked: true };
-        }
-        imgLayer.parentId = layer.id;
-        imgLayer.isVirtualImageChild = true;
-        virtualLayers.push(imgLayer);
-
-        if (activeEffects.includes('Inner Shadow')) {
-          virtualLayers.push({ id: `${layer.id}-effect-inner-shadow`, name: 'Inner Shadow', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
-        }
-        if (hasStroke) {
-          virtualLayers.push({ id: `${layer.id}-effect-stroke`, name: 'Stroke', type: 'effect', visible: layer.visible, locked: true, parentId: layer.id, isVirtualImageChild: true });
-        }
-
-        // Include any other remaining children
-        if (layer.children && layer.children.length > 0) {
-          layer.children.forEach(c => {
-            c.parentId = layer.id;
-            c.isVirtualImageChild = true;
-            virtualLayers.push(c);
-          });
-        }
-
-        layer.children = virtualLayers;
+        layer.name = coreName;
+        layer.type = coreType;
+        // Strip children to show as a single flat element in the layers panel
+        delete layer.children;
       }
 
       return [layer];
@@ -1302,8 +1251,11 @@ const TemplateEditor = () => {
   }, [isDoublePage]);
 
 
-  const saveToHistory = () => {
-    setHistory(prev => [...prev.slice(-(MAX_HISTORY - 1)), pages]);
+  const saveToHistory = (currentState = pages) => {
+    setHistory(prev => {
+      if (prev.length > 0 && prev[prev.length - 1] === currentState) return prev;
+      return [...prev.slice(-(MAX_HISTORY - 1)), currentState];
+    });
     setRedoStack([]); // Clear redo on new action
   };
 
@@ -1324,15 +1276,14 @@ const TemplateEditor = () => {
   };
 
   const updatePageHtml = (pageIndex, html) => {
-    saveToHistory();
-
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'image/svg+xml');
-    const svgEl = doc.querySelector('svg');
-
-    const newLayers = svgEl ? parseLayersFromSVG(svgEl) : [];
-
     setPages(prev => {
+      saveToHistory(prev);
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'image/svg+xml');
+      const svgEl = doc.querySelector('svg');
+      const newLayers = svgEl ? parseLayersFromSVG(svgEl) : [];
+
       const updated = [...prev];
       const page = updated[pageIndex];
       if (!page) return prev;
@@ -2497,113 +2448,129 @@ const TemplateEditor = () => {
           ? Object.entries(attribute)
           : [[attribute, value]];
 
+        // ── Pass 1: Write all attribute values onto the element first ──────────
+        // This is critical for batch corner-radius updates: we must ensure every
+        // data-tl/tr/bl/br and rx value is committed before any shape redraw
+        // reads them, otherwise redraws triggered mid-loop see stale values.
         updates.forEach(([attr, val]) => {
           if (val === null || val === 'none' || val === '#') {
-            // For Fill/Stroke, we explicitly set 'none' to avoid SVG default black
             if (attr === 'fill' || attr === 'stroke') {
               element.setAttribute(attr, 'none');
             } else {
               element.removeAttribute(attr);
             }
-
             if (attr === 'stroke-width') element.setAttribute('stroke', 'none');
           } else {
             element.setAttribute(attr, val);
             if (attr === 'stroke-width' && val !== '0' && (element.getAttribute('stroke') === 'none' || !element.getAttribute('stroke'))) {
-              // If we're setting a stroke width, make sure there's a color
               element.setAttribute('stroke', '#000000');
             }
+          }
+        });
 
-            // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
-            const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attr);
-            if (attr === 'data-count' || attr === 'data-rx' || attr === 'data-ry' || attr === 'data-ratio' || attr === 'data-radius' || isRectCorner) {
-              const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
+        // ── Pass 2: Shape redraws — all attrs are now committed ───────────────
+        // Track whether a rect has already been redrawn in this batch so we
+        // don't emit multiple redundant path rewrites for the same element.
+        let rectRedrawnThisBatch = false;
 
-              if (shapeType === 'polygon' || shapeType === 'star') {
-                const cx = parseFloat(element.getAttribute('data-cx') || 0);
-                const cy = parseFloat(element.getAttribute('data-cy') || 0);
-                const rx = parseFloat(element.getAttribute('data-rx') || 0);
-                const count = parseInt(attr === 'data-count' ? val : (element.getAttribute('data-count') || 3));
-                const cr = parseFloat(attr === 'data-radius' ? val : (element.getAttribute('data-radius') || 0));
+        updates.forEach(([attr, val]) => {
+          if (val === null || val === 'none' || val === '#') return; // no redraw needed
 
-                const pts = [];
-                if (shapeType === 'polygon') {
-                  for (let i = 0; i < count; i++) {
-                    const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
-                    pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
-                  }
-                } else if (shapeType === 'star') {
-                  const ratio = parseFloat(attr === 'data-ratio' ? val : (element.getAttribute('data-ratio') || 40)) / 100;
-                  const ri = rx * ratio;
-                  const sides = count * 2;
-                  for (let i = 0; i < sides; i++) {
-                    const r = (i % 2 === 0) ? rx : ri;
-                    const angle = (Math.PI / count) * i - Math.PI / 2;
-                    pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
-                  }
+          // --- DYNAMIC SHAPE REDRAW (FOR POLYGON/STAR/ROUNDED RECT) ---
+          const isRectCorner = ['data-tl', 'data-tr', 'data-bl', 'data-br'].includes(attr);
+          if (attr === 'data-count' || attr === 'data-rx' || attr === 'data-ry' || attr === 'data-ratio' || attr === 'data-radius' || isRectCorner || attr === 'rx') {
+            const shapeType = element.getAttribute('data-shape-type') || (element.tagName === 'rect' ? 'rectangle' : null);
+
+            if (shapeType === 'polygon' || shapeType === 'star') {
+              const cx = parseFloat(element.getAttribute('data-cx') || 0);
+              const cy = parseFloat(element.getAttribute('data-cy') || 0);
+              const rx = parseFloat(element.getAttribute('data-rx') || 0);
+              const count = parseInt(element.getAttribute('data-count') || 3);
+              const cr = parseFloat(element.getAttribute('data-radius') || 0);
+
+              const pts = [];
+              if (shapeType === 'polygon') {
+                for (let i = 0; i < count; i++) {
+                  const angle = (i * 2 * Math.PI) / count - Math.PI / 2;
+                  pts.push({ x: cx + rx * Math.cos(angle), y: cy + rx * Math.sin(angle) });
                 }
-
-                if (cr > 0 && pts.length > 2) {
-                  let pathData = "";
-                  const cornerPoints = pts.map((curr, i) => {
-                    const prev = pts[(i + pts.length - 1) % pts.length];
-                    const next = pts[(i + 1) % pts.length];
-                    const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
-                    const d2 = { x: next.x - curr.x, y: next.y - curr.y };
-                    const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
-                    const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
-                    const limit = Math.min(cr, l1 / 2, l2 / 2);
-                    return {
-                      q: { x: curr.x, y: curr.y },
-                      p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
-                      p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
-                    };
-                  });
-                  cornerPoints.forEach((cp, i) => {
-                    if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
-                    else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
-                    pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
-                  });
-                  pathData += " Z";
-                  element.setAttribute('d', pathData);
-                } else {
-                  element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
+              } else if (shapeType === 'star') {
+                const ratio = parseFloat(element.getAttribute('data-ratio') || 40) / 100;
+                const ri = rx * ratio;
+                const sides = count * 2;
+                for (let i = 0; i < sides; i++) {
+                  const r = (i % 2 === 0) ? rx : ri;
+                  const angle = (Math.PI / count) * i - Math.PI / 2;
+                  pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
                 }
               }
-              else if (shapeType === 'rectangle' && (isRectCorner || attr === 'rx')) {
-                const x = parseFloat(element.getAttribute('x') || 0);
-                const y = parseFloat(element.getAttribute('y') || 0);
-                const w = parseFloat(element.getAttribute('width') || 0);
-                const h = parseFloat(element.getAttribute('height') || 0);
-                const defR = parseFloat(element.getAttribute('rx') || 0);
 
-                const tl = parseFloat(element.getAttribute('data-tl') || defR);
-                const tr = parseFloat(element.getAttribute('data-tr') || defR);
-                const bl = parseFloat(element.getAttribute('data-bl') || defR);
-                const br = parseFloat(element.getAttribute('data-br') || defR);
+              if (cr > 0 && pts.length > 2) {
+                let pathData = "";
+                const cornerPoints = pts.map((curr, i) => {
+                  const prev = pts[(i + pts.length - 1) % pts.length];
+                  const next = pts[(i + 1) % pts.length];
+                  const d1 = { x: curr.x - prev.x, y: curr.y - prev.y };
+                  const d2 = { x: next.x - curr.x, y: next.y - curr.y };
+                  const l1 = Math.sqrt(d1.x * d1.x + d1.y * d1.y);
+                  const l2 = Math.sqrt(d2.x * d2.x + d2.y * d2.y);
+                  const limit = Math.min(cr, l1 / 2, l2 / 2);
+                  return {
+                    q: { x: curr.x, y: curr.y },
+                    p1: { x: curr.x - (d1.x / l1) * limit, y: curr.y - (d1.y / l1) * limit },
+                    p2: { x: curr.x + (d2.x / l2) * limit, y: curr.y + (d2.y / l2) * limit }
+                  };
+                });
+                cornerPoints.forEach((cp, i) => {
+                  if (i === 0) pathData += `M ${cp.p1.x} ${cp.p1.y}`;
+                  else pathData += ` L ${cp.p1.x} ${cp.p1.y}`;
+                  pathData += ` Q ${cp.q.x} ${cp.q.y}, ${cp.p2.x} ${cp.p2.y}`;
+                });
+                pathData += " Z";
+                element.setAttribute('d', pathData);
+              } else {
+                element.setAttribute('d', `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')} Z`);
+              }
+            }
+            else if (shapeType === 'rectangle' && (isRectCorner || attr === 'rx') && !rectRedrawnThisBatch) {
+              // All corner attrs are already written in Pass 1 — read them fresh.
+              rectRedrawnThisBatch = true;
+              const x = parseFloat(element.getAttribute('x') || 0);
+              const y = parseFloat(element.getAttribute('y') || 0);
+              const w = parseFloat(element.getAttribute('width') || 0);
+              const h = parseFloat(element.getAttribute('height') || 0);
+              const defR = parseFloat(element.getAttribute('rx') || 0);
 
-                const d = `
-                      M ${x + tl},${y}
-                      L ${x + w - tr},${y}
-                      Q ${x + w},${y} ${x + w},${y + tr}
-                      L ${x + w},${y + h - br}
-                      Q ${x + w},${y + h} ${x + w - br},${y + h}
-                      L ${x + bl},${y + h}
-                      Q ${x},${y + h} ${x},${y + h - bl}
-                      L ${x},${y + tl}
-                      Q ${x},${y} ${x + tl},${y}
-                      Z
-                   `.replace(/\s+/g, ' ').trim();
+              // Clamp each corner radius to at most half the rect's shorter dimension.
+              // Without clamping, radii > w/2 or h/2 cause bezier arcs to cross,
+              // producing the unwanted eye/lens shape (matching CSS border-radius behaviour).
+              const maxR = Math.min(w / 2, h / 2);
+              const tl = Math.min(parseFloat(element.getAttribute('data-tl') || defR), maxR);
+              const tr = Math.min(parseFloat(element.getAttribute('data-tr') || defR), maxR);
+              const bl = Math.min(parseFloat(element.getAttribute('data-bl') || defR), maxR);
+              const br = Math.min(parseFloat(element.getAttribute('data-br') || defR), maxR);
 
-                if (element.tagName === 'rect') {
-                  const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
-                  Array.from(element.attributes).forEach(a => path.setAttribute(a.name, a.value));
-                  path.setAttribute('d', d);
-                  path.setAttribute('data-shape-type', 'rectangle');
-                  element.parentNode.replaceChild(path, element);
-                } else {
-                  element.setAttribute('d', d);
-                }
+              const d = `
+                    M ${x + tl},${y}
+                    L ${x + w - tr},${y}
+                    A ${tr},${tr} 0 0 1 ${x + w},${y + tr}
+                    L ${x + w},${y + h - br}
+                    A ${br},${br} 0 0 1 ${x + w - br},${y + h}
+                    L ${x + bl},${y + h}
+                    A ${bl},${bl} 0 0 1 ${x},${y + h - bl}
+                    L ${x},${y + tl}
+                    A ${tl},${tl} 0 0 1 ${x + tl},${y}
+                    Z
+                 `.replace(/\s+/g, ' ').trim();
+
+              if (element.tagName === 'rect') {
+                const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+                Array.from(element.attributes).forEach(a => path.setAttribute(a.name, a.value));
+                path.setAttribute('d', d);
+                path.setAttribute('data-shape-type', 'rectangle');
+                element.parentNode.replaceChild(path, element);
+              } else {
+                element.setAttribute('d', d);
               }
             }
           }

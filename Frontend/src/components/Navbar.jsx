@@ -68,7 +68,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
   return (
     <>
       <nav 
-        className="bg-white border-b border-gray-200 flex items-center justify-between px-[1.5vw] shadow-lg z-50 relative" 
+        className="bg-white border-b border-gray-200 flex items-center justify-between px-[1.5vw] shadow-lg z-50 relative select-none" 
         style={{ height: '8vh' }}
       >
         {/* Left Section - Logo and Navigation */}

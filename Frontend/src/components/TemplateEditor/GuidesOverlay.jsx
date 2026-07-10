@@ -16,9 +16,9 @@ const GuidesOverlay = ({ zoom, pan, baseCanvasWidth, baseCanvasHeight }) => {
   const containerDimensionsRef = useRef({ width: 0, height: 0 });
   const panRef = useRef(pan);
   const zoomRef = useRef(zoom);
+  const animationFrameRef = useRef(null);
   
   useEffect(() => { panRef.current = pan; }, [pan]);
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
 
   // Keep dimensions up to date
   useEffect(() => {
@@ -29,7 +29,7 @@ const GuidesOverlay = ({ zoom, pan, baseCanvasWidth, baseCanvasHeight }) => {
           width: entry.contentRect.width,
           height: entry.contentRect.height
         };
-        updateLinesDOM();
+        updateLinesDOM(zoomRef.current, panRef.current);
       }
     });
     observer.observe(containerRef.current);
@@ -37,17 +37,16 @@ const GuidesOverlay = ({ zoom, pan, baseCanvasWidth, baseCanvasHeight }) => {
   }, []);
 
   // Update DOM lines directly for 60fps panning
-  const updateLinesDOM = () => {
+  const updateLinesDOM = (renderZoom, renderPan) => {
     if (!containerRef.current) return;
     const containerWidth = containerDimensionsRef.current.width;
     const containerHeight = containerDimensionsRef.current.height;
     if (!containerWidth || !containerHeight) return;
 
-    const scale = zoomRef.current / 100;
-    const currentPan = panRef.current;
+    const scale = renderZoom / 100;
     
-    const startX = (containerWidth / 2) + currentPan.x - ((baseCanvasWidth * scale) / 2);
-    const startY = (containerHeight / 2) + currentPan.y - ((baseCanvasHeight * scale) / 2);
+    const startX = (containerWidth / 2) + renderPan.x - ((baseCanvasWidth * scale) / 2);
+    const startY = (containerHeight / 2) + renderPan.y - ((baseCanvasHeight * scale) / 2);
 
     // Update horizontal lines (which move vertically, so their Y changes)
     const hLines = containerRef.current.querySelectorAll('.guide-line-h');
@@ -69,17 +68,64 @@ const GuidesOverlay = ({ zoom, pan, baseCanvasWidth, baseCanvasHeight }) => {
   // Listen to panning to update lines instantly
   useEffect(() => {
     const handlePanUpdate = (e) => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
       panRef.current = e.detail;
-      updateLinesDOM();
+      updateLinesDOM(zoomRef.current, panRef.current);
     };
     window.addEventListener('editor-pan-update', handlePanUpdate);
-    return () => window.removeEventListener('editor-pan-update', handlePanUpdate);
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      window.removeEventListener('editor-pan-update', handlePanUpdate);
+    };
   }, [baseCanvasWidth, baseCanvasHeight]);
 
   // Force update when zoom or layout changes
   useEffect(() => {
-    updateLinesDOM();
-  }, [zoom, baseCanvasWidth, baseCanvasHeight, guides]);
+    const startZoom = zoomRef.current;
+    const targetZoom = zoom;
+    const startPan = panRef.current;
+    const targetPan = pan;
+
+    const zoomDiff = targetZoom - startZoom;
+    const panDiffX = targetPan.x - startPan.x;
+    const panDiffY = targetPan.y - startPan.y;
+
+    if (Math.abs(zoomDiff) < 0.1 && Math.abs(panDiffX) < 1 && Math.abs(panDiffY) < 1) {
+      zoomRef.current = targetZoom;
+      panRef.current = targetPan;
+      updateLinesDOM(targetZoom, targetPan);
+    } else {
+      const duration = 300;
+      const startTime = performance.now();
+      const ease = (t) => t * (2 - t);
+
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+
+      const step = (time) => {
+        let elapsed = time - startTime;
+        if (elapsed > duration) elapsed = duration;
+
+        const progress = elapsed / duration;
+        const easedT = ease(progress);
+
+        const nowZoom = startZoom + zoomDiff * easedT;
+        const nowPan = {
+          x: startPan.x + panDiffX * easedT,
+          y: startPan.y + panDiffY * easedT
+        };
+
+        zoomRef.current = nowZoom;
+        panRef.current = nowPan;
+        updateLinesDOM(nowZoom, nowPan);
+
+        if (elapsed < duration) {
+          animationFrameRef.current = requestAnimationFrame(step);
+        }
+      };
+
+      animationFrameRef.current = requestAnimationFrame(step);
+    }
+  }, [zoom, pan, baseCanvasWidth, baseCanvasHeight, guides]);
 
   // Global drag handler
   useEffect(() => {

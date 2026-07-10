@@ -1160,7 +1160,7 @@ const Layer = ({
                                       renameLayer={renameLayer}
                                       pageIndex={index}
                                       onLayerContextMenu={handleLayerContextMenu}
-                                      onReorderLayer={(sourceId, targetId) => reorderLayer(index, sourceId, targetId)}
+                                      onReorderLayer={reorderLayer}
                                       currentFrameId={currentFrameId}
                                       setCurrentFrameId={setCurrentFrameId}
                                     />
@@ -1290,7 +1290,6 @@ const Layer = ({
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={`page-menu-${activeMenuPageId}`}
-                    ref={menuRef}
                     initial={{ opacity: 0, scale: 0.95, y: -5 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95, y: -5 }}
@@ -1300,13 +1299,46 @@ const Layer = ({
                       const element = document.getElementById(`page-card-${activeMenuPageId}`) ||
                         document.getElementById(`page-card-preview-${activeMenuPageId}`);
                       if (!element) return { display: 'none' };
+                      
                       const rect = element.getBoundingClientRect();
+
                       return {
                         position: 'fixed',
                         left: `calc(${rect.right}px + 0.6vw)`,
-                        top: `${Math.min(rect.top, window.innerHeight - 450)}px`
+                        maxHeight: 'calc(100vh - 20px)',
+                        overflowY: 'auto',
+                        transformOrigin: 'top left'
                       };
                     })()}
+                    ref={(node) => {
+                      // Preserve the existing menuRef for click-outside or other logic
+                      if (menuRef) {
+                        if (typeof menuRef === 'function') menuRef(node);
+                        else menuRef.current = node;
+                      }
+                      if (!node) return;
+
+                      const element = document.getElementById(`page-card-${activeMenuPageId}`) ||
+                        document.getElementById(`page-card-preview-${activeMenuPageId}`);
+                      if (!element) return;
+
+                      // Use the ACTUAL rendered height of the menu
+                      const actualHeight = node.scrollHeight;
+                      const rect = element.getBoundingClientRect();
+                      let topPos = rect.top;
+
+                      // Shift up EXACTLY the amount needed if it overflows the bottom
+                      if (topPos + actualHeight > window.innerHeight - 10) {
+                        topPos = window.innerHeight - actualHeight - 10;
+                      }
+
+                      // Never overflow the top
+                      if (topPos < 10) {
+                        topPos = 10;
+                      }
+
+                      node.style.top = `${topPos}px`;
+                    }}
                     className="w-[12vw] bg-white rounded-[0.8vw] shadow-2xl border border-gray-100 p-[0.4vw] z-[9999] flex flex-col gap-[0.2vw]"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -1321,7 +1353,9 @@ const Layer = ({
                             <button onClick={() => { insertPageAfter(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Plus size="0.9vw" /> Add Page</button>
                           )}
                           <button onClick={() => { onAddFile && onAddFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FilePlus size="0.9vw" /> Add File</button>
-                          <button onClick={() => { onReplaceFile && onReplaceFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FileReplaceIcon icon="mdi:file-replace" className="w-[0.9vw] h-[0.9vw]" /> Replace File</button>
+                          {isPdfProject && (
+                            <button onClick={() => { onReplaceFile && onReplaceFile(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><FileReplaceIcon icon="mdi:file-replace" className="w-[0.9vw] h-[0.9vw]" /> Replace File</button>
+                          )}
                           <button onClick={() => { duplicatePage(index); setActiveMenuPageId(null); }} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Copy size="0.9vw" /> Duplicate</button>
                           <button onClick={(e) => handleRenameStart(e, page)} className="flex items-center gap-[0.6vw] px-[0.6vw] py-[0.4vw] text-[0.75vw] font-medium text-gray-700 hover:bg-gray-50 rounded-[0.4vw] text-left cursor-pointer"><Edit2 size="0.9vw" /> Rename</button>
                           {!isPdfProject && (

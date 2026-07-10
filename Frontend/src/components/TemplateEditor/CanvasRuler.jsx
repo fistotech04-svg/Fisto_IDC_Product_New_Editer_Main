@@ -26,10 +26,13 @@ const CanvasRuler = ({
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => {
-    let currentPan = pan;
+  const currentPanRef = useRef(pan);
+  const currentZoomRef = useRef(zoom);
+  const animationFrameRef = useRef(null);
 
-    const draw = () => {
+  useEffect(() => {
+    // A helper to draw with the current interpolated zoom and pan
+    const draw = (renderZoom, renderPan) => {
       const hCanvas = horizontalCanvasRef.current;
       const vCanvas = verticalCanvasRef.current;
       const { width: containerWidth, height: containerHeight } = dimensions;
@@ -37,7 +40,7 @@ const CanvasRuler = ({
 
       const dpr = window.devicePixelRatio || 1;
       
-      // Only resize if dimensions changed to avoid flickering, but we must clear it
+      // Only resize if dimensions changed to avoid flickering
       if (hCanvas.width !== containerWidth * dpr) {
         hCanvas.width = containerWidth * dpr;
         hCanvas.style.width = `${containerWidth}px`;
@@ -68,10 +71,10 @@ const CanvasRuler = ({
       hCtx.scale(dpr, dpr);
       vCtx.scale(dpr, dpr);
 
-      const scale = zoom / 100;
+      const scale = renderZoom / 100;
       
-      const startX = (containerWidth / 2) + currentPan.x - ((baseCanvasWidth * scale) / 2);
-      const startY = (containerHeight / 2) + currentPan.y - ((baseCanvasHeight * scale) / 2);
+      const startX = (containerWidth / 2) + renderPan.x - ((baseCanvasWidth * scale) / 2);
+      const startY = (containerHeight / 2) + renderPan.y - ((baseCanvasHeight * scale) / 2);
 
       const bgColor = '#ffffff';
       const textColor = '#6b7280';
@@ -166,15 +169,64 @@ const CanvasRuler = ({
       hCtx.fill();
     };
 
-    draw();
+    // ── ANIMATION LOGIC ──
+    const startZoom = currentZoomRef.current;
+    const startPan = currentPanRef.current;
+    const targetZoom = zoom;
+    const targetPan = pan;
+
+    const zoomDiff = targetZoom - startZoom;
+    const panDiffX = targetPan.x - startPan.x;
+    const panDiffY = targetPan.y - startPan.y;
+
+    if (Math.abs(zoomDiff) < 0.1 && Math.abs(panDiffX) < 1 && Math.abs(panDiffY) < 1) {
+      currentZoomRef.current = targetZoom;
+      currentPanRef.current = targetPan;
+      draw(targetZoom, targetPan);
+    } else {
+      const duration = 300; // Match Tailwind's duration-300
+      const startTime = performance.now();
+
+      const ease = (t) => t * (2 - t); // easeOutQuad
+
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+
+      const step = (time) => {
+        let elapsed = time - startTime;
+        if (elapsed > duration) elapsed = duration;
+
+        const progress = elapsed / duration;
+        const easedT = ease(progress);
+
+        const nowZoom = startZoom + zoomDiff * easedT;
+        const nowPan = {
+          x: startPan.x + panDiffX * easedT,
+          y: startPan.y + panDiffY * easedT
+        };
+
+        currentZoomRef.current = nowZoom;
+        currentPanRef.current = nowPan;
+        draw(nowZoom, nowPan);
+
+        if (elapsed < duration) {
+          animationFrameRef.current = requestAnimationFrame(step);
+        }
+      };
+
+      animationFrameRef.current = requestAnimationFrame(step);
+    }
 
     const handlePanUpdate = (e) => {
-      currentPan = e.detail;
-      draw();
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      currentPanRef.current = e.detail;
+      draw(currentZoomRef.current, currentPanRef.current);
     };
 
     window.addEventListener('editor-pan-update', handlePanUpdate);
-    return () => window.removeEventListener('editor-pan-update', handlePanUpdate);
+    return () => {
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      window.removeEventListener('editor-pan-update', handlePanUpdate);
+    };
   }, [zoom, pan, baseCanvasWidth, baseCanvasHeight, dimensions, thickness]);
 
   const handleMouseDown = (type, e) => {

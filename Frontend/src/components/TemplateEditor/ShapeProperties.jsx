@@ -612,100 +612,167 @@ const ShapeProperties = ({
       </div>
 
       {/* CORNER RADIUS ACCORDION (FIGMA STYLE) */}
-      {(selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type'] === 'rectangle') && (
-        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
-          <div
-            onClick={() => setOpenAccordion(openAccordion === 'corner' ? null : 'corner')}
-            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
-          >
-            <div className="flex items-center gap-[0.5vw]">
-              <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
+      {(selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type'] === 'rectangle') && (() => {
+        // Derive the element's actual SVG width & height so we can cap the radius
+        // at min(w,h)/2 — the exact point where a square becomes a perfect circle.
+        const svgW = parseFloat(selectedElementProps.width || 0);
+        const svgH = parseFloat(selectedElementProps.height || 0);
+        const maxCorner = svgW > 0 && svgH > 0 ? Math.floor(Math.min(svgW, svgH) / 2) : 9999;
+        const isSquare = svgW > 0 && svgH > 0 && Math.abs(svgW - svgH) < 2;
+
+        // Current linked value (used for the progress bar)
+        const linkedVal = parseInt(selectedElementProps['data-tl'] || selectedElementProps.rx || 0);
+        const progress = maxCorner > 0 ? Math.min(linkedVal / maxCorner, 1) : 0;
+        const isFullCircle = progress >= 0.99;
+
+        return (
+          <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
+            <div
+              onClick={() => setOpenAccordion(openAccordion === 'corner' ? null : 'corner')}
+              className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+            >
+              <div className="flex items-center gap-[0.5vw]">
+                <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
+                {isFullCircle && isSquare && (
+                  <span className="text-[0.65vw] font-semibold text-indigo-600 bg-indigo-50 px-[0.4vw] py-[0.1vw] rounded-full">Circle</span>
+                )}
+              </div>
+              <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'corner' ? '' : 'rotate-180'}`} />
             </div>
-            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'corner' ? '' : 'rotate-180'}`} />
-          </div>
 
-          <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'corner' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-            <div className="overflow-hidden">
-              <div className="p-[1.5vw] relative flex flex-col items-center justify-center min-h-[9vw] bg-white">
-                {/* 2x2 Grid of Inputs */}
-                <div className="grid grid-cols-2 gap-x-[2.5vw] gap-y-[1.5vw] relative">
-                  {[
-                    { key: 'data-tl', roundedClass: 'rounded-tl-[1vw] rounded-tr-0 rounded-bl-0 rounded-br-0' },
-                    { key: 'data-tr', roundedClass: 'rounded-tr-[1vw] rounded-tl-0 rounded-bl-0 rounded-br-0' },
-                    { key: 'data-bl', roundedClass: 'rounded-bl-[1vw] rounded-tl-0 rounded-tr-0 rounded-br-0' },
-                    { key: 'data-br', roundedClass: 'rounded-br-[1vw] rounded-tl-0 rounded-tr-0 rounded-bl-0' }
-                  ].map((corner, idx) => {
-                    const val = parseInt(selectedElementProps[corner.key] || selectedElementProps.rx || 0);
-                    const updateVal = (newVal) => {
-                      const clamped = Math.max(0, newVal);
-                      if (selectedElementProps['data-corner-linked'] !== 'false') {
-                        updateAttr('rx', clamped);
-                        updateAttr('ry', clamped);
-                        updateAttr('data-tl', clamped);
-                        updateAttr('data-tr', clamped);
-                        updateAttr('data-bl', clamped);
-                        updateAttr('data-br', clamped);
-                      } else {
-                        updateAttr(corner.key, clamped);
-                      }
-                    };
+            <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'corner' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+              <div className="overflow-hidden">
+                <div className="p-[1.5vw] pb-[1vw] relative flex flex-col items-center justify-center bg-white gap-[1vw]">
+                  {/* 2x2 Grid of Inputs */}
+                  <div className="grid grid-cols-2 gap-x-[2.5vw] gap-y-[1.5vw] relative">
+                    {[
+                      { key: 'data-tl', roundedClass: 'rounded-tl-[1vw] rounded-tr-0 rounded-bl-0 rounded-br-0' },
+                      { key: 'data-tr', roundedClass: 'rounded-tr-[1vw] rounded-tl-0 rounded-bl-0 rounded-br-0' },
+                      { key: 'data-bl', roundedClass: 'rounded-bl-[1vw] rounded-tl-0 rounded-tr-0 rounded-br-0' },
+                      { key: 'data-br', roundedClass: 'rounded-br-[1vw] rounded-tl-0 rounded-tr-0 rounded-bl-0' }
+                    ].map((corner) => {
+                      const val = Math.min(parseInt(selectedElementProps[corner.key] || selectedElementProps.rx || 0), maxCorner);
+                      const updateVal = (newVal) => {
+                        const clamped = Math.max(0, Math.min(Math.round(newVal), maxCorner));
+                        if (selectedElementProps['data-corner-linked'] !== 'false') {
+                          updateElementAttribute(activePageIndex, selectedLayerId, {
+                            rx: clamped,
+                            ry: clamped,
+                            'data-tl': clamped,
+                            'data-tr': clamped,
+                            'data-bl': clamped,
+                            'data-br': clamped,
+                          });
+                        } else {
+                          updateAttr(corner.key, clamped);
+                        }
+                      };
 
-                    return (
-                      <div key={corner.key} className="flex flex-col items-center">
-                        <div
-                          onPointerDown={(e) => {
-                            // Only initiate drag if not clicking directly inside the numeric input
-                            if (e.target.tagName === 'INPUT') return;
-                            handleScrubHelper(e, val, (newVal) => updateVal(parseInt(newVal)));
-                          }}
-                          className={`w-[5.2vw] h-[2.8vw] border border-gray-400 ${corner.roundedClass} flex items-center justify-between px-[0.4vw] bg-white relative transition-colors hover:border-gray-600 cursor-ew-resize select-none`}
-                        >
-                          <button
-                            onClick={() => updateVal(val - 1)}
-                            className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
+                      return (
+                        <div key={corner.key} className="flex flex-col items-center">
+                          <div
+                            onPointerDown={(e) => {
+                              if (e.target.tagName === 'INPUT') return;
+                              handleScrubHelper(e, val, (newVal) => updateVal(parseInt(newVal)));
+                            }}
+                            className={`w-[5.2vw] h-[2.8vw] border border-gray-400 ${corner.roundedClass} flex items-center justify-between px-[0.4vw] bg-white relative transition-colors hover:border-gray-600 cursor-ew-resize select-none`}
                           >
-                            <ChevronLeft size="0.9vw" />
-                          </button>
+                            <button
+                              onClick={() => updateVal(val - 1)}
+                              className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
+                            >
+                              <ChevronLeft size="0.9vw" />
+                            </button>
 
-                          <input
-                            type="number"
-                            min={0}
-                            value={val}
-                            onChange={(e) => updateVal(parseInt(e.target.value) || 0)}
-                            className="w-full text-center text-[1vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
-                            onClick={(e) => e.stopPropagation()} // Prevent drag start when clicking input
-                          />
+                            <input
+                              type="number"
+                              min={0}
+                              max={maxCorner}
+                              value={val}
+                              onChange={(e) => updateVal(parseInt(e.target.value) || 0)}
+                              className="w-full text-center text-[1vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
+                              onClick={(e) => e.stopPropagation()}
+                            />
 
-                          <button
-                            onClick={() => updateVal(val + 1)}
-                            className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
-                          >
-                            <ChevronRight size="0.9vw" />
-                          </button>
+                            <button
+                              onClick={() => updateVal(val + 1)}
+                              className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
+                            >
+                              <ChevronRight size="0.9vw" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
 
-                  {/* Link Button in Center Overlay */}
-                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                    <button
-                      onClick={() => updateAttr('data-corner-linked', selectedElementProps['data-corner-linked'] === 'false' ? 'true' : 'false')}
-                      className="bg-white p-[0.3vw] transition-all hover:scale-110 active:scale-95 rounded-full shadow-sm border border-gray-50 pointer-events-auto"
-                    >
-                      {selectedElementProps['data-corner-linked'] !== 'false' ? (
-                        <Link2 size="1.4vw" className="text-black" />
-                      ) : (
-                        <Link2Off size="1.4vw" className="text-gray-300" />
-                      )}
-                    </button>
+                    {/* Link Button in Center Overlay */}
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                      <button
+                        onClick={() => updateAttr('data-corner-linked', selectedElementProps['data-corner-linked'] === 'false' ? 'true' : 'false')}
+                        className="bg-white p-[0.3vw] transition-all hover:scale-110 active:scale-95 rounded-full shadow-sm border border-gray-50 pointer-events-auto"
+                      >
+                        {selectedElementProps['data-corner-linked'] !== 'false' ? (
+                          <Link2 size="1.4vw" className="text-black" />
+                        ) : (
+                          <Link2Off size="1.4vw" className="text-gray-300" />
+                        )}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Square → Circle progress slider (only when all corners linked) */}
+                  {selectedElementProps['data-corner-linked'] !== 'false' && maxCorner < 9999 && (
+                    <div className="w-full flex flex-col gap-[0.4vw]">
+                      <div className="flex items-center justify-between px-[0.2vw]">
+                        {/* Square icon */}
+                        <svg width="0.95vw" height="0.95vw" viewBox="0 0 16 16" className="text-gray-400" style={{ width: '0.95vw', height: '0.95vw' }}>
+                          <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
+                        </svg>
+                        {/* Slider track */}
+                        <div className="flex-1 mx-[0.5vw] relative h-[0.25vw] bg-gray-200 rounded-full">
+                          {/* Filled portion */}
+                          <div
+                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-100"
+                            style={{
+                              width: `${progress * 100}%`,
+                              background: isFullCircle
+                                ? 'linear-gradient(90deg, #6366f1, #8b5cf6)'
+                                : 'linear-gradient(90deg, #6366f1, #a5b4fc)',
+                            }}
+                          />
+                          {/* Thumb */}
+                          <input
+                            type="range"
+                            min={0}
+                            max={maxCorner}
+                            value={linkedVal > maxCorner ? maxCorner : linkedVal}
+                            onChange={(e) => {
+                              const v = parseInt(e.target.value);
+                              updateElementAttribute(activePageIndex, selectedLayerId, {
+                                rx: v, ry: v,
+                                'data-tl': v, 'data-tr': v, 'data-bl': v, 'data-br': v,
+                              });
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                            style={{ margin: 0 }}
+                          />
+                        </div>
+                        {/* Circle icon */}
+                        <svg width="0.95vw" height="0.95vw" viewBox="0 0 16 16" className={isFullCircle ? 'text-indigo-500' : 'text-gray-400'} style={{ width: '0.95vw', height: '0.95vw', transition: 'color 0.2s' }}>
+                          <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+                        </svg>
+                      </div>
+                      <div className="text-center text-[0.65vw] text-gray-400 font-medium">
+                        {isFullCircle && isSquare ? '● Perfect Circle' : `${Math.round(progress * 100)}% rounded · max ${maxCorner}`}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* EFFECT ACCORDION CARDS (EXACT TEXT EDITOR STYLE) */}
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
