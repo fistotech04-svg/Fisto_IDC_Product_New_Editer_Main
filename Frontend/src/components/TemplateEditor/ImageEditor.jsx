@@ -218,6 +218,24 @@ const ImageEditor = ({
     stateRef.current = { ...stateRef.current, imageType, opacity, radius, previewSrc, filters, activeEffects };
   });
 
+  // Ctrl + Drag inline crop listener
+  useEffect(() => {
+    if (!selectedElement) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Control' && !showCropModal && !isSlideshow) {
+        setImageType('Crop');
+        if (stateRef.current) stateRef.current.imageType = 'Crop';
+        setShowCropModal(true);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectedElement, showCropModal, isSlideshow]);
+
 
 
   const handleFileUpload = async (e) => {
@@ -986,17 +1004,20 @@ const ImageEditor = ({
             const origX = liveElement.getAttribute('data-crop-orig-x') || imgEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0';
             const origY = liveElement.getAttribute('data-crop-orig-y') || imgEl.getAttribute('data-crop-orig-y') || imgEl.getAttribute('y') || '0';
 
+            const panOffX = (parseFloat(origW) * (crop.offX || 0)) / 100;
+            const panOffY = (parseFloat(origH) * (crop.offY || 0)) / 100;
+
             imgEl.style.removeProperty('display');
             // Set width to origW instead of '100%' so Fabric.js bounding box is physically full-size
             imgEl.setAttribute('width', origW);
             imgEl.setAttribute('height', origH);
-            imgEl.setAttribute('x', origX);
-            imgEl.setAttribute('y', origY);
+            imgEl.setAttribute('x', (parseFloat(origX) + panOffX).toString());
+            imgEl.setAttribute('y', (parseFloat(origY) + panOffY).toString());
 
-            const insetTop = crop.top;
-            const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width));
-            const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height));
-            const insetLeft = crop.left;
+            const insetTop = crop.top - (crop.offY || 0);
+            const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width)) + (crop.offX || 0);
+            const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height)) + (crop.offY || 0);
+            const insetLeft = crop.left - (crop.offX || 0);
             const svgClipVal = `inset(${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%${radiusStr})`;
             imgEl.style.setProperty('clip-path', svgClipVal, 'important');
 
@@ -1063,6 +1084,9 @@ const ImageEditor = ({
                 cropPat.appendChild(patImg);
               }
 
+              const panOffX = (parseFloat(origW) * (crop.offX || 0)) / 100;
+              const panOffY = (parseFloat(origH) * (crop.offY || 0)) / 100;
+
               const insetTop = crop.top;
               const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width));
               const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height));
@@ -1088,6 +1112,8 @@ const ImageEditor = ({
                 try { patImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', updatedHref); } catch (e) { }
                 patImg.setAttribute('width', origW.toString());
                 patImg.setAttribute('height', origH.toString());
+                patImg.setAttribute('x', panOffX.toString());
+                patImg.setAttribute('y', panOffY.toString());
 
                 // Synchronize original pattern image to prevent reverting on un-crop
                 const origFill = liveElement.getAttribute('data-original-fill');
@@ -2824,6 +2850,8 @@ const ImageEditor = ({
         <CropOverlay
           src={selectedElement?.getAttribute('data-original-src') || previewSrc}
           initialCrop={selectedElement?.getAttribute('data-crop-data')}
+          targetElement={document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`)?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement}
+          activePageIndex={activePageIndex}
           onCancel={() => setShowCropModal(false)}
           onDone={(newCrop) => {
             setImageType('Crop');
