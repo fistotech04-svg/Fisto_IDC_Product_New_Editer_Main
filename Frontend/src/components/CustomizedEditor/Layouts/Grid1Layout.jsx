@@ -25,7 +25,7 @@ const PageThumbnail = React.memo(({ html, index, scale = 0.15 }) => {
                         overflow: hidden; 
                         background: white; 
                         width: 400px; 
-                        height: 566px; 
+                        height: 565px; 
                         position: relative;
                     }
                     * { box-sizing: border-box; }
@@ -1076,37 +1076,37 @@ const Grid1Layout = React.memo((props) => {
                                 setProgressHover(prev => ({ ...prev, visible: false }));
                             }}
                         >
-                        {isPreviewMode && (
-                            <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.4vw] mr-[1vw]' : 'gap-[0.8vw] mr-[2vw]'}`}>
-                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                    'First',
-                                    () => {
-                                        closeAllPopups();
-                                        onPageClick(0);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                                {(settings?.media?.autoFlip ?? true) && renderDockBtn(
-                                    <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
-                                    isAutoFlipping ? 'Pause' : 'Play',
-                                    () => {
-                                        closeAllPopups();
-                                        setIsPlaying(!isAutoFlipping);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                                {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
-                                    <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
-                                    'Last',
-                                    () => {
-                                        closeAllPopups();
-                                        onPageClick(pages.length - 1);
-                                    },
-                                    { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
-                                )}
-                            </div>
-                        )}
+                            {isPreviewMode && (
+                                <div className={`flex items-center ${isMobileLandscape ? 'gap-[0.4vw] mr-[1vw]' : 'gap-[0.8vw] mr-[2vw]'}`}>
+                                    {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
+                                        <Icon icon="ph:skip-back" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        'First',
+                                        () => {
+                                            closeAllPopups();
+                                            onPageClick(0);
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                    )}
+                                    {(settings?.media?.autoFlip ?? true) && renderDockBtn(
+                                        <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />,
+                                        isAutoFlipping ? 'Pause' : 'Play',
+                                        () => {
+                                            closeAllPopups();
+                                            setIsPlaying(!isAutoFlipping);
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                    )}
+                                    {(settings?.navigation?.startEndNav ?? true) && renderDockBtn(
+                                        <Icon icon="ph:skip-forward" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />,
+                                        'Last',
+                                        () => {
+                                            closeAllPopups();
+                                            onPageClick(pages.length - 1);
+                                        },
+                                        { color: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 'var(--toolbar-icon-opacity, 1)' }
+                                    )}
+                                </div>
+                            )}
                             <div className={`w-full ${isMobileLandscape ? 'h-[0.2vw]' : isTablet ? 'h-[0.2vw]' : 'h-[0.22vw]'} rounded-full relative overflow-hidden`}>
                                 {/* Track Underlay */}
                                 <div className="absolute inset-0 transition-colors duration-300" style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: isTablet ? 0.4 : 0.3 }} />
