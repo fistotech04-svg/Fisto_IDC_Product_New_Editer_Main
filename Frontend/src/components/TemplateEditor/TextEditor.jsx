@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import SubComponent from './SubComponent';
+import Color from './Color';
+import Effect from './Effect';
 
 import { Icon } from '@iconify/react';
 import {
@@ -373,7 +374,7 @@ const syncTextEffect = (doc, element) => {
   const filterId = `filter-${element.id || element.getAttribute('data-name') || 'text-effect'}`;
   let filterEl = defs.querySelector(`[id="${filterId}"]`);
 
-  if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
+  if (!hasDropShadow && !hasInnerShadow && !hasBlur) {
     if (filterEl) filterEl.remove();
     element.removeAttribute('filter');
     element.style.backdropFilter = '';
@@ -544,24 +545,7 @@ const syncTextEffect = (doc, element) => {
     element.setAttribute('filter', finalFilterUrl);
   }
 
-  if (hasBackgroundBlur) {
-    const bBlur = getVal('data-effect-background-blur-value', '10');
-    if (isForeignObject && element.firstElementChild) {
-      element.firstElementChild.style.backdropFilter = `blur(${bBlur}px)`;
-      element.firstElementChild.style.webkitBackdropFilter = `blur(${bBlur}px)`;
-    } else {
-      element.style.backdropFilter = `blur(${bBlur}px)`;
-      element.style.webkitBackdropFilter = `blur(${bBlur}px)`;
-    }
-  } else {
-    if (isForeignObject && element.firstElementChild) {
-      element.firstElementChild.style.backdropFilter = '';
-      element.firstElementChild.style.webkitBackdropFilter = '';
-    } else {
-      element.style.backdropFilter = '';
-      element.style.webkitBackdropFilter = '';
-    }
-  }
+
 };
 
 const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, selectedLayerId, updateElementAttributeLocal }) => {
@@ -603,7 +587,6 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     if (selectedElementProps?.['data-effect-drop-shadow'] === 'true') effs.push('Drop Shadow');
     if (selectedElementProps?.['data-effect-inner-shadow'] === 'true') effs.push('Inner Shadow');
     if (selectedElementProps?.['data-effect-blur'] === 'true') effs.push('Blur');
-    if (selectedElementProps?.['data-effect-background-blur'] === 'true') effs.push('Background Blur');
     return effs;
   });
 
@@ -612,8 +595,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     return {
       'Drop Shadow': { color: p['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(p['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(p['data-effect-drop-shadow-x'] || 4), y: parseFloat(p['data-effect-drop-shadow-y'] || 4), blur: parseFloat(p['data-effect-drop-shadow-blur'] || 4), spread: 0 },
       'Inner Shadow': { color: p['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(p['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(p['data-effect-inner-shadow-x'] || 4), y: parseFloat(p['data-effect-inner-shadow-y'] || 4), blur: parseFloat(p['data-effect-inner-shadow-blur'] || 1), spread: 0 },
-      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 1), spread: 0 },
-      'Background Blur': { blur: parseFloat(p['data-effect-background-blur-value'] || 1), spread: 0 }
+      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 1), spread: 0 }
     };
   });
 
@@ -663,14 +645,12 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     if (selectedElementProps?.['data-effect-drop-shadow'] === 'true') effs.push('Drop Shadow');
     if (selectedElementProps?.['data-effect-inner-shadow'] === 'true') effs.push('Inner Shadow');
     if (selectedElementProps?.['data-effect-blur'] === 'true') effs.push('Blur');
-    if (selectedElementProps?.['data-effect-background-blur'] === 'true') effs.push('Background Blur');
     setActiveEffects(effs);
 
     setEffectSettings({
       'Drop Shadow': { color: selectedElementProps?.['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(selectedElementProps?.['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(selectedElementProps?.['data-effect-drop-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-drop-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-drop-shadow-blur'] || 4), spread: 0 },
       'Inner Shadow': { color: selectedElementProps?.['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(selectedElementProps?.['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(selectedElementProps?.['data-effect-inner-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-inner-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-inner-shadow-blur'] || 1), spread: 0 },
-      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 1), spread: 0 },
-      'Background Blur': { blur: parseFloat(selectedElementProps?.['data-effect-background-blur-value'] || 1), spread: 0 }
+      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 1), spread: 0 }
     });
   }, [selectedLayerId, activePageIndex]);
 
@@ -719,12 +699,10 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       const hasDS = activeEffects.includes('Drop Shadow');
       const hasIS = activeEffects.includes('Inner Shadow');
       const hasBlur = activeEffects.includes('Blur');
-      const hasBBlur = activeEffects.includes('Background Blur');
 
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow', hasDS.toString());
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-inner-shadow', hasIS.toString());
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur', hasBlur.toString());
-      updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-background-blur', hasBBlur.toString());
 
       if (hasDS) {
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-drop-shadow-color', effectSettings['Drop Shadow'].color);
@@ -743,9 +721,6 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       if (hasBlur) {
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-value', effectSettings['Blur'].blur.toString());
       }
-      if (hasBBlur) {
-        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-background-blur-value', effectSettings['Background Blur'].blur.toString());
-      }
 
       const element = document.getElementById(selectedLayerId);
       if (element) {
@@ -755,40 +730,43 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
   }, [backgroundColor, radius, isRadiusLinked, activeEffects, effectSettings, activePageIndex, selectedLayerId]);
 
   return (
-    <SubComponent
-      tagName="text"
-      openSubSection={openSubSection}
-      setOpenSubSection={setOpenSubSection}
-      backgroundColor={backgroundColor}
-      setBackgroundColor={setBackgroundColor}
-      filters={filters}
-      setFilters={setFilters}
-      radius={radius}
-      setRadius={setRadius}
-      isRadiusLinked={isRadiusLinked}
-      setIsRadiusLinked={setIsRadiusLinked}
-      activeEffects={activeEffects}
-      setActiveEffects={setActiveEffects}
-      effectSettings={effectSettings}
-      setEffectSettings={setEffectSettings}
-      activeColorPicker={activeColorPicker}
-      setActiveColorPicker={setActiveColorPicker}
-      showStrokeSettings={showStrokeSettings}
-      setShowStrokeSettings={setShowStrokeSettings}
-      isStrokeStyleOpen={isStrokeStyleOpen}
-      setIsStrokeStyleOpen={setIsStrokeStyleOpen}
-      dropdownPos={dropdownPos}
-      setDropdownPos={setDropdownPos}
-      strokeSettingsPos={strokeSettingsPos}
-      setStrokeSettingsPos={setStrokeSettingsPos}
-      isDashPosOpen={isDashPosOpen}
-      setIsDashPosOpen={setIsDashPosOpen}
-      activePopup={activePopup}
-      setActivePopup={setActivePopup}
-      colorsOnPage={colorsOnPage}
-      showDetailedPicker={showDetailedPicker}
-      setShowDetailedPicker={setShowDetailedPicker}
-    />
+    <>
+      <Color
+        openSubSection={openSubSection}
+        setOpenSubSection={setOpenSubSection}
+        backgroundColor={backgroundColor}
+        setBackgroundColor={setBackgroundColor}
+        activeColorPicker={activeColorPicker}
+        setActiveColorPicker={setActiveColorPicker}
+        showStrokeSettings={showStrokeSettings}
+        setShowStrokeSettings={setShowStrokeSettings}
+        isStrokeStyleOpen={isStrokeStyleOpen}
+        setIsStrokeStyleOpen={setIsStrokeStyleOpen}
+        dropdownPos={dropdownPos}
+        setDropdownPos={setDropdownPos}
+        strokeSettingsPos={strokeSettingsPos}
+        setStrokeSettingsPos={setStrokeSettingsPos}
+        isDashPosOpen={isDashPosOpen}
+        setIsDashPosOpen={setIsDashPosOpen}
+        activePopup={activePopup}
+        setActivePopup={setActivePopup}
+        colorsOnPage={colorsOnPage}
+        showDetailedPicker={showDetailedPicker}
+        setShowDetailedPicker={setShowDetailedPicker}
+      />
+      <Effect
+        openSubSection={openSubSection}
+        setOpenSubSection={setOpenSubSection}
+        activeEffects={activeEffects}
+        setActiveEffects={setActiveEffects}
+        effectSettings={effectSettings}
+        setEffectSettings={setEffectSettings}
+        activeColorPicker={activeColorPicker}
+        setActiveColorPicker={setActiveColorPicker}
+        showDetailedPicker={showDetailedPicker}
+        setShowDetailedPicker={setShowDetailedPicker}
+      />
+    </>
   );
 };
 
