@@ -1230,7 +1230,7 @@ const GifEditor = ({
       `}</style>
 
       <div className="flex items-center gap-[0.5vw]">
-        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">GIF Property</span>
+        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Gif Property</span>
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
