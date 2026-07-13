@@ -40,7 +40,10 @@ import {
 import GalleryGif from "./GalleryGif";
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { Icon } from '@iconify/react';
-import SubComponent from './SubComponent';
+import Color from './Color';
+import CornerRadius from './CornerRadius';
+import Adjustment from './Adjustment';
+import Effect from './Effect';
 
 const galleryPreviewImages = [
   "https://media.giphy.com/media/3o7aD2saalEvTe2v0c/giphy.gif",
@@ -90,8 +93,7 @@ const GifEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 1, spread: 0 },
-    'Background Blur': { blur: 1, spread: 0 }
+    'Blur': { blur: 1, spread: 0 }
   });
 
   const [backgroundColor, setBackgroundColor] = useState({
@@ -324,8 +326,7 @@ const GifEditor = ({
           newGroup.setAttribute('data-name', 'GIF Group');
           newGroup.setAttribute('data-is-gif-group', 'true');
 
-          const newImgId = `gif-${Math.random().toString(36).substr(2, 9)}`;
-          liveElement.id = newImgId;
+          liveElement.removeAttribute('id');
           liveElement.setAttribute('data-name', 'GIF');
 
           if (liveElement.hasAttribute('transform')) {
@@ -1230,7 +1231,7 @@ const GifEditor = ({
       `}</style>
 
       <div className="flex items-center gap-[0.5vw]">
-        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Gif Property</span>
+        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">GIF Property</span>
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
@@ -1293,21 +1294,11 @@ const GifEditor = ({
           </div>
         </div>
 
-        <SubComponent
+        <Color
           openSubSection={openSubSection}
           setOpenSubSection={setOpenSubSection}
           backgroundColor={backgroundColor}
           setBackgroundColor={setBackgroundColor}
-          filters={filters}
-          setFilters={setFilters}
-          radius={radius}
-          setRadius={setRadius}
-          isRadiusLinked={isRadiusLinked}
-          setIsRadiusLinked={setIsRadiusLinked}
-          activeEffects={activeEffects}
-          setActiveEffects={setActiveEffects}
-          effectSettings={effectSettings}
-          setEffectSettings={setEffectSettings}
           activeColorPicker={activeColorPicker}
           setActiveColorPicker={setActiveColorPicker}
           showStrokeSettings={showStrokeSettings}
@@ -1323,6 +1314,34 @@ const GifEditor = ({
           activePopup={activePopup}
           setActivePopup={setActivePopup}
           colorsOnPage={colorsOnPage}
+          showDetailedPicker={showDetailedPicker}
+          setShowDetailedPicker={setShowDetailedPicker}
+        />
+        <CornerRadius
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          radius={radius}
+          setRadius={setRadius}
+          isRadiusLinked={isRadiusLinked}
+          setIsRadiusLinked={setIsRadiusLinked}
+          tagName={selectedElement?.tagName?.toLowerCase() || 'image'}
+        />
+        <Adjustment
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          filters={filters}
+          setFilters={setFilters}
+          tagName={selectedElement?.tagName?.toLowerCase() || 'image'}
+        />
+        <Effect
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          activeEffects={activeEffects}
+          setActiveEffects={setActiveEffects}
+          effectSettings={effectSettings}
+          setEffectSettings={setEffectSettings}
+          activeColorPicker={activeColorPicker}
+          setActiveColorPicker={setActiveColorPicker}
           showDetailedPicker={showDetailedPicker}
           setShowDetailedPicker={setShowDetailedPicker}
         />
