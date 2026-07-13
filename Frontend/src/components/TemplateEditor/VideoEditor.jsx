@@ -1820,57 +1820,59 @@ const VideoEditor = ({
         </div>
       </div>
 
-      <Color
-        openSubSection={openSubSection}
-        setOpenSubSection={setOpenSubSection}
-        backgroundColor={backgroundColor}
-        setBackgroundColor={setBackgroundColor}
-        activeColorPicker={activeColorPicker}
-        setActiveColorPicker={setActiveColorPicker}
-        showStrokeSettings={showStrokeSettings}
-        setShowStrokeSettings={setShowStrokeSettings}
-        isStrokeStyleOpen={isStrokeStyleOpen}
-        setIsStrokeStyleOpen={setIsStrokeStyleOpen}
-        dropdownPos={dropdownPos}
-        setDropdownPos={setDropdownPos}
-        strokeSettingsPos={strokeSettingsPos}
-        setStrokeSettingsPos={setStrokeSettingsPos}
-        isDashPosOpen={isDashPosOpen}
-        setIsDashPosOpen={setIsDashPosOpen}
-        activePopup={activePopup}
-        setActivePopup={setActivePopup}
-        colorsOnPage={colorsOnPage}
-        showDetailedPicker={showDetailedPicker}
-        setShowDetailedPicker={setShowDetailedPicker}
-      />
-      <CornerRadius
-        openSubSection={openSubSection}
-        setOpenSubSection={setOpenSubSection}
-        radius={radius}
-        setRadius={setRadius}
-        isRadiusLinked={isRadiusLinked}
-        setIsRadiusLinked={setIsRadiusLinked}
-        tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
-      />
-      <Adjustment
-        openSubSection={openSubSection}
-        setOpenSubSection={setOpenSubSection}
-        filters={filters}
-        setFilters={setFilters}
-        tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
-      />
-      <Effect
-        openSubSection={openSubSection}
-        setOpenSubSection={setOpenSubSection}
-        activeEffects={activeEffects}
-        setActiveEffects={setActiveEffects}
-        effectSettings={effectSettings}
-        setEffectSettings={setEffectSettings}
-        activeColorPicker={activeColorPicker}
-        setActiveColorPicker={setActiveColorPicker}
-        showDetailedPicker={showDetailedPicker}
-        setShowDetailedPicker={setShowDetailedPicker}
-      />
+      <div className="space-y-[0.60vw] px-[0.3vw]">
+        <Color
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          backgroundColor={backgroundColor}
+          setBackgroundColor={setBackgroundColor}
+          activeColorPicker={activeColorPicker}
+          setActiveColorPicker={setActiveColorPicker}
+          showStrokeSettings={showStrokeSettings}
+          setShowStrokeSettings={setShowStrokeSettings}
+          isStrokeStyleOpen={isStrokeStyleOpen}
+          setIsStrokeStyleOpen={setIsStrokeStyleOpen}
+          dropdownPos={dropdownPos}
+          setDropdownPos={setDropdownPos}
+          strokeSettingsPos={strokeSettingsPos}
+          setStrokeSettingsPos={setStrokeSettingsPos}
+          isDashPosOpen={isDashPosOpen}
+          setIsDashPosOpen={setIsDashPosOpen}
+          activePopup={activePopup}
+          setActivePopup={setActivePopup}
+          colorsOnPage={colorsOnPage}
+          showDetailedPicker={showDetailedPicker}
+          setShowDetailedPicker={setShowDetailedPicker}
+        />
+        <CornerRadius
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          radius={radius}
+          setRadius={setRadius}
+          isRadiusLinked={isRadiusLinked}
+          setIsRadiusLinked={setIsRadiusLinked}
+          tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
+        />
+        <Adjustment
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          filters={filters}
+          setFilters={setFilters}
+          tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
+        />
+        <Effect
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          activeEffects={activeEffects}
+          setActiveEffects={setActiveEffects}
+          effectSettings={effectSettings}
+          setEffectSettings={setEffectSettings}
+          activeColorPicker={activeColorPicker}
+          setActiveColorPicker={setActiveColorPicker}
+          showDetailedPicker={showDetailedPicker}
+          setShowDetailedPicker={setShowDetailedPicker}
+        />
+      </div>
 
       {/* Hidden Inputs */}
       <input ref={fileInputRef} type="file" accept="video/mp4" className="hidden" onChange={handleVideoUpload} />
