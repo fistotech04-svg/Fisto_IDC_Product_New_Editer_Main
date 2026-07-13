@@ -27,13 +27,13 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
       `}</style>
       <div className="flex items-center justify-between gap-[0.1vw]">
         <div className="flex items-center gap-[0.3vw]">
-          <span className="text-[0.75vw] text-gray-600 font-medium">{label}</span>
+          <span className="text-[0.85vw] text-gray-600 font-medium">{label}</span>
           <button
             onClick={onReset}
-            className="text-gray-400 hover:text-gray-700 transition-colors p-[0.1vw] cursor-pointer"
+            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] cursor-pointer"
             title="Reset"
           >
-            <RotateCcw size="0.65vw" strokeWidth={2.5} />
+            <RotateCcw size="0.8vw" strokeWidth={2.5} />
           </button>
         </div>
         <span className="text-[0.7vw] font-normal text-gray-500">{num}</span>

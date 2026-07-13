@@ -789,7 +789,7 @@ const ImageEditor = ({
                 cy = cy + (parseFloat(crop.top) / 100) * ch;
                 cw = cw * (parseFloat(crop.width) / 100);
                 ch = ch * (parseFloat(crop.height) / 100);
-              } catch (e) {}
+              } catch (e) { }
             }
 
             shadowCaster.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
@@ -1241,15 +1241,15 @@ const ImageEditor = ({
               innerImg.removeAttribute('clip-path');
               const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Crop': 'xMidYMid slice', 'Stretch': 'none' };
               innerImg.setAttribute('preserveAspectRatio', parMap[effectiveImageType] || 'xMidYMid meet');
-              
+
               if (svgImageEl === wrapper) {
                 svgImageEl = innerImg;
               }
             }
             wrapper.remove();
           } else if (svgImageEl) {
-             svgImageEl.style.removeProperty('clip-path');
-             svgImageEl.removeAttribute('clip-path');
+            svgImageEl.style.removeProperty('clip-path');
+            svgImageEl.removeAttribute('clip-path');
           }
 
           liveElement.style.removeProperty('background-image');
@@ -1563,7 +1563,7 @@ const ImageEditor = ({
               iy = iy + (parseFloat(crop.top) / 100) * ih;
               iw = iw * (parseFloat(crop.width) / 100);
               ih = ih * (parseFloat(crop.height) / 100);
-            } catch (e) {}
+            } catch (e) { }
           }
 
           overlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
@@ -1706,7 +1706,7 @@ const ImageEditor = ({
               by = by + (parseFloat(crop.top) / 100) * bh;
               bw = bw * (parseFloat(crop.width) / 100);
               bh = bh * (parseFloat(crop.height) / 100);
-            } catch (e) {}
+            } catch (e) { }
           }
 
           if (isPatternShape && patternEl) {
@@ -1914,7 +1914,7 @@ const ImageEditor = ({
               by = by + (parseFloat(crop.top) / 100) * bh;
               bw = bw * (parseFloat(crop.width) / 100);
               bh = bh * (parseFloat(crop.height) / 100);
-            } catch (e) {}
+            } catch (e) { }
           }
 
           const pos = backgroundColor.strokePosition || 'Center';
