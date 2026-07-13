@@ -1282,7 +1282,7 @@ const GifEditor = ({
         </div>
       </button>
 
-      <div className="flex flex-col gap-[0.5vw]">
+      <div className="space-y-[0.60vw] px-[0.3vw]">
         <div className="space-y-[0.5vw]">
           <div className="flex items-center gap-[0.5vw]">
             <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Opacity</span>

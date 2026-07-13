@@ -17,6 +17,7 @@ import { Icon as FileReplaceIcon, Icon } from '@iconify/react';
 const LayerItem = ({
   layer,
   depth = 0,
+  isBaseLayer = false,
   onToggleVisibility,
   onToggleLock,
   selectedLayerId,
@@ -278,9 +279,10 @@ const handleContextMenu = (e) => {
         )}
 
         {/* Secondary Visibility/Lock Status (Small) */}
-        <div className="flex items-center gap-[0.3vw] opacity-0 group-hover/layer:opacity-100 transition-opacity">
+        {!isBaseLayer && (
+          <div className="flex items-center gap-[0.3vw]">
           <button
-            className="text-gray-400 hover:text-indigo-600"
+            className={`text-gray-400 hover:text-indigo-600 transition-opacity ${layer.visible === false ? 'opacity-100' : 'opacity-0 group-hover/layer:opacity-100'}`}
             onClick={(e) => {
               e.stopPropagation();
               const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
@@ -291,7 +293,7 @@ const handleContextMenu = (e) => {
             {layer.visible === false ? <EyeOff size="0.7vw" /> : <Eye size="0.7vw" />}
           </button>
           <button
-            className="text-gray-400 hover:text-indigo-600"
+            className={`text-gray-400 hover:text-indigo-600 transition-opacity ${layer.locked === true ? 'opacity-100' : 'opacity-0 group-hover/layer:opacity-100'}`}
             onClick={(e) => {
               e.stopPropagation();
               const targetId = layer.isVirtualImageChild ? layer.parentId : layer.id;
@@ -302,6 +304,7 @@ const handleContextMenu = (e) => {
             {layer.locked === true ? <Lock size="0.7vw" /> : <Unlock size="0.7vw" />}
           </button>
         </div>
+        )}
       </div>
 
       <AnimatePresence>
@@ -795,7 +798,9 @@ const Layer = ({
 
               const hasGroup = targetIds.some(id => {
                 const el = document.getElementById(id);
-                return el && el.tagName.toLowerCase() === 'g';
+                if (!el || el.tagName.toLowerCase() !== 'g') return false;
+                const isMedia = el.getAttribute('data-is-image-group') || el.getAttribute('data-is-video-group') || el.getAttribute('data-is-gif-group');
+                return !isMedia;
               });
               const canUngroup = hasGroup;
               const canGroup = targetIds.length > 0 && !(targetIds.length === 1 && hasGroup);
@@ -1146,25 +1151,33 @@ const Layer = ({
                             >
                               <div className="py-[1vh] px-[0.6vw] flex flex-col gap-[0.2vh] max-h-[45vh] overflow-y-auto custom-scrollbar">
                                 {page.layers && page.layers.some(l => l.name !== 'Free Frame') ? (
-                                  [...page.layers].filter(l => l.name !== 'Free Frame').reverse().map((layer, idx) => (
-                                    <LayerItem
-                                      key={layer.id || idx}
-                                      layer={layer}
-                                      depth={0}
-                                      onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
-                                      onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
-                                      selectedLayerId={selectedLayerId}
-                                      setSelectedLayerId={setSelectedLayerId}
-                                      multiSelectedIds={multiSelectedIds}
-                                      setMultiSelectedIds={setMultiSelectedIds}
-                                      renameLayer={renameLayer}
-                                      pageIndex={index}
-                                      onLayerContextMenu={handleLayerContextMenu}
-                                      onReorderLayer={reorderLayer}
-                                      currentFrameId={currentFrameId}
-                                      setCurrentFrameId={setCurrentFrameId}
-                                    />
-                                  ))
+                                  (() => {
+                                    const realLayers = page.layers.filter(l => l.name !== 'Free Frame');
+                                    const isSingleRoot = realLayers.length === 1;
+                                    return [...realLayers].reverse().map((layer, idx) => {
+                                      const isBaseLayer = isSingleRoot && (layer.name === page.name || layer.name?.startsWith('Page '));
+                                      return (
+                                        <LayerItem
+                                          key={layer.id || idx}
+                                          layer={layer}
+                                          depth={0}
+                                          isBaseLayer={isBaseLayer}
+                                          onToggleVisibility={(layerId) => toggleLayerVisibility(index, layerId)}
+                                          onToggleLock={(layerId) => toggleLayerLock(index, layerId)}
+                                          selectedLayerId={selectedLayerId}
+                                          setSelectedLayerId={setSelectedLayerId}
+                                          multiSelectedIds={multiSelectedIds}
+                                          setMultiSelectedIds={setMultiSelectedIds}
+                                          renameLayer={renameLayer}
+                                          pageIndex={index}
+                                          onLayerContextMenu={handleLayerContextMenu}
+                                          onReorderLayer={reorderLayer}
+                                          currentFrameId={currentFrameId}
+                                          setCurrentFrameId={setCurrentFrameId}
+                                        />
+                                      );
+                                    });
+                                  })()
                                 ) : (
                                   <div className="text-[0.7vw] text-gray-400 italic px-[0.8vw] py-[0.5vh]">
                                     No layers found
