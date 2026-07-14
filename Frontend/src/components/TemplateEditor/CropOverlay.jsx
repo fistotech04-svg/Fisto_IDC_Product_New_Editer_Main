@@ -25,7 +25,7 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
     const updateRect = () => {
       const rect = targetElement.getBoundingClientRect();
-      
+
       let fullW = rect.width;
       let fullH = rect.height;
       let fullL = rect.left;
@@ -69,7 +69,7 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     const handleGlobalPointerDown = (e) => {
       // Don't close if they are interacting with the right sidebar or header
       if (e.target.closest('.right-sidebar') || e.target.closest('.top-header')) return;
-      
+
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         onDone(cropRef.current);
       }
@@ -222,15 +222,15 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
         {/* NW Corner */}
         <div className="absolute -left-[2px] -top-[2px] w-5 h-5 border-t-[4px] border-l-[4px] border-indigo-600 drop-shadow-md cursor-nwse-resize" onPointerDown={(e) => handlePointerDown(e, 'nw')} />
         <div className="absolute left-5 right-5 -top-2 h-4 cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 'n')} />
-        
+
         {/* NE Corner */}
         <div className="absolute -right-[2px] -top-[2px] w-5 h-5 border-t-[4px] border-r-[4px] border-indigo-600 drop-shadow-md cursor-nesw-resize" onPointerDown={(e) => handlePointerDown(e, 'ne')} />
         <div className="absolute top-5 bottom-5 -right-2 w-4 cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'e')} />
-        
+
         {/* SE Corner */}
         <div className="absolute -right-[2px] -bottom-[2px] w-5 h-5 border-b-[4px] border-r-[4px] border-indigo-600 drop-shadow-md cursor-nwse-resize" onPointerDown={(e) => handlePointerDown(e, 'se')} />
         <div className="absolute left-5 right-5 -bottom-2 h-4 cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 's')} />
-        
+
         {/* SW Corner */}
         <div className="absolute -left-[2px] -bottom-[2px] w-5 h-5 border-b-[4px] border-l-[4px] border-indigo-600 drop-shadow-md cursor-nesw-resize" onPointerDown={(e) => handlePointerDown(e, 'sw')} />
         <div className="absolute top-5 bottom-5 -left-2 w-4 cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'w')} />
