@@ -11,9 +11,6 @@ import AnimationPanel from './AnimationPanel';
 import InteractionPanel from './InteractionPanel';
 import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
-import ColorPicker, { parseGradient } from './ColorPicker';
-import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import { createPortal } from 'react-dom';
 import { useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
@@ -68,7 +65,6 @@ const RightSidebar = ({
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('px');
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
-  const [isPageBgPickerOpen, setIsPageBgPickerOpen] = useState(false);
   const unitRef = useRef(null);
   const [expandedInteraction, setExpandedInteraction] = useState('call-click');
   const [interactionTab, setInteractionTab] = useState('Call');
@@ -237,9 +233,6 @@ const RightSidebar = ({
       const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
       
       if (el && !isPageSelected) {
-        if (el.getAttribute('data-locked') === 'true') {
-            return null;
-        }
         let w = '0', h = '0', x = '0', y = '0', r = '0';
         
         // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---
@@ -884,22 +877,6 @@ const RightSidebar = ({
                       const doc = parser.parseFromString(page?.html || '', 'image/svg+xml');
                       const overlay = doc.querySelector('[data-name="Overlay"]');
                       const currentBg = overlay?.getAttribute('fill') || '#ffffff';
-                      const fillType = overlay?.getAttribute('fill-type') || 'solid';
-                      
-                      let currentBgStr = currentBg;
-                      if (fillType === 'gradient' || currentBg.toLowerCase().includes('url(#')) {
-                        const stopsJson = overlay?.getAttribute('fill-stops');
-                        const stops = stopsJson ? JSON.parse(stopsJson) : [];
-                        const gType = overlay?.getAttribute('fill-gradient-type') || 'linear';
-                        if (stops.length > 0) {
-                          currentBgStr = generateGradientString(
-                            gType.charAt(0).toUpperCase() + gType.slice(1),
-                            stops.map(s => ({ ...s, opacity: (s.opacity !== undefined ? s.opacity : 1) * 100 })),
-                            parseInt(overlay?.getAttribute('fill-angle') || '0'),
-                            parseInt(overlay?.getAttribute('fill-radius') || '100')
-                          );
-                        }
-                      }
 
                       return (
                         <div className="flex flex-col gap-[3vh]">
@@ -914,14 +891,9 @@ const RightSidebar = ({
                             <div className="bg-white rounded-[0.8vw] border border-gray-200 p-[1vw] shadow-sm">
                               <div className="flex items-center justify-between mb-[1.5vh]">
                                 <span className="text-[0.75vw] text-gray-500 font-medium">Background Color</span>
-                                <div 
-                                  className="flex items-center gap-[0.5vw] cursor-pointer hover:bg-gray-50 p-[0.3vw] rounded-[0.4vw] transition-colors"
-                                  onClick={() => setIsPageBgPickerOpen(!isPageBgPickerOpen)}
-                                >
-                                  <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner flex-shrink-0" style={{ background: currentBgStr }} />
-                                  <span className="text-[0.7vw] font-mono text-gray-400 overflow-hidden text-ellipsis whitespace-nowrap max-w-[8vw]">
-                                    {currentBgStr.toUpperCase()}
-                                  </span>
+                                <div className="flex items-center gap-[0.5vw]">
+                                  <div className="w-[1.2vw] h-[1.2vw] rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: currentBg }} />
+                                  <span className="text-[0.7vw] font-mono text-gray-400">{currentBg.toUpperCase()}</span>
                                 </div>
                               </div>
 
@@ -929,62 +901,13 @@ const RightSidebar = ({
                                 {presetColors.map((color) => (
                                   <button
                                     key={color}
-                                    onClick={() => {
-                                      updateElementAttribute(activePageIndex, 'Overlay', {
-                                        'fill-type': 'solid',
-                                        'fill': color
-                                      });
-                                    }}
+                                    onClick={() => updatePageBackground(activePageIndex, color)}
                                     className={`w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-100 transition-all hover:scale-110 shadow-sm ${currentBg.toLowerCase() === color.toLowerCase() ? 'ring-2 ring-blue-500 scale-110 z-10 ring-offset-1' : 'hover:z-10'}`}
                                     style={{ backgroundColor: color }}
                                     title={color}
                                   />
                                 ))}
                               </div>
-                              
-                              {isPageBgPickerOpen && createPortal(
-                                <div
-                                  className="fixed z-[5000]"
-                                  style={{
-                                    top: '50%',
-                                    right: '10vw', // Left of the right sidebar
-                                    transform: 'translateY(-50%)'
-                                  }}
-                                >
-                                  <div className="animate-in fade-in zoom-in-95 duration-200 relative">
-                                    <ColorPicker
-                                      color={currentBgStr}
-                                      onChange={(newVal) => {
-                                        if (newVal.includes('gradient')) {
-                                          const parsed = parseGradient(newVal);
-                                          if (parsed) {
-                                            updateElementAttribute(activePageIndex, 'Overlay', {
-                                              'fill-type': 'gradient',
-                                              'fill-gradient-type': parsed.type.toLowerCase(),
-                                              'fill-stops': JSON.stringify(parsed.stops.map(s => ({
-                                                color: s.color,
-                                                offset: s.offset,
-                                                opacity: s.opacity / 100
-                                              }))),
-                                              'fill-angle': (parsed.angle || 0).toString(),
-                                              'fill-radius': (parsed.radius || 100).toString(),
-                                              'fill': newVal
-                                            });
-                                          }
-                                        } else {
-                                          updateElementAttribute(activePageIndex, 'Overlay', {
-                                            'fill-type': 'solid',
-                                            'fill': newVal
-                                          });
-                                        }
-                                      }}
-                                      opacity={100}
-                                      onClose={() => setIsPageBgPickerOpen(false)}
-                                    />
-                                  </div>
-                                </div>,
-                                document.body
-                              )}
                             </div>
                           </div>
 
