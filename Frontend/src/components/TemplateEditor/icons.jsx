@@ -153,9 +153,9 @@ const IconGallery = ({
         <button
           disabled={!tempSelectedIcon}
           onClick={handleSelectIcon}
-          className="flex-1 h-[2vw] bg-black text-white rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center gap-[0.25vw] hover:bg-zinc-800 disabled:opacity-50"
+          className="flex-1 h-[2vw] bg-black text-white rounded-[0.5vw] text-[0.7vw] font-semibold flex items-center justify-center hover:bg-zinc-800 disabled:opacity-50"
         >
-          <Replace size="0.75vw" /> Place
+          Place on Page
         </button>
       </div>
     </div>

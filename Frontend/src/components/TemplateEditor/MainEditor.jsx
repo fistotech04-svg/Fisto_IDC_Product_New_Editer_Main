@@ -1798,11 +1798,11 @@ const MainEditor = ({
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.id = newId;
       g.setAttribute('data-type', 'icon');
-      // Place centered and slightly smaller (scale 0.5) for better default sizing
-      g.setAttribute('transform', `translate(${centerX - 25}, ${centerY - 25}) scale(0.5)`);
-      g.setAttribute('fill', '#ffffff');
+      // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
+      g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
+      g.setAttribute('fill', 'none');
       g.setAttribute('stroke', '#000000');
-      g.setAttribute('stroke-width', '2');
+      g.setAttribute('stroke-width', '1');
 
 
       if (icon.Component) {
