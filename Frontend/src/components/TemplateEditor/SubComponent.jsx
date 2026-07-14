@@ -124,12 +124,7 @@ const PropertySlider = ({ label, value, onChange, min = 0, max = 100, disabled =
           value={value || 0}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="flex-grow h-[0.25vw] appearance-none cursor-pointer bg-gray-200 rounded-full outline-none disabled:cursor-not-allowed"
-          style={{
-            background: disabled
-              ? '#e5e7eb'
-              : `linear-gradient(to right, #6366f1 0%, #6366f1 ${((value || 0) - min) / (max - min) * 100}%, #e5e7eb ${((value || 0) - min) / (max - min) * 100}%, #e5e7eb 100%)`,
-          }}
+          className="flex-grow h-[0.3vw] accent-[#5d5efc] cursor-pointer outline-none disabled:cursor-not-allowed"
         />
         <div className="w-[2.8vw] h-[1.8vw] flex items-center justify-center bg-white border border-gray-100 rounded-[0.4vw] shadow-sm overflow-hidden">
           <input
@@ -172,6 +167,84 @@ const NumberInput = ({ value, onChange }) => (
     </button>
   </div>
 );
+
+const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, max = 100 }) => {
+  const num = parseFloat(value) || 0;
+  const percentage = ((num - min) / (max - min)) * 100;
+
+  const isNegative = num < 0;
+  const activeLeft = isNegative ? percentage : 50;
+  const activeWidth = Math.abs(percentage - 50);
+
+  return (
+    <div className="flex flex-col gap-[0.2vw] mb-[0.2vw]">
+      <style>{`
+        .invisible-range {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          background: transparent;
+        }
+        .invisible-range::-webkit-slider-thumb {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 0;
+          height: 0;
+        }
+      `}</style>
+      <div className="flex items-center justify-between gap-[0.1vw]">
+        <div className="flex items-center gap-[0.3vw]">
+          <span className="text-[0.75vw] text-gray-600 font-medium">{label}</span>
+          <button
+            onClick={onReset}
+            className="text-gray-400 hover:text-gray-700 transition-colors p-[0.1vw] cursor-pointer"
+            title="Reset"
+          >
+            <RotateCcw size="0.65vw" strokeWidth={2.5} />
+          </button>
+        </div>
+        <span className="text-[0.7vw] font-normal text-gray-500">{num}</span>
+      </div>
+
+      <div className="relative flex items-center h-[1vw] w-full">
+        {/* Inactive thin gray track */}
+        <div className="absolute w-full h-[0.2vw] bg-gray-200 rounded-full" />
+
+        {/* Active thick blue track */}
+        {num !== 0 && (
+          <div
+            className="absolute h-[0.25vw] bg-[#6366f1] pointer-events-none"
+            style={{
+              left: `${activeLeft}%`,
+              width: `${activeWidth}%`,
+              borderTopLeftRadius: isNegative ? '999px' : '0',
+              borderBottomLeftRadius: isNegative ? '999px' : '0',
+              borderTopRightRadius: isNegative ? '0' : '999px',
+              borderBottomRightRadius: isNegative ? '0' : '999px',
+            }}
+          />
+        )}
+
+        {/* Thumb */}
+        <div
+          className="absolute w-[0.7vw] h-[0.7vw] bg-[#6366f1] rounded-full pointer-events-none shadow-sm"
+          style={{ left: `calc(${percentage}% - 0.35vw)` }}
+        />
+
+        {/* Invisible range input for interaction */}
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step="1"
+          value={num}
+          onChange={(e) => onChange(e.target.value)}
+          className="invisible-range absolute w-full h-full opacity-0 cursor-pointer m-0"
+        />
+      </div>
+    </div>
+  );
+};
 
 const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onPickerToggle, baseAttr, selectedElementProps }) => (
   <div className="flex items-center gap-[0.4vw] py-[0.4vw]">
@@ -233,93 +306,29 @@ const ColorField = ({ label, color, opacity, onColorChange, onOpacityChange, onP
   </div>
 );
 
-const SectionDivider = ({ label, children, solid = false, labelClassName = "text-[0.9vw]" }) => (
-  <div className="flex items-center gap-[0.5vw] py-[0.4vw]">
-    <span className={`${labelClassName} font-semibold text-gray-600`}>{label}</span>
-    <div className={`flex-grow h-px mr-[-2vw] border-t ${solid ? 'border-solid' : 'border-dashed'} border-gray-300`}></div>
-    {children}
-  </div>
-);
-
-const ColorFieldCompact = ({ color, opacity, onColorChange, onOpacityChange, onPickerToggle, baseAttr, selectedElementProps }) => (
-  <div className="flex items-center gap-[1vw] pl-[1vw]">
-    <div
-      className="w-[2.5vw] h-[2.5vw] rounded-[0.5vw] border border-gray-200 flex-shrink-0 relative overflow-hidden flex items-center justify-center"
-    >
-      <div
-        onClick={onPickerToggle}
-        className="w-full h-full cursor-pointer color-field-trigger transition-transform flex-shrink-0"
-        style={{
-          background: (color === 'none' || color === 'transparent' || color === '#' || !color)
-            ? 'white'
-            : (color.toString().toLowerCase().includes('url(#')
-              ? (selectedElementProps && selectedElementProps[`${baseAttr}-stops`]
-                ? `linear-gradient(to right, ${JSON.parse(selectedElementProps[`${baseAttr}-stops`]).map(s => s.color).join(', ')})`
-                : '#ccc')
-              : color)
-        }}
-      />
-      {(color === 'none' || color === 'transparent' || color === '#' || !color) && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45" />
-      )}
-    </div>
-
-    <div className="flex-grow flex items-center border-[0.1vw] border-gray-300 rounded-[0.5vw] overflow-hidden h-[2.5vw] bg-white hover:border-indigo-400 transition-colors px-[0.5vw]">
-      <input
-        type="text"
-        value={(color === 'none' || color === 'transparent' || !color) ? '#' : color?.toUpperCase()}
-        onChange={(e) => {
-          const val = e.target.value;
-          if (val === '' || val === '#') {
-            onColorChange('none');
-          } else {
-            const finalVal = val.startsWith('#') ? val : '#' + val;
-            onColorChange(finalVal);
-          }
-        }}
-        className="flex-grow text-[0.75vw] font-medium text-gray-700 outline-none bg-transparent min-w-[3vw] font-mono tracking-tight"
-        maxLength={7}
-      />
-      <div
-        className="flex items-center gap-[0.1vw] ml-[0.5vw] cursor-ew-resize select-none px-[0.2vw] hover:bg-gray-50 rounded"
-        onPointerDown={(e) => {
-          const currentPct = Math.round(parseFloat(opacity !== undefined ? opacity : 1) * 100);
-          handleScrubHelper(e, currentPct, (val) => {
-            const num = parseInt(val);
-            const clamped = Math.min(Math.max(num, 0), 100);
-            onOpacityChange(clamped / 100);
-          });
-        }}
-      >
-        <span className="text-[0.75vw] font-semibold text-gray-700">
-          {Math.round(parseFloat(opacity !== undefined ? opacity : 1) * 100)}
-        </span>
-        <span className="text-[0.75vw] font-medium text-gray-500">%</span>
-      </div>
-    </div>
-  </div>
-);
-
-const ShapeProperties = ({
+const ShapePropertiesUI = ({
   selectedElementProps,
   activePageIndex,
   selectedLayerId,
-  updateElementAttribute
+  updateElementAttribute,
+  openSubSection,
+  setOpenSubSection
 }) => {
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
   const [pickerPosition, setPickerPosition] = useState({ top: 0, right: 0 });
-  const [openAccordion, setOpenAccordion] = useState('color'); // 'color' | 'corner' | 'effect' | null
+  const openAccordion = openSubSection;
+  const setOpenAccordion = setOpenSubSection;
   const [activeEffectPopupId, setActiveEffectPopupId] = useState(null);
   const [effectPopupPos, setEffectPopupPos] = useState({ top: 0, right: '16.5vw' });
   const [isStrokeStyleOpen, setIsStrokeStyleOpen] = useState(false);
   const [isStrokeTypeOpen, setIsStrokeTypeOpen] = useState(false);
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
   const [isTypeDropdownOpen, setIsTypeDropdownOpen] = useState(false);
-  const [isDashPosOpen, setIsDashPosOpen] = useState(false);
 
   const [activeStopIndex, setActiveStopIndex] = useState(0);
   const [showStrokeSettings, setShowStrokeSettings] = useState(false);
   const [strokeSettingsPos, setStrokeSettingsPos] = useState({ top: 0, right: 0 });
+  const [isDashPosOpen, setIsDashPosOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
 
   const reverseGradient = (baseAttr) => {
@@ -426,16 +435,11 @@ const ShapeProperties = ({
 
   return (
     <div className="flex flex-col space-y-[0.60vw] font-sans">
-      {/* HEADER SECTION */}
-      <div className="flex items-center gap-[0.75vw] mb-[0.2vw]">
-        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Shape Property</span>
-        <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
-      </div>
 
       {/* TOP LEVEL SLIDERS */}
-      <div className="px-[0.2vw] space-y-[0.3vw] py-[0.5vw]">
-        {/* Count/Sides for Polygons and Stars */}
-        {(selectedElementProps['data-shape-type'] === 'polygon' || selectedElementProps['data-shape-type'] === 'star') && (
+      {(selectedElementProps['data-shape-type'] === 'polygon' || selectedElementProps['data-shape-type'] === 'star') && (
+        <div className="px-[0.2vw] space-y-[0.3vw] py-[0.5vw]">
+          {/* Count/Sides for Polygons and Stars */}
           <PropertySlider
             label={selectedElementProps['data-shape-type'] === 'polygon' ? "Sides" : "Points"}
             value={parseInt(selectedElementProps['data-count'] || (selectedElementProps['data-shape-type'] === 'polygon' ? 3 : 5))}
@@ -443,10 +447,8 @@ const ShapeProperties = ({
             min={3}
             max={selectedElementProps['data-shape-type'] === 'polygon' ? 50 : 24}
           />
-        )}
 
-        {/* Ratio Slider for Stars Pointiness */}
-        {(selectedElementProps['data-shape-type'] === 'polygon' || selectedElementProps['data-shape-type'] === 'star') && (
+          {/* Ratio Slider for Stars Pointiness */}
           <PropertySlider
             label="Ratio"
             value={
@@ -457,10 +459,8 @@ const ShapeProperties = ({
             onChange={(val) => updateAttr('data-ratio', val)}
             disabled={selectedElementProps['data-shape-type'] === 'polygon'}
           />
-        )}
 
-        {/* Corner/Rounding control: Smoothing for Polygons/Stars only (Hidden for Rects) */}
-        {(selectedElementProps['data-shape-type'] === 'polygon' || selectedElementProps['data-shape-type'] === 'star') && (
+          {/* Corner/Rounding control: Smoothing for Polygons/Stars only (Hidden for Rects) */}
           <PropertySlider
             label="Corner"
             value={Math.round(parseFloat(
@@ -469,9 +469,8 @@ const ShapeProperties = ({
             onChange={(val) => updateAttr('data-radius', val)}
             max={50}
           />
-        )}
-
-      </div>
+        </div>
+      )}
 
       {/* COLOR ACCORDION CARDS (EXACT TEXT EDITOR STYLE) */}
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
@@ -487,7 +486,7 @@ const ShapeProperties = ({
 
         <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'color' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
-            <div className="p-[1vw] pt-[0.5vw] space-y-[0.4vw]">
+            <div className="p-[1vw] pt-[0.75vw] space-y-[0.5vw]">
               <ColorField
                 label="Fill"
                 color={selectedElementProps.fill}
@@ -527,7 +526,7 @@ const ShapeProperties = ({
 
                         // Add 1.5vw to offset the popup cleanly from the sidebar's left edge
                         const pos = { right: `calc(100vw - ${rowRect.left}px + 1.5vw)` };
-                        
+
                         // Vertically center relative to the button, keeping within screen bounds
                         const centerY = btnRect.top + (btnRect.height / 2) - (popupHeight / 2);
                         pos.top = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
@@ -612,167 +611,133 @@ const ShapeProperties = ({
       </div>
 
       {/* CORNER RADIUS ACCORDION (FIGMA STYLE) */}
-      {(selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type'] === 'rectangle') && (() => {
-        // Derive the element's actual SVG width & height so we can cap the radius
-        // at min(w,h)/2 — the exact point where a square becomes a perfect circle.
-        const svgW = parseFloat(selectedElementProps.width || 0);
-        const svgH = parseFloat(selectedElementProps.height || 0);
-        const maxCorner = svgW > 0 && svgH > 0 ? Math.floor(Math.min(svgW, svgH) / 2) : 9999;
-        const isSquare = svgW > 0 && svgH > 0 && Math.abs(svgW - svgH) < 2;
-
-        // Current linked value (used for the progress bar)
-        const linkedVal = parseInt(selectedElementProps['data-tl'] || selectedElementProps.rx || 0);
-        const progress = maxCorner > 0 ? Math.min(linkedVal / maxCorner, 1) : 0;
-        const isFullCircle = progress >= 0.99;
-
-        return (
-          <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
-            <div
-              onClick={() => setOpenAccordion(openAccordion === 'corner' ? null : 'corner')}
-              className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
-            >
-              <div className="flex items-center gap-[0.5vw]">
-                <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
-                {isFullCircle && isSquare && (
-                  <span className="text-[0.65vw] font-semibold text-indigo-600 bg-indigo-50 px-[0.4vw] py-[0.1vw] rounded-full">Circle</span>
-                )}
-              </div>
-              <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'corner' ? '' : 'rotate-180'}`} />
+      {(selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type'] === 'rectangle') && (
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
+          <div
+            onClick={() => setOpenAccordion(openAccordion === 'corner' ? null : 'corner')}
+            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          >
+            <div className="flex items-center gap-[0.5vw]">
+              <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
             </div>
+            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'corner' ? '' : 'rotate-180'}`} />
+          </div>
 
-            <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'corner' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
-              <div className="overflow-hidden">
-                <div className="p-[1.5vw] pb-[1vw] relative flex flex-col items-center justify-center bg-white gap-[1vw]">
-                  {/* 2x2 Grid of Inputs */}
-                  <div className="grid grid-cols-2 gap-x-[2.5vw] gap-y-[1.5vw] relative">
-                    {[
-                      { key: 'data-tl', roundedClass: 'rounded-tl-[1vw] rounded-tr-0 rounded-bl-0 rounded-br-0' },
-                      { key: 'data-tr', roundedClass: 'rounded-tr-[1vw] rounded-tl-0 rounded-bl-0 rounded-br-0' },
-                      { key: 'data-bl', roundedClass: 'rounded-bl-[1vw] rounded-tl-0 rounded-tr-0 rounded-br-0' },
-                      { key: 'data-br', roundedClass: 'rounded-br-[1vw] rounded-tl-0 rounded-tr-0 rounded-bl-0' }
-                    ].map((corner) => {
-                      const val = Math.min(parseInt(selectedElementProps[corner.key] || selectedElementProps.rx || 0), maxCorner);
-                      const updateVal = (newVal) => {
-                        const clamped = Math.max(0, Math.min(Math.round(newVal), maxCorner));
-                        if (selectedElementProps['data-corner-linked'] !== 'false') {
-                          updateElementAttribute(activePageIndex, selectedLayerId, {
-                            rx: clamped,
-                            ry: clamped,
-                            'data-tl': clamped,
-                            'data-tr': clamped,
-                            'data-bl': clamped,
-                            'data-br': clamped,
-                          });
-                        } else {
-                          updateAttr(corner.key, clamped);
-                        }
-                      };
+          <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'corner' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="overflow-hidden">
+              <div className="p-[1.5vw] relative flex flex-col items-center justify-center min-h-[9vw] bg-white">
+                {/* 2x2 Grid of Inputs */}
+                <div className="grid grid-cols-2 gap-x-[2.5vw] gap-y-[1.5vw] relative">
+                  {[
+                    { key: 'data-tl', roundedClass: 'rounded-tl-[1vw] rounded-tr-0 rounded-bl-0 rounded-br-0' },
+                    { key: 'data-tr', roundedClass: 'rounded-tr-[1vw] rounded-tl-0 rounded-bl-0 rounded-br-0' },
+                    { key: 'data-bl', roundedClass: 'rounded-bl-[1vw] rounded-tl-0 rounded-tr-0 rounded-br-0' },
+                    { key: 'data-br', roundedClass: 'rounded-br-[1vw] rounded-tl-0 rounded-tr-0 rounded-bl-0' }
+                  ].map((corner, idx) => {
+                    const val = parseInt(selectedElementProps[corner.key] !== undefined ? selectedElementProps[corner.key] : (selectedElementProps.rx || 0));
+                    const updateVal = (newVal) => {
+                      const clamped = Math.max(0, newVal);
+                      if (selectedElementProps['data-corner-linked'] !== 'false') {
+                        updateAttr('rx', clamped);
+                        updateAttr('ry', clamped);
+                        updateAttr('data-tl', clamped);
+                        updateAttr('data-tr', clamped);
+                        updateAttr('data-bl', clamped);
+                        updateAttr('data-br', clamped);
+                      } else {
+                        updateAttr(corner.key, clamped);
+                      }
+                    };
 
-                      return (
-                        <div key={corner.key} className="flex flex-col items-center">
-                          <div
-                            onPointerDown={(e) => {
-                              if (e.target.tagName === 'INPUT') return;
-                              handleScrubHelper(e, val, (newVal) => updateVal(parseInt(newVal)));
-                            }}
-                            className={`w-[5.2vw] h-[2.8vw] border border-gray-400 ${corner.roundedClass} flex items-center justify-between px-[0.4vw] bg-white relative transition-colors hover:border-gray-600 cursor-ew-resize select-none`}
+                    return (
+                      <div key={corner.key} className="flex flex-col items-center">
+                        <div
+                          onPointerDown={(e) => {
+                            // Only initiate drag if not clicking directly inside the numeric input
+                            if (e.target.tagName === 'INPUT') return;
+                            handleScrubHelper(e, val, (newVal) => updateVal(parseInt(newVal)));
+                          }}
+                          className={`w-[5.2vw] h-[2.8vw] border border-gray-400 ${corner.roundedClass} flex items-center justify-between px-[0.4vw] bg-white relative transition-colors hover:border-gray-600 cursor-ew-resize select-none`}
+                        >
+                          <button
+                            onClick={() => updateVal(val - 1)}
+                            className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
                           >
-                            <button
-                              onClick={() => updateVal(val - 1)}
-                              className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
-                            >
-                              <ChevronLeft size="0.9vw" />
-                            </button>
+                            <ChevronLeft size="0.9vw" />
+                          </button>
 
-                            <input
-                              type="number"
-                              min={0}
-                              max={maxCorner}
-                              value={val}
-                              onChange={(e) => updateVal(parseInt(e.target.value) || 0)}
-                              className="w-full text-center text-[1vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-
-                            <button
-                              onClick={() => updateVal(val + 1)}
-                              className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
-                            >
-                              <ChevronRight size="0.9vw" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {/* Link Button in Center Overlay */}
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                      <button
-                        onClick={() => updateAttr('data-corner-linked', selectedElementProps['data-corner-linked'] === 'false' ? 'true' : 'false')}
-                        className="bg-white p-[0.3vw] transition-all hover:scale-110 active:scale-95 rounded-full shadow-sm border border-gray-50 pointer-events-auto"
-                      >
-                        {selectedElementProps['data-corner-linked'] !== 'false' ? (
-                          <Link2 size="1.4vw" className="text-black" />
-                        ) : (
-                          <Link2Off size="1.4vw" className="text-gray-300" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Square → Circle progress slider (only when all corners linked) */}
-                  {selectedElementProps['data-corner-linked'] !== 'false' && maxCorner < 9999 && (
-                    <div className="w-full flex flex-col gap-[0.4vw]">
-                      <div className="flex items-center justify-between px-[0.2vw]">
-                        {/* Square icon */}
-                        <svg width="0.95vw" height="0.95vw" viewBox="0 0 16 16" className="text-gray-400" style={{ width: '0.95vw', height: '0.95vw' }}>
-                          <rect x="1" y="1" width="14" height="14" rx="1" fill="none" stroke="currentColor" strokeWidth="2" />
-                        </svg>
-                        {/* Slider track */}
-                        <div className="flex-1 mx-[0.5vw] relative h-[0.25vw] bg-gray-200 rounded-full">
-                          {/* Filled portion */}
-                          <div
-                            className="absolute left-0 top-0 h-full rounded-full transition-all duration-100"
-                            style={{
-                              width: `${progress * 100}%`,
-                              background: isFullCircle
-                                ? 'linear-gradient(90deg, #6366f1, #8b5cf6)'
-                                : 'linear-gradient(90deg, #6366f1, #a5b4fc)',
-                            }}
-                          />
-                          {/* Thumb */}
                           <input
-                            type="range"
+                            type="number"
                             min={0}
-                            max={maxCorner}
-                            value={linkedVal > maxCorner ? maxCorner : linkedVal}
-                            onChange={(e) => {
-                              const v = parseInt(e.target.value);
-                              updateElementAttribute(activePageIndex, selectedLayerId, {
-                                rx: v, ry: v,
-                                'data-tl': v, 'data-tr': v, 'data-bl': v, 'data-br': v,
-                              });
-                            }}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            style={{ margin: 0 }}
+                            value={val}
+                            onChange={(e) => updateVal(parseInt(e.target.value) || 0)}
+                            className="w-full text-center text-[1vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
+                            onClick={(e) => e.stopPropagation()} // Prevent drag start when clicking input
                           />
+
+                          <button
+                            onClick={() => updateVal(val + 1)}
+                            className="text-gray-300 hover:text-gray-600 transition-colors pointer-events-auto"
+                          >
+                            <ChevronRight size="0.9vw" />
+                          </button>
                         </div>
-                        {/* Circle icon */}
-                        <svg width="0.95vw" height="0.95vw" viewBox="0 0 16 16" className={isFullCircle ? 'text-indigo-500' : 'text-gray-400'} style={{ width: '0.95vw', height: '0.95vw', transition: 'color 0.2s' }}>
-                          <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
-                        </svg>
                       </div>
-                      <div className="text-center text-[0.65vw] text-gray-400 font-medium">
-                        {isFullCircle && isSquare ? '● Perfect Circle' : `${Math.round(progress * 100)}% rounded · max ${maxCorner}`}
-                      </div>
-                    </div>
-                  )}
+                    );
+                  })}
+
+                  {/* Link Button in Center Overlay */}
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
+                    <button
+                      onClick={() => updateAttr('data-corner-linked', selectedElementProps['data-corner-linked'] === 'false' ? 'true' : 'false')}
+                      className="bg-white p-[0.3vw] transition-all hover:scale-110 active:scale-95 rounded-full shadow-sm border border-gray-50 pointer-events-auto"
+                    >
+                      {selectedElementProps['data-corner-linked'] !== 'false' ? (
+                        <Link2 size="1.4vw" className="text-black" />
+                      ) : (
+                        <Link2Off size="1.4vw" className="text-gray-300" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
+
+      {/* ADJUSTMENTS ACCORDION */}
+      {(selectedElementProps.tagName === 'image' || selectedElementProps.tagName === 'video' || selectedElementProps.tagName === 'img' || selectedElementProps.tagName === 'rect' || selectedElementProps['data-shape-type']) && (
+        <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
+          <div
+            onClick={() => setOpenAccordion(openAccordion === 'adjustment' ? null : 'adjustment')}
+            className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openAccordion === 'adjustment' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
+          >
+            <div className="flex items-center gap-[0.5vw]">
+              <span className="font-semibold text-gray-900 text-[0.85vw]">Adjustments</span>
+            </div>
+            <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openAccordion === 'adjustment' ? '' : 'rotate-180'}`} />
+          </div>
+
+          <div className={`grid transition-all duration-300 ease-in-out ${openAccordion === 'adjustment' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+            <div className="overflow-hidden">
+              <div className="p-[1.5vw] space-y-[0.8vw]">
+                {['exposure', 'contrast', 'saturation', 'temperature', 'tint', 'highlights', 'shadows'].map((filter) => (
+                  <AdjustmentSlider
+                    key={filter}
+                    label={filter.charAt(0).toUpperCase() + filter.slice(1)}
+                    value={selectedElementProps[`data-filter-${filter}`] || 0}
+                    onChange={(val) => updateElementAttribute(activePageIndex, selectedLayerId, `data-filter-${filter}`, val)}
+                    onReset={() => updateElementAttribute(activePageIndex, selectedLayerId, `data-filter-${filter}`, 0)}
+                    min={-100}
+                    max={100}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* EFFECT ACCORDION CARDS (EXACT TEXT EDITOR STYLE) */}
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
@@ -931,10 +896,7 @@ const ShapeProperties = ({
                           min="0" max="100"
                           value={selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
-                          className="blue-thumb flex-grow h-[0.15vw] appearance-none cursor-pointer rounded-full outline-none min-w-[5.5vw]"
-                          style={{
-                            background: `linear-gradient(to right, #6366f1 0%, #6366f1 ${selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%, #e5e7eb ${selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%, #e5e7eb 100%)`
-                          }}
+                          className="flex-grow h-[0.3vw] accent-[#5d5efc] cursor-pointer outline-none min-w-[5.5vw]"
                         />
                         <span className="text-[0.5vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0">
                           {selectedElementProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
@@ -1060,8 +1022,6 @@ const ShapeProperties = ({
         </div>,
         document.body
       )}
-
-
 
       {/* PORTALED COLOR SELECTOR PANELS (EXACT TEXT EDITOR STYLE) */}
       {showStrokeSettings && createPortal(
@@ -1193,8 +1153,6 @@ const ShapeProperties = ({
       )}
 
       {/* UNIFIED COLOR PICKER PORTAL */}
-
-
       {activeColorPicker && createPortal(
         <div
           className="fixed z-[5000]"
@@ -1235,32 +1193,20 @@ const ShapeProperties = ({
                 if (newVal.includes('gradient')) {
                   const parsed = parseGradient(newVal);
                   if (parsed) {
-                    updateElementAttribute(activePageIndex, selectedLayerId, {
-                      [`${activeColorPicker}-type`]: 'gradient',
-                      [`${activeColorPicker}-gradient-type`]: parsed.type.toLowerCase(),
-                      [`${activeColorPicker}-stops`]: JSON.stringify(parsed.stops.map(s => ({
-                        color: s.color,
-                        offset: s.offset,
-                        opacity: s.opacity / 100
-                      }))),
-                      [`${activeColorPicker}-angle`]: (parsed.angle || 0).toString(),
-                      [`${activeColorPicker}-radius`]: (parsed.radius || 100).toString(),
-                      [activeColorPicker]: newVal
-                    });
+                    updateAttr(`${activeColorPicker}-type`, 'gradient');
+                    updateAttr(`${activeColorPicker}-gradient-type`, parsed.type.toLowerCase());
+                    updateAttr(`${activeColorPicker}-stops`, JSON.stringify(parsed.stops.map(s => ({
+                      color: s.color,
+                      offset: s.offset,
+                      opacity: s.opacity / 100
+                    }))));
+                    updateAttr(`${activeColorPicker}-angle`, (parsed.angle || 0).toString());
+                    updateAttr(`${activeColorPicker}-radius`, (parsed.radius || 100).toString());
+                    updateAttr(activeColorPicker, newVal);
                   }
                 } else {
-                  const updates = {
-                    [activeColorPicker]: newVal,
-                    [`${activeColorPicker}-type`]: 'solid'
-                  };
-                  if (activeColorPicker === 'stroke') {
-                    const currentWeight = parseFloat(selectedElementProps.strokeWidth || selectedElementProps['stroke-width'] || 0);
-                    if (currentWeight === 0 && newVal !== 'transparent' && newVal !== 'none') {
-                      updates['strokeWidth'] = '2';
-                      updates['stroke-width'] = '2';
-                    }
-                  }
-                  updateElementAttribute(activePageIndex, selectedLayerId, updates);
+                  updateAttr(activeColorPicker, newVal);
+                  updateAttr(`${activeColorPicker}-type`, 'solid');
                 }
               }}
               opacity={(() => {
@@ -1293,22 +1239,7 @@ const ShapeProperties = ({
         .hide-opacity-bar .space-y-\\[1vw\\] > div:nth-child(2) {
           display: none !important;
         }
-        input[type='range']::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          height: 1.1vw;
-          width: 1.1vw;
-          border-radius: 50%;
-          background: #ffffff;
-          border: 0.1vw solid #e5e7eb;
-          box-shadow: 0 0.1vw 0.3vw rgba(0,0,0,0.1);
-          cursor: pointer;
-        }
-        input[type='range'].blue-thumb::-webkit-slider-thumb {
-          background: #6366f1;
-          border-color: #6366f1;
-          height: 0.8vw;
-          width: 0.8vw;
-        }
+
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;
@@ -1338,11 +1269,224 @@ const ShapeProperties = ({
   );
 };
 
-export default ShapeProperties;
+const SubComponent = ({
+  openSubSection, setOpenSubSection,
+  backgroundColor, setBackgroundColor,
+  filters, setFilters,
+  radius, setRadius,
+  isRadiusLinked, setIsRadiusLinked,
+  activeEffects, setActiveEffects,
+  effectSettings, setEffectSettings,
+  activeColorPicker, setActiveColorPicker,
+  showStrokeSettings, setShowStrokeSettings,
+  isStrokeStyleOpen, setIsStrokeStyleOpen,
+  dropdownPos, setDropdownPos,
+  strokeSettingsPos, setStrokeSettingsPos,
+  isDashPosOpen, setIsDashPosOpen,
+  activePopup, setActivePopup,
+  colorsOnPage,
+  showDetailedPicker, setShowDetailedPicker,
+  tagName = 'rect'
+}) => {
+  const pseudoProps = {
+    fill: backgroundColor?.fill || '#000000',
+    opacity: (backgroundColor?.fillOpacity || 100) / 100,
+    stroke: backgroundColor?.stroke || 'none',
+    'stroke-opacity': (backgroundColor?.strokeOpacity !== undefined ? backgroundColor.strokeOpacity : 100) / 100,
+    'fill-type': backgroundColor?.fillType || 'solid',
+    'fill-gradient-type': backgroundColor?.fillGradientType || 'linear',
+    'fill-stops': backgroundColor?.fillStops,
+    'fill-angle': backgroundColor?.fillAngle || 0,
+    'fill-radius': backgroundColor?.fillRadius || 100,
+    'stroke-type': backgroundColor?.strokeType || 'solid',
+    'stroke-gradient-type': backgroundColor?.strokeGradientType || 'linear',
+    'stroke-stops': backgroundColor?.strokeStops,
+    'stroke-angle': backgroundColor?.strokeAngle || 0,
+    'stroke-radius': backgroundColor?.strokeRadius || 100,
+    'stroke-width': backgroundColor?.strokeWeight || 0,
+    strokeWidth: backgroundColor?.strokeWeight || 0,
+    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
+    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
+    'stroke-linecap': backgroundColor?.strokeLinecap || 'butt',
+    'data-stroke-position': backgroundColor?.strokePosition || 'Center',
+    'data-tl': radius?.tl || 0,
+    'data-tr': radius?.tr || 0,
+    'data-bl': radius?.bl || 0,
+    'data-br': radius?.br || 0,
+    'data-corner-linked': isRadiusLinked ? 'true' : 'false',
+    rx: Math.max(radius?.tl || 0, radius?.tr || 0, radius?.bl || 0, radius?.br || 0),
+    ry: Math.max(radius?.tl || 0, radius?.tr || 0, radius?.bl || 0, radius?.br || 0),
+    'data-effect-drop-shadow': activeEffects?.includes('Drop Shadow') ? 'true' : 'false',
+    'data-effect-inner-shadow': activeEffects?.includes('Inner Shadow') ? 'true' : 'false',
+    'data-effect-blur': activeEffects?.includes('Blur') ? 'true' : 'false',
+    'data-effect-background-blur': activeEffects?.includes('Background Blur') ? 'true' : 'false',
+    'data-effect-drop-shadow-color': effectSettings?.['Drop Shadow']?.color || '#000000',
+    'data-effect-drop-shadow-opacity': effectSettings?.['Drop Shadow']?.opacity || 35,
+    'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x || 4,
+    'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y || 4,
+    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur || 1,
+    'data-effect-drop-shadow-spread': effectSettings?.['Drop Shadow']?.spread || 0,
+    'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color || '#000000',
+    'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity || 35,
+    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x || 4,
+    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y || 4,
+    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur || 1,
+    'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread || 0,
+    'data-effect-blur-value': effectSettings?.['Blur']?.blur || 1,
+    'data-effect-blur-spread': effectSettings?.['Blur']?.spread || 0,
+    'data-effect-background-blur-value': effectSettings?.['Background Blur']?.blur || 1,
+    'data-effect-background-blur-spread': effectSettings?.['Background Blur']?.spread || 0,
+    'data-filter-exposure': filters?.exposure || 0,
+    'data-filter-contrast': filters?.contrast || 0,
+    'data-filter-saturation': filters?.saturation || 0,
+    'data-filter-temperature': filters?.temperature || 0,
+    'data-filter-tint': filters?.tint || 0,
+    'data-filter-highlights': filters?.highlights || 0,
+    'data-filter-shadows': filters?.shadows || 0,
+    tagName: tagName
+  };
+
+  const handleUpdate = (page, layer, attr, value) => {
+    if (typeof attr === 'object' && attr !== null) {
+      Object.entries(attr).forEach(([k, v]) => {
+        handleUpdate(page, layer, k, v);
+      });
+      return;
+    }
+    if (attr === 'fill' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fill: value }));
+    if (attr === 'fill-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillType: value }));
+    if (attr === 'fill-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillGradientType: value }));
+    if (attr === 'fill-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillStops: value }));
+    if (attr === 'fill-angle' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillAngle: parseFloat(value) }));
+    if (attr === 'fill-radius' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillRadius: parseFloat(value) }));
+    if (attr === 'opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillOpacity: parseFloat(value) * 100 }));
+    if (attr === 'stroke' && setBackgroundColor) setBackgroundColor(p => ({ ...p, stroke: value, strokeWeight: (p.strokeWeight === 0 && value !== 'transparent' && value !== 'none') ? 2 : p.strokeWeight }));
+    if (attr === 'stroke-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeType: value }));
+    if (attr === 'stroke-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeGradientType: value }));
+    if (attr === 'stroke-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeStops: value }));
+    if (attr === 'stroke-angle' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeAngle: parseFloat(value) }));
+    if (attr === 'stroke-radius' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeRadius: parseFloat(value) }));
+    if (attr === 'stroke-opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeOpacity: parseFloat(value) * 100 }));
+    if (attr === 'stroke-width' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeWeight: parseFloat(value) }));
+    if (attr === 'stroke-dasharray' && setBackgroundColor) {
+      if (value === 'none') {
+        setBackgroundColor(p => ({ ...p, strokeDashStyle: 'Solid' }));
+      } else {
+        const parts = value.split(',');
+        const parsedLen = parseInt(parts[0]);
+        const dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+        const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+        const dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+        setBackgroundColor(p => ({
+          ...p,
+          strokeDashStyle: 'Dashed',
+          strokeDashLength: dashLen,
+          strokeDashGap: dashGap
+        }));
+      }
+    }
+    if (attr === 'data-stroke-position' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokePosition: value }));
+    if (attr === 'stroke-linecap' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeLinecap: value }));
 
 
+    if (attr === 'data-tl' && setRadius) setRadius(p => ({ ...p, tl: parseFloat(value) }));
+    if (attr === 'data-tr' && setRadius) setRadius(p => ({ ...p, tr: parseFloat(value) }));
+    if (attr === 'data-bl' && setRadius) setRadius(p => ({ ...p, bl: parseFloat(value) }));
+    if (attr === 'data-br' && setRadius) setRadius(p => ({ ...p, br: parseFloat(value) }));
+    if ((attr === 'rx' || attr === 'ry') && setRadius) {
+      setRadius(p => ({ ...p, tl: parseFloat(value), tr: parseFloat(value), bl: parseFloat(value), br: parseFloat(value) }));
+    }
+    if (attr === 'data-corner-linked' && setIsRadiusLinked) setIsRadiusLinked(value === 'true');
 
+    if (attr.startsWith('data-filter-') && setFilters) {
+      const filterName = attr.replace('data-filter-', '');
+      setFilters(p => ({ ...p, [filterName]: parseFloat(value) }));
+    }
 
+    if (attr.startsWith('data-effect-')) {
+      if (attr === 'data-effect-drop-shadow') {
+        if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Drop Shadow'])] : p.filter(e => e !== 'Drop Shadow'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Drop Shadow': {
+              color: p['Drop Shadow']?.color || '#000000',
+              opacity: p['Drop Shadow']?.opacity ?? 35,
+              x: p['Drop Shadow']?.x ?? 4,
+              y: p['Drop Shadow']?.y ?? 4,
+              blur: p['Drop Shadow']?.blur ?? 1,
+              spread: p['Drop Shadow']?.spread ?? 0
+            }
+          }));
+        }
+      } else if (attr === 'data-effect-inner-shadow') {
+        if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Inner Shadow'])] : p.filter(e => e !== 'Inner Shadow'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Inner Shadow': {
+              color: p['Inner Shadow']?.color || '#000000',
+              opacity: p['Inner Shadow']?.opacity ?? 35,
+              x: p['Inner Shadow']?.x ?? 4,
+              y: p['Inner Shadow']?.y ?? 4,
+              blur: p['Inner Shadow']?.blur ?? 1,
+              spread: p['Inner Shadow']?.spread ?? 0
+            }
+          }));
+        }
+      } else if (attr === 'data-effect-blur') {
+        if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Blur'])] : p.filter(e => e !== 'Blur'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Blur': {
+              blur: p['Blur']?.blur ?? 4,
+              spread: p['Blur']?.spread ?? 0
+            }
+          }));
+        }
+      } else if (attr === 'data-effect-background-blur') {
+        if (setActiveEffects) setActiveEffects(p => value === 'true' ? [...new Set([...p, 'Background Blur'])] : p.filter(e => e !== 'Background Blur'));
+        if (value === 'true' && setEffectSettings) {
+          setEffectSettings(p => ({
+            ...p,
+            'Background Blur': {
+              blur: p['Background Blur']?.blur ?? 4,
+              spread: p['Background Blur']?.spread ?? 0
+            }
+          }));
+        }
+      } else {
+        let effectName = '';
+        let setting = '';
+        if (attr.startsWith('data-effect-drop-shadow-')) {
+          effectName = 'Drop Shadow';
+          setting = attr.replace('data-effect-drop-shadow-', '');
+        } else if (attr.startsWith('data-effect-inner-shadow-')) {
+          effectName = 'Inner Shadow';
+          setting = attr.replace('data-effect-inner-shadow-', '');
+        } else if (attr.startsWith('data-effect-background-blur-')) {
+          effectName = 'Background Blur';
+          setting = attr.replace('data-effect-background-blur-', '');
+        } else if (attr.startsWith('data-effect-blur-')) {
+          effectName = 'Blur';
+          setting = attr.replace('data-effect-blur-', '');
+        }
+        if (effectName && setEffectSettings) {
+          if (setting === 'value') setting = 'blur';
+          setEffectSettings(p => ({
+            ...p,
+            [effectName]: { ...p[effectName], [setting]: setting === 'color' ? value : parseFloat(value) }
+          }));
+        }
+      }
+    }
+  };
+
+  return <ShapePropertiesUI selectedElementProps={pseudoProps} updateElementAttribute={handleUpdate} openSubSection={openSubSection} setOpenSubSection={setOpenSubSection} />;
+};
+
+export default SubComponent;
 
 
 
