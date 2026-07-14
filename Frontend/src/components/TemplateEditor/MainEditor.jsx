@@ -3668,6 +3668,17 @@ const MainEditor = ({
 
   // Helper: get direct children of a given element that have IDs
   const getDirectChildFrames = (el) => {
+    // Only group-like elements can act as frames that contain selectable children
+    const tag = el.tagName?.toLowerCase();
+    if (tag !== 'g' && tag !== 'svg' && tag !== 'multi') {
+      return [];
+    }
+
+    // If this element is an image/video/gif group, it should act as a single layer (no children exposed)
+    if (el.getAttribute('data-is-image-group') || el.getAttribute('data-is-video-group') || el.getAttribute('data-is-gif-group')) {
+       return [];
+    }
+    
     return Array.from(el.children).filter(child =>
       child.id &&
       child.tagName.toLowerCase() !== 'style' &&
@@ -5274,8 +5285,17 @@ const MainEditor = ({
     }
 
     // 3. Marquee Start Detection
-    // Start marquee if user holds Ctrl OR if they clicked on the background/base frame (but require Ctrl for direct tool, and don't start if exiting text edit)
-    const shouldStartMarquee = e.ctrlKey || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    let hitSelectedImage = false;
+    if (hitAnySelected && currentMultiIds.size === 1) {
+      const id = Array.from(currentMultiIds)[0];
+      const el = svg.querySelector(`[id="${id}"]`);
+      if (el && (el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image')) {
+        hitSelectedImage = true;
+      }
+    }
+
+    // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
+    const shouldStartMarquee = (e.ctrlKey && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -7112,6 +7132,15 @@ const MainEditor = ({
 
     // Fallback: select the target element directly
     if (target.id && target.tagName.toLowerCase() !== 'svg') {
+      const isMediaGroupChild = target.closest('[data-is-image-group="true"]') || 
+                                target.closest('[data-is-video-group="true"]') || 
+                                target.closest('[data-is-gif-group="true"]');
+      
+      // If the target is a child of a media group, do not drill down on double click
+      if (isMediaGroupChild && isMediaGroupChild !== target) {
+        return;
+      }
+
       if (setSelectedLayerId) {
         setSelectedLayerId(target.id);
         selectedLayerIdRef.current = target.id;

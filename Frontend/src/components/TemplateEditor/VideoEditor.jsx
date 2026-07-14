@@ -24,8 +24,13 @@ import {
   X,
 } from "lucide-react";
 import VideoGalleryModal from "./VideoGalleryModal";
+import Color from './Color';
+import CornerRadius from './CornerRadius';
+import Adjustment from './Adjustment';
+import Effect from './Effect';
 import ColorPicker, { parseGradient } from "./ColorPicker";
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
+import { syncGradient } from './editorUtils';
 import { createPortal } from "react-dom";
 
 // Switch toggle component (matches SlideshowProperties style)
@@ -43,7 +48,6 @@ const Switch = ({ enabled, onChange }) => (
   </button>
 );
 
-import SubComponent from './SubComponent';
 
 const debounce = (fn, delay = 150) => {
   let t;
@@ -108,8 +112,7 @@ const VideoEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 1, spread: 0 },
-    'Background Blur': { blur: 1, spread: 0 }
+    'Blur': { blur: 1, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -422,8 +425,7 @@ const VideoEditor = ({
         newGroup.setAttribute('data-name', 'Video Group');
         newGroup.setAttribute('data-is-video-group', 'true');
 
-        const newVidId = `video-${Math.random().toString(36).substr(2, 9)}`;
-        liveElement.id = newVidId;
+        liveElement.removeAttribute('id');
         liveElement.setAttribute('data-name', 'Video');
 
         if (liveElement.hasAttribute('transform')) {
@@ -769,7 +771,6 @@ const VideoEditor = ({
         const effSet = effectSettings[eff];
         if (!effSet) return;
         if (eff === 'Blur') filterStr += `blur(${effSet.blur}px) `;
-        if (eff === 'Background Blur') filterStr += `blur(${effSet.blur}px) `;
       });
 
       // 2. Drop Shadow Caster
@@ -1819,39 +1820,59 @@ const VideoEditor = ({
         </div>
       </div>
 
-      <SubComponent
-        openSubSection={openSubSection}
-        setOpenSubSection={setOpenSubSection}
-        backgroundColor={backgroundColor}
-        setBackgroundColor={setBackgroundColor}
-        filters={filters}
-        setFilters={setFilters}
-        radius={radius}
-        setRadius={setRadius}
-        isRadiusLinked={isRadiusLinked}
-        setIsRadiusLinked={setIsRadiusLinked}
-        activeEffects={activeEffects}
-        setActiveEffects={setActiveEffects}
-        effectSettings={effectSettings}
-        setEffectSettings={setEffectSettings}
-        activeColorPicker={activeColorPicker}
-        setActiveColorPicker={setActiveColorPicker}
-        showStrokeSettings={showStrokeSettings}
-        setShowStrokeSettings={setShowStrokeSettings}
-        isStrokeStyleOpen={isStrokeStyleOpen}
-        setIsStrokeStyleOpen={setIsStrokeStyleOpen}
-        dropdownPos={dropdownPos}
-        setDropdownPos={setDropdownPos}
-        strokeSettingsPos={strokeSettingsPos}
-        setStrokeSettingsPos={setStrokeSettingsPos}
-        isDashPosOpen={isDashPosOpen}
-        setIsDashPosOpen={setIsDashPosOpen}
-        activePopup={activePopup}
-        setActivePopup={setActivePopup}
-        colorsOnPage={colorsOnPage}
-        showDetailedPicker={showDetailedPicker}
-        setShowDetailedPicker={setShowDetailedPicker}
-      />
+      <div className="space-y-[0.60vw] px-[0.3vw]">
+        <Color
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          backgroundColor={backgroundColor}
+          setBackgroundColor={setBackgroundColor}
+          activeColorPicker={activeColorPicker}
+          setActiveColorPicker={setActiveColorPicker}
+          showStrokeSettings={showStrokeSettings}
+          setShowStrokeSettings={setShowStrokeSettings}
+          isStrokeStyleOpen={isStrokeStyleOpen}
+          setIsStrokeStyleOpen={setIsStrokeStyleOpen}
+          dropdownPos={dropdownPos}
+          setDropdownPos={setDropdownPos}
+          strokeSettingsPos={strokeSettingsPos}
+          setStrokeSettingsPos={setStrokeSettingsPos}
+          isDashPosOpen={isDashPosOpen}
+          setIsDashPosOpen={setIsDashPosOpen}
+          activePopup={activePopup}
+          setActivePopup={setActivePopup}
+          colorsOnPage={colorsOnPage}
+          showDetailedPicker={showDetailedPicker}
+          setShowDetailedPicker={setShowDetailedPicker}
+        />
+        <CornerRadius
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          radius={radius}
+          setRadius={setRadius}
+          isRadiusLinked={isRadiusLinked}
+          setIsRadiusLinked={setIsRadiusLinked}
+          tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
+        />
+        <Adjustment
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          filters={filters}
+          setFilters={setFilters}
+          tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
+        />
+        <Effect
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          activeEffects={activeEffects}
+          setActiveEffects={setActiveEffects}
+          effectSettings={effectSettings}
+          setEffectSettings={setEffectSettings}
+          activeColorPicker={activeColorPicker}
+          setActiveColorPicker={setActiveColorPicker}
+          showDetailedPicker={showDetailedPicker}
+          setShowDetailedPicker={setShowDetailedPicker}
+        />
+      </div>
 
       {/* Hidden Inputs */}
       <input ref={fileInputRef} type="file" accept="video/mp4" className="hidden" onChange={handleVideoUpload} />
@@ -1869,97 +1890,6 @@ const VideoEditor = ({
       )}
     </div>
   );
-};
-
-function syncGradient(doc, element, baseAttr) {
-  const type = element.getAttribute(`${baseAttr}-type`);
-  const currentValue = element.getAttribute(baseAttr);
-  const isUrl = currentValue && currentValue.toLowerCase().startsWith('url(#');
-  const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear';
-  const stopsJson = element.getAttribute(`${baseAttr}-stops`);
-
-  if (type === 'solid' || type === 'none') return;
-
-  if (isUrl && !stopsJson) {
-    if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
-      Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-        child.setAttribute(baseAttr, currentValue);
-        if (child.style) child.style.setProperty(baseAttr, currentValue, 'important');
-      });
-    }
-    return;
-  }
-
-  if (!type && !isUrl) return;
-  if (!stopsJson) return;
-
-  let stops = [];
-  try { stops = JSON.parse(stopsJson); } catch (e) { return; }
-  if (!stops || !Array.isArray(stops)) return;
-
-  const svgRoot = element.closest('svg') || doc.querySelector('svg') || (doc.tagName?.toLowerCase() === 'svg' ? doc : null);
-  if (!svgRoot) return;
-
-  const ownerDoc = doc.ownerDocument || doc;
-
-  let defs = svgRoot.querySelector('defs');
-  if (!defs) {
-    defs = ownerDoc.createElementNS("http://www.w3.org/2000/svg", "defs");
-    svgRoot.insertBefore(defs, svgRoot.firstChild);
-  }
-
-  if (!element.id) {
-    element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  const gradIdPrefix = `grad-${element.id}-${baseAttr}`;
-  Array.from(defs.querySelectorAll(`[id^="${gradIdPrefix}"]`)).forEach(oldGrad => oldGrad.remove());
-
-  const gradId = `${gradIdPrefix}-${Math.random().toString(36).substr(2, 4)}`;
-  let gradEl = null;
-
-  const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
-
-  if (!gradEl) {
-    gradEl = ownerDoc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
-    gradEl.id = gradId;
-    if (svgGradType === 'linear') {
-      const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
-      const angleRad = (angle * Math.PI) / 180;
-      gradEl.setAttribute('x1', Math.round(50 - Math.cos(angleRad) * 50) + '%');
-      gradEl.setAttribute('y1', Math.round(50 - Math.sin(angleRad) * 50) + '%');
-      gradEl.setAttribute('x2', Math.round(50 + Math.cos(angleRad) * 50) + '%');
-      gradEl.setAttribute('y2', Math.round(50 + Math.sin(angleRad) * 50) + '%');
-    } else {
-      const radius = parseFloat(element.getAttribute(`${baseAttr}-radius`) || '50');
-      gradEl.setAttribute('cx', '50%');
-      gradEl.setAttribute('cy', '50%');
-      gradEl.setAttribute('r', radius + '%');
-    }
-    defs.appendChild(gradEl);
-  }
-
-  while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
-  stops.forEach(s => {
-    const stop = ownerDoc.createElementNS("http://www.w3.org/2000/svg", "stop");
-    stop.setAttribute('offset', `${s.offset}%`);
-    stop.setAttribute('stop-color', s.color);
-    stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
-    gradEl.appendChild(stop);
-  });
-
-  const finalUrl = `url(#${gradId})`;
-  element.setAttribute(baseAttr, finalUrl);
-  if (element.style) {
-    element.style.setProperty(baseAttr, finalUrl, 'important');
-  }
-
-  if (element.tagName.toLowerCase() === 'g' || element.tagName.toLowerCase() === 'text') {
-    Array.from(element.querySelectorAll('tspan, path, rect, circle, ellipse, polygon, polyline')).forEach(child => {
-      child.setAttribute(baseAttr, finalUrl);
-      if (child.style) child.style.setProperty(baseAttr, finalUrl, 'important');
-    });
-  }
 };
 
 export default VideoEditor;
