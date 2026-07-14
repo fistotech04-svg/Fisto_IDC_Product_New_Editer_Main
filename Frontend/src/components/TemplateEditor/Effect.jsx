@@ -19,19 +19,19 @@ const Effect = ({
     'data-effect-drop-shadow': activeEffects?.includes('Drop Shadow') ? 'true' : 'false',
     'data-effect-inner-shadow': activeEffects?.includes('Inner Shadow') ? 'true' : 'false',
     'data-effect-blur': activeEffects?.includes('Blur') ? 'true' : 'false',
-    'data-effect-drop-shadow-color': effectSettings?.['Drop Shadow']?.color || '#000000',
-    'data-effect-drop-shadow-opacity': effectSettings?.['Drop Shadow']?.opacity || 35,
-    'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x || 4,
-    'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y || 4,
-    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur || 1,
-    'data-effect-drop-shadow-spread': effectSettings?.['Drop Shadow']?.spread || 0,
-    'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color || '#000000',
-    'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity || 35,
-    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x || 4,
-    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y || 4,
-    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur || 1,
-    'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread || 0,
-    'data-effect-blur-spread': effectSettings?.['Blur']?.spread || 0,
+    'data-effect-drop-shadow-color': effectSettings?.['Drop Shadow']?.color ?? '#000000',
+    'data-effect-drop-shadow-opacity': effectSettings?.['Drop Shadow']?.opacity ?? 35,
+    'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x ?? 4,
+    'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y ?? 4,
+    'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur ?? 1,
+    'data-effect-drop-shadow-spread': effectSettings?.['Drop Shadow']?.spread ?? 0,
+    'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color ?? '#000000',
+    'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity ?? 35,
+    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x ?? 4,
+    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 4,
+    'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? 1,
+    'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread ?? 0,
+    'data-effect-blur-spread': effectSettings?.['Blur']?.spread ?? 0,
   };
 
   const handleUpdate = (page, layer, attr, value) => {
@@ -129,6 +129,19 @@ const Effect = ({
     setActiveEffectPopupId(effectId);
   };
 
+  const containerRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (openSubSection === 'effect') {
+      // Small timeout to wait for the accordion to expand
+      setTimeout(() => {
+        if (containerRef.current) {
+          containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 350);
+    }
+  }, [openSubSection]);
+
   React.useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -158,7 +171,7 @@ const Effect = ({
 
 
   return (
-    <div className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
+    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'effect' ? null : 'effect')}
@@ -182,6 +195,7 @@ const Effect = ({
                 return (
                   <div
                     key={effect.id}
+                    id={`effect-row-${effect.id}`}
                     onClick={(e) => {
                       if (!isActive) {
                         updateAttr(`data-effect-${effect.id}`, 'true');
@@ -267,11 +281,11 @@ const Effect = ({
                       className="absolute inset-0"
                       style={{
                         backgroundColor: pseudoProps[`data-effect-${activeEffectPopupId}-color`] || '#000000',
-                        opacity: (pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] || 35) / 100
+                        opacity: (pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35) / 100
                       }}
                     />
                     <span className="relative z-10 drop-shadow-md">
-                      {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
+                      {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%
                     </span>
                   </div>
 
@@ -285,7 +299,20 @@ const Effect = ({
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-color`, e.target.value)}
                           className="w-full bg-transparent outline-none text-[0.75vw] font-mono font-semibold text-gray-700 min-w-0"
                         />
-                        <Pipette size="0.9vw" className="text-gray-400 rotate-90 flex-shrink-0" />
+                        <Pipette 
+                          size="0.9vw" 
+                          className="text-gray-400 rotate-90 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors" 
+                          onClick={async () => {
+                            if (!window.EyeDropper) return;
+                            try {
+                              const eyeDropper = new window.EyeDropper();
+                              const result = await eyeDropper.open();
+                              updateAttr(`data-effect-${activeEffectPopupId}-color`, result.sRGBHex);
+                            } catch (e) {
+                              console.log(e);
+                            }
+                          }}
+                        />
                       </div>
                     </div>
 
@@ -293,7 +320,7 @@ const Effect = ({
                       <span
                         className="text-[0.8vw] font-medium text-gray-800 w-[3vw] flex-shrink-0 text-left whitespace-nowrap cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                         onPointerDown={(e) => {
-                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] || 35;
+                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35;
                           handleScrub(e, currentVal, (val) => {
                             const clamped = Math.max(0, Math.min(100, parseInt(val)));
                             updateAttr(`data-effect-${activeEffectPopupId}-opacity`, clamped.toString());
@@ -304,12 +331,12 @@ const Effect = ({
                         <input
                           type="range"
                           min="0" max="100"
-                          value={pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}
+                          value={pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
                           className="flex-grow h-[0.3vw] accent-[#5d5efc] cursor-pointer outline-none min-w-[5.5vw]"
                         />
                         <span className="text-[0.5vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0">
-                          {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] || 35}%
+                          {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%
                         </span>
                       </div>
                     </div>
@@ -327,7 +354,7 @@ const Effect = ({
                       <span
                         className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                         onPointerDown={(e) => {
-                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
                           handleScrub(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
                         }}
                       >{row.label}</span>
@@ -336,7 +363,7 @@ const Effect = ({
                           size="1vw"
                           className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                           onClick={() => {
-                            const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                            const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
                             updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
                           }}
                         />
@@ -344,13 +371,13 @@ const Effect = ({
                           className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
                           onPointerDown={(e) => {
                             if (e.target.tagName === 'INPUT') return;
-                            const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                            const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
                             handleScrubHelper(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
                           }}
                         >
                           <input
                             type="number"
-                            value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default}
+                            value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default}
                             onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
                             onClick={(e) => e.stopPropagation()}
                             className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
@@ -360,7 +387,7 @@ const Effect = ({
                           size="1vw"
                           className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                           onClick={() => {
-                            const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                            const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
                             updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
                           }}
                         />
@@ -382,7 +409,7 @@ const Effect = ({
                     <span
                       className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                       onPointerDown={(e) => {
-                        const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                        const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
                         handleScrub(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
                       }}
                     >{row.label}</span>
@@ -391,7 +418,7 @@ const Effect = ({
                         size="1vw"
                         className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                         onClick={() => {
-                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
                           updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
                         }}
                       />
@@ -399,13 +426,13 @@ const Effect = ({
                         className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
                         onPointerDown={(e) => {
                           if (e.target.tagName === 'INPUT') return;
-                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default;
+                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
                           handleScrubHelper(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
                         }}
                       >
                         <input
                           type="number"
-                          value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default}
+                          value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default}
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
                           onClick={(e) => e.stopPropagation()}
                           className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
@@ -415,7 +442,7 @@ const Effect = ({
                         size="1vw"
                         className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                         onClick={() => {
-                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] || row.default);
+                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
                           updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
                         }}
                       />
@@ -429,6 +456,32 @@ const Effect = ({
         </div>,
         document.body
       )}
+      <style>{`
+        .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        body.is-scrubbing, body.is-scrubbing * {
+          cursor: none !important;
+          user-select: none !important;
+        }
+        .hide-cursor, .hide-cursor * {
+          cursor: none !important;
+        }
+        .virtual-scrub-cursor {
+          position: fixed;
+          pointer-events: none;
+          z-index: 100000;
+          width: 2vw;
+          height: 2vw;
+          margin-left: -1vw;
+          margin-top: -1vw;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          filter: drop-shadow(0 0.1vw 0.2vw rgba(0,0,0,0.3));
+        }
+      `}</style>
     </div>
   );
 };
