@@ -193,6 +193,8 @@ const RightSidebar = ({
         let width = img.width;
         let height = img.height;
 
+        const isPng = dataUrl.startsWith('data:image/png');
+
         // If it's already small enough, no need to downscale
         if (width <= maxWidth && height <= maxHeight) {
             const canvas = document.createElement('canvas');
@@ -200,7 +202,7 @@ const RightSidebar = ({
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.75));
+            resolve(isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.75));
             return;
         }
 
@@ -218,7 +220,7 @@ const RightSidebar = ({
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.75)); // Compress to 75% quality JPEG
+        resolve(isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.75));
       };
       img.src = dataUrl;
     });
@@ -237,9 +239,6 @@ const RightSidebar = ({
       const isPageSelected = !selectedLayerId || selectedLayerId === rootId || selectedLayerId === overlayId;
       
       if (el && !isPageSelected) {
-        if (el.getAttribute('data-locked') === 'true') {
-            return null;
-        }
         let w = '0', h = '0', x = '0', y = '0', r = '0';
         
         // --- IMPROVED DIMENSION LOGIC: Try actual DOM first for rendered accuracy ---

@@ -112,7 +112,7 @@ const VideoEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 1, spread: 0 }
+    'Blur': { blur: 0.5, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null

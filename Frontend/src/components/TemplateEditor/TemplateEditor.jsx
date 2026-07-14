@@ -49,7 +49,7 @@ const parseLayersFromSVG = (element) => {
         id = `${child.tagName.toLowerCase()}-${Math.random().toString(36).substr(2, 5)}`;
         child.setAttribute('id', id);
         if ('id' in child) {
-          try { child.id = id; } catch(e) {}
+          try { child.id = id; } catch (e) { }
         }
       }
       const rawName = child.getAttribute('data-name') || id || `${child.tagName.charAt(0).toUpperCase() + child.tagName.slice(1)}`;
@@ -383,14 +383,14 @@ const TemplateEditor = () => {
                 const mimeString = parts[0].split(':')[1].split(';')[0];
                 let byteString;
                 if (parts[0].indexOf('base64') >= 0) {
-                    byteString = atob(parts[1]);
+                  byteString = atob(parts[1]);
                 } else {
-                    byteString = decodeURI(parts[1]);
+                  byteString = decodeURI(parts[1]);
                 }
                 const ab = new ArrayBuffer(byteString.length);
                 const ia = new Uint8Array(ab);
                 for (let i = 0; i < byteString.length; i++) {
-                    ia[i] = byteString.charCodeAt(i);
+                  ia[i] = byteString.charCodeAt(i);
                 }
                 blob = new Blob([ab], { type: mimeString });
               }
@@ -472,24 +472,24 @@ const TemplateEditor = () => {
             const imgIdx = newHtml.indexOf('data:image/', searchIndex);
             const audIdx = newHtml.indexOf('data:audio/', searchIndex);
             const vidIdx = newHtml.indexOf('data:video/', searchIndex);
-            
+
             let foundIdx = -1;
             const indices = [imgIdx, audIdx, vidIdx].filter(idx => idx !== -1);
             if (indices.length > 0) {
               foundIdx = Math.min(...indices);
             }
-            
+
             if (foundIdx === -1) break;
 
             // The data URI is embedded in a JSON string, so it ends at &quot; or "
             const endIdx1 = newHtml.indexOf('&quot;', foundIdx);
             const endIdx2 = newHtml.indexOf('"', foundIdx);
-            
+
             let endIdx = -1;
             if (endIdx1 !== -1 && endIdx2 !== -1) endIdx = Math.min(endIdx1, endIdx2);
             else if (endIdx1 !== -1) endIdx = endIdx1;
             else if (endIdx2 !== -1) endIdx = endIdx2;
-            
+
             if (endIdx !== -1) {
               const dataUri = newHtml.substring(foundIdx, endIdx);
               if (dataUri.includes(';base64,')) {
@@ -507,19 +507,19 @@ const TemplateEditor = () => {
               // To handle 3MB+ data URIs, we manually convert base64 to Blob.
               const parts = actualDataUri.split(',');
               const mimeString = parts[0].split(':')[1].split(';')[0];
-              
+
               // Handle URL encoded data URIs (e.g. svg+xml) or pure base64
               let byteString;
               if (parts[0].indexOf('base64') >= 0) {
-                  byteString = atob(parts[1]);
+                byteString = atob(parts[1]);
               } else {
-                  byteString = decodeURI(parts[1]);
+                byteString = decodeURI(parts[1]);
               }
-              
+
               const ab = new ArrayBuffer(byteString.length);
               const ia = new Uint8Array(ab);
               for (let i = 0; i < byteString.length; i++) {
-                  ia[i] = byteString.charCodeAt(i);
+                ia[i] = byteString.charCodeAt(i);
               }
               const blob = new Blob([ab], { type: mimeString });
 
@@ -815,7 +815,7 @@ const TemplateEditor = () => {
       }
     }, 500); // Give save a moment to complete
   }, [currentBook]);
-  
+
   useEffect(() => {
     if (setPreviewHandler) {
       setPreviewHandler(() => stablePreviewHandler);
@@ -2232,7 +2232,7 @@ const TemplateEditor = () => {
 
     // 1. Layer Blur
     if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-value', '1'));
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.5'));
       const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
 
       let blurSource = currentIn;
@@ -2959,16 +2959,16 @@ const TemplateEditor = () => {
     const lastNewId = newItems.length > 0 ? newItems[newItems.length - 1].newLayer.id : null;
 
     skipPasteResetRef.current = true;
-    
+
     // We can set multiSelectedIds immediately for visual handles
     setMultiSelectedIds(newIds);
-    
+
     // Defer setSelectedLayerId so that when RightSidebar renders the properties panel (e.g. TextEditor),
     // the LIVE DOM has already been updated with the new HTML. Otherwise, document.getElementById
     // during render will return null and the property editors will crash/return null.
     setTimeout(() => {
       if (lastNewId) setSelectedLayerId(lastNewId);
-      
+
       // Clear the guard after the selection has been safely applied
       setTimeout(() => { skipPasteResetRef.current = false; }, 50);
     }, 50);
