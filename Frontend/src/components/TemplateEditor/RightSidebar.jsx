@@ -419,6 +419,11 @@ const RightSidebar = ({
     <div 
       className="bg-white border-l border-[#EEEEEE] flex flex-col overflow-hidden select-none flex-shrink-0 h-[92vh]"
       style={{ width: '24vw' }}
+      onMouseDown={() => {
+        if (activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
+          setActiveMainTool('select');
+        }
+      }}
     >
       {activeMainTool === 'grid' && (
         <IconGallery 
