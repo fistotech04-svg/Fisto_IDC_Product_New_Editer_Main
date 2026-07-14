@@ -1612,10 +1612,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
                         {/* Icon Content (Blurred on hover) */}
                         <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:blur-[1px]">
-                          <div className="flex items-center justify-center shrink-0 drop-shadow-lg transition-all">
+                          <div className="flex items-center justify-center shrink-0 shadow-lg transition-all">
                             {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '2vw', color: '#000000' }).left}
                           </div>
-                          <div className="flex items-center justify-center shrink-0 drop-shadow-lg transition-all">
+                          <div className="flex items-center justify-center shrink-0 shadow-lg transition-all">
                             {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '2vw', color: '#000000' }).right}
                           </div>
                         </div>
