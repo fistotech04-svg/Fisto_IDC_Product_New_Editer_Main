@@ -668,6 +668,9 @@ const MainEditor = ({
   const selectedLayerIdRef = useRef(null);
   const dragStateRef = useRef(null);
   const suppressClickRef = useRef(false);
+  const isAltPressedRef = useRef(false);
+  const lastMousePosRef = useRef({ x: 0, y: 0, target: null });
+  const drawMeasurementOverlayRef = useRef(null);
   const activeMainToolRef = useRef(activeMainTool);
   const activeTopToolRef = useRef(activeTopTool);
   const selectedSelectToolRef = useRef(selectedSelectTool);
@@ -786,6 +789,16 @@ const MainEditor = ({
         isCtrlPressedRef.current = true;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('ctrl-down'));
       }
+
+      if (e.key === 'Alt') {
+        e.preventDefault();
+        if (!isAltPressedRef.current) {
+          isAltPressedRef.current = true;
+          if (lastMousePosRef.current && drawMeasurementOverlayRef.current) {
+            drawMeasurementOverlayRef.current(lastMousePosRef.current.target, lastMousePosRef.current.x, lastMousePosRef.current.y);
+          }
+        }
+      }
     };
     const handleKeyUp = (e) => {
       if (e.key === ' ') {
@@ -797,14 +810,26 @@ const MainEditor = ({
         isCtrlPressedRef.current = false;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.remove('ctrl-down'));
       }
+      if (e.key === 'Alt') {
+        e.preventDefault();
+        isAltPressedRef.current = false;
+        document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
+      }
+    };
+
+    const handleWindowBlur = () => {
+      isAltPressedRef.current = false;
+      document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleWindowBlur);
     // Cleanup to prevent leaks
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [activeTopTool]);
 
@@ -2057,11 +2082,248 @@ const MainEditor = ({
     });
   };
 
+  const clearMeasurementOverlay = () => {
+    document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
+  };
+
+  const drawMeasurementOverlay = (targetEl, clientX, clientY) => {
+    clearMeasurementOverlay();
+    if (!isAltPressedRef.current || !selectedLayerIdRef.current) return;
+    
+    let svg = null;
+    if (targetEl && targetEl.ownerSVGElement) {
+      svg = targetEl.ownerSVGElement;
+    } else {
+      svg = document.querySelector('.page-svg-container svg');
+    }
+    if (!svg) return;
+
+    const selectedEl = svg.querySelector(`[id="${selectedLayerIdRef.current}"]`);
+    if (!selectedEl) return;
+
+    let measureTarget = null;
+    if (targetEl && targetEl !== svg && targetEl.id && targetEl.id !== selectedLayerIdRef.current) {
+       const isOverlay = targetEl.getAttribute('data-name') === 'Overlay' || 
+                         targetEl.getAttribute('data-type') === 'background' || 
+                         (targetEl.getAttribute('class') && targetEl.getAttribute('class').includes('overlay'));
+       if (!isOverlay) measureTarget = targetEl;
+    }
+    
+    if (!measureTarget) {
+       measureTarget = (selectedEl.parentElement && selectedEl.parentElement.closest('[data-type="frame"]')) || svg.querySelector('[data-type="background"]');
+    }
+    if (!measureTarget || measureTarget === selectedEl) return;
+
+    const overlay = getOverlayForElement(selectedEl);
+    if (!overlay) return;
+
+    const getOverlayRect = (el) => {
+      let bbox = getVisualBBox(el);
+      if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
+         const rect = el.getBoundingClientRect();
+         if (rect.width > 0) {
+            bbox = { x: 0, y: 0, width: rect.width, height: rect.height }; 
+         }
+      }
+      
+      const ctm = el.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return null;
+      
+      const svgMatrix = overlayCtm.inverse().multiply(ctm);
+      const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x; pt1.y = bbox.y;
+      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width; pt2.y = bbox.y + bbox.height;
+      const p1 = pt1.matrixTransform(svgMatrix);
+      const p2 = pt2.matrixTransform(svgMatrix);
+      return {
+        left: Math.min(p1.x, p2.x),
+        right: Math.max(p1.x, p2.x),
+        top: Math.min(p1.y, p2.y),
+        bottom: Math.max(p1.y, p2.y),
+        width: Math.abs(p2.x - p1.x),
+        height: Math.abs(p2.y - p1.y)
+      };
+    };
+
+    let rect1 = getOverlayRect(selectedEl);
+    if (multiSelectedIdsRef.current && multiSelectedIdsRef.current.size > 1) {
+      const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+      multiSelectedIdsRef.current.forEach(id => {
+        const el = svg.querySelector(`[id="${id}"]`);
+        if (el) {
+          const r = getOverlayRect(el);
+          if (r) {
+            bounds.left = Math.min(bounds.left, r.left);
+            bounds.top = Math.min(bounds.top, r.top);
+            bounds.right = Math.max(bounds.right, r.right);
+            bounds.bottom = Math.max(bounds.bottom, r.bottom);
+          }
+        }
+      });
+      if (bounds.left !== Infinity) {
+        rect1 = { ...bounds, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top };
+      }
+    }
+
+    const rect2 = getOverlayRect(measureTarget);
+    if (!rect1 || !rect2) return;
+    
+    // Map viewport pixels to mm using the actual base document dimensions
+    const ptToMmScale = baseWidth / (() => {
+      const spreadStartIndex = (isDoublePage && activePageIndex > 0)
+        ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+        : activePageIndex;
+      const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+      const baseVhHeight = window.innerHeight * 0.78;
+      const totalWidth = currentSpread ? 2 * baseWidth : baseWidth;
+      return baseVhHeight * (totalWidth / baseHeight);
+    })(); 
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('class', 'measurement-overlay-group');
+    g.style.pointerEvents = 'none';
+
+    const zoomScale = zoom / 100;
+    const invScale = 1 / zoomScale;
+
+    const drawLineAndLabel = (x1, y1, x2, y2, value) => {
+      if (value < 0.5) return; 
+      const mm = (value * ptToMmScale).toFixed(1);
+      
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1);
+      line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2);
+      line.setAttribute('y2', y2);
+      line.setAttribute('stroke', '#F24E1E');
+      line.setAttribute('stroke-width', String(1 * invScale));
+      line.setAttribute('stroke-dasharray', `${4 * invScale} ${2 * invScale}`);
+      g.appendChild(line);
+
+      const cx = (x1 + x2) / 2;
+      const cy = (y1 + y2) / 2;
+      
+      const tw = Math.max(24, mm.length * 6.5) * invScale;
+      const th = 14 * invScale;
+      
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', cx - tw/2);
+      rect.setAttribute('y', cy - th/2);
+      rect.setAttribute('width', tw);
+      rect.setAttribute('height', th);
+      rect.setAttribute('rx', String(3.5 * invScale));
+      rect.setAttribute('fill', '#F24E1E');
+      g.appendChild(rect);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy + (3.5 * invScale));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', '#FFFFFF');
+      text.setAttribute('font-size', `${9 * invScale}px`);
+      text.setAttribute('font-family', 'sans-serif');
+      text.setAttribute('font-weight', '500');
+      text.textContent = mm;
+      g.appendChild(text);
+    };
+
+    const isParent = measureTarget.contains(selectedEl) || measureTarget.getAttribute('data-type') === 'background';
+    
+    const cx1 = rect1.left + rect1.width/2;
+    const cy1 = rect1.top + rect1.height/2;
+    
+    if (isParent) {
+      drawLineAndLabel(cx1, rect1.top, cx1, rect2.top, rect1.top - rect2.top);
+      drawLineAndLabel(cx1, rect1.bottom, cx1, rect2.bottom, rect2.bottom - rect1.bottom);
+      drawLineAndLabel(rect1.left, cy1, rect2.left, cy1, rect1.left - rect2.left);
+      drawLineAndLabel(rect1.right, cy1, rect2.right, cy1, rect2.right - rect1.right);
+    } else {
+      const cx2 = rect2.left + rect2.width/2;
+      const cy2 = rect2.top + rect2.height/2;
+
+      const drawY = cy2;
+      const drawX = cx2;
+
+      const drawSolidLine = (x1, y1, x2, y2) => {
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', x1);
+        line.setAttribute('y1', y1);
+        line.setAttribute('x2', x2);
+        line.setAttribute('y2', y2);
+        line.setAttribute('stroke', '#F24E1E');
+        line.setAttribute('stroke-width', String(1 * invScale));
+        g.appendChild(line);
+      };
+      
+      // Horizontal measurement
+      if (rect1.left >= rect2.right) {
+        drawLineAndLabel(rect1.left, drawY, rect2.right, drawY, rect1.left - rect2.right);
+        if (drawY < rect1.top) drawSolidLine(rect1.left, rect1.top, rect1.left, drawY);
+        else if (drawY > rect1.bottom) drawSolidLine(rect1.left, rect1.bottom, rect1.left, drawY);
+      } else if (rect1.right <= rect2.left) {
+        drawLineAndLabel(rect1.right, drawY, rect2.left, drawY, rect2.left - rect1.right);
+        if (drawY < rect1.top) drawSolidLine(rect1.right, rect1.top, rect1.right, drawY);
+        else if (drawY > rect1.bottom) drawSolidLine(rect1.right, rect1.bottom, rect1.right, drawY);
+      } else {
+        const isCompletelyInsideX = rect1.left >= rect2.left && rect1.right <= rect2.right;
+        
+        if ((isCompletelyInsideX || rect1.left < rect2.left) && Math.abs(rect1.left - rect2.left) >= 0.5) {
+          drawLineAndLabel(rect1.left, drawY, rect2.left, drawY, Math.abs(rect1.left - rect2.left));
+          if (drawY < rect1.top) drawSolidLine(rect1.left, rect1.top, rect1.left, drawY);
+          else if (drawY > rect1.bottom) drawSolidLine(rect1.left, rect1.bottom, rect1.left, drawY);
+        }
+        if ((isCompletelyInsideX || rect1.right > rect2.right) && Math.abs(rect1.right - rect2.right) >= 0.5) {
+          drawLineAndLabel(rect1.right, drawY, rect2.right, drawY, Math.abs(rect1.right - rect2.right));
+          if (drawY < rect1.top) drawSolidLine(rect1.right, rect1.top, rect1.right, drawY);
+          else if (drawY > rect1.bottom) drawSolidLine(rect1.right, rect1.bottom, rect1.right, drawY);
+        }
+      }
+      
+      // Vertical measurement
+      if (rect1.top >= rect2.bottom) {
+        drawLineAndLabel(drawX, rect1.top, drawX, rect2.bottom, rect1.top - rect2.bottom);
+        if (drawX < rect1.left) drawSolidLine(rect1.left, rect1.top, drawX, rect1.top);
+        else if (drawX > rect1.right) drawSolidLine(rect1.right, rect1.top, drawX, rect1.top);
+      } else if (rect1.bottom <= rect2.top) {
+        drawLineAndLabel(drawX, rect1.bottom, drawX, rect2.top, rect2.top - rect1.bottom);
+        if (drawX < rect1.left) drawSolidLine(rect1.left, rect1.bottom, drawX, rect1.bottom);
+        else if (drawX > rect1.right) drawSolidLine(rect1.right, rect1.bottom, drawX, rect1.bottom);
+      } else {
+        const isCompletelyInsideY = rect1.top >= rect2.top && rect1.bottom <= rect2.bottom;
+
+        if ((isCompletelyInsideY || rect1.top < rect2.top) && Math.abs(rect1.top - rect2.top) >= 0.5) {
+          drawLineAndLabel(drawX, rect1.top, drawX, rect2.top, Math.abs(rect1.top - rect2.top));
+          if (drawX < rect1.left) drawSolidLine(rect1.left, rect1.top, drawX, rect1.top);
+          else if (drawX > rect1.right) drawSolidLine(rect1.right, rect1.top, drawX, rect1.top);
+        }
+        if ((isCompletelyInsideY || rect1.bottom > rect2.bottom) && Math.abs(rect1.bottom - rect2.bottom) >= 0.5) {
+          drawLineAndLabel(drawX, rect1.bottom, drawX, rect2.bottom, Math.abs(rect1.bottom - rect2.bottom));
+          if (drawX < rect1.left) drawSolidLine(rect1.left, rect1.bottom, drawX, rect1.bottom);
+          else if (drawX > rect1.right) drawSolidLine(rect1.right, rect1.bottom, drawX, rect1.bottom);
+        }
+      }
+    }
+
+    const targetRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    targetRect.setAttribute('x', rect2.left);
+    targetRect.setAttribute('y', rect2.top);
+    targetRect.setAttribute('width', rect2.width);
+    targetRect.setAttribute('height', rect2.height);
+    targetRect.setAttribute('fill', 'none');
+    targetRect.setAttribute('stroke', '#F24E1E');
+    targetRect.setAttribute('stroke-width', String(1 * invScale));
+    g.appendChild(targetRect);
+
+    overlay.appendChild(g);
+  };
+  drawMeasurementOverlayRef.current = drawMeasurementOverlay;
+
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
 
     const overlay = getOverlayForElement(el);
     if (!overlay) return;
+
+    if ((type === 'hover' || type === 'child-hover') && document.querySelector('[data-dragging="true"]')) return;
 
     // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
     const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
@@ -2303,9 +2565,11 @@ const MainEditor = ({
             if (isSide && !useLBrackets) {
               const zoomScale = zoom / 100;
               const isHorizontal = (name === 'n' || name === 's');
-              const rawLength = (isHorizontal ? bbox.width : bbox.height) * scale;
-              const length = Math.max(rawLength, 20);
-              const thickness = 16 / zoomScale;
+              const dist = isHorizontal 
+                ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
+                : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
+              const length = dist;
+              const thickness = 2 / zoomScale;
 
               handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
               handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
@@ -4110,6 +4374,45 @@ const MainEditor = ({
                // Threshold crossed!
                dragState.thresholdMet = true;
                
+               const isAltPressed = event.altKey || (event.sourceEvent && event.sourceEvent.altKey);
+               if (isAltPressed) {
+                 const newSelectedIds = new Set();
+                 const generateId = () => `dup-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                 
+                 const cloneElement = (el) => {
+                   const clone = el.cloneNode(true);
+                   clone.id = generateId();
+                   clone.removeAttribute('data-dragging');
+                   const elementsWithId = clone.querySelectorAll('[id]');
+                   elementsWithId.forEach(child => {
+                     child.id = generateId();
+                   });
+                   return clone;
+                 };
+
+                 if (dragState.multiDragItems) {
+                   for (const item of dragState.multiDragItems) {
+                     const clone = cloneElement(item.element);
+                     item.element.parentNode.insertBefore(clone, item.element.nextSibling);
+                     item.element = clone;
+                     newSelectedIds.add(clone.id);
+                   }
+                   if (setMultiSelectedIds) setMultiSelectedIds(newSelectedIds);
+                   if (setSelectedLayerId) setSelectedLayerId(Array.from(newSelectedIds)[0]);
+                   multiSelectedIdsRef.current = newSelectedIds;
+                   selectedLayerIdRef.current = Array.from(newSelectedIds)[0];
+                 } else {
+                   const clone = cloneElement(dragState.element);
+                   dragState.element.parentNode.insertBefore(clone, dragState.element.nextSibling);
+                   dragState.element = clone;
+                   newSelectedIds.add(clone.id);
+                   if (setSelectedLayerId) setSelectedLayerId(clone.id);
+                   if (setMultiSelectedIds) setMultiSelectedIds(newSelectedIds);
+                   selectedLayerIdRef.current = clone.id;
+                   multiSelectedIdsRef.current = newSelectedIds;
+                 }
+               }
+               
                // Prevent jumping by resetting start points to current mouse pos
                dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY);
                if (dragState.multiDragItems) {
@@ -4937,7 +5240,7 @@ const MainEditor = ({
       if (parentEl) {
         const id = `text-${Math.random().toString(36).substr(2, 9)}`;
         const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
-        const ptToMmScale = 0.3527316451072693;
+        const ptToMmScale = 0.2645833333333333;
         fo.setAttribute('id', id);
         // Scale the local x,y,width,height inversely so it renders at the mouse cursor
         fo.setAttribute('x', pt.x / ptToMmScale);
@@ -5005,6 +5308,8 @@ const MainEditor = ({
           const mountedText = container.querySelector(`[id="${id}"]`);
           if (mountedText) {
             drawOverlayHighlight(mountedText, 'selected');
+            // Enter edit mode immediately for newly created text
+            enterTextEditMode(mountedText, null, null);
           }
 
           suppressClickRef.current = false;
@@ -5337,6 +5642,11 @@ const MainEditor = ({
 
   // ── FIGMA-STYLE MOUSE MOVE: hover highlight & Marquee update ─────────────────
   const handleSvgMouseMove = (pageIndex, e) => {
+    lastMousePosRef.current = { x: e.clientX, y: e.clientY, target: e.target };
+    if (isAltPressedRef.current && selectedLayerIdRef.current) {
+      if (drawMeasurementOverlayRef.current) drawMeasurementOverlayRef.current(e.target, e.clientX, e.clientY);
+    }
+
     // ── Ctrl + Click Bending Update ──
     if (bendingStateRef.current) {
       const { pathEl, paperPath, curveIndex, pageIndex: activePageIdx } = bendingStateRef.current;
@@ -6382,6 +6692,7 @@ const MainEditor = ({
       const finalContent = div.innerText || '';
 
       if (finalContent.trim().length === 0) {
+        const container = foTarget.closest('.page-svg-container');
         foTarget.remove();
         cleanup();
         if (setSelectedLayerId) setSelectedLayerId(null);
@@ -6390,7 +6701,6 @@ const MainEditor = ({
           setMultiSelectedIds(new Set());
           multiSelectedIdsRef.current = new Set();
         }
-        const container = foTarget.closest('.page-svg-container');
         if (container) saveModifiedPageHtml(parseInt(container.getAttribute('data-page-index')), svgRoot);
         return;
       }
@@ -6791,10 +7101,6 @@ const MainEditor = ({
               return;
             }
             // Child has no sub-frames → stay selected, nothing deeper to enter
-            if (clickedChild.tagName.toLowerCase() === 'text' || clickedChild.tagName.toLowerCase() === 'tspan' || clickedChild.tagName.toLowerCase() === 'foreignobject') {
-              console.log('[handleSvgClick] Entering text edit mode for child:', clickedChild.id);
-              enterTextEditMode(clickedChild, e.clientX, e.clientY);
-            }
             return;
           } else {
             // ── Different child → SELECT it 
@@ -6811,10 +7117,6 @@ const MainEditor = ({
           }
 
           if (target && target !== frameEl && frameEl.contains(target)) {
-            if (selId === target.id && (target.tagName.toLowerCase() === 'text' || target.tagName.toLowerCase() === 'tspan' || target.tagName.toLowerCase() === 'foreignobject')) {
-              enterTextEditMode(target, e.clientX, e.clientY);
-              return;
-            }
             setSingleSelection(target.id);
             // Persist auto-assigned ids (e.g. template text with no id) immediately
             if (target.tagName?.toLowerCase() === 'text') {
@@ -6826,10 +7128,6 @@ const MainEditor = ({
           // 1. STICKY SELECTION PRIORITY: If clicking near the already-selected element, keep it selected!
           const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
           if (activeSel && frameEl.contains(activeSel) && hitTest(activeSel, e.clientX, e.clientY, 15)) {
-            if (activeSel.tagName.toLowerCase() === 'text' || activeSel.tagName.toLowerCase() === 'tspan' || activeSel.tagName.toLowerCase() === 'foreignobject') {
-              enterTextEditMode(activeSel, e.clientX, e.clientY);
-              return;
-            }
             setSingleSelection(activeSel.id);
             return;
           }
@@ -6926,11 +7224,6 @@ const MainEditor = ({
       }
 
       if (target && target !== hitFrame && hitFrame.contains(target)) {
-        if (selId === target.id && (target.tagName.toLowerCase() === 'text' || target.tagName.toLowerCase() === 'tspan' || target.tagName.toLowerCase() === 'foreignobject')) {
-          console.log('[handleSvgClick] Hit text inside hitFrame, already selected:', target.id);
-          enterTextEditMode(target, e.clientX, e.clientY);
-          return;
-        }
         setCurrentFrameId(hitFrame.id);
         currentFrameIdRef.current = hitFrame.id;
         setSingleSelection(target.id);
@@ -6944,11 +7237,6 @@ const MainEditor = ({
       // STICKY SELECTION PRIORITY (Case 2)
       const activeSel = selectedLayerIdRef.current ? svg.querySelector(`[id="${selectedLayerIdRef.current}"]`) : null;
       if (activeSel && hitFrame.contains(activeSel) && hitTest(activeSel, e.clientX, e.clientY, 15)) {
-        if (activeSel.tagName.toLowerCase() === 'text' || activeSel.tagName.toLowerCase() === 'tspan' || activeSel.tagName.toLowerCase() === 'foreignobject') {
-          console.log('[handleSvgClick] Sticky selection hit on text:', activeSel.id);
-          enterTextEditMode(activeSel, e.clientX, e.clientY);
-          return;
-        }
         setCurrentFrameId(hitFrame.id);
         currentFrameIdRef.current = hitFrame.id;
         setSingleSelection(activeSel.id);
@@ -6989,12 +7277,6 @@ const MainEditor = ({
           return;
         }
         // Frame has no children — stay selected
-        if (hitFrame.tagName.toLowerCase() === 'text' || hitFrame.tagName.toLowerCase() === 'tspan' || hitFrame.tagName.toLowerCase() === 'foreignobject') {
-          if (activeTopTool !== 'interaction' && activeTopTool !== 'animation') {
-            console.log('[handleSvgClick] Entering text edit mode for top frame:', hitFrame.id);
-            enterTextEditMode(hitFrame, e.clientX, e.clientY);
-          }
-        }
         return;
       } else {
         // User clicked a DIFFERENT top-level frame -> SELECT it (unselects old)
@@ -7192,7 +7474,28 @@ const MainEditor = ({
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         const delta = e.deltaY < 0 ? 5 : -5;
-        setZoom(prev => Math.min(Math.max(prev + delta, 10), 250));
+        setZoom(prevZoom => {
+          const newZoom = Math.min(Math.max(prevZoom + delta, 10), 250);
+          if (newZoom !== prevZoom) {
+            setPan(prevPan => {
+              const rect = el.getBoundingClientRect();
+              const cx = rect.left + rect.width / 2;
+              const cy = rect.top + rect.height / 2;
+              
+              const mx = e.clientX - cx;
+              const my = e.clientY - cy;
+              
+              const oldScale = prevZoom / 100;
+              const newScale = newZoom / 100;
+              
+              return {
+                x: mx - (mx - prevPan.x) * (newScale / oldScale),
+                y: my - (my - prevPan.y) * (newScale / oldScale)
+              };
+            });
+          }
+          return newZoom;
+        });
       }
 
     };
@@ -7200,7 +7503,7 @@ const MainEditor = ({
     return () => {
       el.removeEventListener('wheel', handleWheel);
     };
-  }, [setZoom]);
+  }, [setZoom, setPan]);
 
   const handleAlign = (type) => {
     const ids = multiSelectedIds.size > 0 ? Array.from(multiSelectedIds) : (selectedLayerId ? [selectedLayerId] : []);
@@ -7523,6 +7826,14 @@ const MainEditor = ({
           <CanvasRuler
             zoom={zoom}
             pan={currentPanRef.current}
+            baseLogicalWidth={(() => {
+              const spreadStartIndex = (isDoublePage && activePageIndex > 0)
+                ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)
+                : activePageIndex;
+              const currentSpread = isDoublePage && spreadStartIndex > 0 && spreadStartIndex + 1 < pages.length;
+              return currentSpread ? 2 * baseWidth : baseWidth;
+            })()}
+            baseLogicalHeight={baseHeight}
             baseCanvasWidth={(() => {
               const spreadStartIndex = (isDoublePage && activePageIndex > 0)
                 ? (activePageIndex % 2 === 0 ? activePageIndex - 1 : activePageIndex)

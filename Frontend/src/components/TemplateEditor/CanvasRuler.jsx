@@ -5,6 +5,8 @@ const CanvasRuler = ({
   pan,
   baseCanvasWidth,
   baseCanvasHeight,
+  baseLogicalWidth,
+  baseLogicalHeight,
   thickness = 20
 }) => {
   const horizontalCanvasRef = useRef(null);
@@ -91,25 +93,37 @@ const CanvasRuler = ({
       vCtx.fillStyle = tickColor;
       vCtx.fillRect(thickness - 1, 0, 1, containerHeight);
 
-      let step = 100; 
-      if (scale > 3) step = 10;
-      else if (scale > 1.5) step = 20;
-      else if (scale > 0.8) step = 50;
-      else if (scale > 0.4) step = 100;
-      else if (scale > 0.2) step = 250;
-      else step = 500;
+      // Map viewport pixels directly to millimeters
+      const viewportToMmX = (baseLogicalWidth || baseCanvasWidth) / baseCanvasWidth;
+      const viewportToMmY = (baseLogicalHeight || baseCanvasHeight) / baseCanvasHeight;
 
-      hCtx.font = '9px Inter, sans-serif';
+      const visualScaleX = scale * (1 / viewportToMmX);
+      const visualScaleY = scale * (1 / viewportToMmY);
+
+      const getStepMm = (vScale) => {
+        if (vScale > 20) return 5;
+        if (vScale > 10) return 10;
+        if (vScale > 4) return 20;
+        if (vScale > 1.5) return 50;
+        if (vScale > 0.5) return 100;
+        if (vScale > 0.2) return 250;
+        return 500;
+      };
+
+      const stepMmX = getStepMm(visualScaleX);
+      const stepMmY = getStepMm(visualScaleY);
+
+      hCtx.font = '8px Inter, sans-serif';
       hCtx.fillStyle = textColor;
       hCtx.textAlign = 'center';
       hCtx.textBaseline = 'top';
 
-      vCtx.font = '9px Inter, sans-serif';
+      vCtx.font = '8px Inter, sans-serif';
       vCtx.fillStyle = textColor;
       vCtx.textAlign = 'center';
       vCtx.textBaseline = 'middle';
 
-      const drawHTick = (val, isMajor) => {
+      const drawHTick = (val, isMajor, labelVal) => {
         const x = startX + val * scale;
         if (x < thickness || x > containerWidth) return;
 
@@ -119,10 +133,10 @@ const CanvasRuler = ({
         hCtx.strokeStyle = isMajor ? tickColorMajor : tickColor;
         hCtx.stroke();
 
-        if (isMajor) hCtx.fillText(val, x, 2);
+        if (isMajor && labelVal !== undefined) hCtx.fillText(labelVal, x, 2);
       };
 
-      const drawVTick = (val, isMajor) => {
+      const drawVTick = (val, isMajor, labelVal) => {
         const y = startY + val * scale;
         if (y < thickness || y > containerHeight) return;
 
@@ -132,29 +146,31 @@ const CanvasRuler = ({
         vCtx.strokeStyle = isMajor ? tickColorMajor : tickColor;
         vCtx.stroke();
 
-        if (isMajor) {
+        if (isMajor && labelVal !== undefined) {
           vCtx.save();
           vCtx.translate(6, y);
           vCtx.rotate(-Math.PI / 2);
-          vCtx.fillText(val, 0, 0);
+          vCtx.fillText(labelVal, 0, 0);
           vCtx.restore();
         }
       };
 
-      const minValX = Math.floor((0 - startX) / scale / step) * step;
-      const maxValX = Math.ceil((containerWidth - startX) / scale / step) * step;
+      const minValXMm = Math.floor((0 - startX) / scale * viewportToMmX / stepMmX) * stepMmX;
+      const maxValXMm = Math.ceil((containerWidth - startX) / scale * viewportToMmX / stepMmX) * stepMmX;
 
-      for (let val = minValX; val <= maxValX; val += step) {
-        drawHTick(val, true);
-        for (let i = 1; i <= 9; i++) drawHTick(val + i * (step / 10), false);
+      for (let mmVal = minValXMm; mmVal <= maxValXMm; mmVal += stepMmX) {
+        const viewportVal = mmVal / viewportToMmX;
+        drawHTick(viewportVal, true, mmVal);
+        for (let i = 1; i <= 9; i++) drawHTick((mmVal + i * (stepMmX / 10)) / viewportToMmX, false);
       }
 
-      const minValY = Math.floor((0 - startY) / scale / step) * step;
-      const maxValY = Math.ceil((containerHeight - startY) / scale / step) * step;
+      const minValYMm = Math.floor((0 - startY) / scale * viewportToMmY / stepMmY) * stepMmY;
+      const maxValYMm = Math.ceil((containerHeight - startY) / scale * viewportToMmY / stepMmY) * stepMmY;
 
-      for (let val = minValY; val <= maxValY; val += step) {
-        drawVTick(val, true);
-        for (let i = 1; i <= 9; i++) drawVTick(val + i * (step / 10), false);
+      for (let mmVal = minValYMm; mmVal <= maxValYMm; mmVal += stepMmY) {
+        const viewportVal = mmVal / viewportToMmY;
+        drawVTick(viewportVal, true, mmVal);
+        for (let i = 1; i <= 9; i++) drawVTick((mmVal + i * (stepMmY / 10)) / viewportToMmY, false);
       }
 
       hCtx.fillStyle = '#f3f4f6';

@@ -63,15 +63,24 @@ const parseLayersFromSVG = (element) => {
         locked: child.getAttribute('data-locked') === 'true'
       };
 
-      if (child.tagName.toLowerCase() === 'g' && child.children.length > 0) {
-        const subLayers = parseLayersFromSVG(child);
-        if (subLayers.length > 0) layer.children = subLayers;
-      }
-
       // VIRTUAL EFFECT LAYERS FOR IMAGE/VIDEO/GIF GROUP
       const isGroup = child.getAttribute('data-is-image-group') === 'true' ||
         child.getAttribute('data-is-video-group') === 'true' ||
         child.getAttribute('data-is-gif-group') === 'true';
+
+      if (child.tagName.toLowerCase() === 'g' && child.children.length > 0 && !isGroup) {
+        const subLayers = parseLayersFromSVG(child);
+        if (subLayers.length > 0) layer.children = subLayers;
+      } else if (isGroup) {
+        // Strip IDs from all descendants of an Image Group so they can't be selected individually
+        const stripIds = (node) => {
+          Array.from(node.children).forEach(descendant => {
+            descendant.removeAttribute('id');
+            stripIds(descendant);
+          });
+        };
+        stripIds(child);
+      }
 
       const isText = child.tagName.toLowerCase() === 'text' ||
         (child.tagName.toLowerCase() === 'foreignobject' && child.getAttribute('data-type') !== 'video' && child.getAttribute('data-type') !== 'iframe');
