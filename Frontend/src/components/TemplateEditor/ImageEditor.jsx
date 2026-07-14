@@ -229,7 +229,7 @@ const ImageEditor = ({
         setShowCropModal(true);
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);

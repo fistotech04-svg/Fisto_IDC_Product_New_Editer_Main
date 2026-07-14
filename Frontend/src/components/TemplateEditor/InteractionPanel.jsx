@@ -31,7 +31,7 @@ const GlbThumbnail = ({ dataUrl }) => {
     if (!dataUrl) return;
     let active = true;
     let url = null;
-    
+
     // Convert base64 data URL to Blob URL to prevent memory leaks and parsing issues in useGLTF
     fetch(dataUrl)
       .then(res => res.blob())
@@ -49,7 +49,7 @@ const GlbThumbnail = ({ dataUrl }) => {
       if (url) URL.revokeObjectURL(url);
     };
   }, [dataUrl]);
-  
+
   if (!blobUrl) return <div className="w-full h-full flex items-center justify-center text-[0.7vw] text-[#5145F6] font-medium animate-pulse">Loading...</div>;
   return (
     <React.Suspense fallback={<div className="w-full h-full flex items-center justify-center text-[0.7vw] text-[#5145F6] font-medium animate-pulse">Rendering...</div>}>
@@ -299,7 +299,7 @@ const CommonDropBox = ({
   isUploading = false,
 }) => {
   const inputRef = useRef(null);
-  
+
   return (
     <div className="flex flex-col items-center justify-center w-full relative">
       {!hideInput && (
@@ -649,7 +649,7 @@ const InteractionPanel = ({
 
     // 1. Try to find the element in the live DOM first (fastest and most accurate!)
     const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    
+
     // Search within the target page's container to avoid matching duplicate IDs from other pages
     const pageIdxToSearch = targetPageIndex !== null ? targetPageIndex : activePageIndex;
     const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${pageIdxToSearch}"]`);
@@ -1002,7 +1002,7 @@ const InteractionPanel = ({
           <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Select Free Frame</span>
           <div className="h-px flex-grow bg-gray-100"></div>
         </div>
-        <div 
+        <div
           onClick={() => {
             window.dispatchEvent(new CustomEvent('add-free-frame', {
               detail: { pageIndex: activePageIndex }
@@ -1031,7 +1031,7 @@ const InteractionPanel = ({
             <div className="absolute bottom-0 right-0 w-full h-[0.3vw] bg-black"></div>
             <div className="absolute bottom-0 right-0 w-[0.3vw] h-full bg-black"></div>
           </div>
-          
+
           <span className="text-[0.8vw] font-medium text-gray-600">Click To Add Free Frame</span>
         </div>
       </div>
@@ -1132,7 +1132,7 @@ const InteractionPanel = ({
                             {(() => {
                               const triggerDropId = `trigger-drop-${item.id}`;
                               const isTriggerDropOpen = openDropdownId === triggerDropId;
-                              
+
                               return (
                                 <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                   <div
@@ -1146,7 +1146,7 @@ const InteractionPanel = ({
                                     <span className="text-[0.9vw] text-gray-700 font-normal font-sans capitalize">{resolvedTrigger}</span>
                                     <Icon icon="lucide:chevron-down" className={`text-gray-500 text-[0.8vw] absolute right-[0.4vw] transition-transform duration-200 ${isTriggerDropOpen ? 'rotate-180' : ''}`} />
                                   </div>
-                                  
+
                                   {isTriggerDropOpen && (
                                     <div data-dropdown-menu="true" className="absolute right-0 top-[calc(100%+0.4vh)] z-[99999] w-full bg-white border border-gray-200 rounded-[0.5vw] shadow-xl py-[0.5vh] flex flex-col">
                                       <div
@@ -1229,23 +1229,23 @@ const InteractionPanel = ({
 
                   {/* Input Row */}
                   <AnimatePresence initial={false}>
-                      {!isCollapsed && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
-                          animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
-                          exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
-                          transition={{ duration: 0.3, ease: 'easeInOut' }}
-                          className="bg-gradient-to-b from-gray-50/40 to-transparent"
-                        >
-                          <div className="w-full border-t border-gray-100/60"></div>
-                          <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[4vh] pb-[4vh]">
+                    {!isCollapsed && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                        animate={{ height: 'auto', opacity: 1, transitionEnd: { overflow: 'visible' } }}
+                        exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                        className="bg-gradient-to-b from-gray-50/40 to-transparent"
+                      >
+                        <div className="w-full border-t border-gray-100/60"></div>
+                        <div className="flex flex-col gap-[1.5vh] w-full px-[1.6vw] pt-[4vh] pb-[4vh]">
                           <div className="flex items-start gap-[0.5vw] w-full">
                             {(() => {
-                              const labelMarginClass = 
+                              const labelMarginClass =
                                 ['download', 'audio', '3d-viewer', 'popup', 'zoom'].includes(resolvedActionId) ? 'mt-[3.5vh]' :
-                                resolvedActionId === 'tooltip' ? 'mt-[1.6vh]' :
-                                resolvedActionId === 'call' ? 'mt-[0.1vh]' : 'mt-0';
-                              
+                                  resolvedActionId === 'tooltip' ? 'mt-[1.6vh]' :
+                                    resolvedActionId === 'call' ? 'mt-[0.1vh]' : 'mt-0';
+
                               const hasAudioFile = resolvedActionId === 'audio' && !!resolvedValue;
                               const shouldStretchArrow = resolvedActionId === 'tooltip' || hasAudioFile;
 
@@ -1256,7 +1256,7 @@ const InteractionPanel = ({
                                       <span className="text-[0.75vw] text-gray-600 font-medium truncate">{item.label}</span>
                                     </div>
                                   </div>
-                                  
+
                                   <div className={`flex items-center text-[#9CA3AF] transition-all duration-300 ${shouldStretchArrow ? 'flex-1 mx-[0.5vw]' : 'flex-shrink-0 ml-[0.5vw] mr-[0.2vw] w-[1.6vw]'} ${labelMarginClass} h-[4vh]`}>
                                     <svg width="100%" height="2" className={`${shouldStretchArrow ? 'flex-1' : 'w-full'} mr-[-1px]`} preserveAspectRatio="none">
                                       <line x1="0" y1="1" x2="100%" y2="1" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 4" />
@@ -1290,9 +1290,9 @@ const InteractionPanel = ({
                                       }}
                                     >
                                       <span className="text-[0.8vw] text-gray-700 font-medium font-sans">Page {selectedPage}</span>
-                                      <Icon 
-                                        icon="lucide:chevron-down" 
-                                        className={`text-gray-700 text-[1vw] transition-transform duration-200 ${isPageDropOpen ? 'rotate-180' : ''}`} 
+                                      <Icon
+                                        icon="lucide:chevron-down"
+                                        className={`text-gray-700 text-[1vw] transition-transform duration-200 ${isPageDropOpen ? 'rotate-180' : ''}`}
                                       />
                                     </div>
                                     {isPageDropOpen && (
@@ -1344,12 +1344,12 @@ const InteractionPanel = ({
                                         if (file && updateElementAttribute) {
                                           const storedUser = localStorage.getItem('user');
                                           if (!storedUser) { alert("You must be logged in to upload a file."); return; }
-                                          
+
                                           const reader = new FileReader();
                                           reader.onload = () => {
                                             let base64Data = reader.result;
                                             base64Data = base64Data.replace(/^data:([^;]+);/, 'data:download-$1;');
-                                            
+
                                             const storedVal = JSON.stringify({
                                               name: file.name, type: file.type, size: file.size, data: base64Data
                                             });
@@ -1455,14 +1455,14 @@ const InteractionPanel = ({
                                         if (file && updateElementAttribute) {
                                           const storedUser = localStorage.getItem('user');
                                           if (!storedUser) { alert("You must be logged in to upload audio."); return; }
-                                          
+
                                           setUploadingItems(prev => ({ ...prev, [item.id]: true }));
-                                          
+
                                           const reader = new FileReader();
                                           reader.onload = () => {
                                             const base64Data = reader.result;
                                             const tempAudio = new Audio(base64Data);
-                                            
+
                                             const saveAudioMetadata = (durationStr) => {
                                               const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
                                               setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
@@ -1470,7 +1470,7 @@ const InteractionPanel = ({
                                               updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
                                               setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                             };
-                                            
+
                                             tempAudio.onloadedmetadata = () => {
                                               const durationSec = tempAudio.duration;
                                               let durationStr = '3:15';
@@ -1500,10 +1500,10 @@ const InteractionPanel = ({
                                                   if (activeAudioRef.current) activeAudioRef.current.pause();
                                                   setPlayingAudioId(null);
                                                 } else {
-                                                    if (activeAudioRef.current) activeAudioRef.current.pause();
-                                                    let rawData = audioMeta?.data || resolvedValue;
-                                                    const audioSrc = rawData ? rawData.trim() : '';
-                                                    if (audioSrc) {
+                                                  if (activeAudioRef.current) activeAudioRef.current.pause();
+                                                  let rawData = audioMeta?.data || resolvedValue;
+                                                  const audioSrc = rawData ? rawData.trim() : '';
+                                                  if (audioSrc) {
                                                     try {
                                                       const audio = new Audio(audioSrc);
                                                       activeAudioRef.current = audio;
@@ -1554,12 +1554,12 @@ const InteractionPanel = ({
                                                 return;
                                               }
                                               const user = JSON.parse(storedUser);
-                                              
+
                                               const reader = new FileReader();
                                               reader.onload = () => {
                                                 const base64Data = reader.result;
                                                 const tempAudio = new Audio(base64Data);
-                                                
+
                                                 const saveAudioMetadata = (durationStr) => {
                                                   const storedVal = JSON.stringify({ name: file.name, type: file.type || 'audio/mpeg', size: file.size, duration: durationStr, data: base64Data });
                                                   setItemValueOverrides(prev => ({ ...prev, [item.id]: storedVal }));
@@ -1567,7 +1567,7 @@ const InteractionPanel = ({
                                                   updateElementAttribute(targetIdx, item.id, { 'data-interaction': 'audio', 'data-interaction-value': storedVal });
                                                   setUploadingItems(prev => ({ ...prev, [item.id]: false }));
                                                 };
-                                                
+
                                                 tempAudio.onloadedmetadata = () => {
                                                   const durationSec = tempAudio.duration;
                                                   let durationStr = '3:15';
@@ -1592,97 +1592,97 @@ const InteractionPanel = ({
                               })()
                             ) : resolvedActionId === 'popup' ? (
                               resolvedValue ? (
-                                    <div className="flex-1 relative w-full h-[11vh] rounded-[0.6vw] group shadow-sm border border-gray-200">
-                                      {/* Inner container for image to keep rounded corners without clipping the dropdown */}
-                                      <div className="absolute inset-0 rounded-[0.6vw] overflow-hidden pointer-events-none">
-                                        <img
-                                          src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
-                                          alt="Selected Template"
-                                          className="w-full h-full object-cover"
-                                        />
-                                        {/* Dim Overlay */}
-                                        <div className="absolute inset-0 bg-black/40"></div>
-                                      </div>
+                                <div className="flex-1 relative w-full h-[11vh] rounded-[0.6vw] group shadow-sm border border-gray-200">
+                                  {/* Inner container for image to keep rounded corners without clipping the dropdown */}
+                                  <div className="absolute inset-0 rounded-[0.6vw] overflow-hidden pointer-events-none">
+                                    <img
+                                      src={TEMPLATES.find(tpl => tpl.id === resolvedValue)?.image || ''}
+                                      alt="Selected Template"
+                                      className="w-full h-full object-cover"
+                                    />
+                                    {/* Dim Overlay */}
+                                    <div className="absolute inset-0 bg-black/40"></div>
+                                  </div>
 
-                                      {/* Edit Button overlay in center */}
+                                  {/* Edit Button overlay in center */}
+                                  <div
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (onCustomizePopup) {
+                                        const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                        onCustomizePopup(resolvedValue, item.id, targetIdx);
+                                      }
+                                    }}
+                                    className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
+                                    title="Customize Template"
+                                  >
+                                    <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
+                                  </div>
+                                  {/* 3 dots menu */}
+                                  <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
+                                    <div
+                                      className="p-[0.2vw] cursor-pointer"
+                                      data-dropdown-trigger="true"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
+                                      }}
+                                    >
+                                      <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
+                                    </div>
+
+                                    {openDropdownId === `popup-${item.id}` && (
                                       <div
-                                        onClick={(e) => { 
-                                          e.stopPropagation(); 
-                                          if (onCustomizePopup) {
-                                            const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                            onCustomizePopup(resolvedValue, item.id, targetIdx);
-                                          }
-                                        }}
-                                        className="absolute inset-0 m-auto w-[2.2vw] h-[2.2vw] bg-white/30 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center cursor-pointer hover:bg-white/40 transition-all shadow-md z-10"
-                                        title="Customize Template"
+                                        data-dropdown-menu="true"
+                                        className="absolute top-[100%] right-0 mt-[2.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
                                       >
-                                        <Icon icon="mdi:edit" className="text-white drop-shadow-sm text-[1.3vw]" />
-                                      </div>
-                                      {/* 3 dots menu */}
-                                      <div className="absolute top-[0.4vh] right-[0.2vw] z-10">
                                         <div
-                                          className="p-[0.2vw] cursor-pointer"
-                                          data-dropdown-trigger="true"
+                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setOpenDropdownId(openDropdownId === `popup-${item.id}` ? null : `popup-${item.id}`);
+                                            setOpenDropdownId(null);
+                                            setActiveTemplateSelectionId(item.id);
                                           }}
                                         >
-                                          <Icon icon="bi:three-dots-vertical" className="text-white drop-shadow-md text-[1.2vw]" />
+                                          <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
+                                          <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Change Template</span>
                                         </div>
-
-                                        {openDropdownId === `popup-${item.id}` && (
-                                          <div
-                                            data-dropdown-menu="true"
-                                            className="absolute top-[100%] right-0 mt-[2.5vh] w-[9.5vw] bg-white rounded-[0.4vw] shadow-[0_4px_12px_rgba(0,0,0,0.15)] border border-gray-200 py-[0.4vh] flex flex-col z-20"
-                                          >
-                                            <div
-                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-gray-50 cursor-pointer transition-colors group"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setOpenDropdownId(null);
-                                                setActiveTemplateSelectionId(item.id);
-                                              }}
-                                            >
-                                              <Icon icon="carbon:template" className="text-gray-800 text-[1.1vw] group-hover:text-black" />
-                                              <span className="text-[0.75vw] text-gray-700 font-medium group-hover:text-gray-900">Change Template</span>
-                                            </div>
-                                            <div
-                                              className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setOpenDropdownId(null);
-                                                setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
-                                                if (updateElementAttribute) {
-                                                  const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
-                                                  updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
-                                                }
-                                              }}
-                                            >
-                                              <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
-                                              <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
-                                            </div>
-                                          </div>
-                                        )}
+                                        <div
+                                          className="flex items-center gap-[0.5vw] px-[0.8vw] py-[0.6vh] hover:bg-red-50 cursor-pointer transition-colors group"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setOpenDropdownId(null);
+                                            setItemValueOverrides(prev => ({ ...prev, [item.id]: null }));
+                                            if (updateElementAttribute) {
+                                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                                              updateElementAttribute(targetIdx, item.id, { 'data-interaction-value': null });
+                                            }
+                                          }}
+                                        >
+                                          <Icon icon="iconamoon:trash-light" className="text-[#EF4444] text-[1.1vw] group-hover:text-red-600" />
+                                          <span className="text-[0.75vw] text-[#EF4444] font-medium group-hover:text-red-600">Delete</span>
+                                        </div>
                                       </div>
-                                    </div>
-                                  ) : (
-                                    <div
-                                      onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
-                                      className="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group relative overflow-hidden"
-                                    >
-                                      <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none mb-[0.2vh]">
-                                        Click to Choose <span className="text-[#5145F6] font-semibold group-hover:underline">Template</span>
-                                      </span>
-                                      <svg width="1.6vw" height="1.6vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-[#6B7280] group-hover:text-[#5145F6] transition-colors">
-                                        <rect x="3" y="4" width="18" height="4" rx="1" />
-                                        <rect x="3" y="10" width="7" height="10" rx="1" />
-                                        <line x1="13" y1="11" x2="21" y2="11" />
-                                        <line x1="13" y1="15" x2="21" y2="15" />
-                                        <line x1="13" y1="19" x2="18" y2="19" />
-                                      </svg>
-                                    </div>
-                                  )
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div
+                                  onClick={(e) => { e.stopPropagation(); setActiveTemplateSelectionId(item.id); }}
+                                  className="w-full h-[11vh] border-2 border-dashed border-[#8A94A6] rounded-[0.6vw] bg-[#F8F9FA] flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors group relative overflow-hidden"
+                                >
+                                  <span className="text-[0.75vw] text-[#6B7280] font-normal text-center select-none mb-[0.2vh]">
+                                    Click to Choose <span className="text-[#5145F6] font-semibold group-hover:underline">Template</span>
+                                  </span>
+                                  <svg width="1.6vw" height="1.6vw" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-[#6B7280] group-hover:text-[#5145F6] transition-colors">
+                                    <rect x="3" y="4" width="18" height="4" rx="1" />
+                                    <rect x="3" y="10" width="7" height="10" rx="1" />
+                                    <line x1="13" y1="11" x2="21" y2="11" />
+                                    <line x1="13" y1="15" x2="21" y2="15" />
+                                    <line x1="13" y1="19" x2="18" y2="19" />
+                                  </svg>
+                                </div>
+                              )
                             ) : resolvedActionId === '3d-viewer' ? (
                               (() => {
                                 let fileMeta = null;
@@ -1754,12 +1754,12 @@ const InteractionPanel = ({
                                               <Icon icon="gis:cube-3d" className="text-[#5145F6] text-[2vw] relative z-10" />
                                             )}
                                           </div>
-                                          
+
                                           {/* Hover Menu Overlay */}
                                           <div className={`absolute inset-0 transition-opacity z-20 pointer-events-none ${openDropdownId === '3d-menu-' + item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                                            
+
                                             {/* Edit Button (Center) */}
-                                            <div 
+                                            <div
                                               className="absolute inset-0 m-auto w-[4.5vw] h-[2.2vw] bg-black/40 backdrop-blur-[4px] rounded-[0.5vw] flex items-center justify-center gap-[0.4vw] cursor-pointer hover:bg-black/60 transition-all shadow-md pointer-events-auto"
                                               onClick={(e) => {
                                                 e.stopPropagation();
@@ -1842,7 +1842,7 @@ const InteractionPanel = ({
                                                                     localStorage.setItem('tempThreedEditModel', JSON.stringify({ url: newMeta.data, name: newMeta.name, type: newMeta.type || 'glb' }));
                                                                     const editUrl = newMeta.v_id ? `/editor/threed_editor/${newMeta.v_id}` : '/editor/threed_editor';
                                                                     window.open(editUrl, '_blank');
-                                                                  } catch(e) {}
+                                                                  } catch (e) { }
                                                                 }
                                                               }, 200);
                                                             };
@@ -1901,7 +1901,7 @@ const InteractionPanel = ({
                                     {!fileMeta && (
                                       <>
                                         <span className="text-[0.65vw] text-gray-400 font-medium uppercase select-none">OR</span>
-                                        <button 
+                                        <button
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setActive3DGalleryItem(item);
@@ -1993,7 +1993,7 @@ const InteractionPanel = ({
                                 </select>
                                 <Icon icon="lucide:chevron-down" className="absolute right-[0.6vw] top-1/2 -translate-y-1/2 text-gray-400 text-[0.9vw] pointer-events-none" />
                               </div>
- 
+
                               <div className="flex items-center justify-between w-full mt-[0.5vh]" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
                                 <span className="text-[0.8vw] text-gray-500 font-medium whitespace-nowrap">Speed :</span>
                                 <div className="relative w-[11.2vw]">
@@ -2120,68 +2120,68 @@ const InteractionPanel = ({
                           )}
                         </div>
 
-                  {/* Card Footer (Highlight Component) */}
-                  <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
-                      <div className="flex items-center gap-[0.6vw]">
-                        {/* Custom Radio Button */}
-                        <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-full border-[0.15vw] border-[#5145F6] flex items-center justify-center bg-white">
-                          <div className="w-[0.45vw] h-[0.45vw] rounded-full bg-[#5145F6]"></div>
-                        </div>
-                        <span className="text-[0.8vw] text-gray-600 font-medium">Highlight the Component</span>
-                      </div>
+                        {/* Card Footer (Highlight Component) */}
+                        <div className={`bg-white/80 backdrop-blur-sm border-t border-gray-100/60 pl-[1.6vw] pr-[1.2vw] py-[1.8vh] flex items-center justify-between rounded-b-[0.8vw]`}>
+                          <div className="flex items-center gap-[0.6vw]">
+                            {/* Custom Radio Button */}
+                            <div className="w-[1.1vw] h-[1.1vw] flex-shrink-0 rounded-full border-[0.15vw] border-[#5145F6] flex items-center justify-center bg-white">
+                              <div className="w-[0.45vw] h-[0.45vw] rounded-full bg-[#5145F6]"></div>
+                            </div>
+                            <span className="text-[0.8vw] text-gray-600 font-medium">Highlight the Component</span>
+                          </div>
 
-                      {/* Trash Icon */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
+                          {/* Trash Icon */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              const targetIdx = item.pageIndex !== undefined ? item.pageIndex : activePageIndex;
 
-                          // Check if it's a Free Frame
-                          const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-                          const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                          const frameEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
-                          const isFreeFrame = frameEl && (frameEl.getAttribute('data-type') === 'free-frame' || frameEl.getAttribute('data-name')?.toLowerCase() === 'free frame');
+                              // Check if it's a Free Frame
+                              const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+                              const activeContainer = editorDoc.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                              const frameEl = activeContainer ? activeContainer.querySelector(`[id="${CSS.escape(item.id)}"]`) : editorDoc.getElementById(item.id);
+                              const isFreeFrame = frameEl && (frameEl.getAttribute('data-type') === 'free-frame' || frameEl.getAttribute('data-name')?.toLowerCase() === 'free frame');
 
-                          if (isFreeFrame && deleteLayer) {
-                            deleteLayer(targetIdx, item.id);
-                          } else {
-                            if (updateElementAttribute) {
-                              updateElementAttribute(targetIdx, item.id, {
-                                'data-interaction': null,
-                                'data-interaction-value': null,
-                                'data-interaction-intent': null
+                              if (isFreeFrame && deleteLayer) {
+                                deleteLayer(targetIdx, item.id);
+                              } else {
+                                if (updateElementAttribute) {
+                                  updateElementAttribute(targetIdx, item.id, {
+                                    'data-interaction': null,
+                                    'data-interaction-value': null,
+                                    'data-interaction-intent': null
+                                  });
+                                }
+                                if (typeof setSelectedLayerId !== 'undefined' && setSelectedLayerId) setSelectedLayerId(null);
+                                if (typeof setMultiSelectedIds !== 'undefined' && setMultiSelectedIds) setMultiSelectedIds(new Set());
+
+                                setItemValueOverrides(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                                setCardActionOverrides(prev => { const next = { ...prev }; delete next[item.id]; return next; });
+                              }
+
+                              setOpenCardIds(prev => {
+                                const next = { ...prev };
+                                delete next[item.id];
+                                return next;
                               });
-                            }
-                            if (typeof setSelectedLayerId !== 'undefined' && setSelectedLayerId) setSelectedLayerId(null);
-                            if (typeof setMultiSelectedIds !== 'undefined' && setMultiSelectedIds) setMultiSelectedIds(new Set());
-                            
-                            setItemValueOverrides(prev => { const next = { ...prev }; delete next[item.id]; return next; });
-                            setCardActionOverrides(prev => { const next = { ...prev }; delete next[item.id]; return next; });
-                          }
 
-                          setOpenCardIds(prev => {
-                            const next = { ...prev };
-                            delete next[item.id];
-                            return next;
-                          });
-
-                          // Fire event to reset canvas badge visual state
-                          window.dispatchEvent(new CustomEvent('update-interaction-badge', {
-                            detail: {
-                              elementId: item.id,
-                              actionType: null
-                            }
-                          }));
-                        }}
-                        className="text-red-400 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center w-[1.8vw] h-[1.8vw] rounded-full hover:bg-red-50"
-                      >
-                        <Icon icon="material-symbols-light:delete-outline-rounded" className="text-[1.5vw]" />
-                      </button>
-                    </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                              // Fire event to reset canvas badge visual state
+                              window.dispatchEvent(new CustomEvent('update-interaction-badge', {
+                                detail: {
+                                  elementId: item.id,
+                                  actionType: null
+                                }
+                              }));
+                            }}
+                            className="text-red-400 hover:text-red-600 transition-colors cursor-pointer flex items-center justify-center w-[1.8vw] h-[1.8vw] rounded-full hover:bg-red-50"
+                          >
+                            <Icon icon="material-symbols-light:delete-outline-rounded" className="text-[1.5vw]" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               );
             })
@@ -2216,7 +2216,7 @@ const InteractionPanel = ({
                 if (res.ok) {
                   fallbackHtml = await res.text();
                 }
-              } catch (err) {}
+              } catch (err) { }
             }
             if (!fallbackHtml) {
               fallbackHtml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="100%" height="100%">
@@ -2250,18 +2250,18 @@ const InteractionPanel = ({
           if (!active3DGalleryItem) return;
           const currentItem = active3DGalleryItem;
           setActive3DGalleryItem(null); // Close modal immediately
-          
+
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
           const fullUrl = `${backendUrl}${modelUrlPath}`;
-          
+
           try {
             // Fetch as a blob so it behaves exactly like a direct upload,
             // allowing TemplateEditor's save process to store it in assets/3D_Model/
             const response = await fetch(fullUrl);
             const blob = await response.blob();
             const objectUrl = URL.createObjectURL(blob);
-            
+
             const storedVal = JSON.stringify({
               name: model.name || 'model.glb',
               type: model.type || 'model/gltf-binary',
@@ -2269,7 +2269,7 @@ const InteractionPanel = ({
               data: objectUrl,
               fromGallery: true
             });
-            
+
             setItemValueOverrides(prev => ({ ...prev, [currentItem.id]: storedVal }));
             const targetIdx = currentItem.pageIndex !== undefined ? currentItem.pageIndex : activePageIndex;
             if (updateElementAttribute) {
