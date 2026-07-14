@@ -33,12 +33,45 @@ const CanvasRuler = ({
   const animationFrameRef = useRef(null);
 
   useEffect(() => {
-    // A helper to draw with the current interpolated zoom and pan
-    const draw = (renderZoom, renderPan) => {
+    let lastRenderKey = '';
+
+    const draw = () => {
+      const zoomContainer = document.getElementById('main-zoom-container');
       const hCanvas = horizontalCanvasRef.current;
       const vCanvas = verticalCanvasRef.current;
       const { width: containerWidth, height: containerHeight } = dimensions;
-      if (!hCanvas || !vCanvas || !containerWidth || !containerHeight) return;
+
+      if (!containerRef.current || !zoomContainer || !hCanvas || !vCanvas || !containerWidth || !containerHeight) return;
+
+      const rulerRect = containerRef.current.getBoundingClientRect();
+      
+      const pageContainers = Array.from(zoomContainer.querySelectorAll('.page-svg-container'));
+      if (pageContainers.length === 0) return;
+
+      let minLeft = Infinity;
+      let minTop = Infinity;
+      let maxRight = -Infinity;
+      let maxBottom = -Infinity;
+
+      pageContainers.forEach(el => {
+         const rect = el.getBoundingClientRect();
+         if (rect.left < minLeft) minLeft = rect.left;
+         if (rect.top < minTop) minTop = rect.top;
+         if (rect.right > maxRight) maxRight = rect.right;
+         if (rect.bottom > maxBottom) maxBottom = rect.bottom;
+      });
+
+      const zoomRect = {
+         left: minLeft,
+         top: minTop,
+         width: maxRight - minLeft,
+         height: maxBottom - minTop
+      };
+
+      // Only redraw if the bounding box or container size changed
+      const currentRenderKey = `${zoomRect.left},${zoomRect.top},${zoomRect.width},${zoomRect.height},${containerWidth},${containerHeight}`;
+      if (currentRenderKey === lastRenderKey) return;
+      lastRenderKey = currentRenderKey;
 
       const dpr = window.devicePixelRatio || 1;
       
@@ -63,7 +96,6 @@ const CanvasRuler = ({
       const hCtx = hCanvas.getContext('2d');
       const vCtx = vCanvas.getContext('2d');
       
-      // Reset transform before clearing
       hCtx.setTransform(1, 0, 0, 1, 0, 0);
       vCtx.setTransform(1, 0, 0, 1, 0, 0);
       
@@ -73,10 +105,8 @@ const CanvasRuler = ({
       hCtx.scale(dpr, dpr);
       vCtx.scale(dpr, dpr);
 
-      const scale = renderZoom / 100;
-      
-      const startX = (containerWidth / 2) + renderPan.x - ((baseCanvasWidth * scale) / 2);
-      const startY = (containerHeight / 2) + renderPan.y - ((baseCanvasHeight * scale) / 2);
+      const startX = zoomRect.left - rulerRect.left;
+      const startY = zoomRect.top - rulerRect.top;
 
       const bgColor = '#ffffff';
       const textColor = '#6b7280';
@@ -93,12 +123,13 @@ const CanvasRuler = ({
       vCtx.fillStyle = tickColor;
       vCtx.fillRect(thickness - 1, 0, 1, containerHeight);
 
-      // Map viewport pixels directly to millimeters
-      const viewportToMmX = (baseLogicalWidth || baseCanvasWidth) / baseCanvasWidth;
-      const viewportToMmY = (baseLogicalHeight || baseCanvasHeight) / baseCanvasHeight;
+      // viewportToMmX maps 1 screen pixel to N mm
+      const viewportToMmX = baseLogicalWidth / zoomRect.width;
+      const viewportToMmY = baseLogicalHeight / zoomRect.height;
 
-      const visualScaleX = scale * (1 / viewportToMmX);
-      const visualScaleY = scale * (1 / viewportToMmY);
+      // visualScaleX is how many screen pixels represent 1 mm
+      const visualScaleX = zoomRect.width / baseLogicalWidth;
+      const visualScaleY = zoomRect.height / baseLogicalHeight;
 
       const getStepMm = (vScale) => {
         if (vScale > 20) return 5;
@@ -123,8 +154,8 @@ const CanvasRuler = ({
       vCtx.textAlign = 'center';
       vCtx.textBaseline = 'middle';
 
-      const drawHTick = (val, isMajor, labelVal) => {
-        const x = startX + val * scale;
+      const drawHTick = (pixelVal, isMajor, labelVal) => {
+        const x = Math.floor(startX + pixelVal) + 0.5;
         if (x < thickness || x > containerWidth) return;
 
         hCtx.beginPath();
@@ -136,8 +167,8 @@ const CanvasRuler = ({
         if (isMajor && labelVal !== undefined) hCtx.fillText(labelVal, x, 2);
       };
 
-      const drawVTick = (val, isMajor, labelVal) => {
-        const y = startY + val * scale;
+      const drawVTick = (pixelVal, isMajor, labelVal) => {
+        const y = Math.floor(startY + pixelVal) + 0.5;
         if (y < thickness || y > containerHeight) return;
 
         vCtx.beginPath();
@@ -155,21 +186,21 @@ const CanvasRuler = ({
         }
       };
 
-      const minValXMm = Math.floor((0 - startX) / scale * viewportToMmX / stepMmX) * stepMmX;
-      const maxValXMm = Math.ceil((containerWidth - startX) / scale * viewportToMmX / stepMmX) * stepMmX;
+      const minValXMm = Math.floor((0 - startX) * viewportToMmX / stepMmX) * stepMmX;
+      const maxValXMm = Math.ceil((containerWidth - startX) * viewportToMmX / stepMmX) * stepMmX;
 
       for (let mmVal = minValXMm; mmVal <= maxValXMm; mmVal += stepMmX) {
-        const viewportVal = mmVal / viewportToMmX;
-        drawHTick(viewportVal, true, mmVal);
+        const pixelVal = mmVal / viewportToMmX;
+        drawHTick(pixelVal, true, mmVal);
         for (let i = 1; i <= 9; i++) drawHTick((mmVal + i * (stepMmX / 10)) / viewportToMmX, false);
       }
 
-      const minValYMm = Math.floor((0 - startY) / scale * viewportToMmY / stepMmY) * stepMmY;
-      const maxValYMm = Math.ceil((containerHeight - startY) / scale * viewportToMmY / stepMmY) * stepMmY;
+      const minValYMm = Math.floor((0 - startY) * viewportToMmY / stepMmY) * stepMmY;
+      const maxValYMm = Math.ceil((containerHeight - startY) * viewportToMmY / stepMmY) * stepMmY;
 
       for (let mmVal = minValYMm; mmVal <= maxValYMm; mmVal += stepMmY) {
-        const viewportVal = mmVal / viewportToMmY;
-        drawVTick(viewportVal, true, mmVal);
+        const pixelVal = mmVal / viewportToMmY;
+        drawVTick(pixelVal, true, mmVal);
         for (let i = 1; i <= 9; i++) drawVTick((mmVal + i * (stepMmY / 10)) / viewportToMmY, false);
       }
 
@@ -185,65 +216,14 @@ const CanvasRuler = ({
       hCtx.fill();
     };
 
-    // ── ANIMATION LOGIC ──
-    const startZoom = currentZoomRef.current;
-    const startPan = currentPanRef.current;
-    const targetZoom = zoom;
-    const targetPan = pan;
-
-    const zoomDiff = targetZoom - startZoom;
-    const panDiffX = targetPan.x - startPan.x;
-    const panDiffY = targetPan.y - startPan.y;
-
-    if (Math.abs(zoomDiff) < 0.1 && Math.abs(panDiffX) < 1 && Math.abs(panDiffY) < 1) {
-      currentZoomRef.current = targetZoom;
-      currentPanRef.current = targetPan;
-      draw(targetZoom, targetPan);
-    } else {
-      const duration = 300; // Match Tailwind's duration-300
-      const startTime = performance.now();
-
-      const ease = (t) => t * (2 - t); // easeOutQuad
-
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-
-      const step = (time) => {
-        let elapsed = time - startTime;
-        if (elapsed > duration) elapsed = duration;
-
-        const progress = elapsed / duration;
-        const easedT = ease(progress);
-
-        const nowZoom = startZoom + zoomDiff * easedT;
-        const nowPan = {
-          x: startPan.x + panDiffX * easedT,
-          y: startPan.y + panDiffY * easedT
-        };
-
-        currentZoomRef.current = nowZoom;
-        currentPanRef.current = nowPan;
-        draw(nowZoom, nowPan);
-
-        if (elapsed < duration) {
-          animationFrameRef.current = requestAnimationFrame(step);
-        }
-      };
-
-      animationFrameRef.current = requestAnimationFrame(step);
-    }
-
-    const handlePanUpdate = (e) => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      currentPanRef.current = e.detail;
-      draw(currentZoomRef.current, currentPanRef.current);
+    const poll = () => {
+      draw();
+      animationFrameRef.current = requestAnimationFrame(poll);
     };
-
-    window.addEventListener('editor-pan-update', handlePanUpdate);
-    return () => {
-      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-      window.removeEventListener('editor-pan-update', handlePanUpdate);
-    };
-  }, [zoom, pan, baseCanvasWidth, baseCanvasHeight, dimensions, thickness]);
+    
+    poll();
+    return () => cancelAnimationFrame(animationFrameRef.current);
+  }, [dimensions, baseLogicalWidth, baseLogicalHeight, thickness]);
 
   const handleMouseDown = (type, e) => {
     e.preventDefault();

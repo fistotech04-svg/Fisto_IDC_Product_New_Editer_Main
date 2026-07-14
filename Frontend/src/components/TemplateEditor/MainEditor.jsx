@@ -794,8 +794,16 @@ const MainEditor = ({
         e.preventDefault();
         if (!isAltPressedRef.current) {
           isAltPressedRef.current = true;
+          document.querySelectorAll('.overlay-type-hover, .overlay-type-child-hover').forEach(el => el.remove());
           if (lastMousePosRef.current && drawMeasurementOverlayRef.current) {
-            drawMeasurementOverlayRef.current(lastMousePosRef.current.target, lastMousePosRef.current.x, lastMousePosRef.current.y);
+            let currentTarget = lastMousePosRef.current.target;
+            // If the SVG re-rendered, the old target might be detached from the DOM.
+            // Get the fresh element currently at the mouse coordinates.
+            if (currentTarget && !document.contains(currentTarget)) {
+              currentTarget = document.elementFromPoint(lastMousePosRef.current.x, lastMousePosRef.current.y) || currentTarget;
+              lastMousePosRef.current.target = currentTarget;
+            }
+            drawMeasurementOverlayRef.current(currentTarget, lastMousePosRef.current.x, lastMousePosRef.current.y);
           }
         }
       }
@@ -2098,13 +2106,16 @@ const MainEditor = ({
     document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
   };
 
-  const drawMeasurementOverlay = (targetEl, clientX, clientY) => {
+  const drawMeasurementOverlay = (targetEl, clientX, clientY, forceDraw = false) => {
     clearMeasurementOverlay();
-    if (!isAltPressedRef.current || !selectedLayerIdRef.current) return;
-
+    if (!forceDraw && (!isAltPressedRef.current || !selectedLayerIdRef.current)) return;
+    
+    let isMultiTarget = Array.isArray(targetEl);
+    let firstTarget = isMultiTarget ? targetEl[0] : targetEl;
+    
     let svg = null;
-    if (targetEl && targetEl.ownerSVGElement) {
-      svg = targetEl.ownerSVGElement;
+    if (firstTarget && firstTarget.ownerSVGElement) {
+      svg = firstTarget.ownerSVGElement;
     } else {
       svg = document.querySelector('.page-svg-container svg');
     }
@@ -2113,18 +2124,42 @@ const MainEditor = ({
     const selectedEl = svg.querySelector(`[id="${selectedLayerIdRef.current}"]`);
     if (!selectedEl) return;
 
-    let measureTarget = null;
-    if (targetEl && targetEl !== svg && targetEl.id && targetEl.id !== selectedLayerIdRef.current) {
-      const isOverlay = targetEl.getAttribute('data-name') === 'Overlay' ||
-        targetEl.getAttribute('data-type') === 'background' ||
-        (targetEl.getAttribute('class') && targetEl.getAttribute('class').includes('overlay'));
-      if (!isOverlay) measureTarget = targetEl;
+    const isSelectedBackgroundOrFrame = selectedEl.getAttribute('data-name') === 'Overlay' || 
+                                        selectedEl.getAttribute('data-type') === 'background' || 
+                                        selectedEl.getAttribute('data-type') === 'frame';
+    if (isSelectedBackgroundOrFrame) return;
+
+    if (firstTarget && selectedEl.contains(firstTarget)) return;
+
+    if (firstTarget && multiSelectedIdsRef.current && multiSelectedIdsRef.current.size > 1) {
+      if (multiSelectedIdsRef.current.has(firstTarget.id)) return;
+      let isInsideSelection = false;
+      multiSelectedIdsRef.current.forEach(id => {
+        const el = svg.querySelector(`[id="${id}"]`);
+        if (el && el.contains(firstTarget)) isInsideSelection = true;
+      });
+      if (isInsideSelection) return;
     }
 
-    if (!measureTarget) {
-      measureTarget = (selectedEl.parentElement && selectedEl.parentElement.closest('[data-type="frame"]')) || svg.querySelector('[data-type="background"]');
+    let measureTarget = null;
+    let measureTargetArray = null;
+
+    if (isMultiTarget) {
+      measureTargetArray = targetEl;
+      measureTarget = firstTarget;
+    } else {
+      if (targetEl && targetEl !== svg && targetEl.id && targetEl.id !== selectedLayerIdRef.current) {
+         const isOverlay = targetEl.getAttribute('data-name') === 'Overlay' || 
+                           targetEl.getAttribute('data-type') === 'background' || 
+                           (targetEl.getAttribute('class') && targetEl.getAttribute('class').includes('overlay'));
+         if (!isOverlay) measureTarget = targetEl;
+      }
+      
+      if (!measureTarget) {
+         measureTarget = (selectedEl.parentElement && selectedEl.parentElement.closest('[data-type="frame"]')) || svg.querySelector('[data-type="background"]');
+      }
+      if (!measureTarget || measureTarget === selectedEl) return;
     }
-    if (!measureTarget || measureTarget === selectedEl) return;
 
     const overlay = getOverlayForElement(selectedEl);
     if (!overlay) return;
@@ -2177,7 +2212,26 @@ const MainEditor = ({
       }
     }
 
-    const rect2 = getOverlayRect(measureTarget);
+    let rect2 = null;
+    if (measureTargetArray) {
+      const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
+      measureTargetArray.forEach(el => {
+        if (!el) return;
+        const r = getOverlayRect(el);
+        if (r) {
+          bounds.left = Math.min(bounds.left, r.left);
+          bounds.top = Math.min(bounds.top, r.top);
+          bounds.right = Math.max(bounds.right, r.right);
+          bounds.bottom = Math.max(bounds.bottom, r.bottom);
+        }
+      });
+      if (bounds.left !== Infinity) {
+        rect2 = { ...bounds, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top };
+      }
+    } else {
+      rect2 = getOverlayRect(measureTarget);
+    }
+
     if (!rect1 || !rect2) return;
 
     // Map viewport pixels to mm using the actual base document dimensions
@@ -2206,9 +2260,8 @@ const MainEditor = ({
       line.setAttribute('y1', y1);
       line.setAttribute('x2', x2);
       line.setAttribute('y2', y2);
-      line.setAttribute('stroke', '#F24E1E');
+      line.setAttribute('stroke', '#00a58e');
       line.setAttribute('stroke-width', String(1 * invScale));
-      line.setAttribute('stroke-dasharray', `${4 * invScale} ${2 * invScale}`);
       g.appendChild(line);
 
       const cx = (x1 + x2) / 2;
@@ -2223,7 +2276,7 @@ const MainEditor = ({
       rect.setAttribute('width', tw);
       rect.setAttribute('height', th);
       rect.setAttribute('rx', String(3.5 * invScale));
-      rect.setAttribute('fill', '#F24E1E');
+      rect.setAttribute('fill', '#00a58e');
       g.appendChild(rect);
 
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -2261,8 +2314,9 @@ const MainEditor = ({
         line.setAttribute('y1', y1);
         line.setAttribute('x2', x2);
         line.setAttribute('y2', y2);
-        line.setAttribute('stroke', '#F24E1E');
+        line.setAttribute('stroke', '#00a58e');
         line.setAttribute('stroke-width', String(1 * invScale));
+        line.setAttribute('stroke-dasharray', `${4 * invScale} ${2 * invScale}`);
         g.appendChild(line);
       };
 
@@ -2321,7 +2375,7 @@ const MainEditor = ({
     targetRect.setAttribute('width', rect2.width);
     targetRect.setAttribute('height', rect2.height);
     targetRect.setAttribute('fill', 'none');
-    targetRect.setAttribute('stroke', '#F24E1E');
+    targetRect.setAttribute('stroke', '#00a58e');
     targetRect.setAttribute('stroke-width', String(1 * invScale));
     g.appendChild(targetRect);
 
@@ -2335,8 +2389,18 @@ const MainEditor = ({
     const overlay = getOverlayForElement(el);
     if (!overlay) return;
 
-    if ((type === 'hover' || type === 'child-hover') && document.querySelector('[data-dragging="true"]')) return;
-
+    if (type === 'hover' || type === 'child-hover') {
+      if (document.querySelector('[data-dragging="true"]')) return;
+      if (isAltPressedRef.current && selectedLayerIdRef.current) {
+        const selectedEl = document.getElementById(selectedLayerIdRef.current);
+        if (selectedEl) {
+          const isSelectedBackgroundOrFrame = selectedEl.getAttribute('data-name') === 'Overlay' || 
+                                              selectedEl.getAttribute('data-type') === 'background' || 
+                                              selectedEl.getAttribute('data-type') === 'frame';
+          if (!isSelectedBackgroundOrFrame) return; // Suppress blue hover outline during Alt comparison
+        }
+      }
+    }
     // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
     const isOverlay = el.getAttribute('data-name') === 'Overlay' ||
       el.getAttribute('data-type') === 'background' ||
@@ -3307,7 +3371,7 @@ const MainEditor = ({
       } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         // Core Logic: Move selected element with arrow keys
         e.preventDefault();
-        const step = e.shiftKey ? 10 : 1;
+        const step = e.shiftKey ? 1 : 0.1;
         let dx = 0, dy = 0;
         if (e.key === 'ArrowUp') dy = -step;
         else if (e.key === 'ArrowDown') dy = step;
@@ -3345,10 +3409,29 @@ const MainEditor = ({
           drawOverlayHighlight(el, highlightType);
         });
 
+        if (multiSelectedIdsRef.current.size > 1) {
+          // If we have a drawMultiSelectionHighlight function in scope, we should use it. 
+          // However, it's defined inside the component so it's accessible!
+          if (typeof drawMultiSelectionHighlight === 'function') {
+            drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+          }
+        }
+
         if (updatePageHtml) {
           const activeContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
           const svg = activeContainer?.querySelector('svg');
           if (svg) updatePageHtml(activePageIndex, svg.outerHTML);
+        }
+
+        if (isAltPressedRef.current && drawMeasurementOverlayRef.current && lastMousePosRef.current && lastMousePosRef.current.target) {
+          let currentTarget = lastMousePosRef.current.target;
+          // If the SVG re-rendered, the old target might be detached from the DOM.
+          // Get the fresh element currently at the mouse coordinates.
+          if (currentTarget && !document.contains(currentTarget)) {
+            currentTarget = document.elementFromPoint(lastMousePosRef.current.x, lastMousePosRef.current.y) || currentTarget;
+            lastMousePosRef.current.target = currentTarget;
+          }
+          drawMeasurementOverlayRef.current(currentTarget, lastMousePosRef.current.x, lastMousePosRef.current.y, true);
         }
       }
     };
@@ -4376,67 +4459,81 @@ const MainEditor = ({
             };
 
             if (!dragState.thresholdMet) {
-              const DRAG_THRESHOLD = 10;
-              const dxClient = event.clientX - dragState.initialClientX;
-              const dyClient = event.clientY - dragState.initialClientY;
-              const distance = Math.sqrt(dxClient * dxClient + dyClient * dyClient);
+               const DRAG_THRESHOLD = 10;
+               const dxClient = event.clientX - dragState.initialClientX;
+               const dyClient = event.clientY - dragState.initialClientY;
+               const distance = Math.sqrt(dxClient * dxClient + dyClient * dyClient);
+               
+               if (distance < DRAG_THRESHOLD) {
+                 return; // Do nothing until threshold is met
+               }
+               
+               // Threshold crossed!
+               dragState.thresholdMet = true;
+               
+               // Prevent jumping by resetting start points to current mouse pos
+               dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY);
+               if (dragState.multiDragItems) {
+                 for (const item of dragState.multiDragItems) {
+                   item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
+                   item.element.setAttribute('data-dragging', 'true');
+                 }
+               } else {
+                 dragState.element.setAttribute('data-dragging', 'true');
+               }
+            }
+            
+            const isAltPressedCurrent = event.altKey || (event.sourceEvent && event.sourceEvent.altKey);
+            if (isAltPressedCurrent && !dragState.hasDuplicated) {
+                 dragState.hasDuplicated = true;
+                 
+                 const newSelectedIds = new Set();
+                 const generateId = () => `dup-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                 
+                 const cloneElement = (el) => {
+                   const clone = el.cloneNode(true);
+                   clone.id = generateId();
+                   clone.removeAttribute('data-dragging');
+                   const elementsWithId = clone.querySelectorAll('[id]');
+                   elementsWithId.forEach(child => {
+                     child.id = generateId();
+                   });
+                   return clone;
+                 };
 
-              if (distance < DRAG_THRESHOLD) {
-                return; // Do nothing until threshold is met
-              }
-
-              // Threshold crossed!
-              dragState.thresholdMet = true;
-
-              const isAltPressed = event.altKey || (event.sourceEvent && event.sourceEvent.altKey);
-              if (isAltPressed) {
-                const newSelectedIds = new Set();
-                const generateId = () => `dup-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-
-                const cloneElement = (el) => {
-                  const clone = el.cloneNode(true);
-                  clone.id = generateId();
-                  clone.removeAttribute('data-dragging');
-                  const elementsWithId = clone.querySelectorAll('[id]');
-                  elementsWithId.forEach(child => {
-                    child.id = generateId();
-                  });
-                  return clone;
-                };
-
-                if (dragState.multiDragItems) {
-                  for (const item of dragState.multiDragItems) {
-                    const clone = cloneElement(item.element);
-                    item.element.parentNode.insertBefore(clone, item.element.nextSibling);
-                    item.element = clone;
-                    newSelectedIds.add(clone.id);
-                  }
-                  if (setMultiSelectedIds) setMultiSelectedIds(newSelectedIds);
-                  if (setSelectedLayerId) setSelectedLayerId(Array.from(newSelectedIds)[0]);
-                  multiSelectedIdsRef.current = newSelectedIds;
-                  selectedLayerIdRef.current = Array.from(newSelectedIds)[0];
-                } else {
-                  const clone = cloneElement(dragState.element);
-                  dragState.element.parentNode.insertBefore(clone, dragState.element.nextSibling);
-                  dragState.element = clone;
-                  newSelectedIds.add(clone.id);
-                  if (setSelectedLayerId) setSelectedLayerId(clone.id);
-                  if (setMultiSelectedIds) setMultiSelectedIds(newSelectedIds);
-                  selectedLayerIdRef.current = clone.id;
-                  multiSelectedIdsRef.current = newSelectedIds;
-                }
-              }
-
-              // Prevent jumping by resetting start points to current mouse pos
-              dragState.startPointLocal = getLocalPoint(dragState.svgElement, dragState.element.parentNode, event.clientX, event.clientY);
-              if (dragState.multiDragItems) {
-                for (const item of dragState.multiDragItems) {
-                  item.startPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
-                  item.element.setAttribute('data-dragging', 'true');
-                }
-              } else {
-                dragState.element.setAttribute('data-dragging', 'true');
-              }
+                 if (dragState.multiDragItems) {
+                   for (const item of dragState.multiDragItems) {
+                     item.originalElement = item.element;
+                     // Reset original element to initial position
+                     item.originalElement.setAttribute('transform', matrixToTransform(item.initialMatrix));
+                     item.originalElement.removeAttribute('data-dragging');
+                     
+                     const clone = cloneElement(item.element);
+                     item.element.parentNode.insertBefore(clone, item.element.nextSibling);
+                     item.element = clone;
+                     item.element.setAttribute('data-dragging', 'true');
+                     newSelectedIds.add(clone.id);
+                   }
+                   if (setMultiSelectedIds) setMultiSelectedIds(newSelectedIds);
+                   if (setSelectedLayerId) setSelectedLayerId(Array.from(newSelectedIds)[0]);
+                   multiSelectedIdsRef.current = newSelectedIds;
+                   selectedLayerIdRef.current = Array.from(newSelectedIds)[0];
+                 } else {
+                   dragState.originalElement = dragState.element;
+                   // Reset original element to initial position
+                   dragState.originalElement.setAttribute('transform', matrixToTransform(dragState.initialMatrix));
+                   dragState.originalElement.removeAttribute('data-dragging');
+                   
+                   const clone = cloneElement(dragState.element);
+                   dragState.element.parentNode.insertBefore(clone, dragState.element.nextSibling);
+                   dragState.element = clone;
+                   dragState.element.setAttribute('data-dragging', 'true');
+                   newSelectedIds.add(clone.id);
+                   if (setSelectedLayerId) setSelectedLayerId(clone.id);
+                   if (setMultiSelectedIds) setMultiSelectedIds(newSelectedIds);
+                   selectedLayerIdRef.current = clone.id;
+                   multiSelectedIdsRef.current = newSelectedIds;
+                 }
             }
 
             if (dragState.multiDragItems) {
@@ -4467,6 +4564,21 @@ const MainEditor = ({
               target.setAttribute('transform', matrixToTransform(nextMatrix));
               // dynamically update the outline while dragging
               drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
+            }
+
+            if (isAltPressedCurrent && drawMeasurementOverlayRef.current) {
+              let targetForMeasurement = null;
+              if (dragState.originalElement && dragState.originalElement.id !== dragState.element.id) {
+                targetForMeasurement = dragState.originalElement;
+              } else if (dragState.multiDragItems && dragState.multiDragItems[0].originalElement && dragState.multiDragItems[0].originalElement.id !== dragState.multiDragItems[0].element.id) {
+                targetForMeasurement = dragState.multiDragItems.map(item => item.originalElement);
+              }
+              if (!targetForMeasurement) {
+                targetForMeasurement = (dragState.element.parentElement && dragState.element.parentElement.closest('[data-type="frame"]')) || dragState.svgElement.querySelector('[data-type="background"]');
+              }
+              drawMeasurementOverlayRef.current(targetForMeasurement, event.clientX, event.clientY, true);
+            } else if (document.querySelector('.measurement-overlay-group')) {
+              document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
             }
 
             suppressClickRef.current = true;
@@ -4879,7 +4991,21 @@ const MainEditor = ({
                     el.setAttribute('data-resized', 'true');
                     div.style.whiteSpace = 'pre-wrap';
                   }
-
+                  
+                  // Update the sizing mode to reflect manual user overrides so TextEditor respects them
+                  if (el.getAttribute('data-type') === 'text') {
+                    if (dir === 'e' || dir === 'w') {
+                        el.setAttribute('data-sizing-mode', 'auto-height');
+                        el.setAttribute('data-auto-wrap', 'true');
+                    } else if (dir === 'n' || dir === 's') {
+                        el.setAttribute('data-sizing-mode', 'auto-width');
+                        el.setAttribute('data-auto-wrap', 'false');
+                    } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
+                        el.setAttribute('data-sizing-mode', 'fixed');
+                        el.setAttribute('data-auto-wrap', 'true');
+                    }
+                  }
+                  
                   const oldHeight = div.style.height;
                   const oldMinHeight = div.style.minHeight;
 
@@ -5259,18 +5385,19 @@ const MainEditor = ({
         // Scale the local x,y,width,height inversely so it renders at the mouse cursor
         fo.setAttribute('x', pt.x / ptToMmScale);
         fo.setAttribute('y', pt.y / ptToMmScale);
-        fo.setAttribute('width', '250');
-        fo.setAttribute('height', '40');
+        fo.setAttribute('width', '170');
+        fo.setAttribute('height', '30');
         fo.setAttribute('transform', `matrix(${ptToMmScale} 0 0 ${ptToMmScale} 0 0)`);
         fo.setAttribute('fill', '#000000');
         fo.setAttribute('font-family', "'Outfit', sans-serif");
         fo.setAttribute('font-size', '24');
         fo.setAttribute('letter-spacing', '0');
-        fo.setAttribute('data-auto-wrap', 'true');
+        fo.setAttribute('data-auto-wrap', 'false');
+        fo.setAttribute('data-sizing-mode', 'auto-width');
         fo.setAttribute('data-type', 'text');
 
         const div = document.createElement('div');
-        div.style.width = '100%';
+        div.style.width = 'max-content'; // Allows scrollWidth to perfectly match text
         div.style.minHeight = '100%';
         div.style.color = '#000000';
         div.style.fontFamily = "'Outfit', sans-serif";
@@ -5283,7 +5410,7 @@ const MainEditor = ({
         div.style.letterSpacing = '0px';
         div.style.wordBreak = 'normal';
         div.style.overflowWrap = 'anywhere';
-        div.style.whiteSpace = 'pre-wrap';
+        div.style.whiteSpace = 'nowrap'; // Auto-width defaults to no wrapping
         div.style.padding = '0px';
         div.style.margin = '0';
         div.style.boxSizing = 'border-box';
@@ -5672,7 +5799,9 @@ const MainEditor = ({
   const handleSvgMouseMove = (pageIndex, e) => {
     lastMousePosRef.current = { x: e.clientX, y: e.clientY, target: e.target };
     if (isAltPressedRef.current && selectedLayerIdRef.current) {
-      if (drawMeasurementOverlayRef.current) drawMeasurementOverlayRef.current(e.target, e.clientX, e.clientY);
+      if (drawMeasurementOverlayRef.current && !document.querySelector('[data-dragging="true"]')) {
+        drawMeasurementOverlayRef.current(e.target, e.clientX, e.clientY);
+      }
     }
 
     // ── Ctrl + Click Bending Update ──
@@ -8332,14 +8461,7 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
-        <div 
-          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
-              setActiveMainTool('select');
-            }
-          }}
-        >
+        <div id="main-editor-container" className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}>
           {/* Left Navigation-Button */}
           <button
             disabled={activePageIndex === 0}
@@ -8359,6 +8481,7 @@ const MainEditor = ({
 
           {/* Zoomable Canvas Container with Perimeter Shadow */}
           <div
+            id="main-zoom-container"
             ref={zoomContainerRef}
             className={`flex items-center justify-center origin-center gap-[0] ${isPopupEditor ? 'bg-transparent border-none shadow-[0_30px_100px_-10px_rgba(0,0,0,0.3),_0_0_50px_rgba(0,0,0,0.05)]' : 'bg-white border border-gray-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.15),0_0_20px_-5px_rgba(0,0,0,0.05)]'} ${!isSpaceDown ? 'transition-all duration-300' : ''}`}
             style={{
