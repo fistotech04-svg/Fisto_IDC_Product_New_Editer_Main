@@ -72,7 +72,7 @@ foreignObject * {
   clip-path: none !important;
 }
 
-foreignObject[data-editing="true"] > div {
+foreignObject[data-editing="true"]>div {
   width: 100% !important;
   height: 100% !important;
   min-height: 100% !important;
@@ -82,7 +82,7 @@ foreignObject[data-editing="true"] > div {
   resize: none !important;
 }
 
-foreignObject[data-editing="true"] > div * {
+foreignObject[data-editing="true"]>div * {
   outline: none !important;
   border: none !important;
   box-shadow: none !important;
@@ -124,13 +124,13 @@ foreignObject[data-editing="true"] > div * {
   background: rgba(55, 65, 81, 0.9) !important;
 }
 
-foreignObject:not([data-scrollable="true"]):not([data-editing="true"]) > div {
+foreignObject:not([data-scrollable="true"]):not([data-editing="true"])>div {
   width: 100% !important;
   height: auto !important;
 }
 
 /* Allow dragging of scrollable text boxes in editor by ignoring pointer events when not editing */
-.page-svg-container foreignObject[data-scrollable="true"]:not([data-editing="true"]) > div {
+.page-svg-container foreignObject[data-scrollable="true"]:not([data-editing="true"])>div {
   pointer-events: none !important;
 }
 
@@ -138,6 +138,7 @@ foreignObject:not([data-scrollable="true"]):not([data-editing="true"]) > div {
 
 /* Firefox Fallback */
 @-moz-document url-prefix() {
+
   .custom-scrollbar,
   .flipbook-text-scrollbar {
     scrollbar-width: thin !important;
@@ -149,7 +150,7 @@ foreignObject:not([data-scrollable="true"]):not([data-editing="true"]) > div {
   opacity: 0;
   pointer-events: none;
 }
- 
+
 video.hide-controls:hover::-webkit-media-controls {
   opacity: 1;
   pointer-events: auto;
@@ -157,10 +158,10 @@ video.hide-controls:hover::-webkit-media-controls {
 }
 
 /* Hide Spin Buttons for Number Input */
-.no-spin::-webkit-inner-spin-button, 
-.no-spin::-webkit-outer-spin-button { 
-  -webkit-appearance: none; 
-  margin: 0; 
+.no-spin::-webkit-inner-spin-button,
+.no-spin::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .no-spin {
@@ -194,8 +195,10 @@ video.hide-controls:hover::-webkit-media-controls {
 
 /* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
 }
 
 /* Fix for flipbook dragging over iframes */
@@ -243,4 +246,3 @@ video.hide-controls:hover::-webkit-media-controls {
   font-style: normal;
   font-display: swap;
 }
-

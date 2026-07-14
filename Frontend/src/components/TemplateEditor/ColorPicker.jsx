@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Icon } from "@iconify/react";
-import { ArrowLeftRight, Minus, RotateCcw, X, Check } from "lucide-react";
+import { ArrowLeftRight, Minus, X, Check } from "lucide-react";
 import PremiumDropdown from "../CustomizedEditor/PremiumDropdown";
 // Helper functions for color conversion
 const rgbToHex = (r, g, b) => {
@@ -601,7 +601,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                   <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
                   <div className="flex gap-[0.4vw]">
                     <button onClick={resetGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.5vw] hover:bg-gray-50 transition-colors" title="Reset">
-                      <RotateCcw size="1vw" className="text-gray-600" />
+                      <Icon icon="ix:reset" width="1vw" height="1vw" className="text-gray-600" />
                     </button>
                     <button onClick={reverseGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.5vw] hover:bg-gray-50 transition-colors" title="Reverse">
                       <ArrowLeftRight size="1vw" className="text-gray-600" />

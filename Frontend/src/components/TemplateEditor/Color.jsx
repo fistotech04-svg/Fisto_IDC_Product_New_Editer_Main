@@ -134,6 +134,15 @@ const Color = ({
   hideFill = false,
   ...props
 }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (openSubSection === 'color' && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 350);
+    }
+  }, [openSubSection]);
   const pseudoProps = {
     fill: backgroundColor?.fill || '#000000',
     opacity: (backgroundColor?.fillOpacity || 100) / 100,
@@ -208,7 +217,7 @@ const Color = ({
   ];
 
   return (
-    <div className="flex flex-col font-sans">
+    <div ref={containerRef} className="flex flex-col font-sans">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'color' ? null : 'color')}

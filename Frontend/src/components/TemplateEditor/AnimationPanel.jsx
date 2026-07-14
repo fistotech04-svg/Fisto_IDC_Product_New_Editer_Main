@@ -1026,89 +1026,6 @@ const AnimationPanel = ({ selectedElement, onUpdate }) => {
          </span>
       </div>
 
-      {/* Add Animation Button for Selected Element */}
-      {selectedElement && (() => {
-        const isMultiSelected = Array.from(document.querySelectorAll('.is-selected')).length > 1;
-        const currentMultiSelect = isMultiSelected ? Array.from(document.querySelectorAll('.is-selected')) : [];
-        const partOfMultiSelect = currentMultiSelect.includes(selectedElement);
-        const isGrouped = !!selectedElement.getAttribute('data-animation-group');
-        
-        const buttonText = hasAnimation 
-          ? "Animation Added" 
-          : `Add Animation to ${isGrouped ? 'Group' : (partOfMultiSelect ? `${currentMultiSelect.length} Elements` : (selectedElement.getAttribute('data-name') || selectedElement.id || 'Element'))}`;
-
-        return (
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            const id = selectedElement.id || selectedElement.getAttribute('data-name');
-            const groupId = selectedElement.getAttribute('data-animation-group');
-            
-            let activeGroupId = groupId;
-
-            if (!hasAnimation) {
-              const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container') || document;
-              let targets = [selectedElement];
-              
-              if (groupId) {
-                  const groupEls = Array.from(activePage.querySelectorAll(`[data-animation-group="${groupId}"]`));
-                  if (groupEls.length > 0) targets = groupEls;
-              } else if (partOfMultiSelect) {
-                  targets = currentMultiSelect;
-                  activeGroupId = 'anim-group-' + Date.now();
-                  targets.forEach(t => {
-                      t.setAttribute('data-animation-group', activeGroupId);
-                      const tId = t.id || t.getAttribute('data-name');
-                      if (onUpdate && tId) onUpdate(tId, 'data-animation-group', activeGroupId);
-                  });
-              }
-
-              targets.forEach(target => {
-                  target.setAttribute('data-animation-open-type', 'fade-in');
-                  target.setAttribute('data-animation-open-duration', '1');
-                  target.setAttribute('data-animation-open-delay', '0');
-                  target.setAttribute('data-animation-open-easing', 'Linear');
-                  target.setAttribute('data-animation-intent', 'true');
-                  
-                  const targetId = target.id || target.getAttribute('data-name');
-                  if (onUpdate && targetId) {
-                    onUpdate(targetId, 'data-animation-open-type', 'fade-in');
-                    onUpdate(targetId, 'data-animation-open-duration', '1');
-                    onUpdate(targetId, 'data-animation-open-delay', '0');
-                    onUpdate(targetId, 'data-animation-open-easing', 'Linear');
-                    onUpdate(targetId, 'data-animation-intent', 'true');
-                  }
-              });
-            }
-
-            const targetExpandedId = activeGroupId || id;
-            setExpandedElementId(targetExpandedId);
-            
-            if (activeGroupId) {
-                 const activePage = document.querySelector('.active-page-outline') || document.querySelector('.page-svg-container') || document;
-                 const groupEls = Array.from(activePage.querySelectorAll(`[data-animation-group="${activeGroupId}"]`));
-                 const ids = groupEls.map(el => el.id || el.getAttribute('data-name')).filter(Boolean);
-                 
-                 ids.forEach(targetId => {
-                    setForceIncludeIds(prev => new Set(prev).add(targetId));
-                    window.dispatchEvent(new CustomEvent('animation-force-add', { detail: targetId }));
-                 });
-                 window.dispatchEvent(new CustomEvent('select-layer', { detail: { ids: ids.length > 0 ? ids : [id] } }));
-            } else {
-                 setForceIncludeIds(prev => new Set(prev).add(id));
-                 window.dispatchEvent(new CustomEvent('animation-force-add', { detail: id }));
-                 window.dispatchEvent(new CustomEvent('select-layer', { detail: { ids: [id] } }));
-            }
-          }}
-          className={`w-full h-[3.25vw] ${hasAnimation ? 'bg-[#2D2D2D]' : 'bg-[#3E3E3E] hover:bg-[#2D2D2D]'} text-white rounded-[0.6vw] flex items-center justify-center gap-[0.75vw] transition-all mb-[1.5vw] shadow-sm group`}
-        >
-          <Icon icon={hasAnimation ? "lucide:check" : "lucide:plus"} width="1.2vw" height="1.2vw" className="text-white group-hover:scale-110 transition-transform" />
-          <span className="text-[0.85vw] font-semibold">
-            {buttonText}
-          </span>
-        </button>
-        );
-      })()}
 
       <div className="flex items-center gap-[0.5vw] mb-[1vw]">
          <h3 className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Animations in this Page</h3>
@@ -1294,11 +1211,7 @@ const AnimationPanel = ({ selectedElement, onUpdate }) => {
                 );
             });
          })()}
-         {animatableElements.length === 0 && (
-             <div className="text-center p-[2vw] text-gray-400 text-[0.75vw] border border-dashed border-gray-200 rounded-[0.4vw] bg-gray-50/50">
-                Select an element to add animations
-             </div>
-         )}
+         
       </div>
 
       {/* Animation Gallery Modal */}

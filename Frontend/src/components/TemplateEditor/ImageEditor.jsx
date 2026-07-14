@@ -114,7 +114,7 @@ const ImageEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 1, spread: 0 }
+    'Blur': { blur: 0.5, spread: 0 }
   });
 
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -480,7 +480,8 @@ const ImageEditor = ({
     Object.keys(newSettings).forEach(name => {
       const prefix = `data-effect-${name.toLowerCase().replace(/ /g, '-')}`;
       Object.keys(newSettings[name]).forEach(key => {
-        const attr = `${prefix}-${key}`;
+        let attr = `${prefix}-${key}`;
+        if (name === 'Blur' && key === 'blur') attr = 'data-effect-blur-value';
         if (selectedElement.hasAttribute(attr)) {
           const val = selectedElement.getAttribute(attr);
           let finalVal = val;

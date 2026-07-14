@@ -31,6 +31,7 @@ const Effect = ({
     'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 4,
     'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? 1,
     'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread ?? 0,
+    'data-effect-blur-value': effectSettings?.['Blur']?.blur ?? 0.5,
     'data-effect-blur-spread': effectSettings?.['Blur']?.spread ?? 0,
   };
 
@@ -72,7 +73,7 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Blur': {
-              blur: p['Blur']?.blur ?? 4,
+              blur: p['Blur']?.blur ?? 0.5,
               spread: p['Blur']?.spread ?? 0
             }
           }));
@@ -92,9 +93,13 @@ const Effect = ({
         }
         if (effectName && setEffectSettings) {
           if (setting === 'value') setting = 'blur';
+          let finalValue = setting === 'color' ? value : (value === '' ? '' : parseFloat(value));
+          if (setting === 'blur' && typeof finalValue === 'number' && finalValue < 0) {
+            finalValue = 0;
+          }
           setEffectSettings(p => ({
             ...p,
-            [effectName]: { ...p[effectName], [setting]: setting === 'color' ? value : parseFloat(value) }
+            [effectName]: { ...p[effectName], [setting]: finalValue }
           }));
         }
       }
@@ -249,8 +254,8 @@ const Effect = ({
                 onClick={() => {
                   setActiveEffectPopupId(null);
                   if (activeColorPicker?.includes('effect-')) {
-                    if(setActiveColorPicker) setActiveColorPicker(null);
-                    if(setShowDetailedPicker) setShowDetailedPicker(false);
+                    if (setActiveColorPicker) setActiveColorPicker(null);
+                    if (setShowDetailedPicker) setShowDetailedPicker(false);
                   }
                 }}
                 className="p-[0.3vw] hover:bg-gray-100 rounded-full cursor-pointer transition-colors"
@@ -273,8 +278,8 @@ const Effect = ({
                     onClick={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setPickerPosition({ top: rect.top, right: window.innerWidth - rect.left + 15 });
-                      if(setActiveColorPicker) setActiveColorPicker(`data-effect-${activeEffectPopupId}-color`);
-                      if(setShowDetailedPicker) setShowDetailedPicker(true);
+                      if (setActiveColorPicker) setActiveColorPicker(`data-effect-${activeEffectPopupId}-color`);
+                      if (setShowDetailedPicker) setShowDetailedPicker(true);
                     }}
                   >
                     <div
@@ -299,9 +304,9 @@ const Effect = ({
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-color`, e.target.value)}
                           className="w-full bg-transparent outline-none text-[0.75vw] font-mono font-semibold text-gray-700 min-w-0"
                         />
-                        <Pipette 
-                          size="0.9vw" 
-                          className="text-gray-400 rotate-90 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors" 
+                        <Pipette
+                          size="0.9vw"
+                          className="text-gray-400 rotate-90 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors"
                           onClick={async () => {
                             if (!window.EyeDropper) return;
                             try {
@@ -402,8 +407,8 @@ const Effect = ({
             {activeEffectPopupId === 'blur' && (
               <div className="space-y-[0.8vw] pt-[0.2vw]">
                 {[
-                  { id: 'value', label: 'Blur % :', default: 1 },
-                  { id: 'spread', label: 'Spread :', default: 0 }
+                  { id: 'value', label: 'Blur % :', default: 0.5, step: 0.1 },
+                  { id: 'spread', label: 'Spread :', default: 0, step: 1 }
                 ].map((row) => (
                   <div key={row.id} className="flex items-center">
                     <span
@@ -418,8 +423,10 @@ const Effect = ({
                         size="1vw"
                         className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                         onClick={() => {
-                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
+                          const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                          const step = row.step || 1;
+                          const newVal = Math.max(0, val - step);
+                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
                         }}
                       />
                       <div
@@ -432,6 +439,7 @@ const Effect = ({
                       >
                         <input
                           type="number"
+                          step={row.step || 1}
                           value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default}
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
                           onClick={(e) => e.stopPropagation()}
@@ -442,8 +450,10 @@ const Effect = ({
                         size="1vw"
                         className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                         onClick={() => {
-                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
+                          const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                          const step = row.step || 1;
+                          const newVal = val + step;
+                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
                         }}
                       />
                     </div>
