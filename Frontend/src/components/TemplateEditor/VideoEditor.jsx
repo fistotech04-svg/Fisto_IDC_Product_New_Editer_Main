@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import VideoGalleryModal from "./VideoGalleryModal";
 import Color from './Color';
-import CornerRadius from './CornerRadius';
+
 import Adjustment from './Adjustment';
 import Effect from './Effect';
 import ColorPicker, { parseGradient } from "./ColorPicker";
@@ -1844,15 +1844,7 @@ const VideoEditor = ({
           showDetailedPicker={showDetailedPicker}
           setShowDetailedPicker={setShowDetailedPicker}
         />
-        <CornerRadius
-          openSubSection={openSubSection}
-          setOpenSubSection={setOpenSubSection}
-          radius={radius}
-          setRadius={setRadius}
-          isRadiusLinked={isRadiusLinked}
-          setIsRadiusLinked={setIsRadiusLinked}
-          tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
-        />
+
         <Adjustment
           openSubSection={openSubSection}
           setOpenSubSection={setOpenSubSection}
