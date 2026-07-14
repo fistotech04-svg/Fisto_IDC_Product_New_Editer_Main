@@ -5590,8 +5590,17 @@ const MainEditor = ({
     }
 
     // 3. Marquee Start Detection
-    // Start marquee if user holds Ctrl OR if they clicked on the background/base frame (but require Ctrl for direct tool, and don't start if exiting text edit)
-    const shouldStartMarquee = e.ctrlKey || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    let hitSelectedImage = false;
+    if (hitAnySelected && currentMultiIds.size === 1) {
+      const id = Array.from(currentMultiIds)[0];
+      const el = svg.querySelector(`[id="${id}"]`);
+      if (el && (el.getAttribute('data-type') === 'image' || el.tagName.toLowerCase() === 'image')) {
+        hitSelectedImage = true;
+      }
+    }
+
+    // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
+    const shouldStartMarquee = (e.ctrlKey && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
