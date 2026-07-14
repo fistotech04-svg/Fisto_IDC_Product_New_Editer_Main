@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { ChevronUp, ChevronLeft, ChevronRight, Link2, Link2Off } from 'lucide-react';
 import { handleScrubHelper } from './Color';
 
@@ -9,6 +9,15 @@ const CornerRadius = ({
   tagName = 'rect',
   ...props
 }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (openSubSection === 'corner' && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 350);
+    }
+  }, [openSubSection]);
   const pseudoProps = {
     'data-tl': radius?.tl || 0,
     'data-tr': radius?.tr || 0,
@@ -38,7 +47,7 @@ const CornerRadius = ({
 
 
   return (
-    <div className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
+    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'corner' ? null : 'corner')}

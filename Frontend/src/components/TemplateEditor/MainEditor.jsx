@@ -3926,7 +3926,8 @@ const MainEditor = ({
       el.id &&
       el.tagName.toLowerCase() !== 'style' &&
       el.tagName.toLowerCase() !== 'defs' &&
-      el.getAttribute('data-hidden') !== 'true'
+      el.getAttribute('data-hidden') !== 'true' &&
+      el.getAttribute('data-locked') !== 'true'
     );
   };
 
@@ -3948,6 +3949,7 @@ const MainEditor = ({
       child.tagName.toLowerCase() !== 'style' &&
       child.tagName.toLowerCase() !== 'defs' &&
       child.getAttribute('data-hidden') !== 'true' &&
+      child.getAttribute('data-locked') !== 'true' &&
       child.getAttribute('data-name') !== 'Overlay'
     );
   };
@@ -7145,7 +7147,8 @@ const MainEditor = ({
           const normalElements = Array.from(frameEl.children).filter(el =>
             el.id && el.getAttribute('data-type') !== 'frame' &&
             el.getAttribute('data-name') !== 'Overlay' &&
-            el.getAttribute('data-hidden') !== 'true'
+            el.getAttribute('data-hidden') !== 'true' &&
+            el.getAttribute('data-locked') !== 'true'
           );
           for (let i = normalElements.length - 1; i >= 0; i--) {
             if (hitTest(normalElements[i], e.clientX, e.clientY, 5)) {
@@ -7256,7 +7259,8 @@ const MainEditor = ({
       const normalEls = Array.from(hitFrame.children).filter(el =>
         el.id && el.getAttribute('data-type') !== 'frame' &&
         el.getAttribute('data-name') !== 'Overlay' &&
-        el.getAttribute('data-hidden') !== 'true'
+        el.getAttribute('data-hidden') !== 'true' &&
+        el.getAttribute('data-locked') !== 'true'
       );
       for (let i = normalEls.length - 1; i >= 0; i--) {
         if (hitTest(normalEls[i], e.clientX, e.clientY, 5)) {
@@ -7347,7 +7351,7 @@ const MainEditor = ({
       // If there are duplicates due to temporary template saving leaks, find the visible one
       const activeSelEl = Array.from(activeSelEls).find(el => el.getBoundingClientRect().width > 0) || activeSelEls[0];
 
-      if (activeSelEl && ['text', 'tspan', 'foreignobject'].includes(activeSelEl.tagName.toLowerCase())) {
+      if (activeSelEl && ['text', 'tspan', 'foreignobject'].includes(activeSelEl.tagName.toLowerCase()) && activeSelEl.getAttribute('data-locked') !== 'true') {
         // Bypass strict hitTest if the target was the overlay polygon (meaning they clicked inside the blue box exactly)
         const clickedPolygon = e.target.tagName.toLowerCase() === 'polygon';
         if (clickedPolygon || hitTest(activeSelEl, e.clientX, e.clientY, 15)) {

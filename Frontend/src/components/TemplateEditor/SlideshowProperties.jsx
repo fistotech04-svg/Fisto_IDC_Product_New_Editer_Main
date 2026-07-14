@@ -110,6 +110,15 @@ const SectionHeader = ({ title }) => (
 const MAX_GALLERY_IMAGES = 4;
 
 const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpen, onToggle, opacity, onUpdateOpacity, setPreviewSrc, setIsUpdatingDOM, currentPageVId, flipbookVId, folderName, flipbookName, onDisableSlideshow }) => {
+  const accordionRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen && accordionRef.current) {
+      setTimeout(() => {
+        accordionRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 350);
+    }
+  }, [isOpen]);
   // Slideshow specific states
   const [slideshowSettings, setSlideshowSettings] = useState({
     autoPlay: true,
@@ -128,6 +137,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   });
   const [slideshowImages, setSlideshowImages] = useState([]);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
+  const [localOpacity, setLocalOpacity] = useState(opacity ?? 100);
+
+  useEffect(() => {
+    setLocalOpacity(opacity ?? 100);
+  }, [opacity]);
 
   // Automatically persist images to localStorage to prevent loss on unsaved refresh
   useEffect(() => {
@@ -722,8 +736,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
         const svg = btn.querySelector('svg');
         if (svg) {
-          svg.style.width = (32 * scaleFactor) + 'px'; // Significantly increased inner SVG size
+          svg.style.width = (32 * scaleFactor) + 'px';
           svg.style.height = (32 * scaleFactor) + 'px';
+          svg.style.filter = 'drop-shadow(0px 3px 6px rgba(0,0,0,0.6))';
+          svg.style.overflow = 'visible'; // Ensure shadow isn't clipped
         }
       });
 
@@ -859,7 +875,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                 <style>{`.grad-icon-${gradId} svg path, .grad-icon-${gradId} svg circle, .grad-icon-${gradId} svg rect { fill: url(#${gradId}) !important; color: transparent !important; }`}</style>
               </svg>
             )}
-            <div className={isGrad && stops.length > 0 ? `grad-icon-${gradId}` : ''}>
+            <div 
+              className={`${isGrad && stops.length > 0 ? `grad-icon-${gradId}` : ''} transition-all`}
+              style={{ filter: 'drop-shadow(0px 14px 28px rgba(0,0,0,0.6))' }}
+            >
               {NavIconRenderer({ styleId, size: '36px', color: isGrad ? 'currentColor' : navIconColor })[iconKey]}
             </div>
           </>
@@ -1295,7 +1314,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   }, [activePageIndex]);
 
   return (
-    <div ref={sidebarRef} className="space-y-[1vw]">
+    <div className="space-y-[1vw]">
       <style>{`
         .ss-slider { -webkit-appearance: none; width: 100%; background: transparent; }
         .ss-slider::-webkit-slider-runnable-track { height: 0.5vw; border-radius: 9999px; background: inherit; }
@@ -1458,6 +1477,37 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/*" className="hidden" />
         <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/*" className="hidden" />
+ 
+         {/* Opacity */}
+              <div className="space-y-[0.5vw]">
+                <div className="flex items-center gap-[0.5vw]">
+                  <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
+                  <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+                </div>
+                <div className="flex items-center gap-[1vw] pb-[0.5vw]">
+                  <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={localOpacity}
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        setLocalOpacity(val);
+                        if (selectedElement) {
+                          selectedElement.setAttribute('opacity', (val / 100).toString());
+                          selectedElement.style.opacity = (val / 100).toString();
+                        }
+                      }}
+                      onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}
+                      onTouchEnd={(e) => onUpdateOpacity(Number(e.target.value))}
+                      className="w-full cursor-pointer custom-range-slider"
+                      style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${localOpacity}%, #E2E8F0 ${localOpacity}%, #E2E8F0 100%)` }}
+                    />
+                  </div>
+                  <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{localOpacity} %</span>
+                </div>
+              </div>   
 
         {/* 3. Library Access Button */}
         <button onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">
@@ -1472,7 +1522,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         </button>
 
         {/* 4. Slideshow Property Consolidated Accordion */}
-        <div className="border border-gray-100 rounded-[0.75vw] overflow-hidden shadow-sm bg-white">
+        <div ref={accordionRef} className="border border-gray-100 rounded-[0.75vw] overflow-hidden shadow-sm bg-white">
           <button
             onClick={() => setIsSlideshowPropOpen(!isSlideshowPropOpen)}
             className="w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
@@ -1562,11 +1612,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
                         {/* Icon Content (Blurred on hover) */}
                         <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:blur-[1px]">
-                          <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center shrink-0">
-                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).left}
+                          <div className="flex items-center justify-center shrink-0 drop-shadow-lg transition-all">
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '2vw', color: '#000000' }).left}
                           </div>
-                          <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center shrink-0">
-                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).right}
+                          <div className="flex items-center justify-center shrink-0 drop-shadow-lg transition-all">
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '2vw', color: '#000000' }).right}
                           </div>
                         </div>
                       </div>

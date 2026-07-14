@@ -1,5 +1,6 @@
-import React from 'react';
-import { ChevronUp, RotateCcw } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { ChevronUp } from 'lucide-react';
+import { Icon } from '@iconify/react';
 
 export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, max = 100 }) => {
   const num = parseFloat(value) || 0;
@@ -30,10 +31,10 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
           <span className="text-[0.85vw] text-gray-600 font-medium">{label}</span>
           <button
             onClick={onReset}
-            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] cursor-pointer"
+            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] pt-[0.4vw] cursor-pointer"
             title="Reset"
           >
-            <RotateCcw size="0.8vw" strokeWidth={2.5} />
+            <Icon icon="ix:reset" width="0.9vw" height="0.9vw" style={{ strokeWidth: 2.5 }} />
           </button>
         </div>
         <span className="text-[0.7vw] font-normal text-gray-500">{num}</span>
@@ -85,6 +86,15 @@ const Adjustment = ({
   tagName = 'rect',
   ...props
 }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (openSubSection === 'adjustment' && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 350);
+    }
+  }, [openSubSection]);
   const pseudoProps = {
     'data-filter-exposure': filters?.exposure || 0,
     'data-filter-contrast': filters?.contrast || 0,
@@ -110,7 +120,7 @@ const Adjustment = ({
 
 
   return (
-    <div className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
+    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'adjustment' ? null : 'adjustment')}

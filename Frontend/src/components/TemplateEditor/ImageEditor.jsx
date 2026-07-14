@@ -114,7 +114,7 @@ const ImageEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 1, spread: 0 }
+    'Blur': { blur: 0.5, spread: 0 }
   });
 
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -229,7 +229,7 @@ const ImageEditor = ({
         setShowCropModal(true);
       }
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
@@ -480,7 +480,8 @@ const ImageEditor = ({
     Object.keys(newSettings).forEach(name => {
       const prefix = `data-effect-${name.toLowerCase().replace(/ /g, '-')}`;
       Object.keys(newSettings[name]).forEach(key => {
-        const attr = `${prefix}-${key}`;
+        let attr = `${prefix}-${key}`;
+        if (name === 'Blur' && key === 'blur') attr = 'data-effect-blur-value';
         if (selectedElement.hasAttribute(attr)) {
           const val = selectedElement.getAttribute(attr);
           let finalVal = val;
@@ -2879,6 +2880,46 @@ const ImageEditor = ({
         />
       )}
     </div>
+  );
+};
+
+export default ImageEditor;
+      )}
+{
+  showCropModal && (
+    <CropOverlay
+      src={selectedElement?.getAttribute('data-original-src') || previewSrc}
+      initialCrop={selectedElement?.getAttribute('data-crop-data')}
+      targetElement={document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`)?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement}
+      activePageIndex={activePageIndex}
+      onCancel={() => setShowCropModal(false)}
+      onDone={(newCrop) => {
+        setImageType('Crop');
+        stateRef.current.imageType = 'Crop';
+
+        const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
+
+        if (selectedElement) {
+          selectedElement.setAttribute('data-effect-crop-inset', 'true');
+          selectedElement.setAttribute('data-crop-data', JSON.stringify(newCrop));
+        }
+        if (liveEl && liveEl !== selectedElement) {
+          liveEl.setAttribute('data-effect-crop-inset', 'true');
+          liveEl.setAttribute('data-crop-data', JSON.stringify(newCrop));
+        }
+
+        setShowCropModal(false);
+
+        setTimeout(() => {
+          applyVisuals();
+          if (onUpdateRef.current) onUpdateRef.current({ shouldRefresh: true });
+        }, 0);
+      }}
+    />
+  )
+}
+    </div >
   );
 };
 
