@@ -122,8 +122,8 @@ export const ColorField = ({ label, color, opacity, onColorChange, onOpacityChan
 
 const Color = ({
   openSubSection, setOpenSubSection,
-  backgroundColor, setBackgroundColor,
-  activeColorPicker, setActiveColorPicker,
+  backgroundColor: externalBackgroundColor, setBackgroundColor: setExternalBackgroundColor,
+  activeColorPicker: externalActiveColorPicker, setActiveColorPicker: setExternalActiveColorPicker,
   showStrokeSettings, setShowStrokeSettings,
   isStrokeStyleOpen, setIsStrokeStyleOpen,
   dropdownPos, setDropdownPos,
@@ -132,8 +132,168 @@ const Color = ({
   colorsOnPage,
   showDetailedPicker, setShowDetailedPicker,
   hideFill = false,
+  standaloneMode = false,
+  selectedElement = null,
+  onUpdate = null,
   ...props
 }) => {
+  const containerRef = useRef(null);
+
+  // --- Standalone Mode State ---
+  const [internalBackgroundColor, setInternalBackgroundColor] = useState({
+    fill: 'transparent',
+    fillOpacity: 100,
+    stroke: 'transparent',
+    strokeOpacity: 100,
+    strokeWeight: 0,
+    strokeDashStyle: 'Solid',
+    strokePosition: 'Center',
+    strokeLinecap: 'butt'
+  });
+  const [internalActiveColorPicker, setInternalActiveColorPicker] = useState(null);
+
+  const backgroundColor = standaloneMode ? internalBackgroundColor : externalBackgroundColor;
+  const setBackgroundColor = standaloneMode ? setInternalBackgroundColor : setExternalBackgroundColor;
+  
+  const activeColorPicker = standaloneMode ? internalActiveColorPicker : externalActiveColorPicker;
+  const setActiveColorPicker = standaloneMode ? setInternalActiveColorPicker : setExternalActiveColorPicker;
+
+  // Initialize state from DOM when in standalone mode
+  useEffect(() => {
+    if (!standaloneMode || !selectedElement) return;
+    const el = selectedElement;
+    
+    // Parse Fill
+    let fill = el.getAttribute('data-fill-color') || el.getAttribute('fill') || 'transparent';
+    const fillOpacity = parseFloat(el.getAttribute('data-fill-opacity') || el.getAttribute('fill-opacity') || '1') * 100;
+    
+    // Parse Stroke
+    const stroke = el.getAttribute('data-stroke-color') || el.getAttribute('stroke') || 'transparent';
+    const strokeOpacity = parseFloat(el.getAttribute('data-stroke-opacity') || el.getAttribute('stroke-opacity') || '1') * 100;
+    const strokeWeight = parseFloat(el.getAttribute('data-stroke-width') || el.getAttribute('stroke-width') || '0');
+    
+    const strokeArray = el.getAttribute('data-stroke-dasharray') || el.getAttribute('stroke-dasharray') || 'none';
+    const dashStyle = strokeArray === 'none' ? 'Solid' : 'Dashed';
+    
+    let dashLen = 5, dashGap = 5;
+    if (strokeArray !== 'none' && strokeArray !== '') {
+      const parts = strokeArray.split(',');
+      const parsedLen = parseInt(parts[0]);
+      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+      dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+    }
+    
+    setInternalBackgroundColor(prev => ({
+      ...prev,
+      fill,
+      fillOpacity,
+      stroke,
+      strokeOpacity,
+      strokeWeight,
+      strokeDashStyle: dashStyle,
+      strokeDashLength: dashLen,
+      strokeDashGap: dashGap,
+      strokePosition: el.getAttribute('data-stroke-position') || 'Center',
+      strokeLinecap: el.getAttribute('stroke-linecap') || 'butt'
+    }));
+  }, [selectedElement, standaloneMode]);
+
+  // Apply visual updates directly to DOM in standalone mode
+  useEffect(() => {
+    if (!standaloneMode || !selectedElement) return;
+    
+    const applyColorsToDOM = () => {
+      const el = selectedElement;
+      const isSvgEl = el.namespaceURI === "http://www.w3.org/2000/svg";
+      const isImage = el.tagName?.toLowerCase() === 'image' || el.tagName?.toLowerCase() === 'g';
+
+      // Apply Fill
+      if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
+        el.setAttribute('data-fill-color', backgroundColor.fill);
+        el.setAttribute('data-fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+        if (!isImage) {
+           el.setAttribute('fill', backgroundColor.fill);
+           el.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+        } else {
+           let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer');
+           if (fillLayer) {
+              fillLayer.setAttribute('fill', backgroundColor.fill);
+              fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+           } else if (isImage) {
+              // Basic fallback if layer missing
+              fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              fillLayer.classList.add('image-fill-layer');
+              fillLayer.style.pointerEvents = 'none';
+              fillLayer.setAttribute('fill', backgroundColor.fill);
+              fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+              // Insert at beginning
+              el.insertBefore(fillLayer, el.firstChild);
+           }
+        }
+      } else {
+        el.removeAttribute('data-fill-color');
+        el.removeAttribute('data-fill-opacity');
+        if (!isImage) {
+           el.removeAttribute('fill');
+           el.removeAttribute('fill-opacity');
+        }
+      }
+
+      // Apply Stroke
+      if (backgroundColor.stroke === 'transparent' || backgroundColor.stroke === 'none') {
+        el.removeAttribute('data-stroke-color');
+        el.removeAttribute('data-stroke-width');
+        if (!isImage) {
+           el.removeAttribute('stroke');
+           el.removeAttribute('stroke-width');
+        }
+      } else {
+        el.setAttribute('data-stroke-color', backgroundColor.stroke);
+        el.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
+        
+        const dashArray = backgroundColor.strokeDashStyle === 'Dashed' 
+            ? `${backgroundColor.strokeDashLength ?? 5},${backgroundColor.strokeDashGap ?? 5}` 
+            : 'none';
+            
+        el.setAttribute('data-stroke-dasharray', dashArray);
+        el.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
+        el.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
+        el.setAttribute('data-stroke-type', backgroundColor.strokeType || 'solid');
+
+        if (!isImage) {
+           el.setAttribute('stroke', backgroundColor.stroke);
+           el.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
+           if (dashArray !== 'none') {
+             el.setAttribute('stroke-dasharray', dashArray);
+           } else {
+             el.setAttribute('stroke-dasharray', 'none');
+           }
+        } else {
+           let strokeLayer = el.querySelector('.svg-image-stroke-overlay');
+           if (strokeLayer) {
+              strokeLayer.setAttribute('stroke', backgroundColor.stroke);
+              strokeLayer.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
+           }
+        }
+      }
+      
+      if (onUpdate) onUpdate({ shouldRefresh: true });
+    };
+
+    // Debounce slightly to avoid thrashing
+    const timer = setTimeout(applyColorsToDOM, 50);
+    return () => clearTimeout(timer);
+  }, [backgroundColor, standaloneMode, selectedElement]);
+
+
+  useEffect(() => {
+    if (openSubSection === 'color' && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 350);
+    }
+  }, [openSubSection]);
   const pseudoProps = {
     fill: backgroundColor?.fill || '#000000',
     opacity: (backgroundColor?.fillOpacity || 100) / 100,
@@ -208,7 +368,7 @@ const Color = ({
   ];
 
   return (
-    <div className="flex flex-col font-sans">
+    <div ref={containerRef} className="flex flex-col font-sans">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'color' ? null : 'color')}

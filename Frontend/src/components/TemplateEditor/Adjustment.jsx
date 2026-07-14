@@ -1,5 +1,6 @@
-import React from 'react';
-import { ChevronUp, RotateCcw } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { ChevronUp } from 'lucide-react';
+import { Icon } from '@iconify/react';
 
 export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, max = 100 }) => {
   const num = parseFloat(value) || 0;
@@ -30,23 +31,23 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
           <span className="text-[0.85vw] text-gray-600 font-medium">{label}</span>
           <button
             onClick={onReset}
-            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] cursor-pointer"
+            className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] pt-[0.4vw] cursor-pointer"
             title="Reset"
           >
-            <RotateCcw size="0.8vw" strokeWidth={2.5} />
+            <Icon icon="ix:reset" width="0.9vw" height="0.9vw" style={{ strokeWidth: 2.5 }} />
           </button>
         </div>
-        <span className="text-[0.7vw] font-normal text-gray-500">{num}</span>
+        <span className="text-[0.76vw] font-medium text-gray-500">{num}</span>
       </div>
 
-      <div className="relative flex items-center h-[1vw] w-full">
+      <div className="relative flex items-center h-[1.5vw] w-full group">
         {/* Inactive thin gray track */}
-        <div className="absolute w-full h-[0.2vw] bg-gray-200 rounded-full" />
+        <div className="absolute w-full h-[0.25vw] bg-[#E2E8F0] rounded-full" />
 
         {/* Active thick blue track */}
         {num !== 0 && (
           <div
-            className="absolute h-[0.25vw] bg-[#6366f1] pointer-events-none"
+            className="absolute h-[0.25vw] bg-[#4D47FF] rounded-full pointer-events-none"
             style={{
               left: `${activeLeft}%`,
               width: `${activeWidth}%`,
@@ -60,8 +61,11 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
 
         {/* Thumb */}
         <div
-          className="absolute w-[0.7vw] h-[0.7vw] bg-[#6366f1] rounded-full pointer-events-none shadow-sm"
-          style={{ left: `calc(${percentage}% - 0.35vw)` }}
+          className="absolute w-[1vw] h-[1vw] bg-[#4D47FF] rounded-full pointer-events-none shadow-[0_0.15vw_0.5vw_rgba(77,71,255,0.4)] group-hover:shadow-[0_0.15vw_0.75vw_rgba(77,71,255,0.6)] transition-shadow duration-150"
+          style={{ 
+            left: `calc(${percentage}% - 0.5vw)`,
+            border: '0.02vw solid #ffffff'
+          }}
         />
 
         {/* Invisible range input for interaction */}
@@ -85,6 +89,15 @@ const Adjustment = ({
   tagName = 'rect',
   ...props
 }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (openSubSection === 'adjustment' && containerRef.current) {
+      setTimeout(() => {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 350);
+    }
+  }, [openSubSection]);
   const pseudoProps = {
     'data-filter-exposure': filters?.exposure || 0,
     'data-filter-contrast': filters?.contrast || 0,
@@ -110,7 +123,7 @@ const Adjustment = ({
 
 
   return (
-    <div className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
+    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'adjustment' ? null : 'adjustment')}

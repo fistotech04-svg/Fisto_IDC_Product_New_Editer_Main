@@ -2100,7 +2100,7 @@ const PreviewArea = React.memo(({
                         window.open(url, '_blank');
                     }
                 };
-                
+
                 try {
                     const meta = JSON.parse(e.data.value);
                     if (meta.data) {
@@ -2120,15 +2120,15 @@ const PreviewArea = React.memo(({
             } else if (e.data && e.data.type === 'show-3d-viewer' && e.data.url) {
                 let finalUrl = e.data.url;
                 if (typeof finalUrl === 'string' && finalUrl.startsWith('/uploads/')) {
-                   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                   finalUrl = `${backendUrl}${finalUrl}`;
+                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+                    finalUrl = `${backendUrl}${finalUrl}`;
                 }
                 setActive3DModelUrl(finalUrl);
                 setActive3DModelVId(e.data.v_id || null);
                 if (e.data.config) {
-                   setActive3DModelConfig(e.data.config);
+                    setActive3DModelConfig(e.data.config);
                 } else {
-                   setActive3DModelConfig(null);
+                    setActive3DModelConfig(null);
                 }
             }
         };
@@ -3657,7 +3657,7 @@ const PreviewArea = React.memo(({
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
-                                className="absolute inset-0 z-[100000] flex items-center justify-center bg-black/50 p-[2vw]"
+                                className="absolute inset-0 z-[100000] flex items-center justify-center bg-black/40 backdrop-blur-[1px] p-[2vw]"
                                 onClick={() => setActivePopupInteraction(null)}
                             >
                                 <motion.div
@@ -3667,6 +3667,7 @@ const PreviewArea = React.memo(({
                                     transition={{ duration: 0.2, ease: "easeOut" }}
                                     className="relative pointer-events-auto flex items-center justify-center"
                                     style={{
+                                        filter: 'drop-shadow(0px 15px 25px rgba(0, 0, 0, 0.15)) drop-shadow(0px 5px 10px rgba(0, 0, 0, 0.05))',
                                         width: (() => {
                                             if (!activePopupInteraction?.html) return '800px';
                                             const match = activePopupInteraction.html.match(/viewBox=["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/i);
@@ -3693,7 +3694,7 @@ const PreviewArea = React.memo(({
                                 >
                                     <button
                                         onClick={() => setActivePopupInteraction(null)}
-                                        className="absolute -top-[1.5vw] -right-[1.5vw] md:-top-4 md:-right-4 z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
+                                        className="absolute top-[0.5vw] right-[4vw] md:top-1.5 md:right-[5.5vw] z-[100001] bg-white rounded-full p-[0.6vw] md:p-2 shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
                                     >
                                         <Icon icon="lucide:x" className="w-[1.5vw] h-[1.5vw] md:w-5 md:h-5 text-gray-700" />
                                     </button>
@@ -3719,7 +3720,7 @@ const PreviewArea = React.memo(({
                                     onClick={(e) => e.stopPropagation()}
                                 >
                                     <div className="absolute top-[1vw] right-[1vw] z-50 flex gap-[1vw]">
-                                        <button 
+                                        <button
                                             onClick={() => setActive3DModelUrl(null)}
                                             className="w-[2.5vw] h-[2.5vw] bg-white hover:bg-gray-100 rounded-full flex items-center justify-center shadow-md transition-colors"
                                         >
@@ -3727,11 +3728,11 @@ const PreviewArea = React.memo(({
                                         </button>
                                     </div>
                                     <div className="flex-1 w-full h-full relative">
-                                        <Interaction3DPreview 
-                                           isOpen={true}
-                                           dataUrl={active3DModelUrl}
-                                           vId={active3DModelVId}
-                                           {...(active3DModelConfig || {})}
+                                        <Interaction3DPreview
+                                            isOpen={true}
+                                            dataUrl={active3DModelUrl}
+                                            vId={active3DModelVId}
+                                            {...(active3DModelConfig || {})}
                                         />
                                     </div>
                                 </motion.div>

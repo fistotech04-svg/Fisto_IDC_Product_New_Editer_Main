@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import VideoGalleryModal from "./VideoGalleryModal";
 import Color from './Color';
-import CornerRadius from './CornerRadius';
+
 import Adjustment from './Adjustment';
 import Effect from './Effect';
 import ColorPicker, { parseGradient } from "./ColorPicker";
@@ -112,7 +112,7 @@ const VideoEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 1, spread: 0 }
+    'Blur': { blur: 0.5, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activeColorPicker, setActiveColorPicker] = useState(null); // 'fill' | 'stroke' | null
@@ -1844,15 +1844,7 @@ const VideoEditor = ({
           showDetailedPicker={showDetailedPicker}
           setShowDetailedPicker={setShowDetailedPicker}
         />
-        <CornerRadius
-          openSubSection={openSubSection}
-          setOpenSubSection={setOpenSubSection}
-          radius={radius}
-          setRadius={setRadius}
-          isRadiusLinked={isRadiusLinked}
-          setIsRadiusLinked={setIsRadiusLinked}
-          tagName={selectedElement?.tagName?.toLowerCase() || 'video'}
-        />
+
         <Adjustment
           openSubSection={openSubSection}
           setOpenSubSection={setOpenSubSection}

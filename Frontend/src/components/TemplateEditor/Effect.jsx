@@ -24,14 +24,12 @@ const Effect = ({
     'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x ?? 4,
     'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y ?? 4,
     'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur ?? 1,
-    'data-effect-drop-shadow-spread': effectSettings?.['Drop Shadow']?.spread ?? 0,
     'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color ?? '#000000',
     'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity ?? 35,
     'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x ?? 4,
     'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 4,
     'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? 1,
-    'data-effect-inner-shadow-spread': effectSettings?.['Inner Shadow']?.spread ?? 0,
-    'data-effect-blur-spread': effectSettings?.['Blur']?.spread ?? 0,
+    'data-effect-blur-value': effectSettings?.['Blur']?.blur ?? 0.5,
   };
 
   const handleUpdate = (page, layer, attr, value) => {
@@ -46,8 +44,7 @@ const Effect = ({
               opacity: p['Drop Shadow']?.opacity ?? 35,
               x: p['Drop Shadow']?.x ?? 4,
               y: p['Drop Shadow']?.y ?? 4,
-              blur: p['Drop Shadow']?.blur ?? 1,
-              spread: p['Drop Shadow']?.spread ?? 0
+              blur: p['Drop Shadow']?.blur ?? 1
             }
           }));
         }
@@ -61,8 +58,7 @@ const Effect = ({
               opacity: p['Inner Shadow']?.opacity ?? 35,
               x: p['Inner Shadow']?.x ?? 4,
               y: p['Inner Shadow']?.y ?? 4,
-              blur: p['Inner Shadow']?.blur ?? 1,
-              spread: p['Inner Shadow']?.spread ?? 0
+              blur: p['Inner Shadow']?.blur ?? 1
             }
           }));
         }
@@ -72,8 +68,7 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Blur': {
-              blur: p['Blur']?.blur ?? 4,
-              spread: p['Blur']?.spread ?? 0
+              blur: p['Blur']?.blur ?? 0.5
             }
           }));
         }
@@ -92,9 +87,13 @@ const Effect = ({
         }
         if (effectName && setEffectSettings) {
           if (setting === 'value') setting = 'blur';
+          let finalValue = setting === 'color' ? value : (value === '' ? '' : parseFloat(value));
+          if (setting === 'blur' && typeof finalValue === 'number' && finalValue < 0) {
+            finalValue = 0;
+          }
           setEffectSettings(p => ({
             ...p,
-            [effectName]: { ...p[effectName], [setting]: setting === 'color' ? value : parseFloat(value) }
+            [effectName]: { ...p[effectName], [setting]: finalValue }
           }));
         }
       }
@@ -249,8 +248,8 @@ const Effect = ({
                 onClick={() => {
                   setActiveEffectPopupId(null);
                   if (activeColorPicker?.includes('effect-')) {
-                    if(setActiveColorPicker) setActiveColorPicker(null);
-                    if(setShowDetailedPicker) setShowDetailedPicker(false);
+                    if (setActiveColorPicker) setActiveColorPicker(null);
+                    if (setShowDetailedPicker) setShowDetailedPicker(false);
                   }
                 }}
                 className="p-[0.3vw] hover:bg-gray-100 rounded-full cursor-pointer transition-colors"
@@ -273,8 +272,8 @@ const Effect = ({
                     onClick={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
                       setPickerPosition({ top: rect.top, right: window.innerWidth - rect.left + 15 });
-                      if(setActiveColorPicker) setActiveColorPicker(`data-effect-${activeEffectPopupId}-color`);
-                      if(setShowDetailedPicker) setShowDetailedPicker(true);
+                      if (setActiveColorPicker) setActiveColorPicker(`data-effect-${activeEffectPopupId}-color`);
+                      if (setShowDetailedPicker) setShowDetailedPicker(true);
                     }}
                   >
                     <div
@@ -299,9 +298,9 @@ const Effect = ({
                           onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-color`, e.target.value)}
                           className="w-full bg-transparent outline-none text-[0.75vw] font-mono font-semibold text-gray-700 min-w-0"
                         />
-                        <Pipette 
-                          size="0.9vw" 
-                          className="text-gray-400 rotate-90 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors" 
+                        <Pipette
+                          size="0.9vw"
+                          className="text-gray-400 rotate-90 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors"
                           onClick={async () => {
                             if (!window.EyeDropper) return;
                             try {
@@ -347,8 +346,7 @@ const Effect = ({
                   {[
                     { id: 'x', label: 'X Axis :', default: 4 },
                     { id: 'y', label: 'Y Axis :', default: 4 },
-                    { id: 'blur', label: 'Blur % :', default: 1 },
-                    { id: 'spread', label: 'Spread :', default: 0 }
+                    { id: 'blur', label: 'Blur % :', default: 1 }
                   ].map((row) => (
                     <div key={row.id} className="flex items-center">
                       <span
@@ -402,15 +400,20 @@ const Effect = ({
             {activeEffectPopupId === 'blur' && (
               <div className="space-y-[0.8vw] pt-[0.2vw]">
                 {[
-                  { id: 'value', label: 'Blur % :', default: 1 },
-                  { id: 'spread', label: 'Spread :', default: 0 }
-                ].map((row) => (
+                  { id: 'value', label: 'Blur % :', default: 0.5, step: 0.1, displayMultiplier: 10 }
+                ].map((row) => {
+                  const rawVal = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                  const displayVal = row.displayMultiplier ? Math.round(rawVal * row.displayMultiplier) : rawVal;
+
+                  return (
                   <div key={row.id} className="flex items-center">
                     <span
                       className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                       onPointerDown={(e) => {
-                        const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
-                        handleScrub(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                        handleScrub(e, displayVal, (val) => {
+                          const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
+                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
+                        });
                       }}
                     >{row.label}</span>
                     <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
@@ -418,22 +421,32 @@ const Effect = ({
                         size="1vw"
                         className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                         onClick={() => {
-                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val - 1).toString());
+                          const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                          const step = row.step || 1;
+                          const newVal = Math.max(0, val - step);
+                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
                         }}
                       />
                       <div
                         className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
                         onPointerDown={(e) => {
                           if (e.target.tagName === 'INPUT') return;
-                          const currentVal = pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default;
-                          handleScrubHelper(e, currentVal, (val) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, val));
+                          handleScrubHelper(e, displayVal, (val) => {
+                            const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
+                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
+                          });
                         }}
                       >
                         <input
                           type="number"
-                          value={pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default}
-                          onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, e.target.value)}
+                          step={row.displayMultiplier ? 1 : (row.step || 1)}
+                          value={displayVal}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (isNaN(val)) return;
+                            const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
+                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
+                          }}
                           onClick={(e) => e.stopPropagation()}
                           className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
                         />
@@ -442,14 +455,16 @@ const Effect = ({
                         size="1vw"
                         className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
                         onClick={() => {
-                          const val = parseInt(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, (val + 1).toString());
+                          const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                          const step = row.step || 1;
+                          const newVal = val + step;
+                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
                         }}
                       />
                     </div>
                     <div className="w-[0.5vw]"></div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>
