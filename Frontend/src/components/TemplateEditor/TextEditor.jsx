@@ -796,6 +796,7 @@ const TextEditor = ({
   const [isSyncing, setIsSyncing] = useState(false);
   const [isTextareaEditable, setIsTextareaEditable] = useState(false);
   const [isScrollable, setIsScrollable] = useState(false);
+  const [sizingMode, setSizingMode] = useState('auto-height'); // 'auto-width' | 'auto-height' | 'fixed'
 
 
 
@@ -1061,20 +1062,24 @@ const TextEditor = ({
             liveEl.firstElementChild.classList.add('flipbook-text-scrollbar');
             liveEl.firstElementChild.style.height = '100%';
             liveEl.firstElementChild.style.overflowX = 'hidden';
+            liveEl.firstElementChild.style.removeProperty('box-sizing');
+            liveEl.firstElementChild.style.removeProperty('margin');
+            liveEl.firstElementChild.style.removeProperty('padding');
+            liveEl.firstElementChild.style.border = 'none'; // Border is on the SVG element, not the div
             const rx = liveEl.getAttribute('rx') || '0';
             liveEl.firstElementChild.style.borderRadius = `${rx}px`;
-
-            // Apply border to make corner radius visible
-            const stroke = liveEl.getAttribute('stroke') || '#6366F1';
-            const strokeWidth = liveEl.getAttribute('stroke-width') || '1';
-            liveEl.firstElementChild.style.border = `${strokeWidth}px solid ${stroke}`;
           } else {
             liveEl.firstElementChild.style.overflowY = 'visible';
             liveEl.firstElementChild.classList.remove('flipbook-text-scrollbar');
             liveEl.firstElementChild.style.height = 'auto';
             liveEl.firstElementChild.style.borderRadius = '0';
             liveEl.firstElementChild.style.border = 'none';
-            
+            liveEl.firstElementChild.style.removeProperty('padding');
+            liveEl.firstElementChild.style.removeProperty('margin');
+            liveEl.firstElementChild.style.removeProperty('box-sizing');
+
+
+
             // Immediately recalculate and expand the height since the scrollable constraint is removed
             const contentH = liveEl.firstElementChild.scrollHeight;
             const foH = parseFloat(liveEl.getAttribute('height')) || 0;
@@ -1370,15 +1375,23 @@ const TextEditor = ({
               element.firstElementChild.classList.add('flipbook-text-scrollbar');
               element.firstElementChild.style.height = '100%';
               element.firstElementChild.style.width = '100%';
-              element.firstElementChild.style.display = 'block'; // Remove flex to fix top-cutoff bug
+              element.firstElementChild.style.display = 'block';
+              element.firstElementChild.style.removeProperty('box-sizing');
+              element.firstElementChild.style.removeProperty('padding');
+              element.firstElementChild.style.removeProperty('margin');
+              element.firstElementChild.style.border = 'none';
+
             } else {
               element.firstElementChild.style.overflowY = 'visible';
               element.firstElementChild.classList.remove('flipbook-text-scrollbar');
               element.firstElementChild.style.height = '100%';
               element.firstElementChild.style.width = 'calc(100% + 4px)';
-              element.firstElementChild.style.display = 'flex'; // Restore perfect vertical alignment
+              element.firstElementChild.style.display = 'flex';
               element.firstElementChild.style.flexDirection = 'column';
               element.firstElementChild.style.justifyContent = 'center';
+              element.firstElementChild.style.removeProperty('padding');
+              element.firstElementChild.style.removeProperty('margin');
+              element.firstElementChild.style.removeProperty('box-sizing');
             }
           }
         } else if (styleProp) {
@@ -1811,6 +1824,63 @@ const TextEditor = ({
     setActivePanel(activePanel === panelName ? null : panelName);
   };
 
+  // --- TEXT SIZING MODE ---
+  const applyTextSizingMode = useCallback((mode) => {
+    if (!selectedLayerId) return;
+    setSizingMode(mode);
+
+    const liveEl = document.getElementById(selectedLayerId);
+    if (!liveEl) return;
+
+    // Store on element
+    liveEl.setAttribute('data-sizing-mode', mode);
+
+    const tag = liveEl.tagName.toLowerCase();
+
+    if (tag === 'foreignobject') {
+      const div = liveEl.firstElementChild;
+      if (!div) return;
+
+      if (mode === 'auto-width') {
+        // Single line, no wrap — grow width to fit content
+        div.style.setProperty('white-space', 'nowrap', 'important');
+        div.style.setProperty('overflow', 'visible', 'important');
+        div.style.setProperty('height', 'auto', 'important');
+        div.style.setProperty('min-height', '0px', 'important');
+        div.style.setProperty('width', 'max-content', 'important');
+        // Measure and apply
+        const newW = div.scrollWidth + 4;
+        const newH = div.scrollHeight + 4;
+        liveEl.setAttribute('width', newW);
+        liveEl.setAttribute('height', newH);
+        // Fix div back to 100%
+        div.style.setProperty('width', '100%', 'important');
+
+      } else if (mode === 'auto-height') {
+        // Wrap text, grow height
+        div.style.setProperty('white-space', 'pre-wrap', 'important');
+        div.style.setProperty('overflow', 'visible', 'important');
+        div.style.setProperty('height', 'auto', 'important');
+        div.style.setProperty('min-height', '0px', 'important');
+        div.style.setProperty('width', '100%', 'important');
+        const newH = div.scrollHeight + 4;
+        liveEl.setAttribute('height', newH);
+
+      } else if (mode === 'fixed') {
+        // Both dimensions fixed, overflow clipped
+        div.style.setProperty('white-space', 'pre-wrap', 'important');
+        div.style.setProperty('overflow', 'hidden', 'important');
+        div.style.setProperty('height', '100%', 'important');
+        div.style.setProperty('width', '100%', 'important');
+      }
+
+      window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+    }
+
+    // Persist to pages state
+    updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-sizing-mode', mode);
+  }, [selectedLayerId, activePageIndex, updateElementAttributeLocal]);
+
   const getCurrentStyle = (prop) => {
     if (!selectedElement) return '';
     return window.getComputedStyle(selectedElement)[prop] || '';
@@ -2036,6 +2106,11 @@ const TextEditor = ({
         const lh = calculateLineHeightMultiplier();
         setLineHeight(lh);
 
+        // Sync sizing mode
+        const storedMode = el.getAttribute('data-sizing-mode');
+        if (storedMode) setSizingMode(storedMode);
+        else setSizingMode('auto-height');
+
         // Sync Effects
         syncTextEffect(null, el);
     };
@@ -2136,6 +2211,45 @@ const TextEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
       </div>
 
+      {/* Text Sizing Mode (Auto Width / Auto Height) */}
+      <div className={`flex items-center gap-[0.5vw] transition-opacity duration-200 ${isScrollable ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+        <span className="text-[0.75vw] font-semibold text-gray-600 whitespace-nowrap">Resize</span>
+        <div className="flex gap-[0.35vw] p-[0.2vw] bg-gray-100 rounded-[0.6vw] flex-1">
+          {/* Auto Width */}
+          <button
+            title="Auto Width — text grows horizontally on one line"
+            onClick={() => applyTextSizingMode('auto-width')}
+            className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+              sizingMode === 'auto-width'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'0.9vw',height:'0.9vw',flexShrink:0}}>
+              <rect x="2" y="6" width="12" height="4" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M1 8H15M12 5.5L15 8L12 10.5M4 5.5L1 8L4 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Auto W</span>
+          </button>
+          {/* Auto Height */}
+          <button
+            title="Auto Height — width fixed, height grows with content"
+            onClick={() => applyTextSizingMode('auto-height')}
+            className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+              sizingMode === 'auto-height'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'0.9vw',height:'0.9vw',flexShrink:0}}>
+              <rect x="6" y="2" width="4" height="12" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M8 1V15M5.5 12L8 15L10.5 12M5.5 4L8 1L10.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>Auto H</span>
+          </button>
+        </div>
+      </div>
+
       {/* Scrollable Toggle */}
       <div className="flex items-center justify-between">
         <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
@@ -2173,13 +2287,38 @@ const TextEditor = ({
           )}
         </div>
         <div className="relative flex-1" ref={fontSizeRef}>
-          <button
-            onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)}
-            className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white"
-          >
-            <span className="text-[0.85vw]">{fontSize}</span>
-            <ChevronDown size="1vw" className="text-gray-500" />
-          </button>
+          <div className="w-full h-[2.5vw] px-[0.75vw] flex items-center justify-between border border-gray-400 rounded-[0.75vw] bg-white focus-within:border-indigo-500 transition-colors">
+            <input
+              type="text"
+              value={fontSize}
+              onChange={(e) => {
+                setFontSize(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val)) {
+                    updateStyle('fontSize', val);
+                    setShowFontSizeDropdown(false);
+                  }
+                  e.target.blur();
+                }
+              }}
+              onBlur={(e) => {
+                const val = parseFloat(e.target.value);
+                if (!isNaN(val)) {
+                  updateStyle('fontSize', val);
+                }
+              }}
+              onFocus={() => setShowFontSizeDropdown(true)}
+              className="w-full bg-transparent outline-none text-[0.85vw] text-gray-700"
+            />
+            <ChevronDown 
+              size="1vw" 
+              className="text-gray-500 cursor-pointer flex-shrink-0" 
+              onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)} 
+            />
+          </div>
           {showFontSizeDropdown && (
             <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-[0.75vw] shadow-lg max-h-[12vw] overflow-y-auto">
               {[2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64, 72, 96, 128].map(size => (

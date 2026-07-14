@@ -39,14 +39,32 @@ const GuidesOverlay = ({ zoom, pan, baseCanvasWidth, baseCanvasHeight }) => {
   // Update DOM lines directly for 60fps panning
   const updateLinesDOM = (renderZoom, renderPan) => {
     if (!containerRef.current) return;
-    const containerWidth = containerDimensionsRef.current.width;
-    const containerHeight = containerDimensionsRef.current.height;
-    if (!containerWidth || !containerHeight) return;
+    
+    const zoomContainer = document.getElementById('main-zoom-container');
+    if (!zoomContainer) return;
+    
+    const pageContainers = Array.from(zoomContainer.querySelectorAll('.page-svg-container'));
+    if (pageContainers.length === 0) return;
+
+    let minLeft = Infinity;
+    let minTop = Infinity;
+    let maxRight = -Infinity;
+    let maxBottom = -Infinity;
+
+    pageContainers.forEach(el => {
+       const rect = el.getBoundingClientRect();
+       if (rect.left < minLeft) minLeft = rect.left;
+       if (rect.top < minTop) minTop = rect.top;
+       if (rect.right > maxRight) maxRight = rect.right;
+       if (rect.bottom > maxBottom) maxBottom = rect.bottom;
+    });
+
+    const rulerRect = containerRef.current.getBoundingClientRect();
+    
+    const startX = minLeft - rulerRect.left;
+    const startY = minTop - rulerRect.top;
 
     const scale = renderZoom / 100;
-    
-    const startX = (containerWidth / 2) + renderPan.x - ((baseCanvasWidth * scale) / 2);
-    const startY = (containerHeight / 2) + renderPan.y - ((baseCanvasHeight * scale) / 2);
 
     // Update horizontal lines (which move vertically, so their Y changes)
     const hLines = containerRef.current.querySelectorAll('.guide-line-h');
@@ -143,13 +161,26 @@ const GuidesOverlay = ({ zoom, pan, baseCanvasWidth, baseCanvasHeight }) => {
     };
 
     const getLogicalCoord = (screenPos) => {
-      const containerWidth = containerDimensionsRef.current.width;
-      const containerHeight = containerDimensionsRef.current.height;
-      const scale = zoomRef.current / 100;
-      const currentPan = panRef.current;
-      const startX = (containerWidth / 2) + currentPan.x - ((baseCanvasWidth * scale) / 2);
-      const startY = (containerHeight / 2) + currentPan.y - ((baseCanvasHeight * scale) / 2);
+      const zoomContainer = document.getElementById('main-zoom-container');
+      if (!zoomContainer) return { x: 0, y: 0 };
+      
+      const pageContainers = Array.from(zoomContainer.querySelectorAll('.page-svg-container'));
+      if (pageContainers.length === 0) return { x: 0, y: 0 };
 
+      let minLeft = Infinity;
+      let minTop = Infinity;
+
+      pageContainers.forEach(el => {
+         const rect = el.getBoundingClientRect();
+         if (rect.left < minLeft) minLeft = rect.left;
+         if (rect.top < minTop) minTop = rect.top;
+      });
+
+      const rulerRect = containerRef.current.getBoundingClientRect();
+      const startX = minLeft - rulerRect.left;
+      const startY = minTop - rulerRect.top;
+
+      const scale = zoomRef.current / 100;
       return {
         x: (screenPos.x - startX) / scale,
         y: (screenPos.y - startY) / scale
