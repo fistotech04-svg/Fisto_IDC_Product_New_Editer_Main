@@ -4994,12 +4994,9 @@ const MainEditor = ({
                   
                   // Update the sizing mode to reflect manual user overrides so TextEditor respects them
                   if (el.getAttribute('data-type') === 'text') {
-                    if (dir === 'e' || dir === 'w') {
+                    if (dir === 'e' || dir === 'w' || dir === 'n' || dir === 's') {
                         el.setAttribute('data-sizing-mode', 'auto-height');
                         el.setAttribute('data-auto-wrap', 'true');
-                    } else if (dir === 'n' || dir === 's') {
-                        el.setAttribute('data-sizing-mode', 'auto-width');
-                        el.setAttribute('data-auto-wrap', 'false');
                     } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
                         el.setAttribute('data-sizing-mode', 'fixed');
                         el.setAttribute('data-auto-wrap', 'true');
@@ -5018,7 +5015,7 @@ const MainEditor = ({
                       // Resize width -> Auto height (Can shrink)
                       adjustedHeight = Math.max(10, div.scrollHeight + 4);
                     } else if (dir === 'n' || dir === 's') {
-                      // Resize height -> Auto width
+                      // Resize height -> adjust width to match new height, but remain in auto-height mode
                       let minW = 10;
                       let maxW = 3000;
                       let bestW = finalWidth;
@@ -6726,23 +6723,49 @@ const MainEditor = ({
 
     const handleInput = () => {
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
+      const sizingMode = foTarget.getAttribute('data-sizing-mode') || 'auto-height';
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
 
       if (!isScrollable) {
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
+        const oldWidth = div.style.width;
+        
         // Temporarily allow height to shrink to measure true text height
         div.style.setProperty('height', 'auto', 'important');
         div.style.setProperty('min-height', '0px', 'important');
+        
+        if (sizingMode === 'auto-width') {
+          div.style.setProperty('width', 'max-content', 'important');
+        }
 
         const contentH = div.scrollHeight;
+        const contentW = div.scrollWidth;
 
         div.style.setProperty('height', oldHeight || '100%', 'important');
         div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
+        if (sizingMode === 'auto-width') {
+          div.style.setProperty('width', oldWidth || '100%', 'important');
+        }
 
         const foH = parseFloat(foTarget.getAttribute('height')) || 0;
+        const foW = parseFloat(foTarget.getAttribute('width')) || 0;
+        const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
         let changed = false;
+        
+        if (sizingMode === 'auto-width' && Math.abs(contentW - foW) > 2) {
+          const widthDiff = contentW - foW;
+          const align = window.getComputedStyle(div).textAlign;
+          foTarget.setAttribute('width', Math.max(contentW + 4, 10));
+          if (align === 'center') {
+            foTarget.setAttribute('x', currentX - (widthDiff / 2));
+          } else if (align === 'right' || align === 'end') {
+            foTarget.setAttribute('x', currentX - widthDiff);
+          }
+          changed = true;
+        }
+
         if (Math.abs(contentH - foH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
           changed = true;
@@ -6864,6 +6887,7 @@ const MainEditor = ({
 
       // Auto-grow height and width to fit content
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
+      const sizingMode = foTarget.getAttribute('data-sizing-mode') || 'auto-height';
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
 
       if (!isScrollable) {
@@ -6871,7 +6895,7 @@ const MainEditor = ({
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
 
-        if (isAutoWrap) {
+        if (sizingMode === 'auto-width') {
           div.style.width = 'max-content';
         }
 
@@ -6890,10 +6914,10 @@ const MainEditor = ({
         const currentH = parseFloat(foTarget.getAttribute('height')) || 0;
         const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
-        if (isAutoWrap && Math.abs(contentW - currentW) > 2) {
+        if (sizingMode === 'auto-width' && Math.abs(contentW - currentW) > 2) {
           const widthDiff = contentW - currentW;
           const align = window.getComputedStyle(div).textAlign;
-          foTarget.setAttribute('width', Math.max(contentW, 10));
+          foTarget.setAttribute('width', Math.max(contentW + 4, 10));
           if (align === 'center') {
             foTarget.setAttribute('x', currentX - (widthDiff / 2));
           } else if (align === 'right' || align === 'end') {
