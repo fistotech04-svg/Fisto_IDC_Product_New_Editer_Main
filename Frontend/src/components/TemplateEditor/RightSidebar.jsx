@@ -954,6 +954,7 @@ const RightSidebar = ({
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
                           folderName={location.state?.folderName || folder || 'Recent Book'}
                           flipbookName={location.state?.flipbookName || 'Untitled Flipbook'}
+                          onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : selectedElementProps?.isText ? (
                         <TextEditor
@@ -1038,6 +1039,7 @@ const RightSidebar = ({
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
                           folderName="My Flipbooks"
                           flipbookName="Untitled"
+                          onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : selectedElementProps?.isGif ? (
                         <GifEditor
@@ -1075,6 +1077,7 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           activePageIndex={activePageIndex}
+                          onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : (
                         <ShapeProperties 
