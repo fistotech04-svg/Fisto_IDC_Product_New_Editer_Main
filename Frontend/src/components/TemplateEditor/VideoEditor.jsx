@@ -62,6 +62,7 @@ const VideoEditor = ({
   selectedLayerId,
   activePageIndex,
   onUpdate,
+  onDeleteLayer,
   onPopupPreviewUpdate,
   currentPageVId,
   flipbookVId,
@@ -1271,7 +1272,9 @@ const VideoEditor = ({
       return;
     }
 
-    if (target.tagName === "IFRAME") {
+    const wasIframe = target.tagName === "IFRAME";
+
+    if (wasIframe) {
       // Replace iframe with a video element
       const newVideo = document.createElement("video");
       newVideo.id = target.id || selectedLayerId;
@@ -1295,47 +1298,79 @@ const VideoEditor = ({
     }
 
     const videoURL = URL.createObjectURL(file);
-    target.src = videoURL;
-    target.setAttribute("src", videoURL);
-    target.setAttribute("data-filename", file.name);
-    target.autoplay = false;
-    target.removeAttribute("autoplay");
-    setAutoplay(false);
-    const source = target.querySelector("source");
-    if (source) {
-      source.src = videoURL;
-      source.setAttribute("src", videoURL);
-    }
-    if (target.tagName === "VIDEO") target.load();
+    
+    const tempVideo = document.createElement('video');
+    tempVideo.onloadedmetadata = async () => {
+      const vw = tempVideo.videoWidth;
+      const vh = tempVideo.videoHeight;
+      
+      if (vw && vh) {
+        const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
 
-    setPreviewSrc(videoURL);
-    debouncedUpdate({ newElement: isIframe ? target : undefined });
+        const fitW = oldW;
+        const fitH = oldW * (vh / vw);
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser && (activeVId || (folderName && flipbookName))) {
-      const user = JSON.parse(storedUser);
-      const formData = new FormData();
-      formData.append('emailId', user.emailId);
-      if (activeVId) formData.append('v_id', activeVId);
-      if (folderName) formData.append('folderName', folderName);
-      if (flipbookName) formData.append('flipbookName', flipbookName);
-      formData.append('type', 'video');
-      formData.append('page_v_id', currentPageVId || 'global');
-      formData.append('file', file);
-
-      try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-        if (res.data.url) {
-          const serverUrl = `${backendUrl}${res.data.url}`;
-          target.src = serverUrl;
-          if (source) source.src = serverUrl;
-          debouncedUpdate();
+        liveElement.style.width = '';
+        liveElement.style.height = '';
+        
+        liveElement.setAttribute('width', fitW.toString());
+        liveElement.setAttribute('height', fitH.toString());
+        liveElement.setAttribute('data-width', fitW.toString());
+        liveElement.setAttribute('data-height', fitH.toString());
+        
+        if (target !== liveElement) {
+          target.style.width = '';
+          target.style.height = '';
+          target.setAttribute('width', fitW.toString());
+          target.setAttribute('height', fitH.toString());
+          target.setAttribute('data-width', fitW.toString());
+          target.setAttribute('data-height', fitH.toString());
         }
-      } catch (err) {
-        console.error("Upload error:", err);
       }
-    }
+
+      target.src = videoURL;
+      target.setAttribute("src", videoURL);
+      target.setAttribute("data-filename", file.name);
+      target.autoplay = false;
+      target.removeAttribute("autoplay");
+      setAutoplay(false);
+      const source = target.querySelector("source");
+      if (source) {
+        source.src = videoURL;
+        source.setAttribute("src", videoURL);
+      }
+      if (target.tagName === "VIDEO") target.load();
+
+      setPreviewSrc(videoURL);
+      debouncedUpdate({ newElement: wasIframe ? target : undefined });
+
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && (activeVId || (folderName && flipbookName))) {
+        const user = JSON.parse(storedUser);
+        const formData = new FormData();
+        formData.append('emailId', user.emailId);
+        if (activeVId) formData.append('v_id', activeVId);
+        if (folderName) formData.append('folderName', folderName);
+        if (flipbookName) formData.append('flipbookName', flipbookName);
+        formData.append('type', 'video');
+        formData.append('page_v_id', currentPageVId || 'global');
+        formData.append('file', file);
+
+        try {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+          if (res.data.url) {
+            const serverUrl = `${backendUrl}${res.data.url}`;
+            target.src = serverUrl;
+            if (source) source.src = serverUrl;
+            debouncedUpdate();
+          }
+        } catch (err) {
+          console.error("Upload error:", err);
+        }
+      }
+    };
+    tempVideo.src = videoURL;
   };
 
   const handleCoverUpload = (e) => {
@@ -1603,7 +1638,7 @@ const VideoEditor = ({
         </div>
 
         {/* Upload/Replace Row */}
-        <div className="flex items-start gap-[0.75vw] pt-[0.5vw] px-[0.5vw]">
+        <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
           {/* Current Video Preview */}
           <div className="flex flex-col items-center gap-[0.35vw]">
             <div
@@ -1621,17 +1656,20 @@ const VideoEditor = ({
               )}
               <div
                 className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => onDeleteLayer && onDeleteLayer()}
               >
-                <RefreshCw size="1.1vw" className="text-white" />
-                <span className="text-[0.5vw] text-white font-semibold">Refresh</span>
+                <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
+                <span className="text-[0.5vw] text-white font-semibold">Remove</span>
               </div>
             </div>
             <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
           </div>
 
           {/* Replace Icon */}
-          <div className="flex items-center justify-center shrink-0 h-[4.4vw] cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+          <div 
+            className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
+            onClick={() => fileInputRef.current?.click()}
+          >
             <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
           </div>
 
@@ -1639,19 +1677,19 @@ const VideoEditor = ({
           <div className="flex flex-col items-center gap-[0.35vw] flex-1">
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 transition-all bg-white py-[0.2vw]"
+              className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
               style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
             >
               <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
-                Drag & Drop or <span className="text-indigo-600 font-semibold">Upload</span>
+                Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
               </p>
               <Upload size="1.1vw" className="text-gray-400 mb-[0.2vw]" />
               <div className="flex flex-col items-center">
-                <span className="text-[0.5vw] font-semibold text-gray-500 uppercase tracking-wider">Supported File Format</span>
+                <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
                 <span className="text-[0.5vw] font-semibold text-gray-500">MP4</span>
               </div>
             </div>
-            <span className="text-[0.6vw] font-semibold text-gray-400 cursor-pointer" onClick={() => fileInputRef.current?.click()}>Replace</span>
+            <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
           </div>
         </div>
 

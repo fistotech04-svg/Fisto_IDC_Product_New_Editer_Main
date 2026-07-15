@@ -69,7 +69,8 @@ const GifEditor = ({
   IconEditorComponent,
   showInteraction = true,
   pages,
-  activePageIndex
+  activePageIndex,
+  onDeleteLayer
 }) => {
   const { v_id: paramVId } = useParams();
   const activeVId = flipbookVId || paramVId;
@@ -1189,31 +1190,64 @@ const GifEditor = ({
     const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement;
     const targetImg = getSvgImageEl(liveElement) || liveElement;
-    setSrc(targetImg, url);
-    liveElement.dataset.mediaType = "gif";
-    onUpdateRef.current?.({ shouldRefresh: true });
 
-    const storedUser = localStorage.getItem('user');
-    if (storedUser && (activeVId || (folderName && flipbookName))) {
-      const user = JSON.parse(storedUser);
-      const formData = new FormData();
-      formData.append('emailId', user.emailId);
-      if (activeVId) formData.append('v_id', activeVId);
-      formData.append('type', 'gif');
-      formData.append('assetType', 'gif');
-      formData.append('page_v_id', currentPageVId || 'global');
-      formData.append('file', file);
-      try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-        if (res.data.url) {
-          const serverUrl = `${backendUrl}${res.data.url}`;
-          setSrc(targetImg, serverUrl);
-          liveElement.dataset.fileVid = res.data.file_v_id;
-          onUpdateRef.current?.();
+    const processUpload = async (nw, nh) => {
+      if (nw && nh) {
+        const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
+
+        const fitW = oldW;
+        const fitH = oldW * (nh / nw);
+
+        liveElement.style.width = '';
+        liveElement.style.height = '';
+        
+        liveElement.setAttribute('width', fitW.toString());
+        liveElement.setAttribute('height', fitH.toString());
+        liveElement.setAttribute('data-width', fitW.toString());
+        liveElement.setAttribute('data-height', fitH.toString());
+        
+        if (targetImg !== liveElement) {
+          targetImg.style.width = '';
+          targetImg.style.height = '';
+          targetImg.setAttribute('width', fitW.toString());
+          targetImg.setAttribute('height', fitH.toString());
+          targetImg.setAttribute('data-width', fitW.toString());
+          targetImg.setAttribute('data-height', fitH.toString());
         }
-      } catch (err) { console.error("GIF upload failed:", err); }
-    }
+      }
+
+      setSrc(targetImg, url);
+      liveElement.dataset.mediaType = "gif";
+      onUpdateRef.current?.({ shouldRefresh: true });
+
+      const storedUser = localStorage.getItem('user');
+      if (storedUser && (activeVId || (folderName && flipbookName))) {
+        const user = JSON.parse(storedUser);
+        const formData = new FormData();
+        formData.append('emailId', user.emailId);
+        if (activeVId) formData.append('v_id', activeVId);
+        formData.append('type', 'gif');
+        formData.append('assetType', 'gif');
+        formData.append('page_v_id', currentPageVId || 'global');
+        formData.append('file', file);
+        try {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+          if (res.data.url) {
+            const serverUrl = `${backendUrl}${res.data.url}`;
+            setSrc(targetImg, serverUrl);
+            liveElement.dataset.fileVid = res.data.file_v_id;
+            onUpdateRef.current?.();
+          }
+        } catch (err) { console.error("GIF upload failed:", err); }
+      }
+    };
+
+    const imgObj = new window.Image();
+    imgObj.onload = () => {
+      processUpload(imgObj.naturalWidth, imgObj.naturalHeight);
+    };
+    imgObj.src = url;
   };
 
   if (!selectedElement) return null;
@@ -1253,23 +1287,55 @@ const GifEditor = ({
         </div>
       </div>
 
+      {/* Upload/Replace Row */}
       <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
+        {/* Current Preview */}
         <div className="flex flex-col items-center gap-[0.35vw]">
-          <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white flex items-center justify-center border border-dashed border-gray-300">
+          <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white flex items-center justify-center group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}>
             {getSrc(getSvgImageEl(selectedElement) || selectedElement) ? (
               <img src={getSrc(getSvgImageEl(selectedElement) || selectedElement)} className="w-full h-full rounded-[0.3vw] object-contain" alt="Current GIF" />
             ) : (<ImageIcon size="1.2vw" className="text-gray-300" />)}
+            <div
+              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
+              onClick={() => onDeleteLayer && onDeleteLayer()}
+            >
+              <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
+              <span className="text-[0.5vw] text-white font-semibold">Remove</span>
+            </div>
           </div>
-          <span className="text-[0.6vw] font-semibold text-gray-400">Current Gif</span>
+          <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
         </div>
-        <div className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+
+        {/* Replace Icon */}
+        <div 
+          className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
+          onClick={() => fileInputRef.current?.click()}
+        >
           <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
         </div>
-        <div onClick={() => fileInputRef.current?.click()} className="flex-1 h-[5vw] rounded-[0.75vw] border border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 bg-white py-[0.2vw]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}>
-          <Upload size="1.1vw" className="text-gray-400 mb-[0.2vw]" />
-          <p className="text-[0.65vw] font-medium text-gray-600 text-center">Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span></p>
+
+        {/* Upload Box */}
+        <div className="flex flex-col items-center gap-[0.35vw] flex-1">
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
+            style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+          >
+            <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
+              Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
+            </p>
+            <Icon icon="lucide:upload" className="w-[1.1vw] h-[1.1vw] text-gray-400 mb-[0.2vw]" />
+            <div className="flex flex-col items-center">
+              <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
+              <span className="text-[0.5vw] font-semibold text-gray-500">
+                GIF
+              </span>
+            </div>
+          </div>
+          <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
         </div>
       </div>
+
       <input ref={fileInputRef} type="file" accept="image/gif" onChange={handleGifUpload} className="hidden" />
 
       <button onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group shadow-lg flex items-center justify-center border border-white/5 transition-all hover:scale-[1.01]">
