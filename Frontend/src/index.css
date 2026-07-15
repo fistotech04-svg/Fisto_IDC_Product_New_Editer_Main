@@ -129,6 +129,15 @@ foreignObject:not([data-scrollable="true"]):not([data-editing="true"])>div {
   height: auto !important;
 }
 
+foreignObject[data-scrollable="true"]>div {
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  display: block !important;
+  box-sizing: border-box !important;
+}
+
 /* Allow dragging of scrollable text boxes in editor by ignoring pointer events when not editing */
 .page-svg-container foreignObject[data-scrollable="true"]:not([data-editing="true"])>div {
   pointer-events: none !important;
