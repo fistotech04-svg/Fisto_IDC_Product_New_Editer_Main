@@ -1777,6 +1777,148 @@ const MainEditor = ({
     return () => clearInterval(intervalId);
   }, [setSelectedLayerId]);
 
+  // Global Stroke Overlay Sync
+  useEffect(() => {
+    const syncOverlays = () => {
+      const container = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      if (!container) return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+      
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+
+      const shapes = svg.querySelectorAll('[data-stroke-position="Outside"], [data-stroke-position="Inside"]');
+      shapes.forEach(el => {
+        const pos = el.getAttribute('data-stroke-position');
+        const sw = parseFloat(el.getAttribute('data-stroke-width') || '0');
+        if (sw <= 0) {
+           const existingOverlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+           if (existingOverlay) existingOverlay.remove();
+           return;
+        }
+
+        // Hide original stroke and capture its color
+        const currentStroke = el.getAttribute('stroke');
+        if (currentStroke && currentStroke !== 'none') {
+           el.setAttribute('data-original-stroke', currentStroke);
+           el.setAttribute('stroke', 'none');
+        }
+        if (el.hasAttribute('stroke-width')) {
+           el.removeAttribute('stroke-width');
+        }
+
+        let overlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+        if (!overlay) {
+            overlay = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+            overlay.classList.add('svg-shape-stroke-overlay');
+            overlay.setAttribute('data-target', el.id);
+            overlay.style.pointerEvents = 'none';
+            if (pos === 'Inside') {
+                el.parentNode.insertBefore(overlay, el.nextSibling);
+            } else {
+                el.parentNode.insertBefore(overlay, el);
+            }
+        }
+
+        if (pos === 'Inside') {
+            let clip = defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
+            if (!clip) {
+                clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clip.id = `clip-shape-${el.id}`;
+                const clipShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+                clip.appendChild(clipShape);
+                defs.appendChild(clip);
+            }
+            overlay.setAttribute('clip-path', `url(#clip-shape-${el.id})`);
+            overlay.removeAttribute('mask');
+        } else {
+            let mask = defs.querySelector(`mask[id="mask-shape-${el.id}"]`);
+            if (!mask) {
+                mask = document.createElementNS('http://www.w3.org/2000/svg', 'mask');
+                mask.id = `mask-shape-${el.id}`;
+                const maskBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                maskBg.setAttribute('x', '-500%');
+                maskBg.setAttribute('y', '-500%');
+                maskBg.setAttribute('width', '1000%');
+                maskBg.setAttribute('height', '1000%');
+                maskBg.setAttribute('fill', 'white');
+                const maskShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+                maskShape.setAttribute('fill', 'black');
+                mask.appendChild(maskBg);
+                mask.appendChild(maskShape);
+                defs.appendChild(mask);
+            }
+            overlay.setAttribute('mask', `url(#mask-shape-${el.id})`);
+            overlay.removeAttribute('clip-path');
+        }
+
+        // Sync visual attributes
+        overlay.setAttribute('stroke', el.getAttribute('data-original-stroke') || '#000');
+        overlay.setAttribute('stroke-width', (sw * 2).toString());
+        overlay.setAttribute('fill', 'none');
+        overlay.setAttribute('stroke-opacity', el.getAttribute('data-stroke-opacity') || '1');
+        
+        const dashArray = el.getAttribute('data-stroke-dasharray');
+        if (dashArray && dashArray !== 'none') overlay.setAttribute('stroke-dasharray', dashArray);
+        else overlay.removeAttribute('stroke-dasharray');
+        
+        overlay.setAttribute('stroke-linecap', el.getAttribute('stroke-linecap') || 'butt');
+        overlay.setAttribute('stroke-linejoin', (el.getAttribute('stroke-linecap') || 'butt') === 'round' ? 'round' : 'miter');
+        
+        // Sync geometry
+        const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'points'];
+        const refShape = pos === 'Inside' ? defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`)?.firstChild : defs.querySelector(`mask[id="mask-shape-${el.id}"]`)?.lastChild;
+        
+        attrsToSync.forEach(attr => {
+            const val = el.getAttribute(attr);
+            if (val !== null) {
+                overlay.setAttribute(attr, val);
+                if (refShape) refShape.setAttribute(attr, val);
+            } else {
+                overlay.removeAttribute(attr);
+                if (refShape) refShape.removeAttribute(attr);
+            }
+        });
+
+        // ONLY copy transform to the overlay, NOT to the clip/mask shapes (which use userSpaceOnUse coordinate system)
+        const transformAttr = el.getAttribute('transform');
+        if (transformAttr !== null) overlay.setAttribute('transform', transformAttr);
+        else overlay.removeAttribute('transform');
+        
+        overlay.style.transform = el.style.transform;
+        overlay.style.translate = el.style.translate;
+        overlay.style.scale = el.style.scale;
+        overlay.style.rotate = el.style.rotate;
+        if (refShape) {
+            refShape.style.transform = el.style.transform;
+            refShape.style.translate = el.style.translate;
+            refShape.style.scale = el.style.scale;
+            refShape.style.rotate = el.style.rotate;
+        }
+      });
+      
+      // Cleanup orphan overlays
+      svg.querySelectorAll('.svg-shape-stroke-overlay').forEach(overlay => {
+         const targetId = overlay.getAttribute('data-target');
+         const target = svg.querySelector(`[id="${targetId}"]`);
+         if (!target || target.getAttribute('data-stroke-position') === 'Center') {
+             overlay.remove();
+             const mask = defs?.querySelector(`mask[id="mask-shape-${targetId}"]`);
+             if (mask) mask.remove();
+             const clip = defs?.querySelector(`clipPath[id="clip-shape-${targetId}"]`);
+             if (clip) clip.remove();
+         }
+      });
+    };
+    
+    const interval = setInterval(syncOverlays, 100);
+    return () => clearInterval(interval);
+  }, [activePageIndex]);
+
   // Handle external asset insertion events
   useEffect(() => {
     const handleAddIcon = (e) => {
@@ -2002,6 +2144,8 @@ const MainEditor = ({
   };
 
   const getRotatingCursor = (dir, rotation) => {
+    if (dir === 'linestart' || dir === 'lineend') return 'all-scroll';
+
     // Map base directions to their local angles (0 is East/Right)
     const baseAngles = { 'e': 0, 'se': 45, 's': 90, 'sw': 135, 'w': 180, 'nw': 225, 'n': 270, 'ne': 315 };
     const angle = (baseAngles[dir] + rotation + 360) % 180;
@@ -2490,11 +2634,11 @@ const MainEditor = ({
 
       const svgMatrix = overlayCtm.inverse().multiply(ctm);
 
-      const isMediaOrText = el.tagName.toLowerCase() === 'image' || 
-                            el.tagName.toLowerCase() === 'video' || 
-                            el.tagName.toLowerCase() === 'img' || 
-                            el.tagName.toLowerCase() === 'text' ||
-                            el.tagName.toLowerCase() === 'foreignobject';
+      const isMediaOrText = el.tagName.toLowerCase() === 'image' ||
+        el.tagName.toLowerCase() === 'video' ||
+        el.tagName.toLowerCase() === 'img' ||
+        el.tagName.toLowerCase() === 'text' ||
+        el.tagName.toLowerCase() === 'foreignobject';
 
       const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
       const screenOffset = 0; // Use zero offset for tightest fitting selection
@@ -2598,9 +2742,9 @@ const MainEditor = ({
         if (!hideHandles) {
           const useLBrackets = !isLine && (activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame);
           const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
-          
+
           let handleNames, allPts;
-          
+
           if (isLine) {
             handleNames = ['linestart', 'lineend'];
             allPts = [...mapped];
@@ -4961,30 +5105,30 @@ const MainEditor = ({
 
             if (dir === 'linestart' || dir === 'lineend') {
               const invMatrix = matrix.inverse();
-              
+
               // Safely convert to DOMPoint before matrixTransform to avoid SVGPoint crash!
               const safePoint = new DOMPoint(currentPoint.x, currentPoint.y);
               const localPt = safePoint.matrixTransform(invMatrix);
-              
+
               let finalLocalPt = localPt;
 
               if (event.shiftKey) {
                 const anchorX = parseFloat(el.getAttribute(dir === 'linestart' ? 'x2' : 'x1')) || 0;
                 const anchorY = parseFloat(el.getAttribute(dir === 'linestart' ? 'y2' : 'y1')) || 0;
-                
+
                 const dx = localPt.x - anchorX;
                 const dy = localPt.y - anchorY;
-                
+
                 const angle = Math.atan2(dy, dx);
                 const snapAngle = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                
+
                 finalLocalPt = {
                   x: anchorX + dist * Math.cos(snapAngle),
                   y: anchorY + dist * Math.sin(snapAngle)
                 };
               }
-              
+
               if (dir === 'linestart') {
                 el.style.removeProperty('x1');
                 el.style.removeProperty('y1');
@@ -5000,7 +5144,7 @@ const MainEditor = ({
                 if (el.x2) el.x2.baseVal.value = finalLocalPt.x;
                 if (el.y2) el.y2.baseVal.value = finalLocalPt.y;
               }
-              
+
               if (typeof drawOverlayHighlight === 'function') {
                 drawOverlayHighlight(el, 'selected');
               }
@@ -5063,11 +5207,11 @@ const MainEditor = ({
               if (targetRatio && targetRatio > 0 && bbox.width > 0 && bbox.height > 0) {
                 const startA = matrix.a || 1;
                 const startD = matrix.d || 1;
-                
+
                 if (isCorner) {
                   const fw_x = bbox.width * Math.abs(startA * scaleX);
                   const fh_x = fw_x / targetRatio;
-                  
+
                   const fh_y = bbox.height * Math.abs(startD * scaleY);
                   const fw_y = fh_y * targetRatio;
 
@@ -5379,10 +5523,44 @@ const MainEditor = ({
               el.setAttribute('transform', matrixToTransform(nextMatrix));
             }
 
-            // Force update selection highlight immediately
+            // Sync shape stroke overlays dynamically
+            const syncOverlay = (targetEl) => {
+              const overlay = targetEl.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${targetEl.id}"]`);
+              if (overlay) {
+                 const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'transform', 'points'];
+                 const svg = targetEl.ownerSVGElement;
+                 const clip = svg?.querySelector(`clipPath[id="clip-shape-${targetEl.id}"]`);
+                 const mask = svg?.querySelector(`mask[id="mask-shape-${targetEl.id}"]`);
+                 const refShape = clip ? clip.firstChild : (mask ? mask.lastChild : null);
+                 
+                 attrsToSync.forEach(attr => {
+                     const val = targetEl.getAttribute(attr);
+                     if (val !== null) {
+                         overlay.setAttribute(attr, val);
+                         if (refShape) refShape.setAttribute(attr, val);
+                     } else {
+                         overlay.removeAttribute(attr);
+                         if (refShape) refShape.removeAttribute(attr);
+                     }
+                 });
+                 overlay.style.transform = targetEl.style.transform;
+                 overlay.style.translate = targetEl.style.translate;
+                 overlay.style.scale = targetEl.style.scale;
+                 overlay.style.rotate = targetEl.style.rotate;
+                 if (refShape) {
+                     refShape.style.transform = targetEl.style.transform;
+                     refShape.style.translate = targetEl.style.translate;
+                     refShape.style.scale = targetEl.style.scale;
+                     refShape.style.rotate = targetEl.style.rotate;
+                 }
+              }
+            };
+
             if (el.tagName === 'multi') {
+              if (state.childrenData) state.childrenData.forEach(c => syncOverlay(c.child));
               drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
             } else {
+              syncOverlay(el);
               const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
               drawOverlayHighlight(el, highlightType);
             }
@@ -5781,7 +5959,7 @@ const MainEditor = ({
           if (selectedShapeTool === 'line') {
             shape.setAttribute('fill', 'none');
             shape.setAttribute('stroke', '#000000');
-            shape.setAttribute('stroke-width', '2');
+            shape.setAttribute('stroke-width', '1');
           } else if (selectedShapeTool === 'free-frame') {
             const zoomScale = zoom / 100;
             shape.setAttribute('fill', 'transparent');
@@ -6333,7 +6511,7 @@ const MainEditor = ({
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee) ─────────────────────
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee or tool drawing) ────────────────
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
+    const handleGlobalMouseUp = (e) => {
       // ── Bending/Handle Dragging Finalization ──
       const activeState = (bendingStateRef.current || handleDraggingStateRef.current);
       if (activeState) {
@@ -6428,6 +6606,49 @@ const MainEditor = ({
 
         if (shape.getAttribute('data-name') === 'Free Frame') {
           shape.removeAttribute('data-drawing');
+        }
+
+        const start = shapeStartPointRef.current;
+        if (start && svgEl && e) {
+            const pt = getSvgPoint(svgEl, e.clientX, e.clientY);
+            if (pt && Math.hypot(pt.x - start.x, pt.y - start.y) < 2) {
+                const type = shape.getAttribute('data-shape-type') || shape.tagName.toLowerCase();
+                
+                if (type === 'rect' || type === 'free-frame' || shape.tagName.toLowerCase() === 'rect') {
+                    shape.setAttribute('x', start.x - 15);
+                    shape.setAttribute('y', start.y - 15);
+                    shape.setAttribute('width', 30);
+                    shape.setAttribute('height', 30);
+                } else if (type === 'circle' || type === 'ellipse' || shape.tagName.toLowerCase() === 'ellipse') {
+                    shape.setAttribute('cx', start.x);
+                    shape.setAttribute('cy', start.y);
+                    shape.setAttribute('rx', 15);
+                    shape.setAttribute('ry', 15);
+                } else if (type === 'line' || shape.tagName.toLowerCase() === 'line') {
+                    shape.setAttribute('x1', start.x - 15);
+                    shape.setAttribute('y1', start.y - 15);
+                    shape.setAttribute('x2', start.x + 15);
+                    shape.setAttribute('y2', start.y + 15);
+                } else if (type === 'polygon' || type === 'star') {
+                    const radius = 15;
+                    const isStar = type === 'star';
+                    const count = isStar ? parseInt(shape.getAttribute('data-count') || 5) : parseInt(shape.getAttribute('data-count') || 3);
+                    const sides = isStar ? count * 2 : count;
+                    const points = [];
+                    for (let i = 0; i < sides; i++) {
+                        let r = radius;
+                        if (isStar && i % 2 !== 0) {
+                            const ratio = parseFloat(shape.getAttribute('data-ratio') || 40) / 100;
+                            r = radius * ratio;
+                        }
+                        const angle = (isStar ? (Math.PI / count) : (2 * Math.PI / count)) * i - Math.PI / 2;
+                        points.push(`${start.x + r * Math.cos(angle)},${start.y + r * Math.sin(angle)}`);
+                    }
+                    shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+                    shape.setAttribute('data-rx', radius);
+                    shape.setAttribute('data-ry', radius);
+                }
+            }
         }
 
         // Store original aspect ratio

@@ -262,12 +262,134 @@ const Color = ({
         el.setAttribute('data-stroke-type', backgroundColor.strokeType || 'solid');
 
         if (!isImage) {
-           el.setAttribute('stroke', backgroundColor.stroke);
-           el.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
-           if (dashArray !== 'none') {
-             el.setAttribute('stroke-dasharray', dashArray);
+           const pos = backgroundColor.strokePosition || 'Center';
+           const sw = backgroundColor.strokeWeight || 0;
+           const isEligibleShape = ['rect', 'ellipse', 'path', 'circle', 'polygon'].includes(el.tagName?.toLowerCase());
+
+           if (isEligibleShape && pos !== 'Center' && sw > 0) {
+              el.setAttribute('stroke', 'none');
+              el.removeAttribute('stroke-width');
+              el.removeAttribute('stroke-dasharray');
+
+              let overlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+              if (!overlay) {
+                  overlay = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+                  overlay.classList.add('svg-shape-stroke-overlay');
+                  overlay.setAttribute('data-target', el.id);
+                  overlay.style.pointerEvents = 'none';
+                  
+                  if (pos === 'Inside') {
+                      el.parentNode.insertBefore(overlay, el.nextSibling);
+                  } else {
+                      el.parentNode.insertBefore(overlay, el);
+                  }
+              } else {
+                  if (pos === 'Inside' && overlay.previousSibling !== el) {
+                      el.parentNode.insertBefore(overlay, el.nextSibling);
+                  } else if (pos === 'Outside' && overlay.nextSibling !== el) {
+                      el.parentNode.insertBefore(overlay, el);
+                  }
+              }
+
+              const svg = el.ownerSVGElement || el.parentNode;
+              let defs = svg.querySelector('defs');
+              if (!defs) {
+                  defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                  svg.insertBefore(defs, svg.firstChild);
+              }
+
+              if (pos === 'Inside') {
+                  let clip = defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
+                  if (!clip) {
+                      clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                      clip.id = `clip-shape-${el.id}`;
+                      const clipShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+                      clip.appendChild(clipShape);
+                      defs.appendChild(clip);
+                  }
+                  overlay.setAttribute('clip-path', `url(#clip-shape-${el.id})`);
+                  overlay.removeAttribute('mask');
+              } else {
+                  let mask = defs.querySelector(`mask[id="mask-shape-${el.id}"]`);
+                  if (!mask) {
+                      mask = document.createElementNS('http://www.w3.org/2000/svg', 'mask');
+                      mask.id = `mask-shape-${el.id}`;
+                      const maskBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                      maskBg.setAttribute('x', '-500%');
+                      maskBg.setAttribute('y', '-500%');
+                      maskBg.setAttribute('width', '1000%');
+                      maskBg.setAttribute('height', '1000%');
+                      maskBg.setAttribute('fill', 'white');
+                      const maskShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+                      maskShape.setAttribute('fill', 'black');
+                      mask.appendChild(maskBg);
+                      mask.appendChild(maskShape);
+                      defs.appendChild(mask);
+                  }
+                  overlay.setAttribute('mask', `url(#mask-shape-${el.id})`);
+                  overlay.removeAttribute('clip-path');
+              }
+
+              overlay.setAttribute('stroke', backgroundColor.stroke);
+              overlay.setAttribute('stroke-width', (sw * 2).toString());
+              overlay.setAttribute('fill', 'none');
+              overlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
+              if (dashArray !== 'none') overlay.setAttribute('stroke-dasharray', dashArray);
+              else overlay.removeAttribute('stroke-dasharray');
+              overlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
+              overlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
+              overlay.setAttribute('data-stroke-type', backgroundColor.strokeType || 'solid');
+
+              const syncGeometry = () => {
+                  if (!overlay.isConnected) return;
+                  const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'transform', 'points'];
+                  const refShape = pos === 'Inside' ? defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`)?.firstChild : defs.querySelector(`mask[id="mask-shape-${el.id}"]`)?.lastChild;
+                  
+                  attrsToSync.forEach(attr => {
+                      const val = el.getAttribute(attr);
+                      if (val !== null) {
+                          overlay.setAttribute(attr, val);
+                          if (refShape) refShape.setAttribute(attr, val);
+                      } else {
+                          overlay.removeAttribute(attr);
+                          if (refShape) refShape.removeAttribute(attr);
+                      }
+                  });
+                  overlay.style.transform = el.style.transform;
+                  overlay.style.translate = el.style.translate;
+                  overlay.style.scale = el.style.scale;
+                  overlay.style.rotate = el.style.rotate;
+                  if (refShape) {
+                      refShape.style.transform = el.style.transform;
+                      refShape.style.translate = el.style.translate;
+                      refShape.style.scale = el.style.scale;
+                      refShape.style.rotate = el.style.rotate;
+                  }
+              };
+              
+              syncGeometry();
+
+              if (!el._shapeStrokeObserver) {
+                  el._shapeStrokeObserver = new MutationObserver(syncGeometry);
+                  el._shapeStrokeObserver.observe(el, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'transform', 'style'] });
+              }
+
            } else {
-             el.setAttribute('stroke-dasharray', 'none');
+               el.setAttribute('stroke', backgroundColor.stroke);
+               el.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
+               if (dashArray !== 'none') {
+                 el.setAttribute('stroke-dasharray', dashArray);
+               } else {
+                 el.setAttribute('stroke-dasharray', 'none');
+               }
+
+               const overlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+               if (overlay) overlay.remove();
+               const defs = el.ownerSVGElement?.querySelector('defs');
+               if (defs) {
+                   defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`)?.remove();
+                   defs.querySelector(`mask[id="mask-shape-${el.id}"]`)?.remove();
+               }
            }
         } else {
            let strokeLayer = el.querySelector('.svg-image-stroke-overlay');
@@ -325,7 +447,7 @@ const Color = ({
     if (attr === 'fill-angle' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillAngle: parseFloat(value) }));
     if (attr === 'fill-radius' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillRadius: parseFloat(value) }));
     if (attr === 'opacity' && setBackgroundColor) setBackgroundColor(p => ({ ...p, fillOpacity: parseFloat(value) * 100 }));
-    if (attr === 'stroke' && setBackgroundColor) setBackgroundColor(p => ({ ...p, stroke: value, strokeWeight: (p.strokeWeight === 0 && value !== 'transparent' && value !== 'none') ? 2 : p.strokeWeight }));
+    if (attr === 'stroke' && setBackgroundColor) setBackgroundColor(p => ({ ...p, stroke: value, strokeWeight: (p.strokeWeight === 0 && value !== 'transparent' && value !== 'none') ? 1 : p.strokeWeight }));
     if (attr === 'stroke-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeType: value }));
     if (attr === 'stroke-gradient-type' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeGradientType: value }));
     if (attr === 'stroke-stops' && setBackgroundColor) setBackgroundColor(p => ({ ...p, strokeStops: value }));
