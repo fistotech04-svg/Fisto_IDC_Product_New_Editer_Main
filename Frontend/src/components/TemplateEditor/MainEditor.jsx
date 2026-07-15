@@ -4331,8 +4331,18 @@ const MainEditor = ({
                   const selEl = container?.querySelector(`[id="${id}"]`);
                   if (selEl && selEl !== svgElement) {
                     // Check if we hit the element's bounding box OR one of its descendants
-                    const isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                    let isHit = false;
                     const isMemberHit = target && selEl.contains(target);
+                    if (!isMemberHit) {
+                      // Only fallback to bbox hitTest if they clicked empty space (SVG/Overlay/BaseFrame),
+                      // not another distinct, draggable element sitting on top.
+                      const topFrames = getTopLevelFrames(svgElement);
+                      const leaf = getDraggableElement(target, svgElement);
+                      const isBase = leaf ? topFrames.some(f => f.id === leaf.id) : true;
+                      if (isBase || target === svgElement || target.getAttribute('data-name') === 'Overlay') {
+                         isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                      }
+                    }
 
                     if (isHit || isMemberHit) {
                       // Only allow dragging if it's NOT the root page-level frame
@@ -4354,14 +4364,15 @@ const MainEditor = ({
                 const frameId = currentFrameIdRef.current;
                 let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
 
-                // Auto-Enter logic for single-page root frames (matching mousedown behavior)
+                // Auto-Enter logic for root frames (matching mousedown behavior)
                 const topFrames = getTopLevelFrames(svgElement);
-                if (!frameId && topFrames.length === 1) {
-                  if (hitTest(topFrames[0], event.clientX, event.clientY)) {
-                    context = topFrames[0];
+                if (!frameId) {
+                  const hitFrame = topFrames.find(f => hitTest(f, event.clientX, event.clientY));
+                  if (hitFrame) {
+                    context = hitFrame;
                     if (setCurrentFrameId) {
-                      setCurrentFrameId(topFrames[0].id);
-                      currentFrameIdRef.current = topFrames[0].id;
+                      setCurrentFrameId(hitFrame.id);
+                      currentFrameIdRef.current = hitFrame.id;
                     }
                   }
                 }
@@ -5543,6 +5554,8 @@ const MainEditor = ({
         fo.setAttribute('height', '30');
         fo.setAttribute('transform', `matrix(${ptToMmScale} 0 0 ${ptToMmScale} 0 0)`);
         fo.setAttribute('fill', '#000000');
+        fo.setAttribute('stroke', 'none');
+        fo.setAttribute('stroke-width', '0');
         fo.setAttribute('font-family', "'Outfit', sans-serif");
         fo.setAttribute('font-size', '24');
         fo.setAttribute('letter-spacing', '0');
@@ -5853,6 +5866,17 @@ const MainEditor = ({
       }
     }
 
+    const topFrames = getTopLevelFrames(svg);
+    if (!hitCandidate || topFrames.some(f => f.id === hitCandidate.id)) {
+      const leafTarget = getDraggableElement(e.target, svg);
+      if (leafTarget) {
+         const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
+         if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
+            hitCandidate = leafTarget;
+         }
+      }
+    }
+
     // ── NEW: Check if we hit ANY already-selected element's bounding box ──────────
     let hitAnySelected = false;
     const currentMultiIds = multiSelectedIdsRef.current;
@@ -5879,7 +5903,6 @@ const MainEditor = ({
       }
     }
 
-    const topFrames = getTopLevelFrames(svg);
     const hitBaseFrame = hitCandidate && topFrames.some(f => f.id === hitCandidate.id);
 
     // 2. Selection/Drag Priority
@@ -5900,7 +5923,8 @@ const MainEditor = ({
     }
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
-    const shouldStartMarquee = (e.ctrlKey && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
+    const shouldStartMarquee = ( (e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
