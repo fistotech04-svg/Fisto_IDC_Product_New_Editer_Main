@@ -2487,12 +2487,24 @@ const MainEditor = ({
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
 
-      const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
-      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
-      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
-      const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+      const isLine = el.tagName.toLowerCase() === 'line';
+      let pts;
+      if (isLine) {
+        const x1 = parseFloat(el.getAttribute('x1')) || 0;
+        const y1 = parseFloat(el.getAttribute('y1')) || 0;
+        const x2 = parseFloat(el.getAttribute('x2')) || 0;
+        const y2 = parseFloat(el.getAttribute('y2')) || 0;
+        const pt1 = overlay.createSVGPoint(); pt1.x = x1; pt1.y = y1;
+        const pt2 = overlay.createSVGPoint(); pt2.x = x2; pt2.y = y2;
+        pts = [pt1, pt2];
+      } else {
+        const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
+        const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
+        const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
+        const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+        pts = [pt1, pt2, pt3, pt4];
+      }
 
-      const pts = [pt1, pt2, pt3, pt4];
       const mapped = pts.map(p => p.matrixTransform(svgMatrix));
       const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
 
@@ -2504,7 +2516,9 @@ const MainEditor = ({
         polygon.setAttribute('class', `overlay-type-${type}`);
         polygon.setAttribute('fill', 'none');
 
-        if (el.getAttribute('data-name') === 'Free Frame') {
+        if (isLine) {
+          polygon.setAttribute('stroke', 'transparent');
+        } else if (el.getAttribute('data-name') === 'Free Frame') {
           if (type === 'hover' || type === 'child-hover') {
             polygon.setAttribute('stroke', 'transparent');
           } else {
@@ -2566,18 +2580,26 @@ const MainEditor = ({
         }
 
         if (!hideHandles) {
-          const useLBrackets = activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame;
+          const useLBrackets = !isLine && (activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame);
           const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
-          const handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+          
+          let handleNames, allPts;
+          
+          if (isLine) {
+            handleNames = ['linestart', 'lineend'];
+            allPts = [...mapped];
+          } else {
+            handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
 
-          // Define all points in world space
-          const worldPts = [...mapped]; // Corners
-          const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
-          const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
-          const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
-          const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
+            // Define all points in world space
+            const worldPts = [...mapped]; // Corners
+            const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
+            const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
+            const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
+            const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
 
-          const allPts = useLBrackets ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+            allPts = useLBrackets ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+          }
 
           // Detect current rotation for cursor mapping
           const matrix = getElementMatrix(el);
@@ -2636,12 +2658,12 @@ const MainEditor = ({
                 handle.style.backgroundColor = '#FFFFFF';
                 handle.style.border = '1.5px solid #6366F1';
                 handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                handle.style.borderRadius = '2px';
+                handle.style.borderRadius = isLine ? '50%' : '2px';
               }
 
               handle.style.boxSizing = 'border-box';
               handle.style.pointerEvents = 'auto';
-              handle.style.zIndex = isSide ? '999' : '1000';
+              handle.style.zIndex = isLine ? '2147483647' : (isSide ? '999' : '1000');
               htmlOverlay.appendChild(handle);
             }
 
@@ -4740,7 +4762,7 @@ const MainEditor = ({
             suppressClickRef.current = true;
             const handle = event.target;
             const handleId = handle.id;
-            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw|n|e|s|w)/);
+            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw|n|e|s|w|linestart|lineend)/);
             if (!match) return;
 
             const elId = match[1];
@@ -4843,6 +4865,7 @@ const MainEditor = ({
             else if (dir === 's') localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y };
             else if (dir === 'e') localAnchor = { x: bbox.x, y: bbox.y + bbox.height / 2 };
             else if (dir === 'w') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height / 2 };
+            else if (dir === 'linestart' || dir === 'lineend') localAnchor = { x: bbox.x, y: bbox.y };
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
@@ -4920,6 +4943,54 @@ const MainEditor = ({
             pt.y = event.clientY;
             const currentPoint = pt.matrixTransform(parentCTM.inverse());
 
+            if (dir === 'linestart' || dir === 'lineend') {
+              const invMatrix = matrix.inverse();
+              
+              // Safely convert to DOMPoint before matrixTransform to avoid SVGPoint crash!
+              const safePoint = new DOMPoint(currentPoint.x, currentPoint.y);
+              const localPt = safePoint.matrixTransform(invMatrix);
+              
+              let finalLocalPt = localPt;
+
+              if (event.shiftKey) {
+                const anchorX = parseFloat(el.getAttribute(dir === 'linestart' ? 'x2' : 'x1')) || 0;
+                const anchorY = parseFloat(el.getAttribute(dir === 'linestart' ? 'y2' : 'y1')) || 0;
+                
+                const dx = localPt.x - anchorX;
+                const dy = localPt.y - anchorY;
+                
+                const angle = Math.atan2(dy, dx);
+                const snapAngle = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                finalLocalPt = {
+                  x: anchorX + dist * Math.cos(snapAngle),
+                  y: anchorY + dist * Math.sin(snapAngle)
+                };
+              }
+              
+              if (dir === 'linestart') {
+                el.style.removeProperty('x1');
+                el.style.removeProperty('y1');
+                el.setAttribute('x1', finalLocalPt.x);
+                el.setAttribute('y1', finalLocalPt.y);
+                if (el.x1) el.x1.baseVal.value = finalLocalPt.x;
+                if (el.y1) el.y1.baseVal.value = finalLocalPt.y;
+              } else {
+                el.style.removeProperty('x2');
+                el.style.removeProperty('y2');
+                el.setAttribute('x2', finalLocalPt.x);
+                el.setAttribute('y2', finalLocalPt.y);
+                if (el.x2) el.x2.baseVal.value = finalLocalPt.x;
+                if (el.y2) el.y2.baseVal.value = finalLocalPt.y;
+              }
+              
+              if (typeof drawOverlayHighlight === 'function') {
+                drawOverlayHighlight(el, 'selected');
+              }
+              return;
+            }
+
             // Vector from anchor to current cursor position
             const vCurrent = { x: currentPoint.x - worldAnchor.x, y: currentPoint.y - worldAnchor.y };
 
@@ -4958,9 +5029,51 @@ const MainEditor = ({
             const isGroup = (el.tagName?.toLowerCase() === 'g' && !el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group')) || el.tagName === 'multi';
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
 
-            if ((isCorner && (event.shiftKey || isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            if (event.shiftKey) {
+              let targetRatio = null;
+              if (el.hasAttribute('data-original-aspect-ratio')) {
+                targetRatio = parseFloat(el.getAttribute('data-original-aspect-ratio'));
+              } else {
+                const shapeName = el.getAttribute('data-name') || '';
+                if (shapeName.toLowerCase().includes('circle') || shapeName.toLowerCase().includes('square')) {
+                  targetRatio = 1;
+                } else if (bbox.height > 0) {
+                  targetRatio = bbox.width / bbox.height;
+                } else {
+                  targetRatio = 1;
+                }
+              }
+
+              if (targetRatio && targetRatio > 0 && bbox.width > 0 && bbox.height > 0) {
+                const startA = matrix.a || 1;
+                const startD = matrix.d || 1;
+                
+                if (isCorner) {
+                  const fw_x = bbox.width * Math.abs(startA * scaleX);
+                  const fh_x = fw_x / targetRatio;
+                  
+                  const fh_y = bbox.height * Math.abs(startD * scaleY);
+                  const fw_y = fh_y * targetRatio;
+
+                  if (fw_x > fw_y) {
+                    scaleY = (fh_x / (bbox.height * Math.abs(startD))) * (Math.sign(scaleY) || 1);
+                  } else {
+                    scaleX = (fw_y / (bbox.width * Math.abs(startA))) * (Math.sign(scaleX) || 1);
+                  }
+                } else {
+                  if (dir === 'n' || dir === 's') {
+                    const fh = bbox.height * Math.abs(startD * scaleY);
+                    const fw = fh * targetRatio;
+                    scaleX = (fw / (bbox.width * Math.abs(startA))) * (Math.sign(scaleX) || 1);
+                  } else {
+                    const fw = bbox.width * Math.abs(startA * scaleX);
+                    const fh = fw / targetRatio;
+                    scaleY = (fh / (bbox.height * Math.abs(startD))) * (Math.sign(scaleY) || 1);
+                  }
+                }
+              }
+            } else if ((isCorner && (isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              // For side handles on text (that is not a foreignObject), use the changed dimension as the uniform scale factor
               if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
@@ -6284,6 +6397,20 @@ const MainEditor = ({
           shape.removeAttribute('data-drawing');
         }
 
+        // Store original aspect ratio
+        try {
+          if (shape && typeof shape.getBBox === 'function') {
+            const bbox = shape.getBBox();
+            if (bbox.width > 0 && bbox.height > 0) {
+              shape.setAttribute('data-original-aspect-ratio', (bbox.width / bbox.height).toString());
+            } else {
+              shape.setAttribute('data-original-aspect-ratio', '1');
+            }
+          }
+        } catch (e) {
+          // ignore error if getBBox fails
+        }
+
         drawingShapeRef.current = null;
         shapeStartPointRef.current = null;
         drawingPageIndexRef.current = null;
@@ -6741,11 +6868,11 @@ const MainEditor = ({
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
         const oldWidth = div.style.width;
-        
+
         // Temporarily allow height to shrink to measure true text height
         div.style.setProperty('height', 'auto', 'important');
         div.style.setProperty('min-height', '0px', 'important');
-        
+
         if (sizingMode === 'auto-width') {
           div.style.setProperty('width', 'max-content', 'important');
         }
@@ -6764,7 +6891,7 @@ const MainEditor = ({
         const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
         let changed = false;
-        
+
         if (sizingMode === 'auto-width' && Math.abs(contentW - foW) > 2) {
           const widthDiff = contentW - foW;
           const align = window.getComputedStyle(div).textAlign;
