@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
 
@@ -630,6 +631,7 @@ const MainEditor = ({
   flipbookDimensions = null,
   isPopupEditor = false
 }) => {
+  usePreventBrowserZoom();
   const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
   const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
 
@@ -1806,11 +1808,11 @@ const MainEditor = ({
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.id = newId;
       g.setAttribute('data-type', 'icon');
-      // Place centered and slightly smaller (scale 0.5) for better default sizing
-      g.setAttribute('transform', `translate(${centerX - 25}, ${centerY - 25}) scale(0.5)`);
-      g.setAttribute('fill', '#ffffff');
+      // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
+      g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
+      g.setAttribute('fill', 'none');
       g.setAttribute('stroke', '#000000');
-      g.setAttribute('stroke-width', '2');
+      g.setAttribute('stroke-width', '1');
 
 
       if (icon.Component) {
@@ -5024,7 +5026,7 @@ const MainEditor = ({
                       // Resize width -> Auto height (Can shrink)
                       adjustedHeight = Math.max(10, div.scrollHeight + 4);
                     } else if (dir === 'n' || dir === 's') {
-                      // Resize height -> Auto width
+                      // Resize height -> adjust width to match new height, but remain in auto-height mode
                       let minW = 10;
                       let maxW = 3000;
                       let bestW = finalWidth;
@@ -6732,23 +6734,49 @@ const MainEditor = ({
 
     const handleInput = () => {
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
+      const sizingMode = foTarget.getAttribute('data-sizing-mode') || 'auto-height';
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
 
       if (!isScrollable) {
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
+        const oldWidth = div.style.width;
+        
         // Temporarily allow height to shrink to measure true text height
         div.style.setProperty('height', 'auto', 'important');
         div.style.setProperty('min-height', '0px', 'important');
+        
+        if (sizingMode === 'auto-width') {
+          div.style.setProperty('width', 'max-content', 'important');
+        }
 
         const contentH = div.scrollHeight;
+        const contentW = div.scrollWidth;
 
         div.style.setProperty('height', oldHeight || '100%', 'important');
         div.style.setProperty('min-height', oldMinHeight || '100%', 'important');
+        if (sizingMode === 'auto-width') {
+          div.style.setProperty('width', oldWidth || '100%', 'important');
+        }
 
         const foH = parseFloat(foTarget.getAttribute('height')) || 0;
+        const foW = parseFloat(foTarget.getAttribute('width')) || 0;
+        const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
         let changed = false;
+        
+        if (sizingMode === 'auto-width' && Math.abs(contentW - foW) > 2) {
+          const widthDiff = contentW - foW;
+          const align = window.getComputedStyle(div).textAlign;
+          foTarget.setAttribute('width', Math.max(contentW + 4, 10));
+          if (align === 'center') {
+            foTarget.setAttribute('x', currentX - (widthDiff / 2));
+          } else if (align === 'right' || align === 'end') {
+            foTarget.setAttribute('x', currentX - widthDiff);
+          }
+          changed = true;
+        }
+
         if (Math.abs(contentH - foH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
           changed = true;
@@ -6880,6 +6908,7 @@ const MainEditor = ({
 
       // Auto-grow height and width to fit content
       const isAutoWrap = foTarget.getAttribute('data-auto-wrap') !== 'false';
+      const sizingMode = foTarget.getAttribute('data-sizing-mode') || 'auto-height';
       const isScrollable = foTarget.getAttribute('data-scrollable') === 'true';
 
       if (!isScrollable) {
@@ -6887,7 +6916,7 @@ const MainEditor = ({
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
 
-        if (isAutoWrap) {
+        if (sizingMode === 'auto-width') {
           div.style.width = 'max-content';
         }
 
@@ -6906,10 +6935,10 @@ const MainEditor = ({
         const currentH = parseFloat(foTarget.getAttribute('height')) || 0;
         const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
-        if (isAutoWrap && Math.abs(contentW - currentW) > 2) {
+        if (sizingMode === 'auto-width' && Math.abs(contentW - currentW) > 2) {
           const widthDiff = contentW - currentW;
           const align = window.getComputedStyle(div).textAlign;
-          foTarget.setAttribute('width', Math.max(contentW, 10));
+          foTarget.setAttribute('width', Math.max(contentW + 4, 10));
           if (align === 'center') {
             foTarget.setAttribute('x', currentX - (widthDiff / 2));
           } else if (align === 'right' || align === 'end') {
@@ -7674,9 +7703,9 @@ const MainEditor = ({
       }
 
     };
-    el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => {
-      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('wheel', handleWheel, { capture: true });
     };
   }, [setZoom, setPan]);
 
@@ -8477,7 +8506,14 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
-        <div id="main-editor-container" className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}>
+        <div
+          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
+              setActiveMainTool('select');
+            }
+          }}
+        >
           {/* Left Navigation-Button */}
           <button
             disabled={activePageIndex === 0}

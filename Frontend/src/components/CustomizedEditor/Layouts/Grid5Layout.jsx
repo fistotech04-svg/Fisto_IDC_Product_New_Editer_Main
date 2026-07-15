@@ -103,7 +103,8 @@ const Grid5Layout = ({
     isTablet,
     showTOC,
     isMobileLandscape,
-    isFullscreen: isFullscreenProp,
+    isFullscreen: isFullscreenProp
+    ,
     offset = 0,
 }) => {
     // ... rest of the setup logic

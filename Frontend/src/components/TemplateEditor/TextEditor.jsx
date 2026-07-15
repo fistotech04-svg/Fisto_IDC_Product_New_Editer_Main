@@ -2129,7 +2129,13 @@ const TextEditor = ({
       });
 
       // Observe the element itself and its parent (for sibling overlays)
-      observer.observe(el, { characterData: true, childList: true, subtree: true });
+      observer.observe(el, { 
+        attributes: true, 
+        attributeFilter: ['data-sizing-mode'],
+        characterData: true, 
+        childList: true, 
+        subtree: true 
+      });
       if (el.parentNode) {
         observer.observe(el.parentNode, { childList: true, subtree: true });
       }
