@@ -260,7 +260,7 @@ const ShapeProperties = ({
       opacity: parseInt(selectedElementProps['data-effect-inner-shadow-opacity'] || 35),
     },
     'Blur': {
-      blur: parseInt(selectedElementProps['data-effect-blur-value'] !== undefined ? selectedElementProps['data-effect-blur-value'] : (selectedElementProps['data-effect-blur-blur'] || 1)),
+      blur: parseFloat(selectedElementProps['data-effect-blur-value'] !== undefined ? selectedElementProps['data-effect-blur-value'] : (selectedElementProps['data-effect-blur-blur'] || 0.3)),
       spread: parseInt(selectedElementProps['data-effect-blur-spread'] || 0),
     }
   };

@@ -2477,6 +2477,12 @@ const MainEditor = ({
 
       const svgMatrix = overlayCtm.inverse().multiply(ctm);
 
+      const isMediaOrText = el.tagName.toLowerCase() === 'image' || 
+                            el.tagName.toLowerCase() === 'video' || 
+                            el.tagName.toLowerCase() === 'img' || 
+                            el.tagName.toLowerCase() === 'text' ||
+                            el.tagName.toLowerCase() === 'foreignobject';
+
       const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
@@ -2516,7 +2522,7 @@ const MainEditor = ({
         } else if (type === 'selected' || type === 'child-selected') {
           polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'entered') {
-          polygon.setAttribute('stroke', '#6366F1');
+          polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
         }
 
         polygon.setAttribute('pointer-events', 'none');
@@ -2533,7 +2539,7 @@ const MainEditor = ({
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+        if (type === 'child-hover' && !isMediaOrText) polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
         else polygon.removeAttribute('stroke-dasharray');
       } else if (type === 'selected' || type === 'child-selected') {
         polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
@@ -6793,6 +6799,16 @@ const MainEditor = ({
             drawOverlayHighlight(foTarget, highlightType);
             clearOverlayType('hover');
             clearOverlayType('child-hover');
+
+            // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
+            const parentGroup = foTarget.closest('g');
+            if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
+              const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
+              if (overlayNode) {
+                overlayNode.remove();
+                drawOverlayHighlight(parentGroup, 'entered');
+              }
+            }
           }, 0);
         }
       }

@@ -29,7 +29,7 @@ const Effect = ({
     'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x ?? 4,
     'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 4,
     'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? 1,
-    'data-effect-blur-value': effectSettings?.['Blur']?.blur ?? 0.5,
+    'data-effect-blur-value': effectSettings?.['Blur']?.blur ?? 0.3,
   };
 
   const handleUpdate = (page, layer, attr, value) => {
@@ -68,7 +68,7 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Blur': {
-              blur: p['Blur']?.blur ?? 0.5
+              blur: p['Blur']?.blur ?? 0.3
             }
           }));
         }
@@ -137,7 +137,7 @@ const Effect = ({
         if (containerRef.current) {
           containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-      }, 350);
+      }, 250);
     }
   }, [openSubSection]);
 
@@ -182,7 +182,7 @@ const Effect = ({
           <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openSubSection === 'effect' ? '' : 'rotate-180'}`} />
         </div>
 
-        <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'effect' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+        <div className={`grid transition-all duration-150 ease-in-out ${openSubSection === 'effect' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
           <div className="overflow-hidden">
             <div className="p-[1vw] space-y-[0.6vw]">
               {[
@@ -400,7 +400,7 @@ const Effect = ({
             {activeEffectPopupId === 'blur' && (
               <div className="space-y-[0.8vw] pt-[0.2vw]">
                 {[
-                  { id: 'value', label: 'Blur % :', default: 0.5, step: 0.1, displayMultiplier: 10 }
+                  { id: 'value', label: 'Blur % :', default: 0.3, step: 0.1, displayMultiplier: 10 }
                 ].map((row) => {
                   const rawVal = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
                   const displayVal = row.displayMultiplier ? Math.round(rawVal * row.displayMultiplier) : rawVal;
