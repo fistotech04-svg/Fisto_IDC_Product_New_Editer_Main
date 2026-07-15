@@ -638,6 +638,13 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
+
+  // Robustly ensure multi-selection dotted outlines are removed when selection is no longer multiple
+  useEffect(() => {
+    if (multiSelectedIds && multiSelectedIds.size <= 1) {
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+    }
+  }, [multiSelectedIds]);
   // isEditingText is now managed via isEditingTextRef to prevent React re-renders from destroying the edit box
 
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
@@ -2006,6 +2013,7 @@ const MainEditor = ({
   };
 
   const drawMultiSelectionHighlight = (ids, type) => {
+    document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
     const elementsByOverlay = new Map();
 
     ids.forEach(id => {
@@ -2101,6 +2109,11 @@ const MainEditor = ({
       dummy.setAttribute('height', maxY - minY);
 
       drawOverlayHighlight(dummy, type);
+
+      // Draw dotted outline on individual elements in the multi-selection
+      elements.forEach(el => {
+        drawOverlayHighlight(el, 'multi-child-selected');
+      });
     });
   };
 
@@ -2533,7 +2546,7 @@ const MainEditor = ({
           } else {
             polygon.setAttribute('fill', 'none');
           }
-        } else if (type === 'selected' || type === 'child-selected') {
+        } else if (type === 'selected' || type === 'child-selected' || type === 'multi-child-selected') {
           polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'entered') {
           polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
@@ -2558,6 +2571,9 @@ const MainEditor = ({
       } else if (type === 'selected' || type === 'child-selected') {
         polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
         polygon.removeAttribute('stroke-dasharray');
+      } else if (type === 'multi-child-selected') {
+        polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'entered') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
@@ -5107,25 +5123,42 @@ const MainEditor = ({
                   const isScrollable = el.getAttribute('data-scrollable') === 'true';
                   const div = el.firstElementChild;
 
-                  // Enable reflow when resizing horizontally
-                  if (dir === 'e' || dir === 'w' || dir === 'se' || dir === 'sw' || dir === 'ne' || dir === 'nw') {
+                  // Enable reflow when resizing any handle manually
+                  if (dir) {
                     el.setAttribute('data-resized', 'true');
                     div.style.whiteSpace = 'pre-wrap';
                   }
 
-                  // Update the sizing mode to reflect manual user overrides so TextEditor respects them
-                  if (el.getAttribute('data-type') === 'text') {
-                    if (dir === 'e' || dir === 'w') {
-                      el.setAttribute('data-sizing-mode', 'auto-height');
-                      el.setAttribute('data-auto-wrap', 'true');
-                    } else if (dir === 'n' || dir === 's') {
-                      el.setAttribute('data-sizing-mode', 'auto-height');
-                      el.setAttribute('data-auto-wrap', 'true');
-                    } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
-                      el.setAttribute('data-sizing-mode', 'fixed');
-                      el.setAttribute('data-auto-wrap', 'true');
+                    // Update the sizing mode to reflect manual user overrides so TextEditor respects them
+                    if (el.getAttribute('data-type') === 'text') {
+                      const currentMode = el.getAttribute('data-sizing-mode');
+                      if (currentMode === 'fixed') {
+                        if (!isScrollable) {
+                          div.style.setProperty('overflow', 'visible', 'important');
+                        }
+                        div.style.setProperty('width', '100%', 'important');
+                        div.style.setProperty('height', '100%', 'important');
+                      } else {
+                        if (dir === 'e' || dir === 'w' || dir === 'n' || dir === 's') {
+                          el.setAttribute('data-sizing-mode', 'auto-height');
+                          el.setAttribute('data-auto-wrap', 'true');
+                          // Scrolling is only allowed in 'fixed' mode, so disable it when switching to auto-height
+                          if (isScrollable) {
+                            el.setAttribute('data-scrollable', 'false');
+                            div.classList.remove('flipbook-text-scrollbar');
+                            div.style.setProperty('overflow', 'visible', 'important');
+                          }
+                        } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
+                          el.setAttribute('data-sizing-mode', 'fixed');
+                          el.setAttribute('data-auto-wrap', 'true');
+                          if (!isScrollable) {
+                            div.style.setProperty('overflow', 'visible', 'important');
+                          }
+                          div.style.setProperty('width', '100%', 'important');
+                          div.style.setProperty('height', '100%', 'important');
+                        }
+                      }
                     }
-                  }
 
                   const oldHeight = div.style.height;
                   const oldMinHeight = div.style.minHeight;
@@ -5138,8 +5171,8 @@ const MainEditor = ({
                     if (dir === 'e' || dir === 'w') {
                       // Resize width -> Auto height (Can shrink)
                       adjustedHeight = Math.max(10, div.scrollHeight + 4);
-                    } else if (dir === 'n' || dir === 's') {
-                      // Resize height -> adjust width to match new height, but remain in auto-height mode
+                    } else if ((dir === 'n' || dir === 's') && el.getAttribute('data-sizing-mode') !== 'fixed') {
+                      // Resize height -> adjust width to match new height, keeping text inside
                       let minW = 10;
                       let maxW = 3000;
                       let bestW = finalWidth;
@@ -5158,8 +5191,8 @@ const MainEditor = ({
                       el.setAttribute('width', adjustedWidth);
                       adjustedHeight = div.scrollHeight + 4;
                     } else {
-                      // Corners -> Ensure height isn't hidden
-                      adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                      // Corners or fixed mode -> Fixed size, respect final height exactly so clipping/scrolling works
+                      adjustedHeight = finalHeight;
                     }
                   } else {
                     // Scrollable text boxes CAN hide content. We respect the user's manual sizing exactly.
@@ -6521,8 +6554,9 @@ const MainEditor = ({
     div.style.wordSpacing = el.style.wordSpacing || el.getAttribute('word-spacing') || '';
     div.style.wordBreak = 'normal';
     div.style.overflowWrap = 'anywhere';
-    // Use pre-wrap to allow paragraphs to reflow correctly
-    div.style.whiteSpace = 'pre-wrap';
+    const sizingMode = el.getAttribute('data-sizing-mode') || 'auto-height';
+    // Use pre-wrap to allow paragraphs to reflow correctly (unless auto-width)
+    div.style.whiteSpace = sizingMode === 'auto-width' ? 'nowrap' : 'pre-wrap';
     div.style.padding = '0px'; // Push down 1.5px and right 1px to match SVG baseline
     div.style.margin = '0';
     div.style.boxSizing = 'border-box';
@@ -6532,10 +6566,14 @@ const MainEditor = ({
     div.style.pointerEvents = 'none';
 
     if (!isScrollable) {
-      // Vertically center the text to match SVG bbox placement and prevent upward shift
-      div.style.display = 'flex';
-      div.style.flexDirection = 'column';
-      div.style.justifyContent = 'center';
+      if (sizingMode === 'fixed') {
+        div.style.display = 'block';
+      } else {
+        // Vertically center the text to match SVG bbox placement and prevent upward shift
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.justifyContent = 'center';
+      }
     }
 
     // Smart tspan-to-lines conversion: group tspans by Y coordinate change
@@ -6756,6 +6794,10 @@ const MainEditor = ({
     multiSelectedIdsRef.current = newSet;
     setMultiSelectedIds(newSet);
 
+    if (newSet.size <= 1) {
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+    }
+
     // ── Figma-style: auto-convert <text> to <foreignObject> on first selection ──
     // This ensures resize handles, click-to-edit, and style panel all work correctly
     if (id) {
@@ -6904,7 +6946,7 @@ const MainEditor = ({
           changed = true;
         }
 
-        if (Math.abs(contentH - foH) > 2) {
+        if (sizingMode !== 'fixed' && Math.abs(contentH - foH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
           changed = true;
         }
@@ -7083,7 +7125,7 @@ const MainEditor = ({
           }
         }
 
-        if (Math.abs(contentH - currentH) > 2) {
+        if (sizingMode !== 'fixed' && Math.abs(contentH - currentH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
         }
       }

@@ -1069,23 +1069,36 @@ const TextEditor = ({
             const rx = liveEl.getAttribute('rx') || '0';
             liveEl.firstElementChild.style.borderRadius = `${rx}px`;
           } else {
-            liveEl.firstElementChild.style.overflowY = 'visible';
+            const currentSizingMode = liveEl.getAttribute('data-sizing-mode') || 'auto-height';
             liveEl.firstElementChild.classList.remove('flipbook-text-scrollbar');
-            liveEl.firstElementChild.style.height = 'auto';
             liveEl.firstElementChild.style.borderRadius = '0';
             liveEl.firstElementChild.style.border = 'none';
             liveEl.firstElementChild.style.removeProperty('padding');
             liveEl.firstElementChild.style.removeProperty('margin');
             liveEl.firstElementChild.style.removeProperty('box-sizing');
 
-
-
-            // Immediately recalculate and expand the height since the scrollable constraint is removed
-            const contentH = liveEl.firstElementChild.scrollHeight;
-            const foH = parseFloat(liveEl.getAttribute('height')) || 0;
-            if (Math.abs(contentH - foH) > 2) {
-               liveEl.setAttribute('height', contentH + 4);
-               window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+            if (currentSizingMode === 'fixed') {
+              // Fixed size: keep foreignObject dimensions unchanged.
+              // Let text overflow visually outside the box — do NOT auto-resize.
+              liveEl.firstElementChild.style.setProperty('overflow', 'visible', 'important');
+              liveEl.firstElementChild.style.overflowX = 'visible';
+              liveEl.firstElementChild.style.overflowY = 'visible';
+              liveEl.firstElementChild.style.height = '100%';
+              liveEl.firstElementChild.style.width = '100%';
+              liveEl.firstElementChild.style.display = 'block';
+              // Dispatch to update handles/overlays only — not to resize
+              window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+            } else {
+              // Auto-height / auto-width: expand the foreignObject to fit the text
+              liveEl.firstElementChild.style.overflowY = 'visible';
+              liveEl.firstElementChild.style.height = 'auto';
+              // Recalculate and expand the height since the scrollable constraint is removed
+              const contentH = liveEl.firstElementChild.scrollHeight;
+              const foH = parseFloat(liveEl.getAttribute('height')) || 0;
+              if (Math.abs(contentH - foH) > 2) {
+                liveEl.setAttribute('height', contentH + 4);
+                window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+              }
             }
           }
         }
@@ -1368,57 +1381,121 @@ const TextEditor = ({
         } else if (attribute === 'data-scrollable' && tag === 'foreignobject') {
           element.setAttribute('data-scrollable', value);
           element.setAttribute('overflow', value === 'true' ? 'hidden' : 'visible');
-          if (element.firstElementChild) {
-            if (value === 'true') {
-              element.firstElementChild.style.overflowY = 'auto';
-              element.firstElementChild.style.overflowX = 'hidden';
-              element.firstElementChild.classList.add('flipbook-text-scrollbar');
-              element.firstElementChild.style.height = '100%';
-              element.firstElementChild.style.width = '100%';
-              element.firstElementChild.style.display = 'block';
-              element.firstElementChild.style.removeProperty('box-sizing');
-              element.firstElementChild.style.removeProperty('padding');
-              element.firstElementChild.style.removeProperty('margin');
-              element.firstElementChild.style.border = 'none';
-
-            } else {
-              element.firstElementChild.style.overflowY = 'visible';
-              element.firstElementChild.classList.remove('flipbook-text-scrollbar');
-              element.firstElementChild.style.height = '100%';
-              element.firstElementChild.style.width = 'calc(100% + 4px)';
-              element.firstElementChild.style.display = 'flex';
-              element.firstElementChild.style.flexDirection = 'column';
-              element.firstElementChild.style.justifyContent = 'center';
-              element.firstElementChild.style.removeProperty('padding');
-              element.firstElementChild.style.removeProperty('margin');
-              element.firstElementChild.style.removeProperty('box-sizing');
-            }
+          if (liveEl) {
+            liveEl.setAttribute('data-scrollable', value);
+            liveEl.setAttribute('overflow', value === 'true' ? 'hidden' : 'visible');
           }
+          const mode = element.getAttribute('data-sizing-mode');
+          
+          const updateDiv = (div) => {
+            if (!div) return;
+            if (value === 'true') {
+              div.style.setProperty('overflow-y', 'auto', 'important');
+              div.style.setProperty('overflow-x', 'hidden', 'important');
+              div.classList.add('flipbook-text-scrollbar');
+              div.style.setProperty('height', '100%', 'important');
+              div.style.setProperty('width', '100%', 'important');
+              div.style.display = 'block';
+              div.style.removeProperty('box-sizing');
+              div.style.removeProperty('padding');
+              div.style.removeProperty('margin');
+              div.style.border = 'none';
+            } else {
+              div.style.setProperty('overflow-y', 'visible', 'important');
+              div.classList.remove('flipbook-text-scrollbar');
+              div.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
+              div.style.setProperty('width', mode === 'fixed' ? '100%' : 'calc(100% + 4px)', 'important');
+              div.style.setProperty('overflow-x', 'visible', 'important');
+              if (mode !== 'fixed') {
+                div.style.display = 'flex';
+                div.style.flexDirection = 'column';
+                div.style.justifyContent = 'center';
+              } else {
+                div.style.setProperty('display', 'block', 'important');
+                div.style.removeProperty('flex-direction');
+                div.style.removeProperty('justify-content');
+                div.style.setProperty('white-space', 'pre-wrap', 'important');
+              }
+              div.style.removeProperty('padding');
+              div.style.removeProperty('margin');
+              div.style.removeProperty('box-sizing');
+            }
+          };
+          
+          updateDiv(element.firstElementChild);
+          if (liveEl) updateDiv(liveEl.firstElementChild);
+
         } else if (styleProp) {
           let finalProp = (tag === 'foreignobject' && styleProp === 'fill') ? 'color' : styleProp;
           if (tag === 'foreignobject') {
+            // --- SCROLLABLE PERSISTENCE ---
+            const isScrollable = element.getAttribute('data-scrollable') === 'true';
+            const mode = element.getAttribute('data-sizing-mode');
+            
+            const applyScrollStyles = (div) => {
+              if (!div) return;
+              if (isScrollable) {
+                div.style.setProperty('overflow-y', 'auto', 'important');
+                div.style.setProperty('overflow-x', 'hidden', 'important');
+                div.classList.add('flipbook-text-scrollbar');
+                div.style.setProperty('height', '100%', 'important');
+                div.style.setProperty('width', '100%', 'important');
+                div.style.display = 'block';
+                const rx = element.getAttribute('rx') || '0';
+                div.style.borderRadius = `${rx}px`;
+                div.style.removeProperty('box-sizing');
+                div.style.removeProperty('padding');
+                div.style.removeProperty('margin');
+                div.style.border = 'none';
+              } else {
+                div.style.setProperty('overflow-y', 'visible', 'important');
+                div.style.setProperty('overflow-x', 'visible', 'important');
+                div.classList.remove('flipbook-text-scrollbar');
+                div.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
+                div.style.setProperty('width', mode === 'fixed' ? '100%' : 'calc(100% + 4px)', 'important');
+                if (mode !== 'fixed') {
+                  div.style.display = 'flex';
+                  div.style.flexDirection = 'column';
+                  div.style.justifyContent = 'center';
+                } else {
+                  div.style.setProperty('display', 'block', 'important');
+                  div.style.removeProperty('flex-direction');
+                  div.style.removeProperty('justify-content');
+                  div.style.setProperty('white-space', 'pre-wrap', 'important');
+                }
+                div.style.removeProperty('padding');
+                div.style.removeProperty('margin');
+                div.style.removeProperty('box-sizing');
+              }
+            };
+
             if (element.firstElementChild) {
               if (styleProp === 'stroke') {
-                element.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
+                element.firstElementChild.style.setProperty('-webkit-text-stroke-color', value, 'important');
               } else if (styleProp === 'strokeWidth') {
-                element.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
+                element.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${value}px`, 'important');
               } else {
                 const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
-                element.firstElementChild.style.setProperty(cssPropName, finalVal, 'important');
+                element.firstElementChild.style.setProperty(cssPropName, value, 'important');
               }
-
-              // --- SCROLLABLE PERSISTENCE ---
-              const isScrollable = element.getAttribute('data-scrollable') === 'true';
-              if (isScrollable) {
-                element.firstElementChild.style.overflowY = 'auto';
-                element.firstElementChild.classList.add('flipbook-text-scrollbar');
-                element.firstElementChild.style.height = '100%';
-                element.firstElementChild.style.overflowX = 'hidden';
-                const rx = element.getAttribute('rx') || '0';
-                element.firstElementChild.style.borderRadius = `${rx}px`;
-              }
+              applyScrollStyles(element.firstElementChild);
             }
             element.setAttribute(attribute, value);
+            
+            if (liveEl) {
+              if (liveEl.firstElementChild) {
+                if (styleProp === 'stroke') {
+                  liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', value, 'important');
+                } else if (styleProp === 'strokeWidth') {
+                  liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${value}px`, 'important');
+                } else {
+                  const cssPropName = finalProp.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
+                  liveEl.firstElementChild.style.setProperty(cssPropName, value, 'important');
+                }
+                applyScrollStyles(liveEl.firstElementChild);
+              }
+              liveEl.setAttribute(attribute, value);
+            }
           } else {
             // For SVG elements (text, g, etc.) set both CSS style and SVG presentation attribute
             if (styleProp === 'strokeWidth') {
@@ -1489,18 +1566,20 @@ const TextEditor = ({
           // Handle scrollable updates for virtual doc
           if (tag === 'foreignobject' && element.firstElementChild) {
             const isScrollable = element.getAttribute('data-scrollable') === 'true';
+            const mode = element.getAttribute('data-sizing-mode');
             if (isScrollable) {
-              element.firstElementChild.style.overflowY = 'auto';
+              element.firstElementChild.style.setProperty('overflow-y', 'auto', 'important');
               element.firstElementChild.classList.add('flipbook-text-scrollbar');
-              element.firstElementChild.style.height = '100%';
-              element.firstElementChild.style.overflowX = 'hidden';
+              element.firstElementChild.style.setProperty('height', '100%', 'important');
+              element.firstElementChild.style.setProperty('overflow-x', 'hidden', 'important');
               const rx = element.getAttribute('rx') || '0';
               element.firstElementChild.style.borderRadius = `${rx}px`;
             } else {
-              element.firstElementChild.style.overflowY = 'visible';
+              element.firstElementChild.style.setProperty('overflow-y', 'visible', 'important');
               element.firstElementChild.classList.remove('flipbook-text-scrollbar');
-              element.firstElementChild.style.height = 'auto';
+              element.firstElementChild.style.setProperty('height', mode === 'fixed' ? '100%' : 'auto', 'important');
               element.firstElementChild.style.borderRadius = '0';
+              element.firstElementChild.style.setProperty('overflow-x', 'visible', 'important');
             }
           }
         }
@@ -1841,6 +1920,14 @@ const TextEditor = ({
       const div = liveEl.firstElementChild;
       if (!div) return;
 
+      if (mode !== 'fixed' && liveEl.getAttribute('data-scrollable') === 'true') {
+        setIsScrollable(false);
+        liveEl.setAttribute('data-scrollable', 'false');
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollable', 'false');
+        div.classList.remove('flipbook-text-scrollbar');
+        div.style.borderRadius = '0';
+      }
+
       if (mode === 'auto-width') {
         // Single line, no wrap — grow width to fit content
         div.style.setProperty('white-space', 'nowrap', 'important');
@@ -1867,11 +1954,12 @@ const TextEditor = ({
         liveEl.setAttribute('height', newH);
 
       } else if (mode === 'fixed') {
-        // Both dimensions fixed, overflow clipped
+        // Both dimensions fixed, overflow visible unless scrollable is enabled
         div.style.setProperty('white-space', 'pre-wrap', 'important');
-        div.style.setProperty('overflow', 'hidden', 'important');
+        div.style.setProperty('overflow', 'visible', 'important');
         div.style.setProperty('height', '100%', 'important');
         div.style.setProperty('width', '100%', 'important');
+        div.style.setProperty('display', 'block', 'important');
       }
 
       window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
@@ -2144,7 +2232,7 @@ const TextEditor = ({
     return () => {
       observer?.disconnect();
     };
-  }, [selectedLayerId, getDeepContent, getDeepStyle]);
+  }, [selectedLayerId, selectedElement, getDeepContent, getDeepStyle]);
 
   const handleTextSelection = useCallback(() => {
     if (!textareaRef.current || !selectedElement) return;
@@ -2218,7 +2306,7 @@ const TextEditor = ({
       </div>
 
       {/* Text Sizing Mode (Auto Width / Auto Height) */}
-      <div className={`flex items-center gap-[0.5vw] transition-opacity duration-200 ${isScrollable ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+      <div className="flex items-center gap-[0.5vw] transition-opacity duration-200 opacity-100">
         <span className="text-[0.75vw] font-semibold text-gray-600 whitespace-nowrap">Resize</span>
         <div className="flex gap-[0.35vw] p-[0.2vw] bg-gray-100 rounded-[0.6vw] flex-1">
           {/* Auto Width */}
@@ -2226,6 +2314,8 @@ const TextEditor = ({
             title="Auto Width — text grows horizontally on one line"
             onClick={() => applyTextSizingMode('auto-width')}
             className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+              isScrollable ? 'opacity-40 pointer-events-none' : ''
+            } ${
               sizingMode === 'auto-width'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
@@ -2242,6 +2332,8 @@ const TextEditor = ({
             title="Auto Height — width fixed, height grows with content"
             onClick={() => applyTextSizingMode('auto-height')}
             className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+              isScrollable ? 'opacity-40 pointer-events-none' : ''
+            } ${
               sizingMode === 'auto-height'
                 ? 'bg-white text-indigo-600 shadow-sm'
                 : 'text-gray-500 hover:text-gray-700'
@@ -2253,11 +2345,30 @@ const TextEditor = ({
             </svg>
             <span>Auto H</span>
           </button>
+          {/* Fixed Size */}
+          <button
+            title="Fixed Size — width and height are fixed, text wraps and overflows or scrolls"
+            onClick={() => applyTextSizingMode('fixed')}
+            className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+              sizingMode === 'fixed'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'0.9vw',height:'0.9vw',flexShrink:0}}>
+              <rect x="3" y="3" width="10" height="10" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
+              <circle cx="3" cy="3" r="1" fill="currentColor"/>
+              <circle cx="13" cy="3" r="1" fill="currentColor"/>
+              <circle cx="3" cy="13" r="1" fill="currentColor"/>
+              <circle cx="13" cy="13" r="1" fill="currentColor"/>
+            </svg>
+            <span>Fixed</span>
+          </button>
         </div>
       </div>
 
       {/* Scrollable Toggle */}
-      <div className="flex items-center justify-between">
+      <div className={`flex items-center justify-between ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
         <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
         <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
         <button
