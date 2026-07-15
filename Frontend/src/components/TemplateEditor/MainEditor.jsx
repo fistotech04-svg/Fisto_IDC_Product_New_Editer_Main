@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
 
@@ -630,6 +631,7 @@ const MainEditor = ({
   flipbookDimensions = null,
   isPopupEditor = false
 }) => {
+  usePreventBrowserZoom();
   const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
   const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
 
@@ -7529,9 +7531,9 @@ const MainEditor = ({
       }
 
     };
-    el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => {
-      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('wheel', handleWheel, { capture: true });
     };
   }, [setZoom, setPan]);
 
@@ -8332,7 +8334,7 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
-        <div 
+        <div
           className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
           onMouseDown={(e) => {
             if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
@@ -8466,13 +8468,13 @@ const MainEditor = ({
                                   if (data.type === 'icon') {
                                     const svg = e.currentTarget.querySelector('svg');
                                     if (!svg) return;
-                                    
+
                                     // Convert screen coordinates to SVG coordinates
                                     const pt = svg.createSVGPoint();
                                     pt.x = e.clientX;
                                     pt.y = e.clientY;
                                     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-                                    
+
                                     window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
                                       detail: {
                                         pageIndex: displayIndex,

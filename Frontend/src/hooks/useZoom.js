@@ -13,7 +13,7 @@ const useZoom = (initialZoom = 100, containerRef = null, baseWidth = 210, baseHe
     const container = containerRef.current;
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
-    
+
     // Convert mm to pixels at 96 DPI for target dimensions
     const targetWidth = baseWidth * 96 / 25.4;
     const targetHeight = baseHeight * 96 / 25.4;
@@ -61,7 +61,7 @@ const useZoom = (initialZoom = 100, containerRef = null, baseWidth = 210, baseHe
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
-        
+
         // Clear previous timeout
         if (wheelTimeoutRef.current) {
           clearTimeout(wheelTimeoutRef.current);
@@ -69,13 +69,13 @@ const useZoom = (initialZoom = 100, containerRef = null, baseWidth = 210, baseHe
 
         // Determine zoom direction
         const delta = e.deltaY > 0 ? -5 : 5;
-        
-        
+
+
         setZoom(prev => {
           const newZoom = Math.max(50, Math.min(125, prev + delta));
           return newZoom;
         });
-        
+
         setAutoZoom(false);
 
         // Debounce the zoom update
@@ -87,7 +87,7 @@ const useZoom = (initialZoom = 100, containerRef = null, baseWidth = 210, baseHe
 
     // Add event listener to specific container instead of document
     const container = containerRef?.current;
-    
+
     if (container) {
       container.addEventListener('wheel', handleWheel, { passive: false });
     }
