@@ -164,6 +164,7 @@ const ShapeProperties = ({
     if (backgroundColor.strokeWeight !== next.strokeWeight) {
       updates['stroke-width'] = next.strokeWeight.toString();
       updates['strokeWidth'] = next.strokeWeight.toString();
+      updates['data-stroke-width'] = next.strokeWeight.toString();
     }
     if (backgroundColor.strokeDashStyle !== next.strokeDashStyle || backgroundColor.strokeDashLength !== next.strokeDashLength || backgroundColor.strokeDashGap !== next.strokeDashGap) {
       if (next.strokeDashStyle === 'none' || next.strokeDashStyle === 'Solid') {
