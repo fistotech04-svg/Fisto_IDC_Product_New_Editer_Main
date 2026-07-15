@@ -2477,11 +2477,11 @@ const MainEditor = ({
 
       const svgMatrix = overlayCtm.inverse().multiply(ctm);
 
-      const isMediaOrText = el.tagName.toLowerCase() === 'image' || 
-                            el.tagName.toLowerCase() === 'video' || 
-                            el.tagName.toLowerCase() === 'img' || 
-                            el.tagName.toLowerCase() === 'text' ||
-                            el.tagName.toLowerCase() === 'foreignobject';
+      const isMediaOrText = el.tagName.toLowerCase() === 'image' ||
+        el.tagName.toLowerCase() === 'video' ||
+        el.tagName.toLowerCase() === 'img' ||
+        el.tagName.toLowerCase() === 'text' ||
+        el.tagName.toLowerCase() === 'foreignobject';
 
       const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
       const screenOffset = 0; // Use zero offset for tightest fitting selection
@@ -6741,11 +6741,11 @@ const MainEditor = ({
         const oldHeight = div.style.height;
         const oldMinHeight = div.style.minHeight;
         const oldWidth = div.style.width;
-        
+
         // Temporarily allow height to shrink to measure true text height
         div.style.setProperty('height', 'auto', 'important');
         div.style.setProperty('min-height', '0px', 'important');
-        
+
         if (sizingMode === 'auto-width') {
           div.style.setProperty('width', 'max-content', 'important');
         }
@@ -6764,7 +6764,7 @@ const MainEditor = ({
         const currentX = parseFloat(foTarget.getAttribute('x')) || 0;
 
         let changed = false;
-        
+
         if (sizingMode === 'auto-width' && Math.abs(contentW - foW) > 2) {
           const widthDiff = contentW - foW;
           const align = window.getComputedStyle(div).textAlign;
