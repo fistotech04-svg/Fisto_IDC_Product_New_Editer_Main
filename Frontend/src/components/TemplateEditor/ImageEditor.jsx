@@ -114,7 +114,7 @@ const ImageEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Blur': { blur: 0.5, spread: 0 }
+    'Blur': { blur: 0.3, spread: 0 }
   });
 
   // Color state removed to use standalone Color.jsx
@@ -1020,7 +1020,7 @@ const ImageEditor = ({
 
             // Clip the container group for border radius
             const containerClipVal = `inset(0% 0% 0% 0%${radiusStr})`;
-            
+
             // Apply clip-path to the inner content group to avoid clipping the drop shadow
             let innerGroupForClip = liveElement.querySelector('.image-inner-content');
             if (innerGroupForClip) {
@@ -2156,7 +2156,7 @@ const ImageEditor = ({
         }
 
         if (dropShadow) { dropShadow.setAttribute('data-name', 'Drop Shadow'); liveElement.appendChild(dropShadow); }
-        
+
         liveElement.appendChild(innerGroup);
 
         if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); innerGroup.appendChild(fillLayer); }
@@ -2543,24 +2543,24 @@ const ImageEditor = ({
                                       try {
                                         const crop = JSON.parse(cropStr);
                                         const imgEl = el.tagName?.toLowerCase() === 'image' ? el : el.querySelector('image');
-                                        
+
                                         if (imgEl || ['rect', 'g', 'svg'].includes(el.tagName?.toLowerCase())) {
                                           const targetEl = imgEl || el;
                                           const origW = parseFloat(el.getAttribute('data-crop-orig-w') || targetEl.getAttribute('width') || 100);
                                           const origH = parseFloat(el.getAttribute('data-crop-orig-h') || targetEl.getAttribute('height') || 100);
                                           const origX = parseFloat(el.getAttribute('data-crop-orig-x') || targetEl.getAttribute('x') || 0);
                                           const origY = parseFloat(el.getAttribute('data-crop-orig-y') || targetEl.getAttribute('y') || 0);
-                                          
+
                                           const newX = origX + (parseFloat(crop.left) / 100) * origW;
                                           const newY = origY + (parseFloat(crop.top) / 100) * origH;
                                           const newW = (parseFloat(crop.width) / 100) * origW;
                                           const newH = (parseFloat(crop.height) / 100) * origH;
-                                          
+
                                           targetEl.setAttribute('x', newX);
                                           targetEl.setAttribute('y', newY);
                                           targetEl.setAttribute('width', newW);
                                           targetEl.setAttribute('height', newH);
-                                          
+
                                           if (el !== targetEl && el.hasAttribute('width')) {
                                             el.setAttribute('x', newX);
                                             el.setAttribute('y', newY);
@@ -2572,7 +2572,7 @@ const ImageEditor = ({
                                           el.removeAttribute('data-crop-orig-y');
                                           el.removeAttribute('data-crop-orig-w');
                                           el.removeAttribute('data-crop-orig-h');
-                                          
+
                                           if (imgEl && imgEl !== el) {
                                             imgEl.removeAttribute('data-crop-orig-x');
                                             imgEl.removeAttribute('data-crop-orig-y');
@@ -2584,12 +2584,12 @@ const ImageEditor = ({
                                           const origH = parseFloat(el.getAttribute('data-crop-orig-h') || el.style.height || el.offsetHeight || 100);
                                           const origX = parseFloat(el.getAttribute('data-crop-orig-x') || el.style.left || 0);
                                           const origY = parseFloat(el.getAttribute('data-crop-orig-y') || el.style.top || 0);
-                                          
+
                                           const newX = origX + (parseFloat(crop.left) / 100) * origW;
                                           const newY = origY + (parseFloat(crop.top) / 100) * origH;
                                           const newW = (parseFloat(crop.width) / 100) * origW;
                                           const newH = (parseFloat(crop.height) / 100) * origH;
-                                          
+
                                           if (!el.style.width.includes('%')) {
                                             el.style.left = `${newX}px`;
                                             el.style.top = `${newY}px`;
@@ -2604,7 +2604,7 @@ const ImageEditor = ({
                                     el.removeAttribute('data-effect-crop-inset');
                                     el.removeAttribute('data-crop-data');
                                   };
-                                  
+
                                   applyCropAsNewBounds(selectedElement);
                                   if (liveEl && liveEl !== selectedElement) {
                                     applyCropAsNewBounds(liveEl);
@@ -2792,6 +2792,7 @@ const ImageEditor = ({
             showDetailedPicker={showDetailedPicker}
             setShowDetailedPicker={setShowDetailedPicker}
           />
+
 
           {showGallery && (
             <GalleryImage
