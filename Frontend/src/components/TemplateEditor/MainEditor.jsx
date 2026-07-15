@@ -4,6 +4,7 @@ import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import interact from 'interactjs';
 import { NavIconRenderer } from '../CustomizedEditor/popups/NavIconStylesPopup';
+import usePreventBrowserZoom from '../../hooks/usePreventBrowserZoom';
 
 import paper from 'paper';
 
@@ -630,6 +631,7 @@ const MainEditor = ({
   flipbookDimensions = null,
   isPopupEditor = false
 }) => {
+  usePreventBrowserZoom();
   const { width: baseWidth, height: baseHeight } = flipbookDimensions || { width: 210, height: 297 };
   const canvasAspectRatio = baseWidth && baseHeight ? `${baseWidth} / ${baseHeight}` : '210 / 297';
 
@@ -1806,11 +1808,11 @@ const MainEditor = ({
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.id = newId;
       g.setAttribute('data-type', 'icon');
-      // Place centered and slightly smaller (scale 0.5) for better default sizing
-      g.setAttribute('transform', `translate(${centerX - 25}, ${centerY - 25}) scale(0.5)`);
-      g.setAttribute('fill', '#ffffff');
+      // Place centered. Icon path is 24x24. Scaled by 0.5 = 12x12. Offset by -6 to truly center.
+      g.setAttribute('transform', `translate(${centerX - 6}, ${centerY - 6}) scale(0.5)`);
+      g.setAttribute('fill', 'none');
       g.setAttribute('stroke', '#000000');
-      g.setAttribute('stroke-width', '2');
+      g.setAttribute('stroke-width', '1');
 
 
       if (icon.Component) {
@@ -7658,9 +7660,9 @@ const MainEditor = ({
       }
 
     };
-    el.addEventListener('wheel', handleWheel, { passive: false });
+    el.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     return () => {
-      el.removeEventListener('wheel', handleWheel);
+      el.removeEventListener('wheel', handleWheel, { capture: true });
     };
   }, [setZoom, setPan]);
 
@@ -8461,7 +8463,18 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
+<<<<<<< HEAD
+        <div
+          className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && activeMainTool === 'grid' && typeof setActiveMainTool === 'function') {
+              setActiveMainTool('select');
+            }
+          }}
+        >
+=======
         <div id="main-editor-container" className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}>
+>>>>>>> 2cae4715dea1f070127336ed4275a3c00ae6d9c8
           {/* Left Navigation-Button */}
           <button
             disabled={activePageIndex === 0}
@@ -8589,13 +8602,13 @@ const MainEditor = ({
                                   if (data.type === 'icon') {
                                     const svg = e.currentTarget.querySelector('svg');
                                     if (!svg) return;
-                                    
+
                                     // Convert screen coordinates to SVG coordinates
                                     const pt = svg.createSVGPoint();
                                     pt.x = e.clientX;
                                     pt.y = e.clientY;
                                     const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-                                    
+
                                     window.dispatchEvent(new CustomEvent('add-icon-to-editor', {
                                       detail: {
                                         pageIndex: displayIndex,
