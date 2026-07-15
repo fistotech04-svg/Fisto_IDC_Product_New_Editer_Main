@@ -1298,12 +1298,12 @@ const VideoEditor = ({
     }
 
     const videoURL = URL.createObjectURL(file);
-    
+
     const tempVideo = document.createElement('video');
     tempVideo.onloadedmetadata = async () => {
       const vw = tempVideo.videoWidth;
       const vh = tempVideo.videoHeight;
-      
+
       if (vw && vh) {
         const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
 
@@ -1312,12 +1312,12 @@ const VideoEditor = ({
 
         liveElement.style.width = '';
         liveElement.style.height = '';
-        
+
         liveElement.setAttribute('width', fitW.toString());
         liveElement.setAttribute('height', fitH.toString());
         liveElement.setAttribute('data-width', fitW.toString());
         liveElement.setAttribute('data-height', fitH.toString());
-        
+
         if (target !== liveElement) {
           target.style.width = '';
           target.style.height = '';
@@ -1666,7 +1666,7 @@ const VideoEditor = ({
           </div>
 
           {/* Replace Icon */}
-          <div 
+          <div
             className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
             onClick={() => fileInputRef.current?.click()}
           >

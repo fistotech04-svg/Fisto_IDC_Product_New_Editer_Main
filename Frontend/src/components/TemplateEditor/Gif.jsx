@@ -979,13 +979,13 @@ const GifEditor = ({
                 tEl = svgImageEl.parentNode;
               }
               let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = tEl.getBBox(); } catch (e) {}
-              
+              try { bBox = tEl.getBBox(); } catch (e) { }
+
               let xStr = tEl.getAttribute('x') || '0';
               let yStr = tEl.getAttribute('y') || '0';
               let wStr = tEl.getAttribute('width') || '100%';
               let hStr = tEl.getAttribute('height') || '100%';
-              
+
               let obx = xStr.includes('%') ? bBox.x : parseFloat(xStr) || 0;
               let oby = yStr.includes('%') ? bBox.y : parseFloat(yStr) || 0;
               let obw = wStr.includes('%') ? bBox.width : parseFloat(wStr) || 100;
@@ -1200,12 +1200,12 @@ const GifEditor = ({
 
         liveElement.style.width = '';
         liveElement.style.height = '';
-        
+
         liveElement.setAttribute('width', fitW.toString());
         liveElement.setAttribute('height', fitH.toString());
         liveElement.setAttribute('data-width', fitW.toString());
         liveElement.setAttribute('data-height', fitH.toString());
-        
+
         if (targetImg !== liveElement) {
           targetImg.style.width = '';
           targetImg.style.height = '';
@@ -1307,7 +1307,7 @@ const GifEditor = ({
         </div>
 
         {/* Replace Icon */}
-        <div 
+        <div
           className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
           onClick={() => fileInputRef.current?.click()}
         >
