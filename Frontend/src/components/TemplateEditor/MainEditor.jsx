@@ -8487,7 +8487,6 @@ const MainEditor = ({
         )}
 
         {/* Canvas Area container */}
-<<<<<<< HEAD
         <div
           className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}
           onMouseDown={(e) => {
@@ -8496,9 +8495,6 @@ const MainEditor = ({
             }
           }}
         >
-=======
-        <div id="main-editor-container" className={`w-full h-full flex items-center justify-center relative ${isPopupEditor ? 'bg-transparent overflow-visible' : 'overflow-hidden bg-white'}`}>
->>>>>>> 2cae4715dea1f070127336ed4275a3c00ae6d9c8
           {/* Left Navigation-Button */}
           <button
             disabled={activePageIndex === 0}
