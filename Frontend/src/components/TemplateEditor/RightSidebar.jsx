@@ -221,6 +221,8 @@ const RightSidebar = ({
   const updateDimensionWithScale = (val, targetAttr) => {
      if (!selectedElementProps) return;
      let scale = 1;
+     let m = [1, 0, 0, 1, 0, 0];
+     let hasMatrix = false;
      const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
      const el = editorDoc.getElementById(selectedLayerId);
      if (el) {
@@ -228,15 +230,88 @@ const RightSidebar = ({
         if (transform && transform.includes('matrix')) {
            const match = transform.match(/matrix\(([^)]+)\)/);
            if (match) {
-              const m = match[1].split(/[\s,]+/).map(parseFloat);
-              if (m.length === 6) {
+              const parsedM = match[1].split(/[\s,]+/).map(parseFloat);
+              if (parsedM.length === 6) {
+                 m = parsedM;
+                 hasMatrix = true;
                  scale = Math.abs(targetAttr === 'width' ? m[0] : m[3]);
               }
            }
         }
      }
      const tag = selectedElementProps.tagName;
-     const elementAttr = tag === 'circle' ? 'r' : targetAttr;
+
+     if (tag === 'line') {
+       if (!el) return;
+       const x1 = parseFloat(el.getAttribute('x1')) || 0;
+       const y1 = parseFloat(el.getAttribute('y1')) || 0;
+       const x2 = parseFloat(el.getAttribute('x2')) || 0;
+       const y2 = parseFloat(el.getAttribute('y2')) || 0;
+       
+       const unscaledVal = parseFloat(val) / scale;
+       
+       if (targetAttr === 'width') {
+         // Preserve direction if line was drawn right-to-left
+         const direction = x2 >= x1 ? 1 : -1;
+         updateElementAttribute(activePageIndex, selectedLayerId, 'x2', (x1 + direction * unscaledVal).toString());
+       } else if (targetAttr === 'height') {
+         // Preserve direction if line was drawn bottom-to-top
+         const direction = y2 >= y1 ? 1 : -1;
+         updateElementAttribute(activePageIndex, selectedLayerId, 'y2', (y1 + direction * unscaledVal).toString());
+       }
+       return;
+     }
+
+     if (tag === 'ellipse' || tag === 'circle') {
+       const unscaledVal = parseFloat(val) / scale;
+       if (targetAttr === 'width') {
+         updateElementAttribute(activePageIndex, selectedLayerId, 'rx', (unscaledVal / 2).toString());
+         // also try 'r' just in case it's a true circle without rx
+         if (tag === 'circle' && el && el.hasAttribute('r')) updateElementAttribute(activePageIndex, selectedLayerId, 'r', (unscaledVal / 2).toString());
+       } else if (targetAttr === 'height') {
+         updateElementAttribute(activePageIndex, selectedLayerId, 'ry', (unscaledVal / 2).toString());
+       }
+       return;
+     }
+
+     if (tag === 'path' || tag === 'polygon' || tag === 'g') {
+       if (!el) return;
+       const bbox = el.getBBox();
+       const targetVal = parseFloat(val);
+       if (targetVal <= 0 || bbox.width === 0 || bbox.height === 0) return;
+
+       if (targetAttr === 'width') {
+         // Current world X of top-left
+         const oldWorldX = bbox.x * m[0] + m[4];
+         // New m[0] scale (preserve sign for flip)
+         const newM0 = (m[0] >= 0 ? 1 : -1) * (targetVal / bbox.width);
+         // New m[4] translation to keep top-left fixed
+         const newM4 = oldWorldX - bbox.x * newM0;
+         m[0] = newM0;
+         m[4] = newM4;
+       } else if (targetAttr === 'height') {
+         // Current world Y of top-left
+         const oldWorldY = bbox.y * m[3] + m[5];
+         // New m[3] scale (preserve sign for flip)
+         const newM3 = (m[3] >= 0 ? 1 : -1) * (targetVal / bbox.height);
+         // New m[5] translation to keep top-left fixed
+         const newM5 = oldWorldY - bbox.y * newM3;
+         m[3] = newM3;
+         m[5] = newM5;
+       }
+       
+       updateElementAttribute(activePageIndex, selectedLayerId, 'transform', `matrix(${m.join(', ')})`);
+       
+       // Trigger overlay highlight update
+       setTimeout(() => {
+          if (typeof window.drawOverlayHighlight === 'function') {
+             window.drawOverlayHighlight(el, 'selected');
+          }
+       }, 50);
+       return;
+     }
+
+     const elementAttr = targetAttr;
      
      // Note: for a circle, 'val' is the diameter. We want the unscaled radius.
      // For other elements, 'val' is the width/height. We want the unscaled width/height.
@@ -954,6 +1029,7 @@ const RightSidebar = ({
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
                           folderName={location.state?.folderName || folder || 'Recent Book'}
                           flipbookName={location.state?.flipbookName || 'Untitled Flipbook'}
+                          onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : selectedElementProps?.isText ? (
                         <TextEditor
@@ -1038,6 +1114,7 @@ const RightSidebar = ({
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
                           folderName="My Flipbooks"
                           flipbookName="Untitled"
+                          onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : selectedElementProps?.isGif ? (
                         <GifEditor
@@ -1075,6 +1152,7 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           activePageIndex={activePageIndex}
+                          onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
                       ) : (
                         <ShapeProperties 

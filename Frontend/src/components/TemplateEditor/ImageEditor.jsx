@@ -68,7 +68,8 @@ const ImageEditor = ({
   folderName,
   flipbookName,
   flipbookVId,
-  currentPageVId
+  currentPageVId,
+  onDeleteLayer
 }) => {
   const fileInputRef = useRef(null);
 
@@ -238,87 +239,118 @@ const ImageEditor = ({
     const targetImg = getSvgImageEl(liveElement) || liveElement;
 
     if (targetImg) {
-      if (targetImg.tagName?.toLowerCase() === 'image') {
-        targetImg.setAttribute('href', imageUrl);
-        try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl); } catch (e) { }
+      const isSvgImage = targetImg.tagName?.toLowerCase() === 'image';
 
-        const patImg = liveElement.querySelector('.internal-crop-image');
-        if (patImg) {
-          patImg.setAttribute('href', imageUrl);
-          try { patImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl); } catch (e) { }
+      const processUpload = async (nw, nh) => {
+        if (nw && nh) {
+          const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
+
+          const fitW = oldW;
+          const fitH = oldW * (nh / nw);
+
+          liveElement.style.width = '';
+          liveElement.style.height = '';
+          
+          liveElement.setAttribute('width', fitW.toString());
+          liveElement.setAttribute('height', fitH.toString());
+          liveElement.setAttribute('data-width', fitW.toString());
+          liveElement.setAttribute('data-height', fitH.toString());
+          
+          if (targetImg !== liveElement) {
+            targetImg.style.width = '';
+            targetImg.style.height = '';
+            targetImg.setAttribute('width', fitW.toString());
+            targetImg.setAttribute('height', fitH.toString());
+            targetImg.setAttribute('data-width', fitW.toString());
+            targetImg.setAttribute('data-height', fitH.toString());
+          }
         }
 
-        const origFill = liveElement.getAttribute('data-original-fill');
-        if (origFill) {
-          const match = origFill.match(/url\s*\(\s*['"]?#([^'"()]+)['"]?\s*\)/i);
-          if (match) {
-            const origPat = document.getElementById(match[1].trim()) || liveElement.closest('svg')?.querySelector(`pattern[id="${match[1].trim()}"]`);
-            if (origPat) {
-              const origImg = origPat.querySelector('image');
-              if (origImg) {
-                origImg.setAttribute('href', imageUrl);
-                try { origImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl); } catch (e) { }
+        if (isSvgImage) {
+          targetImg.setAttribute('href', imageUrl);
+          try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl); } catch (e) { }
+
+          const patImg = liveElement.querySelector('.internal-crop-image');
+          if (patImg) {
+            patImg.setAttribute('href', imageUrl);
+            try { patImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl); } catch (e) { }
+          }
+
+          const origFill = liveElement.getAttribute('data-original-fill');
+          if (origFill) {
+            const match = origFill.match(/url\s*\(\s*['"]?#([^'"()]+)['"]?\s*\)/i);
+            if (match) {
+              const origPat = document.getElementById(match[1].trim()) || liveElement.closest('svg')?.querySelector(`pattern[id="${match[1].trim()}"]`);
+              if (origPat) {
+                const origImg = origPat.querySelector('image');
+                if (origImg) {
+                  origImg.setAttribute('href', imageUrl);
+                  try { origImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', imageUrl); } catch (e) { }
+                }
               }
             }
           }
+        } else {
+          targetImg.src = imageUrl;
+          targetImg.setAttribute('src', imageUrl);
         }
-      } else {
-        targetImg.src = imageUrl;
-        targetImg.setAttribute('src', imageUrl);
-      }
 
-      setPreviewSrc(imageUrl);
-      liveElement.removeAttribute('data-original-src');
-      liveElement.removeAttribute('data-cropped-src');
+        setPreviewSrc(imageUrl);
+        liveElement.removeAttribute('data-original-src');
+        liveElement.removeAttribute('data-cropped-src');
+        liveElement.removeAttribute('data-effect-crop-inset');
+        liveElement.removeAttribute('data-crop-data');
+        setImageType('Fit');
+        stateRef.current.imageType = 'Fit';
 
-      liveElement.removeAttribute('data-effect-crop-inset');
-      liveElement.removeAttribute('data-crop-data');
-      setImageType('Fit');
-      stateRef.current.imageType = 'Fit';
+        if (onUpdate) onUpdate({ shouldRefresh: true });
 
-      if (onUpdate) onUpdate({ shouldRefresh: true });
+        // Upload to Backend
+        const storedUser = localStorage.getItem('user');
+        if (storedUser && (flipbookVId || (folderName && flipbookName))) {
+          const user = JSON.parse(storedUser);
+          const formData = new FormData();
+          formData.append('emailId', user.emailId);
+          if (flipbookVId) formData.append('v_id', flipbookVId);
+          if (folderName) formData.append('folderName', folderName);
+          if (flipbookName) formData.append('flipbookName', flipbookName);
+          formData.append('type', 'image');
+          formData.append('assetType', 'Image');
+          formData.append('page_v_id', currentPageVId || 'global');
 
-      // Upload to Backend
-      const storedUser = localStorage.getItem('user');
-      if (storedUser && (flipbookVId || (folderName && flipbookName))) {
-        const user = JSON.parse(storedUser);
-        const formData = new FormData();
-        formData.append('emailId', user.emailId);
-        if (flipbookVId) formData.append('v_id', flipbookVId);
-        if (folderName) formData.append('folderName', folderName);
-        if (flipbookName) formData.append('flipbookName', flipbookName);
-
-        formData.append('type', 'image');
-        formData.append('assetType', 'Image');
-        formData.append('page_v_id', currentPageVId || 'global');
-
-        const existingFileVid = selectedElement.dataset.fileVid;
-        if (existingFileVid) {
-          formData.append('replacing_file_v_id', existingFileVid);
-        }
-        formData.append('file', file);
-
-        try {
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
-
-          if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
-            const svgImgSrv = getSvgImageEl(selectedElement);
-            if (svgImgSrv) {
-              svgImgSrv.setAttribute('href', serverUrl);
-              try { svgImgSrv.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', serverUrl); } catch (e) { }
-            } else {
-              selectedElement.src = serverUrl;
-            }
-            selectedElement.dataset.fileVid = res.data.file_v_id;
-            setPreviewSrc(serverUrl);
-            if (onUpdate) onUpdate({ shouldRefresh: true });
+          const existingFileVid = selectedElement.dataset.fileVid;
+          if (existingFileVid) {
+            formData.append('replacing_file_v_id', existingFileVid);
           }
-        } catch (err) {
-          console.error("Image upload failed detail:", err.response?.data || err);
+          formData.append('file', file);
+
+          try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+            const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
+            if (res.data.url) {
+              const serverUrl = `${backendUrl}${res.data.url}`;
+              const svgImgSrv = getSvgImageEl(selectedElement);
+              if (svgImgSrv) {
+                svgImgSrv.setAttribute('href', serverUrl);
+                try { svgImgSrv.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', serverUrl); } catch (e) { }
+              } else {
+                selectedElement.src = serverUrl;
+              }
+              selectedElement.dataset.fileVid = res.data.file_v_id;
+              setPreviewSrc(serverUrl);
+              if (onUpdate) onUpdate({ shouldRefresh: true });
+            }
+          } catch (err) {
+            console.error("Image upload failed detail:", err.response?.data || err);
+          }
         }
-      }
+      };
+
+      const imgObj = new window.Image();
+      imgObj.onload = () => {
+        processUpload(imgObj.naturalWidth, imgObj.naturalHeight);
+      };
+      imgObj.src = imageUrl;
     }
     e.target.value = '';
   };
@@ -2269,6 +2301,7 @@ const ImageEditor = ({
         }
       `}</style>
       <input
+        id="image-editor-upload-input"
         type="file"
         ref={fileInputRef}
         onChange={handleFileUpload}
@@ -2650,17 +2683,8 @@ const ImageEditor = ({
                       />
                     )}
                     <div
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setPreviewSrc('');
-                        if (selectedElement) {
-                          const targetImg = getSvgImageEl(selectedElement) || selectedElement;
-                          targetImg.setAttribute('href', '');
-                          targetImg.setAttribute('xlink:href', '');
-                          if (onUpdate) onUpdate({ shouldRefresh: true });
-                        }
-                      }}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
+                      onClick={() => onDeleteLayer && onDeleteLayer()}
                     >
                       <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
                       <span className="text-[0.5vw] text-white font-semibold">Remove</span>
@@ -2670,23 +2694,18 @@ const ImageEditor = ({
                 </div>
 
                 {/* Replace Arrow */}
-                <div className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <label 
+                  htmlFor="image-editor-upload-input"
+                  className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
+                >
                   <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
-                </div>
+                </label>
 
                 {/* Upload Box */}
                 <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-indigo-400', 'bg-indigo-50/20'); }}
-                    onDragLeave={(e) => { e.currentTarget.classList.remove('border-indigo-400', 'bg-indigo-50/20'); }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.currentTarget.classList.remove('border-indigo-400', 'bg-indigo-50/20');
-                      const files = e.dataTransfer.files;
-                      if (files && files.length > 0) handleFileUpload({ target: { files } });
-                    }}
-                    className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-50 transition-all bg-white py-[0.2vw]"
+                  <label
+                    htmlFor="image-editor-upload-input"
+                    className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
                     style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
                   >
                     <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
@@ -2697,8 +2716,8 @@ const ImageEditor = ({
                       <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
                       <span className="text-[0.5vw] font-semibold text-gray-500">JPG, PNG</span>
                     </div>
-                  </div>
-                  <span className="text-[0.6vw] font-semibold text-gray-400 cursor-pointer" onClick={() => fileInputRef.current?.click()}>Replace</span>
+                  </label>
+                  <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
                 </div>
               </div>
 
