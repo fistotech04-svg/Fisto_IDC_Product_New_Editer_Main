@@ -2240,7 +2240,7 @@ const TemplateEditor = () => {
 
     // 1. Layer Blur
     if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.5'));
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
       const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
 
       let blurSource = currentIn;

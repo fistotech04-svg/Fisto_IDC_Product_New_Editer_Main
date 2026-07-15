@@ -738,8 +738,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         if (svg) {
           svg.style.width = (32 * scaleFactor) + 'px';
           svg.style.height = (32 * scaleFactor) + 'px';
-          svg.style.filter = 'drop-shadow(0px 3px 6px rgba(0,0,0,0.6))';
-          svg.style.overflow = 'visible'; // Ensure shadow isn't clipped
+          svg.style.filter = 'drop-shadow(0 4px 6px rgba(0,0,0,0.8)) drop-shadow(0 0 2px rgba(255,255,255,0.8))';
+          svg.style.overflow = 'visible';
         }
       });
 
@@ -877,7 +877,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
             )}
             <div 
               className={`${isGrad && stops.length > 0 ? `grad-icon-${gradId}` : ''} transition-all`}
-              style={{ filter: 'drop-shadow(0px 14px 28px rgba(0,0,0,0.6))' }}
             >
               {NavIconRenderer({ styleId, size: '36px', color: isGrad ? 'currentColor' : navIconColor })[iconKey]}
             </div>
@@ -1611,12 +1610,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                         </div>
 
                         {/* Icon Content (Blurred on hover) */}
-                        <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:blur-[1px]">
-                          <div className="flex items-center justify-center shrink-0 shadow-lg transition-all">
-                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '2vw', color: '#000000' }).left}
+                        <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:opacity-30">
+                          <div className="flex items-center justify-center shrink-0 transition-all" style={{ filter: 'drop-shadow(0 1px 4px rgba(61, 60, 60, 0.7))' }}>
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '1.8vw', color: '#000000' }).left}
                           </div>
-                          <div className="flex items-center justify-center shrink-0 shadow-lg transition-all">
-                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '2vw', color: '#000000' }).right}
+                          <div className="flex items-center justify-center shrink-0 transition-all" style={{ filter: 'drop-shadow(0 1px 4px rgba(61, 60, 60, 0.7))' }}>
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '1.8vw', color: '#000000' }).right}
                           </div>
                         </div>
                       </div>

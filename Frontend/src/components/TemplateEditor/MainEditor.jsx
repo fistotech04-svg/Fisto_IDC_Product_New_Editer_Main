@@ -2477,6 +2477,12 @@ const MainEditor = ({
 
       const svgMatrix = overlayCtm.inverse().multiply(ctm);
 
+      const isMediaOrText = el.tagName.toLowerCase() === 'image' || 
+                            el.tagName.toLowerCase() === 'video' || 
+                            el.tagName.toLowerCase() === 'img' || 
+                            el.tagName.toLowerCase() === 'text' ||
+                            el.tagName.toLowerCase() === 'foreignobject';
+
       const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
@@ -2530,7 +2536,7 @@ const MainEditor = ({
         } else if (type === 'selected' || type === 'child-selected') {
           polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'entered') {
-          polygon.setAttribute('stroke', '#6366F1');
+          polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
         }
 
         polygon.setAttribute('pointer-events', 'none');
@@ -2547,7 +2553,7 @@ const MainEditor = ({
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+        if (type === 'child-hover' && !isMediaOrText) polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
         else polygon.removeAttribute('stroke-dasharray');
       } else if (type === 'selected' || type === 'child-selected') {
         polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
@@ -5113,8 +5119,8 @@ const MainEditor = ({
                       el.setAttribute('data-sizing-mode', 'auto-height');
                       el.setAttribute('data-auto-wrap', 'true');
                     } else if (dir === 'n' || dir === 's') {
-                      el.setAttribute('data-sizing-mode', 'auto-width');
-                      el.setAttribute('data-auto-wrap', 'false');
+                      el.setAttribute('data-sizing-mode', 'auto-height');
+                      el.setAttribute('data-auto-wrap', 'true');
                     } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
                       el.setAttribute('data-sizing-mode', 'fixed');
                       el.setAttribute('data-auto-wrap', 'true');
@@ -5150,7 +5156,7 @@ const MainEditor = ({
                       }
                       adjustedWidth = bestW;
                       el.setAttribute('width', adjustedWidth);
-                      adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                      adjustedHeight = div.scrollHeight + 4;
                     } else {
                       // Corners -> Ensure height isn't hidden
                       adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
@@ -5564,8 +5570,8 @@ const MainEditor = ({
           const mountedText = container.querySelector(`[id="${id}"]`);
           if (mountedText) {
             drawOverlayHighlight(mountedText, 'selected');
-            // Enter edit mode immediately for newly created text
-            enterTextEditMode(mountedText, null, null);
+            // Enter edit mode immediately for newly created text and fully select it
+            enterTextEditMode(mountedText, null, null, true);
           }
 
           suppressClickRef.current = false;
@@ -6793,7 +6799,7 @@ const MainEditor = ({
   };
 
 
-  const enterTextEditMode = (target, clientX = null, clientY = null) => {
+  const enterTextEditMode = (target, clientX = null, clientY = null, selectAll = false) => {
     if (!target || !target.id) return;
     if (activeTopTool === 'interaction' || activeTopTool === 'animation') return;
 
@@ -6920,6 +6926,16 @@ const MainEditor = ({
             drawOverlayHighlight(foTarget, highlightType);
             clearOverlayType('hover');
             clearOverlayType('child-hover');
+
+            // Also redraw parent group's entered overlay to prevent the dashed line from sticking in the middle
+            const parentGroup = foTarget.closest('g');
+            if (parentGroup && parentGroup.getAttribute('data-name') === 'Group') {
+              const overlayNode = document.querySelector(`[id="overlay-poly-entered-${parentGroup.id}"]`);
+              if (overlayNode) {
+                overlayNode.remove();
+                drawOverlayHighlight(parentGroup, 'entered');
+              }
+            }
           }, 0);
         }
       }
@@ -6927,11 +6943,21 @@ const MainEditor = ({
     div.addEventListener('input', handleInput);
     div.focus();
 
+    // Immediately trigger a resize so it precisely shrink-wraps the initial text
+    handleInput();
+
     // Place cursor at the clicked position using caretRangeFromPoint if coords are available
     // Otherwise fall back to end of text
     const placeCaretAtClick = (cx, cy) => {
       let placed = false;
-      if (cx !== null && cy !== null) {
+      if (selectAll) {
+        const range = document.createRange();
+        range.selectNodeContents(div);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        placed = true;
+      } else if (cx !== null && cy !== null) {
         // Standard (Chrome/Edge/Safari)
         if (document.caretRangeFromPoint) {
           const clickRange = document.caretRangeFromPoint(cx, cy);
