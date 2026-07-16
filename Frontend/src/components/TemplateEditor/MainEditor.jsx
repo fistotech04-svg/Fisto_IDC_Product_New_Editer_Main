@@ -2710,7 +2710,7 @@ const MainEditor = ({
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        if (type === 'child-hover' && !isMediaOrText) polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
         else polygon.removeAttribute('stroke-dasharray');
       } else if (type === 'selected' || type === 'child-selected') {
         polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
@@ -2741,7 +2741,7 @@ const MainEditor = ({
 
         if (!hideHandles) {
           const useLBrackets = !isLine && (activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame);
-          const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
+          const handleSize = useLBrackets ? 12 : 7.5; // Slightly larger for interaction mode corners
 
           let handleNames, allPts;
 
@@ -2818,7 +2818,7 @@ const MainEditor = ({
                 handle.style.backgroundColor = '#FFFFFF';
                 handle.style.border = '1.5px solid #6366F1';
                 handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                handle.style.borderRadius = isLine ? '50%' : '2px';
+                handle.style.borderRadius = isLine ? '50%' : '0px';
               }
 
               handle.style.boxSizing = 'border-box';
@@ -5198,6 +5198,8 @@ const MainEditor = ({
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
             const isGroup = (el.tagName?.toLowerCase() === 'g' && !el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group')) || el.tagName === 'multi';
+            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || isForeignObject;
+            const isShape = (['path', 'polygon', 'circle', 'ellipse', 'rect', 'polyline', 'line'].includes(el.tagName?.toLowerCase()) || isGroup) && !isFreeFrame && !isForeignObject;
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
 
             if (event.shiftKey) {
@@ -5243,7 +5245,7 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
@@ -5254,8 +5256,6 @@ const MainEditor = ({
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
               }
             }
-
-            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || el.tagName?.toLowerCase() === 'foreignobject';
 
             if (isFreeFrame || isGroup) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;

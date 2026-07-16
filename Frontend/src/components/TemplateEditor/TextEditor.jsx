@@ -12,7 +12,7 @@ import {
   AlignCenter, AlignRight, AlignJustify, Italic, Underline,
   Strikethrough, Type, ListOrdered, RotateCcw, X, Pipette,
   ChevronLeft, ChevronRight, Star, Zap, Eye,
-  ArrowLeftRight, ArrowUpDown, SlidersHorizontal,
+  ArrowLeftRight, ArrowUpDown, SlidersHorizontal, Maximize,
   CaseUpper, CaseLower, Palette, Edit3
 } from 'lucide-react';
 
@@ -2305,85 +2305,7 @@ const TextEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
       </div>
 
-      {/* Text Sizing Mode (Auto Width / Auto Height) */}
-      <div className="flex items-center gap-[0.5vw] transition-opacity duration-200 opacity-100">
-        <span className="text-[0.75vw] font-semibold text-gray-600 whitespace-nowrap">Resize</span>
-        <div className="flex gap-[0.35vw] p-[0.2vw] bg-gray-100 rounded-[0.6vw] flex-1">
-          {/* Auto Width */}
-          <button
-            title="Auto Width — text grows horizontally on one line"
-            onClick={() => applyTextSizingMode('auto-width')}
-            className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
-              isScrollable ? 'opacity-40 pointer-events-none' : ''
-            } ${
-              sizingMode === 'auto-width'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'0.9vw',height:'0.9vw',flexShrink:0}}>
-              <rect x="2" y="6" width="12" height="4" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M1 8H15M12 5.5L15 8L12 10.5M4 5.5L1 8L4 10.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span>Auto W</span>
-          </button>
-          {/* Auto Height */}
-          <button
-            title="Auto Height — width fixed, height grows with content"
-            onClick={() => applyTextSizingMode('auto-height')}
-            className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
-              isScrollable ? 'opacity-40 pointer-events-none' : ''
-            } ${
-              sizingMode === 'auto-height'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'0.9vw',height:'0.9vw',flexShrink:0}}>
-              <rect x="6" y="2" width="4" height="12" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M8 1V15M5.5 12L8 15L10.5 12M5.5 4L8 1L10.5 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span>Auto H</span>
-          </button>
-          {/* Fixed Size */}
-          <button
-            title="Fixed Size — width and height are fixed, text wraps and overflows or scrolls"
-            onClick={() => applyTextSizingMode('fixed')}
-            className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
-              sizingMode === 'fixed'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style={{width:'0.9vw',height:'0.9vw',flexShrink:0}}>
-              <rect x="3" y="3" width="10" height="10" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeWidth="1.2"/>
-              <circle cx="3" cy="3" r="1" fill="currentColor"/>
-              <circle cx="13" cy="3" r="1" fill="currentColor"/>
-              <circle cx="3" cy="13" r="1" fill="currentColor"/>
-              <circle cx="13" cy="13" r="1" fill="currentColor"/>
-            </svg>
-            <span>Fixed</span>
-          </button>
-        </div>
-      </div>
 
-      {/* Scrollable Toggle */}
-      <div className={`flex items-center justify-between ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-        <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
-        <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
-        <button
-          onClick={() => {
-            const nextValue = !isScrollable;
-            setIsScrollable(nextValue);
-            if (selectedLayerId) {
-              updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollable', nextValue.toString());
-            }
-          }}
-          className={`w-[2.2vw] h-[1.1vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
-        >
-          <div className={`w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
-        </button>
-      </div>
 
       {/* Font Selectors Row 1 */}
       <div className="flex gap-[0.65vw]">
@@ -2603,6 +2525,76 @@ const TextEditor = ({
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Text Sizing Mode (Auto Width / Auto Height) */}
+      <div className="flex flex-col gap-[1vw] pt-[0.8vw] border-t border-gray-100">
+        <div className="flex items-center gap-[0.5vw] transition-opacity duration-200 opacity-100">
+          <span className="text-[0.75vw] font-semibold text-gray-600 whitespace-nowrap">Resize</span>
+          <div className="flex gap-[0.35vw] p-[0.2vw] bg-gray-100 rounded-[0.6vw] flex-1">
+            {/* Auto Width */}
+            <button
+              title="Auto Width — text grows horizontally on one line"
+              onClick={() => applyTextSizingMode('auto-width')}
+              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+                isScrollable ? 'opacity-40 pointer-events-none' : ''
+              } ${
+                sizingMode === 'auto-width'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <ArrowLeftRight size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />
+              <span>Auto W</span>
+            </button>
+            {/* Auto Height */}
+            <button
+              title="Auto Height — width fixed, height grows with content"
+              onClick={() => applyTextSizingMode('auto-height')}
+              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+                isScrollable ? 'opacity-40 pointer-events-none' : ''
+              } ${
+                sizingMode === 'auto-height'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <ArrowUpDown size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />
+              <span>Auto H</span>
+            </button>
+            {/* Fixed Size */}
+            <button
+              title="Fixed Size — width and height are fixed, text wraps and overflows or scrolls"
+              onClick={() => applyTextSizingMode('fixed')}
+              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
+                sizingMode === 'fixed'
+                  ? 'bg-white text-indigo-600 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Maximize size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />
+              <span>Fixed</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Scrollable Toggle */}
+        <div className={`flex items-center justify-between ${sizingMode !== 'fixed' ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+          <span className="text-[0.8vw] font-semibold">Scrollable Text Box Feature</span>
+          <div className="flex-1 mx-[1vw] border-b border-dashed border-gray-300"></div>
+          <button
+            onClick={() => {
+              const nextValue = !isScrollable;
+              setIsScrollable(nextValue);
+              if (selectedLayerId) {
+                updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-scrollable', nextValue.toString());
+              }
+            }}
+            className={`w-[2.2vw] h-[1.1vw] rounded-full p-[0.15vw] transition-colors duration-200 ${isScrollable ? 'bg-indigo-600' : 'bg-gray-300'}`}
+          >
+            <div className={`w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-transform duration-200 ${isScrollable ? 'translate-x-[1.1vw]' : 'translate-x-0'}`}></div>
+          </button>
         </div>
       </div>
 
