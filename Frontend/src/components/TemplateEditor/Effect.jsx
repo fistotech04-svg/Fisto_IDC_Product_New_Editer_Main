@@ -408,64 +408,64 @@ const Effect = ({
                   const displayVal = row.displayMultiplier ? Math.round(rawVal * row.displayMultiplier) : rawVal;
 
                   return (
-                  <div key={row.id} className="flex items-center">
-                    <span
-                      className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                      onPointerDown={(e) => {
-                        handleScrub(e, displayVal, (val) => {
-                          const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
-                        });
-                      }}
-                    >{row.label}</span>
-                    <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
-                      <ChevronLeft
-                        size="1vw"
-                        className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                          const step = row.step || 1;
-                          const newVal = Math.max(0, val - step);
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
-                        }}
-                      />
-                      <div
-                        className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                    <div key={row.id} className="flex items-center">
+                      <span
+                        className="text-[0.8vw] font-medium text-gray-800 w-[5.5vw] cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
                         onPointerDown={(e) => {
-                          if (e.target.tagName === 'INPUT') return;
-                          handleScrubHelper(e, displayVal, (val) => {
+                          handleScrub(e, displayVal, (val) => {
                             const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
                             updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
                           });
                         }}
-                      >
-                        <input
-                          type="number"
-                          step={row.displayMultiplier ? 1 : (row.step || 1)}
-                          value={displayVal}
-                          onChange={(e) => {
-                            const val = parseFloat(e.target.value);
-                            if (isNaN(val)) return;
-                            const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
-                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
+                      >{row.label}</span>
+                      <div className="flex items-center justify-center gap-[0.8vw] flex-grow">
+                        <ChevronLeft
+                          size="1vw"
+                          className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                          onClick={() => {
+                            const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                            const step = row.step || 1;
+                            const newVal = Math.max(0, val - step);
+                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
                           }}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
+                        />
+                        <div
+                          className="w-[4.5vw] h-[2.2vw] border border-gray-100 rounded-[0.4vw] flex items-center justify-center bg-gray-50/50 shadow-sm hover:border-indigo-200 transition-all cursor-ew-resize select-none"
+                          onPointerDown={(e) => {
+                            if (e.target.tagName === 'INPUT') return;
+                            handleScrubHelper(e, displayVal, (val) => {
+                              const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
+                              updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
+                            });
+                          }}
+                        >
+                          <input
+                            type="number"
+                            step={row.displayMultiplier ? 1 : (row.step || 1)}
+                            value={displayVal}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              if (isNaN(val)) return;
+                              const finalVal = row.displayMultiplier ? val / row.displayMultiplier : val;
+                              updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, finalVal);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full text-center text-[0.85vw] font-semibold text-gray-800 outline-none no-spin bg-transparent cursor-text"
+                          />
+                        </div>
+                        <ChevronRight
+                          size="1vw"
+                          className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
+                          onClick={() => {
+                            const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
+                            const step = row.step || 1;
+                            const newVal = val + step;
+                            updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
+                          }}
                         />
                       </div>
-                      <ChevronRight
-                        size="1vw"
-                        className="text-gray-400 cursor-pointer hover:text-indigo-500 transition-colors"
-                        onClick={() => {
-                          const val = parseFloat(pseudoProps[`data-effect-${activeEffectPopupId}-${row.id}`] ?? row.default);
-                          const step = row.step || 1;
-                          const newVal = val + step;
-                          updateAttr(`data-effect-${activeEffectPopupId}-${row.id}`, newVal.toFixed(1).replace(/\.0$/, ''));
-                        }}
-                      />
+                      <div className="w-[0.5vw]"></div>
                     </div>
-                    <div className="w-[0.5vw]"></div>
-                  </div>
                 )})}
 
                 <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] ml-[-1.2vw] mr-[-1.2vw] mt-[2vw] mb-[0.5vw]"></div>

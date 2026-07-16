@@ -129,6 +129,11 @@ foreignObject:not([data-scrollable="true"]):not([data-editing="true"])>div {
   height: auto !important;
 }
 
+/* Force fixed mode text boxes to always align to the top, overriding any legacy inline flex styles */
+foreignObject[data-sizing-mode="fixed"]>div {
+  display: block !important;
+}
+
 foreignObject[data-scrollable="true"]>div {
   width: 100% !important;
   height: 100% !important;

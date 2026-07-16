@@ -655,6 +655,13 @@ const MainEditor = ({
   const [showSelectOptions, setShowSelectOptions] = useState(false);
   const [showPenOptions, setShowPenOptions] = useState(false);
   const [showShapesOptions, setShowShapesOptions] = useState(false);
+
+  // Robustly ensure multi-selection dotted outlines are removed when selection is no longer multiple
+  useEffect(() => {
+    if (multiSelectedIds && multiSelectedIds.size <= 1) {
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+    }
+  }, [multiSelectedIds]);
   // isEditingText is now managed via isEditingTextRef to prevent React re-renders from destroying the edit box
 
   const [selectedSelectTool, setSelectedSelectTool] = useState('select'); // 'select' or 'direct'
@@ -1787,6 +1794,148 @@ const MainEditor = ({
     return () => clearInterval(intervalId);
   }, [setSelectedLayerId]);
 
+  // Global Stroke Overlay Sync
+  useEffect(() => {
+    const syncOverlays = () => {
+      const container = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+      if (!container) return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+
+      let defs = svg.querySelector('defs');
+      if (!defs) {
+        defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        svg.insertBefore(defs, svg.firstChild);
+      }
+
+      const shapes = svg.querySelectorAll('[data-stroke-position="Outside"], [data-stroke-position="Inside"]');
+      shapes.forEach(el => {
+        const pos = el.getAttribute('data-stroke-position');
+        const sw = parseFloat(el.getAttribute('data-stroke-width') || '0');
+        if (sw <= 0) {
+          const existingOverlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+          if (existingOverlay) existingOverlay.remove();
+          return;
+        }
+
+        // Hide original stroke and capture its color
+        const currentStroke = el.getAttribute('stroke');
+        if (currentStroke && currentStroke !== 'none') {
+          el.setAttribute('data-original-stroke', currentStroke);
+          el.setAttribute('stroke', 'none');
+        }
+        if (el.hasAttribute('stroke-width')) {
+          el.removeAttribute('stroke-width');
+        }
+
+        let overlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+        if (!overlay) {
+          overlay = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+          overlay.classList.add('svg-shape-stroke-overlay');
+          overlay.setAttribute('data-target', el.id);
+          overlay.style.pointerEvents = 'none';
+          if (pos === 'Inside') {
+            el.parentNode.insertBefore(overlay, el.nextSibling);
+          } else {
+            el.parentNode.insertBefore(overlay, el);
+          }
+        }
+
+        if (pos === 'Inside') {
+          let clip = defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
+          if (!clip) {
+            clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+            clip.id = `clip-shape-${el.id}`;
+            const clipShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+            clip.appendChild(clipShape);
+            defs.appendChild(clip);
+          }
+          overlay.setAttribute('clip-path', `url(#clip-shape-${el.id})`);
+          overlay.removeAttribute('mask');
+        } else {
+          let mask = defs.querySelector(`mask[id="mask-shape-${el.id}"]`);
+          if (!mask) {
+            mask = document.createElementNS('http://www.w3.org/2000/svg', 'mask');
+            mask.id = `mask-shape-${el.id}`;
+            const maskBg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            maskBg.setAttribute('x', '-500%');
+            maskBg.setAttribute('y', '-500%');
+            maskBg.setAttribute('width', '1000%');
+            maskBg.setAttribute('height', '1000%');
+            maskBg.setAttribute('fill', 'white');
+            const maskShape = document.createElementNS('http://www.w3.org/2000/svg', el.tagName);
+            maskShape.setAttribute('fill', 'black');
+            mask.appendChild(maskBg);
+            mask.appendChild(maskShape);
+            defs.appendChild(mask);
+          }
+          overlay.setAttribute('mask', `url(#mask-shape-${el.id})`);
+          overlay.removeAttribute('clip-path');
+        }
+
+        // Sync visual attributes
+        overlay.setAttribute('stroke', el.getAttribute('data-original-stroke') || '#000');
+        overlay.setAttribute('stroke-width', (sw * 2).toString());
+        overlay.setAttribute('fill', 'none');
+        overlay.setAttribute('stroke-opacity', el.getAttribute('data-stroke-opacity') || '1');
+
+        const dashArray = el.getAttribute('data-stroke-dasharray');
+        if (dashArray && dashArray !== 'none') overlay.setAttribute('stroke-dasharray', dashArray);
+        else overlay.removeAttribute('stroke-dasharray');
+
+        overlay.setAttribute('stroke-linecap', el.getAttribute('stroke-linecap') || 'butt');
+        overlay.setAttribute('stroke-linejoin', (el.getAttribute('stroke-linecap') || 'butt') === 'round' ? 'round' : 'miter');
+
+        // Sync geometry
+        const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'points'];
+        const refShape = pos === 'Inside' ? defs.querySelector(`clipPath[id="clip-shape-${el.id}"]`)?.firstChild : defs.querySelector(`mask[id="mask-shape-${el.id}"]`)?.lastChild;
+
+        attrsToSync.forEach(attr => {
+          const val = el.getAttribute(attr);
+          if (val !== null) {
+            overlay.setAttribute(attr, val);
+            if (refShape) refShape.setAttribute(attr, val);
+          } else {
+            overlay.removeAttribute(attr);
+            if (refShape) refShape.removeAttribute(attr);
+          }
+        });
+
+        // ONLY copy transform to the overlay, NOT to the clip/mask shapes (which use userSpaceOnUse coordinate system)
+        const transformAttr = el.getAttribute('transform');
+        if (transformAttr !== null) overlay.setAttribute('transform', transformAttr);
+        else overlay.removeAttribute('transform');
+
+        overlay.style.transform = el.style.transform;
+        overlay.style.translate = el.style.translate;
+        overlay.style.scale = el.style.scale;
+        overlay.style.rotate = el.style.rotate;
+        if (refShape) {
+          refShape.style.transform = el.style.transform;
+          refShape.style.translate = el.style.translate;
+          refShape.style.scale = el.style.scale;
+          refShape.style.rotate = el.style.rotate;
+        }
+      });
+
+      // Cleanup orphan overlays
+      svg.querySelectorAll('.svg-shape-stroke-overlay').forEach(overlay => {
+        const targetId = overlay.getAttribute('data-target');
+        const target = svg.querySelector(`[id="${targetId}"]`);
+        if (!target || target.getAttribute('data-stroke-position') === 'Center') {
+          overlay.remove();
+          const mask = defs?.querySelector(`mask[id="mask-shape-${targetId}"]`);
+          if (mask) mask.remove();
+          const clip = defs?.querySelector(`clipPath[id="clip-shape-${targetId}"]`);
+          if (clip) clip.remove();
+        }
+      });
+    };
+
+    const interval = setInterval(syncOverlays, 100);
+    return () => clearInterval(interval);
+  }, [activePageIndex]);
+
   // Handle external asset insertion events
   useEffect(() => {
     const handleAddIcon = (e) => {
@@ -2012,6 +2161,8 @@ const MainEditor = ({
   };
 
   const getRotatingCursor = (dir, rotation) => {
+    if (dir === 'linestart' || dir === 'lineend') return 'all-scroll';
+
     // Map base directions to their local angles (0 is East/Right)
     const baseAngles = { 'e': 0, 'se': 45, 's': 90, 'sw': 135, 'w': 180, 'nw': 225, 'n': 270, 'ne': 315 };
     const angle = (baseAngles[dir] + rotation + 360) % 180;
@@ -2023,6 +2174,7 @@ const MainEditor = ({
   };
 
   const drawMultiSelectionHighlight = (ids, type) => {
+    document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
     const elementsByOverlay = new Map();
 
     ids.forEach(id => {
@@ -2118,6 +2270,11 @@ const MainEditor = ({
       dummy.setAttribute('height', maxY - minY);
 
       drawOverlayHighlight(dummy, type);
+
+      // Draw dotted outline on individual elements in the multi-selection
+      elements.forEach(el => {
+        drawOverlayHighlight(el, 'multi-child-selected');
+      });
     });
   };
 
@@ -2504,12 +2661,24 @@ const MainEditor = ({
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
 
-      const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
-      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
-      const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
-      const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+      const isLine = el.tagName.toLowerCase() === 'line';
+      let pts;
+      if (isLine) {
+        const x1 = parseFloat(el.getAttribute('x1')) || 0;
+        const y1 = parseFloat(el.getAttribute('y1')) || 0;
+        const x2 = parseFloat(el.getAttribute('x2')) || 0;
+        const y2 = parseFloat(el.getAttribute('y2')) || 0;
+        const pt1 = overlay.createSVGPoint(); pt1.x = x1; pt1.y = y1;
+        const pt2 = overlay.createSVGPoint(); pt2.x = x2; pt2.y = y2;
+        pts = [pt1, pt2];
+      } else {
+        const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x - localOffset; pt1.y = bbox.y - localOffset;
+        const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width + localOffset; pt2.y = bbox.y - localOffset;
+        const pt3 = overlay.createSVGPoint(); pt3.x = bbox.x + bbox.width + localOffset; pt3.y = bbox.y + bbox.height + localOffset;
+        const pt4 = overlay.createSVGPoint(); pt4.x = bbox.x - localOffset; pt4.y = bbox.y + bbox.height + localOffset;
+        pts = [pt1, pt2, pt3, pt4];
+      }
 
-      const pts = [pt1, pt2, pt3, pt4];
       const mapped = pts.map(p => p.matrixTransform(svgMatrix));
       const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
 
@@ -2521,7 +2690,9 @@ const MainEditor = ({
         polygon.setAttribute('class', `overlay-type-${type}`);
         polygon.setAttribute('fill', 'none');
 
-        if (el.getAttribute('data-name') === 'Free Frame') {
+        if (isLine) {
+          polygon.setAttribute('stroke', 'transparent');
+        } else if (el.getAttribute('data-name') === 'Free Frame') {
           if (type === 'hover' || type === 'child-hover') {
             polygon.setAttribute('stroke', 'transparent');
           } else {
@@ -2536,7 +2707,7 @@ const MainEditor = ({
           } else {
             polygon.setAttribute('fill', 'none');
           }
-        } else if (type === 'selected' || type === 'child-selected') {
+        } else if (type === 'selected' || type === 'child-selected' || type === 'multi-child-selected') {
           polygon.setAttribute('stroke', '#6366F1');
         } else if (type === 'entered') {
           polygon.setAttribute('stroke', isMediaOrText ? 'transparent' : '#6366F1');
@@ -2556,11 +2727,14 @@ const MainEditor = ({
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        if (type === 'child-hover' && !isMediaOrText) polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
         else polygon.removeAttribute('stroke-dasharray');
       } else if (type === 'selected' || type === 'child-selected') {
         polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
         polygon.removeAttribute('stroke-dasharray');
+      } else if (type === 'multi-child-selected') {
+        polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+        polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'entered') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
@@ -2583,18 +2757,26 @@ const MainEditor = ({
         }
 
         if (!hideHandles) {
-          const useLBrackets = activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame;
-          const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
-          const handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+          const useLBrackets = !isLine && (activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame);
+          const handleSize = useLBrackets ? 12 : 7.5; // Slightly larger for interaction mode corners
 
-          // Define all points in world space
-          const worldPts = [...mapped]; // Corners
-          const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
-          const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
-          const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
-          const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
+          let handleNames, allPts;
 
-          const allPts = useLBrackets ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+          if (isLine) {
+            handleNames = ['linestart', 'lineend'];
+            allPts = [...mapped];
+          } else {
+            handleNames = useLBrackets ? ['nw', 'ne', 'se', 'sw'] : ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+
+            // Define all points in world space
+            const worldPts = [...mapped]; // Corners
+            const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
+            const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
+            const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
+            const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
+
+            allPts = useLBrackets ? [...worldPts] : [...worldPts, midN, midE, midS, midW];
+          }
 
           // Detect current rotation for cursor mapping
           const matrix = getElementMatrix(el);
@@ -2653,12 +2835,12 @@ const MainEditor = ({
                 handle.style.backgroundColor = '#FFFFFF';
                 handle.style.border = '1.5px solid #6366F1';
                 handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                handle.style.borderRadius = '2px';
+                handle.style.borderRadius = isLine ? '50%' : '0px';
               }
 
               handle.style.boxSizing = 'border-box';
               handle.style.pointerEvents = 'auto';
-              handle.style.zIndex = isSide ? '999' : '1000';
+              handle.style.zIndex = isLine ? '2147483647' : (isSide ? '999' : '1000');
               htmlOverlay.appendChild(handle);
             }
 
@@ -3488,11 +3670,21 @@ const MainEditor = ({
   }, []);
 
   // ── Clear selection on tool switch ──────────────────────────────────────────
+  const prevActiveMainToolRef = useRef(activeMainTool);
   useEffect(() => {
+    const prevTool = prevActiveMainToolRef.current;
+    prevActiveMainToolRef.current = activeMainTool;
+
     if (skipClearSelectionRef.current) {
       skipClearSelectionRef.current = false;
       return;
     }
+
+    // Do not clear selection if auto-switching from 'upload' or 'grid' back to 'select'
+    if ((prevTool === 'upload' || prevTool === 'grid') && activeMainTool === 'select') {
+      return;
+    }
+
     if (setSelectedLayerId) {
       setSelectedLayerId(null);
       if (setMultiSelectedIds) {
@@ -4310,8 +4502,18 @@ const MainEditor = ({
                   const selEl = container?.querySelector(`[id="${id}"]`);
                   if (selEl && selEl !== svgElement) {
                     // Check if we hit the element's bounding box OR one of its descendants
-                    const isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                    let isHit = false;
                     const isMemberHit = target && selEl.contains(target);
+                    if (!isMemberHit) {
+                      // Only fallback to bbox hitTest if they clicked empty space (SVG/Overlay/BaseFrame),
+                      // not another distinct, draggable element sitting on top.
+                      const topFrames = getTopLevelFrames(svgElement);
+                      const leaf = getDraggableElement(target, svgElement);
+                      const isBase = leaf ? topFrames.some(f => f.id === leaf.id) : true;
+                      if (isBase || target === svgElement || target.getAttribute('data-name') === 'Overlay') {
+                         isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                      }
+                    }
 
                     if (isHit || isMemberHit) {
                       // Only allow dragging if it's NOT the root page-level frame
@@ -4333,14 +4535,15 @@ const MainEditor = ({
                 const frameId = currentFrameIdRef.current;
                 let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
 
-                // Auto-Enter logic for single-page root frames (matching mousedown behavior)
+                // Auto-Enter logic for root frames (matching mousedown behavior)
                 const topFrames = getTopLevelFrames(svgElement);
-                if (!frameId && topFrames.length === 1) {
-                  if (hitTest(topFrames[0], event.clientX, event.clientY)) {
-                    context = topFrames[0];
+                if (!frameId) {
+                  const hitFrame = topFrames.find(f => hitTest(f, event.clientX, event.clientY));
+                  if (hitFrame) {
+                    context = hitFrame;
                     if (setCurrentFrameId) {
-                      setCurrentFrameId(topFrames[0].id);
-                      currentFrameIdRef.current = topFrames[0].id;
+                      setCurrentFrameId(hitFrame.id);
+                      currentFrameIdRef.current = hitFrame.id;
                     }
                   }
                 }
@@ -4757,7 +4960,7 @@ const MainEditor = ({
             suppressClickRef.current = true;
             const handle = event.target;
             const handleId = handle.id;
-            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw|n|e|s|w)/);
+            const match = handleId.match(/resize-handle-(.+)-(nw|ne|se|sw|n|e|s|w|linestart|lineend)/);
             if (!match) return;
 
             const elId = match[1];
@@ -4860,6 +5063,7 @@ const MainEditor = ({
             else if (dir === 's') localAnchor = { x: bbox.x + bbox.width / 2, y: bbox.y };
             else if (dir === 'e') localAnchor = { x: bbox.x, y: bbox.y + bbox.height / 2 };
             else if (dir === 'w') localAnchor = { x: bbox.x + bbox.width, y: bbox.y + bbox.height / 2 };
+            else if (dir === 'linestart' || dir === 'lineend') localAnchor = { x: bbox.x, y: bbox.y };
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
@@ -4937,6 +5141,54 @@ const MainEditor = ({
             pt.y = event.clientY;
             const currentPoint = pt.matrixTransform(parentCTM.inverse());
 
+            if (dir === 'linestart' || dir === 'lineend') {
+              const invMatrix = matrix.inverse();
+
+              // Safely convert to DOMPoint before matrixTransform to avoid SVGPoint crash!
+              const safePoint = new DOMPoint(currentPoint.x, currentPoint.y);
+              const localPt = safePoint.matrixTransform(invMatrix);
+
+              let finalLocalPt = localPt;
+
+              if (event.shiftKey) {
+                const anchorX = parseFloat(el.getAttribute(dir === 'linestart' ? 'x2' : 'x1')) || 0;
+                const anchorY = parseFloat(el.getAttribute(dir === 'linestart' ? 'y2' : 'y1')) || 0;
+
+                const dx = localPt.x - anchorX;
+                const dy = localPt.y - anchorY;
+
+                const angle = Math.atan2(dy, dx);
+                const snapAngle = Math.round(angle / (Math.PI / 2)) * (Math.PI / 2);
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                finalLocalPt = {
+                  x: anchorX + dist * Math.cos(snapAngle),
+                  y: anchorY + dist * Math.sin(snapAngle)
+                };
+              }
+
+              if (dir === 'linestart') {
+                el.style.removeProperty('x1');
+                el.style.removeProperty('y1');
+                el.setAttribute('x1', finalLocalPt.x);
+                el.setAttribute('y1', finalLocalPt.y);
+                if (el.x1) el.x1.baseVal.value = finalLocalPt.x;
+                if (el.y1) el.y1.baseVal.value = finalLocalPt.y;
+              } else {
+                el.style.removeProperty('x2');
+                el.style.removeProperty('y2');
+                el.setAttribute('x2', finalLocalPt.x);
+                el.setAttribute('y2', finalLocalPt.y);
+                if (el.x2) el.x2.baseVal.value = finalLocalPt.x;
+                if (el.y2) el.y2.baseVal.value = finalLocalPt.y;
+              }
+
+              if (typeof drawOverlayHighlight === 'function') {
+                drawOverlayHighlight(el, 'selected');
+              }
+              return;
+            }
+
             // Vector from anchor to current cursor position
             const vCurrent = { x: currentPoint.x - worldAnchor.x, y: currentPoint.y - worldAnchor.y };
 
@@ -4973,11 +5225,55 @@ const MainEditor = ({
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
             const isGroup = (el.tagName?.toLowerCase() === 'g' && !el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group')) || el.tagName === 'multi';
+            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || isForeignObject;
+            const isShape = (['path', 'polygon', 'circle', 'ellipse', 'rect', 'polyline', 'line'].includes(el.tagName?.toLowerCase()) || isGroup) && !isFreeFrame && !isForeignObject;
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
 
-            if ((isCorner && (event.shiftKey || isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            if (event.shiftKey) {
+              let targetRatio = null;
+              if (el.hasAttribute('data-original-aspect-ratio')) {
+                targetRatio = parseFloat(el.getAttribute('data-original-aspect-ratio'));
+              } else {
+                const shapeName = el.getAttribute('data-name') || '';
+                if (shapeName.toLowerCase().includes('circle') || shapeName.toLowerCase().includes('square')) {
+                  targetRatio = 1;
+                } else if (bbox.height > 0) {
+                  targetRatio = bbox.width / bbox.height;
+                } else {
+                  targetRatio = 1;
+                }
+              }
+
+              if (targetRatio && targetRatio > 0 && bbox.width > 0 && bbox.height > 0) {
+                const startA = matrix.a || 1;
+                const startD = matrix.d || 1;
+
+                if (isCorner) {
+                  const fw_x = bbox.width * Math.abs(startA * scaleX);
+                  const fh_x = fw_x / targetRatio;
+
+                  const fh_y = bbox.height * Math.abs(startD * scaleY);
+                  const fw_y = fh_y * targetRatio;
+
+                  if (fw_x > fw_y) {
+                    scaleY = (fh_x / (bbox.height * Math.abs(startD))) * (Math.sign(scaleY) || 1);
+                  } else {
+                    scaleX = (fw_y / (bbox.width * Math.abs(startA))) * (Math.sign(scaleX) || 1);
+                  }
+                } else {
+                  if (dir === 'n' || dir === 's') {
+                    const fh = bbox.height * Math.abs(startD * scaleY);
+                    const fw = fh * targetRatio;
+                    scaleX = (fw / (bbox.width * Math.abs(startA))) * (Math.sign(scaleX) || 1);
+                  } else {
+                    const fw = bbox.width * Math.abs(startA * scaleX);
+                    const fh = fw / targetRatio;
+                    scaleY = (fh / (bbox.height * Math.abs(startD))) * (Math.sign(scaleY) || 1);
+                  }
+                }
+              }
+            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              // For side handles on text (that is not a foreignObject), use the changed dimension as the uniform scale factor
               if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
@@ -4987,8 +5283,6 @@ const MainEditor = ({
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
               }
             }
-
-            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || el.tagName?.toLowerCase() === 'foreignobject';
 
             if (isFreeFrame || isGroup) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
@@ -5011,23 +5305,40 @@ const MainEditor = ({
                   const isScrollable = el.getAttribute('data-scrollable') === 'true';
                   const div = el.firstElementChild;
 
-                  // Enable reflow when resizing horizontally
-                  if (dir === 'e' || dir === 'w' || dir === 'se' || dir === 'sw' || dir === 'ne' || dir === 'nw') {
+                  // Enable reflow when resizing any handle manually
+                  if (dir) {
                     el.setAttribute('data-resized', 'true');
                     div.style.whiteSpace = 'pre-wrap';
                   }
 
                   // Update the sizing mode to reflect manual user overrides so TextEditor respects them
                   if (el.getAttribute('data-type') === 'text') {
-                    if (dir === 'e' || dir === 'w') {
-                      el.setAttribute('data-sizing-mode', 'auto-height');
-                      el.setAttribute('data-auto-wrap', 'true');
-                    } else if (dir === 'n' || dir === 's') {
-                      el.setAttribute('data-sizing-mode', 'auto-height');
-                      el.setAttribute('data-auto-wrap', 'true');
-                    } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
-                      el.setAttribute('data-sizing-mode', 'fixed');
-                      el.setAttribute('data-auto-wrap', 'true');
+                    const currentMode = el.getAttribute('data-sizing-mode');
+                    if (currentMode === 'fixed') {
+                      if (!isScrollable) {
+                        div.style.setProperty('overflow', 'visible', 'important');
+                      }
+                      div.style.setProperty('width', '100%', 'important');
+                      div.style.setProperty('height', '100%', 'important');
+                    } else {
+                      if (dir === 'e' || dir === 'w' || dir === 'n' || dir === 's') {
+                        el.setAttribute('data-sizing-mode', 'auto-height');
+                        el.setAttribute('data-auto-wrap', 'true');
+                        // Scrolling is only allowed in 'fixed' mode, so disable it when switching to auto-height
+                        if (isScrollable) {
+                          el.setAttribute('data-scrollable', 'false');
+                          div.classList.remove('flipbook-text-scrollbar');
+                          div.style.setProperty('overflow', 'visible', 'important');
+                        }
+                      } else if (['nw', 'ne', 'sw', 'se'].includes(dir)) {
+                        el.setAttribute('data-sizing-mode', 'fixed');
+                        el.setAttribute('data-auto-wrap', 'true');
+                        if (!isScrollable) {
+                          div.style.setProperty('overflow', 'visible', 'important');
+                        }
+                        div.style.setProperty('width', '100%', 'important');
+                        div.style.setProperty('height', '100%', 'important');
+                      }
                     }
                   }
 
@@ -5042,8 +5353,8 @@ const MainEditor = ({
                     if (dir === 'e' || dir === 'w') {
                       // Resize width -> Auto height (Can shrink)
                       adjustedHeight = Math.max(10, div.scrollHeight + 4);
-                    } else if (dir === 'n' || dir === 's') {
-                      // Resize height -> adjust width to match new height, but remain in auto-height mode
+                    } else if ((dir === 'n' || dir === 's') && el.getAttribute('data-sizing-mode') !== 'fixed') {
+                      // Resize height -> adjust width to match new height, keeping text inside
                       let minW = 10;
                       let maxW = 3000;
                       let bestW = finalWidth;
@@ -5062,8 +5373,8 @@ const MainEditor = ({
                       el.setAttribute('width', adjustedWidth);
                       adjustedHeight = div.scrollHeight + 4;
                     } else {
-                      // Corners -> Ensure height isn't hidden
-                      adjustedHeight = Math.max(finalHeight, div.scrollHeight + 4);
+                      // Corners or fixed mode -> Fixed size, respect final height exactly so clipping/scrolling works
+                      adjustedHeight = finalHeight;
                     }
                   } else {
                     // Scrollable text boxes CAN hide content. We respect the user's manual sizing exactly.
@@ -5250,10 +5561,44 @@ const MainEditor = ({
               el.setAttribute('transform', matrixToTransform(nextMatrix));
             }
 
-            // Force update selection highlight immediately
+            // Sync shape stroke overlays dynamically
+            const syncOverlay = (targetEl) => {
+              const overlay = targetEl.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${targetEl.id}"]`);
+              if (overlay) {
+                const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'transform', 'points'];
+                const svg = targetEl.ownerSVGElement;
+                const clip = svg?.querySelector(`clipPath[id="clip-shape-${targetEl.id}"]`);
+                const mask = svg?.querySelector(`mask[id="mask-shape-${targetEl.id}"]`);
+                const refShape = clip ? clip.firstChild : (mask ? mask.lastChild : null);
+
+                attrsToSync.forEach(attr => {
+                  const val = targetEl.getAttribute(attr);
+                  if (val !== null) {
+                    overlay.setAttribute(attr, val);
+                    if (refShape) refShape.setAttribute(attr, val);
+                  } else {
+                    overlay.removeAttribute(attr);
+                    if (refShape) refShape.removeAttribute(attr);
+                  }
+                });
+                overlay.style.transform = targetEl.style.transform;
+                overlay.style.translate = targetEl.style.translate;
+                overlay.style.scale = targetEl.style.scale;
+                overlay.style.rotate = targetEl.style.rotate;
+                if (refShape) {
+                  refShape.style.transform = targetEl.style.transform;
+                  refShape.style.translate = targetEl.style.translate;
+                  refShape.style.scale = targetEl.style.scale;
+                  refShape.style.rotate = targetEl.style.rotate;
+                }
+              }
+            };
+
             if (el.tagName === 'multi') {
+              if (state.childrenData) state.childrenData.forEach(c => syncOverlay(c.child));
               drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
             } else {
+              syncOverlay(el);
               const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
               drawOverlayHighlight(el, highlightType);
             }
@@ -5414,6 +5759,8 @@ const MainEditor = ({
         fo.setAttribute('height', '30');
         fo.setAttribute('transform', `matrix(${ptToMmScale} 0 0 ${ptToMmScale} 0 0)`);
         fo.setAttribute('fill', '#000000');
+        fo.setAttribute('stroke', 'none');
+        fo.setAttribute('stroke-width', '0');
         fo.setAttribute('font-family', "'Outfit', sans-serif");
         fo.setAttribute('font-size', '24');
         fo.setAttribute('letter-spacing', '0');
@@ -5652,7 +5999,7 @@ const MainEditor = ({
           if (selectedShapeTool === 'line') {
             shape.setAttribute('fill', 'none');
             shape.setAttribute('stroke', '#000000');
-            shape.setAttribute('stroke-width', '2');
+            shape.setAttribute('stroke-width', '1');
           } else if (selectedShapeTool === 'free-frame') {
             const zoomScale = zoom / 100;
             shape.setAttribute('fill', 'transparent');
@@ -5724,6 +6071,17 @@ const MainEditor = ({
       }
     }
 
+    const topFrames = getTopLevelFrames(svg);
+    if (!hitCandidate || topFrames.some(f => f.id === hitCandidate.id)) {
+      const leafTarget = getDraggableElement(e.target, svg);
+      if (leafTarget) {
+         const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
+         if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
+            hitCandidate = leafTarget;
+         }
+      }
+    }
+
     // ── NEW: Check if we hit ANY already-selected element's bounding box ──────────
     let hitAnySelected = false;
     const currentMultiIds = multiSelectedIdsRef.current;
@@ -5750,7 +6108,6 @@ const MainEditor = ({
       }
     }
 
-    const topFrames = getTopLevelFrames(svg);
     const hitBaseFrame = hitCandidate && topFrames.some(f => f.id === hitCandidate.id);
 
     // 2. Selection/Drag Priority
@@ -5771,7 +6128,8 @@ const MainEditor = ({
     }
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
-    const shouldStartMarquee = (e.ctrlKey && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
+    const shouldStartMarquee = ( (e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -6204,7 +6562,7 @@ const MainEditor = ({
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee) ─────────────────────
   // ── FIGMA-STYLE GLOBAL MOUSE UP (Handles end of marquee or tool drawing) ────────────────
   useEffect(() => {
-    const handleGlobalMouseUp = () => {
+    const handleGlobalMouseUp = (e) => {
       // ── Bending/Handle Dragging Finalization ──
       const activeState = (bendingStateRef.current || handleDraggingStateRef.current);
       if (activeState) {
@@ -6299,6 +6657,63 @@ const MainEditor = ({
 
         if (shape.getAttribute('data-name') === 'Free Frame') {
           shape.removeAttribute('data-drawing');
+        }
+
+        const start = shapeStartPointRef.current;
+        if (start && svgEl && e) {
+          const pt = getSvgPoint(svgEl, e.clientX, e.clientY);
+          if (pt && Math.hypot(pt.x - start.x, pt.y - start.y) < 2) {
+            const type = shape.getAttribute('data-shape-type') || shape.tagName.toLowerCase();
+
+            if (type === 'rect' || type === 'free-frame' || shape.tagName.toLowerCase() === 'rect') {
+              shape.setAttribute('x', start.x - 15);
+              shape.setAttribute('y', start.y - 15);
+              shape.setAttribute('width', 30);
+              shape.setAttribute('height', 30);
+            } else if (type === 'circle' || type === 'ellipse' || shape.tagName.toLowerCase() === 'ellipse') {
+              shape.setAttribute('cx', start.x);
+              shape.setAttribute('cy', start.y);
+              shape.setAttribute('rx', 15);
+              shape.setAttribute('ry', 15);
+            } else if (type === 'line' || shape.tagName.toLowerCase() === 'line') {
+              shape.setAttribute('x1', start.x - 15);
+              shape.setAttribute('y1', start.y - 15);
+              shape.setAttribute('x2', start.x + 15);
+              shape.setAttribute('y2', start.y + 15);
+            } else if (type === 'polygon' || type === 'star') {
+              const radius = 15;
+              const isStar = type === 'star';
+              const count = isStar ? parseInt(shape.getAttribute('data-count') || 5) : parseInt(shape.getAttribute('data-count') || 3);
+              const sides = isStar ? count * 2 : count;
+              const points = [];
+              for (let i = 0; i < sides; i++) {
+                let r = radius;
+                if (isStar && i % 2 !== 0) {
+                  const ratio = parseFloat(shape.getAttribute('data-ratio') || 40) / 100;
+                  r = radius * ratio;
+                }
+                const angle = (isStar ? (Math.PI / count) : (2 * Math.PI / count)) * i - Math.PI / 2;
+                points.push(`${start.x + r * Math.cos(angle)},${start.y + r * Math.sin(angle)}`);
+              }
+              shape.setAttribute('d', `M ${points.join(' L ')} Z`);
+              shape.setAttribute('data-rx', radius);
+              shape.setAttribute('data-ry', radius);
+            }
+          }
+        }
+
+        // Store original aspect ratio
+        try {
+          if (shape && typeof shape.getBBox === 'function') {
+            const bbox = shape.getBBox();
+            if (bbox.width > 0 && bbox.height > 0) {
+              shape.setAttribute('data-original-aspect-ratio', (bbox.width / bbox.height).toString());
+            } else {
+              shape.setAttribute('data-original-aspect-ratio', '1');
+            }
+          }
+        } catch (e) {
+          // ignore error if getBBox fails
         }
 
         drawingShapeRef.current = null;
@@ -6411,8 +6826,9 @@ const MainEditor = ({
     div.style.wordSpacing = el.style.wordSpacing || el.getAttribute('word-spacing') || '';
     div.style.wordBreak = 'normal';
     div.style.overflowWrap = 'anywhere';
-    // Use pre-wrap to allow paragraphs to reflow correctly
-    div.style.whiteSpace = 'pre-wrap';
+    const sizingMode = el.getAttribute('data-sizing-mode') || 'auto-height';
+    // Use pre-wrap to allow paragraphs to reflow correctly (unless auto-width)
+    div.style.whiteSpace = sizingMode === 'auto-width' ? 'nowrap' : 'pre-wrap';
     div.style.padding = '0px'; // Push down 1.5px and right 1px to match SVG baseline
     div.style.margin = '0';
     div.style.boxSizing = 'border-box';
@@ -6422,10 +6838,14 @@ const MainEditor = ({
     div.style.pointerEvents = 'none';
 
     if (!isScrollable) {
-      // Vertically center the text to match SVG bbox placement and prevent upward shift
-      div.style.display = 'flex';
-      div.style.flexDirection = 'column';
-      div.style.justifyContent = 'center';
+      if (sizingMode === 'fixed') {
+        div.style.display = 'block';
+      } else {
+        // Vertically center the text to match SVG bbox placement and prevent upward shift
+        div.style.display = 'flex';
+        div.style.flexDirection = 'column';
+        div.style.justifyContent = 'center';
+      }
     }
 
     // Smart tspan-to-lines conversion: group tspans by Y coordinate change
@@ -6646,6 +7066,10 @@ const MainEditor = ({
     multiSelectedIdsRef.current = newSet;
     setMultiSelectedIds(newSet);
 
+    if (newSet.size <= 1) {
+      document.querySelectorAll('.overlay-type-multi-child-selected').forEach(el => el.remove());
+    }
+
     // ── Figma-style: auto-convert <text> to <foreignObject> on first selection ──
     // This ensures resize handles, click-to-edit, and style panel all work correctly
     if (id) {
@@ -6794,7 +7218,7 @@ const MainEditor = ({
           changed = true;
         }
 
-        if (Math.abs(contentH - foH) > 2) {
+        if (sizingMode !== 'fixed' && Math.abs(contentH - foH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
           changed = true;
         }
@@ -6973,7 +7397,7 @@ const MainEditor = ({
           }
         }
 
-        if (Math.abs(contentH - currentH) > 2) {
+        if (sizingMode !== 'fixed' && Math.abs(contentH - currentH) > 2) {
           foTarget.setAttribute('height', contentH + 4);
         }
       }
