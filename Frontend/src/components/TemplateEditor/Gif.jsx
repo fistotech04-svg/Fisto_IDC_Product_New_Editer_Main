@@ -92,8 +92,8 @@ const GifEditor = ({
   const [isRadiusLinked, setIsRadiusLinked] = useState(true);
   const [activeEffects, setActiveEffects] = useState([]);
   const [effectSettings, setEffectSettings] = useState({
-    'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
+    'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
+    'Inner Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
     'Blur': { blur: 0.5, spread: 0 }
   });
 
@@ -241,11 +241,11 @@ const GifEditor = ({
 
     const strokeArray = selectedElement.getAttribute('stroke-dasharray') || 'none';
     const isDashed = (selectedElement.style.borderStyle === 'dashed' || strokeArray.includes(','));
-    let dashLen = 5, dashGap = 5;
-    if (isDashed && strokeArray !== 'none') {
+    let dashLen = 10, dashGap = 10;
+    if (strokeArray !== 'none' && strokeArray !== '') {
       const parts = strokeArray.split(',');
       const parsedLen = parseInt(parts[0]);
-      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
       const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
       dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
@@ -351,13 +351,14 @@ const GifEditor = ({
       const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
         return `M ${x + tlv},${y} ` +
           `L ${x + w - trv},${y} ` +
-          `Q ${x + w},${y} ${x + w},${y + trv} ` +
+          (trv > 0 ? `A ${trv} ${trv} 0 0 1 ${x + w},${y + trv} ` : '') +
           `L ${x + w},${y + h - brv} ` +
-          `Q ${x + w},${y + h} ${x + w - brv},${y + h} ` +
+          (brv > 0 ? `A ${brv} ${brv} 0 0 1 ${x + w - brv},${y + h} ` : '') +
           `L ${x + blv},${y + h} ` +
-          `Q ${x},${y + h} ${x},${y + h - blv} ` +
+          (blv > 0 ? `A ${blv} ${blv} 0 0 1 ${x},${y + h - blv} ` : '') +
           `L ${x},${y + tlv} ` +
-          `Q ${x},${y} ${x + tlv},${y} Z`;
+          (tlv > 0 ? `A ${tlv} ${tlv} 0 0 1 ${x + tlv},${y} ` : '') +
+          `Z`;
       };
 
       const f = filters;
@@ -696,7 +697,7 @@ const GifEditor = ({
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
 
           if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
-            const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+            const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
             liveElement.setAttribute('stroke-dasharray', dashArray);
           } else {
             liveElement.removeAttribute('stroke-dasharray');
@@ -769,10 +770,22 @@ const GifEditor = ({
               ox -= sw / 2; oy -= sw / 2; ow += sw; oh += sw;
             }
 
-            const tl = radius.tl || 0;
-            const tr = radius.tr || 0;
-            const br = radius.br || 0;
-            const bl = radius.bl || 0;
+            let tl = radius.tl || 0;
+            let tr = radius.tr || 0;
+            let br = radius.br || 0;
+            let bl = radius.bl || 0;
+
+            if (pos === 'Inside') {
+              tl = Math.max(0, tl - sw / 2);
+              tr = Math.max(0, tr - sw / 2);
+              br = Math.max(0, br - sw / 2);
+              bl = Math.max(0, bl - sw / 2);
+            } else if (pos === 'Outside') {
+              tl = tl > 0 ? tl + sw / 2 : 0;
+              tr = tr > 0 ? tr + sw / 2 : 0;
+              br = br > 0 ? br + sw / 2 : 0;
+              bl = bl > 0 ? bl + sw / 2 : 0;
+            }
 
             const maxR = Math.min(ow, oh) / 2;
             const c_tl = Math.max(0, Math.min(tl, maxR));
@@ -822,7 +835,7 @@ const GifEditor = ({
             strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
             if (backgroundColor.strokeDashStyle === 'Dashed' || backgroundColor.strokeType === 'Dashed') {
-              const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+              const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
               strokeOverlay.setAttribute('stroke-dasharray', dashArray);
             } else {
               strokeOverlay.removeAttribute('stroke-dasharray');
@@ -831,6 +844,56 @@ const GifEditor = ({
             strokeOverlay.setAttribute('data-stroke-position', backgroundColor.strokePosition || 'Center');
             strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
             strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
+
+            // Add clipPath to clip the image to prevent sharp corners from bleeding
+            const isImageElement = liveElement.tagName?.toLowerCase() === 'image';
+            const defsOwner = isImageElement ? (liveElement.ownerSVGElement || liveElement.parentElement || liveElement) : liveElement;
+
+            if (isImageElement) {
+              const buggyDefs = liveElement.querySelector('defs');
+              if (buggyDefs) buggyDefs.remove();
+            }
+
+            let defs = defsOwner.querySelector('defs');
+            if (!defs) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              defsOwner.insertBefore(defs, defsOwner.firstChild);
+            }
+            const clipId = `clip-${liveElement.id || Date.now()}`;
+            let clip = defs.querySelector(`clipPath[id="${clipId}"]`);
+            if (!clip) {
+              clip = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+              clip.id = clipId;
+              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+              clipPathEl.classList.add('svg-gif-clip-path');
+              clip.appendChild(clipPathEl);
+              defs.appendChild(clip);
+            }
+
+            const clipPathEl = clip.querySelector('path');
+            if (clipPathEl) {
+              const innerMaxR = Math.min(bw, bh) / 2;
+              const inner_tl = Math.max(0, Math.min(tl, innerMaxR));
+              const inner_tr = Math.max(0, Math.min(tr, innerMaxR));
+              const inner_br = Math.max(0, Math.min(br, innerMaxR));
+              const inner_bl = Math.max(0, Math.min(bl, innerMaxR));
+              clipPathEl.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), inner_tl, inner_tr, inner_br, inner_bl));
+            }
+
+            if (targetEl) {
+              let innerGroupForClip = liveElement.querySelector('.gif-inner-content');
+              if (innerGroupForClip && targetEl === liveElement) {
+                innerGroupForClip.setAttribute('clip-path', `url(#${clip.id})`);
+                innerGroupForClip.style.setProperty('clip-path', `url(#${clip.id})`, 'important');
+                innerGroupForClip.style.removeProperty('-webkit-clip-path');
+                targetEl.removeAttribute('clip-path');
+                targetEl.style.removeProperty('clip-path');
+              } else {
+                targetEl.setAttribute('clip-path', `url(#${clip.id})`);
+                targetEl.style.setProperty('clip-path', `url(#${clip.id})`, 'important');
+                targetEl.style.removeProperty('-webkit-clip-path');
+              }
+            }
           }
         } else {
           liveElement.removeAttribute('stroke');
@@ -979,13 +1042,13 @@ const GifEditor = ({
                 tEl = svgImageEl.parentNode;
               }
               let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = tEl.getBBox(); } catch (e) {}
-              
+              try { bBox = tEl.getBBox(); } catch (e) { }
+
               let xStr = tEl.getAttribute('x') || '0';
               let yStr = tEl.getAttribute('y') || '0';
               let wStr = tEl.getAttribute('width') || '100%';
               let hStr = tEl.getAttribute('height') || '100%';
-              
+
               let obx = xStr.includes('%') ? bBox.x : parseFloat(xStr) || 0;
               let oby = yStr.includes('%') ? bBox.y : parseFloat(yStr) || 0;
               let obw = wStr.includes('%') ? bBox.width : parseFloat(wStr) || 100;
@@ -1200,12 +1263,12 @@ const GifEditor = ({
 
         liveElement.style.width = '';
         liveElement.style.height = '';
-        
+
         liveElement.setAttribute('width', fitW.toString());
         liveElement.setAttribute('height', fitH.toString());
         liveElement.setAttribute('data-width', fitW.toString());
         liveElement.setAttribute('data-height', fitH.toString());
-        
+
         if (targetImg !== liveElement) {
           targetImg.style.width = '';
           targetImg.style.height = '';
@@ -1307,7 +1370,7 @@ const GifEditor = ({
         </div>
 
         {/* Replace Icon */}
-        <div 
+        <div
           className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
           onClick={() => fileInputRef.current?.click()}
         >

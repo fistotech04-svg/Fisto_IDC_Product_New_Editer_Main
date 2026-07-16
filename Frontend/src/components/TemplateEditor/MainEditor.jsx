@@ -24,9 +24,11 @@ export const getVisualBBox = (el) => {
     const bbox = el.getBBox();
     try {
       const crop = JSON.parse(cropStr);
+      const offX = (parseFloat(crop.offX) || 0) / 100;
+      const offY = (parseFloat(crop.offY) || 0) / 100;
       return {
-        x: bbox.x + (parseFloat(crop.left) / 100) * bbox.width,
-        y: bbox.y + (parseFloat(crop.top) / 100) * bbox.height,
+        x: bbox.x - (offX * bbox.width) + (parseFloat(crop.left) / 100) * bbox.width,
+        y: bbox.y - (offY * bbox.height) + (parseFloat(crop.top) / 100) * bbox.height,
         width: bbox.width * (parseFloat(crop.width) / 100),
         height: bbox.height * (parseFloat(crop.height) / 100)
       };
@@ -97,6 +99,21 @@ const svgGlobalStyles = `
   .page-svg-container svg {
     user-select: none !important;
     -webkit-user-select: none !important;
+  }
+
+  /* Hide regular selection overlays when Crop Modal is open */
+  body.crop-modal-active .overlay-type-selected,
+  body.crop-modal-active .overlay-type-hover,
+  body.crop-modal-active .overlay-type-child-hover,
+  body.crop-modal-active .overlay-type-child-selected,
+  body.crop-modal-active .selection-handle {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  /* Hide ONLY the specific image that is actively being cropped to prevent ghosting */
+  body.crop-modal-active .page-svg-container svg [data-cropping="true"] {
+    opacity: 0 !important;
   }
 
   .page-svg-container svg text,
@@ -969,7 +986,7 @@ const MainEditor = ({
 
         const scaleFactor = Math.max(0.4, Math.min(1.8, localWidth / 300));
 
-        const { dotColor = '#4F46E5', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
+        const { dotColor = '#000000', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
 
         const signature = JSON.stringify({
           imagesCount: images.length,
@@ -2681,11 +2698,11 @@ const MainEditor = ({
           } else {
             polygon.setAttribute('stroke', '#000000');
           }
-        } else if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && (type === 'selected' || type === 'child-selected')) {
+        } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
           polygon.setAttribute('stroke', '#000000');
         } else if (type === 'hover' || type === 'child-hover') {
           polygon.setAttribute('stroke', '#6366F1');
-          if (activeTopTool === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
+          if (activeTopToolRef.current === 'interaction' && el.getAttribute('data-interaction') && el.getAttribute('data-interaction') !== 'none') {
             polygon.setAttribute('fill', 'rgba(99, 102, 241, 0.3)');
           } else {
             polygon.setAttribute('fill', 'none');
@@ -2705,7 +2722,7 @@ const MainEditor = ({
       if (el.getAttribute('data-name') === 'Free Frame') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
-      } else if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && (type === 'selected' || type === 'child-selected')) {
+      } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
@@ -2730,7 +2747,7 @@ const MainEditor = ({
       if (selectionCount === 1 && (type === 'selected' || type === 'child-selected') && !isBeingEdited) {
         const htmlOverlay = getHtmlOverlayForElement(el);
         const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
-        const hideHandles = (activeTopTool === 'interaction' || activeTopTool === 'animation') && !isFreeFrame;
+        const hideHandles = (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isFreeFrame;
 
         if (hideHandles) {
           if (htmlOverlay) {
@@ -2740,8 +2757,8 @@ const MainEditor = ({
         }
 
         if (!hideHandles) {
-          const useLBrackets = !isLine && (activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame);
-          const handleSize = useLBrackets ? 12 : 7.5; // Slightly larger for interaction mode corners
+          const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isFreeFrame);
+          const handleSize = useLBrackets ? 14 : 9.5; // Slightly larger for interaction mode corners, increased for better sensitivity
 
           let handleNames, allPts;
 
@@ -2781,7 +2798,7 @@ const MainEditor = ({
                 handle.style.backgroundColor = 'transparent';
                 handle.style.border = 'none';
                 handle.style.boxShadow = 'none';
-                if ((activeTopTool === 'interaction' || activeTopTool === 'animation') && el.getAttribute('data-name') !== 'Free Frame') {
+                if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && el.getAttribute('data-name') !== 'Free Frame') {
                   handle.style.pointerEvents = 'none';
                 }
 
@@ -2835,7 +2852,7 @@ const MainEditor = ({
                   ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
                   : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
                 const length = dist;
-                const thickness = 2 / zoomScale;
+                const thickness = 8 / zoomScale; // Increased for better edge hover sensitivity
 
                 handle.style.width = isHorizontal ? `${length}px` : `${thickness}px`;
                 handle.style.height = isHorizontal ? `${thickness}px` : `${length}px`;
@@ -2870,7 +2887,7 @@ const MainEditor = ({
         } // Close if (!hideHandles)
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
-        if (activeTopTool === 'interaction') {
+        if (activeTopToolRef.current === 'interaction') {
           const badgeId = `interaction-badge-${el.id}`;
           let badge = htmlOverlay?.querySelector(`[id="${badgeId}"]`);
 
@@ -3303,6 +3320,13 @@ const MainEditor = ({
     window.addEventListener('add-free-frame', handleAddFreeFrame);
     return () => window.removeEventListener('add-free-frame', handleAddFreeFrame);
   }, [setActiveMainTool, setSelectedShapeTool]);
+
+  // Reset selectedShapeTool from 'free-frame' to default when leaving interaction mode
+  useEffect(() => {
+    if (activeTopTool !== 'interaction' && selectedShapeTool === 'free-frame') {
+      setSelectedShapeTool('rectangle');
+    }
+  }, [activeTopTool, selectedShapeTool]);
 
   useEffect(() => {
     if (activeBendingSegmentRef.current) {
