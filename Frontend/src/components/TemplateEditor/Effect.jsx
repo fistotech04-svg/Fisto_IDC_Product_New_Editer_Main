@@ -21,15 +21,16 @@ const Effect = ({
     'data-effect-blur': activeEffects?.includes('Blur') ? 'true' : 'false',
     'data-effect-drop-shadow-color': effectSettings?.['Drop Shadow']?.color ?? '#000000',
     'data-effect-drop-shadow-opacity': effectSettings?.['Drop Shadow']?.opacity ?? 35,
-    'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x ?? 4,
-    'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y ?? 4,
+    'data-effect-drop-shadow-x': effectSettings?.['Drop Shadow']?.x ?? 2,
+    'data-effect-drop-shadow-y': effectSettings?.['Drop Shadow']?.y ?? 2,
     'data-effect-drop-shadow-blur': effectSettings?.['Drop Shadow']?.blur ?? 1,
     'data-effect-inner-shadow-color': effectSettings?.['Inner Shadow']?.color ?? '#000000',
     'data-effect-inner-shadow-opacity': effectSettings?.['Inner Shadow']?.opacity ?? 35,
-    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x ?? 4,
-    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 4,
+    'data-effect-inner-shadow-x': effectSettings?.['Inner Shadow']?.x ?? 2,
+    'data-effect-inner-shadow-y': effectSettings?.['Inner Shadow']?.y ?? 2,
     'data-effect-inner-shadow-blur': effectSettings?.['Inner Shadow']?.blur ?? 1,
     'data-effect-blur-value': effectSettings?.['Blur']?.blur ?? 0.3,
+    'data-effect-blur-clip': effectSettings?.['Blur']?.clipContent ? 'true' : 'false',
   };
 
   const handleUpdate = (page, layer, attr, value) => {
@@ -42,8 +43,8 @@ const Effect = ({
             'Drop Shadow': {
               color: p['Drop Shadow']?.color || '#000000',
               opacity: p['Drop Shadow']?.opacity ?? 35,
-              x: p['Drop Shadow']?.x ?? 4,
-              y: p['Drop Shadow']?.y ?? 4,
+              x: p['Drop Shadow']?.x ?? 2,
+              y: p['Drop Shadow']?.y ?? 2,
               blur: p['Drop Shadow']?.blur ?? 1
             }
           }));
@@ -56,8 +57,8 @@ const Effect = ({
             'Inner Shadow': {
               color: p['Inner Shadow']?.color || '#000000',
               opacity: p['Inner Shadow']?.opacity ?? 35,
-              x: p['Inner Shadow']?.x ?? 4,
-              y: p['Inner Shadow']?.y ?? 4,
+              x: p['Inner Shadow']?.x ?? 2,
+              y: p['Inner Shadow']?.y ?? 2,
               blur: p['Inner Shadow']?.blur ?? 1
             }
           }));
@@ -68,7 +69,8 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Blur': {
-              blur: p['Blur']?.blur ?? 0.3
+              blur: p['Blur']?.blur ?? 0.3,
+              clipContent: p['Blur']?.clipContent ?? false
             }
           }));
         }
@@ -87,7 +89,13 @@ const Effect = ({
         }
         if (effectName && setEffectSettings) {
           if (setting === 'value') setting = 'blur';
-          let finalValue = setting === 'color' ? value : (value === '' ? '' : parseFloat(value));
+          let finalValue;
+          if (setting === 'clip') {
+            setting = 'clipContent';
+            finalValue = value === 'true';
+          } else {
+            finalValue = setting === 'color' ? value : (value === '' ? '' : parseFloat(value));
+          }
           if (setting === 'blur' && typeof finalValue === 'number' && finalValue < 0) {
             finalValue = 0;
           }
@@ -152,6 +160,11 @@ const Effect = ({
 
     const handleClickOutside = (e) => {
       if (activeEffectPopupId) {
+        // If the element that was clicked is no longer in the document (e.g. an icon replaced during render), ignore the click
+        if (e.target && !document.contains(e.target)) {
+          return;
+        }
+        
         const isEffectPopup = e.target.closest('.effect-popup-container');
         const isEffectRow = e.target.closest('.effect-row');
         const isPicker = e.target.closest('#deep-color-picker');
@@ -177,9 +190,9 @@ const Effect = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openSubSection === 'effect' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className="font-semibold text-gray-900 text-[0.85vw]">Effect</span>
+            <span className={`font-semibold text-[0.85vw] ${openSubSection === 'effect' ? 'text-gray-900' : 'text-gray-500'}`}>Effect</span>
           </div>
-          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openSubSection === 'effect' ? '' : 'rotate-180'}`} />
+          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'effect' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>
 
         <div className={`grid transition-all duration-150 ease-in-out ${openSubSection === 'effect' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
@@ -262,12 +275,9 @@ const Effect = ({
               <>
                 <div className="flex items-center">
                   <div
-                    className={`w-[4.5vw] h-[4vw] rounded-[0.5vw] border relative overflow-hidden flex items-center justify-center text-[0.9vw] font-semibold text-white shadow-inner cursor-pointer transition-all hover:scale-105 active:scale-95 flex-shrink-0 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'border-gray-100 hover:border-gray-300'}`}
+                    className={`w-[3.5vw] h-[3.5vw] mt-[0.5vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100 flex-shrink-0 transition-all hover:scale-105 active:scale-95 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'hover:border-gray-300'}`}
                     style={{
-                      backgroundColor: 'white',
-                      backgroundImage: `linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee), linear-gradient(45deg, #eee 25%, transparent 25%, transparent 75%, #eee 75%, #eee)`,
-                      backgroundSize: '6px 6px',
-                      backgroundPosition: '0 0, 3px 3px'
+                      backgroundColor: pseudoProps[`data-effect-${activeEffectPopupId}-color`] || '#000000'
                     }}
                     onClick={(e) => {
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -275,18 +285,7 @@ const Effect = ({
                       if (setActiveColorPicker) setActiveColorPicker(`data-effect-${activeEffectPopupId}-color`);
                       if (setShowDetailedPicker) setShowDetailedPicker(true);
                     }}
-                  >
-                    <div
-                      className="absolute inset-0"
-                      style={{
-                        backgroundColor: pseudoProps[`data-effect-${activeEffectPopupId}-color`] || '#000000',
-                        opacity: (pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35) / 100
-                      }}
-                    />
-                    <span className="relative z-10 drop-shadow-md">
-                      {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%
-                    </span>
-                  </div>
+                  />
 
                   <div className="flex-grow min-w-0 flex flex-col justify-center space-y-[0.4vw] w-full ml-[0.6vw]">
                     <div className="flex items-center gap-[0.3vw] w-full">
@@ -300,7 +299,7 @@ const Effect = ({
                         />
                         <Pipette
                           size="0.9vw"
-                          className="text-gray-400 rotate-90 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors"
+                          className="text-gray-400 flex-shrink-0 cursor-pointer hover:text-gray-600 transition-colors"
                           onClick={async () => {
                             if (!window.EyeDropper) return;
                             try {
@@ -327,14 +326,17 @@ const Effect = ({
                         }}
                       >Opacity :</span>
                       <div className="flex-grow flex items-center gap-[0.4vw] min-w-0">
-                        <input
-                          type="range"
-                          min="0" max="100"
-                          value={pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}
-                          onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
-                          className="flex-grow h-[0.3vw] accent-[#5d5efc] cursor-pointer outline-none min-w-[5.5vw]"
-                        />
-                        <span className="text-[0.5vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0">
+                        <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+                          <input
+                            type="range"
+                            min="0" max="100"
+                            value={pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}
+                            onChange={(e) => updateAttr(`data-effect-${activeEffectPopupId}-opacity`, e.target.value)}
+                            className="w-full cursor-pointer custom-range-slider"
+                            style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%, #E2E8F0 ${pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%, #E2E8F0 100%)` }}
+                          />
+                        </div>
+                        <span className="text-[0.75vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0">
                           {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%
                         </span>
                       </div>
@@ -344,8 +346,8 @@ const Effect = ({
 
                 <div className="space-y-[0.8vw] pt-[0.2vw]">
                   {[
-                    { id: 'x', label: 'X Axis :', default: 4 },
-                    { id: 'y', label: 'Y Axis :', default: 4 },
+                    { id: 'x', label: 'X Axis :', default: 2 },
+                    { id: 'y', label: 'Y Axis :', default: 2 },
                     { id: 'blur', label: 'Blur % :', default: 1 }
                   ].map((row) => (
                     <div key={row.id} className="flex items-center">
@@ -465,6 +467,24 @@ const Effect = ({
                     <div className="w-[0.5vw]"></div>
                   </div>
                 )})}
+
+                <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] ml-[-1.2vw] mr-[-1.2vw] mt-[2vw] mb-[0.5vw]"></div>
+                <div className="flex items-center justify-between pt-[0.4vw]">
+                  <span className="text-[0.8vw] font-medium text-gray-800">Clip Content</span>
+                  <button
+                    onClick={() => {
+                      const currentVal = pseudoProps['data-effect-blur-clip'] === 'true';
+                      updateAttr('data-effect-blur-clip', (!currentVal).toString());
+                    }}
+                    className={`relative block w-[2.2vw] h-[1.2vw] rounded-full transition-colors duration-200 ease-in-out outline-none shrink-0 cursor-pointer ${
+                      pseudoProps['data-effect-blur-clip'] === 'true' ? 'bg-[#4D47FF]' : 'bg-gray-300'
+                    }`}
+                  >
+                    <div className={`absolute top-[0.1vw] w-[1vw] h-[1vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_1px_3px_rgba(0,0,0,0.2)] ${
+                      pseudoProps['data-effect-blur-clip'] === 'true' ? 'left-[1.1vw]' : 'left-[0.1vw]'
+                    }`} />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -472,6 +492,10 @@ const Effect = ({
         document.body
       )}
       <style>{`
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;

@@ -175,11 +175,11 @@ const Color = ({
     const strokeArray = el.getAttribute('data-stroke-dasharray') || el.getAttribute('stroke-dasharray') || 'none';
     const dashStyle = strokeArray === 'none' ? 'Solid' : 'Dashed';
     
-    let dashLen = 5, dashGap = 5;
+    let dashLen = 10, dashGap = 10;
     if (strokeArray !== 'none' && strokeArray !== '') {
       const parts = strokeArray.split(',');
       const parsedLen = parseInt(parts[0]);
-      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
       const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
       dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
@@ -253,7 +253,7 @@ const Color = ({
         el.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
         
         const dashArray = backgroundColor.strokeDashStyle === 'Dashed' 
-            ? `${backgroundColor.strokeDashLength ?? 5},${backgroundColor.strokeDashGap ?? 5}` 
+            ? `${backgroundColor.strokeDashLength ?? 10},${backgroundColor.strokeDashGap ?? 10}` 
             : 'none';
             
         el.setAttribute('data-stroke-dasharray', dashArray);
@@ -311,8 +311,8 @@ const Color = ({
     'stroke-radius': backgroundColor?.strokeRadius || 100,
     'stroke-width': backgroundColor?.strokeWeight || 0,
     strokeWidth: backgroundColor?.strokeWeight || 0,
-    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
-    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 5},${backgroundColor?.strokeDashGap ?? 5}` : 'none',
+    'stroke-dasharray': backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}` : 'none',
+    strokeDasharray: backgroundColor?.strokeDashStyle === 'Dashed' ? `${backgroundColor?.strokeDashLength ?? 10},${backgroundColor?.strokeDashGap ?? 10}` : 'none',
     'stroke-linecap': backgroundColor?.strokeLinecap || 'butt',
     'data-stroke-position': backgroundColor?.strokePosition || 'Center',
   };
@@ -339,7 +339,7 @@ const Color = ({
       } else {
         const parts = value.split(',');
         const parsedLen = parseInt(parts[0]);
-        const dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+        const dashLen = isNaN(parsedLen) ? 10 : parsedLen;
         const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
         const dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
         setBackgroundColor(p => ({
@@ -375,9 +375,9 @@ const Color = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openSubSection === 'color' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className="font-semibold text-gray-900 text-[0.85vw]">Color</span>
+            <span className={`font-semibold text-[0.85vw] ${openSubSection === 'color' ? 'text-gray-900' : 'text-gray-500'}`}>Color</span>
           </div>
-          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openSubSection === 'color' ? '' : 'rotate-180'}`} />
+          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'color' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>
 
         <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'color' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
@@ -461,7 +461,7 @@ const Color = ({
                                 : 'text-gray-600 hover:bg-gray-50 hover:text-indigo-600 font-semibold'
                                 }`}
                               onClick={() => {
-                                updateAttr('stroke-dasharray', type === 'Dashed' ? '5,5' : 'none');
+                                updateAttr('stroke-dasharray', type === 'Dashed' ? '10,10' : 'none');
                                 setIsStrokeStyleOpen(false);
                               }}
                             >
@@ -561,14 +561,14 @@ const Color = ({
             </div>
           </div>
 
-          <div className="h-[0.1vw] bg-gray-50 w-full" />
+          <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] mx-[-1vw]" />
 
           <div className={`space-y-[0.75vw] ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
             {[
               { label: 'Length', key: 'dash' },
               { label: 'Gap', key: 'gap' }
             ].map(item => {
-              const dashArray = (pseudoProps.strokeDasharray || '5,5').split(',');
+              const dashArray = (pseudoProps.strokeDasharray || '10,10').split(',');
               const val = parseInt(item.key === 'dash' ? dashArray[0] : (dashArray[1] || dashArray[0]));
 
               const updateValue = (newVal) => {
@@ -608,7 +608,7 @@ const Color = ({
             })}
           </div>
 
-          <div className="h-[0.1vw] bg-gray-50 w-full" />
+          <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] mx-[-1vw]" />
 
           <div className={`flex items-center justify-between ${(!pseudoProps.strokeDasharray || pseudoProps.strokeDasharray === 'none') ? 'opacity-40 pointer-events-none' : ''}`}>
             <span className="text-[0.75vw] font-semibold text-gray-600">Round Corners :</span>
@@ -620,9 +620,9 @@ const Color = ({
                 updateAttr('stroke-linecap', isRound ? 'butt' : 'round');
                 updateAttr('stroke-linejoin', isRound ? 'miter' : 'round');
               }}
-              className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round' ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
+              className={`relative block w-[2.2vw] h-[1.2vw] rounded-full transition-colors duration-200 ease-in-out outline-none shrink-0 cursor-pointer ${(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'bg-[#4D47FF]' : 'bg-gray-300'}`}
             >
-              <div className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'left-[0.9vw]' : 'left-[0.1vw]'}`} />
+              <div className={`absolute top-[0.1vw] w-[1vw] h-[1vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_1px_3px_rgba(0,0,0,0.2)] ${(pseudoProps.strokeLinecap === 'round' || pseudoProps['stroke-linecap'] === 'round') ? 'left-[1.1vw]' : 'left-[0.1vw]'}`} />
             </button>
           </div>
         </div>,

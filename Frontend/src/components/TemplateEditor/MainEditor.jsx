@@ -979,7 +979,7 @@ const MainEditor = ({
 
         const scaleFactor = Math.max(0.4, Math.min(1.8, localWidth / 300));
 
-        const { dotColor = '#4F46E5', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
+        const { dotColor = '#000000', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
 
         const signature = JSON.stringify({
           imagesCount: images.length,

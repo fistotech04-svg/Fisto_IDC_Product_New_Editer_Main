@@ -147,8 +147,8 @@ const ShapeProperties = ({
     strokeRadius: parseFloat(selectedElementProps['stroke-radius'] || 100),
     strokeWeight: parseFloat(selectedElementProps['stroke-width'] || 0),
     strokeDashStyle: (selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid',
-    strokeDashLength: parseInt((selectedElementProps.strokeDasharray || '5,5').split(',')[0]),
-    strokeDashGap: parseInt(((selectedElementProps.strokeDasharray || '5,5').split(',')[1] || (selectedElementProps.strokeDasharray || '5,5').split(',')[0])),
+    strokeDashLength: parseInt((selectedElementProps.strokeDasharray || '10,10').split(',')[0]),
+    strokeDashGap: parseInt(((selectedElementProps.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps.strokeDasharray || '10,10').split(',')[0])),
     strokeLinecap: selectedElementProps['stroke-linecap'] || 'butt',
     strokePosition: selectedElementProps['data-stroke-position'] || 'Center',
   };
@@ -169,7 +169,7 @@ const ShapeProperties = ({
       if (next.strokeDashStyle === 'none' || next.strokeDashStyle === 'Solid') {
          updates['stroke-dasharray'] = 'none';
       } else {
-         updates['stroke-dasharray'] = `${next.strokeDashLength || 5},${next.strokeDashGap || 5}`;
+         updates['stroke-dasharray'] = `${next.strokeDashLength || 10},${next.strokeDashGap || 10}`;
       }
     }
     if (backgroundColor.strokePosition !== next.strokePosition) updates['data-stroke-position'] = next.strokePosition;
@@ -244,16 +244,16 @@ const ShapeProperties = ({
 
   const effectSettings = {
     'Drop Shadow': {
-      x: parseInt(selectedElementProps['data-effect-drop-shadow-x'] || 4),
-      y: parseInt(selectedElementProps['data-effect-drop-shadow-y'] || 4),
+      x: parseInt(selectedElementProps['data-effect-drop-shadow-x'] || 2),
+      y: parseInt(selectedElementProps['data-effect-drop-shadow-y'] || 2),
       blur: parseInt(selectedElementProps['data-effect-drop-shadow-blur'] || 1),
       spread: parseInt(selectedElementProps['data-effect-drop-shadow-spread'] || 0),
       color: selectedElementProps['data-effect-drop-shadow-color'] || '#000000',
       opacity: parseInt(selectedElementProps['data-effect-drop-shadow-opacity'] || 35),
     },
     'Inner Shadow': {
-      x: parseInt(selectedElementProps['data-effect-inner-shadow-x'] || 4),
-      y: parseInt(selectedElementProps['data-effect-inner-shadow-y'] || 4),
+      x: parseInt(selectedElementProps['data-effect-inner-shadow-x'] || 2),
+      y: parseInt(selectedElementProps['data-effect-inner-shadow-y'] || 2),
       blur: parseInt(selectedElementProps['data-effect-inner-shadow-blur'] || 1),
       spread: parseInt(selectedElementProps['data-effect-inner-shadow-spread'] || 0),
       color: selectedElementProps['data-effect-inner-shadow-color'] || '#000000',

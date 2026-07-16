@@ -131,8 +131,8 @@ const ImageEditor = ({
   const [radius, setRadius] = useState({ tl: 12, tr: 12, br: 12, bl: 12 });
   const [activeEffects, setActiveEffects] = useState(['effect']);
   const [effectSettings, setEffectSettings] = useState({
-    'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
+    'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
+    'Inner Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
     'Blur': { blur: 0.3, spread: 0 }
   });
 
@@ -592,11 +592,11 @@ const ImageEditor = ({
     const strokeW = activeEl.getAttribute('data-stroke-width') || activeEl.getAttribute('stroke-width') || '0';
     const strokeArray = activeEl.getAttribute('data-stroke-dasharray') || activeEl.getAttribute('stroke-dasharray') || 'none';
 
-    let dashLen = 5, dashGap = 5;
+    let dashLen = 10, dashGap = 10;
     if (strokeArray !== 'none' && strokeArray !== '') {
       const parts = strokeArray.split(',');
       const parsedLen = parseInt(parts[0]);
-      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
       const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
       dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
@@ -737,13 +737,14 @@ const ImageEditor = ({
       const getPathD = (x, y, w, h, tlv, trv, brv, blv) => {
         return `M ${x + tlv},${y} ` +
           `L ${x + w - trv},${y} ` +
-          `Q ${x + w},${y} ${x + w},${y + trv} ` +
+          (trv > 0 ? `A ${trv} ${trv} 0 0 1 ${x + w},${y + trv} ` : '') +
           `L ${x + w},${y + h - brv} ` +
-          `Q ${x + w},${y + h} ${x + w - brv},${y + h} ` +
+          (brv > 0 ? `A ${brv} ${brv} 0 0 1 ${x + w - brv},${y + h} ` : '') +
           `L ${x + blv},${y + h} ` +
-          `Q ${x},${y + h} ${x},${y + h - blv} ` +
+          (blv > 0 ? `A ${blv} ${blv} 0 0 1 ${x},${y + h - blv} ` : '') +
           `L ${x},${y + tlv} ` +
-          `Q ${x},${y} ${x + tlv},${y} Z`;
+          (tlv > 0 ? `A ${tlv} ${tlv} 0 0 1 ${x + tlv},${y} ` : '') +
+          `Z`;
       };
       // Safe access to filters
       const f = filters || { exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 };
@@ -1914,7 +1915,7 @@ const ImageEditor = ({
         liveElement.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
 
         if (backgroundColor.strokeDashStyle === 'Dashed') {
-          liveElement.setAttribute('data-stroke-dasharray', `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`);
+          liveElement.setAttribute('data-stroke-dasharray', `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`);
         } else {
           liveElement.setAttribute('data-stroke-dasharray', 'none');
         }
@@ -1939,7 +1940,7 @@ const ImageEditor = ({
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
           liveElement.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
           if (backgroundColor.strokeDashStyle === 'Dashed') {
-            const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+            const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
             liveElement.setAttribute('stroke-dasharray', dashArray);
           } else {
             liveElement.setAttribute('stroke-dasharray', 'none');
@@ -2031,10 +2032,22 @@ const ImageEditor = ({
             ox -= sw / 2; oy -= sw / 2; ow += sw; oh += sw;
           }
 
-          const tl = radius.tl || 0;
-          const tr = radius.tr || 0;
-          const br = radius.br || 0;
-          const bl = radius.bl || 0;
+          let tl = radius.tl || 0;
+          let tr = radius.tr || 0;
+          let br = radius.br || 0;
+          let bl = radius.bl || 0;
+
+          if (pos === 'Inside') {
+            tl = Math.max(0, tl - sw / 2);
+            tr = Math.max(0, tr - sw / 2);
+            br = Math.max(0, br - sw / 2);
+            bl = Math.max(0, bl - sw / 2);
+          } else if (pos === 'Outside') {
+            tl = tl > 0 ? tl + sw / 2 : 0;
+            tr = tr > 0 ? tr + sw / 2 : 0;
+            br = br > 0 ? br + sw / 2 : 0;
+            bl = bl > 0 ? bl + sw / 2 : 0;
+          }
 
           const maxR = Math.min(ow, oh) / 2;
           const c_tl = Math.max(0, Math.min(tl, maxR));
@@ -2086,7 +2099,7 @@ const ImageEditor = ({
           strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
 
           if (backgroundColor.strokeDashStyle === 'Dashed') {
-            const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+            const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
             strokeOverlay.setAttribute('stroke-dasharray', dashArray);
           } else {
             strokeOverlay.removeAttribute('stroke-dasharray');
@@ -2134,7 +2147,7 @@ const ImageEditor = ({
 
           const isStrokeCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
 
-          if (targetElForStroke && !isStrokeCropped) {
+          if (targetElForStroke) {
             let innerGroupForClip = liveElement.querySelector('.image-inner-content');
             if (innerGroupForClip && targetElForStroke === liveElement) {
               innerGroupForClip.setAttribute('clip-path', `url(#${clip.id})`);
@@ -2467,7 +2480,7 @@ const ImageEditor = ({
                               showNav: true,
                               navStyle: 1,
                               navIconColor: '#000000',
-                              dotColor: '#4F46E5',
+                              dotColor: '#000000',
                               dotOpacity: 100,
                               autoSlide: true,
                               autoPlay: true,
@@ -2698,28 +2711,11 @@ const ImageEditor = ({
                 {/* Current Image */}
                 <div className="flex flex-col items-center gap-[0.35vw]">
                   <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white flex items-center justify-center group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}>
-                    {selectedElement?.hasAttribute('data-effect-crop-inset') ? (
-                      <svg
-                        width="100%"
-                        height="100%"
-                        viewBox={(() => {
-                          try {
-                            const c = JSON.parse(selectedElement.getAttribute('data-crop-data') || '{}');
-                            return `${c.left || 0} ${c.top || 0} ${c.width || 100} ${c.height || 100}`;
-                          } catch (e) { return '0 0 100 100'; }
-                        })()}
-                        preserveAspectRatio="xMidYMid meet"
-                        className="rounded-[0.3vw]"
-                      >
-                        <image href={previewSrc || ''} width="100" height="100" preserveAspectRatio="none" />
-                      </svg>
-                    ) : (
-                      <img
-                        src={previewSrc || ''}
-                        alt="Thumbnail"
-                        className="w-full h-full rounded-[0.3vw] object-contain"
-                      />
-                    )}
+                    <img
+                      src={previewSrc || ''}
+                      alt="Thumbnail"
+                      className="w-full h-full rounded-[0.3vw] object-contain"
+                    />
                     <div
                       className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
                       onClick={() => onDeleteLayer && onDeleteLayer()}
