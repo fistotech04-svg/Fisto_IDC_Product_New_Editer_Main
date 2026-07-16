@@ -123,9 +123,9 @@ const Effect = ({
     handleScrubHelper(e, initialVal, updateFn, sensitivity);
   };
 
-  const handleEffectRowClick = (e, effectId) => {
-    const target = e.currentTarget.closest('.effect-row') || e.currentTarget;
-    const rect = target.getBoundingClientRect();
+  const handleEffectRowClick = (target, effectId) => {
+    const rowTarget = target.closest('.effect-row') || target;
+    const rect = rowTarget.getBoundingClientRect();
     const popupHeight = effectId.includes('shadow') ? 350 : 220;
     const centerY = rect.top + (rect.height / 2) - (popupHeight / 2);
     const finalTop = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
@@ -183,6 +183,21 @@ const Effect = ({
   }, [activeEffectPopupId]);
 
 
+  const [shouldOpenPopupId, setShouldOpenPopupId] = React.useState(null);
+
+  React.useEffect(() => {
+    if (shouldOpenPopupId) {
+      const isActive = pseudoProps[`data-effect-${shouldOpenPopupId}`] === 'true';
+      if (isActive) {
+        const rowTarget = document.getElementById(`effect-row-${shouldOpenPopupId}`);
+        if (rowTarget) {
+          handleEffectRowClick(rowTarget, shouldOpenPopupId);
+        }
+        setShouldOpenPopupId(null);
+      }
+    }
+  }, [pseudoProps, shouldOpenPopupId]);
+
   return (
     <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
@@ -210,10 +225,13 @@ const Effect = ({
                     key={effect.id}
                     id={`effect-row-${effect.id}`}
                     onClick={(e) => {
+                      const target = e.currentTarget;
                       if (!isActive) {
+                        setShouldOpenPopupId(effect.id);
                         updateAttr(`data-effect-${effect.id}`, 'true');
+                      } else {
+                        handleEffectRowClick(target, effect.id);
                       }
-                      handleEffectRowClick(e, effect.id);
                     }}
                     className={`effect-row flex items-center justify-between px-[1vw] py-[0.8vw] bg-gray-50/50 rounded-[0.8vw] border transition-all group cursor-pointer ${activeEffectPopupId === effect.id ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-100 hover:border-gray-300'}`}
                   >
@@ -221,9 +239,10 @@ const Effect = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        const target = e.currentTarget;
                         if (!isActive) {
+                          setShouldOpenPopupId(effect.id);
                           updateAttr(`data-effect-${effect.id}`, 'true');
-                          handleEffectRowClick(e, effect.id);
                         } else {
                           updateAttr(`data-effect-${effect.id}`, 'false');
                         }
@@ -517,10 +536,10 @@ const Effect = ({
       )}
 
       <style>{`
-        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
-        .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
-        .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+        input[type="range"].custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type="range"].custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+        input[type="range"].custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none !important; height: 1vw !important; width: 1vw !important; border-radius: 50% !important; background: #4D47FF !important; border: 0.02vw solid #ffffff !important; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4) !important; margin-top: -0.4vw !important; cursor: pointer !important; transition: box-shadow 0.15s ease !important; }
+        input[type="range"].custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6) !important; }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;
