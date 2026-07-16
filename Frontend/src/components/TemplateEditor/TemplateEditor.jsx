@@ -2211,6 +2211,7 @@ const TemplateEditor = () => {
     const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
     const hasBlur = element.getAttribute('data-effect-blur') === 'true';
     const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
+    const hasClipContent = hasBlur && element.getAttribute('data-effect-blur-clip') === 'true';
 
     if (!hasDropShadow && !hasInnerShadow && !hasBlur && !hasBackgroundBlur) {
       if (filterEl) filterEl.remove();
@@ -2238,32 +2239,7 @@ const TemplateEditor = () => {
     // We chain effects by tracking the current input name
     let currentIn = "SourceGraphic";
 
-    // 1. Layer Blur
-    if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
-      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
-
-      let blurSource = currentIn;
-
-      // a. Spread (Morphology)
-      if (spreadVal !== 0) {
-        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
-        morph.setAttribute('radius', Math.abs(spreadVal));
-        morph.setAttribute('in', currentIn);
-        morph.setAttribute('result', 'blur_morph');
-        filterEl.appendChild(morph);
-        blurSource = "blur_morph";
-      }
-
-      // b. Blur
-      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      blurNode.setAttribute('stdDeviation', blurVal);
-      blurNode.setAttribute('in', blurSource);
-      blurNode.setAttribute('result', 'blur_out');
-      filterEl.appendChild(blurNode);
-      currentIn = "blur_out";
-    }
+    // Wait, Blur is moved to the end!
 
     // 2. Drop Shadow
     if (hasDropShadow) {
@@ -2395,6 +2371,43 @@ const TemplateEditor = () => {
       filterEl.appendChild(compOver);
 
       currentIn = "inner_shadow_merged";
+    }
+
+    // 4. Layer Blur (Applied LAST so it blurs shadows and strokes too)
+    if (hasBlur) {
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
+      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+
+      let blurSource = currentIn;
+
+      // a. Spread (Morphology)
+      if (spreadVal !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spreadVal));
+        morph.setAttribute('in', currentIn);
+        morph.setAttribute('result', 'blur_morph');
+        filterEl.appendChild(morph);
+        blurSource = "blur_morph";
+      }
+
+      // b. Blur
+      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('in', blurSource);
+      blurNode.setAttribute('result', 'blur_out');
+      filterEl.appendChild(blurNode);
+      currentIn = "blur_out";
+    }
+
+    if (hasClipContent) {
+      const compClip = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compClip.setAttribute('operator', 'in');
+      compClip.setAttribute('in', currentIn);
+      compClip.setAttribute('in2', 'SourceAlpha');
+      compClip.setAttribute('result', 'clipped_final');
+      filterEl.appendChild(compClip);
+      currentIn = 'clipped_final';
     }
 
     element.setAttribute('filter', `url(#${filterId})`);
@@ -3479,6 +3492,48 @@ const TemplateEditor = () => {
 
               // Re-parse layers from HTML if missing or invalid (source of truth)
               const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
+              
+              // Force rebuild of effects and dynamic shapes to ensure they are visually correct upon reload
+              const allEls = doc.querySelectorAll('*');
+              allEls.forEach(el => {
+                const hasDropShadow = el.getAttribute('data-effect-drop-shadow') === 'true';
+                const hasInnerShadow = el.getAttribute('data-effect-inner-shadow') === 'true';
+                const hasBlur = el.getAttribute('data-effect-blur') === 'true';
+                const hasBackgroundBlur = el.getAttribute('data-effect-background-blur') === 'true';
+                if (hasDropShadow || hasInnerShadow || hasBlur || hasBackgroundBlur) {
+                  syncFilters(doc, el);
+                }
+
+                const shapeType = el.getAttribute('data-shape-type') || (el.tagName === 'rect' ? 'rectangle' : null);
+                if (shapeType === 'rectangle' && (el.getAttribute('data-tl') || el.getAttribute('data-tr') || el.getAttribute('data-bl') || el.getAttribute('data-br') || el.getAttribute('rx'))) {
+                  const x = parseFloat(el.getAttribute('x') || 0);
+                  const y = parseFloat(el.getAttribute('y') || 0);
+                  const w = parseFloat(el.getAttribute('width') || 0);
+                  const h = parseFloat(el.getAttribute('height') || 0);
+                  const defR = parseFloat(el.getAttribute('rx') || 0);
+                  const maxR = Math.min(w / 2, h / 2);
+                  const tl = Math.min(parseFloat(el.getAttribute('data-tl') || defR), maxR);
+                  const tr = Math.min(parseFloat(el.getAttribute('data-tr') || defR), maxR);
+                  const bl = Math.min(parseFloat(el.getAttribute('data-bl') || defR), maxR);
+                  const br = Math.min(parseFloat(el.getAttribute('data-br') || defR), maxR);
+
+                  const d = `M ${x + tl},${y} L ${x + w - tr},${y} A ${tr},${tr} 0 0 1 ${x + w},${y + tr} L ${x + w},${y + h - br} A ${br},${br} 0 0 1 ${x + w - br},${y + h} L ${x + bl},${y + h} A ${bl},${bl} 0 0 1 ${x},${y + h - bl} L ${x},${y + tl} A ${tl},${tl} 0 0 1 ${x + tl},${y} Z`.replace(/\s+/g, ' ').trim();
+
+                  if (el.tagName === 'rect') {
+                    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    Array.from(el.attributes).forEach(a => path.setAttribute(a.name, a.value));
+                    path.setAttribute('d', d);
+                    path.setAttribute('data-shape-type', 'rectangle');
+                    if (el.parentNode) el.parentNode.replaceChild(path, el);
+                  } else {
+                    el.setAttribute('d', d);
+                  }
+                }
+              });
+
+              // Serialize doc back to updatedHtml so the rebuilt elements are saved to state
+              updatedHtml = new XMLSerializer().serializeToString(doc);
+
               const svgEl = doc.querySelector('svg');
               const filterLayers = (layers) => {
                 if (!layers) return layers;
@@ -3494,7 +3549,6 @@ const TemplateEditor = () => {
               if (!layers || layers.length === 0) {
                 if (svgEl) {
                   layers = parseLayersFromSVG(svgEl);
-                  updatedHtml = new XMLSerializer().serializeToString(doc);
                 } else {
                   layers = [];
                 }

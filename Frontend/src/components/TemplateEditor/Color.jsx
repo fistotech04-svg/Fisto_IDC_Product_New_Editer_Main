@@ -5,6 +5,65 @@ import ColorPicker, { parseGradient } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, SlidersHorizontal, X, Pipette } from 'lucide-react';
 
+const DashInput = ({ label, initialValue, onChange }) => {
+  const [localVal, setLocalVal] = useState(initialValue);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const displayVal = isFocused ? localVal : initialValue;
+
+  const handleManualInput = (val) => {
+    setLocalVal(val);
+    const num = parseInt(val);
+    if (!isNaN(num)) {
+      onChange(Math.max(1, num));
+    }
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    let num = parseInt(localVal);
+    if (isNaN(num) || num < 1) num = 1;
+    onChange(num);
+  };
+
+  const handleFocus = () => {
+    setLocalVal(initialValue);
+    setIsFocused(true);
+  };
+
+  const safeNumericVal = parseInt(initialValue) || 1;
+
+  return (
+    <div className="flex items-center justify-between">
+      <span
+        className="text-[0.75vw] font-semibold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
+        onPointerDown={(e) => handleScrubHelper(e, safeNumericVal, (v) => onChange(Math.max(1, parseInt(v))))}
+      >{label} :</span>
+      <div
+        className="flex items-center gap-[0.4vw] h-[2vw] cursor-ew-resize select-none"
+        onPointerDown={(e) => {
+          if (e.target.tagName === 'INPUT' || e.target.closest('button')) return;
+          handleScrubHelper(e, safeNumericVal, (newVal) => onChange(Math.max(1, parseInt(newVal))));
+        }}
+      >
+        <button onClick={(e) => { e.stopPropagation(); onChange(Math.max(1, safeNumericVal - 1)); }} onPointerDown={(e) => e.stopPropagation()} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronLeft size="0.9vw" /></button>
+        <div className="w-[3.5vw] h-full border border-gray-200 rounded-[0.3vw] flex items-center justify-center bg-white shadow-sm pointer-events-auto" onPointerDown={(e) => e.stopPropagation()}>
+          <input
+            type="number"
+            value={displayVal === '' ? '' : displayVal}
+            onChange={(e) => handleManualInput(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
+          />
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); onChange(Math.max(1, safeNumericVal + 1)); }} onPointerDown={(e) => e.stopPropagation()} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronRight size="0.9vw" /></button>
+      </div>
+    </div>
+  );
+};
+
 export const handleScrubHelper = (e, initialVal, updateFn, sensitivity = 5) => {
   const sValue = parseFloat(initialVal) || 0;
   let accumulatedDelta = 0;
@@ -135,6 +194,7 @@ const Color = ({
   standaloneMode = false,
   selectedElement = null,
   onUpdate = null,
+  isText = false,
   ...props
 }) => {
   const containerRef = useRef(null);
@@ -691,41 +751,23 @@ const Color = ({
               { label: 'Gap', key: 'gap' }
             ].map(item => {
               const dashArray = (pseudoProps.strokeDasharray || '10,10').split(',');
-              const val = parseInt(item.key === 'dash' ? dashArray[0] : (dashArray[1] || dashArray[0]));
+              const rawStr = item.key === 'dash' ? dashArray[0] : (dashArray[1] || dashArray[0]);
+              const val = isNaN(parseInt(rawStr)) ? 1 : parseInt(rawStr);
 
               const updateValue = (newVal) => {
-                const v = Math.max(0, newVal);
-                const d = item.key === 'dash' ? v : dashArray[0];
-                const g = item.key === 'gap' ? v : (dashArray[1] || dashArray[0]);
+                const v = Math.max(1, newVal);
+                const d = item.key === 'dash' ? v : (parseInt(dashArray[0]) || 1);
+                const g = item.key === 'gap' ? v : (parseInt(dashArray[1] || dashArray[0]) || 1);
                 updateAttr('stroke-dasharray', `${d},${g}`);
               };
 
               return (
-                <div key={item.key} className="flex items-center justify-between">
-                  <span
-                    className="text-[0.75vw] font-semibold text-gray-600 cursor-ew-resize select-none hover:text-indigo-600 transition-colors"
-                    onPointerDown={(e) => handleScrub(e, val, (v) => updateValue(parseInt(v)))}
-                  >{item.label} :</span>
-                  <div
-                    className="flex items-center gap-[0.4vw] h-[2vw] cursor-ew-resize select-none"
-                    onPointerDown={(e) => {
-                      if (e.target.tagName === 'INPUT') return;
-                      handleScrubHelper(e, val, (newVal) => updateValue(parseInt(newVal)));
-                    }}
-                  >
-                    <button onClick={() => updateValue(val - 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronLeft size="0.9vw" /></button>
-                    <div className="w-[3.5vw] h-full border border-gray-200 rounded-[0.3vw] flex items-center justify-center bg-white shadow-sm pointer-events-auto">
-                      <input
-                        type="number"
-                        value={val}
-                        onChange={(e) => updateValue(parseInt(e.target.value) || 0)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
-                      />
-                    </div>
-                    <button onClick={() => updateValue(val + 1)} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronRight size="0.9vw" /></button>
-                  </div>
-                </div>
+                <DashInput
+                  key={item.key}
+                  label={item.label}
+                  initialValue={val}
+                  onChange={updateValue}
+                />
               );
             })}
           </div>
@@ -778,6 +820,7 @@ const Color = ({
                 }
                 return pseudoProps[activeColorPicker] || '#000000';
               })()}
+              disableGradient={isText && activeColorPicker === 'stroke'}
               onChange={(newVal) => {
                 if (newVal.includes('gradient')) {
                   const parsed = parseGradient(newVal);

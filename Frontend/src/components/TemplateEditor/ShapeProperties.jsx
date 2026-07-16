@@ -263,6 +263,7 @@ const ShapeProperties = ({
     'Blur': {
       blur: parseFloat(selectedElementProps['data-effect-blur-value'] !== undefined ? selectedElementProps['data-effect-blur-value'] : (selectedElementProps['data-effect-blur-blur'] || 0.3)),
       spread: parseInt(selectedElementProps['data-effect-blur-spread'] || 0),
+      clipContent: selectedElementProps['data-effect-blur-clip'] === 'true'
     }
   };
 
@@ -281,6 +282,7 @@ const ShapeProperties = ({
     
     if (effectSettings['Blur'].blur !== next['Blur'].blur) updates[`data-effect-blur-value`] = next['Blur'].blur.toString();
     if (effectSettings['Blur'].spread !== next['Blur'].spread) updates[`data-effect-blur-spread`] = next['Blur'].spread.toString();
+    if (effectSettings['Blur'].clipContent !== next['Blur'].clipContent) updates[`data-effect-blur-clip`] = next['Blur'].clipContent ? 'true' : 'false';
     
     if (Object.keys(updates).length > 0) updateElementAttribute(activePageIndex, selectedLayerId, updates);
   };

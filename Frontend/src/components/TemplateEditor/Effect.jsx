@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronUp, Trash2, Plus, X, Pipette, ChevronLeft, ChevronRight } from 'lucide-react';
 import { handleScrubHelper } from './Color';
+import ColorPicker from './ColorPicker';
 
 const Effect = ({
   openSubSection, setOpenSubSection,
@@ -275,7 +276,7 @@ const Effect = ({
               <>
                 <div className="flex items-center">
                   <div
-                    className={`w-[3.5vw] h-[3.5vw] mt-[0.5vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100 flex-shrink-0 transition-all hover:scale-105 active:scale-95 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-indigo-500 ring-2 ring-indigo-100' : 'hover:border-gray-300'}`}
+                    className={`w-[3.5vw] h-[3.5vw] mt-[0.5vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100 flex-shrink-0 transition-all active:scale-95 ${activeColorPicker === `data-effect-${activeEffectPopupId}-color` ? 'border-gray-800 ' : 'hover:border-gray-300'}`}
                     style={{
                       backgroundColor: pseudoProps[`data-effect-${activeEffectPopupId}-color`] || '#000000'
                     }}
@@ -491,6 +492,30 @@ const Effect = ({
         </div>,
         document.body
       )}
+
+      {activeColorPicker && activeColorPicker.includes('effect-') && createPortal(
+        <div
+          className="fixed z-[5000]"
+          style={{
+            top: '50%',
+            right: '10vw',
+            transform: 'translateY(-50%)'
+          }}
+        >
+          <div className="animate-in fade-in zoom-in-95 duration-200">
+            <ColorPicker
+              color={pseudoProps[activeColorPicker] || '#000000'}
+              onChange={(newVal) => updateAttr(activeColorPicker, newVal)}
+              onClose={() => {
+                if (setActiveColorPicker) setActiveColorPicker(null);
+                if (setShowDetailedPicker) setShowDetailedPicker(false);
+              }}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
+
       <style>{`
         .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
         .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
