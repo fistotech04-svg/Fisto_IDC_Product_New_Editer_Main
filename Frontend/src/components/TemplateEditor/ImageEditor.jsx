@@ -782,9 +782,10 @@ const ImageEditor = ({
         shadowFilter = `drop-shadow(${ds.x}px ${ds.y}px ${ds.blur}px ${colorWithAlpha}) `;
       }
 
-      const totalFilter = (adjustmentFilters + effectFilters + shadowFilter).trim() || 'none';
-      const adjustOnlyFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+      const totalFilter = (adjustmentFilters + shadowFilter).trim() || 'none';
+      const adjustOnlyFilter = adjustmentFilters.trim() || 'none';
       const shadowOnlyFilter = shadowFilter.trim() || 'none';
+      const blurOnlyFilter = effectFilters.trim() || 'none';
 
       // Apply filters to DOM
       if (isSvgEl) {
@@ -806,7 +807,8 @@ const ImageEditor = ({
         let shadowCaster = targetContainer.querySelector('.svg-drop-shadow-caster');
         const effImgType = liveElement.getAttribute('data-object-fit') || imageType;
         // Only images use CSS clip-path which clips shadows. Shapes use native rx/ry.
-        const hasClip = isImageElement && ((effImgType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl));
+        const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
+        const hasClip = forceClip || (isImageElement && ((effImgType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl)));
 
         if (shadowOnlyFilter !== 'none' && hasClip) {
           if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'rect') {
@@ -855,18 +857,20 @@ const ImageEditor = ({
                 ch = ch * (parseFloat(crop.height) / 100);
               } catch (e) { }
             }
+            
+            const trans = targetElForShadow.getAttribute('transform') || '';
+            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
 
             shadowCaster.setAttribute('x', cx);
             shadowCaster.setAttribute('y', cy);
             shadowCaster.setAttribute('width', Math.max(0, cw));
             shadowCaster.setAttribute('height', Math.max(0, ch));
-            shadowCaster.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+            shadowCaster.setAttribute('transform', trans);
 
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', (opacity / 100).toString());
             shadowCaster.style.removeProperty('clip-path');
 
-            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
             if (maxR > 0) shadowCaster.setAttribute('rx', maxR.toString());
             else shadowCaster.removeAttribute('rx');
 
@@ -877,27 +881,86 @@ const ImageEditor = ({
           shadowCaster.style.setProperty('display', 'none', 'important');
         }
 
-        // 3. Apply geometry-level filters
+        // 3. Apply layer-level filters
         if (!isImageElement) {
           liveElement.style.setProperty('filter', totalFilter, 'important');
         } else {
-          if (hasClip) {
-            liveElement.style.setProperty('filter', adjustOnlyFilter, 'important');
-          } else {
-            liveElement.style.setProperty('filter', totalFilter, 'important');
-          }
+          liveElement.style.removeProperty('filter');
+          
           if (liveElement.parentElement?.classList.contains('svg-crop-wrapper')) {
-            liveElement.parentElement.style.removeProperty('filter');
+            if (blurOnlyFilter !== 'none') {
+               liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
+            } else {
+               liveElement.parentElement.style.removeProperty('filter');
+            }
+            if (forceClip) {
+               let targetElForShadow = svgImageEl || liveElement;
+               if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
+                 targetElForShadow = svgImageEl.parentNode;
+               }
+               let bb = { x: 0, y: 0, width: 100, height: 100 };
+               try { bb = targetElForShadow.getBBox(); } catch (e) { }
+               let cxStr = targetElForShadow.getAttribute('x') || '0';
+               let cyStr = targetElForShadow.getAttribute('y') || '0';
+               let cwStr = targetElForShadow.getAttribute('width') || '100%';
+               let chStr = targetElForShadow.getAttribute('height') || '100%';
+               let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+               let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+               let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+               let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+               const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+               if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
+                 try {
+                   const crop = JSON.parse(cropStrShadow);
+                   cx = cx + (parseFloat(crop.left) / 100) * cw;
+                   cy = cy + (parseFloat(crop.top) / 100) * ch;
+                   cw = cw * (parseFloat(crop.width) / 100);
+                   ch = ch * (parseFloat(crop.height) / 100);
+                 } catch (e) { }
+               }
+               
+               let clipId = `clip-content-${liveElement.id || 'image'}`;
+               let defs = liveElement.ownerSVGElement?.querySelector('defs');
+               if (!defs && liveElement.ownerSVGElement) {
+                 defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                 liveElement.ownerSVGElement.prepend(defs);
+               }
+               if (defs) {
+                 let clipNode = defs.querySelector(`#${clipId}`);
+                 if (!clipNode) {
+                   clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                   clipNode.id = clipId;
+                   const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                   clipNode.appendChild(clipPathEl);
+                   defs.appendChild(clipNode);
+                 }
+                 const rect = clipNode.firstChild;
+                 rect.setAttribute('x', cx);
+                 rect.setAttribute('y', cy);
+                 rect.setAttribute('width', Math.max(0, cw));
+                 rect.setAttribute('height', Math.max(0, ch));
+                 rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+                 const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+                 if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+                 else rect.removeAttribute('rx');
+
+                 liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                 liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+               }
+            } else {
+               liveElement.parentElement.style.removeProperty('clip-path');
+            }
           }
+
         }
         if (liveElement.parentElement) {
-          if (!liveElement.parentElement.classList.contains('svg-crop-wrapper')) {
+          if (!liveElement.parentElement.classList.contains('svg-crop-wrapper') && !forceClip && blurOnlyFilter === 'none') {
             liveElement.parentElement.style.setProperty('overflow', 'visible', 'important');
           }
         }
       } else {
         // FOR HTML: Use the full filter on the element
-        liveElement.style.setProperty('filter', totalFilter, 'important');
+        liveElement.style.setProperty('filter', (adjustmentFilters + effectFilters + shadowFilter).trim() || 'none', 'important');
         if (liveElement.parentElement) liveElement.parentElement.style.removeProperty('filter');
       }
 
@@ -975,8 +1038,9 @@ const ImageEditor = ({
         };
 
         const anyR = radius.tl || radius.tr || radius.br || radius.bl;
+        const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
         const maxR = Math.min(Math.max(...Object.values(radius)), 50);
-        const radiusStr = anyR ? ` round ${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px` : '';
+        const radiusStr = (anyR || forceClip) ? ` round ${radius.tl || 0}px ${radius.tr || 0}px ${radius.br || 0}px ${radius.bl || 0}px` : '';
 
         if (effectiveImageType === 'Crop' && (cropData.inset || liveElement.getAttribute('data-effect-crop-inset') || liveElement.getAttribute('data-saved-crop-data'))) {
           const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100}';

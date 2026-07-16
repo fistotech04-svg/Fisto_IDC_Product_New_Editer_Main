@@ -742,10 +742,56 @@ const VideoEditor = ({
       }
 
       // Radius
+      const anyR = radius.tl || radius.tr || radius.br || radius.bl;
+      const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
       const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
+      
       visualTarget.style.borderRadius = radiusStr;
       visualTarget.setAttribute('data-radius', JSON.stringify(radius));
       visualTarget.style.overflow = 'hidden';
+
+      if (anyR || forceClip) {
+        visualTarget.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+        if (forceClip) {
+          if (isSvgEl) {
+            let clipId = `clip-content-${liveElement.id || 'video'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let clipNode = defs.querySelector(`#${clipId}`);
+              if (!clipNode) {
+                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipNode.id = clipId;
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipNode.appendChild(clipPathEl);
+                defs.appendChild(clipNode);
+              }
+              const rect = clipNode.firstChild;
+              rect.setAttribute('x', visualTarget.getAttribute('x') || '0');
+              rect.setAttribute('y', visualTarget.getAttribute('y') || '0');
+              rect.setAttribute('width', visualTarget.getAttribute('width') || '100%');
+              rect.setAttribute('height', visualTarget.getAttribute('height') || '100%');
+              rect.setAttribute('transform', visualTarget.getAttribute('transform') || '');
+              const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+              else rect.removeAttribute('rx');
+
+              liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+            }
+          } else {
+            liveElement.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+          }
+        } else {
+          liveElement.style.removeProperty('clip-path');
+        }
+      } else {
+        visualTarget.style.removeProperty('clip-path');
+        liveElement.style.removeProperty('clip-path');
+      }
 
       // Object Fit
       const fitMap = {
@@ -775,10 +821,11 @@ const VideoEditor = ({
       else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
 
       let boxShadowStr = '';
+      let blurStr = '';
       activeEffects.forEach(eff => {
         const effSet = effectSettings[eff];
         if (!effSet) return;
-        if (eff === 'Blur') filterStr += `blur(${effSet.blur}px) `;
+        if (eff === 'Blur') blurStr = `blur(${effSet.blur}px) `;
       });
 
       // 2. Drop Shadow Caster
@@ -979,9 +1026,38 @@ const VideoEditor = ({
       }
 
       visualTarget.style.filter = filterStr.trim() || 'none';
+      if (blurStr.trim()) {
+        liveElement.style.setProperty('filter', blurStr.trim(), 'important');
+      } else {
+        liveElement.style.removeProperty('filter');
+      }
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
+      
+      liveElement.setAttribute('data-effect-blur', activeEffects.includes('Blur') ? 'true' : 'false');
+      if (effectSettings['Blur']) {
+        liveElement.setAttribute('data-effect-blur-value', effectSettings['Blur'].blur.toString());
+        liveElement.setAttribute('data-effect-blur-clip', effectSettings['Blur'].clipContent ? 'true' : 'false');
+      }
+
+      liveElement.setAttribute('data-effect-drop-shadow', activeEffects.includes('Drop Shadow') ? 'true' : 'false');
+      if (effectSettings['Drop Shadow']) {
+        liveElement.setAttribute('data-effect-drop-shadow-color', effectSettings['Drop Shadow'].color);
+        liveElement.setAttribute('data-effect-drop-shadow-opacity', effectSettings['Drop Shadow'].opacity.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-x', effectSettings['Drop Shadow'].x.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-y', effectSettings['Drop Shadow'].y.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-blur', effectSettings['Drop Shadow'].blur.toString());
+      }
+
+      liveElement.setAttribute('data-effect-inner-shadow', activeEffects.includes('Inner Shadow') ? 'true' : 'false');
+      if (effectSettings['Inner Shadow']) {
+        liveElement.setAttribute('data-effect-inner-shadow-color', effectSettings['Inner Shadow'].color);
+        liveElement.setAttribute('data-effect-inner-shadow-opacity', effectSettings['Inner Shadow'].opacity.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-x', effectSettings['Inner Shadow'].x.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-y', effectSettings['Inner Shadow'].y.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-blur', effectSettings['Inner Shadow'].blur.toString());
+      }
 
       visualTarget.setAttribute('data-effect-exposure', exposure.toString());
       visualTarget.setAttribute('data-effect-contrast', contrast.toString());

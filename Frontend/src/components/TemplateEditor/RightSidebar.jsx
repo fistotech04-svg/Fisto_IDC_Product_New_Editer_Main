@@ -568,6 +568,9 @@ const RightSidebar = ({
           if (!el.hasAttribute('stroke-width') && !el.hasAttribute('strokeWidth') && comp.webkitTextStrokeWidth) {
             strokeWidthStr = parseFloat(comp.webkitTextStrokeWidth).toString();
           }
+          if (parseFloat(strokeWidthStr) === 0 || isNaN(parseFloat(strokeWidthStr)) || strokeStyle === 'transparent' || strokeStyle === 'rgba(0, 0, 0, 0)') {
+            strokeStyle = 'none';
+          }
         }
 
         const props = {
@@ -1241,7 +1244,7 @@ const RightSidebar = ({
                                   className="fixed z-[5000]"
                                   style={{
                                     top: '50%',
-                                    right: '10vw', // Left of the right sidebar
+                                    right: '19.5vw', // Left of the right sidebar
                                     transform: 'translateY(-50%)'
                                   }}
                                 >

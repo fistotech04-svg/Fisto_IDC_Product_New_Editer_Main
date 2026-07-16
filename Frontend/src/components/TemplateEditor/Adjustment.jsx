@@ -11,7 +11,7 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
   const activeWidth = Math.abs(percentage - 50);
 
   return (
-    <div className="flex flex-col gap-[0.2vw] mb-[0.2vw]">
+    <div className="flex flex-col gap-[0.2vw] mb-[0.1vw]">
       <style>{`
         .invisible-range {
           -webkit-appearance: none;
@@ -27,7 +27,7 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
         }
       `}</style>
       <div className="flex items-center justify-between gap-[0.1vw]">
-        <div className="flex items-center gap-[0.3vw]">
+        <div className="flex items-center">
           <span className="text-[0.85vw] text-gray-600 font-medium">{label}</span>
           <button
             onClick={onReset}
@@ -123,7 +123,7 @@ const Adjustment = ({
 
 
   return (
-    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
+    <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.4vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm overflow-hidden">
         <div
           onClick={() => setOpenSubSection(openSubSection === 'adjustment' ? null : 'adjustment')}
