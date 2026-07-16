@@ -114,9 +114,9 @@ const Effect = ({
     handleScrubHelper(e, initialVal, updateFn, sensitivity);
   };
 
-  const handleEffectRowClick = (e, effectId) => {
-    const target = e.currentTarget.closest('.effect-row') || e.currentTarget;
-    const rect = target.getBoundingClientRect();
+  const handleEffectRowClick = (target, effectId) => {
+    const rowTarget = target.closest('.effect-row') || target;
+    const rect = rowTarget.getBoundingClientRect();
     const popupHeight = effectId.includes('shadow') ? 350 : 220;
     const centerY = rect.top + (rect.height / 2) - (popupHeight / 2);
     const finalTop = Math.max(90, Math.min(centerY, window.innerHeight - popupHeight - 20));
@@ -169,6 +169,21 @@ const Effect = ({
   }, [activeEffectPopupId]);
 
 
+  const [shouldOpenPopupId, setShouldOpenPopupId] = React.useState(null);
+
+  React.useEffect(() => {
+    if (shouldOpenPopupId) {
+      const isActive = pseudoProps[`data-effect-${shouldOpenPopupId}`] === 'true';
+      if (isActive) {
+        const rowTarget = document.getElementById(`effect-row-${shouldOpenPopupId}`);
+        if (rowTarget) {
+          handleEffectRowClick(rowTarget, shouldOpenPopupId);
+        }
+        setShouldOpenPopupId(null);
+      }
+    }
+  }, [pseudoProps, shouldOpenPopupId]);
+
   return (
     <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.6vw]">
       <div className="bg-white border border-gray-200 rounded-[0.75vw] shadow-sm">
@@ -196,10 +211,13 @@ const Effect = ({
                     key={effect.id}
                     id={`effect-row-${effect.id}`}
                     onClick={(e) => {
+                      const target = e.currentTarget;
                       if (!isActive) {
+                        setShouldOpenPopupId(effect.id);
                         updateAttr(`data-effect-${effect.id}`, 'true');
+                      } else {
+                        handleEffectRowClick(target, effect.id);
                       }
-                      handleEffectRowClick(e, effect.id);
                     }}
                     className={`effect-row flex items-center justify-between px-[1vw] py-[0.8vw] bg-gray-50/50 rounded-[0.8vw] border transition-all group cursor-pointer ${activeEffectPopupId === effect.id ? 'border-indigo-400 bg-indigo-50/30' : 'border-gray-100 hover:border-gray-300'}`}
                   >
@@ -207,9 +225,10 @@ const Effect = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        const target = e.currentTarget;
                         if (!isActive) {
+                          setShouldOpenPopupId(effect.id);
                           updateAttr(`data-effect-${effect.id}`, 'true');
-                          handleEffectRowClick(e, effect.id);
                         } else {
                           updateAttr(`data-effect-${effect.id}`, 'false');
                         }
