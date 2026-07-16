@@ -1,10 +1,14 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { getVisualBBox } from './MainEditor';
 
 const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, activePageIndex }) => {
   const [crop, setCrop] = useState(() => {
     try {
-      if (typeof initialCrop === 'string') return JSON.parse(initialCrop);
+      if (typeof initialCrop === 'string') {
+        const parsed = JSON.parse(initialCrop);
+        if (parsed) return parsed;
+      }
       if (initialCrop) return initialCrop;
     } catch (e) { }
     return { left: 0, top: 0, width: 100, height: 100 };
@@ -24,7 +28,67 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     if (!targetElement) return;
 
     const updateRect = () => {
-      const rect = targetElement.getBoundingClientRect();
+      let rect;
+
+      const isSvgEl = targetElement instanceof SVGElement && targetElement.tagName.toLowerCase() !== 'svg';
+      if (isSvgEl) {
+        try {
+          const bbox = getVisualBBox(targetElement);
+          const svg = targetElement.ownerSVGElement;
+
+          if (svg && bbox.width > 0) {
+            const matrix = targetElement.getScreenCTM();
+            if (matrix) {
+              const pt1 = svg.createSVGPoint();
+              pt1.x = bbox.x; pt1.y = bbox.y;
+              const pt2 = svg.createSVGPoint();
+              pt2.x = bbox.x + bbox.width; pt2.y = bbox.y + bbox.height;
+
+              const screenPt1 = pt1.matrixTransform(matrix);
+              const screenPt2 = pt2.matrixTransform(matrix);
+
+              const cropStr = targetElement.getAttribute('data-crop-data');
+              let cropOffX = 0, cropOffY = 0, cropL = 0, cropT = 0, cropW = 100, cropH = 100;
+              if (cropStr && cropStr !== 'null') {
+                try {
+                  const crop = JSON.parse(cropStr);
+                  cropOffX = (parseFloat(crop.offX) || 0) / 100;
+                  cropOffY = (parseFloat(crop.offY) || 0) / 100;
+                  cropL = parseFloat(crop.left) / 100;
+                  cropT = parseFloat(crop.top) / 100;
+                  cropW = parseFloat(crop.width) / 100;
+                  cropH = parseFloat(crop.height) / 100;
+                } catch (e) { }
+              }
+
+              const rawWidth = Math.abs(screenPt2.x - screenPt1.x);
+              const rawHeight = Math.abs(screenPt2.y - screenPt1.y);
+
+              if (cropStr && cropStr !== 'null') {
+                rect = {
+                  left: Math.min(screenPt1.x, screenPt2.x) - (cropOffX * rawWidth),
+                  top: Math.min(screenPt1.y, screenPt2.y) - (cropOffY * rawHeight),
+                  width: rawWidth,
+                  height: rawHeight
+                };
+              } else {
+                rect = {
+                  left: Math.min(screenPt1.x, screenPt2.x),
+                  top: Math.min(screenPt1.y, screenPt2.y),
+                  width: Math.abs(screenPt2.x - screenPt1.x),
+                  height: Math.abs(screenPt2.y - screenPt1.y)
+                };
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Error calculating visual bounds for crop overlay", e);
+        }
+      }
+
+      if (!rect) {
+        rect = targetElement.getBoundingClientRect();
+      }
 
       let fullW = rect.width;
       let fullH = rect.height;
@@ -43,26 +107,40 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
         }
       } catch (e) { }
 
-      setOverlayRect({
-        left: fullL,
-        top: fullT,
-        width: fullW,
-        height: fullH,
+      setOverlayRect(prev => {
+        if (prev && prev.left === fullL && prev.top === fullT && prev.width === fullW && prev.height === fullH) {
+          return prev; // Avoid unnecessary re-renders
+        }
+        return {
+          left: fullL,
+          top: fullT,
+          width: fullW,
+          height: fullH,
+        };
       });
     };
 
-    updateRect();
+    let animationFrameId;
+    let lastRectStr = '';
 
-    // Re-calculate on resize or scroll
-    window.addEventListener('resize', updateRect);
-    document.addEventListener('scroll', updateRect, true);
-    return () => {
-      window.removeEventListener('resize', updateRect);
-      document.removeEventListener('scroll', updateRect, true);
+    const tick = () => {
+      try {
+        const currentRect = targetElement.getBoundingClientRect();
+        const rectStr = `${currentRect.left},${currentRect.top},${currentRect.width},${currentRect.height}`;
+        if (rectStr !== lastRectStr) {
+          lastRectStr = rectStr;
+          updateRect();
+        }
+      } catch (e) { }
+      animationFrameId = requestAnimationFrame(tick);
     };
-  }, [targetElement]);
 
+    tick();
 
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [targetElement, initialCrop]);
 
   // Handle clicking outside to apply crop
   useEffect(() => {
@@ -114,8 +192,8 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     let newCrop = { ...dragStart.crop };
 
     if (dragType === 'pan') {
-      const origImgWidth = container.width / (dragStart.crop.width / 100);
-      const origImgHeight = container.height / (dragStart.crop.height / 100);
+      const origImgWidth = container.width;
+      const origImgHeight = container.height;
       const panDx = ((e.clientX - dragStart.x) / origImgWidth) * 100;
       const panDy = ((e.clientY - dragStart.y) / origImgHeight) * 100;
 
@@ -189,7 +267,7 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
         }
       }}
     >
-      <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" draggable={false} />
+      <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" style={{ transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%)` }} draggable={false} />
       <div className="absolute inset-0 pointer-events-none" style={{
         clipPath: `inset(${crop.top}% ${100 - crop.left - crop.width}% ${100 - crop.top - crop.height}% ${crop.left}%)`
       }}>

@@ -54,9 +54,9 @@ const CornerRadius = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openSubSection === 'corner' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className="font-semibold text-gray-900 text-[0.85vw]">Corner Radius</span>
+            <span className={`font-semibold text-[0.85vw] ${openSubSection === 'corner' ? 'text-gray-900' : 'text-gray-500'}`}>Corner Radius</span>
           </div>
-          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openSubSection === 'corner' ? '' : 'rotate-180'}`} />
+          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'corner' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>
 
         <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'corner' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>

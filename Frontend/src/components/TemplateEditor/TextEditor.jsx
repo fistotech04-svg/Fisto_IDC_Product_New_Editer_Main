@@ -313,8 +313,8 @@ const syncTextEffect = (doc, element) => {
         }
         if (hasDropShadow) {
           const color = getVal('data-effect-drop-shadow-color', '#000000');
-          const dx = getVal('data-effect-drop-shadow-x', '0');
-          const dy = getVal('data-effect-drop-shadow-y', '4');
+          const dx = getVal('data-effect-drop-shadow-x', '2');
+          const dy = getVal('data-effect-drop-shadow-y', '2');
           const blur = getVal('data-effect-drop-shadow-blur', '4');
           const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
 
@@ -420,8 +420,8 @@ const syncTextEffect = (doc, element) => {
   if (hasDropShadow) {
     const color = getVal('data-effect-drop-shadow-color', '#000000');
     const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
-    const dx = getVal('data-effect-drop-shadow-x', '0');
-    const dy = getVal('data-effect-drop-shadow-y', '4');
+    const dx = getVal('data-effect-drop-shadow-x', '2');
+    const dy = getVal('data-effect-drop-shadow-y', '2');
     const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
     const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
@@ -477,8 +477,8 @@ const syncTextEffect = (doc, element) => {
   if (hasInnerShadow) {
     const color = getVal('data-effect-inner-shadow-color', '#000000');
     const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
-    const dx = getVal('data-effect-inner-shadow-x', '0');
-    const dy = getVal('data-effect-inner-shadow-y', '4');
+    const dx = getVal('data-effect-inner-shadow-x', '2');
+    const dy = getVal('data-effect-inner-shadow-y', '2');
     const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
     const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
 
@@ -568,8 +568,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     strokeStops: selectedElementProps?.['stroke-stops'],
     strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
     strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
-    strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
-    strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[1] || (selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
+    strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
+    strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
   });
 
   const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
@@ -593,8 +593,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
   const [effectSettings, setEffectSettings] = useState(() => {
     const p = selectedElementProps || {};
     return {
-      'Drop Shadow': { color: p['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(p['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(p['data-effect-drop-shadow-x'] || 4), y: parseFloat(p['data-effect-drop-shadow-y'] || 4), blur: parseFloat(p['data-effect-drop-shadow-blur'] || 4), spread: 0 },
-      'Inner Shadow': { color: p['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(p['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(p['data-effect-inner-shadow-x'] || 4), y: parseFloat(p['data-effect-inner-shadow-y'] || 4), blur: parseFloat(p['data-effect-inner-shadow-blur'] || 1), spread: 0 },
+      'Drop Shadow': { color: p['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(p['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(p['data-effect-drop-shadow-x'] || 2), y: parseFloat(p['data-effect-drop-shadow-y'] || 2), blur: parseFloat(p['data-effect-drop-shadow-blur'] || 4), spread: 0 },
+      'Inner Shadow': { color: p['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(p['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(p['data-effect-inner-shadow-x'] || 2), y: parseFloat(p['data-effect-inner-shadow-y'] || 2), blur: parseFloat(p['data-effect-inner-shadow-blur'] || 1), spread: 0 },
       'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 0.3), spread: 0 }
     };
   });
@@ -630,8 +630,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       strokeStops: selectedElementProps?.['stroke-stops'],
       strokeAngle: parseFloat(selectedElementProps?.['stroke-angle'] || 0),
       strokeRadius: parseFloat(selectedElementProps?.['stroke-radius'] || 100),
-      strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
-      strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '5,5').split(',')[1] || (selectedElementProps?.strokeDasharray || '5,5').split(',')[0]) || 5,
+      strokeDashLength: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
+      strokeDashGap: parseInt((selectedElementProps?.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps?.strokeDasharray || '10,10').split(',')[0]) || 10,
     });
     setRadius({
       tl: parseFloat(selectedElementProps?.['data-tl'] || 0),
@@ -648,8 +648,8 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     setActiveEffects(effs);
 
     setEffectSettings({
-      'Drop Shadow': { color: selectedElementProps?.['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(selectedElementProps?.['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(selectedElementProps?.['data-effect-drop-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-drop-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-drop-shadow-blur'] || 4), spread: 0 },
-      'Inner Shadow': { color: selectedElementProps?.['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(selectedElementProps?.['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(selectedElementProps?.['data-effect-inner-shadow-x'] || 4), y: parseFloat(selectedElementProps?.['data-effect-inner-shadow-y'] || 4), blur: parseFloat(selectedElementProps?.['data-effect-inner-shadow-blur'] || 1), spread: 0 },
+      'Drop Shadow': { color: selectedElementProps?.['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(selectedElementProps?.['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(selectedElementProps?.['data-effect-drop-shadow-x'] || 2), y: parseFloat(selectedElementProps?.['data-effect-drop-shadow-y'] || 2), blur: parseFloat(selectedElementProps?.['data-effect-drop-shadow-blur'] || 4), spread: 0 },
+      'Inner Shadow': { color: selectedElementProps?.['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(selectedElementProps?.['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(selectedElementProps?.['data-effect-inner-shadow-x'] || 2), y: parseFloat(selectedElementProps?.['data-effect-inner-shadow-y'] || 2), blur: parseFloat(selectedElementProps?.['data-effect-inner-shadow-blur'] || 1), spread: 0 },
       'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 0.3), spread: 0 }
     });
   }, [selectedLayerId, activePageIndex]);
@@ -678,7 +678,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
       }
 
-      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}` : 'none';
+      const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}` : 'none';
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeDasharray', dashVal);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-stroke-position', backgroundColor.strokePosition || 'Center');
 

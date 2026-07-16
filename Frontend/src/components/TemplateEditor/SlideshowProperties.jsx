@@ -129,7 +129,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     imageFitType: 'Fill All',
     transitionEffect: 'Linear',
     dragToSlide: false,
-    dotColor: '#4F46E5',
+    dotColor: '#000000',
     dotOpacity: 100,
     navIconColor: '#000000',
     navStyle: 1,
@@ -322,7 +322,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           imageFitType: 'Fill All',
           transitionEffect: 'Linear',
           dragToSlide: false,
-          dotColor: '#4F46E5',
+          dotColor: '#000000',
           dotOpacity: 100,
           navIconColor: '#000000',
           navStyle: 1,
@@ -738,7 +738,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         if (svg) {
           svg.style.width = (32 * scaleFactor) + 'px';
           svg.style.height = (32 * scaleFactor) + 'px';
-          svg.style.filter = 'drop-shadow(0 4px 6px rgba(0,0,0,0.8)) drop-shadow(0 0 2px rgba(255,255,255,0.8))';
+          svg.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.2)) drop-shadow(0 2px 2px rgba(255,255,255,0.2))';
           svg.style.overflow = 'visible';
         }
       });
@@ -791,7 +791,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     trackPosition();
 
     const { navIconColor = '#000000', navStyle: styleId = 1, showDots = true,
-      showArrows = true, showNav = true, dotColor = '#4F46E5',
+      showArrows = true, showNav = true, dotColor = '#000000',
       autoSlide = true, autoPlay = true, speed = 3, infiniteLoop = true } = slideshowSettings;
     const showNavArrows = showArrows !== false && showNav !== false;
 
@@ -1524,10 +1524,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         <div ref={accordionRef} className="border border-gray-100 rounded-[0.75vw] overflow-hidden shadow-sm bg-white">
           <button
             onClick={() => setIsSlideshowPropOpen(!isSlideshowPropOpen)}
-            className="w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
+            className={`w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold hover:bg-gray-50 transition-colors ${isSlideshowPropOpen ? 'text-gray-900' : 'text-gray-500'}`}
           >
             <span>Slideshow Property</span>
-            <ChevronDown size="1.1vw" className={`text-gray-900 transition-transform duration-200 ${isSlideshowPropOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size="1.1vw" className={`transition-transform duration-200 ${isSlideshowPropOpen ? 'rotate-180 text-gray-900' : 'text-gray-500'}`} />
           </button>
           {isSlideshowPropOpen && (
             <div className="px-[1vw] pt-[0.5vw] border-t border-gray-50 space-y-[1.25vw] animate-in slide-in-from-top-2">
@@ -1611,10 +1611,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
                         {/* Icon Content (Blurred on hover) */}
                         <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:opacity-30">
-                          <div className="flex items-center justify-center shrink-0 transition-all" style={{ filter: 'drop-shadow(0 1px 4px rgba(61, 60, 60, 0.7))' }}>
+                          <div className="flex items-center justify-center shrink-0 transition-all">
                             {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '1.8vw', color: '#000000' }).left}
                           </div>
-                          <div className="flex items-center justify-center shrink-0 transition-all" style={{ filter: 'drop-shadow(0 1px 4px rgba(61, 60, 60, 0.7))' }}>
+                          <div className="flex items-center justify-center shrink-0 transition-all">
                             {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '1.8vw', color: '#000000' }).right}
                           </div>
                         </div>
@@ -1633,20 +1633,19 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                   <Switch enabled={slideshowSettings.showDots ?? true} onChange={(v) => updateSetting('showDots', v)} />
                 </div>
                 {(slideshowSettings.showDots ?? true) && (
-                  <div className="flex items-center justify-between px-[0.5vw] mb-[1vw] animate-in slide-in-from-top-1 fade-in duration-200 mt-[0.5vw]">
-                    <span className="text-[0.75vw] pl-[0.5vw] font-medium text-gray-600 mt-[0.5vw]">Pagination Dot Color</span>
-                    <div className="flex items-center gap-[0.4vw]  mt-[0.5vw]">
+                  <div className="flex items-center justify-center ml-[-2vw] px-[0.5vw] mb-[1vw] animate-in slide-in-from-top-1 fade-in duration-200 mt-[0.5vw]">
+                    <div className="flex items-center gap-[0.4vw] shrink-0">
                       <div
-                        className="w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-400 overflow-hidden relative cursor-pointer shadow-sm transition-all hover:scale-105 active:scale-95"
-                        style={{ background: slideshowSettings.dotColor || '#4F46E5' }}
+                        className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100"
+                        style={{ background: slideshowSettings.dotColor || '#000000' }}
                         onClick={(e) => {
                           setShowDotColorPicker(true);
                         }}
                       />
                       {/* Hex code */}
-                      <div className="flex items-center justify-between border border-gray-500 rounded-[0.4vw] px-[0.5vw] bg-white h-[1.8vw] w-[6.5vw]">
-                        <span className="text-[0.75vw] text-gray-700 font-medium uppercase truncate block w-[3.5vw]" title={slideshowSettings.dotColor || '#4F46E5'}>{slideshowSettings.dotColor || '#4F46E5'}</span>
-                        <span className="text-[0.75vw] text-gray-700 shrink-0">100%</span>
+                      <div className="flex items-center justify-between border border-gray-400 rounded-[0.5vw] px-[0.75vw] bg-white h-[2.2vw] w-[8vw]">
+                        <span className="text-[0.75vw] text-gray-700 font-semibold uppercase truncate block w-[4.5vw]" title={slideshowSettings.dotColor || '#000000'}>{slideshowSettings.dotColor || '#000000'}</span>
+                        <span className="text-[0.75vw] text-gray-400 shrink-0">100%</span>
                       </div>
                     </div>
                   </div>
@@ -1669,7 +1668,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           <div className="relative">
             <div className="fixed inset-0" onClick={() => setShowDotColorPicker(false)} />
             <ColorPicker
-              color={slideshowSettings.dotColor || '#4F46E5'}
+              color={slideshowSettings.dotColor || '#000000'}
               onChange={(val) => updateSetting('dotColor', val)}
               opacity={slideshowSettings.dotOpacity ?? 100}
               onOpacityChange={(val) => updateSetting('dotOpacity', val)}
