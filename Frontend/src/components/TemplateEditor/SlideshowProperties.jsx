@@ -614,26 +614,26 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     const cleanupAnim = () => {
       if (clone && clone.parentNode) clone.parentNode.removeChild(clone);
       if (newPattern && newPattern.parentNode) newPattern.parentNode.removeChild(newPattern);
-      
+
       // Additional failsafe for SVG filters in Safari
       if (animEl.style.filter === 'none') {
         animEl.style.removeProperty('filter');
       }
     };
-    
+
     realAnim.onfinish = () => {
       cleanupAnim();
       animEl.style.transformBox = '';
       animEl.style.transformOrigin = '';
       finalize();
     };
-    
+
     // Fallback in case onfinish doesn't fire (especially for 0 duration)
     setTimeout(() => {
-        cleanupAnim();
-        animEl.style.transformBox = '';
-        animEl.style.transformOrigin = '';
-        finalize();
+      cleanupAnim();
+      animEl.style.transformBox = '';
+      animEl.style.transformOrigin = '';
+      finalize();
     }, duration + 20);
 
   }, [activePageIndex, selectedElement, slideshowSettings, opacity, setIsUpdatingDOM]);
@@ -694,7 +694,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       // This prevents the global runner from spawning a duplicate overlay.
       if (!freshTarget.hasAttribute('data-slideshow-manual')) {
         freshTarget.setAttribute('data-slideshow-manual', 'true');
-        
+
         // If the global runner already spawned an overlay in the split-second before we caught it, remove it
         if (freshTarget._globalSsOverlay) {
           if (freshTarget._globalSsOverlay._cleanupHover) freshTarget._globalSsOverlay._cleanupHover();
@@ -853,7 +853,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         });
         const iconKey = type === 'prev' ? 'left' : 'right';
         const root = createRoot(btn);
-        
+
         const isGrad = navIconColor && navIconColor.toUpperCase().includes('GRADIENT');
         let stops = [];
         if (isGrad) {
@@ -864,7 +864,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           }
         }
         const gradId = `nav-grad-${type}-${Math.random().toString(36).substring(2, 7)}`;
-        
+
         root.render(
           <>
             {isGrad && stops.length > 0 && (
@@ -875,7 +875,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                 <style>{`.grad-icon-${gradId} svg path, .grad-icon-${gradId} svg circle, .grad-icon-${gradId} svg rect { fill: url(#${gradId}) !important; color: transparent !important; }`}</style>
               </svg>
             )}
-            <div 
+            <div
               className={`${isGrad && stops.length > 0 ? `grad-icon-${gradId}` : ''} transition-all`}
             >
               {NavIconRenderer({ styleId, size: '36px', color: isGrad ? 'currentColor' : navIconColor })[iconKey]}
@@ -1476,37 +1476,37 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         </div>
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/*" className="hidden" />
         <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/*" className="hidden" />
- 
-         {/* Opacity */}
-              <div className="space-y-[0.5vw]">
-                <div className="flex items-center gap-[0.5vw]">
-                  <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
-                </div>
-                <div className="flex items-center gap-[1vw] pb-[0.5vw]">
-                  <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={localOpacity}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setLocalOpacity(val);
-                        if (selectedElement) {
-                          selectedElement.setAttribute('opacity', (val / 100).toString());
-                          selectedElement.style.opacity = (val / 100).toString();
-                        }
-                      }}
-                      onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}
-                      onTouchEnd={(e) => onUpdateOpacity(Number(e.target.value))}
-                      className="w-full cursor-pointer custom-range-slider"
-                      style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${localOpacity}%, #E2E8F0 ${localOpacity}%, #E2E8F0 100%)` }}
-                    />
-                  </div>
-                  <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{localOpacity} %</span>
-                </div>
-              </div>   
+
+        {/* Opacity */}
+        <div className="space-y-[0.5vw]">
+          <div className="flex items-center gap-[0.5vw]">
+            <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
+            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
+          </div>
+          <div className="flex items-center gap-[1vw] pb-[0.5vw]">
+            <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={localOpacity}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setLocalOpacity(val);
+                  if (selectedElement) {
+                    selectedElement.setAttribute('opacity', (val / 100).toString());
+                    selectedElement.style.opacity = (val / 100).toString();
+                  }
+                }}
+                onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}
+                onTouchEnd={(e) => onUpdateOpacity(Number(e.target.value))}
+                className="w-full cursor-pointer custom-range-slider"
+                style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${localOpacity}%, #E2E8F0 ${localOpacity}%, #E2E8F0 100%)` }}
+              />
+            </div>
+            <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{localOpacity} %</span>
+          </div>
+        </div>
 
         {/* 3. Library Access Button */}
         <button onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">

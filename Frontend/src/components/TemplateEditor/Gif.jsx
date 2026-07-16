@@ -370,16 +370,17 @@ const GifEditor = ({
       const h = f.highlights || 0;
       const s = f.shadows || 0;
 
-      let filterStr = "";
-      filterStr += `brightness(${100 + exposure + (h / 5)}%) `;
-      filterStr += `contrast(${100 + contrast + (s / 5)}%) `;
-      filterStr += `saturate(${100 + saturation}%) `;
-      if (tint !== 0) filterStr += `hue-rotate(${tint}deg) `;
-      if (temperature > 0) filterStr += `sepia(${temperature / 2}%) `;
-      else if (temperature < 0) filterStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
+      let adjustOnlyStr = "";
+      adjustOnlyStr += `brightness(${100 + exposure + (h / 5)}%) `;
+      adjustOnlyStr += `contrast(${100 + contrast + (s / 5)}%) `;
+      adjustOnlyStr += `saturate(${100 + saturation}%) `;
+      if (tint !== 0) adjustOnlyStr += `hue-rotate(${tint}deg) `;
+      if (temperature > 0) adjustOnlyStr += `sepia(${temperature / 2}%) `;
+      else if (temperature < 0) adjustOnlyStr += `hue-rotate(180deg) sepia(${Math.abs(temperature) / 2}%) hue-rotate(-180deg) `;
 
+      let blurStr = "";
       if (activeEffects.includes('Blur')) {
-        filterStr += `blur(${effectSettings['Blur'].blur}px) `;
+        blurStr = `blur(${effectSettings['Blur'].blur}px) `;
       }
 
       let dsCssString = "";
@@ -410,23 +411,63 @@ const GifEditor = ({
 
       // --- Radius & Clip-path ---
       const anyR = radius.tl || radius.tr || radius.br || radius.bl;
-      if (anyR) {
+      const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
+      
+      let exactPathD = '';
+      let targetElForPath = svgImageEl || liveElement;
+      if (isSvgEl) {
+        let bBox = { x: 0, y: 0, width: 100, height: 100 };
+        try { bBox = targetElForPath.getBBox(); } catch (e) { }
+        let bxStr = targetElForPath.getAttribute('x') || '0';
+        let byStr = targetElForPath.getAttribute('y') || '0';
+        let bwStr = targetElForPath.getAttribute('width') || '100%';
+        let bhStr = targetElForPath.getAttribute('height') || '100%';
+        let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+        let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+        let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+        let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+        const tl = radius.tl || 0, tr = radius.tr || 0, br = radius.br || 0, bl = radius.bl || 0;
+        const maxR = Math.min(bw, bh) / 2;
+        const c_tl = Math.max(0, Math.min(tl, maxR)), c_tr = Math.max(0, Math.min(tr, maxR));
+        const c_br = Math.max(0, Math.min(br, maxR)), c_bl = Math.max(0, Math.min(bl, maxR));
+        exactPathD = getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), c_tl, c_tr, c_br, c_bl);
+      }
+
+      if (anyR || forceClip) {
         const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
         const clipVal = `inset(0% 0% 0% 0% round ${radiusStr})`;
 
         if (isSvgEl) {
-          // If it's a group or wrapper containing an image, clip the image, not the wrapper.
-          // Otherwise, clip the element itself.
           if (svgImageEl && svgImageEl !== liveElement) {
             svgImageEl.style.clipPath = clipVal;
             svgImageEl.style.webkitClipPath = clipVal;
+          }
+          if (forceClip && exactPathD) {
+            let clipId = `clip-content-${liveElement.id || 'gif'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let clipNode = defs.querySelector(`#${clipId}`);
+              if (!clipNode) {
+                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipNode.id = clipId;
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                clipNode.appendChild(clipPathEl);
+                defs.appendChild(clipNode);
+              }
+              clipNode.firstChild.setAttribute('d', exactPathD);
+              clipNode.firstChild.setAttribute('transform', targetElForPath.getAttribute('transform') || '');
+              
+              liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+            }
+          } else {
             liveElement.style.clipPath = '';
             liveElement.style.webkitClipPath = '';
-          } else {
-            liveElement.style.clipPath = clipVal;
-            liveElement.style.webkitClipPath = clipVal;
           }
-          liveElement.removeAttribute('clip-path');
           liveElement.style.transformBox = '';
 
           if (tagLower === 'rect') {
@@ -442,6 +483,10 @@ const GifEditor = ({
           // HTML: Use pure border-radius
           liveElement.style.clipPath = '';
           liveElement.style.webkitClipPath = '';
+          if (forceClip) {
+            const radStr = `inset(0% 0% 0% 0% round ${radius.tl || 0}px ${radius.tr || 0}px ${radius.br || 0}px ${radius.bl || 0}px)`;
+            liveElement.style.setProperty('clip-path', radStr, 'important');
+          }
           liveElement.style.setProperty('border-radius', radiusStr, 'important');
           liveElement.style.setProperty('overflow', 'hidden', 'important');
           if (svgImageEl && svgImageEl !== liveElement) {
@@ -476,12 +521,12 @@ const GifEditor = ({
       }
 
       // --- Filter Application ---
-      const adjustOnlyFilter = filterStr.trim() || 'none';
+      const adjustOnlyFilter = adjustOnlyStr.trim() || 'none';
       const shadowOnlyFilter = dsCssString.trim() || 'none';
-      const finalFilter = (filterStr + (dsCssString ? ` ${dsCssString}` : '')).trim() || 'none';
+      const blurOnlyFilter = blurStr.trim() || 'none';
 
       if (isSvgEl) {
-        const hasClip = anyR;
+        const hasClip = anyR || forceClip;
 
         // 1. Apply Adjustments to the actual image content (leaf)
         if (svgImageEl) {
@@ -502,33 +547,8 @@ const GifEditor = ({
             if (shadowCaster !== liveElement.firstChild) {
               liveElement.insertBefore(shadowCaster, liveElement.firstChild);
             }
-            const targetEl = svgImageEl || liveElement;
-            let bBox = { x: 0, y: 0, width: 100, height: 100 };
-            try { bBox = targetEl.getBBox(); } catch (e) { }
-
-            let bxStr = targetEl.getAttribute('x') || '0';
-            let byStr = targetEl.getAttribute('y') || '0';
-            let bwStr = targetEl.getAttribute('width') || '100%';
-            let bhStr = targetEl.getAttribute('height') || '100%';
-
-            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
-
-            const tl = radius.tl || 0;
-            const tr = radius.tr || 0;
-            const br = radius.br || 0;
-            const bl = radius.bl || 0;
-
-            const maxR = Math.min(bw, bh) / 2;
-            const c_tl = Math.max(0, Math.min(tl, maxR));
-            const c_tr = Math.max(0, Math.min(tr, maxR));
-            const c_br = Math.max(0, Math.min(br, maxR));
-            const c_bl = Math.max(0, Math.min(bl, maxR));
-
-            shadowCaster.setAttribute('d', getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), c_tl, c_tr, c_br, c_bl));
-            shadowCaster.setAttribute('transform', targetEl.getAttribute('transform') || '');
+            shadowCaster.setAttribute('d', exactPathD);
+            shadowCaster.setAttribute('transform', targetElForPath.getAttribute('transform') || '');
 
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', opacityVal);
@@ -542,11 +562,9 @@ const GifEditor = ({
           shadowCaster.style.setProperty('display', 'none', 'important');
         }
 
-        // 3. Apply geometry-level filters to the selection element itself
-        if (!hasClip) {
-          liveElement.style.setProperty('filter', finalFilter, 'important');
-        } else if (svgImageEl === liveElement) {
-          liveElement.style.setProperty('filter', adjustOnlyFilter, 'important');
+        // 3. Apply layer-level Blur to the selection element itself
+        if (blurOnlyFilter !== 'none') {
+          liveElement.style.setProperty('filter', blurOnlyFilter, 'important');
         } else {
           liveElement.style.removeProperty('filter');
         }
@@ -556,7 +574,7 @@ const GifEditor = ({
         }
       } else {
         // FOR HTML
-        liveElement.style.setProperty('filter', finalFilter, 'important');
+        liveElement.style.setProperty('filter', adjustOnlyFilter === 'none' && blurOnlyFilter === 'none' ? 'none' : `${adjustOnlyStr} ${blurStr}`.trim(), 'important');
         if (liveElement.parentElement) liveElement.parentElement.style.removeProperty('filter');
 
         if (activeEffects.includes('Drop Shadow') || activeEffects.includes('Blur')) {
@@ -1164,6 +1182,30 @@ const GifEditor = ({
       liveElement.setAttribute('data-effect-shadows', s.toString());
       liveElement.setAttribute('data-effect-opacity', opacity.toString());
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
+
+      liveElement.setAttribute('data-effect-blur', activeEffects.includes('Blur') ? 'true' : 'false');
+      if (effectSettings['Blur']) {
+        liveElement.setAttribute('data-effect-blur-value', effectSettings['Blur'].blur.toString());
+        liveElement.setAttribute('data-effect-blur-clip', effectSettings['Blur'].clipContent ? 'true' : 'false');
+      }
+
+      liveElement.setAttribute('data-effect-drop-shadow', activeEffects.includes('Drop Shadow') ? 'true' : 'false');
+      if (effectSettings['Drop Shadow']) {
+        liveElement.setAttribute('data-effect-drop-shadow-color', effectSettings['Drop Shadow'].color);
+        liveElement.setAttribute('data-effect-drop-shadow-opacity', effectSettings['Drop Shadow'].opacity.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-x', effectSettings['Drop Shadow'].x.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-y', effectSettings['Drop Shadow'].y.toString());
+        liveElement.setAttribute('data-effect-drop-shadow-blur', effectSettings['Drop Shadow'].blur.toString());
+      }
+
+      liveElement.setAttribute('data-effect-inner-shadow', activeEffects.includes('Inner Shadow') ? 'true' : 'false');
+      if (effectSettings['Inner Shadow']) {
+        liveElement.setAttribute('data-effect-inner-shadow-color', effectSettings['Inner Shadow'].color);
+        liveElement.setAttribute('data-effect-inner-shadow-opacity', effectSettings['Inner Shadow'].opacity.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-x', effectSettings['Inner Shadow'].x.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-y', effectSettings['Inner Shadow'].y.toString());
+        liveElement.setAttribute('data-effect-inner-shadow-blur', effectSettings['Inner Shadow'].blur.toString());
+      }
 
       // --- STRICT LAYER REORDERING FOR GIF GROUPS ---
       if (liveElement.getAttribute('data-is-gif-group') === 'true') {
