@@ -130,9 +130,9 @@ const Adjustment = ({
           className={`flex items-center justify-between px-[1vw] py-[1vw] border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${openSubSection === 'adjustment' ? 'rounded-t-[0.75vw]' : 'rounded-[0.75vw]'}`}
         >
           <div className="flex items-center gap-[0.5vw]">
-            <span className="font-semibold text-gray-900 text-[0.85vw]">Adjustments</span>
+            <span className={`font-semibold text-[0.85vw] ${openSubSection === 'adjustment' ? 'text-gray-900' : 'text-gray-500'}`}>Adjustment</span>
           </div>
-          <ChevronUp size="1vw" className={`text-gray-500 transition-transform duration-200 ${openSubSection === 'adjustment' ? '' : 'rotate-180'}`} />
+          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'adjustment' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
         </div>
 
         <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'adjustment' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>

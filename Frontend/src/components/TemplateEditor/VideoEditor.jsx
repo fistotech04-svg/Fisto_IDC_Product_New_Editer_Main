@@ -111,8 +111,8 @@ const VideoEditor = ({
   const [activeEffects, setActiveEffects] = useState([]);
   const [activePopup, setActivePopup] = useState(null);
   const [effectSettings, setEffectSettings] = useState({
-    'Drop Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
-    'Inner Shadow': { color: '#000000', opacity: 35, x: 4, y: 4, blur: 1, spread: 0 },
+    'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
+    'Inner Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
     'Blur': { blur: 0.5, spread: 0 }
   });
   const [openSubSection, setOpenSubSection] = useState(null);
@@ -212,11 +212,11 @@ const VideoEditor = ({
     const dashData = liveElement.getAttribute('stroke-dasharray') || visualTarget.getAttribute('stroke-dasharray') || 'none';
     const isDashed = dashData !== 'none' && dashData !== '';
 
-    let dashLen = 5, dashGap = 5;
+    let dashLen = 10, dashGap = 10;
     if (isDashed) {
       const parts = dashData.split(',');
       const parsedLen = parseInt(parts[0]);
-      dashLen = isNaN(parsedLen) ? 5 : parsedLen;
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
       const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
       dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
     }
@@ -597,7 +597,7 @@ const VideoEditor = ({
       visualTarget.setAttribute('data-stroke-width', weight); // Keep for legacy
 
       if (backgroundColor.strokeDashStyle === 'Dashed') {
-        const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+        const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
         visualTarget.setAttribute('stroke-dasharray', dashArray);
       } else {
         visualTarget.setAttribute('stroke-dasharray', 'none');
@@ -696,7 +696,7 @@ const VideoEditor = ({
         }
         strokeOverlay.setAttribute('stroke-width', weight.toString());
         if (backgroundColor.strokeDashStyle === 'Dashed') {
-          const dashArray = `${backgroundColor.strokeDashLength || 5},${backgroundColor.strokeDashGap || 5}`;
+          const dashArray = `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}`;
           strokeOverlay.setAttribute('stroke-dasharray', dashArray);
         } else {
           strokeOverlay.setAttribute('stroke-dasharray', 'none');
@@ -705,7 +705,14 @@ const VideoEditor = ({
         strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
 
         const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
-        if (maxR > 0) strokeOverlay.setAttribute('rx', maxR.toString());
+        let adjR = maxR;
+        if (pos === 'Inside') {
+          adjR = Math.max(0, maxR - weight / 2);
+        } else if (pos === 'Outside') {
+          adjR = maxR > 0 ? maxR + weight / 2 : 0;
+        }
+
+        if (adjR > 0) strokeOverlay.setAttribute('rx', adjR.toString());
         else strokeOverlay.removeAttribute('rx');
 
         strokeOverlay.style.outline = 'none';
@@ -1298,12 +1305,12 @@ const VideoEditor = ({
     }
 
     const videoURL = URL.createObjectURL(file);
-    
+
     const tempVideo = document.createElement('video');
     tempVideo.onloadedmetadata = async () => {
       const vw = tempVideo.videoWidth;
       const vh = tempVideo.videoHeight;
-      
+
       if (vw && vh) {
         const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
 
@@ -1312,12 +1319,12 @@ const VideoEditor = ({
 
         liveElement.style.width = '';
         liveElement.style.height = '';
-        
+
         liveElement.setAttribute('width', fitW.toString());
         liveElement.setAttribute('height', fitH.toString());
         liveElement.setAttribute('data-width', fitW.toString());
         liveElement.setAttribute('data-height', fitH.toString());
-        
+
         if (target !== liveElement) {
           target.style.width = '';
           target.style.height = '';
@@ -1666,7 +1673,7 @@ const VideoEditor = ({
           </div>
 
           {/* Replace Icon */}
-          <div 
+          <div
             className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
             onClick={() => fileInputRef.current?.click()}
           >
@@ -1765,7 +1772,7 @@ const VideoEditor = ({
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
         </div>
         <div className="flex items-center gap-[1vw] pb-[0.5vw]">
-          <div className="flex-1 flex items-center h-[0.7vw] rounded-full outline-none">
+          <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
             <input
               type="range"
               min="0" max="100"
@@ -1784,7 +1791,7 @@ const VideoEditor = ({
               }}
               onMouseUp={() => debouncedUpdate()}
               className="w-full cursor-pointer custom-range-slider"
-              style={{ background: `linear-gradient(to right, indigo 0%, indigo ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
+              style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${opacity}%, #E2E8F0 ${opacity}%, #E2E8F0 100%)` }}
             />
           </div>
           <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{opacity} %</span>

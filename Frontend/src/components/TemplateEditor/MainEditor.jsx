@@ -24,9 +24,11 @@ export const getVisualBBox = (el) => {
     const bbox = el.getBBox();
     try {
       const crop = JSON.parse(cropStr);
+      const offX = (parseFloat(crop.offX) || 0) / 100;
+      const offY = (parseFloat(crop.offY) || 0) / 100;
       return {
-        x: bbox.x + (parseFloat(crop.left) / 100) * bbox.width,
-        y: bbox.y + (parseFloat(crop.top) / 100) * bbox.height,
+        x: bbox.x - (offX * bbox.width) + (parseFloat(crop.left) / 100) * bbox.width,
+        y: bbox.y - (offY * bbox.height) + (parseFloat(crop.top) / 100) * bbox.height,
         width: bbox.width * (parseFloat(crop.width) / 100),
         height: bbox.height * (parseFloat(crop.height) / 100)
       };
@@ -97,6 +99,21 @@ const svgGlobalStyles = `
   .page-svg-container svg {
     user-select: none !important;
     -webkit-user-select: none !important;
+  }
+
+  /* Hide regular selection overlays when Crop Modal is open */
+  body.crop-modal-active .overlay-type-selected,
+  body.crop-modal-active .overlay-type-hover,
+  body.crop-modal-active .overlay-type-child-hover,
+  body.crop-modal-active .overlay-type-child-selected,
+  body.crop-modal-active .selection-handle {
+    display: none !important;
+    pointer-events: none !important;
+  }
+
+  /* Hide ONLY the specific image that is actively being cropped to prevent ghosting */
+  body.crop-modal-active .page-svg-container svg [data-cropping="true"] {
+    opacity: 0 !important;
   }
 
   .page-svg-container svg text,
@@ -969,7 +986,7 @@ const MainEditor = ({
 
         const scaleFactor = Math.max(0.4, Math.min(1.8, localWidth / 300));
 
-        const { dotColor = '#4F46E5', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
+        const { dotColor = '#000000', navIconColor = '#000000', showDots = true, showArrows = true, showNav = true } = settings;
 
         const signature = JSON.stringify({
           imagesCount: images.length,
