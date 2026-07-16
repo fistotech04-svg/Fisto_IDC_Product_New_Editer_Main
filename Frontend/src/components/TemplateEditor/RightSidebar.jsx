@@ -568,6 +568,9 @@ const RightSidebar = ({
           if (!el.hasAttribute('stroke-width') && !el.hasAttribute('strokeWidth') && comp.webkitTextStrokeWidth) {
             strokeWidthStr = parseFloat(comp.webkitTextStrokeWidth).toString();
           }
+          if (parseFloat(strokeWidthStr) === 0 || isNaN(parseFloat(strokeWidthStr)) || strokeStyle === 'transparent' || strokeStyle === 'rgba(0, 0, 0, 0)') {
+            strokeStyle = 'none';
+          }
         }
 
         const props = {

@@ -261,15 +261,15 @@ const syncGradient = (doc, element, baseAttr) => {
       } else {
         cssGradStr = `radial-gradient(circle, ${stops.map(s => `${s.color} ${s.offset}%`).join(', ')})`;
       }
-      
+
       const applyCssGradToElement = (el) => {
-          el.style.setProperty('background-image', cssGradStr, 'important');
-          el.style.setProperty('-webkit-background-clip', 'text', 'important');
-          el.style.setProperty('background-clip', 'text', 'important');
-          el.style.setProperty('color', 'transparent', 'important');
-          el.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+        el.style.setProperty('background-image', cssGradStr, 'important');
+        el.style.setProperty('-webkit-background-clip', 'text', 'important');
+        el.style.setProperty('background-clip', 'text', 'important');
+        el.style.setProperty('color', 'transparent', 'important');
+        el.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
       };
-      
+
       applyCssGradToElement(element.firstElementChild);
       Array.from(element.firstElementChild.querySelectorAll('*')).forEach(applyCssGradToElement);
     }
@@ -296,6 +296,7 @@ const syncTextEffect = (doc, element) => {
   const hasInnerShadow = element.getAttribute('data-effect-inner-shadow') === 'true';
   const hasBlur = element.getAttribute('data-effect-blur') === 'true';
   const hasBackgroundBlur = element.getAttribute('data-effect-background-blur') === 'true';
+  const hasClipContent = hasBlur && element.getAttribute('data-effect-blur-clip') === 'true';
 
   // --- HTML TEXT (ForeignObject) FIX ---
   if (isForeignObject && !hasInnerShadow) {
@@ -329,6 +330,12 @@ const syncTextEffect = (doc, element) => {
           inner.style.setProperty('filter', cssFilter.trim(), 'important');
         } else {
           inner.style.removeProperty('filter');
+        }
+
+        if (hasClipContent) {
+          inner.style.setProperty('clip-path', 'inset(0% 0% 0% 0%)', 'important');
+        } else {
+          inner.style.removeProperty('clip-path');
         }
 
         if (hasBackgroundBlur) {
@@ -382,41 +389,21 @@ const syncTextEffect = (doc, element) => {
     return;
   }
 
-  if (!filterEl) {
-    filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
-    filterEl.id = filterId;
-    filterEl.setAttribute('x', '-50%');
-    filterEl.setAttribute('y', '-50%');
-    filterEl.setAttribute('width', '200%');
-    filterEl.setAttribute('height', '200%');
-    defs.appendChild(filterEl);
-  }
+    if (!filterEl) {
+      filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
+      filterEl.id = filterId;
+      filterEl.setAttribute('x', '-50%');
+      filterEl.setAttribute('y', '-50%');
+      filterEl.setAttribute('width', '200%');
+      filterEl.setAttribute('height', '200%');
+      defs.appendChild(filterEl);
+    }
 
   while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
 
   let currentIn = "SourceGraphic";
 
-  if (hasBlur) {
-    const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
-    const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
-    let blurSource = currentIn;
-    if (spreadVal !== 0) {
-      const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-      morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
-      morph.setAttribute('radius', Math.abs(spreadVal));
-      morph.setAttribute('in', currentIn);
-      morph.setAttribute('result', 'blur_morph');
-      filterEl.appendChild(morph);
-      blurSource = "blur_morph";
-    }
-    const blurNode = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-    blurNode.setAttribute('stdDeviation', blurVal);
-    blurNode.setAttribute('in', blurSource);
-    blurNode.setAttribute('result', 'blur_out');
-    filterEl.appendChild(blurNode);
-    currentIn = "blur_out";
-  }
-
+  // Blur is moved to the end!
   if (hasDropShadow) {
     const color = getVal('data-effect-drop-shadow-color', '#000000');
     const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
@@ -536,6 +523,41 @@ const syncTextEffect = (doc, element) => {
     currentIn = "inner_shadow_merged";
   }
 
+  // 4. Layer Blur (Applied LAST so it blurs shadows and strokes too)
+  if (hasBlur) {
+    const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
+    const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+    
+    let blurSource = currentIn;
+    
+    if (spreadVal !== 0) {
+      const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spreadVal));
+      morph.setAttribute('in', currentIn);
+      morph.setAttribute('result', 'blur_morph');
+      filterEl.appendChild(morph);
+      blurSource = "blur_morph";
+    }
+    
+    const blurNode = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+    blurNode.setAttribute('stdDeviation', blurVal);
+    blurNode.setAttribute('in', blurSource);
+    blurNode.setAttribute('result', 'blur_out');
+    filterEl.appendChild(blurNode);
+    currentIn = "blur_out";
+  }
+
+  if (hasClipContent) {
+    const compClip = d.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+    compClip.setAttribute('operator', 'in');
+    compClip.setAttribute('in', currentIn);
+    compClip.setAttribute('in2', 'SourceAlpha');
+    compClip.setAttribute('result', 'clipped_final');
+    filterEl.appendChild(compClip);
+    currentIn = 'clipped_final';
+  }
+
   const finalFilterUrl = `url(#${filterId})`;
   if (isForeignObject) {
     const inner = element.firstElementChild;
@@ -595,7 +617,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     return {
       'Drop Shadow': { color: p['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(p['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(p['data-effect-drop-shadow-x'] || 2), y: parseFloat(p['data-effect-drop-shadow-y'] || 2), blur: parseFloat(p['data-effect-drop-shadow-blur'] || 4), spread: 0 },
       'Inner Shadow': { color: p['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(p['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(p['data-effect-inner-shadow-x'] || 2), y: parseFloat(p['data-effect-inner-shadow-y'] || 2), blur: parseFloat(p['data-effect-inner-shadow-blur'] || 1), spread: 0 },
-      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 0.3), spread: 0 }
+      'Blur': { blur: parseFloat(p['data-effect-blur-value'] || 0.3), spread: 0, clipContent: p['data-effect-blur-clip'] === 'true' }
     };
   });
 
@@ -650,7 +672,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
     setEffectSettings({
       'Drop Shadow': { color: selectedElementProps?.['data-effect-drop-shadow-color'] || '#000000', opacity: parseFloat(selectedElementProps?.['data-effect-drop-shadow-opacity'] || 35), x: parseFloat(selectedElementProps?.['data-effect-drop-shadow-x'] || 2), y: parseFloat(selectedElementProps?.['data-effect-drop-shadow-y'] || 2), blur: parseFloat(selectedElementProps?.['data-effect-drop-shadow-blur'] || 4), spread: 0 },
       'Inner Shadow': { color: selectedElementProps?.['data-effect-inner-shadow-color'] || '#FFFFFF', opacity: parseFloat(selectedElementProps?.['data-effect-inner-shadow-opacity'] || 100), x: parseFloat(selectedElementProps?.['data-effect-inner-shadow-x'] || 2), y: parseFloat(selectedElementProps?.['data-effect-inner-shadow-y'] || 2), blur: parseFloat(selectedElementProps?.['data-effect-inner-shadow-blur'] || 1), spread: 0 },
-      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 0.3), spread: 0 }
+      'Blur': { blur: parseFloat(selectedElementProps?.['data-effect-blur-value'] || 0.3), spread: 0, clipContent: selectedElementProps?.['data-effect-blur-clip'] === 'true' }
     });
   }, [selectedLayerId, activePageIndex]);
 
@@ -669,13 +691,13 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke', backgroundColor.stroke);
       updateElementAttributeLocal(activePageIndex, selectedLayerId, 'strokeWidth', backgroundColor.strokeWeight.toString());
       if (backgroundColor.strokeType === 'gradient' || backgroundColor.strokeStops) {
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'gradient');
-          if (backgroundColor.strokeGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-gradient-type', backgroundColor.strokeGradientType);
-          if (backgroundColor.strokeStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-stops', backgroundColor.strokeStops);
-          if (backgroundColor.strokeAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-angle', backgroundColor.strokeAngle.toString());
-          if (backgroundColor.strokeRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-radius', backgroundColor.strokeRadius.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'gradient');
+        if (backgroundColor.strokeGradientType) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-gradient-type', backgroundColor.strokeGradientType);
+        if (backgroundColor.strokeStops) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-stops', backgroundColor.strokeStops);
+        if (backgroundColor.strokeAngle !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-angle', backgroundColor.strokeAngle.toString());
+        if (backgroundColor.strokeRadius !== undefined) updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-radius', backgroundColor.strokeRadius.toString());
       } else if (backgroundColor.stroke !== 'none' && !backgroundColor.stroke.includes('url(#')) {
-          updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'stroke-type', 'solid');
       }
 
       const dashVal = backgroundColor.strokeDashStyle === 'Dashed' ? `${backgroundColor.strokeDashLength || 10},${backgroundColor.strokeDashGap || 10}` : 'none';
@@ -720,6 +742,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
       }
       if (hasBlur) {
         updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-value', effectSettings['Blur'].blur.toString());
+        updateElementAttributeLocal(activePageIndex, selectedLayerId, 'data-effect-blur-clip', effectSettings['Blur'].clipContent ? 'true' : 'false');
       }
 
       const element = document.getElementById(selectedLayerId);
@@ -753,6 +776,7 @@ const TextEditorSubComponentAdapter = ({ selectedElementProps, activePageIndex, 
         colorsOnPage={colorsOnPage}
         showDetailedPicker={showDetailedPicker}
         setShowDetailedPicker={setShowDetailedPicker}
+        isText={true}
       />
       <Effect
         openSubSection={openSubSection}
@@ -897,6 +921,9 @@ const TextEditor = ({
       if (!el.hasAttribute('stroke-width') && !el.hasAttribute('strokeWidth') && comp.webkitTextStrokeWidth) {
         strokeWidthStr = parseFloat(comp.webkitTextStrokeWidth).toString();
       }
+      if (parseFloat(strokeWidthStr) === 0 || isNaN(parseFloat(strokeWidthStr)) || strokeStyle === 'transparent' || strokeStyle === 'rgba(0, 0, 0, 0)') {
+        strokeStyle = 'none';
+      }
     }
 
     const props = {
@@ -941,11 +968,12 @@ const TextEditor = ({
           if (liveEl.firstElementChild && styleProp) {
             let applyVal = finalVal;
             if (styleProp === 'fontFamily' && typeof applyVal === 'string' && !applyVal.includes("'") && !applyVal.includes('"')) {
-               applyVal = `'${applyVal}'`;
+              applyVal = `'${applyVal}'`;
             }
             if (styleProp === 'stroke') {
-              liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', finalVal, 'important');
-              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', finalVal, 'important'));
+              const applyColor = finalVal === 'none' ? 'transparent' : finalVal;
+              liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', applyColor, 'important');
+              Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-color', applyColor, 'important'));
             } else if (styleProp === 'strokeWidth') {
               liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important');
               Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty('-webkit-text-stroke-width', `${finalVal}px`, 'important'));
@@ -955,20 +983,20 @@ const TextEditor = ({
               liveEl.firstElementChild.style.setProperty(cssPropName, applyVal, 'important');
               Array.from(liveEl.firstElementChild.querySelectorAll('*')).forEach(child => child.style.setProperty(cssPropName, applyVal, 'important'));
             }
-            
+
             // General Auto-resize for layout-affecting properties
             const layoutProps = ['fontSize', 'lineHeight', 'letterSpacing', 'fontFamily', 'fontWeight', 'textAlign', 'textTransform'];
             if (layoutProps.includes(attribute) && liveEl.getAttribute('data-scrollable') !== 'true') {
               const div = liveEl.firstElementChild;
               div.style.setProperty('height', 'auto', 'important');
               div.style.setProperty('min-height', '0px', 'important');
-              
+
               const contentH = div.scrollHeight;
               const foH = parseFloat(liveEl.getAttribute('height')) || 0;
-              
+
               if (Math.abs(contentH - foH) > 2) {
-                 liveEl.setAttribute('height', contentH + 4);
-                 window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
+                liveEl.setAttribute('height', contentH + 4);
+                window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
               }
             }
           }
@@ -982,7 +1010,7 @@ const TextEditor = ({
           if (styleProp) {
             let applyVal = finalVal;
             if (styleProp === 'fontFamily' && typeof applyVal === 'string' && !applyVal.includes("'") && !applyVal.includes('"')) {
-               applyVal = `'${applyVal}'`;
+              applyVal = `'${applyVal}'`;
             }
             if (styleProp === 'strokeWidth') {
               liveEl.setAttribute('stroke-width', value);
@@ -1045,7 +1073,7 @@ const TextEditor = ({
         if (overlay) {
           let overlayVal = finalVal;
           if (styleProp === 'fontFamily' && typeof overlayVal === 'string' && !overlayVal.includes("'") && !overlayVal.includes('"')) {
-             overlayVal = `'${overlayVal}'`;
+            overlayVal = `'${overlayVal}'`;
           }
           const overlayProp = styleProp === 'fill' ? 'color' : styleProp;
           overlay.style.setProperty(overlayProp, overlayVal, 'important');
@@ -1112,7 +1140,7 @@ const TextEditor = ({
           if (isScrollable && liveEl.firstElementChild) {
             const s = attribute === 'stroke' ? value : (liveEl.getAttribute('stroke') || 'none');
             const sw = (attribute === 'strokeWidth' || attribute === 'stroke-width') ? value : (liveEl.getAttribute('strokeWidth') || liveEl.getAttribute('stroke-width') || '0');
-            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', s, 'important');
+            liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', s === 'none' ? 'transparent' : s, 'important');
             liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${sw}px`, 'important');
             // Remove border just in case it was applied before
             liveEl.firstElementChild.style.border = 'none';
@@ -1215,10 +1243,10 @@ const TextEditor = ({
               if (liveEl.getAttribute('data-scrollable') !== 'true') {
                 liveEl.firstElementChild.style.setProperty('height', 'auto', 'important');
                 liveEl.firstElementChild.style.setProperty('min-height', '0px', 'important');
-                
+
                 const contentH = liveEl.firstElementChild.scrollHeight;
                 const foH = parseFloat(liveEl.getAttribute('height')) || 0;
-                
+
                 if (Math.abs(contentH - foH) > 2) {
                   liveEl.setAttribute('height', contentH + 4);
                   window.dispatchEvent(new CustomEvent('force-update-selection-box', { detail: { elementId: liveEl.id } }));
@@ -1386,7 +1414,7 @@ const TextEditor = ({
             liveEl.setAttribute('overflow', value === 'true' ? 'hidden' : 'visible');
           }
           const mode = element.getAttribute('data-sizing-mode');
-          
+
           const updateDiv = (div) => {
             if (!div) return;
             if (value === 'true') {
@@ -1421,7 +1449,7 @@ const TextEditor = ({
               div.style.removeProperty('box-sizing');
             }
           };
-          
+
           updateDiv(element.firstElementChild);
           if (liveEl) updateDiv(liveEl.firstElementChild);
 
@@ -1431,7 +1459,7 @@ const TextEditor = ({
             // --- SCROLLABLE PERSISTENCE ---
             const isScrollable = element.getAttribute('data-scrollable') === 'true';
             const mode = element.getAttribute('data-sizing-mode');
-            
+
             const applyScrollStyles = (div) => {
               if (!div) return;
               if (isScrollable) {
@@ -1471,7 +1499,7 @@ const TextEditor = ({
 
             if (element.firstElementChild) {
               if (styleProp === 'stroke') {
-                element.firstElementChild.style.setProperty('-webkit-text-stroke-color', value, 'important');
+                element.firstElementChild.style.setProperty('-webkit-text-stroke-color', value === 'none' ? 'transparent' : value, 'important');
               } else if (styleProp === 'strokeWidth') {
                 element.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${value}px`, 'important');
               } else {
@@ -1481,11 +1509,11 @@ const TextEditor = ({
               applyScrollStyles(element.firstElementChild);
             }
             element.setAttribute(attribute, value);
-            
+
             if (liveEl) {
               if (liveEl.firstElementChild) {
                 if (styleProp === 'stroke') {
-                  liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', value, 'important');
+                  liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-color', value === 'none' ? 'transparent' : value, 'important');
                 } else if (styleProp === 'strokeWidth') {
                   liveEl.firstElementChild.style.setProperty('-webkit-text-stroke-width', `${value}px`, 'important');
                 } else {
@@ -2005,9 +2033,9 @@ const TextEditor = ({
       if (tspans.length > 1) {
         const dy = tspans[1].getAttribute('dy');
         if (dy && dy.endsWith('em')) {
-           return parseFloat(dy);
+          return parseFloat(dy);
         }
-        
+
         // Calculate from consecutive y coordinates (Figma logic)
         const y1 = parseFloat(tspans[0].getAttribute('y'));
         let y2 = NaN;
@@ -2019,10 +2047,10 @@ const TextEditor = ({
           }
         }
         if (!isNaN(y1) && !isNaN(y2)) {
-           const dyPx = Math.abs(y2 - y1);
-           const fontSizeStr = el.getAttribute('font-size') || el.style.fontSize;
-           const fontSize = parseFloat(fontSizeStr) || 16;
-           return parseFloat((dyPx / fontSize).toFixed(2));
+          const dyPx = Math.abs(y2 - y1);
+          const fontSizeStr = el.getAttribute('font-size') || el.style.fontSize;
+          const fontSize = parseFloat(fontSizeStr) || 16;
+          return parseFloat((dyPx / fontSize).toFixed(2));
         }
       } else if (tspans.length === 1) {
         return 1.5;
@@ -2129,78 +2157,78 @@ const TextEditor = ({
       setTextContent(content);
 
       // Update styles
-        const ff = getDeepStyle(el, 'fontFamily');
-        const fs = getDeepStyle(el, 'fontSize');
-        const targetEl = el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? el.firstElementChild : el;
-        const style = window.getComputedStyle(targetEl);
+      const ff = getDeepStyle(el, 'fontFamily');
+      const fs = getDeepStyle(el, 'fontSize');
+      const targetEl = el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild ? el.firstElementChild : el;
+      const style = window.getComputedStyle(targetEl);
 
-        if (ff) setFontFamily(ff.replace(/['"]/g, '').split(',')[0]);
-        if (fs) {
-          let fontSizeVal = parseInt(fs);
-          const transform = el.getAttribute('transform');
-          if (transform && transform.includes('matrix') && el.tagName.toLowerCase() !== 'foreignobject') {
-            const match = transform.match(/matrix\(([^)]+)\)/);
-            if (match) {
-              const vals = match[1].split(/[ ,]+/).map(parseFloat);
-              if (vals.length >= 4) {
-                const scaleY = Math.sqrt(vals[2] * vals[2] + vals[3] * vals[3]);
-                if (scaleY > 0) fontSizeVal = Math.round(fontSizeVal * scaleY);
-              }
+      if (ff) setFontFamily(ff.replace(/['"]/g, '').split(',')[0]);
+      if (fs) {
+        let fontSizeVal = parseInt(fs);
+        const transform = el.getAttribute('transform');
+        if (transform && transform.includes('matrix') && el.tagName.toLowerCase() !== 'foreignobject') {
+          const match = transform.match(/matrix\(([^)]+)\)/);
+          if (match) {
+            const vals = match[1].split(/[ ,]+/).map(parseFloat);
+            if (vals.length >= 4) {
+              const scaleY = Math.sqrt(vals[2] * vals[2] + vals[3] * vals[3]);
+              if (scaleY > 0) fontSizeVal = Math.round(fontSizeVal * scaleY);
             }
           }
-          setFontSize(fontSizeVal);
         }
+        setFontSize(fontSizeVal);
+      }
 
-        const weight = style.fontWeight || el.getAttribute('font-weight');
-        const normalizedWeight = weight === 'bold' ? '700' : (weight === 'normal' ? '400' : weight);
-        if (normalizedWeight) setFontWeight(normalizedWeight.toString());
+      const weight = style.fontWeight || el.getAttribute('font-weight');
+      const normalizedWeight = weight === 'bold' ? '700' : (weight === 'normal' ? '400' : weight);
+      if (normalizedWeight) setFontWeight(normalizedWeight.toString());
 
-        const fontStyleVal = style.fontStyle || el.getAttribute('font-style');
-        if (fontStyleVal && fontStyleVal !== 'normal') setFontStyle(fontStyleVal);
-        else setFontStyle('normal');
+      const fontStyleVal = style.fontStyle || el.getAttribute('font-style');
+      if (fontStyleVal && fontStyleVal !== 'normal') setFontStyle(fontStyleVal);
+      else setFontStyle('normal');
 
-        const textDeco = style.textDecorationLine && style.textDecorationLine !== 'none' ? style.textDecorationLine : (style.textDecoration && !style.textDecoration.includes('none') ? style.textDecoration : el.getAttribute('text-decoration'));
-        if (textDeco && !textDeco.includes('none')) setTextDecoration(textDeco);
-        else setTextDecoration('none');
+      const textDeco = style.textDecorationLine && style.textDecorationLine !== 'none' ? style.textDecorationLine : (style.textDecoration && !style.textDecoration.includes('none') ? style.textDecoration : el.getAttribute('text-decoration'));
+      if (textDeco && !textDeco.includes('none')) setTextDecoration(textDeco);
+      else setTextDecoration('none');
 
-        let alignVal = style.textAlign;
-        if (el.tagName.toLowerCase() === 'text' || el.tagName.toLowerCase() === 'tspan') {
-           const anchor = el.getAttribute('text-anchor');
-           if (anchor === 'middle') alignVal = 'center';
-           else if (anchor === 'end') alignVal = 'right';
-           else if (anchor === 'start') alignVal = 'left';
-        } else {
-           if (alignVal === 'start') alignVal = 'left';
-           if (alignVal === 'end') alignVal = 'right';
-        }
-        if (alignVal) setTextAlign(alignVal);
+      let alignVal = style.textAlign;
+      if (el.tagName.toLowerCase() === 'text' || el.tagName.toLowerCase() === 'tspan') {
+        const anchor = el.getAttribute('text-anchor');
+        if (anchor === 'middle') alignVal = 'center';
+        else if (anchor === 'end') alignVal = 'right';
+        else if (anchor === 'start') alignVal = 'left';
+      } else {
+        if (alignVal === 'start') alignVal = 'left';
+        if (alignVal === 'end') alignVal = 'right';
+      }
+      if (alignVal) setTextAlign(alignVal);
 
-        const textTransformVal = style.textTransform || el.getAttribute('text-transform');
-        if (textTransformVal) setTextTransform(textTransformVal);
-        else setTextTransform('none');
+      const textTransformVal = style.textTransform || el.getAttribute('text-transform');
+      if (textTransformVal) setTextTransform(textTransformVal);
+      else setTextTransform('none');
 
-        // Sync Letter Spacing
-        let ls = style.letterSpacing;
-        if (el.tagName.toLowerCase() === 'text' || el.tagName.toLowerCase() === 'tspan') {
-          ls = el.getAttribute('letter-spacing') || ls;
-        }
-        if (ls && ls !== 'normal') {
-          setLetterSpacing(parseFloat(ls));
-        } else {
-          setLetterSpacing(0);
-        }
+      // Sync Letter Spacing
+      let ls = style.letterSpacing;
+      if (el.tagName.toLowerCase() === 'text' || el.tagName.toLowerCase() === 'tspan') {
+        ls = el.getAttribute('letter-spacing') || ls;
+      }
+      if (ls && ls !== 'normal') {
+        setLetterSpacing(parseFloat(ls));
+      } else {
+        setLetterSpacing(0);
+      }
 
-        // Sync Line Height
-        const lh = calculateLineHeightMultiplier();
-        setLineHeight(lh);
+      // Sync Line Height
+      const lh = calculateLineHeightMultiplier();
+      setLineHeight(lh);
 
-        // Sync sizing mode
-        const storedMode = el.getAttribute('data-sizing-mode');
-        if (storedMode) setSizingMode(storedMode);
-        else setSizingMode('auto-height');
+      // Sync sizing mode
+      const storedMode = el.getAttribute('data-sizing-mode');
+      if (storedMode) setSizingMode(storedMode);
+      else setSizingMode('auto-height');
 
-        // Sync Effects
-        syncTextEffect(null, el);
+      // Sync Effects
+      syncTextEffect(null, el);
     };
 
     // Initial sync
@@ -2217,12 +2245,12 @@ const TextEditor = ({
       });
 
       // Observe the element itself and its parent (for sibling overlays)
-      observer.observe(el, { 
-        attributes: true, 
+      observer.observe(el, {
+        attributes: true,
         attributeFilter: ['data-sizing-mode'],
-        characterData: true, 
-        childList: true, 
-        subtree: true 
+        characterData: true,
+        childList: true,
+        subtree: true
       });
       if (el.parentNode) {
         observer.observe(el.parentNode, { childList: true, subtree: true });
@@ -2352,10 +2380,10 @@ const TextEditor = ({
               onFocus={() => setShowFontSizeDropdown(true)}
               className="w-full bg-transparent outline-none text-[0.85vw] text-gray-700"
             />
-            <ChevronDown 
-              size="1vw" 
-              className="text-gray-500 cursor-pointer flex-shrink-0" 
-              onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)} 
+            <ChevronDown
+              size="1vw"
+              className="text-gray-500 cursor-pointer flex-shrink-0"
+              onClick={() => setShowFontSizeDropdown(!showFontSizeDropdown)}
             />
           </div>
           {showFontSizeDropdown && (
@@ -2537,13 +2565,11 @@ const TextEditor = ({
             <button
               title="Auto Width — text grows horizontally on one line"
               onClick={() => applyTextSizingMode('auto-width')}
-              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
-                isScrollable ? 'opacity-40 pointer-events-none' : ''
-              } ${
-                sizingMode === 'auto-width'
+              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${isScrollable ? 'opacity-40 pointer-events-none' : ''
+                } ${sizingMode === 'auto-width'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               <ArrowLeftRight size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />
               <span>Auto W</span>
@@ -2552,13 +2578,11 @@ const TextEditor = ({
             <button
               title="Auto Height — width fixed, height grows with content"
               onClick={() => applyTextSizingMode('auto-height')}
-              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
-                isScrollable ? 'opacity-40 pointer-events-none' : ''
-              } ${
-                sizingMode === 'auto-height'
+              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${isScrollable ? 'opacity-40 pointer-events-none' : ''
+                } ${sizingMode === 'auto-height'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               <ArrowUpDown size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />
               <span>Auto H</span>
@@ -2567,11 +2591,10 @@ const TextEditor = ({
             <button
               title="Fixed Size — width and height are fixed, text wraps and overflows or scrolls"
               onClick={() => applyTextSizingMode('fixed')}
-              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${
-                sizingMode === 'fixed'
+              className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${sizingMode === 'fixed'
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               <Maximize size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />
               <span>Fixed</span>
