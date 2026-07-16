@@ -2710,7 +2710,7 @@ const MainEditor = ({
         polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
       } else if (type === 'hover' || type === 'child-hover') {
         polygon.setAttribute('stroke-width', String(1 / zoomScale));
-        if (type === 'child-hover' && !isMediaOrText) polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+        if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
         else polygon.removeAttribute('stroke-dasharray');
       } else if (type === 'selected' || type === 'child-selected') {
         polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
@@ -2741,7 +2741,7 @@ const MainEditor = ({
 
         if (!hideHandles) {
           const useLBrackets = !isLine && (activeTopTool === 'interaction' || activeTopTool === 'animation' || isFreeFrame);
-          const handleSize = useLBrackets ? 12 : 9; // Slightly larger for interaction mode corners
+          const handleSize = useLBrackets ? 12 : 7.5; // Slightly larger for interaction mode corners
 
           let handleNames, allPts;
 
@@ -2818,7 +2818,7 @@ const MainEditor = ({
                 handle.style.backgroundColor = '#FFFFFF';
                 handle.style.border = '1.5px solid #6366F1';
                 handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
-                handle.style.borderRadius = isLine ? '50%' : '2px';
+                handle.style.borderRadius = isLine ? '50%' : '0px';
               }
 
               handle.style.boxSizing = 'border-box';
@@ -4485,8 +4485,18 @@ const MainEditor = ({
                   const selEl = container?.querySelector(`[id="${id}"]`);
                   if (selEl && selEl !== svgElement) {
                     // Check if we hit the element's bounding box OR one of its descendants
-                    const isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                    let isHit = false;
                     const isMemberHit = target && selEl.contains(target);
+                    if (!isMemberHit) {
+                      // Only fallback to bbox hitTest if they clicked empty space (SVG/Overlay/BaseFrame),
+                      // not another distinct, draggable element sitting on top.
+                      const topFrames = getTopLevelFrames(svgElement);
+                      const leaf = getDraggableElement(target, svgElement);
+                      const isBase = leaf ? topFrames.some(f => f.id === leaf.id) : true;
+                      if (isBase || target === svgElement || target.getAttribute('data-name') === 'Overlay') {
+                         isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                      }
+                    }
 
                     if (isHit || isMemberHit) {
                       // Only allow dragging if it's NOT the root page-level frame
@@ -4508,14 +4518,15 @@ const MainEditor = ({
                 const frameId = currentFrameIdRef.current;
                 let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
 
-                // Auto-Enter logic for single-page root frames (matching mousedown behavior)
+                // Auto-Enter logic for root frames (matching mousedown behavior)
                 const topFrames = getTopLevelFrames(svgElement);
-                if (!frameId && topFrames.length === 1) {
-                  if (hitTest(topFrames[0], event.clientX, event.clientY)) {
-                    context = topFrames[0];
+                if (!frameId) {
+                  const hitFrame = topFrames.find(f => hitTest(f, event.clientX, event.clientY));
+                  if (hitFrame) {
+                    context = hitFrame;
                     if (setCurrentFrameId) {
-                      setCurrentFrameId(topFrames[0].id);
-                      currentFrameIdRef.current = topFrames[0].id;
+                      setCurrentFrameId(hitFrame.id);
+                      currentFrameIdRef.current = hitFrame.id;
                     }
                   }
                 }
@@ -5197,6 +5208,8 @@ const MainEditor = ({
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
             const isGroup = (el.tagName?.toLowerCase() === 'g' && !el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group')) || el.tagName === 'multi';
+            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || isForeignObject;
+            const isShape = (['path', 'polygon', 'circle', 'ellipse', 'rect', 'polyline', 'line'].includes(el.tagName?.toLowerCase()) || isGroup) && !isFreeFrame && !isForeignObject;
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
 
             if (event.shiftKey) {
@@ -5242,7 +5255,7 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isImage || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
@@ -5253,8 +5266,6 @@ const MainEditor = ({
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
               }
             }
-
-            const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || el.tagName?.toLowerCase() === 'foreignobject';
 
             if (isFreeFrame || isGroup) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
@@ -5731,6 +5742,8 @@ const MainEditor = ({
         fo.setAttribute('height', '30');
         fo.setAttribute('transform', `matrix(${ptToMmScale} 0 0 ${ptToMmScale} 0 0)`);
         fo.setAttribute('fill', '#000000');
+        fo.setAttribute('stroke', 'none');
+        fo.setAttribute('stroke-width', '0');
         fo.setAttribute('font-family', "'Outfit', sans-serif");
         fo.setAttribute('font-size', '24');
         fo.setAttribute('letter-spacing', '0');
@@ -6041,6 +6054,17 @@ const MainEditor = ({
       }
     }
 
+    const topFrames = getTopLevelFrames(svg);
+    if (!hitCandidate || topFrames.some(f => f.id === hitCandidate.id)) {
+      const leafTarget = getDraggableElement(e.target, svg);
+      if (leafTarget) {
+         const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
+         if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
+            hitCandidate = leafTarget;
+         }
+      }
+    }
+
     // ── NEW: Check if we hit ANY already-selected element's bounding box ──────────
     let hitAnySelected = false;
     const currentMultiIds = multiSelectedIdsRef.current;
@@ -6067,7 +6091,6 @@ const MainEditor = ({
       }
     }
 
-    const topFrames = getTopLevelFrames(svg);
     const hitBaseFrame = hitCandidate && topFrames.some(f => f.id === hitCandidate.id);
 
     // 2. Selection/Drag Priority
@@ -6088,7 +6111,8 @@ const MainEditor = ({
     }
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
-    const shouldStartMarquee = (e.ctrlKey && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
+    const shouldStartMarquee = ( (e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
