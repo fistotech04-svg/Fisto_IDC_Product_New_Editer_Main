@@ -7834,10 +7834,23 @@ const MainEditor = ({
         // Exit current context and select whatever is at this point
         const topLevelEls = getTopLevelFrames(svg);
         let hitTopFrame = null;
-        for (let i = topLevelEls.length - 1; i >= 0; i--) {
-          if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-            hitTopFrame = topLevelEls[i];
+        let targetEl = getDraggableElement(e.target, e.currentTarget);
+        
+        let currEl = targetEl;
+        while (currEl && currEl !== svg) {
+          if (topLevelEls.includes(currEl)) {
+            hitTopFrame = currEl;
             break;
+          }
+          currEl = currEl.parentElement;
+        }
+
+        if (!hitTopFrame) {
+          for (let i = topLevelEls.length - 1; i >= 0; i--) {
+            if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+              hitTopFrame = topLevelEls[i];
+              break;
+            }
           }
         }
 
@@ -7867,10 +7880,26 @@ const MainEditor = ({
 
     // 1. Identify which top-level frame was hit (topmost in z-order)
     let hitFrame = null;
-    for (let i = topLevelEls.length - 1; i >= 0; i--) {
-      if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
-        hitFrame = topLevelEls[i];
+    let target = getDraggableElement(e.target, e.currentTarget);
+    
+    // First, try to find the frame directly from the clicked target's DOM ancestry
+    // This is robust against coordinate-based hitTest failing due to UI overlays (like the Upload panel)
+    let currentEl = target;
+    while (currentEl && currentEl !== svg) {
+      if (topLevelEls.includes(currentEl)) {
+        hitFrame = currentEl;
         break;
+      }
+      currentEl = currentEl.parentElement;
+    }
+
+    // Fallback to hitTest if DOM ancestry didn't find a top-level frame
+    if (!hitFrame) {
+      for (let i = topLevelEls.length - 1; i >= 0; i--) {
+        if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+          hitFrame = topLevelEls[i];
+          break;
+        }
       }
     }
 
