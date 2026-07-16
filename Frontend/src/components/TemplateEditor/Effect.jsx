@@ -511,10 +511,10 @@ const Effect = ({
         document.body
       )}
       <style>{`
-        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
-        .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
-        .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
+        input[type="range"].custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        input[type="range"].custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
+        input[type="range"].custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none !important; height: 1vw !important; width: 1vw !important; border-radius: 50% !important; background: #4D47FF !important; border: 0.02vw solid #ffffff !important; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4) !important; margin-top: -0.4vw !important; cursor: pointer !important; transition: box-shadow 0.15s ease !important; }
+        input[type="range"].custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6) !important; }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button {
           -webkit-appearance: none;
           margin: 0;
