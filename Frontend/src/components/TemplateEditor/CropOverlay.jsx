@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { getVisualBBox } from './MainEditor';
 
@@ -23,6 +23,7 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
   const [dragStart, setDragStart] = useState({ x: 0, y: 0, crop: null });
   const [dragType, setDragType] = useState(null);
   const [overlayRect, setOverlayRect] = useState(null);
+  const [pageRect, setPageRect] = useState(null);
 
   useEffect(() => {
     if (!targetElement) return;
@@ -66,8 +67,8 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
               if (cropStr && cropStr !== 'null') {
                 rect = {
-                  left: Math.min(screenPt1.x, screenPt2.x) - (cropOffX * rawWidth),
-                  top: Math.min(screenPt1.y, screenPt2.y) - (cropOffY * rawHeight),
+                  left: Math.min(screenPt1.x, screenPt2.x),
+                  top: Math.min(screenPt1.y, screenPt2.y),
                   width: rawWidth,
                   height: rawHeight
                 };
@@ -122,14 +123,32 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
     let animationFrameId;
     let lastRectStr = '';
+    let lastPageRectStr = '';
 
     const tick = () => {
       try {
         const currentRect = targetElement.getBoundingClientRect();
         const rectStr = `${currentRect.left},${currentRect.top},${currentRect.width},${currentRect.height}`;
-        if (rectStr !== lastRectStr) {
+
+        const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+        const pRect = pageContainer ? pageContainer.getBoundingClientRect() : null;
+        const pRectStr = pRect ? `${pRect.left},${pRect.top},${pRect.width},${pRect.height}` : '';
+
+        if (rectStr !== lastRectStr || pRectStr !== lastPageRectStr) {
           lastRectStr = rectStr;
+          lastPageRectStr = pRectStr;
           updateRect();
+          
+          if (pRect) {
+            setPageRect({
+              left: pRect.left,
+              top: pRect.top,
+              width: pRect.width,
+              height: pRect.height,
+              bottom: pRect.bottom,
+              right: pRect.right
+            });
+          }
         }
       } catch (e) { }
       animationFrameId = requestAnimationFrame(tick);
@@ -140,7 +159,7 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [targetElement, initialCrop]);
+  }, [targetElement, initialCrop, activePageIndex]);
 
   // Handle clicking outside to apply crop
   useEffect(() => {
@@ -186,8 +205,6 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
   const handlePointerMove = useCallback((e) => {
     if (!isDragging || !containerRef.current) return;
     const container = containerRef.current.getBoundingClientRect();
-    const dx = ((e.clientX - dragStart.x) / container.width) * 100;
-    const dy = ((e.clientY - dragStart.y) / container.height) * 100;
 
     let newCrop = { ...dragStart.crop };
 
@@ -199,19 +216,59 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
       newCrop.offX = (dragStart.crop.offX || 0) + panDx;
       newCrop.offY = (dragStart.crop.offY || 0) + panDy;
-      if (newCrop.offX > newCrop.left) newCrop.offX = newCrop.left;
-      if (newCrop.offX < newCrop.left + newCrop.width - 100) newCrop.offX = newCrop.left + newCrop.width - 100;
-      if (newCrop.offY > newCrop.top) newCrop.offY = newCrop.top;
-      if (newCrop.offY < newCrop.top + newCrop.height - 100) newCrop.offY = newCrop.top + newCrop.height - 100;
     } else {
       if (dragType === 'move') {
+        const dx = ((e.clientX - dragStart.x) / container.width) * 100;
+        const dy = ((e.clientY - dragStart.y) / container.height) * 100;
         newCrop.left += dx;
         newCrop.top += dy;
       } else {
-        if (dragType.includes('w')) { newCrop.left += dx; newCrop.width -= dx; }
-        if (dragType.includes('e')) { newCrop.width += dx; }
-        if (dragType.includes('n')) { newCrop.top += dy; newCrop.height -= dy; }
-        if (dragType.includes('s')) { newCrop.height += dy; }
+        const dx = ((e.clientX - dragStart.x) / container.width) * 100;
+        const dy = ((e.clientY - dragStart.y) / container.height) * 100;
+        const aspect = dragStart.crop.width / dragStart.crop.height;
+        const useDx = Math.abs(dx) > Math.abs(dy * aspect);
+
+        if (dragType === 'se') {
+          if (useDx) {
+            newCrop.width += dx;
+            newCrop.height = newCrop.width / aspect;
+          } else {
+            newCrop.height += dy;
+            newCrop.width = newCrop.height * aspect;
+          }
+        } else if (dragType === 'sw') {
+          if (useDx) {
+            newCrop.left += dx;
+            newCrop.width -= dx;
+            newCrop.height = newCrop.width / aspect;
+          } else {
+            newCrop.height += dy;
+            newCrop.width = newCrop.height * aspect;
+            newCrop.left = dragStart.crop.left + dragStart.crop.width - newCrop.width;
+          }
+        } else if (dragType === 'ne') {
+          if (useDx) {
+            newCrop.width += dx;
+            newCrop.height = newCrop.width / aspect;
+            newCrop.top = dragStart.crop.top + dragStart.crop.height - newCrop.height;
+          } else {
+            newCrop.top += dy;
+            newCrop.height -= dy;
+            newCrop.width = newCrop.height * aspect;
+          }
+        } else if (dragType === 'nw') {
+          if (useDx) {
+            newCrop.left += dx;
+            newCrop.width -= dx;
+            newCrop.height = newCrop.width / aspect;
+            newCrop.top = dragStart.crop.top + dragStart.crop.height - newCrop.height;
+          } else {
+            newCrop.top += dy;
+            newCrop.height -= dy;
+            newCrop.width = newCrop.height * aspect;
+            newCrop.left = dragStart.crop.left + dragStart.crop.width - newCrop.width;
+          }
+        }
       }
 
       if (newCrop.left < 0) { newCrop.width += newCrop.left; newCrop.left = 0; }
@@ -222,13 +279,6 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
     newCrop.width = Math.max(5, newCrop.width);
     newCrop.height = Math.max(5, newCrop.height);
-
-    if (dragType.includes('w') && newCrop.left > dragStart.crop.left + dragStart.crop.width - 5) {
-      newCrop.left = dragStart.crop.left + dragStart.crop.width - 5;
-    }
-    if (dragType.includes('n') && newCrop.top > dragStart.crop.top + dragStart.crop.height - 5) {
-      newCrop.top = dragStart.crop.top + dragStart.crop.height - 5;
-    }
 
     setCrop(newCrop);
   }, [isDragging, dragStart, dragType]);
@@ -249,6 +299,15 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     }
   }, [isDragging, handlePointerMove, handlePointerUp]);
 
+  const clipPathStyle = useMemo(() => {
+    if (!pageRect || !overlayRect) return undefined;
+    const insetTop = Math.max(0, pageRect.top - overlayRect.top);
+    const insetRight = Math.max(0, (overlayRect.left + overlayRect.width) - pageRect.right);
+    const insetBottom = Math.max(0, (overlayRect.top + overlayRect.height) - pageRect.bottom);
+    const insetLeft = Math.max(0, pageRect.left - overlayRect.left);
+    return `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
+  }, [pageRect, overlayRect]);
+
   if (!overlayRect) return null;
 
   return createPortal(
@@ -266,14 +325,25 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
           handlePointerDown(e, 'pan');
         }
       }}
+      onWheel={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1;
+        setCrop(prev => {
+          const newScale = Math.max(0.1, Math.min(10, (prev.scale || 1) + zoomDelta));
+          return { ...prev, scale: newScale };
+        });
+      }}
     >
-      <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" style={{ transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%)` }} draggable={false} />
-      <div className="absolute inset-0 pointer-events-none" style={{
-        clipPath: `inset(${crop.top}% ${100 - crop.left - crop.width}% ${100 - crop.top - crop.height}% ${crop.left}%)`
-      }}>
-        <img src={src} className="absolute inset-0 w-full h-full block pointer-events-none" style={{
-          transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%)`
-        }} draggable={false} />
+      <div className="absolute inset-0 pointer-events-none" style={{ clipPath: clipPathStyle }}>
+        <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" style={{ transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})` }} draggable={false} />
+        <div className="absolute inset-0 pointer-events-none" style={{
+          clipPath: `inset(${crop.top}% ${100 - crop.left - crop.width}% ${100 - crop.top - crop.height}% ${crop.left}%)`
+        }}>
+          <img src={src} className="absolute inset-0 w-full h-full block pointer-events-none" style={{
+            transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`
+          }} draggable={false} />
+        </div>
       </div>
 
       <div
@@ -284,7 +354,7 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
           width: `${crop.width}%`,
           height: `${crop.height}%`,
         }}
-        onPointerDown={(e) => handlePointerDown(e, 'move')}
+        onPointerDown={(e) => handlePointerDown(e, 'pan')}
       >
         <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/30 pointer-events-none">
           <div className="border-r border-b border-white/30"></div>
@@ -299,19 +369,15 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
         </div>
         {/* NW Corner */}
         <div className="absolute -left-[2px] -top-[2px] w-5 h-5 border-t-[4px] border-l-[4px] border-indigo-600 drop-shadow-md cursor-nwse-resize" onPointerDown={(e) => handlePointerDown(e, 'nw')} />
-        <div className="absolute left-5 right-5 -top-2 h-4 cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 'n')} />
 
         {/* NE Corner */}
         <div className="absolute -right-[2px] -top-[2px] w-5 h-5 border-t-[4px] border-r-[4px] border-indigo-600 drop-shadow-md cursor-nesw-resize" onPointerDown={(e) => handlePointerDown(e, 'ne')} />
-        <div className="absolute top-5 bottom-5 -right-2 w-4 cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'e')} />
 
         {/* SE Corner */}
         <div className="absolute -right-[2px] -bottom-[2px] w-5 h-5 border-b-[4px] border-r-[4px] border-indigo-600 drop-shadow-md cursor-nwse-resize" onPointerDown={(e) => handlePointerDown(e, 'se')} />
-        <div className="absolute left-5 right-5 -bottom-2 h-4 cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 's')} />
 
         {/* SW Corner */}
         <div className="absolute -left-[2px] -bottom-[2px] w-5 h-5 border-b-[4px] border-l-[4px] border-indigo-600 drop-shadow-md cursor-nesw-resize" onPointerDown={(e) => handlePointerDown(e, 'sw')} />
-        <div className="absolute top-5 bottom-5 -left-2 w-4 cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'w')} />
       </div>
     </div>,
     document.body
