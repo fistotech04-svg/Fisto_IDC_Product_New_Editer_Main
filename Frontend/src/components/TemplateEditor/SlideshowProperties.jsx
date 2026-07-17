@@ -107,6 +107,49 @@ const SectionHeader = ({ title }) => (
   </div>
 );
 
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      resolve(file);
+      return;
+    }
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      const maxDim = 1920;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const compressedFile = new File([blob], file.name, {
+            type: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(compressedFile);
+        } else {
+          resolve(file);
+        }
+      }, file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.8);
+    };
+    img.onerror = () => resolve(file);
+    img.src = url;
+  });
+};
+
 const MAX_GALLERY_IMAGES = 4;
 
 const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpen, onToggle, opacity, onUpdateOpacity, setPreviewSrc, setIsUpdatingDOM, currentPageVId, flipbookVId, folderName, flipbookName, onDisableSlideshow }) => {
@@ -425,6 +468,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         targetElement.setAttribute('opacity', (opacity / 100).toString());
         targetElement.style.opacity = (opacity / 100).toString();
 
+        if (targetImg && targetImg !== targetElement) {
+          targetImg.setAttribute('opacity', (opacity / 100).toString());
+          targetImg.style.setProperty('opacity', (opacity / 100).toString(), 'important');
+        }
+
         // Only trigger a full refresh if the core structural data changed.
         // Changing the activeSlideIndex should NOT trigger onUpdate({shouldRefresh: true})
         // because that causes a full SVG re-render in the parent, leading to flickering.
@@ -623,6 +671,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
     realAnim.onfinish = () => {
       cleanupAnim();
+      realAnim.cancel();
       animEl.style.transformBox = '';
       animEl.style.transformOrigin = '';
       finalize();
@@ -1091,7 +1140,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
       if (res.data.url) {
         return {
-          url: `${backendUrl}${res.data.url}`,
+          url: res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`,
           file_v_id: res.data.file_v_id,
           name: res.data.filename
         };
@@ -1123,9 +1172,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     setSlideshowImages(prev => [...prev, ...optimisticImages]);
     e.target.value = '';
 
-    // 2. Upload in Background and Update State
-    for (const img of optimisticImages) {
-      const uploadedData = await uploadFile(img.file_orig);
+    // 2. Upload in Background Concurrently and Update State
+    await Promise.all(optimisticImages.map(async (img) => {
+      const compressedFile = await compressImage(img.file_orig);
+      const uploadedData = await uploadFile(compressedFile);
 
       setSlideshowImages(prev => prev.map(item => {
         if (item.id === img.id) {
@@ -1137,7 +1187,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         }
         return item;
       }));
-    }
+    }));
   }, [slideshowImages, uploadFile]);
 
   const handleReplaceFileChange = useCallback(async (e) => {
@@ -1160,7 +1210,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     e.target.value = '';
 
     // Upload
-    const uploadedData = await uploadFile(file, targetImg.file_v_id);
+    const compressedFile = await compressImage(file);
+    const uploadedData = await uploadFile(compressedFile, targetImg.file_v_id);
 
     // Final update
     setSlideshowImages(current =>
@@ -1212,7 +1263,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
     // Upload
     if (fileToUpload) {
-      const uploadedData = await uploadFile(fileToUpload, targetImage.file_v_id); // Pass existing v_id for replacement
+      const compressedFile = await compressImage(fileToUpload);
+      const uploadedData = await uploadFile(compressedFile, targetImage.file_v_id); // Pass existing v_id for replacement
 
       if (uploadedData) {
         setSlideshowImages(prev => prev.map((item, idx) => {
@@ -1434,7 +1486,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                     <div className="w-[1.2vw] h-[1.2vw] border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : slideshowImages[i] ? (
-                  <img src={slideshowImages[i].url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (slideshowSettings.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain' }} alt="" />
+                  <img src={slideshowImages[i].url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (slideshowSettings.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain', opacity: localOpacity / 100 }} alt="" />
                 ) : (
                   <div
                     onClick={(e) => {
@@ -1494,8 +1546,18 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                   const val = Number(e.target.value);
                   setLocalOpacity(val);
                   if (selectedElement) {
-                    selectedElement.setAttribute('opacity', (val / 100).toString());
-                    selectedElement.style.opacity = (val / 100).toString();
+                    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                    const targetElement = pageContainer?.querySelector(`[id="${selectedElement.id}"]`) || selectedElement;
+                    if (targetElement) {
+                      targetElement.setAttribute('opacity', (val / 100).toString());
+                      targetElement.style.opacity = (val / 100).toString();
+
+                      const imgEl = getSvgImageEl(targetElement);
+                      if (imgEl && imgEl !== targetElement) {
+                        imgEl.setAttribute('opacity', (val / 100).toString());
+                        imgEl.style.setProperty('opacity', (val / 100).toString(), 'important');
+                      }
+                    }
                   }
                 }}
                 onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}

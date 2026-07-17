@@ -22,19 +22,36 @@ export const getVisualBBox = (el) => {
 
   const cropStr = el.getAttribute('data-crop-data');
   if (cropStr && cropStr !== 'null') {
-    const bbox = el.getBBox();
+    let bboxW = 0, bboxH = 0, bboxX = 0, bboxY = 0;
+    if (el.hasAttribute('data-crop-orig-w')) {
+      bboxW = parseFloat(el.getAttribute('data-crop-orig-w'));
+      bboxH = parseFloat(el.getAttribute('data-crop-orig-h'));
+      bboxX = parseFloat(el.getAttribute('data-crop-orig-x'));
+      bboxY = parseFloat(el.getAttribute('data-crop-orig-y'));
+    } else {
+      const bbox = el.getBBox();
+      bboxW = bbox.width; bboxH = bbox.height; bboxX = bbox.x; bboxY = bbox.y;
+    }
     try {
       const crop = JSON.parse(cropStr);
-      const offX = (parseFloat(crop.offX) || 0) / 100;
-      const offY = (parseFloat(crop.offY) || 0) / 100;
       return {
-        x: bbox.x - (offX * bbox.width) + (parseFloat(crop.left) / 100) * bbox.width,
-        y: bbox.y - (offY * bbox.height) + (parseFloat(crop.top) / 100) * bbox.height,
-        width: bbox.width * (parseFloat(crop.width) / 100),
-        height: bbox.height * (parseFloat(crop.height) / 100)
+        x: bboxX + (parseFloat(crop.left) / 100) * bboxW,
+        y: bboxY + (parseFloat(crop.top) / 100) * bboxH,
+        width: bboxW * (parseFloat(crop.width) / 100),
+        height: bboxH * (parseFloat(crop.height) / 100)
       };
     } catch (e) { }
   }
+
+  const clipAttr = el.getAttribute('clip-path') || el.style.clipPath || '';
+  const clipMatch = clipAttr.match(/url\(['"]?#([^)'"]+)['"]?\)/);
+  if (clipMatch && clipMatch[1]) {
+    const clipEl = document.getElementById(clipMatch[1]);
+    if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
+      try { return clipEl.firstElementChild.getBBox(); } catch (e) {}
+    }
+  }
+
   if (el.tagName.toLowerCase() === 'g' && el.querySelector('[data-crop-data]')) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const children = Array.from(el.children);
@@ -808,11 +825,8 @@ const MainEditor = ({
         closeAllDropdowns();
       }
 
-      // ── Ctrl detection (for bending mode) ──
+      // ── Ctrl detection ──
       if (e.key === 'Control' && !isCtrlPressedRef.current) {
-        // ONLY trigger for pen tool
-        if ((activeMainToolRef.current || activeMainTool) !== 'pen') return;
-
         isCtrlPressedRef.current = true;
         document.querySelectorAll('.page-svg-container').forEach(el => el.classList.add('ctrl-down'));
       }
@@ -5195,6 +5209,20 @@ const MainEditor = ({
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
+            const isImageGroup = el.tagName?.toLowerCase() === 'g' && (el.getAttribute('data-type') === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif');
+            if (isImageGroup && ['n', 's', 'e', 'w'].includes(dir)) {
+              el.setAttribute('data-object-fit', 'Crop');
+              
+              // We must use centered slice to avoid DOM wrappers, as pure SVG <image> 
+              // cannot do pinned side-crops without an <svg> wrapper or percentages.
+              el.setAttribute('data-crop-align', 'xMidYMid');
+
+              const imgEl = el.querySelector('image, video');
+              if (imgEl) {
+                imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+              }
+            }
+
             let childrenData = null;
             if (isMulti || (el.tagName && el.tagName.toLowerCase() === 'g')) {
               const childrenList = isMulti ? multiIds.map(id => document.getElementById(id)).filter(Boolean) : Array.from(el.children);
@@ -5230,8 +5258,33 @@ const MainEditor = ({
                 const fracX = (bbox.width - bound.width) <= 0.001 ? 0.5 : (bound.x - bbox.x) / (bbox.width - bound.width);
                 const fracY = (bbox.height - bound.height) <= 0.001 ? 0.5 : (bound.y - bbox.y) / (bbox.height - bound.height);
 
-                return { child, initialMatrix: cMatrix, bound, fracX, fracY };
+                const childVb = child.getAttribute('viewBox');
+                let vbX = 0, vbY = 0;
+                if (childVb) {
+                  const parts = childVb.split(/[\s,]+/).map(parseFloat);
+                  if (parts.length === 4) { vbX = parts[0]; vbY = parts[1]; }
+                }
+                return { child, initialMatrix: cMatrix, bound, fracX, fracY, initialVbX: vbX, initialVbY: vbY };
               });
+            }
+
+            // Store initial image child state for crop-on-resize
+            // Store initial image child state for crop-on-resize
+            const isImageGroupResize = el.tagName?.toLowerCase() === 'g' &&
+              (el.getAttribute('data-type') === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif') &&
+              ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir);
+
+            let initialImgState = null;
+            if (isImageGroupResize) {
+              const imgEl = el.querySelector('image, video');
+              if (imgEl) {
+                initialImgState = {
+                  x: parseFloat(imgEl.getAttribute('x') || '0'),
+                  y: parseFloat(imgEl.getAttribute('y') || '0'),
+                  w: parseFloat(imgEl.getAttribute('width') || '0'),
+                  h: parseFloat(imgEl.getAttribute('height') || '0'),
+                };
+              }
             }
 
             event.interaction.resizeState = {
@@ -5244,6 +5297,8 @@ const MainEditor = ({
               startPoint,
               svg,
               childrenData,
+              isImageGroupResize,
+              initialImgState,
               cursor: currentCursor // Store for reinforcement
             };
           },
@@ -5352,10 +5407,11 @@ const MainEditor = ({
             const isImage = el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif';
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
-            const isGroup = (el.tagName?.toLowerCase() === 'g' && !el.getAttribute('data-is-image-group') && !el.getAttribute('data-is-video-group') && !el.getAttribute('data-is-gif-group')) || el.tagName === 'multi';
+            const isGroup = el.tagName?.toLowerCase() === 'g' || el.tagName === 'multi';
             const isFreeFrame = (el.getAttribute('data-name') === 'Free Frame' && el.tagName?.toLowerCase() === 'rect') || isForeignObject;
             const isShape = (['path', 'polygon', 'circle', 'ellipse', 'rect', 'polyline', 'line'].includes(el.tagName?.toLowerCase()) || isGroup) && !isFreeFrame && !isForeignObject;
             const isCorner = ['nw', 'ne', 'se', 'sw'].includes(dir);
+            const isCtrlPressedMove = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
 
             if (event.shiftKey) {
               let targetRatio = null;
@@ -5400,15 +5456,24 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || (isImage && !isCtrlPressedMove)))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              if (!isCorner && (isText && !isForeignObject)) {
+              if (!isCorner && ((isText && !isForeignObject) || (isImage && !isCtrlPressedMove))) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
                 scaleY = sSide;
               } else {
                 scaleX = s;
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
+              }
+            }
+            
+            if (isImage && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir)) {
+              if (isCtrlPressedMove) {
+                if (el.getAttribute('data-object-fit') !== 'Crop') {
+                  el.setAttribute('data-object-fit', 'Crop');
+                }
+                el.removeAttribute('data-crop-align'); // Cleanup old align
               }
             }
 
@@ -5577,14 +5642,30 @@ const MainEditor = ({
                       const dx = localNew.x - localOld.x;
                       const dy = localNew.y - localOld.y;
                       child.setAttribute('transform', matrixToTransform(new DOMMatrix().translate(dx, dy).multiply(initialMatrix)));
-                    } else if (tag === 'rect' || tag === 'foreignobject') {
+                    } else if (tag === 'rect' || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg') {
                       const hasTransform = child.getAttribute('transform');
-                      if (!hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
+                      const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg');
+                      if (forceNative || !hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
+                        if (forceNative && hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)') {
+                          child.removeAttribute('transform');
+                        }
                         const local = svgCoordsToParent(child, newSvgX, newSvgY, newSvgW, newSvgH);
                         child.setAttribute('x', local.x);
                         child.setAttribute('y', local.y);
                         child.setAttribute('width', local.width);
                         child.setAttribute('height', local.height);
+                        
+                        if ((tag === 'image' || tag === 'video') && el.tagName === 'g') {
+                          const svg = child.ownerSVGElement;
+                          const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
+                          const refShape = clip ? clip.firstChild : null;
+                          if (refShape) {
+                            refShape.setAttribute('x', local.x);
+                            refShape.setAttribute('y', local.y);
+                            refShape.setAttribute('width', local.width);
+                            refShape.setAttribute('height', local.height);
+                          }
+                        }
                       } else {
                         const sm = new DOMMatrix().translate(worldAnchor.x, worldAnchor.y).scale(scaleX, scaleY).translate(-worldAnchor.x, -worldAnchor.y);
                         child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
@@ -5641,14 +5722,99 @@ const MainEditor = ({
                       const dx = newLocX - bound.x;
                       const dy = newLocY - bound.y;
                       child.setAttribute('transform', matrixToTransform(new DOMMatrix().translate(dx, dy).multiply(initialMatrix)));
-                    } else if (tag === 'rect' || tag === 'foreignobject') {
+                    } else if (tag === 'rect' || tag === 'foreignobject' || tag === 'image' || tag === 'video' || tag === 'svg') {
                       const hasTransform = child.getAttribute('transform');
-                      if (!hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
+                      const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg');
+
+                      if (forceNative || !hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
+                        if (forceNative && hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)') {
+                          child.removeAttribute('transform');
+                        }
                         // Attributes are already in <g> local space — set directly
-                        child.setAttribute('x', newLocX);
-                        child.setAttribute('y', newLocY);
-                        child.setAttribute('width', newLocW);
-                        child.setAttribute('height', newLocH);
+                        let imgX = newLocX;
+                        let imgY = newLocY;
+                        let imgW = newLocW;
+                        let imgH = newLocH;
+
+                        const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
+                        if ((tag === 'image' || tag === 'video') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
+                           imgX = state.initialImgState.x;
+                           imgY = state.initialImgState.y;
+                           imgW = state.initialImgState.w;
+                           imgH = state.initialImgState.h;
+
+                           if (imgW > 0 && imgH > 0) {
+                             let existingCrop = {};
+                             let hasExistingCrop = false;
+                             try {
+                               const cropStr = el.getAttribute('data-crop-data');
+                               if (cropStr && cropStr !== 'null') {
+                                 existingCrop = JSON.parse(cropStr);
+                                 hasExistingCrop = Object.keys(existingCrop).length > 0;
+                               }
+                             } catch (e) {}
+
+                             // If starting a fresh crop (e.g., after changing fit type which clears crop data),
+                             // we must reset the orig dimensions to the current image dimensions so percentages match.
+                             if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
+                               el.setAttribute('data-crop-orig-w', imgW.toString());
+                               el.setAttribute('data-crop-orig-h', imgH.toString());
+                               el.setAttribute('data-crop-orig-x', imgX.toString());
+                               el.setAttribute('data-crop-orig-y', imgY.toString());
+                             }
+
+                             const cropTop = Math.max(0, ((finalY - imgY) / imgH) * 100);
+                             const cropLeft = Math.max(0, ((finalX - imgX) / imgW) * 100);
+                             const cropWidth = Math.max(0, (finalWidth / imgW) * 100);
+                             const cropHeight = Math.max(0, (finalHeight / imgH) * 100);
+                             const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
+                             const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
+
+                             let clipTarget = el.querySelector('.image-inner-content') || el;
+                             
+                             let radiusStr = '';
+                             if (el.hasAttribute('data-effect-radius-tl')) {
+                               const tl = el.getAttribute('data-effect-radius-tl') || 0;
+                               const tr = el.getAttribute('data-effect-radius-tr') || 0;
+                               const br = el.getAttribute('data-effect-radius-br') || 0;
+                               const bl = el.getAttribute('data-effect-radius-bl') || 0;
+                               radiusStr = ` round ${tl}px ${tr}px ${br}px ${bl}px`;
+                             }
+
+                             const clipVal = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%${radiusStr})`;
+                             clipTarget.style.setProperty('clip-path', clipVal, 'important');
+                             clipTarget.style.setProperty('-webkit-clip-path', clipVal, 'important');
+                             if (clipTarget !== el) el.style.removeProperty('clip-path');
+
+                             el.setAttribute('data-crop-data', JSON.stringify({ ...existingCrop, left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }));
+                             el.setAttribute('data-effect-crop-inset', 'true');
+                           }
+                        }
+
+                        child.setAttribute('x', imgX);
+                        child.setAttribute('y', imgY);
+                        child.setAttribute('width', imgW);
+                        child.setAttribute('height', imgH);
+                        
+                        if (tag === 'image' || tag === 'video') {
+                          const svg = child.ownerSVGElement;
+                          const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
+                          const refShape = clip ? clip.firstChild : null;
+                          if (refShape) {
+                            refShape.setAttribute('x', newLocX);
+                            refShape.setAttribute('y', newLocY);
+                            refShape.setAttribute('width', newLocW);
+                            refShape.setAttribute('height', newLocH);
+                          }
+                          const mask = svg?.querySelector(`mask[id="mask-shape-${el.id}"]`);
+                          const maskShape = mask ? mask.lastChild : null;
+                          if (maskShape) {
+                            maskShape.setAttribute('x', newLocX);
+                            maskShape.setAttribute('y', newLocY);
+                            maskShape.setAttribute('width', newLocW);
+                            maskShape.setAttribute('height', newLocH);
+                          }
+                        }
                       } else {
                         // Has transform: use local scale matrix
                         const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);

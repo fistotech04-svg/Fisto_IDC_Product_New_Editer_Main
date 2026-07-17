@@ -46,7 +46,7 @@ const DashInput = ({ label, initialValue, onChange }) => {
           handleScrubHelper(e, safeNumericVal, (newVal) => onChange(Math.max(1, parseInt(newVal))));
         }}
       >
-        <button onClick={(e) => { e.stopPropagation(); onChange(Math.max(1, safeNumericVal - 1)); }} onPointerDown={(e) => e.stopPropagation()} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronLeft size="0.9vw" /></button>
+        <button onPointerDown={(e) => { e.stopPropagation(); onChange(Math.max(1, safeNumericVal - 1)); }} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronLeft size="0.9vw" /></button>
         <div className="w-[3.5vw] h-full border border-gray-200 rounded-[0.3vw] flex items-center justify-center bg-white shadow-sm pointer-events-auto" onPointerDown={(e) => e.stopPropagation()}>
           <input
             type="number"
@@ -58,7 +58,7 @@ const DashInput = ({ label, initialValue, onChange }) => {
             className="w-full text-center text-[0.75vw] font-semibold text-gray-700 outline-none no-spin bg-transparent cursor-text"
           />
         </div>
-        <button onClick={(e) => { e.stopPropagation(); onChange(Math.max(1, safeNumericVal + 1)); }} onPointerDown={(e) => e.stopPropagation()} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronRight size="0.9vw" /></button>
+        <button onPointerDown={(e) => { e.stopPropagation(); onChange(Math.max(1, safeNumericVal + 1)); }} className="text-gray-400 hover:text-indigo-600 pointer-events-auto"><ChevronRight size="0.9vw" /></button>
       </div>
     </div>
   );

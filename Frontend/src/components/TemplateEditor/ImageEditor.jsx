@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
 import { getVisualBBox } from './MainEditor';
-import { getSvgImageEl } from './editorUtils';
+import { getSvgImageEl, syncGradient } from './editorUtils';
 import {
   Image as ImageIcon,
   Upload,
@@ -70,7 +70,7 @@ const ImageEditor = ({
 
 
   const stateRef = useRef({
-    imageType: 'Fit',
+    imageType: 'Original',
     opacity: 100,
     radius: { tl: 12, tr: 12, br: 12, bl: 12 },
     previewSrc: selectedElement?.src || (selectedElement instanceof SVGElement ? (selectedElement.getAttribute('href') || selectedElement.getAttribute('xlink:href')) : ''),
@@ -126,7 +126,7 @@ const ImageEditor = ({
     const imgEl = getSvgImageEl(selectedElement);
     return imgEl?.getAttribute?.('href') || imgEl?.getAttribute?.('xlink:href') || imgEl?.src || '';
   });
-  const [imageType, setImageType] = useState('Fit');
+  const [imageType, setImageType] = useState('Original');
   const [opacity, setOpacity] = useState(100);
   const [activePopup, setActivePopup] = useState(null);
   const [filters, setFilters] = useState({ exposure: 0, contrast: 0, saturation: 0, temperature: 0, tint: 0, highlights: 0, shadows: 0 });
@@ -135,7 +135,7 @@ const ImageEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
-    'Blur': { blur: 0.3, spread: 0 }
+    'Blur': { blur: 0.3, spread: 0, clipContent: false }
   });
 
   // Color state removed to use standalone Color.jsx
@@ -219,21 +219,7 @@ const ImageEditor = ({
     stateRef.current = { ...stateRef.current, imageType, opacity, radius, previewSrc, filters, activeEffects };
   });
 
-  // Ctrl + Drag inline crop listener
-  useEffect(() => {
-    if (!selectedElement) return;
 
-    const handleKeyDown = (e) => {
-      if (e.key === 'Control' && !showCropModal && !isSlideshow) {
-        setShowCropModal(true);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [selectedElement, showCropModal, isSlideshow]);
 
 
   // Safety net to fix corrupted NaN/null attributes in the DOM
@@ -335,8 +321,8 @@ const ImageEditor = ({
         liveElement.removeAttribute('data-cropped-src');
         liveElement.removeAttribute('data-effect-crop-inset');
         liveElement.removeAttribute('data-crop-data');
-        setImageType('Fit');
-        stateRef.current.imageType = 'Fit';
+        setImageType('Original');
+        stateRef.current.imageType = 'Original';
 
         if (onUpdate) onUpdate({ shouldRefresh: true });
 
@@ -463,15 +449,18 @@ const ImageEditor = ({
 
     let newType;
     if (isSvgEl) {
+      const explicitFit = selectedElement.getAttribute('data-object-fit');
       const par = svgImageEl?.getAttribute('preserveAspectRatio') || 'xMidYMid meet';
-      if (isCroppedSrc || selectedElement.hasAttribute('data-effect-crop-inset')) {
+      if (explicitFit) {
+        newType = explicitFit;
+      } else if (isCroppedSrc || selectedElement.hasAttribute('data-effect-crop-inset')) {
         newType = 'Crop';
       } else if (par.includes('slice')) {
         newType = 'Fill';
       } else if (par === 'none') {
-        newType = 'Fit';
+        newType = 'Stretch';
       } else {
-        newType = 'Fit';
+        newType = 'Original';
       }
     } else {
       const inlineFit = selectedElement.style.objectFit;
@@ -479,7 +468,7 @@ const ImageEditor = ({
       const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'fill': 'Fit' };
       const currentFit = inlineFit || window.getComputedStyle(selectedElement).objectFit || 'contain';
       const hasCrop = cp.includes('inset') || isCroppedSrc || selectedElement.hasAttribute('data-effect-crop-inset');
-      newType = hasCrop ? 'Crop' : (fitMapRev[currentFit] || 'Fit');
+      newType = hasCrop ? 'Crop' : (fitMapRev[currentFit] || 'Original');
     }
     if (newType !== currentState.imageType) {
       setImageType(newType);
@@ -528,10 +517,12 @@ const ImageEditor = ({
       Object.keys(newSettings[name]).forEach(key => {
         let attr = `${prefix}-${key}`;
         if (name === 'Blur' && key === 'blur') attr = 'data-effect-blur-value';
+        if (name === 'Blur' && key === 'clipContent') attr = 'data-effect-blur-clip';
         if (selectedElement.hasAttribute(attr)) {
           const val = selectedElement.getAttribute(attr);
           let finalVal = val;
-          if (key !== 'color') finalVal = parseFloat(val);
+          if (key === 'clipContent') finalVal = (val === 'true');
+          else if (key !== 'color') finalVal = parseFloat(val);
           if (newSettings[name][key] !== finalVal) {
             newSettings[name][key] = finalVal;
             hasSettingsChange = true;
@@ -765,8 +756,8 @@ const ImageEditor = ({
       ));
       if (relevantMutation) syncStateFromDOM();
     });
-    observer.observe(selectedElement, { attributes: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width'] });
-    syncStateFromDOM(true, true); // Force sync on mount/element change and set isHydrating
+    observer.observe(selectedElement, { attributes: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width', 'data-object-fit'] });
+    syncStateFromDOM(true); // Force sync on mount/element change
     return () => {
       observer.disconnect();
       isUpdatingDOM.current = false;
@@ -841,6 +832,16 @@ const ImageEditor = ({
       }
     };
 
+    let dashLen = 10, dashGap = 10;
+    const strokeArray = liveElement.getAttribute('data-stroke-dasharray') || liveElement.getAttribute('stroke-dasharray') || 'none';
+    if (strokeArray !== 'none' && strokeArray !== '') {
+      const parts = strokeArray.split(',');
+      const parsedLen = parseInt(parts[0]);
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
+      const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+      dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+    }
+
     // Reconstruct backgroundColor from live DOM so the rest of applyVisuals works smoothly
     const backgroundColor = {
       fill: liveElement.getAttribute('data-fill-color') || 'transparent',
@@ -848,7 +849,9 @@ const ImageEditor = ({
       stroke: liveElement.getAttribute('data-stroke-color') || 'transparent',
       strokeOpacity: parseFloat(liveElement.getAttribute('data-stroke-opacity') || '1') * 100,
       strokeWeight: parseFloat(liveElement.getAttribute('data-stroke-width') || '0'),
-      strokeDashStyle: (liveElement.getAttribute('data-stroke-dasharray') && liveElement.getAttribute('data-stroke-dasharray') !== 'none') ? 'Dashed' : 'Solid',
+      strokeDashStyle: (strokeArray !== 'none') ? 'Dashed' : 'Solid',
+      strokeDashLength: dashLen,
+      strokeDashGap: dashGap,
       strokePosition: liveElement.getAttribute('data-stroke-position') || 'Center',
       strokeLinecap: liveElement.getAttribute('stroke-linecap') || 'butt',
       strokeType: liveElement.getAttribute('data-stroke-type') || 'solid'
@@ -915,7 +918,7 @@ const ImageEditor = ({
         shadowFilter = `drop-shadow(${ds.x}px ${ds.y}px ${ds.blur}px ${colorWithAlpha}) `;
       }
 
-      const totalFilter = (adjustmentFilters + shadowFilter).trim() || 'none';
+      const totalFilter = (adjustmentFilters + effectFilters + shadowFilter).trim() || 'none';
       const adjustOnlyFilter = adjustmentFilters.trim() || 'none';
       const shadowOnlyFilter = shadowFilter.trim() || 'none';
       const blurOnlyFilter = effectFilters.trim() || 'none';
@@ -924,7 +927,8 @@ const ImageEditor = ({
       if (isSvgEl) {
 
         // 1. Apply Adjustments to the actual image content (leaf)
-        if (svgImageEl) {
+        // We defer applying to svgImageEl if we need to apply blur to it later for forceClip
+        if (svgImageEl && !activeEffects.includes('Blur')) {
           svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
         }
 
@@ -1015,79 +1019,157 @@ const ImageEditor = ({
         }
 
         // 3. Apply layer-level filters
-        if (!isImageElement) {
-          liveElement.style.setProperty('filter', totalFilter, 'important');
-        } else {
-          liveElement.style.removeProperty('filter');
+        const hasCropWrapper = liveElement.parentElement?.classList.contains('svg-crop-wrapper');
+        const innerFilter = (adjustmentFilters + shadowFilter).trim() || 'none';
 
-          if (liveElement.parentElement?.classList.contains('svg-crop-wrapper')) {
-            if (blurOnlyFilter !== 'none') {
-              liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
-            } else {
-              liveElement.parentElement.style.removeProperty('filter');
-            }
-            if (forceClip) {
-              let targetElForShadow = svgImageEl || liveElement;
-              if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
-                targetElForShadow = svgImageEl.parentNode;
-              }
-              let bb = { x: 0, y: 0, width: 100, height: 100 };
-              try { bb = targetElForShadow.getBBox(); } catch (e) { }
-              let cxStr = targetElForShadow.getAttribute('x') || '0';
-              let cyStr = targetElForShadow.getAttribute('y') || '0';
-              let cwStr = targetElForShadow.getAttribute('width') || '100%';
-              let chStr = targetElForShadow.getAttribute('height') || '100%';
-              let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
-              let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
-              let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
-              let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
-              const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-              if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
-                try {
-                  const crop = JSON.parse(cropStrShadow);
-                  cx = cx + (parseFloat(crop.left) / 100) * cw;
-                  cy = cy + (parseFloat(crop.top) / 100) * ch;
-                  cw = cw * (parseFloat(crop.width) / 100);
-                  ch = ch * (parseFloat(crop.height) / 100);
-                } catch (e) { }
-              }
+        if (!hasCropWrapper) {
+          const applyToLeaf = svgImageEl && svgImageEl !== liveElement;
 
-              let clipId = `clip-content-${liveElement.id || 'image'}`;
-              let defs = liveElement.ownerSVGElement?.querySelector('defs');
-              if (!defs && liveElement.ownerSVGElement) {
-                defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                liveElement.ownerSVGElement.prepend(defs);
-              }
-              if (defs) {
-                let clipNode = defs.querySelector(`#${clipId}`);
-                if (!clipNode) {
-                  clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                  clipNode.id = clipId;
-                  const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                  clipNode.appendChild(clipPathEl);
-                  defs.appendChild(clipNode);
-                }
-                const rect = clipNode.firstChild;
-                rect.setAttribute('x', cx);
-                rect.setAttribute('y', cy);
-                rect.setAttribute('width', Math.max(0, cw));
-                rect.setAttribute('height', Math.max(0, ch));
-                rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-                const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-                if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-                else rect.removeAttribute('rx');
-
-                liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-                liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
-              }
-            } else {
-              liveElement.parentElement.style.removeProperty('clip-path');
+          if (applyToLeaf) {
+            liveElement.style.setProperty('filter', innerFilter, 'important');
+            const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+            svgImageEl.style.setProperty('filter', leafFilter, 'important');
+          } else {
+            liveElement.style.setProperty('filter', totalFilter, 'important');
+            if (svgImageEl) {
+              svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
             }
           }
 
+          if (forceClip) {
+            let targetElForShadow = svgImageEl || liveElement;
+            let bb = { x: 0, y: 0, width: 100, height: 100 };
+            try { bb = targetElForShadow.getBBox(); } catch (e) { }
+            let cxStr = targetElForShadow.getAttribute('x') || '0';
+            let cyStr = targetElForShadow.getAttribute('y') || '0';
+            let cwStr = targetElForShadow.getAttribute('width') || '100%';
+            let chStr = targetElForShadow.getAttribute('height') || '100%';
+            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+
+            let clipId = `clip-content-${liveElement.id || 'image'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let clipNode = defs.querySelector(`#${clipId}`);
+              if (!clipNode) {
+                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipNode.id = clipId;
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipNode.appendChild(clipPathEl);
+                defs.appendChild(clipNode);
+              }
+              const rect = clipNode.firstChild;
+              rect.setAttribute('x', cx);
+              rect.setAttribute('y', cy);
+              rect.setAttribute('width', Math.max(0, cw));
+              rect.setAttribute('height', Math.max(0, ch));
+              rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+              else rect.removeAttribute('rx');
+
+              const targetEl = applyToLeaf ? svgImageEl : liveElement;
+              targetEl.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              targetEl.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+
+              if (applyToLeaf) {
+                liveElement.style.removeProperty('clip-path');
+                liveElement.style.removeProperty('-webkit-clip-path');
+              }
+            }
+          } else {
+            liveElement.style.removeProperty('clip-path');
+            liveElement.style.removeProperty('-webkit-clip-path');
+            if (svgImageEl) {
+              svgImageEl.style.removeProperty('clip-path');
+              svgImageEl.style.removeProperty('-webkit-clip-path');
+            }
+          }
+
+          if (liveElement.parentElement) {
+            liveElement.parentElement.style.removeProperty('clip-path');
+            liveElement.parentElement.style.removeProperty('-webkit-clip-path');
+          }
+        } else {
+          if (innerFilter !== 'none') {
+            liveElement.style.setProperty('filter', innerFilter, 'important');
+          } else {
+            liveElement.style.removeProperty('filter');
+          }
+
+          if (blurOnlyFilter !== 'none') {
+            liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
+          } else {
+            liveElement.parentElement.style.removeProperty('filter');
+          }
+          if (forceClip) {
+            let targetElForShadow = svgImageEl || liveElement;
+            if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
+              targetElForShadow = svgImageEl.parentNode;
+            }
+
+            let bb = { x: 0, y: 0, width: 100, height: 100 };
+            try { bb = targetElForShadow.getBBox(); } catch (e) { }
+            let cxStr = targetElForShadow.getAttribute('x') || '0';
+            let cyStr = targetElForShadow.getAttribute('y') || '0';
+            let cwStr = targetElForShadow.getAttribute('width') || '100%';
+            let chStr = targetElForShadow.getAttribute('height') || '100%';
+            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+            const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+            if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
+              try {
+                const crop = JSON.parse(cropStrShadow);
+                cx = cx + (parseFloat(crop.left) / 100) * cw;
+                cy = cy + (parseFloat(crop.top) / 100) * ch;
+                cw = cw * (parseFloat(crop.width) / 100);
+                ch = ch * (parseFloat(crop.height) / 100);
+              } catch (e) { }
+            }
+
+            let clipId = `clip-content-${liveElement.id || 'image'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let clipNode = defs.querySelector(`#${clipId}`);
+              if (!clipNode) {
+                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipNode.id = clipId;
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipNode.appendChild(clipPathEl);
+                defs.appendChild(clipNode);
+              }
+              const rect = clipNode.firstChild;
+              rect.setAttribute('x', cx);
+              rect.setAttribute('y', cy);
+              rect.setAttribute('width', Math.max(0, cw));
+              rect.setAttribute('height', Math.max(0, ch));
+              rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+              else rect.removeAttribute('rx');
+
+              liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+            }
+          } else {
+            liveElement.parentElement.style.removeProperty('clip-path');
+            liveElement.parentElement.style.removeProperty('-webkit-clip-path');
+          }
         }
         if (liveElement.parentElement) {
-          if (!liveElement.parentElement.classList.contains('svg-crop-wrapper') && !forceClip && blurOnlyFilter === 'none') {
+          if (!hasCropWrapper && !forceClip && blurOnlyFilter === 'none') {
             liveElement.parentElement.style.setProperty('overflow', 'visible', 'important');
           }
         }
@@ -1153,8 +1235,14 @@ const ImageEditor = ({
 
       if (isSvgEl) {
         // --- SVG: Image fit via preserveAspectRatio ---
-        const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Crop': 'xMidYMid slice', 'Stretch': 'none' };
-        if (svgImageEl) svgImageEl.setAttribute('preserveAspectRatio', parMap[effectiveImageType] || 'xMidYMid meet');
+        const parMap = { 'Original': 'meet', 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
+        let meetOrSlice = parMap[effectiveImageType] || 'meet';
+        let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
+        if (meetOrSlice === 'meet') parAlign = 'xMidYMid'; // Standard center for Fit
+        if (svgImageEl) {
+          if (meetOrSlice === 'none') svgImageEl.setAttribute('preserveAspectRatio', 'none');
+          else svgImageEl.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
+        }
 
         // --- SVG: Corner radius OR Crop via CSS clip-path inset() ---
         const cropData = {
@@ -1169,9 +1257,13 @@ const ImageEditor = ({
         const maxR = Math.min(Math.max(...Object.values(radius)), 50);
         const radiusStr = (anyR || forceClip) ? ` round ${radius.tl || 0}px ${radius.tr || 0}px ${radius.br || 0}px ${radius.bl || 0}px` : '';
 
-        if (effectiveImageType === 'Crop' && (cropData.inset || liveElement.getAttribute('data-effect-crop-inset'))) {
-          const cropStr = liveElement.getAttribute('data-crop-data') || '{"left":0,"top":0,"width":100,"height":100}';
+        if (effectiveImageType === 'Crop' && (cropData.inset || liveElement.getAttribute('data-effect-crop-inset') || liveElement.getAttribute('data-saved-crop-data'))) {
+          const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100}';
           const crop = JSON.parse(cropStr);
+          if (liveElement.hasAttribute('data-saved-crop-data')) {
+            liveElement.setAttribute('data-crop-data', cropStr);
+            liveElement.removeAttribute('data-saved-crop-data');
+          }
 
           // Find the actual SVG <image> tag
           let svgImageEl = liveElement.tagName?.toLowerCase() === 'image' ? liveElement : liveElement.querySelector('image');
@@ -1245,44 +1337,39 @@ const ImageEditor = ({
             const origX = liveElement.getAttribute('data-crop-orig-x') || imgEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0';
             const origY = liveElement.getAttribute('data-crop-orig-y') || imgEl.getAttribute('data-crop-orig-y') || imgEl.getAttribute('y') || '0';
 
-            const panOffX = (parseFloat(origW) * (crop.offX || 0)) / 100;
-            const panOffY = (parseFloat(origH) * (crop.offY || 0)) / 100;
-
             const isXPercent = origX.toString().includes('%') || origW.toString().includes('%');
             const isYPercent = origY.toString().includes('%') || origH.toString().includes('%');
 
             imgEl.style.removeProperty('display');
-            // Set width to origW instead of '100%' so Fabric.js bounding box is physically full-size
             imgEl.setAttribute('width', origW);
             imgEl.setAttribute('height', origH);
-            imgEl.setAttribute('x', (parseFloat(origX) + panOffX).toString() + (isXPercent ? '%' : ''));
-            imgEl.setAttribute('y', (parseFloat(origY) + panOffY).toString() + (isYPercent ? '%' : ''));
+            imgEl.setAttribute('x', origX.toString() + (isXPercent ? '%' : ''));
+            imgEl.setAttribute('y', origY.toString() + (isYPercent ? '%' : ''));
+            imgEl.setAttribute('preserveAspectRatio', 'none');
 
-            const insetTop = crop.top - (crop.offY || 0);
-            const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width)) + (crop.offX || 0);
-            const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height)) + (crop.offY || 0);
-            const insetLeft = crop.left - (crop.offX || 0);
-            const svgClipVal = `inset(${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%${radiusStr})`;
-            imgEl.style.setProperty('clip-path', svgClipVal, 'important');
-
-            // Clear legacy transforms
-            imgEl.style.removeProperty('transform');
+            imgEl.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
+            imgEl.style.setProperty('transform-origin', 'center', 'important');
+            imgEl.style.setProperty('transform-box', 'fill-box', 'important');
             imgEl.style.removeProperty('translate');
             imgEl.style.removeProperty('scale');
+            imgEl.style.removeProperty('clip-path');
+            imgEl.removeAttribute('clip-path');
 
-            // Clip the container group for border radius
-            const containerClipVal = `inset(0% 0% 0% 0%${radiusStr})`;
+            const insetTop = crop.top;
+            const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width));
+            const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height));
+            const insetLeft = crop.left;
+            const svgClipVal = `inset(${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%${radiusStr})`;
 
-            // Apply clip-path to the inner content group to avoid clipping the drop shadow
             let innerGroupForClip = liveElement.querySelector('.image-inner-content');
             if (innerGroupForClip) {
-              innerGroupForClip.style.setProperty('clip-path', containerClipVal, 'important');
+              innerGroupForClip.style.setProperty('clip-path', svgClipVal, 'important');
               if (innerGroupForClip instanceof SVGElement) {
                 innerGroupForClip.style.setProperty('transform-box', 'fill-box', 'important');
               }
               liveElement.style.removeProperty('clip-path'); // ensure outer doesn't have it
             } else {
-              liveElement.style.setProperty('clip-path', containerClipVal, 'important');
+              liveElement.style.setProperty('clip-path', svgClipVal, 'important');
               if (liveElement instanceof SVGElement) {
                 liveElement.style.setProperty('transform-box', 'fill-box', 'important');
               }
@@ -1485,8 +1572,12 @@ const ImageEditor = ({
                       if (origPat) {
                         const pImg = origPat.querySelector('image');
                         if (pImg) {
-                          const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Crop': 'xMidYMid slice', 'Stretch': 'none' };
-                          pImg.setAttribute('preserveAspectRatio', parMap[effectiveImageType] || 'xMidYMid meet');
+                          const parMap = { 'Original': 'meet', 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
+                          let meetOrSlice = parMap[effectiveImageType] || 'meet';
+                          let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
+                          if (meetOrSlice === 'meet') parAlign = 'xMidYMid';
+                          if (meetOrSlice === 'none') pImg.setAttribute('preserveAspectRatio', 'none');
+                          else pImg.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
                         }
                       }
                     }
@@ -1497,8 +1588,12 @@ const ImageEditor = ({
 
                   const pImg = pEl.querySelector('image');
                   if (pImg) {
-                    const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Crop': 'xMidYMid slice', 'Stretch': 'none' };
-                    pImg.setAttribute('preserveAspectRatio', parMap[effectiveImageType] || 'xMidYMid meet');
+                    const parMap = { 'Original': 'meet', 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
+                    let meetOrSlice = parMap[effectiveImageType] || 'meet';
+                    let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
+                    if (meetOrSlice === 'meet') parAlign = 'xMidYMid';
+                    if (meetOrSlice === 'none') pImg.setAttribute('preserveAspectRatio', 'none');
+                    else pImg.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
                   }
                 }
               }
@@ -1514,33 +1609,75 @@ const ImageEditor = ({
             wrapper = liveElement.querySelector('.svg-crop-wrapper');
           }
 
+          let targetImgForFrame = null;
+
           if (wrapper) {
             const innerImg = wrapper.querySelector('image');
             if (innerImg) {
-              const origW = wrapper.getAttribute('data-crop-orig-w') || innerImg.getAttribute('data-crop-orig-w') || liveElement.getAttribute('data-crop-orig-w') || '100';
-              const origH = wrapper.getAttribute('data-crop-orig-h') || innerImg.getAttribute('data-crop-orig-h') || liveElement.getAttribute('data-crop-orig-h') || '100';
-              const origX = wrapper.getAttribute('data-crop-orig-x') || innerImg.getAttribute('data-crop-orig-x') || liveElement.getAttribute('data-crop-orig-x') || '0';
-              const origY = wrapper.getAttribute('data-crop-orig-y') || innerImg.getAttribute('data-crop-orig-y') || liveElement.getAttribute('data-crop-orig-y') || '0';
-
+              targetImgForFrame = innerImg;
               wrapper.parentNode.insertBefore(innerImg, wrapper);
-              innerImg.style.removeProperty('display');
-              innerImg.setAttribute('width', origW);
-              innerImg.setAttribute('height', origH);
-              innerImg.setAttribute('x', origX);
-              innerImg.setAttribute('y', origY);
-              innerImg.style.removeProperty('clip-path');
-              innerImg.removeAttribute('clip-path');
-              const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Crop': 'xMidYMid slice', 'Stretch': 'none' };
-              innerImg.setAttribute('preserveAspectRatio', parMap[effectiveImageType] || 'xMidYMid meet');
-
-              if (svgImageEl === wrapper) {
-                svgImageEl = innerImg;
-              }
+              if (svgImageEl === wrapper) svgImageEl = innerImg;
             }
             wrapper.remove();
           } else if (svgImageEl) {
-            svgImageEl.style.removeProperty('clip-path');
-            svgImageEl.removeAttribute('clip-path');
+            targetImgForFrame = svgImageEl;
+          }
+
+          if (targetImgForFrame) {
+            const origWStr = liveElement.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('width') || '100';
+            const origHStr = liveElement.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('height') || '100';
+            const origXStr = liveElement.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('x') || '0';
+            const origYStr = liveElement.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('y') || '0';
+
+            const origW = parseFloat(origWStr);
+            const origH = parseFloat(origHStr);
+            const origX = parseFloat(origXStr);
+            const origY = parseFloat(origYStr);
+            const isWPercent = origWStr.toString().includes('%');
+            const isHPercent = origHStr.toString().includes('%');
+            const isXPercent = origXStr.toString().includes('%');
+            const isYPercent = origYStr.toString().includes('%');
+
+            let targetW = origW;
+            let targetH = origH;
+            let targetX = origX;
+            let targetY = origY;
+
+            const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data');
+            if (cropStr && cropStr !== 'null') {
+              try {
+                const crop = JSON.parse(cropStr);
+                targetX = origX + (origW * parseFloat(crop.left) / 100);
+                targetY = origY + (origH * parseFloat(crop.top) / 100);
+                targetW = origW * (parseFloat(crop.width) / 100);
+                targetH = origH * (parseFloat(crop.height) / 100);
+                
+                liveElement.setAttribute('data-saved-crop-data', cropStr);
+                liveElement.removeAttribute('data-crop-data');
+              } catch(e) {}
+            }
+
+            targetImgForFrame.style.removeProperty('display');
+            targetImgForFrame.setAttribute('width', targetW.toString() + (isWPercent ? '%' : ''));
+            targetImgForFrame.setAttribute('height', targetH.toString() + (isHPercent ? '%' : ''));
+            targetImgForFrame.setAttribute('x', targetX.toString() + (isXPercent ? '%' : ''));
+            targetImgForFrame.setAttribute('y', targetY.toString() + (isYPercent ? '%' : ''));
+            
+            targetImgForFrame.style.removeProperty('clip-path');
+            targetImgForFrame.removeAttribute('clip-path');
+
+            const parMap = { 'Original': 'meet', 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
+            let meetOrSlice = parMap[effectiveImageType] || 'meet';
+            let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
+            if (meetOrSlice === 'meet') parAlign = 'xMidYMid';
+            if (meetOrSlice === 'none') targetImgForFrame.setAttribute('preserveAspectRatio', 'none');
+            else targetImgForFrame.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
+
+            if (svgImageEl) {
+              svgImageEl.style.removeProperty('transform');
+              svgImageEl.style.removeProperty('transform-origin');
+              svgImageEl.style.removeProperty('transform-box');
+            }
           }
 
           liveElement.style.removeProperty('background-image');
@@ -1549,12 +1686,6 @@ const ImageEditor = ({
           liveElement.style.removeProperty('background-repeat');
           if (liveElement.hasAttribute('data-original-src') && liveElement.tagName?.toLowerCase() === 'img') {
             liveElement.src = liveElement.getAttribute('data-original-src');
-          }
-
-          if (svgImageEl) {
-            svgImageEl.style.removeProperty('transform');
-            svgImageEl.style.removeProperty('transform-origin');
-            svgImageEl.style.removeProperty('transform-box');
           }
 
           const isCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
@@ -1629,7 +1760,7 @@ const ImageEditor = ({
         liveElement.style.setProperty('-webkit-mask-image', 'none', 'important');
 
         // (We removed the duplicate crop block that was conflicting with the actual crop logic above)
-        const fitMap = { 'Fit': 'contain', 'Fill': 'cover', 'Crop': 'cover', 'Stretch': 'fill' };
+        const fitMap = { 'Original': 'contain', 'Fit': 'contain', 'Fill': 'cover', 'Crop': 'cover', 'Stretch': 'fill' };
         if (effectiveImageType !== 'Crop') {
           liveElement.style.setProperty('object-fit', fitMap[effectiveImageType] || 'fill', 'important');
         }
@@ -2041,6 +2172,7 @@ const ImageEditor = ({
             liveElement.setAttribute('data-fill-angle', (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 90);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
+            if (fillLayer.style) fillLayer.style.removeProperty('fill');
             fillLayer.removeAttribute('data-fill-type');
             fillLayer.removeAttribute('data-fill-stops');
             fillLayer.removeAttribute('fill-type');
@@ -2127,6 +2259,7 @@ const ImageEditor = ({
             liveElement.removeAttribute('stroke-angle');
             liveElement.removeAttribute('stroke-radius');
             liveElement.setAttribute('stroke', backgroundColor.stroke);
+            if (liveElement.style) liveElement.style.removeProperty('stroke');
           }
 
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
@@ -2284,7 +2417,9 @@ const ImageEditor = ({
             strokeOverlay.removeAttribute('stroke-stops');
             strokeOverlay.removeAttribute('stroke-angle');
             strokeOverlay.removeAttribute('stroke-radius');
+
             strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+            if (strokeOverlay.style) strokeOverlay.style.removeProperty('stroke');
           }
 
           strokeOverlay.setAttribute('stroke-width', sw.toString());
@@ -2792,7 +2927,7 @@ const ImageEditor = ({
                     <>
                       <div className="fixed inset-0 z-[90]" onClick={() => setShowImageTypeDropdown(false)} />
                       <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                        {['Fit', 'Fill', 'Stretch', 'Crop'].map((type) => (
+                        {['Original', 'Fit', 'Fill', 'Stretch', 'Crop'].map((type) => (
                           <button
                             key={type}
                             onClick={(e) => {
@@ -2800,90 +2935,31 @@ const ImageEditor = ({
                               e.stopPropagation();
                               setShowImageTypeDropdown(false);
                               if (type === 'Crop') {
+                                if (imageType !== 'Fill' && imageType !== 'Crop') {
+                                  setImageType('Fill');
+                                  stateRef.current.imageType = 'Fill';
+                                  if (selectedElement) {
+                                    selectedElement.setAttribute('data-object-fit', 'Fill');
+                                    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                    const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
+                                    if (liveEl && liveEl !== selectedElement) {
+                                      liveEl.setAttribute('data-object-fit', 'Fill');
+                                    }
+                                  }
+                                }
                                 setShowCropModal(true);
                               } else {
                                 setImageType(type);
                                 stateRef.current.imageType = type;
-
-                                const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                                const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
-
+                                // Setting type automatically natively fits/fills the original image within the resized bounds.
+                                
+                                // Also update the element's attribute so other parts of the system know the active fit
                                 if (selectedElement) {
-                                  const applyCropAsNewBounds = (el) => {
-                                    if (!el) return;
-                                    const cropStr = el.getAttribute('data-crop-data');
-                                    if (cropStr && cropStr !== 'null') {
-                                      try {
-                                        const crop = JSON.parse(cropStr);
-                                        const imgEl = el.tagName?.toLowerCase() === 'image' ? el : el.querySelector('image');
-
-                                        if (imgEl || ['rect', 'g', 'svg'].includes(el.tagName?.toLowerCase())) {
-                                          const targetEl = imgEl || el;
-                                          if (!el.hasAttribute('data-crop-orig-w')) {
-                                            el.setAttribute('data-crop-orig-w', targetEl.getAttribute('width') || 100);
-                                            el.setAttribute('data-crop-orig-h', targetEl.getAttribute('height') || 100);
-                                            el.setAttribute('data-crop-orig-x', targetEl.getAttribute('x') || 0);
-                                            el.setAttribute('data-crop-orig-y', targetEl.getAttribute('y') || 0);
-                                          }
-                                          if (imgEl && imgEl !== el && !imgEl.hasAttribute('data-crop-orig-w')) {
-                                            imgEl.setAttribute('data-crop-orig-w', imgEl.getAttribute('width') || 100);
-                                            imgEl.setAttribute('data-crop-orig-h', imgEl.getAttribute('height') || 100);
-                                            imgEl.setAttribute('data-crop-orig-x', imgEl.getAttribute('x') || 0);
-                                            imgEl.setAttribute('data-crop-orig-y', imgEl.getAttribute('y') || 0);
-                                          }
-                                          const origW = parseFloat(el.getAttribute('data-crop-orig-w')) || 100;
-                                          const origH = parseFloat(el.getAttribute('data-crop-orig-h')) || 100;
-                                          const origX = parseFloat(el.getAttribute('data-crop-orig-x')) || 0;
-                                          const origY = parseFloat(el.getAttribute('data-crop-orig-y')) || 0;
-
-                                          const newX = origX + (parseFloat(crop.left) / 100) * origW;
-                                          const newY = origY + (parseFloat(crop.top) / 100) * origH;
-                                          const newW = (parseFloat(crop.width) / 100) * origW;
-                                          const newH = (parseFloat(crop.height) / 100) * origH;
-
-                                          targetEl.setAttribute('x', newX);
-                                          targetEl.setAttribute('y', newY);
-                                          targetEl.setAttribute('width', newW);
-                                          targetEl.setAttribute('height', newH);
-
-                                          if (el !== targetEl && el.hasAttribute('width')) {
-                                            el.setAttribute('x', newX);
-                                            el.setAttribute('y', newY);
-                                            el.setAttribute('width', newW);
-                                            el.setAttribute('height', newH);
-                                          }
-
-                                          // Keep data-crop-orig-* intact for un-baking later
-                                        } else if (el.style) {
-                                          const origW = parseFloat(el.getAttribute('data-crop-orig-w') || el.style.width || el.offsetWidth || 100);
-                                          const origH = parseFloat(el.getAttribute('data-crop-orig-h') || el.style.height || el.offsetHeight || 100);
-                                          const origX = parseFloat(el.getAttribute('data-crop-orig-x') || el.style.left || 0);
-                                          const origY = parseFloat(el.getAttribute('data-crop-orig-y') || el.style.top || 0);
-
-                                          const newX = origX + (parseFloat(crop.left) / 100) * origW;
-                                          const newY = origY + (parseFloat(crop.top) / 100) * origH;
-                                          const newW = (parseFloat(crop.width) / 100) * origW;
-                                          const newH = (parseFloat(crop.height) / 100) * origH;
-
-                                          if (!el.style.width.includes('%')) {
-                                            el.style.left = `${newX}px`;
-                                            el.style.top = `${newY}px`;
-                                            el.style.width = `${newW}px`;
-                                            el.style.height = `${newH}px`;
-                                          }
-                                        }
-                                      } catch (e) {
-                                        console.error("Error setting new bounds from crop", e);
-                                      }
-                                    }
-                                    el.setAttribute('data-baked-crop', cropStr);
-                                    el.removeAttribute('data-effect-crop-inset');
-                                    el.removeAttribute('data-crop-data');
-                                  };
-
-                                  applyCropAsNewBounds(selectedElement);
+                                  selectedElement.setAttribute('data-object-fit', type);
+                                  const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                  const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
                                   if (liveEl && liveEl !== selectedElement) {
-                                    applyCropAsNewBounds(liveEl);
+                                    liveEl.setAttribute('data-object-fit', type);
                                   }
                                 }
                               }
@@ -3096,8 +3172,8 @@ const ImageEditor = ({
 
                 liveElement.removeAttribute('data-effect-crop-inset');
                 liveElement.removeAttribute('data-crop-data');
-                setImageType('Fit');
-                stateRef.current.imageType = 'Fit';
+                setImageType('Original');
+                stateRef.current.imageType = 'Original';
 
                 if (onUpdate) onUpdate({ shouldRefresh: true });
 
