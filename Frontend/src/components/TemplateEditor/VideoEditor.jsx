@@ -532,6 +532,7 @@ const VideoEditor = ({
           liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
         } else {
           fillLayer.setAttribute('fill', backgroundColor.fill);
+          if (fillLayer.style) fillLayer.style.removeProperty('fill');
           fillLayer.removeAttribute('data-fill-type');
           fillLayer.removeAttribute('data-fill-stops');
           fillLayer.removeAttribute('data-fill-gradient-type');
@@ -693,6 +694,7 @@ const VideoEditor = ({
           strokeOverlay.removeAttribute('stroke-radius');
 
           strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+          if (strokeOverlay.style) strokeOverlay.style.removeProperty('stroke');
         }
         strokeOverlay.setAttribute('stroke-width', weight.toString());
         if (backgroundColor.strokeDashStyle === 'Dashed') {
@@ -745,7 +747,7 @@ const VideoEditor = ({
       const anyR = radius.tl || radius.tr || radius.br || radius.bl;
       const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
       const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
-      
+
       visualTarget.style.borderRadius = radiusStr;
       visualTarget.setAttribute('data-radius', JSON.stringify(radius));
       visualTarget.style.overflow = 'hidden';
@@ -1034,7 +1036,7 @@ const VideoEditor = ({
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
-      
+
       liveElement.setAttribute('data-effect-blur', activeEffects.includes('Blur') ? 'true' : 'false');
       if (effectSettings['Blur']) {
         liveElement.setAttribute('data-effect-blur-value', effectSettings['Blur'].blur.toString());
