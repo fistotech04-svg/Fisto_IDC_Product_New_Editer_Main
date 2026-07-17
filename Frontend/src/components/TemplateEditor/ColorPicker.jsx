@@ -108,12 +108,30 @@ export const parseGradient = (gradientStr) => {
 
   if (type === 'Linear' || type === 'Angular') {
     const angleMatch = gradientStr.match(/(\d+)deg/);
-    if (angleMatch) angle = parseInt(angleMatch[1]);
+    if (angleMatch) {
+      angle = parseInt(angleMatch[1]);
+    } else if (gradientStr.includes('to top')) {
+      angle = 0;
+    } else if (gradientStr.includes('to right')) {
+      angle = 90;
+    } else if (gradientStr.includes('to bottom')) {
+      angle = 180;
+    } else if (gradientStr.includes('to left')) {
+      angle = 270;
+    }
+  } else if (type === 'Radial' || type === 'Diamond') {
+    const maxPctMatch = [...gradientStr.matchAll(/([\d.]+)%/g)].map(m => parseFloat(m[1]));
+    if (maxPctMatch.length > 0) {
+      radius = Math.max(...maxPctMatch);
+    }
+    // Only unscale if we actually found a valid radius and stops exist
+    if (radius > 0 && stops.length > 0) {
+      const scale = radius / 100;
+      stops.forEach(s => {
+        s.offset = Math.min(100, Math.round(s.offset / scale));
+      });
+    }
   }
-
-  // For Radial, radius is encoded in stopsStr(radius) in generateGradientString
-  // It's a bit complex to reverse exactly if it's scaled. 
-  // For now, we'll assume 100 if not found, or try to infer from the last stop if it was scaled.
 
   return { type, stops: stops.length > 0 ? stops : null, angle, radius };
 };
@@ -181,6 +199,99 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   const [editingStopIndex, setEditingStopIndex] = useState(null);
   const ignoreClickRef = useRef(false);
   const containerRef = useRef(null);
+  const lastGeneratedColor = useRef(null);
+
+  // Dragging state for popup
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const isDraggingPopup = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0, scale: 1 });
+  const [isPopupDragging, setIsPopupDragging] = useState(false);
+
+  const handlePopupPointerDown = (e) => {
+    // Avoid dragging if the user is interacting with controls
+    const isInteractive = e.target.closest('button, input, [role="button"], .cursor-pointer, .cursor-text, .cursor-crosshair, .cursor-grab, .cursor-copy, .custom-range-slider-color');
+    if (isInteractive) return;
+
+    let scale = 1;
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const offsetWidth = containerRef.current.offsetWidth;
+      if (offsetWidth > 0) scale = rect.width / offsetWidth;
+    }
+
+    isDraggingPopup.current = true;
+    setIsPopupDragging(true);
+    
+    dragStartRef.current = {
+      x: e.clientX - (dragPosition.x * scale),
+      y: e.clientY - (dragPosition.y * scale),
+      scale
+    };
+
+    const handlePointerMove = (moveEvent) => {
+      if (!isDraggingPopup.current) return;
+      const s = dragStartRef.current.scale;
+      const newX = (moveEvent.clientX - dragStartRef.current.x) / s;
+      const newY = (moveEvent.clientY - dragStartRef.current.y) / s;
+      setDragPosition({ x: newX, y: newY });
+    };
+
+    const handlePointerUp = () => {
+      isDraggingPopup.current = false;
+      setIsPopupDragging(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
+
+  const [customDragPosition, setCustomDragPosition] = useState({ x: 0, y: 0 });
+  const isCustomDraggingPopup = useRef(false);
+  const customDragStartRef = useRef({ x: 0, y: 0, scale: 1 });
+  const [isCustomPopupDragging, setIsCustomPopupDragging] = useState(false);
+
+  const handleCustomPopupPointerDown = (e) => {
+    const isInteractive = e.target.closest('button, input, [role="button"], .cursor-pointer, .cursor-text, .cursor-crosshair, .cursor-grab, .cursor-copy, .custom-range-slider-color');
+    if (isInteractive) return;
+
+    e.stopPropagation();
+
+    let scale = 1;
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const offsetWidth = containerRef.current.offsetWidth;
+      if (offsetWidth > 0) scale = rect.width / offsetWidth;
+    }
+
+    isCustomDraggingPopup.current = true;
+    setIsCustomPopupDragging(true);
+    
+    customDragStartRef.current = {
+      x: e.clientX - (customDragPosition.x * scale),
+      y: e.clientY - (customDragPosition.y * scale),
+      scale
+    };
+
+    const handlePointerMove = (moveEvent) => {
+      if (!isCustomDraggingPopup.current) return;
+      const s = customDragStartRef.current.scale;
+      const newX = (moveEvent.clientX - customDragStartRef.current.x) / s;
+      const newY = (moveEvent.clientY - customDragStartRef.current.y) / s;
+      setCustomDragPosition({ x: newX, y: newY });
+    };
+
+    const handlePointerUp = () => {
+      isCustomDraggingPopup.current = false;
+      setIsCustomPopupDragging(false);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  };
 
   useEffect(() => {
     const handleOutsideClick = (e) => {
@@ -189,9 +300,9 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
       // If clicking another trigger, allow it to open another picker
       if (e.target.closest('.color-box-trigger') || e.target.closest('.color-box') || e.target.closest('#stroke-settings-popup')) return;
 
-      // If we just hid the main palette, eat the trailing mouseup/click events
-      // so they don't reach the canvas and deselect the element.
-      if (ignoreClickRef.current && (e.type === 'mouseup' || e.type === 'pointerup' || e.type === 'click')) {
+      // If we just hid the custom palette, eat ALL trailing events (including compatibility mousedown)
+      // so they don't reach the canvas or trigger another close action.
+      if (ignoreClickRef.current) {
         e.stopPropagation();
         e.stopImmediatePropagation();
         return;
@@ -202,31 +313,35 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
         // Stop the event from reaching RightSidebar or Canvas
         e.stopPropagation();
         e.stopImmediatePropagation();
-        
+
         // Flag that we are intercepting the rest of this click sequence
         ignoreClickRef.current = true;
         // Just revert to the main palette
         setView("palette");
         setEditingStopIndex(null);
-        
+
         // Reset the flag after the click sequence should be finished
         setTimeout(() => {
           ignoreClickRef.current = false;
         }, 400);
+      } else if (e.type === 'mousedown' || e.type === 'pointerdown') {
+        if (onClose) {
+          onClose();
+        }
       }
     };
-    
+
     // Use capture phase to intercept all related events before the parent components or canvas
     const events = ["mousedown", "pointerdown", "mouseup", "pointerup", "click"];
     events.forEach(evt => document.addEventListener(evt, handleOutsideClick, true));
     return () => {
       events.forEach(evt => document.removeEventListener(evt, handleOutsideClick, true));
     };
-  }, [view, hidePalette]);
+  }, [view, hidePalette, onClose]);
 
   const displayColors = useMemo(() => {
     const colors = new Set();
-    
+
     // 1. Add any valid colors explicitly passed from parent
     if (colorsOnPage && Array.isArray(colorsOnPage)) {
       colorsOnPage.forEach(c => {
@@ -237,8 +352,8 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     // 2. Deep extract from the flipbook DOM to catch everything
     const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
     const elements = doc.querySelectorAll('*');
-    
-    
+
+
     const addColor = (c) => {
       if (!c || typeof c !== 'string' || c === 'none' || c === 'transparent' || c.includes('url(') || c.includes('gradient')) return;
       let hex = c.trim().toLowerCase();
@@ -250,7 +365,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
         }
       }
       if (hex.startsWith('#')) {
-        if (hex.length === 4) hex = '#' + hex[1]+hex[1] + hex[2]+hex[2] + hex[3]+hex[3];
+        if (hex.length === 4) hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
         colors.add(hex.toUpperCase().substring(0, 7)); // strip alpha for palette display
       }
     };
@@ -268,7 +383,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
         addColor(el.style.backgroundColor);
       }
     });
-    
+
     colors.add('#DADBE8');
     colors.add('#FFFFFF');
     colors.add('#000000');
@@ -276,7 +391,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   }, [colorsOnPage]);
 
   useEffect(() => {
-    if (color) {
+    if (color && color !== lastGeneratedColor.current) {
       if (color.includes("gradient") && !disableGradient) {
         setMode("gradient");
         const parsed = parseGradient(color);
@@ -293,12 +408,13 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     }
   }, [color]);
 
-  const updateGradient = useCallback((type, stops, angle, radius) => {
+  const updateGradient = useCallback((type, stops, angle, radius, isDragging = false) => {
     const gradientStr = generateGradientString(type, stops, angle, radius);
-    onChange(gradientStr);
+    lastGeneratedColor.current = gradientStr;
+    onChange(gradientStr, isDragging);
   }, [onChange]);
 
-  const handleSaturationChange = useCallback((e, container) => {
+  const handleSaturationChange = useCallback((e, container, isDragging = false) => {
     const { width, height, left, top } = container.getBoundingClientRect();
     const x = Math.min(Math.max((e.clientX - left) / width, 0), 1);
     const y = Math.min(Math.max((e.clientY - top) / height, 0), 1);
@@ -309,13 +425,14 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
       const newStops = [...gradientStops];
       newStops[editingStopIndex] = { ...newStops[editingStopIndex], color: newColor };
       setGradientStops(newStops);
-      updateGradient(gradientType, newStops, gradientAngle, gradientRadius);
+      updateGradient(gradientType, newStops, gradientAngle, gradientRadius, isDragging);
     } else {
-      onChange(newColor);
+      lastGeneratedColor.current = newColor;
+      onChange(newColor, isDragging);
     }
   }, [hsv, onChange, editingStopIndex, gradientStops, gradientType, gradientAngle, gradientRadius, updateGradient]);
 
-  const handleHueChange = useCallback((e, container) => {
+  const handleHueChange = useCallback((e, container, isDragging = false) => {
     const { height, top } = container.getBoundingClientRect();
     const y = Math.min(Math.max((e.clientY - top) / height, 0), 1);
     const newHsv = { ...hsv, h: y * 360 };
@@ -325,9 +442,10 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
       const newStops = [...gradientStops];
       newStops[editingStopIndex] = { ...newStops[editingStopIndex], color: newColor };
       setGradientStops(newStops);
-      updateGradient(gradientType, newStops, gradientAngle, gradientRadius);
+      updateGradient(gradientType, newStops, gradientAngle, gradientRadius, isDragging);
     } else {
-      onChange(newColor);
+      lastGeneratedColor.current = newColor;
+      onChange(newColor, isDragging);
     }
   }, [hsv, onChange, editingStopIndex, gradientStops, gradientType, gradientAngle, gradientRadius, updateGradient]);
 
@@ -336,18 +454,19 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     const containerRef = useRef(null);
     const onMouseDown = (e) => {
       isDragging.current = true;
-      handler(e, containerRef.current);
+      handler(e, containerRef.current, true);
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
     };
     const onMouseMove = (e) => {
       if (isDragging.current) {
         e.preventDefault();
-        handler(e, containerRef.current);
+        handler(e, containerRef.current, true);
       }
     };
-    const onMouseUp = () => {
+    const onMouseUp = (e) => {
       isDragging.current = false;
+      handler(e, containerRef.current, false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
@@ -398,20 +517,31 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     updateGradient(gradientType, newStops, gradientAngle, gradientRadius);
   };
 
-  const updateGradientStop = (index, updates) => {
+  const updateGradientStop = (index, updates, isDragging = false) => {
     const newStops = [...gradientStops];
-    newStops[index] = { ...newStops[index], ...updates };
+    if (updates) {
+      newStops[index] = { ...newStops[index], ...updates };
+    }
     setGradientStops(newStops);
-    updateGradient(gradientType, newStops, gradientAngle, gradientRadius);
+    updateGradient(gradientType, newStops, gradientAngle, gradientRadius, isDragging);
+  };
+
+  const combinedStyle = {
+    ...style,
+    transform: dragPosition.x !== 0 || dragPosition.y !== 0
+      ? `${(style?.transform && style.transform !== 'none') ? style.transform : ''} translate(${dragPosition.x}px, ${dragPosition.y}px)`
+      : style?.transform,
+    ...(isPopupDragging ? { transition: 'none' } : {})
   };
 
   return (
     <div
       ref={containerRef}
       className={`${hidePalette ? 'w-[13.5vw] p-[0.9vw] rounded-[0.6vw]' : 'w-[19vw] p-[1.2vw] rounded-[0.8vw]'} bg-white shadow-[0_1vw_3vw_-0.5vw_rgba(0,0,0,0.2)] border border-gray-400 animate-in fade-in zoom-in-95 duration-200 select-none font-sans pointer-events-auto color-picker-container ${className || ""}`}
-      style={style}
+      style={combinedStyle}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onPointerDown={handlePopupPointerDown}
       {...props}
     >
       {hidePalette ? (
@@ -523,65 +653,119 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
       ) : (
         <div className="relative">
           <div className="flex flex-col gap-[1vw]">
-          {/* Header Controls */}
-          <div className="flex items-center justify-between w-full mb-[0.5vw]">
-            {!disableGradient ? (
-              <PremiumDropdown
-                options={['Solid', 'Gradient']}
-                value={mode.charAt(0).toUpperCase() + mode.slice(1)}
-                onChange={(m) => {
-                  const newMode = m.toLowerCase();
-                  setMode(newMode);
-                  if (newMode === 'solid') {
-                    onChange(gradientStops[0].color);
+            {/* Header Controls */}
+            <div className="flex items-center justify-between w-full mb-[0.5vw]">
+              {!disableGradient ? (
+                <PremiumDropdown
+                  options={['Solid', 'Gradient']}
+                  value={mode.charAt(0).toUpperCase() + mode.slice(1)}
+                  onChange={(m) => {
+                    const newMode = m.toLowerCase();
+                    setMode(newMode);
+                    if (newMode === 'solid') {
+                      onChange(gradientStops[0].color);
+                    } else {
+                      updateGradient(gradientType, gradientStops, gradientAngle, gradientRadius);
+                    }
+                  }}
+                  width="5.5vw"
+                  align="left"
+                />
+              ) : (
+                <div className="text-[0.85vw] font-semibold text-gray-900 px-1 w-[5.5vw]">Solid</div>
+              )}
+
+              {mode === 'gradient' && (
+                <PremiumDropdown
+                  options={['Linear', 'Radial']}
+                  value={gradientType}
+                  onChange={(type) => {
+                    setGradientType(type);
+                    updateGradient(type, gradientStops, gradientAngle, gradientRadius);
+                  }}
+                  width="6.5vw"
+                  align="right"
+                />
+              )}
+
+              {onClose && (
+                <button onClick={() => {
+                  if (view === "custom") {
+                    setMainPaletteHidden(true);
                   } else {
-                    updateGradient(gradientType, gradientStops, gradientAngle, gradientRadius);
+                    onClose();
                   }
-                }}
-                width="5.5vw"
-                align="left"
-              />
-            ) : (
-              <div className="text-[0.85vw] font-semibold text-gray-900 px-1 w-[5.5vw]">Solid</div>
-            )}
+                }} className="p-[0.1vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-100 transition-all">
+                  <X size="1.2vw" />
+                </button>
+              )}
+            </div>
 
-            {mode === 'gradient' && (
-              <PremiumDropdown
-                options={['Linear', 'Radial', 'Angular', 'Diamond']}
-                value={gradientType}
-                onChange={(type) => {
-                  setGradientType(type);
-                  updateGradient(type, gradientStops, gradientAngle, gradientRadius);
-                }}
-                width="6.5vw"
-                align="right"
-              />
-            )}
+            {mode === 'solid' ? (
+              <div className="flex flex-col gap-[1.5vw]">
+                {/* Colors on this page */}
+                {displayColors && displayColors.length > 0 && (
+                  <div className="mb-[0.5vw]">
+                    <div className="flex items-center gap-[1vw] mb-[1.25vw]">
+                      <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Colors on this page</span>
+                      <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
+                    </div>
+                    <div className="grid grid-cols-6 gap-[0.6vw]">
+                      {displayColors.map((c, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => onChange(c)}
+                          className={`aspect-square rounded-[0.5vw] border transition-all hover:scale-110 cursor-pointer ${color?.toLowerCase() === c.toLowerCase() ? 'border-[#5d5efc] border-2 shadow-sm scale-110' : 'border-gray-100'}`}
+                          style={{ background: c }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
-            {onClose && (
-              <button onClick={() => {
-                if (view === "custom") {
-                  setMainPaletteHidden(true);
-                } else {
-                  onClose();
-                }
-              }} className="p-[0.1vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-100 transition-all">
-                <X size="1.2vw" />
-              </button>
-            )}
-          </div>
-
-          {mode === 'solid' ? (
-            <div className="flex flex-col gap-[1.5vw]">
-              {/* Colors on this page */}
-              {displayColors && displayColors.length > 0 && (
                 <div className="mb-[0.5vw]">
                   <div className="flex items-center gap-[1vw] mb-[1.25vw]">
-                    <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Colors on this page</span>
+                    <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Pick Colors From Pallet</span>
                     <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
                   </div>
+
+                  <div className="flex items-center justify-between gap-[1vw]">
+                    <span className="text-[0.75vw] font-semibold text-gray-700">Fill :</span>
+                    <div className="flex-1 flex gap-[0.5vw] items-center">
+                      <div
+                        className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors"
+                        style={{ background: color }}
+                        onClick={() => setView("custom")}
+                      />
+                      <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-[#5d5efc] transition-colors">
+                        <input
+                          type="text"
+                          value={color?.toUpperCase() || ""}
+                          onChange={(e) => onChange(e.target.value)}
+                          className="text-[0.8vw] font-medium text-gray-700 font-mono bg-transparent w-[5vw] outline-none"
+                        />
+                        <span className="text-[0.8vw] font-medium text-gray-400">{displayOpacity}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mb-[0.5vw]">
+                  <div className="flex items-center gap-[1vw] mb-[1.25vw]">
+                    <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Solid Colors</span>
+                    <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
+                  </div>
+
                   <div className="grid grid-cols-6 gap-[0.6vw]">
-                    {displayColors.map((c, i) => (
+                    <button
+                      type="button"
+                      onClick={() => onChange('none')}
+                      className={`aspect-square rounded-[0.5vw] border transition-all hover:scale-110 relative overflow-hidden cursor-pointer ${color === 'none' ? 'border-[#5d5efc] border-2 shadow-sm scale-110' : 'border-gray-100'}`}
+                    >
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
+                    </button>
+                    {solidPalette.map((c, i) => (
                       <button
                         key={i}
                         type="button"
@@ -592,157 +776,136 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                     ))}
                   </div>
                 </div>
-              )}
-
-              <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[1vw] mb-[1.25vw]">
-                  <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Pick Colors From Pallet</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
-                </div>
-
-                <div className="flex items-center justify-between gap-[1vw]">
-                  <span className="text-[0.75vw] font-semibold text-gray-700">Fill :</span>
-                  <div className="flex-1 flex gap-[0.5vw] items-center">
-                    <div
-                      className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors"
-                      style={{ background: color }}
-                      onClick={() => setView("custom")}
-                    />
-                    <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-[#5d5efc] transition-colors">
-                      <input
-                        type="text"
-                        value={color?.toUpperCase() || ""}
-                        onChange={(e) => onChange(e.target.value)}
-                        className="text-[0.8vw] font-medium text-gray-700 font-mono bg-transparent w-[5vw] outline-none"
-                      />
-                      <span className="text-[0.8vw] font-medium text-gray-400">{displayOpacity}%</span>
+              </div>
+            ) : (
+              <div className="space-y-[0.2vw]">
+                <div>
+                  <div className="flex items-center gap-[0.75vw] mb-[1.5vw]">
+                    <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Customize your Color</span>
+                    <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
+                    <div className="flex gap-[0.4vw]">
+                      <button onClick={resetGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.5vw] hover:bg-gray-50 transition-colors" title="Reset">
+                        <Icon icon="ix:reset" width="1vw" height="1vw" className="text-gray-600" />
+                      </button>
+                      <button onClick={reverseGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.5vw] hover:bg-gray-50 transition-colors" title="Reverse">
+                        <ArrowLeftRight size="1vw" className="text-gray-600" />
+                      </button>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              <div className="mb-[0.5vw]">
-                <div className="flex items-center gap-[1vw] mb-[1.25vw]">
-                  <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Solid Colors</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
-                </div>
-
-                <div className="grid grid-cols-6 gap-[0.6vw]">
-                  <button
-                    type="button"
-                    onClick={() => onChange('none')}
-                    className={`aspect-square rounded-[0.5vw] border transition-all hover:scale-110 relative overflow-hidden cursor-pointer ${color === 'none' ? 'border-[#5d5efc] border-2 shadow-sm scale-110' : 'border-gray-100'}`}
-                  >
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
-                  </button>
-                  {solidPalette.map((c, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() => onChange(c)}
-                      className={`aspect-square rounded-[0.5vw] border transition-all hover:scale-110 cursor-pointer ${color?.toLowerCase() === c.toLowerCase() ? 'border-[#5d5efc] border-2 shadow-sm scale-110' : 'border-gray-100'}`}
-                      style={{ background: c }}
+                  <div className="flex items-center gap-[1vw] mb-[1vw]">
+                    <div
+                      className="relative w-[3vw] h-[3vw] shadow-md border border-gray-100 flex-shrink-0"
+                      style={{
+                        background: color,
+                        borderRadius: gradientType === 'Radial' ? '50%' : '0.4vw'
+                      }}
                     />
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-[1.5vw]">
-              <div>
-                <div className="flex items-center gap-[0.75vw] mb-[1.5vw]">
-                  <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Customize your Color</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
-                  <div className="flex gap-[0.4vw]">
-                    <button onClick={resetGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.5vw] hover:bg-gray-50 transition-colors" title="Reset">
-                      <Icon icon="ix:reset" width="1vw" height="1vw" className="text-gray-600" />
-                    </button>
-                    <button onClick={reverseGradient} className="w-[2vw] h-[2vw] flex items-center justify-center bg-white border border-gray-200 rounded-[0.5vw] hover:bg-gray-50 transition-colors" title="Reverse">
-                      <ArrowLeftRight size="1vw" className="text-gray-600" />
-                    </button>
+                    <div className="flex-1 flex flex-col gap-[0.5vw] justify-between">
+                      <span className="text-[0.65vw] font-bold text-gray-400 uppercase tracking-wider">{gradientType} GRADIENT</span>
+                      {(gradientType === 'Linear') && (
+                        <div className="flex items-center gap-[0.5vw]">
+                          <span className="text-[0.75vw] font-semibold text-gray-700 w-[2.5vw]">Angle</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="360"
+                            value={gradientAngle}
+                            onChange={(e) => {
+                              const a = parseInt(e.target.value);
+                              setGradientAngle(a);
+                              updateGradient(gradientType, gradientStops, a, gradientRadius, true);
+                            }}
+                            onPointerUp={(e) => {
+                              updateGradient(gradientType, gradientStops, parseInt(e.target.value), gradientRadius, false);
+                            }}
+                            className="flex-1 h-[0.3vw] accent-[#5d5efc]"
+                          />
+                          <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientAngle}°</span>
+                        </div>
+                      )}
+                      {(gradientType === 'Radial') && (
+                        <div className="flex items-center gap-[0.5vw]">
+                          <span className="text-[0.75vw] font-semibold text-gray-700 w-[2.5vw]">Radius</span>
+                          <input
+                            type="range"
+                            min="10"
+                            max="200"
+                            value={gradientRadius}
+                            onChange={(e) => {
+                              const r = parseInt(e.target.value);
+                              setGradientRadius(r);
+                              updateGradient(gradientType, gradientStops, gradientAngle, r, true);
+                            }}
+                            onPointerUp={(e) => {
+                              updateGradient(gradientType, gradientStops, gradientAngle, parseInt(e.target.value), false);
+                            }}
+                            className="flex-1 h-[0.3vw] accent-[#5d5efc]"
+                          />
+                          <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientRadius}%</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-[1vw] mb-[1vw]">
-                  <div
-                    className="relative w-[3vw] h-[3vw] shadow-md border border-gray-100 flex-shrink-0"
-                    style={{
-                      background: color,
-                      borderRadius: gradientType === 'Radial' ? '50%' : '0.4vw'
-                    }}
-                  />
-                  <div className="flex-1 flex flex-col gap-[0.5vw] justify-between">
-                    <span className="text-[0.65vw] font-bold text-gray-400 uppercase tracking-wider">{gradientType} GRADIENT</span>
-                    {(gradientType === 'Linear' || gradientType === 'Angular') && (
-                      <div className="flex items-center gap-[0.5vw]">
-                        <span className="text-[0.75vw] font-semibold text-gray-700 w-[2.5vw]">Angle</span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="360"
-                          value={gradientAngle}
-                          onChange={(e) => {
-                            const a = parseInt(e.target.value);
-                            setGradientAngle(a);
-                            updateGradient(gradientType, gradientStops, a, gradientRadius);
-                          }}
-                          className="flex-1 h-[0.3vw] accent-[#5d5efc]"
-                        />
-                        <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientAngle}°</span>
-                      </div>
-                    )}
-                    {(gradientType === 'Radial' || gradientType === 'Diamond') && (
-                      <div className="flex items-center gap-[0.5vw]">
-                        <span className="text-[0.75vw] font-semibold text-gray-700 w-[2.5vw]">Radius</span>
-                        <input
-                          type="range"
-                          min="10"
-                          max="200"
-                          value={gradientRadius}
-                          onChange={(e) => {
-                            const r = parseInt(e.target.value);
-                            setGradientRadius(r);
-                            updateGradient(gradientType, gradientStops, gradientAngle, r);
-                          }}
-                          className="flex-1 h-[0.3vw] accent-[#5d5efc]"
-                        />
-                        <span className="text-[0.65vw] font-semibold text-gray-500 w-[1.5vw] text-right">{gradientRadius}%</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Gradient Bar with Stops */}
-                <div className="relative pt-[1.5vw] pb-[1vw] mb-[1.5vw]">
-                  <div className="absolute top-0 left-0 w-full h-[2vw] pointer-events-none">
-                    {gradientStops.map((stop, idx) => (
-                      <div
-                        key={idx}
-                        className="absolute -translate-x-1/2 flex flex-col items-center pointer-events-auto cursor-grab active:cursor-grabbing"
-                        style={{ left: `${stop.offset}%`, bottom: '0.6vw' }}
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          const startX = e.clientX;
-                          const startOffset = stop.offset;
-                          const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
-
-                          const handleMouseMove = (moveEvent) => {
-                            const dx = ((moveEvent.clientX - startX) / rect.width) * 100;
-                            const newOffset = Math.min(100, Math.max(0, Math.round(startOffset + dx)));
-                            updateGradientStop(idx, { offset: newOffset });
-                          };
-
-                          const handleMouseUp = () => {
-                            window.removeEventListener('mousemove', handleMouseMove);
-                            window.removeEventListener('mouseup', handleMouseUp);
-                          };
-
-                          window.addEventListener('mousemove', handleMouseMove);
-                          window.addEventListener('mouseup', handleMouseUp);
-                        }}
-                      >
+                  {/* Gradient Bar with Stops */}
+                  <div className="relative pt-[1.5vw] pb-[1vw] mb-[1.1vw]">
+                    <div className="absolute top-0 left-0 w-full h-[2vw] pointer-events-none">
+                      {gradientStops.map((stop, idx) => (
                         <div
-                          className={`w-[1.2vw] h-[1.2vw] border-2 border-white shadow-md rounded-[0.3vw] transition-transform hover:scale-110 ${editingStopIndex === idx ? 'ring-2 ring-[#5d5efc]' : ''}`}
+                          key={idx}
+                          className="absolute -translate-x-1/2 flex flex-col items-center pointer-events-auto cursor-grab active:cursor-grabbing"
+                          style={{ left: `${stop.offset}%`, bottom: '0.6vw' }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            const startX = e.clientX;
+                            const startOffset = stop.offset;
+                            const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
+
+                            const handleMouseMove = (moveEvent) => {
+                              const dx = ((moveEvent.clientX - startX) / rect.width) * 100;
+                              const newOffset = Math.min(100, Math.max(0, Math.round(startOffset + dx)));
+                              updateGradientStop(idx, { offset: newOffset }, true);
+                            };
+
+                            const handleMouseUp = () => {
+                              updateGradientStop(idx, undefined, false);
+                              window.removeEventListener('mousemove', handleMouseMove);
+                              window.removeEventListener('mouseup', handleMouseUp);
+                            };
+
+                            window.addEventListener('mousemove', handleMouseMove);
+                            window.addEventListener('mouseup', handleMouseUp);
+                          }}
+                        >
+                          <div
+                            className={`w-[1.2vw] h-[1.2vw] border-2 border-white shadow-md rounded-[0.3vw] transition-transform hover:scale-110 ${editingStopIndex === idx ? 'ring-2 ring-[#5d5efc]' : ''}`}
+                            style={{ backgroundColor: stop.color }}
+                            onClick={() => {
+                              setEditingStopIndex(idx);
+                              setHsv(hexToHsv(stop.color));
+                              setTimeout(() => {
+                                document.getElementById(`stop-list-item-${idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                              }, 50);
+                            }}
+                          />
+                          <div className="w-0 h-0 border-l-[0.3vw] border-l-transparent border-r-[0.3vw] border-r-transparent border-t-[0.4vw] border-t-white"></div>
+                        </div>
+                      ))}
+                    </div>
+                    <div
+                      className="w-full h-[1.2vw] rounded-[0.4vw] shadow-inner border border-gray-100 cursor-copy"
+                      onClick={addGradientStop}
+                      style={{ background: generateGradientString(gradientType, gradientStops, 90, 100) }}
+                    />
+                  </div>
+
+                  {/* Stop List */}
+                  <div className="space-y-[0.8vw] h-[8.2vw] pt-[0.2vw] overflow-y-auto custom-scrollbar pr-[0.4vw]">
+                    {gradientStops.map((stop, idx) => (
+                      <div key={idx} id={`stop-list-item-${idx}`} className="flex items-center gap-[0.6vw]">
+                        <div
+                          className={`w-[2vw] h-[2vw] rounded-[0.5vw] border cursor-pointer ${editingStopIndex === idx ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]' : 'border-gray-200'}`}
                           style={{ backgroundColor: stop.color }}
                           onClick={() => {
                             setEditingStopIndex(idx);
@@ -750,225 +913,209 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                             setView("custom");
                           }}
                         />
-                        <div className="w-0 h-0 border-l-[0.3vw] border-l-transparent border-r-[0.3vw] border-r-transparent border-t-[0.4vw] border-t-white"></div>
+                        <div
+                          className={`flex-1 h-[2vw] border rounded-[0.5vw] flex items-center px-[0.6vw] bg-white cursor-pointer ${editingStopIndex === idx ? 'border-[#5d5efc] ring-1 ring-[#5d5efc]' : 'border-gray-300'}`}
+                          onClick={() => {
+                            setEditingStopIndex(idx);
+                            setHsv(hexToHsv(stop.color));
+                            setView("custom");
+                          }}
+                        >
+                          <span className="text-[0.75vw] font-medium text-gray-700 font-mono">{stop.color.toUpperCase()}</span>
+                        </div>
+                        <button onClick={() => removeGradientStop(idx)} className="w-[2vw] h-[2vw] flex items-center justify-center border border-red-200 rounded-[0.5vw] text-red-500 hover:bg-red-50 transition-colors">
+                          <Minus size="1vw" />
+                        </button>
                       </div>
                     ))}
+                    <div className="h-[0.2vw] flex-shrink-0" />
                   </div>
-                  <div
-                    className="w-full h-[1.2vw] rounded-[0.4vw] shadow-inner border border-gray-100 cursor-copy"
-                    onClick={addGradientStop}
-                    style={{ background: color }}
-                  />
                 </div>
 
-                {/* Stop List */}
-                <div className="space-y-[0.8vw] h-[4.8vw] overflow-y-auto custom-scrollbar pr-[0.4vw]">
-                  {gradientStops.map((stop, idx) => (
-                    <div key={idx} className="flex items-center gap-[0.6vw]">
-                      <div
-                        className="w-[2vw] h-[2vw] rounded-[0.5vw] border border-gray-200 cursor-pointer"
-                        style={{ backgroundColor: stop.color }}
+                <div>
+                  <div className="flex items-center gap-[1vw] mb-[1.2vw]">
+                    <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Gradient Colors</span>
+                    <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
+                  </div>
+                  <div className="grid grid-cols-6 gap-[0.6vw]">
+                    {[
+                      ['#FFE2BB', '#FFBBC1'], ['#4DBA55', '#A2D357'], ['#FF0581', '#FFB5DC'],
+                      ['#7F073D', '#F967C8'], ['#ff3969', '#faccc5'], ['#FDBB2D', '#22C1C3'],
+                      ['#FFB0DC', '#DFCBFF'], ['#82ABFF', '#43D3DA'], ['#A5B4FC', '#E0E7FF'],
+                      ['#fa709a', '#D5A7FF'], ['#30cfd0', '#713EAE'], ['#a18cd1', '#fbc2eb'],
+                    ].map((colors, i) => (
+                      <button
+                        key={i}
                         onClick={() => {
-                          setEditingStopIndex(idx);
-                          setHsv(hexToHsv(stop.color));
-                          setView("custom");
+                          const newStops = colors.map((c, idx) => ({
+                            color: c,
+                            offset: idx === 0 ? 0 : 100,
+                            opacity: 100
+                          }));
+                          setGradientStops(newStops);
+                          updateGradient(gradientType, newStops, gradientAngle, gradientRadius);
                         }}
+                        className="aspect-square rounded-[0.5vw] border border-gray-100 shadow-sm transition-all hover:scale-110"
+                        style={{ background: `linear-gradient(to bottom right, ${colors.join(', ')})` }}
                       />
-                      <div
-                        className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center px-[0.6vw] bg-white cursor-pointer"
-                        onClick={() => {
-                          setEditingStopIndex(idx);
-                          setHsv(hexToHsv(stop.color));
-                          setView("custom");
-                        }}
-                      >
-                        <span className="text-[0.75vw] font-medium text-gray-700 font-mono">{stop.color.toUpperCase()}</span>
-                      </div>
-                      <button onClick={() => removeGradientStop(idx)} className="w-[2vw] h-[2vw] flex items-center justify-center border border-red-200 rounded-[0.5vw] text-red-500 hover:bg-red-50 transition-colors">
-                        <Minus size="1vw" />
-                      </button>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-
-              <div>
-                <div className="flex items-center gap-[1vw] mb-[1.2vw]">
-                  <span className="text-[0.85vw] font-semibold text-gray-900 whitespace-nowrap">Gradient Colors</span>
-                  <div className="h-[0.0925vw] bg-gray-200 flex-1"></div>
-                </div>
-                <div className="grid grid-cols-6 gap-[0.6vw]">
-                  {[
-                    ['#FFE2BB', '#FFBBC1'], ['#4DBA55', '#A2D357'], ['#FF0581', '#FFB5DC'],
-                    ['#7F073D', '#F967C8'], ['#ff3969', '#faccc5'], ['#FDBB2D', '#22C1C3'],
-                    ['#FFB0DC', '#DFCBFF'], ['#82ABFF', '#43D3DA'], ['#A5B4FC', '#E0E7FF'],
-                    ['#fa709a', '#D5A7FF'], ['#30cfd0', '#713EAE'], ['#a18cd1', '#fbc2eb'],
-                  ].map((colors, i) => (
-                    <button
-                      key={i}
-                      onClick={() => {
-                        const newStops = colors.map((c, idx) => ({
-                          color: c,
-                          offset: idx === 0 ? 0 : 100,
-                          opacity: 100
-                        }));
-                        setGradientStops(newStops);
-                        updateGradient(gradientType, newStops, gradientAngle, gradientRadius);
-                      }}
-                      className="aspect-square rounded-[0.5vw] border border-gray-100 shadow-sm transition-all hover:scale-110"
-                      style={{ background: `linear-gradient(to bottom right, ${colors.join(', ')})` }}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-          </div>
-
-          {view === "custom" && (
-            <div className="absolute top-[3vw] left-[calc(100%-5vw)] w-[16vw] p-[0.8vw] bg-white border border-gray-400 rounded-[0.8vw] shadow-[0_1vw_3vw_-0.5vw_rgba(0,0,0,0.2)] animate-in fade-in slide-in-from-left-2 z-[9999]">
-              <>
-          {/* Custom Picker Header (Back Button) */}
-          <div className="flex items-center justify-between mb-[1vw]">
-            <button
-              onClick={() => {
-                setView("palette");
-                setEditingStopIndex(null);
-              }}
-              className="flex items-center gap-[0.4vw] text-[0.85vw] font-semibold text-gray-700 hover:text-gray-900 transition-colors"
-            >
-              <Icon icon="heroicons:chevron-left" className="w-[1vw] h-[1vw]" />
-              {editingStopIndex !== null ? `Edit Stop ${editingStopIndex + 1}` : 'Back to Palette'}
-            </button>
-            {onClose && (
-              <button
-                onClick={() => {
-                  setView("palette");
-                  setEditingStopIndex(null);
-                }}
-                className="p-[0.4vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-100 transition-all"
-              >
-                <Icon icon="heroicons:x-mark" width="1.2vw" />
-              </button>
             )}
           </div>
 
-          {/* Main Area */}
-          <div className="flex gap-[0.65vw] h-[8.2vw] mb-[1.1vw]">
-            <div
-              ref={satDrag.ref}
-              onMouseDown={satDrag.onMouseDown}
-              className="flex-1 rounded-[0.6vw] relative cursor-crosshair overflow-hidden"
-              style={{ backgroundColor: hueColor }}
+          {view === "custom" && (
+            <div 
+              className="absolute top-[3vw] left-[calc(100%-5vw)] w-[16vw] p-[0.8vw] bg-white border border-gray-400 rounded-[0.8vw] shadow-[0_1vw_3vw_-0.5vw_rgba(0,0,0,0.2)] animate-in fade-in slide-in-from-left-2 z-[9999]"
+              style={{
+                transform: `translate(${customDragPosition.x - dragPosition.x}px, ${customDragPosition.y - dragPosition.y}px)`,
+                ...(isCustomPopupDragging || isPopupDragging ? { transition: 'none' } : {})
+              }}
+              onPointerDown={handleCustomPopupPointerDown}
             >
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #fff, transparent)' }}></div>
-              <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #000, transparent)' }}></div>
-              <div
-                className="absolute w-[0.75vw] h-[0.75vw] border-2 border-white rounded-full shadow-lg -ml-[0.375vw] -mt-[0.375vw] pointer-events-none"
-                style={{ left: `${hsv.s}%`, top: `${100 - hsv.v}%` }}
-              />
-            </div>
-
-            <div
-              ref={hueDrag.ref}
-              onMouseDown={hueDrag.onMouseDown}
-              className="w-[1.1vw] rounded-full relative cursor-pointer"
-              style={{ background: "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)" }}
-            >
-              <div
-                className="absolute left-1/2 -translate-x-1/2 w-[1.35vw] h-[1.35vw] pointer-events-none"
-                style={{ top: `${(hsv.h / 360) * 100}%`, marginTop: '-0.675vw' }}
-              >
-                <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white"></div>
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[0.675vw] h-[0.675vw] bg-white border-2 border-white rounded-full shadow-md">
-                  <div className="w-full h-full rounded-full border border-gray-200" style={{ backgroundColor: hsvToHex(hsv) }} />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="space-y-[1vw]">
-            <div className="flex items-center justify-between">
-              <span className="text-[0.85vw] font-semibold text-gray-800">Color Code :</span>
-              <div className="flex items-center gap-[0.5vw] border-2 border-gray-300 rounded-[0.6vw] px-[0.5vw] py-[0.35vw] w-[8.5vw] focus-within:border-[#5d5efc] transition-all relative">
-                <span className="text-gray-400 text-[0.65vw] font-medium">#</span>
-                <input
-                  type="text"
-                  ref={hexInputRef}
-                  value={(editingStopIndex !== null ? gradientStops[editingStopIndex].color : color)?.replace("#", "").toLowerCase() || ""}
-                  onChange={(e) => {
-                    const newColor = `#${e.target.value}`;
-                    if (editingStopIndex !== null) {
-                      updateGradientStop(editingStopIndex, { color: newColor });
-                    } else {
-                      onChange(newColor);
-                    }
-                  }}
-                  className="w-full text-[0.7vw] font-semibold text-gray-700 outline-none lowercase font-mono"
-                  maxLength={6}
-                />
-                <button
-                  onClick={async () => {
-                    if ('EyeDropper' in window) {
-                      const eyeDropper = new window.EyeDropper();
-                      try {
-                        const result = await eyeDropper.open();
-                        if (editingStopIndex !== null) {
-                          updateGradientStop(editingStopIndex, { color: result.sRGBHex });
-                        } else {
-                          onChange(result.sRGBHex);
-                        }
-                      } catch (e) { }
-                    } else {
-                      nativeColorRef.current?.click();
-                    }
-                  }}
-                  className="flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors group/btn"
-                >
-                  <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-400 group-hover/btn:text-gray-700" />
-                </button>
-                <input
-                  type="color"
-                  ref={nativeColorRef}
-                  className="hidden"
-                  onChange={(e) => {
-                    const newColor = e.target.value;
-                    if (editingStopIndex !== null) {
-                      updateGradientStop(editingStopIndex, { color: newColor });
-                    } else {
-                      onChange(newColor);
-                    }
-                  }}
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <span className="text-[0.85vw] font-semibold text-gray-800">Opacity :</span>
-              <div className="flex items-center gap-[0.75vw] w-[8.5vw]">
-                <div className="flex-1 flex items-center h-[1.5vw]">
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={displayOpacity}
-                    onChange={(e) => {
-                      const op = parseInt(e.target.value);
-                      if (editingStopIndex !== null) {
-                        updateGradientStop(editingStopIndex, { opacity: op });
-                      } else if (onOpacityChange) {
-                        onOpacityChange(op);
-                      }
+              <>
+                {/* Custom Picker Header (Back Button) */}
+                <div className="flex items-center justify-between mb-[1vw]">
+                  <button
+                    onClick={() => {
+                      setView("palette");
+                      setEditingStopIndex(null);
                     }}
-                    className="w-full cursor-pointer custom-range-slider-color"
-                    style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${displayOpacity}%, #E2E8F0 ${displayOpacity}%, #E2E8F0 100%)` }}
-                  />
+                    className="flex items-center gap-[0.4vw] text-[0.85vw] font-semibold text-gray-700 hover:text-gray-900 transition-colors"
+                  >
+                    <Icon icon="heroicons:chevron-left" className="w-[1vw] h-[1vw]" />
+                    {editingStopIndex !== null ? `Edit Stop ${editingStopIndex + 1}` : 'Back to Palette'}
+                  </button>
+                  {onClose && (
+                    <button
+                      onClick={() => {
+                        setView("palette");
+                        setEditingStopIndex(null);
+                      }}
+                      className="p-[0.4vw] rounded-[0.5vw] text-gray-400 hover:bg-gray-100 transition-all"
+                    >
+                      <Icon icon="heroicons:x-mark" width="1.2vw" />
+                    </button>
+                  )}
                 </div>
-              </div>
-            </div>
-          </div>
-        </>
+
+                {/* Main Area */}
+                <div className="flex gap-[0.65vw] h-[8.2vw] mb-[1.1vw]">
+                  <div
+                    ref={satDrag.ref}
+                    onMouseDown={satDrag.onMouseDown}
+                    className="flex-1 rounded-[0.6vw] relative cursor-crosshair overflow-hidden"
+                    style={{ backgroundColor: hueColor }}
+                  >
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #fff, transparent)' }}></div>
+                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #000, transparent)' }}></div>
+                    <div
+                      className="absolute w-[0.75vw] h-[0.75vw] border-2 border-white rounded-full shadow-lg -ml-[0.375vw] -mt-[0.375vw] pointer-events-none"
+                      style={{ left: `${hsv.s}%`, top: `${100 - hsv.v}%` }}
+                    />
+                  </div>
+
+                  <div
+                    ref={hueDrag.ref}
+                    onMouseDown={hueDrag.onMouseDown}
+                    className="w-[1.1vw] rounded-full relative cursor-pointer"
+                    style={{ background: "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)" }}
+                  >
+                    <div
+                      className="absolute left-1/2 -translate-x-1/2 w-[1.35vw] h-[1.35vw] pointer-events-none"
+                      style={{ top: `${(hsv.h / 360) * 100}%`, marginTop: '-0.675vw' }}
+                    >
+                      <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white"></div>
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[0.675vw] h-[0.675vw] bg-white border-2 border-white rounded-full shadow-md">
+                        <div className="w-full h-full rounded-full border border-gray-200" style={{ backgroundColor: hsvToHex(hsv) }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Controls */}
+                <div className="space-y-[1vw]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.85vw] font-semibold text-gray-800">Color Code :</span>
+                    <div className="flex items-center gap-[0.5vw] border-2 border-gray-300 rounded-[0.6vw] px-[0.5vw] py-[0.35vw] w-[8.5vw] focus-within:border-[#5d5efc] transition-all relative">
+                      <span className="text-gray-400 text-[0.65vw] font-medium">#</span>
+                      <input
+                        type="text"
+                        ref={hexInputRef}
+                        value={(editingStopIndex !== null ? gradientStops[editingStopIndex].color : color)?.replace("#", "").toLowerCase() || ""}
+                        onChange={(e) => {
+                          const newColor = `#${e.target.value}`;
+                          if (editingStopIndex !== null) {
+                            updateGradientStop(editingStopIndex, { color: newColor });
+                          } else {
+                            onChange(newColor);
+                          }
+                        }}
+                        className="w-full text-[0.7vw] font-semibold text-gray-700 outline-none lowercase font-mono"
+                        maxLength={6}
+                      />
+                      <button
+                        onClick={async () => {
+                          if ('EyeDropper' in window) {
+                            const eyeDropper = new window.EyeDropper();
+                            try {
+                              const result = await eyeDropper.open();
+                              if (editingStopIndex !== null) {
+                                updateGradientStop(editingStopIndex, { color: result.sRGBHex });
+                              } else {
+                                onChange(result.sRGBHex);
+                              }
+                            } catch (e) { }
+                          } else {
+                            nativeColorRef.current?.click();
+                          }
+                        }}
+                        className="flex items-center justify-center p-[0.2vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors group/btn"
+                      >
+                        <Icon icon="lucide:pipette" className="w-[0.9vw] h-[0.9vw] text-gray-400 group-hover/btn:text-gray-700" />
+                      </button>
+                      <input
+                        type="color"
+                        ref={nativeColorRef}
+                        className="hidden"
+                        onChange={(e) => {
+                          const newColor = e.target.value;
+                          if (editingStopIndex !== null) {
+                            updateGradientStop(editingStopIndex, { color: newColor });
+                          } else {
+                            onChange(newColor);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.85vw] font-semibold text-gray-800">Opacity :</span>
+                    <div className="flex items-center gap-[0.75vw] w-[8.5vw]">
+                      <div className="flex-1 flex items-center h-[1.5vw]">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={displayOpacity}
+                          onChange={(e) => {
+                            const op = parseInt(e.target.value);
+                            if (editingStopIndex !== null) {
+                              updateGradientStop(editingStopIndex, { opacity: op });
+                            } else if (onOpacityChange) {
+                              onOpacityChange(op);
+                            }
+                          }}
+                          className="w-full cursor-pointer custom-range-slider-color"
+                          style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${displayOpacity}%, #E2E8F0 ${displayOpacity}%, #E2E8F0 100%)` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
             </div>
           )}
         </div>

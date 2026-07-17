@@ -112,6 +112,100 @@ const parseLayersFromSVG = (element) => {
  * TemplateEditor Layout Component
  * Integrates the various sub-components into a single editor interface.
  */
+export const syncGradient = (doc, element, baseAttr) => {
+    const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
+    const currentValue = element.getAttribute(baseAttr);
+    const isUrl = currentValue && currentValue.startsWith('url(#');
+    const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
+    const stopsJson = element.getAttribute(`${baseAttr}-stops`);
+
+    if (type === 'solid' || type === 'none') {
+      return;
+    }
+    if (!type && !isUrl) return;
+    if (!stopsJson) return;
+
+    let stops = [];
+    try { stops = JSON.parse(stopsJson); } catch (e) { return; }
+
+    const svgRoot = element.closest ? element.closest('svg') : null || doc.querySelector('svg');
+    if (!svgRoot) return; // Prevent crash if no SVG found in document
+
+    let defs = svgRoot.querySelector('defs');
+    if (!defs) {
+      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+      svgRoot.insertBefore(defs, svgRoot.firstChild);
+    }
+
+    if (!element.id) {
+      element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    const gradId = `grad-${element.id}-${baseAttr}`;
+    let gradEl = defs.querySelector(`[id="${gradId}"]`);
+
+    const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
+
+    if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
+      gradEl.remove();
+      gradEl = null;
+    }
+
+    if (!gradEl) {
+      gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
+      gradEl.id = gradId;
+      defs.appendChild(gradEl);
+    }
+
+    if (svgGradType === 'linear') {
+      let angleStr = element.getAttribute(`${baseAttr}-angle`);
+      if (!angleStr && currentValue) {
+         const match = currentValue.match(/(\d+)deg/);
+         if (match) angleStr = match[1];
+      }
+      const angleDeg = parseFloat(angleStr || '0');
+      const theta = (angleDeg - 90) * (Math.PI / 180);
+      const length = Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta));
+      const x1 = 50 - (Math.cos(theta) * length * 50);
+      const y1 = 50 - (Math.sin(theta) * length * 50);
+      const x2 = 50 + (Math.cos(theta) * length * 50);
+      const y2 = 50 + (Math.sin(theta) * length * 50);
+
+      gradEl.setAttribute('x1', `${x1}%`);
+      gradEl.setAttribute('y1', `${y1}%`);
+      gradEl.setAttribute('x2', `${x2}%`);
+      gradEl.setAttribute('y2', `${y2}%`);
+    } else {
+      let radiusStr = element.getAttribute(`${baseAttr}-radius`);
+      if (!radiusStr && currentValue) {
+        const maxPctMatch = [...currentValue.matchAll(/([\d.]+)%/g)].map(m => parseFloat(m[1]));
+        if (maxPctMatch.length > 0) radiusStr = Math.max(...maxPctMatch).toString();
+      }
+      const radius = parseFloat(radiusStr || '100');
+      
+      gradEl.setAttribute('cx', '50%');
+      gradEl.setAttribute('cy', '50%');
+      gradEl.setAttribute('r', `${50 * (radius / 100)}%`);
+    }
+
+    while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
+    stops.forEach(s => {
+      const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop.setAttribute('offset', `${s.offset}%`);
+      stop.setAttribute('stop-color', s.color);
+      stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
+      gradEl.appendChild(stop);
+    });
+
+    element.setAttribute(baseAttr, `url(#${gradId})`);
+
+    if (element.tagName.toLowerCase() === 'g') {
+      Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
+        child.removeAttribute(baseAttr);
+        if (child.style) child.style.removeProperty(baseAttr);
+      });
+    }
+  };
+
 const TemplateEditor = () => {
   const { folder, v_id } = useParams();
   const location = useLocation();
@@ -2115,86 +2209,7 @@ const TemplateEditor = () => {
     });
   };
 
-  const syncGradient = (doc, element, baseAttr) => {
-    const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
-    const currentValue = element.getAttribute(baseAttr);
-    const isUrl = currentValue && currentValue.startsWith('url(#');
-    const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
-    const stopsJson = element.getAttribute(`${baseAttr}-stops`);
 
-    // SKILLFUL RETURN: Only apply gradient logic if the element is currently in gradient mode.
-    // If it's 'solid' or 'none', the attribute (fill/stroke) should be left as is (the actual color).
-    if (type === 'solid' || type === 'none') {
-      return;
-    }
-
-    // Default to solid if type missing and it's not currently an url()
-    if (!type && !isUrl) return;
-
-    if (!stopsJson) return;
-
-    let stops = [];
-    try { stops = JSON.parse(stopsJson); } catch (e) { return; }
-
-    const svgRoot = doc.querySelector('svg');
-    let defs = svgRoot.querySelector('defs');
-    if (!defs) {
-      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
-      svgRoot.insertBefore(defs, svgRoot.firstChild);
-    }
-
-    if (!element.id) {
-      element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
-    }
-    const gradId = `grad-${element.id}-${baseAttr}`;
-    let gradEl = defs.querySelector(`[id="${gradId}"]`);
-
-    // Support Angular and Diamond fallbacks for SVG
-    const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
-
-    // Remove if wrong type (case-insensitive check for safety, but creation is exact)
-    if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
-      gradEl.remove();
-      gradEl = null;
-    }
-
-    if (!gradEl) {
-      gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
-      gradEl.id = gradId;
-      if (svgGradType === 'linear') {
-        gradEl.setAttribute('x1', '0%');
-        gradEl.setAttribute('y1', '0%');
-        gradEl.setAttribute('x2', '100%');
-        gradEl.setAttribute('y2', '0%');
-      } else {
-        gradEl.setAttribute('cx', '50%');
-        gradEl.setAttribute('cy', '50%');
-        gradEl.setAttribute('r', '50%');
-      }
-      defs.appendChild(gradEl);
-    }
-
-    // Update stops
-    while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
-    stops.forEach(s => {
-      const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop.setAttribute('offset', `${s.offset}%`);
-      stop.setAttribute('stop-color', s.color);
-      stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
-      gradEl.appendChild(stop);
-    });
-
-    element.setAttribute(baseAttr, `url(#${gradId})`);
-
-    // If it's a group (like a vpath), child elements might have their own fill/stroke
-    // which prevents inheritance. We remove them to let the gradient through.
-    if (element.tagName.toLowerCase() === 'g') {
-      Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
-        child.removeAttribute(baseAttr);
-        if (child.style) child.style.removeProperty(baseAttr);
-      });
-    }
-  };
 
   const syncFilters = (doc, element) => {
     const svgRoot = doc.querySelector('svg');
