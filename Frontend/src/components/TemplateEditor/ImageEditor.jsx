@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { Icon } from '@iconify/react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
@@ -42,6 +42,7 @@ import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
 import CropOverlay from './CropOverlay';
+import { syncGradient } from './TemplateEditor';
 
 const ImageEditor = ({
   selectedElement,
@@ -82,6 +83,7 @@ const ImageEditor = ({
   const onUpdateTimerRef = useRef(null);
   const lastAppliedIdRef = useRef(null);
   const onUpdateRef = useRef(onUpdate);
+  const applyVisualsRef = useRef(null);
 
   // Sync the ref on every render
   useEffect(() => {
@@ -140,6 +142,9 @@ const ImageEditor = ({
   const [backgroundColor, setBackgroundColor] = useState({ fill: 'transparent', stroke: 'transparent', strokeWeight: 0 }); // Dummy fallback just in case
   const [activeColorPicker, setActiveColorPicker] = useState(null);
   const [showDetailedPicker, setShowDetailedPicker] = useState(false);
+
+  // Removed stale pre-paint syncGradient useLayoutEffect because it generated gradients with old stops.
+  // We now run applyVisuals as a useLayoutEffect instead, which correctly parses and syncs the new gradient synchronously.
 
   const [isSlideshow, setIsSlideshow] = useState(false);
   const lastElementIdRef = useRef(null);
@@ -385,7 +390,7 @@ const ImageEditor = ({
     e.target.value = '';
   };
 
-  const syncStateFromDOM = useCallback((force = false) => {
+  const syncStateFromDOM = useCallback((force = false, isMounting = false) => {
     const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const activeEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
     if (!activeEl) return;
@@ -393,7 +398,7 @@ const ImageEditor = ({
     // Skip syncing if we are currently pushing changes to the DOM, UNLESS forced (e.g. on new element mount)
     if (isUpdatingDOM.current && !force) return;
 
-    if (force) isHydrating.current = true;
+    if (isMounting) isHydrating.current = true;
 
     // Detect SVG image element (direct <image>, <g> group, or shape with pattern fill)
     const tagLower = selectedElement.tagName?.toLowerCase();
@@ -579,10 +584,78 @@ const ImageEditor = ({
 
     // 8. Sync Background Color
     let fill = activeEl.getAttribute('data-fill-color');
+
     if (!fill) {
-      fill = activeEl.getAttribute('fill');
+      // If data-fill-color is missing, try to reconstruct it from the SVG itself
+      let targetForFill = activeEl;
+      if (activeEl.tagName?.toLowerCase() === 'g') {
+        const fillLayer = activeEl.querySelector('.image-fill-layer') || activeEl.querySelector('.video-fill-layer');
+        if (fillLayer) targetForFill = fillLayer;
+      }
+      fill = targetForFill.getAttribute('fill');
+      
       if (fill && fill.startsWith('url(')) {
-        fill = 'transparent';
+        const urlMatch = fill.match(/url\(['"]?#([^'"]+)['"]?\)/);
+        if (urlMatch && urlMatch[1]) {
+          const gradId = urlMatch[1];
+          const gradEl = activeEl.ownerSVGElement?.querySelector(`defs [id="${gradId}"]`);
+          
+          if (gradEl) {
+            const stops = Array.from(gradEl.querySelectorAll('stop')).map(stop => {
+              const color = stop.getAttribute('stop-color') || '#000000';
+              const offsetStr = stop.getAttribute('offset') || '0%';
+              const offset = offsetStr.includes('%') ? parseFloat(offsetStr) : parseFloat(offsetStr) * 100;
+              const opacity = parseFloat(stop.getAttribute('stop-opacity') || '1');
+              
+              // Convert hex to rgb for rgba formatting
+              let r = 0, g = 0, b = 0;
+              const hex = color.replace('#', '');
+              if (hex.length === 6) {
+                r = parseInt(hex.substring(0, 2), 16);
+                g = parseInt(hex.substring(2, 4), 16);
+                b = parseInt(hex.substring(4, 6), 16);
+              } else if (hex.length === 3) {
+                r = parseInt(hex.charAt(0) + hex.charAt(0), 16);
+                g = parseInt(hex.charAt(1) + hex.charAt(1), 16);
+                b = parseInt(hex.charAt(2) + hex.charAt(2), 16);
+              }
+              return `rgba(${r}, ${g}, ${b}, ${opacity}) ${offset}%`;
+            });
+            
+            if (stops.length > 0) {
+              const gradType = gradEl.tagName.toLowerCase().includes('radial') ? 'radial-gradient' : 'linear-gradient';
+              let angle = 90;
+              if (gradType === 'linear-gradient') {
+                const x1 = parseFloat(gradEl.getAttribute('x1') || '0');
+                const y1 = parseFloat(gradEl.getAttribute('y1') || '0');
+                const x2Str = gradEl.getAttribute('x2');
+                const x2 = x2Str ? parseFloat(x2Str) : 100;
+                const y2 = parseFloat(gradEl.getAttribute('y2') || '0');
+                
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                if (dx !== 0 || dy !== 0) {
+                  let mathAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                  angle = Math.round(mathAngle + 90);
+                  if (angle < 0) angle += 360;
+                  if (angle >= 360) angle -= 360;
+                }
+              }
+              
+              if (gradType === 'linear-gradient') {
+                fill = `${gradType}(${angle}deg, ${stops.join(', ')})`;
+              } else {
+                fill = `${gradType}(circle, ${stops.join(', ')})`;
+              }
+            } else {
+              fill = 'transparent';
+            }
+          } else {
+            fill = 'transparent';
+          }
+        } else {
+          fill = 'transparent';
+        }
       }
     }
     fill = fill || 'transparent';
@@ -629,7 +702,55 @@ const ImageEditor = ({
       setBackgroundColor(newBg);
     }
 
-    if (force) setTimeout(() => { isHydrating.current = false; }, 50);
+    if (activeEl) {
+        let fillParent = activeEl;
+        const isHtmlImg = activeEl.tagName?.toLowerCase() === 'img';
+
+        if (isHtmlImg && activeEl.parentElement) {
+          const svgWrapper = activeEl.parentElement.querySelector('.fill-layer-wrapper');
+          if (svgWrapper) fillParent = svgWrapper;
+        } else if (activeEl.tagName?.toLowerCase() !== 'g' && activeEl.hasAttribute('fill') && activeEl.getAttribute('fill')?.toString().includes('url(#')) {
+          const match = activeEl.getAttribute('fill').match(/url\s*\(\s*['"]?#([^'"()]+)['"]?\s*\)/i);
+          if (match) {
+            fillParent = activeEl.closest('svg')?.querySelector(`pattern[id="${match[1].trim()}"]`) || document.getElementById(match[1].trim()) || activeEl;
+          }
+        }
+
+        let fillLayer = fillParent.querySelector('.image-fill-layer');
+
+        // Key fix: fillLayer may not exist yet if applyVisuals() hasn't run yet.
+        // If element has a gradient data-fill-color but no fillLayer, call applyVisuals to create it.
+        if (!fillLayer) {
+          const pendingFill = activeEl.getAttribute('data-fill-color') || '';
+          if (pendingFill.includes('gradient') && applyVisualsRef.current) {
+            isHydrating.current = false; // hydrateState is done, safe to clear the guard
+            applyVisualsRef.current();
+            return; // applyVisuals will handle the full sync including syncGradient
+          }
+        }
+
+        const fillAttr = fillLayer ? fillLayer.getAttribute('fill') || '' : '';
+        if (fillLayer && (fillAttr.includes('url(#') || fillAttr.includes('gradient'))) {
+          syncGradient(activeEl.ownerDocument || document, fillLayer, 'fill');
+
+          // Force browser to re-resolve the url(#...) reference after innerHTML injection.
+          // Browsers cache the broken reference — toggling the fill attribute clears this cache.
+          const resolvedFill = fillLayer.getAttribute('fill');
+          if (resolvedFill && resolvedFill.startsWith('url(#')) {
+            fillLayer.setAttribute('fill', 'none');
+            // Reading getBoundingClientRect forces a synchronous reflow
+            fillLayer.getBoundingClientRect();
+            fillLayer.setAttribute('fill', resolvedFill);
+          }
+        }
+
+        const strokeOverlay = activeEl.querySelector('.stroke-overlay') || (isHtmlImg && activeEl.parentElement ? activeEl.parentElement.querySelector('.svg-image-stroke-overlay') : null);
+        if (strokeOverlay && strokeOverlay.getAttribute('stroke')?.includes('url(#')) {
+          syncGradient(activeEl.ownerDocument || document, strokeOverlay, 'stroke');
+        }
+      }
+
+    if (isMounting) setTimeout(() => { isHydrating.current = false; }, 50);
   }, [selectedElement, activePageIndex, selectedLayerId]);
 
   useEffect(() => {
@@ -645,7 +766,7 @@ const ImageEditor = ({
       if (relevantMutation) syncStateFromDOM();
     });
     observer.observe(selectedElement, { attributes: true, attributeFilter: ['style', 'src', 'href', 'opacity', 'preserveAspectRatio', 'xlink:href', 'data-fill-color', 'data-stroke-color', 'data-stroke-width'] });
-    syncStateFromDOM(true); // Force sync on mount/element change
+    syncStateFromDOM(true, true); // Force sync on mount/element change and set isHydrating
     return () => {
       observer.disconnect();
       isUpdatingDOM.current = false;
@@ -654,6 +775,7 @@ const ImageEditor = ({
 
   const applyVisuals = useCallback(() => {
     // 0. Skip if we are still hydrating state from the DOM to avoid overwriting current values with defaults
+    applyVisualsRef.current = applyVisuals;
     if (isHydrating.current) return;
 
     // 1. Re-resolve the live element from the active page container to ensure we are 
@@ -868,7 +990,7 @@ const ImageEditor = ({
                 ch = ch * (parseFloat(crop.height) / 100);
               } catch (e) { }
             }
-            
+
             const trans = targetElForShadow.getAttribute('transform') || '';
             const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
 
@@ -897,69 +1019,69 @@ const ImageEditor = ({
           liveElement.style.setProperty('filter', totalFilter, 'important');
         } else {
           liveElement.style.removeProperty('filter');
-          
+
           if (liveElement.parentElement?.classList.contains('svg-crop-wrapper')) {
             if (blurOnlyFilter !== 'none') {
-               liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
+              liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
             } else {
-               liveElement.parentElement.style.removeProperty('filter');
+              liveElement.parentElement.style.removeProperty('filter');
             }
             if (forceClip) {
-               let targetElForShadow = svgImageEl || liveElement;
-               if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
-                 targetElForShadow = svgImageEl.parentNode;
-               }
-               let bb = { x: 0, y: 0, width: 100, height: 100 };
-               try { bb = targetElForShadow.getBBox(); } catch (e) { }
-               let cxStr = targetElForShadow.getAttribute('x') || '0';
-               let cyStr = targetElForShadow.getAttribute('y') || '0';
-               let cwStr = targetElForShadow.getAttribute('width') || '100%';
-               let chStr = targetElForShadow.getAttribute('height') || '100%';
-               let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
-               let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
-               let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
-               let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
-               const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-               if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
-                 try {
-                   const crop = JSON.parse(cropStrShadow);
-                   cx = cx + (parseFloat(crop.left) / 100) * cw;
-                   cy = cy + (parseFloat(crop.top) / 100) * ch;
-                   cw = cw * (parseFloat(crop.width) / 100);
-                   ch = ch * (parseFloat(crop.height) / 100);
-                 } catch (e) { }
-               }
-               
-               let clipId = `clip-content-${liveElement.id || 'image'}`;
-               let defs = liveElement.ownerSVGElement?.querySelector('defs');
-               if (!defs && liveElement.ownerSVGElement) {
-                 defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                 liveElement.ownerSVGElement.prepend(defs);
-               }
-               if (defs) {
-                 let clipNode = defs.querySelector(`#${clipId}`);
-                 if (!clipNode) {
-                   clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                   clipNode.id = clipId;
-                   const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                   clipNode.appendChild(clipPathEl);
-                   defs.appendChild(clipNode);
-                 }
-                 const rect = clipNode.firstChild;
-                 rect.setAttribute('x', cx);
-                 rect.setAttribute('y', cy);
-                 rect.setAttribute('width', Math.max(0, cw));
-                 rect.setAttribute('height', Math.max(0, ch));
-                 rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-                 const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-                 if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-                 else rect.removeAttribute('rx');
+              let targetElForShadow = svgImageEl || liveElement;
+              if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
+                targetElForShadow = svgImageEl.parentNode;
+              }
+              let bb = { x: 0, y: 0, width: 100, height: 100 };
+              try { bb = targetElForShadow.getBBox(); } catch (e) { }
+              let cxStr = targetElForShadow.getAttribute('x') || '0';
+              let cyStr = targetElForShadow.getAttribute('y') || '0';
+              let cwStr = targetElForShadow.getAttribute('width') || '100%';
+              let chStr = targetElForShadow.getAttribute('height') || '100%';
+              let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+              let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+              let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+              let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+              const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+              if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
+                try {
+                  const crop = JSON.parse(cropStrShadow);
+                  cx = cx + (parseFloat(crop.left) / 100) * cw;
+                  cy = cy + (parseFloat(crop.top) / 100) * ch;
+                  cw = cw * (parseFloat(crop.width) / 100);
+                  ch = ch * (parseFloat(crop.height) / 100);
+                } catch (e) { }
+              }
 
-                 liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-                 liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
-               }
+              let clipId = `clip-content-${liveElement.id || 'image'}`;
+              let defs = liveElement.ownerSVGElement?.querySelector('defs');
+              if (!defs && liveElement.ownerSVGElement) {
+                defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                liveElement.ownerSVGElement.prepend(defs);
+              }
+              if (defs) {
+                let clipNode = defs.querySelector(`#${clipId}`);
+                if (!clipNode) {
+                  clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                  clipNode.id = clipId;
+                  const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                  clipNode.appendChild(clipPathEl);
+                  defs.appendChild(clipNode);
+                }
+                const rect = clipNode.firstChild;
+                rect.setAttribute('x', cx);
+                rect.setAttribute('y', cy);
+                rect.setAttribute('width', Math.max(0, cw));
+                rect.setAttribute('height', Math.max(0, ch));
+                rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+                const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+                if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+                else rect.removeAttribute('rx');
+
+                liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              }
             } else {
-               liveElement.parentElement.style.removeProperty('clip-path');
+              liveElement.parentElement.style.removeProperty('clip-path');
             }
           }
 
@@ -1896,21 +2018,27 @@ const ImageEditor = ({
           }
 
           if (parsedFill && parsedFill.stops) {
+            const normalizedStops = parsedFill.stops.map(s => ({
+              ...s,
+              opacity: s.opacity / 100
+            }));
+
             fillLayer.setAttribute('data-fill-type', 'gradient');
-            fillLayer.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+            fillLayer.setAttribute('data-fill-stops', JSON.stringify(normalizedStops));
             fillLayer.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            fillLayer.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            fillLayer.setAttribute('data-fill-angle', (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 90);
             // syncGradient reads non-data-prefixed attributes
             fillLayer.setAttribute('fill-type', 'gradient');
-            fillLayer.setAttribute('fill-stops', JSON.stringify(parsedFill.stops));
             fillLayer.setAttribute('fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            fillLayer.setAttribute('fill-angle', parsedFill.angle || 90);
+            fillLayer.setAttribute('fill-angle', (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle.toString() : '90');
+            fillLayer.setAttribute('fill-radius', (parsedFill.radius !== undefined && parsedFill.radius !== null) ? parsedFill.radius.toString() : '100');
+            fillLayer.setAttribute('fill-stops', JSON.stringify(normalizedStops));
             syncGradient(liveElement.ownerDocument || document, fillLayer, 'fill');
 
             liveElement.setAttribute('data-fill-type', 'gradient');
-            liveElement.setAttribute('data-fill-stops', JSON.stringify(parsedFill.stops));
+            liveElement.setAttribute('data-fill-stops', JSON.stringify(normalizedStops));
             liveElement.setAttribute('data-fill-gradient-type', parsedFill.type.toLowerCase() || 'linear');
-            liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
+            liveElement.setAttribute('data-fill-angle', (parsedFill.angle !== undefined && parsedFill.angle !== null) ? parsedFill.angle : 90);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
             fillLayer.removeAttribute('data-fill-type');
@@ -1989,8 +2117,8 @@ const ImageEditor = ({
             liveElement.setAttribute('stroke-type', 'gradient');
             liveElement.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
             liveElement.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
-            liveElement.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
-            liveElement.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            liveElement.setAttribute('stroke-angle', (backgroundColor.strokeAngle !== undefined && backgroundColor.strokeAngle !== null) ? backgroundColor.strokeAngle.toString() : '0');
+            liveElement.setAttribute('stroke-radius', (backgroundColor.strokeRadius !== undefined && backgroundColor.strokeRadius !== null) ? backgroundColor.strokeRadius.toString() : '100');
             syncGradient(liveElement.ownerDocument || document, liveElement, 'stroke');
           } else {
             liveElement.removeAttribute('stroke-type');
@@ -2136,14 +2264,14 @@ const ImageEditor = ({
           if (backgroundColor.strokeType === 'gradient' && backgroundColor.strokeStops) {
             liveElement.setAttribute('data-stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
             liveElement.setAttribute('data-stroke-stops', backgroundColor.strokeStops || '');
-            liveElement.setAttribute('data-stroke-angle', backgroundColor.strokeAngle || '0');
-            liveElement.setAttribute('data-stroke-radius', backgroundColor.strokeRadius || '100');
+            liveElement.setAttribute('data-stroke-angle', (backgroundColor.strokeAngle !== undefined && backgroundColor.strokeAngle !== null) ? backgroundColor.strokeAngle.toString() : '0');
+            liveElement.setAttribute('data-stroke-radius', (backgroundColor.strokeRadius !== undefined && backgroundColor.strokeRadius !== null) ? backgroundColor.strokeRadius.toString() : '100');
 
             strokeOverlay.setAttribute('stroke-type', 'gradient');
             strokeOverlay.setAttribute('stroke-gradient-type', backgroundColor.strokeGradientType || 'linear');
             strokeOverlay.setAttribute('stroke-stops', backgroundColor.strokeStops || '');
-            strokeOverlay.setAttribute('stroke-angle', backgroundColor.strokeAngle || '0');
-            strokeOverlay.setAttribute('stroke-radius', backgroundColor.strokeRadius || '100');
+            strokeOverlay.setAttribute('stroke-angle', (backgroundColor.strokeAngle !== undefined && backgroundColor.strokeAngle !== null) ? backgroundColor.strokeAngle.toString() : '0');
+            strokeOverlay.setAttribute('stroke-radius', (backgroundColor.strokeRadius !== undefined && backgroundColor.strokeRadius !== null) ? backgroundColor.strokeRadius.toString() : '100');
             syncGradient(liveElement.ownerDocument || document, strokeOverlay, 'stroke');
           } else {
             liveElement.removeAttribute('data-stroke-gradient-type');
@@ -2344,7 +2472,7 @@ const ImageEditor = ({
     }
   }, [selectedElement, filters, activeEffects, effectSettings, opacity, imageType, radius, isSlideshow, backgroundColor]);
 
-  useEffect(() => { applyVisuals(); }, [applyVisuals]);
+  useLayoutEffect(() => { applyVisuals(); }, [applyVisuals]);
 
   const updateRadius = (corner, value) => {
     const val = Math.max(0, Number(value) || 0);
@@ -2862,7 +2990,7 @@ const ImageEditor = ({
             standaloneMode={true}
             selectedElement={document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`)?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement}
             onUpdate={(info) => {
-              syncStateFromDOM();
+              syncStateFromDOM(true, false);
               if (onUpdateRef.current) onUpdateRef.current(info);
             }}
             openSubSection={openSubSection}
