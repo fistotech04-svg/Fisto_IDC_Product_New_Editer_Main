@@ -42,7 +42,6 @@ import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
 import CropOverlay from './CropOverlay';
-import { syncGradient } from './TemplateEditor';
 
 const ImageEditor = ({
   selectedElement,
