@@ -747,6 +747,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                           onClick={() => {
                             setEditingStopIndex(idx);
                             setHsv(hexToHsv(stop.color));
+                            setView("custom");
                           }}
                         />
                         <div className="w-0 h-0 border-l-[0.3vw] border-l-transparent border-r-[0.3vw] border-r-transparent border-t-[0.4vw] border-t-white"></div>

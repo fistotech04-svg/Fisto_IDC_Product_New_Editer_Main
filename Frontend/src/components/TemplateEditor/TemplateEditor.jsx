@@ -3492,7 +3492,7 @@ const TemplateEditor = () => {
 
               // Re-parse layers from HTML if missing or invalid (source of truth)
               const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
-              
+
               // Force rebuild of effects and dynamic shapes to ensure they are visually correct upon reload
               const allEls = doc.querySelectorAll('*');
               allEls.forEach(el => {
