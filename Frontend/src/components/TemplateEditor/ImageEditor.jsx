@@ -258,29 +258,8 @@ const ImageEditor = ({
       const isSvgImage = targetImg.tagName?.toLowerCase() === 'image';
 
       const processUpload = async (nw, nh) => {
-        if (nw && nh) {
-          const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
-
-          const fitW = oldW;
-          const fitH = oldW * (nh / nw);
-
-          liveElement.style.width = '';
-          liveElement.style.height = '';
-
-          liveElement.setAttribute('width', fitW.toString());
-          liveElement.setAttribute('height', fitH.toString());
-          liveElement.setAttribute('data-width', fitW.toString());
-          liveElement.setAttribute('data-height', fitH.toString());
-
-          if (targetImg !== liveElement) {
-            targetImg.style.width = '';
-            targetImg.style.height = '';
-            targetImg.setAttribute('width', fitW.toString());
-            targetImg.setAttribute('height', fitH.toString());
-            targetImg.setAttribute('data-width', fitW.toString());
-            targetImg.setAttribute('data-height', fitH.toString());
-          }
-        }
+        // Retain the current element's dimension size and don't recalculate based on new aspect ratio.
+        // This ensures replacing an image keeps the exact same size and bounding box.
 
         if (isSvgImage) {
           targetImg.setAttribute('href', imageUrl);
@@ -312,12 +291,10 @@ const ImageEditor = ({
         }
 
         setPreviewSrc(imageUrl);
+        // Do not reset crop data and imageType to 'Original' to maintain the current visual state
+        // (like Fill or Crop), dimensions, effects, etc. on the new replaced image.
         liveElement.removeAttribute('data-original-src');
         liveElement.removeAttribute('data-cropped-src');
-        liveElement.removeAttribute('data-effect-crop-inset');
-        liveElement.removeAttribute('data-crop-data');
-        setImageType('Original');
-        stateRef.current.imageType = 'Original';
 
         if (onUpdate) onUpdate({ shouldRefresh: true });
 
@@ -824,8 +801,9 @@ const ImageEditor = ({
         // Only images use CSS clip-path which clips shadows. Shapes use native rx/ry.
         const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
         const hasClip = forceClip || (isImageElement && ((effImgType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl)));
+        const useShadowCaster = hasClip || activeEffects.includes('Blur');
 
-        if (shadowOnlyFilter !== 'none' && hasClip) {
+        if (shadowOnlyFilter !== 'none' && useShadowCaster) {
           if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'rect') {
             if (shadowCaster) shadowCaster.remove();
             shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -898,7 +876,8 @@ const ImageEditor = ({
 
         // 3. Apply layer-level filters
         const hasCropWrapper = liveElement.parentElement?.classList.contains('svg-crop-wrapper');
-        const innerFilter = (adjustmentFilters + shadowFilter).trim() || 'none';
+        const activeShadowFilter = (useShadowCaster && shadowOnlyFilter !== 'none') ? '' : shadowFilter;
+        const innerFilter = (adjustmentFilters + activeShadowFilter).trim() || 'none';
 
         if (!hasCropWrapper) {
           const applyToLeaf = svgImageEl && svgImageEl !== liveElement;
@@ -908,7 +887,8 @@ const ImageEditor = ({
             const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
             svgImageEl.style.setProperty('filter', leafFilter, 'important');
           } else {
-            liveElement.style.setProperty('filter', totalFilter, 'important');
+            const appliedTotalFilter = (adjustmentFilters + effectFilters + activeShadowFilter).trim() || 'none';
+            liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
             if (svgImageEl) {
               svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
             }
@@ -952,13 +932,25 @@ const ImageEditor = ({
               if (maxR > 0) rect.setAttribute('rx', maxR.toString());
               else rect.removeAttribute('rx');
 
-              const targetEl = applyToLeaf ? svgImageEl : liveElement;
-              targetEl.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-              targetEl.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              if (applyToLeaf && svgImageEl) {
+                // Wrap the image in a <g> to apply the clip-path, otherwise the blur bleeds past the clip-path due to a browser bug with SVG elements
+                let clipperGroup = svgImageEl.parentNode;
+                if (!clipperGroup.classList.contains('svg-image-clipper')) {
+                  clipperGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                  clipperGroup.classList.add('svg-image-clipper');
+                  svgImageEl.parentNode.insertBefore(clipperGroup, svgImageEl);
+                  clipperGroup.appendChild(svgImageEl);
+                }
+                clipperGroup.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                clipperGroup.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
 
-              if (applyToLeaf) {
+                svgImageEl.style.removeProperty('clip-path');
+                svgImageEl.style.removeProperty('-webkit-clip-path');
                 liveElement.style.removeProperty('clip-path');
                 liveElement.style.removeProperty('-webkit-clip-path');
+              } else {
+                liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
               }
             }
           } else {
@@ -967,6 +959,10 @@ const ImageEditor = ({
             if (svgImageEl) {
               svgImageEl.style.removeProperty('clip-path');
               svgImageEl.style.removeProperty('-webkit-clip-path');
+              if (svgImageEl.parentNode && svgImageEl.parentNode.classList.contains('svg-image-clipper')) {
+                svgImageEl.parentNode.style.removeProperty('clip-path');
+                svgImageEl.parentNode.style.removeProperty('-webkit-clip-path');
+              }
             }
           }
 
@@ -1080,7 +1076,10 @@ const ImageEditor = ({
         Object.entries(effectSettings).forEach(([name, settings]) => {
           const prefix = `data-effect-${name.toLowerCase().replace(/ /g, '-')}`;
           Object.entries(settings).forEach(([key, val]) => {
-            liveElement.setAttribute(`${prefix}-${key}`, val.toString());
+            let attr = `${prefix}-${key}`;
+            if (name === 'Blur' && key === 'blur') attr = 'data-effect-blur-value';
+            if (name === 'Blur' && key === 'clipContent') attr = 'data-effect-blur-clip';
+            liveElement.setAttribute(attr, val.toString());
           });
         });
       }
@@ -1115,6 +1114,12 @@ const ImageEditor = ({
         // --- SVG: Image fit via preserveAspectRatio ---
         const parMap = { 'Original': 'meet', 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
         let meetOrSlice = parMap[effectiveImageType] || 'meet';
+        if (effectiveImageType === 'Crop') {
+          const savedFit = liveElement.getAttribute('data-previous-object-fit') || liveElement.getAttribute('data-object-fit');
+          if (savedFit && savedFit !== 'Crop' && parMap[savedFit]) {
+            meetOrSlice = parMap[savedFit];
+          }
+        }
         let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
         if (meetOrSlice === 'meet') parAlign = 'xMidYMid'; // Standard center for Fit
         if (svgImageEl) {
@@ -1172,7 +1177,8 @@ const ImageEditor = ({
             // --- PATTERN CROP ---
             svgImageEl.setAttribute('width', '100%');
             svgImageEl.setAttribute('height', '100%');
-            svgImageEl.setAttribute('preserveAspectRatio', 'none');
+            if (meetOrSlice === 'none') svgImageEl.setAttribute('preserveAspectRatio', 'none');
+            else svgImageEl.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
 
             patternEl.removeAttribute('viewBox');
             patternEl.setAttribute('width', '100%');
@@ -1223,7 +1229,8 @@ const ImageEditor = ({
             imgEl.setAttribute('height', origH);
             imgEl.setAttribute('x', origX.toString() + (isXPercent ? '%' : ''));
             imgEl.setAttribute('y', origY.toString() + (isYPercent ? '%' : ''));
-            imgEl.setAttribute('preserveAspectRatio', 'none');
+            if (meetOrSlice === 'none') imgEl.setAttribute('preserveAspectRatio', 'none');
+            else imgEl.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
 
             imgEl.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
             imgEl.style.setProperty('transform-origin', 'center', 'important');
@@ -1525,14 +1532,26 @@ const ImageEditor = ({
             if (cropStr && cropStr !== 'null') {
               try {
                 const crop = JSON.parse(cropStr);
-                targetX = origX + (origW * parseFloat(crop.left) / 100);
-                targetY = origY + (origH * parseFloat(crop.top) / 100);
-                targetW = origW * (parseFloat(crop.width) / 100);
-                targetH = origH * (parseFloat(crop.height) / 100);
-                
+                const cropX = origX + (origW * parseFloat(crop.left) / 100);
+                const cropY = origY + (origH * parseFloat(crop.top) / 100);
+                const cropW = origW * (parseFloat(crop.width) / 100);
+                const cropH = origH * (parseFloat(crop.height) / 100);
+
+                if (effectiveImageType === 'Original') {
+                  targetX = cropX;
+                  targetY = cropY;
+                  targetW = origW;
+                  targetH = origH;
+                } else {
+                  targetX = cropX;
+                  targetY = cropY;
+                  targetW = cropW;
+                  targetH = cropH;
+                }
+
                 liveElement.setAttribute('data-saved-crop-data', cropStr);
                 liveElement.removeAttribute('data-crop-data');
-              } catch(e) {}
+              } catch (e) { }
             }
 
             targetImgForFrame.style.removeProperty('display');
@@ -1540,7 +1559,7 @@ const ImageEditor = ({
             targetImgForFrame.setAttribute('height', targetH.toString() + (isHPercent ? '%' : ''));
             targetImgForFrame.setAttribute('x', targetX.toString() + (isXPercent ? '%' : ''));
             targetImgForFrame.setAttribute('y', targetY.toString() + (isYPercent ? '%' : ''));
-            
+
             targetImgForFrame.style.removeProperty('clip-path');
             targetImgForFrame.removeAttribute('clip-path');
 
@@ -2807,24 +2826,12 @@ const ImageEditor = ({
                               e.stopPropagation();
                               setShowImageTypeDropdown(false);
                               if (type === 'Crop') {
-                                if (imageType !== 'Fill' && imageType !== 'Crop') {
-                                  setImageType('Fill');
-                                  stateRef.current.imageType = 'Fill';
-                                  if (selectedElement) {
-                                    selectedElement.setAttribute('data-object-fit', 'Fill');
-                                    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                                    const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
-                                    if (liveEl && liveEl !== selectedElement) {
-                                      liveEl.setAttribute('data-object-fit', 'Fill');
-                                    }
-                                  }
-                                }
                                 setShowCropModal(true);
                               } else {
                                 setImageType(type);
                                 stateRef.current.imageType = type;
                                 // Setting type automatically natively fits/fills the original image within the resized bounds.
-                                
+
                                 // Also update the element's attribute so other parts of the system know the active fit
                                 if (selectedElement) {
                                   selectedElement.setAttribute('data-object-fit', type);
@@ -2881,6 +2888,20 @@ const ImageEditor = ({
                     htmlFor="image-editor-upload-input"
                     className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
                     style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        const file = e.dataTransfer.files[0];
+                        if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+                          handleFileUpload({ target: { files: e.dataTransfer.files } });
+                        }
+                      }
+                    }}
                   >
                     <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
                       Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
@@ -3039,13 +3060,9 @@ const ImageEditor = ({
                 }
 
                 setPreviewSrc(optimisticUrl);
+                // Preserve current dimensions and crop type state
                 liveElement.removeAttribute('data-original-src');
                 liveElement.removeAttribute('data-cropped-src');
-
-                liveElement.removeAttribute('data-effect-crop-inset');
-                liveElement.removeAttribute('data-crop-data');
-                setImageType('Original');
-                stateRef.current.imageType = 'Original';
 
                 if (onUpdate) onUpdate({ shouldRefresh: true });
 
@@ -3136,11 +3153,24 @@ const ImageEditor = ({
           activePageIndex={activePageIndex}
           onCancel={() => setShowCropModal(false)}
           onDone={(newCrop) => {
-            setImageType('Crop');
-            stateRef.current.imageType = 'Crop';
-
             const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
             const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
+
+            if (selectedElement) {
+              const currentFit = selectedElement.getAttribute('data-object-fit');
+              if (currentFit && currentFit !== 'Crop') {
+                selectedElement.setAttribute('data-previous-object-fit', currentFit);
+              }
+            }
+            if (liveEl && liveEl !== selectedElement) {
+              const currentFitLive = liveEl.getAttribute('data-object-fit');
+              if (currentFitLive && currentFitLive !== 'Crop') {
+                liveEl.setAttribute('data-previous-object-fit', currentFitLive);
+              }
+            }
+
+            setImageType('Crop');
+            stateRef.current.imageType = 'Crop';
 
             const restoreOrig = (el) => {
               if (!el) return;

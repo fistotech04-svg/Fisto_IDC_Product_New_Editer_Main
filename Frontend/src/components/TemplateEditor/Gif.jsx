@@ -480,13 +480,24 @@ const GifEditor = ({
               if (maxR > 0) rect.setAttribute('rx', maxR.toString());
               else rect.removeAttribute('rx');
 
-              const targetEl = svgImageEl || liveElement;
-              targetEl.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-              targetEl.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              if (svgImageEl) {
+                let clipperGroup = svgImageEl.parentNode;
+                if (!clipperGroup.classList.contains('svg-image-clipper')) {
+                  clipperGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                  clipperGroup.classList.add('svg-image-clipper');
+                  svgImageEl.parentNode.insertBefore(clipperGroup, svgImageEl);
+                  clipperGroup.appendChild(svgImageEl);
+                }
+                clipperGroup.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                clipperGroup.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
 
-              if (targetEl !== liveElement) {
+                svgImageEl.style.removeProperty('clip-path');
+                svgImageEl.style.removeProperty('-webkit-clip-path');
                 liveElement.style.removeProperty('clip-path');
                 liveElement.style.removeProperty('-webkit-clip-path');
+              } else {
+                liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
               }
             }
           } else {
@@ -498,6 +509,10 @@ const GifEditor = ({
           if (svgImageEl && svgImageEl !== liveElement) {
             svgImageEl.style.removeProperty('clip-path');
             svgImageEl.style.removeProperty('-webkit-clip-path');
+            if (svgImageEl.parentNode && svgImageEl.parentNode.classList.contains('svg-image-clipper')) {
+              svgImageEl.parentNode.style.removeProperty('clip-path');
+              svgImageEl.parentNode.style.removeProperty('-webkit-clip-path');
+            }
           }
         }
       } else {
@@ -1294,29 +1309,8 @@ const GifEditor = ({
     const targetImg = getSvgImageEl(liveElement) || liveElement;
 
     const processUpload = async (nw, nh) => {
-      if (nw && nh) {
-        const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
-
-        const fitW = oldW;
-        const fitH = oldW * (nh / nw);
-
-        liveElement.style.width = '';
-        liveElement.style.height = '';
-
-        liveElement.setAttribute('width', fitW.toString());
-        liveElement.setAttribute('height', fitH.toString());
-        liveElement.setAttribute('data-width', fitW.toString());
-        liveElement.setAttribute('data-height', fitH.toString());
-
-        if (targetImg !== liveElement) {
-          targetImg.style.width = '';
-          targetImg.style.height = '';
-          targetImg.setAttribute('width', fitW.toString());
-          targetImg.setAttribute('height', fitH.toString());
-          targetImg.setAttribute('data-width', fitW.toString());
-          targetImg.setAttribute('data-height', fitH.toString());
-        }
-      }
+      // Retain the current element's dimension size and don't recalculate based on new aspect ratio.
+      // This ensures replacing a GIF keeps the exact same size and bounding box.
 
       setSrc(targetImg, url);
       liveElement.dataset.mediaType = "gif";
@@ -1367,7 +1361,7 @@ const GifEditor = ({
       `}</style>
 
       <div className="flex items-center gap-[0.5vw]">
-        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">GIF Property</span>
+        <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Gif Property</span>
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
@@ -1422,6 +1416,20 @@ const GifEditor = ({
             onClick={() => fileInputRef.current?.click()}
             className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
             style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (file.type === 'image/gif') {
+                  handleGifUpload({ target: { files: e.dataTransfer.files } });
+                }
+              }
+            }}
           >
             <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
               Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
