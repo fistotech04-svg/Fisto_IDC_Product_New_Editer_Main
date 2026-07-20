@@ -34,13 +34,16 @@ import { syncGradient } from './editorUtils';
 import { createPortal } from "react-dom";
 
 // Switch toggle component (matches SlideshowProperties style)
-const Switch = ({ enabled, onChange }) => (
+const Switch = ({ enabled, onChange, disabled }) => (
   <button
+    disabled={disabled}
     onClick={(e) => {
       e.stopPropagation();
-      onChange(!enabled);
+      if (!disabled) {
+        onChange(!enabled);
+      }
     }}
-    className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 cursor-pointer ${enabled ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
+    className={`relative block w-[1.8vw] h-[1vw] rounded-[1vw] transition-all duration-200 ease-in-out shadow-[inset_0_0.05vw_0.1vw_rgba(0,0,0,0.3)] outline-none shrink-0 ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${enabled ? 'bg-[#4A3AFF]' : 'bg-[#bbbbbb]'}`}
   >
     <div
       className={`absolute top-[0.1vw] w-[0.8vw] h-[0.8vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_0.05vw_0.1vw_rgba(0,0,0,0.4)] ${enabled ? 'left-[0.9vw]' : 'left-[0.1vw]'}`}
@@ -1101,6 +1104,7 @@ const VideoEditor = ({
           target.autoplay = true;
           target.muted = true;
           target.setAttribute('muted', '');
+          target.play().catch(e => console.warn("Video autoplay failed:", e));
         } else {
           target.removeAttribute('autoplay');
           target.autoplay = false;
@@ -1947,12 +1951,16 @@ const VideoEditor = ({
         <div className="space-y-[0.8vw] px-[0.5vw]">
           {[
             { label: "Disable Video Controls", value: !controls, onChange: (v) => updateElementAttribute('controls', !v) },
-            { label: "Autoplay (Play video automatically)", value: autoplay, onChange: (v) => updateElementAttribute('autoplay', v) },
-            { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => updateElementAttribute('loop', v) }
+            { label: "Autoplay (Play video automatically)", value: autoplay, onChange: (v) => {
+                updateElementAttribute('autoplay', v);
+                if (!v && loop) updateElementAttribute('loop', false);
+              }
+            },
+            { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => updateElementAttribute('loop', v), disabled: !autoplay }
           ].map((item, i) => (
-            <div key={i} className="flex items-center justify-between">
+            <div key={i} className={`flex items-center justify-between ${item.disabled ? 'opacity-50' : ''}`}>
               <span className="text-[0.75vw] font-medium text-gray-800">{item.label}</span>
-              <Switch enabled={item.value} onChange={item.onChange} />
+              <Switch enabled={item.value} onChange={item.onChange} disabled={item.disabled} />
             </div>
           ))}
 
