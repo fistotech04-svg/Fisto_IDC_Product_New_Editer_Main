@@ -446,6 +446,10 @@ const Grid8Layout = ({
     const bbIconLg = isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.25vw] h-[1.25vw]';
     const bbIconFul = isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.1vw] h-[1.1vw]';
 
+    if (isTablet) {
+        return <div className="w-full h-full bg-transparent flex items-center justify-center"></div>;
+    }
+
     return (
         <div
             className="h-full w-full font-sans overflow-hidden relative"
