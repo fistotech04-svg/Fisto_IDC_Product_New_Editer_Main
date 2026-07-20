@@ -23,8 +23,8 @@ const PremiumDropdown = ({
         setIsOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside, true);
-    return () => document.removeEventListener('mousedown', handleClickOutside, true);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (

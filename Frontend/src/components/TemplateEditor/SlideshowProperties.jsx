@@ -1,17 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createPortal } from 'react-dom';
 import {
   ChevronDown,
-  LayoutGrid,
-  Maximize,
-  MoveHorizontal,
-  Settings,
-  Type,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  Maximize2,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -21,7 +11,6 @@ import {
 } from 'lucide-react';
 import GalleryImage from './GalleryImage';
 import { Icon } from '@iconify/react';
-import { getVisualBBox } from './MainEditor';
 
 // Clean up any lingering debuggers from Vite HMR
 ['my-slideshow-debug', 'my-slideshow-debug2', 'my-slideshow-debug3'].forEach(id => {
@@ -117,61 +106,9 @@ const SectionHeader = ({ title }) => (
   </div>
 );
 
-const compressImage = (file) => {
-  return new Promise((resolve) => {
-    if (!file.type.startsWith('image/')) {
-      resolve(file);
-      return;
-    }
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const canvas = document.createElement('canvas');
-      let { width, height } = img;
-      const maxDim = 1920;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
-        }
-      }
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const compressedFile = new File([blob], file.name, {
-            type: file.type === 'image/png' ? 'image/png' : 'image/jpeg',
-            lastModified: Date.now()
-          });
-          resolve(compressedFile);
-        } else {
-          resolve(file);
-        }
-      }, file.type === 'image/png' ? 'image/png' : 'image/jpeg', 0.8);
-    };
-    img.onerror = () => resolve(file);
-    img.src = url;
-  });
-};
-
 const MAX_GALLERY_IMAGES = 4;
 
 const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpen, onToggle, opacity, onUpdateOpacity, setPreviewSrc, setIsUpdatingDOM, currentPageVId, flipbookVId, folderName, flipbookName, onDisableSlideshow }) => {
-  const accordionRef = useRef(null);
-
-  useEffect(() => {
-    if (isOpen && accordionRef.current) {
-      setTimeout(() => {
-        accordionRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }, 350);
-    }
-  }, [isOpen]);
   // Slideshow specific states
   const [slideshowSettings, setSlideshowSettings] = useState({
     autoPlay: true,
@@ -182,7 +119,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     imageFitType: 'Fill All',
     transitionEffect: 'Linear',
     dragToSlide: false,
-    dotColor: '#000000',
+    dotColor: '#4F46E5',
     dotOpacity: 100,
     navIconColor: '#000000',
     navStyle: 1,
@@ -190,11 +127,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   });
   const [slideshowImages, setSlideshowImages] = useState([]);
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
-  const [localOpacity, setLocalOpacity] = useState(opacity ?? 100);
-
-  useEffect(() => {
-    setLocalOpacity(opacity ?? 100);
-  }, [opacity]);
 
   // Automatically persist images to localStorage to prevent loss on unsaved refresh
   useEffect(() => {
@@ -226,7 +158,9 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   const [showInfoTooltip, setShowInfoTooltip] = useState(false);
   const [libraryTargetIndex, setLibraryTargetIndex] = useState(null);
   const [showDotColorPicker, setShowDotColorPicker] = useState(false);
+  const [dotPickerPos, setDotPickerPos] = useState({ x: 0, y: 0 });
   const [showNavColorPicker, setShowNavColorPicker] = useState(false);
+  const [navPickerPos, setNavPickerPos] = useState({ x: 0, y: 0 });
   const [showNavStylesPopup, setShowNavStylesPopup] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -361,12 +295,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
             if (!force && prev.length > 0) return prev;
 
-            return newImages.map((img, idx) => {
-              if (idx === 0 && img.isOriginalCrop === undefined) {
-                 return { ...img, isOriginalCrop: true }; // Retroactive fix for old saves
-              }
-              return img;
-            });
+            return newImages;
           });
         }
       } else {
@@ -380,7 +309,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           imageFitType: 'Fill All',
           transitionEffect: 'Linear',
           dragToSlide: false,
-          dotColor: '#000000',
+          dotColor: '#4F46E5',
           dotOpacity: 100,
           navIconColor: '#000000',
           navStyle: 1,
@@ -392,7 +321,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           const hasOptimistic = prev.some(img => img.isUploading || (img.url && img.url.startsWith('blob:')));
           if (hasOptimistic) return prev;
           if (prev.length > 0 && !force) return prev;
-          return currentSrc ? [{ id: Date.now(), url: currentSrc, name: 'Main Image', isOriginalCrop: true }] : [];
+          return currentSrc ? [{ id: Date.now(), url: currentSrc, name: 'Main Image' }] : [];
         });
       }
 
@@ -449,61 +378,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         // Sync active slide URL to href/src
         const targetImg = getSvgImageEl(targetElement) || targetElement;
         if (slideshowImages[activeSlideIndex]) {
-          const imgObj = slideshowImages[activeSlideIndex];
-          const url = imgObj.url;
+          const url = slideshowImages[activeSlideIndex].url;
           if (targetImg.getAttribute('href') !== url || targetImg.src !== url) {
             targetImg.setAttribute('href', url);
             try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
             if (targetImg.tagName?.toLowerCase() === 'img') targetImg.src = url;
             if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
-          }
-
-          // Ensure the crop viewport correctly frames the image for transitions
-          const cropStr = targetElement.getAttribute('data-crop-data');
-          if (cropStr && cropStr !== 'null') {
-            try {
-              const crop = JSON.parse(cropStr);
-              const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || targetImg.getAttribute('data-crop-orig-x') || '0');
-              const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || targetImg.getAttribute('data-crop-orig-y') || '0');
-              const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || targetImg.getAttribute('data-crop-orig-w') || targetImg.getAttribute('width') || '100');
-              const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || targetImg.getAttribute('data-crop-orig-h') || targetImg.getAttribute('height') || '100');
-
-              // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
-              const wrapper = targetImg.parentNode;
-              if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
-                let anchor = wrapper.querySelector('.bbox-anchor');
-                if (!anchor) {
-                  anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                  anchor.setAttribute('class', 'bbox-anchor');
-                  anchor.setAttribute('fill', 'none');
-                  anchor.style.pointerEvents = 'none';
-                  wrapper.insertBefore(anchor, wrapper.firstChild);
-                }
-                anchor.setAttribute('x', origX);
-                anchor.setAttribute('y', origY);
-                anchor.setAttribute('width', origW);
-                anchor.setAttribute('height', origH);
-              }
-
-              if (imgObj?.isOriginalCrop) {
-                targetImg.setAttribute('x', origX);
-                targetImg.setAttribute('y', origY);
-                targetImg.setAttribute('width', origW);
-                targetImg.setAttribute('height', origH);
-                targetImg.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
-              } else {
-                const cropX = origX + (origW * (parseFloat(crop.left) / 100));
-                const cropY = origY + (origH * (parseFloat(crop.top) / 100));
-                const cropW = origW * (parseFloat(crop.width) / 100);
-                const cropH = origH * (parseFloat(crop.height) / 100);
-
-                targetImg.setAttribute('x', cropX);
-                targetImg.setAttribute('y', cropY);
-                targetImg.setAttribute('width', cropW);
-                targetImg.setAttribute('height', cropH);
-                targetImg.style.setProperty('transform', 'none', 'important');
-              }
-            } catch (e) { console.error("Error applying crop to gallery image", e); }
           }
         }
 
@@ -511,7 +391,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         if (targetImg.tagName?.toLowerCase() === 'image') {
           const val = slideshowSettings.imageFitType === 'Fill All' ? 'xMidYMid slice' : 'xMidYMid meet';
           targetImg.setAttribute('preserveAspectRatio', val);
-        } else if (targetImg.tagName?.toLowerCase() === 'img') {
+        } else {
           const val = slideshowSettings.imageFitType === 'Fill All' ? 'cover' : 'contain';
           targetImg.style.objectFit = val;
           targetImg.style.width = '100%';
@@ -531,11 +411,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         // Apply Opacity
         targetElement.setAttribute('opacity', (opacity / 100).toString());
         targetElement.style.opacity = (opacity / 100).toString();
-
-        if (targetImg && targetImg !== targetElement) {
-          targetImg.setAttribute('opacity', (opacity / 100).toString());
-          targetImg.style.setProperty('opacity', (opacity / 100).toString(), 'important');
-        }
 
         // Only trigger a full refresh if the core structural data changed.
         // Changing the activeSlideIndex should NOT trigger onUpdate({shouldRefresh: true})
@@ -633,58 +508,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       }, 50);
     };
 
-    const setElSrc = (url, imgObj) => {
+    const setElSrc = (url) => {
       imgEl.setAttribute('href', url);
       try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
       if (imgEl.tagName?.toLowerCase() === 'img') imgEl.src = url;
       if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
-
-      const cropStr = targetElement.getAttribute('data-crop-data');
-      if (cropStr && cropStr !== 'null') {
-        try {
-          const crop = JSON.parse(cropStr);
-          const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || imgEl.getAttribute('data-crop-orig-x') || '0');
-          const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || imgEl.getAttribute('data-crop-orig-y') || '0');
-          const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || imgEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100');
-          const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || imgEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100');
-
-          // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
-          const wrapper = imgEl.parentNode;
-          if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
-            let anchor = wrapper.querySelector('.bbox-anchor');
-            if (!anchor) {
-              anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-              anchor.setAttribute('class', 'bbox-anchor');
-              anchor.setAttribute('fill', 'none');
-              anchor.style.pointerEvents = 'none';
-              wrapper.insertBefore(anchor, wrapper.firstChild);
-            }
-            anchor.setAttribute('x', origX);
-            anchor.setAttribute('y', origY);
-            anchor.setAttribute('width', origW);
-            anchor.setAttribute('height', origH);
-          }
-
-          if (imgObj?.isOriginalCrop) {
-            imgEl.setAttribute('x', origX);
-            imgEl.setAttribute('y', origY);
-            imgEl.setAttribute('width', origW);
-            imgEl.setAttribute('height', origH);
-            imgEl.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
-          } else {
-            const cropX = origX + (origW * (parseFloat(crop.left) / 100));
-            const cropY = origY + (origH * (parseFloat(crop.top) / 100));
-            const cropW = origW * (parseFloat(crop.width) / 100);
-            const cropH = origH * (parseFloat(crop.height) / 100);
-
-            imgEl.setAttribute('x', cropX);
-            imgEl.setAttribute('y', cropY);
-            imgEl.setAttribute('width', cropW);
-            imgEl.setAttribute('height', cropH);
-            imgEl.style.setProperty('transform', 'none', 'important');
-          }
-        } catch (e) { console.error("Error applying crop to gallery image", e); }
-      }
     };
 
     const animEl = targetElement;
@@ -729,19 +557,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     animEl.parentNode.insertBefore(clone, animEl);
 
     // Swap src on the original element immediately (it will act as the incoming element)
-    setElSrc(nextUrl, images[newIdx]);
+    setElSrc(nextUrl);
 
-    // Calculate dimensions for translations using visual width
-    let w = 100;
+    // Calculate dimensions for translations
+    let w = 0;
     try {
-      const cropStr = animEl.getAttribute('data-crop-data');
-      if (cropStr && cropStr !== 'null') {
-        const origW = parseFloat(animEl.getAttribute('data-crop-orig-w') || animEl.getAttribute('width') || 100);
-        const crop = JSON.parse(cropStr);
-        w = origW * (parseFloat(crop.width) / 100);
-      } else {
-        w = animEl.getBBox().width;
-      }
+      w = animEl.getBBox().width;
     } catch (e) {
       w = animEl.clientWidth || 100;
     }
@@ -749,30 +570,27 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     let cloneAnim, realAnim;
 
     if (effect === 'fade') {
-      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: 0 }, { opacity: baseOpacity }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'push') {
-      const dx = dir === 'next' ? -w : w;
-      cloneAnim = clone.animate([{ translate: '0px 0px' }, { translate: `${dx}px 0px` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
-      realAnim = animEl.animate([{ translate: `${-dx}px 0px` }, { translate: '0px 0px' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      const dx = dir === 'next' ? -100 : 100;
+      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: `${dx}% 0%` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'linear') {
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration: 0, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration: 0, fill: 'forwards' });
     } else if (effect === 'slide') {
-      const dx = dir === 'next' ? -w : w;
-      cloneAnim = clone.animate([{ translate: '0px 0px' }, { translate: `${dx}px 0px` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
-      realAnim = animEl.animate([{ translate: `${-dx}px 0px` }, { translate: '0px 0px' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      const dx = dir === 'next' ? -100 : 100;
+      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: '0% 0%' }], { duration, fill: 'forwards' });
+      realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'flip') {
-      animEl.style.transformBox = 'fill-box';
-      animEl.style.transformOrigin = 'center';
-      cloneAnim = clone.animate([{ opacity: 0 }, { opacity: 0 }], { duration, fill: 'forwards' });
-      realAnim = animEl.animate([
-        { rotate: 'y 90deg', opacity: 0 },
-        { rotate: 'y 0deg', opacity: baseOpacity }
-      ], { duration, easing: 'ease-out', fill: 'forwards' });
+      clone.style.transformBox = 'fill-box';
+      clone.style.transformOrigin = 'center';
+      cloneAnim = clone.animate([{ rotate: 'y 0deg' }, { rotate: 'y 90deg' }], { duration: duration / 2, easing: 'ease-in', fill: 'forwards' });
+      realAnim = animEl.animate([{ rotate: 'y -90deg' }, { rotate: 'y 0deg' }], { duration: duration / 2, delay: duration / 2, easing: 'ease-out', fill: 'forwards' });
     } else if (effect === 'reveal') {
       const startClip = dir === 'next' ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)';
-      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ clipPath: startClip }, { clipPath: 'inset(0 0 0 0)' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else {
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration: 0, fill: 'forwards' });
@@ -780,32 +598,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     }
 
     // Cleanup and finalize when animation finishes
-    const cleanupAnim = () => {
-      if (clone && clone.parentNode) clone.parentNode.removeChild(clone);
-      if (newPattern && newPattern.parentNode) newPattern.parentNode.removeChild(newPattern);
-
-      // Additional failsafe for SVG filters in Safari
-      if (animEl.style.filter === 'none') {
-        animEl.style.removeProperty('filter');
-      }
-    };
-
     realAnim.onfinish = () => {
-      cleanupAnim();
-      realAnim.cancel();
-      animEl.style.transformBox = '';
-      animEl.style.transformOrigin = '';
+      clone.remove();
+      if (newPattern) newPattern.remove();
       finalize();
     };
-
-    // Fallback in case onfinish doesn't fire (especially for 0 duration)
-    setTimeout(() => {
-      cleanupAnim();
-      animEl.style.transformBox = '';
-      animEl.style.transformOrigin = '';
-      finalize();
-    }, duration + 20);
-
   }, [activePageIndex, selectedElement, slideshowSettings, opacity, setIsUpdatingDOM]);
 
   useEffect(() => {
@@ -860,44 +657,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       const freshTarget = getFreshTarget();
       if (!overlay || !freshTarget || !pageContainer.parentElement) return;
 
-      // Re-enforce manual flag in case the element was replaced/cloned during a stroke update
-      // This prevents the global runner from spawning a duplicate overlay.
-      if (!freshTarget.hasAttribute('data-slideshow-manual')) {
-        freshTarget.setAttribute('data-slideshow-manual', 'true');
-
-        // If the global runner already spawned an overlay in the split-second before we caught it, remove it
-        if (freshTarget._globalSsOverlay) {
-          if (freshTarget._globalSsOverlay._cleanupHover) freshTarget._globalSsOverlay._cleanupHover();
-          freshTarget._globalSsOverlay.remove();
-          delete freshTarget._globalSsOverlay;
-        }
-      }
-
       const containerRect = pageContainer.parentElement.getBoundingClientRect();
-      
-      // Use getVisualBBox to correctly size the overlay to the CROP box, not the original bounds
-      let elRect = freshTarget.getBoundingClientRect();
-      try {
-        const visualBBox = getVisualBBox(freshTarget);
-        if (visualBBox && visualBBox.width > 0) {
-          const svg = freshTarget.ownerSVGElement;
-          const matrix = freshTarget.getScreenCTM();
-          if (matrix && svg) {
-            const pt1 = svg.createSVGPoint();
-            pt1.x = visualBBox.x; pt1.y = visualBBox.y;
-            const pt2 = svg.createSVGPoint();
-            pt2.x = visualBBox.x + visualBBox.width; pt2.y = visualBBox.y + visualBBox.height;
-            const screenPt1 = pt1.matrixTransform(matrix);
-            const screenPt2 = pt2.matrixTransform(matrix);
-            elRect = {
-              left: Math.min(screenPt1.x, screenPt2.x),
-              top: Math.min(screenPt1.y, screenPt2.y),
-              width: Math.abs(screenPt2.x - screenPt1.x),
-              height: Math.abs(screenPt2.y - screenPt1.y)
-            };
-          }
-        }
-      } catch(e) {}
+      const elRect = freshTarget.getBoundingClientRect();
 
       // Compute actual CSS scale of the container
       const scaleX = containerRect.width / (pageContainer.offsetWidth || 1);
@@ -920,19 +681,17 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
       // Update Arrows
       overlay.querySelectorAll('.editor-ss-nav').forEach(btn => {
-        const size = 48 * scaleFactor; // Significantly increased size
+        const size = 26 * scaleFactor;
         btn.style.width = size + 'px';
         btn.style.height = size + 'px';
-        const offset = 12 * scaleFactor; // Increased offset for breathing room
+        const offset = 6 * scaleFactor;
         if (btn.style.left) btn.style.left = offset + 'px';
         if (btn.style.right) btn.style.right = offset + 'px';
 
         const svg = btn.querySelector('svg');
         if (svg) {
-          svg.style.width = (32 * scaleFactor) + 'px';
-          svg.style.height = (32 * scaleFactor) + 'px';
-          svg.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.2)) drop-shadow(0 2px 2px rgba(255,255,255,0.2))';
-          svg.style.overflow = 'visible';
+          svg.style.width = (15 * scaleFactor) + 'px';
+          svg.style.height = (15 * scaleFactor) + 'px';
         }
       });
 
@@ -962,7 +721,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       pointerEvents: 'none', // children opt-in with pointerEvents: 'auto'
       zIndex: '9999',
       overflow: 'visible',
-      transition: 'none', // Prevent lag during drag
     });
     const prevOverflow = pageContainer.style.overflow;
     pageContainer.style.overflow = 'visible';
@@ -974,17 +732,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     liveRunnerOverlayRef.current = overlay;
     positionOverlay();
 
-    // Use requestAnimationFrame for perfectly synchronous tracking during drag, scroll, and stroke updates
-    // This eliminates 1-frame ghosting and desynchronization without relying on discrete events.
-    let trackingRafId;
-    const trackPosition = () => {
-      positionOverlay();
-      trackingRafId = requestAnimationFrame(trackPosition);
-    };
-    trackPosition();
+    // Also reposition on scroll (editor canvas may be inside a scrollable area)
+    const scrollableAncestor = pageContainer.closest('[class*="overflow"]') || document.documentElement;
+    scrollableAncestor.addEventListener('scroll', positionOverlay, { passive: true });
 
     const { navIconColor = '#000000', navStyle: styleId = 1, showDots = true,
-      showArrows = true, showNav = true, dotColor = '#000000',
+      showArrows = true, showNav = true, dotColor = '#4F46E5',
       autoSlide = true, autoPlay = true, speed = 3, infiniteLoop = true } = slideshowSettings;
     const showNavArrows = showArrows !== false && showNav !== false;
 
@@ -1032,8 +785,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           background: 'transparent',
           border: 'none',
           borderRadius: '50%',
-          width: '60px',
-          height: '60px',
+          width: '32px',
+          height: '32px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1046,35 +799,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         });
         const iconKey = type === 'prev' ? 'left' : 'right';
         const root = createRoot(btn);
-
-        const isGrad = navIconColor && navIconColor.toUpperCase().includes('GRADIENT');
-        let stops = [];
-        if (isGrad) {
-          const regex = /(rgba?\([^)]+\)|#[a-fA-F0-9]+|[a-zA-Z]+)\s+(\d+%)/gi;
-          let match;
-          while ((match = regex.exec(navIconColor)) !== null) {
-            stops.push({ color: match[1], offset: match[2] });
-          }
-        }
-        const gradId = `nav-grad-${type}-${Math.random().toString(36).substring(2, 7)}`;
-
-        root.render(
-          <>
-            {isGrad && stops.length > 0 && (
-              <svg width="0" height="0" style={{ position: 'absolute' }}>
-                <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-                  {stops.map((s, i) => <stop key={i} offset={s.offset} stopColor={s.color} />)}
-                </linearGradient>
-                <style>{`.grad-icon-${gradId} svg path, .grad-icon-${gradId} svg circle, .grad-icon-${gradId} svg rect { fill: url(#${gradId}) !important; color: transparent !important; }`}</style>
-              </svg>
-            )}
-            <div
-              className={`${isGrad && stops.length > 0 ? `grad-icon-${gradId}` : ''} transition-all`}
-            >
-              {NavIconRenderer({ styleId, size: '36px', color: isGrad ? 'currentColor' : navIconColor })[iconKey]}
-            </div>
-          </>
-        );
+        root.render(NavIconRenderer({ styleId, size: '22px', color: navIconColor })[iconKey]);
         roots.push(root);
         btn.addEventListener('mouseenter', () => {
           if (leaveTimeout) clearTimeout(leaveTimeout);
@@ -1224,10 +949,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     resizeObserver.observe(pageContainer);
 
     const mutationObserver = new MutationObserver(positionOverlay);
-    if (pageContainer) {
-      mutationObserver.observe(pageContainer, {
+    const targetNode = getFreshTarget();
+    if (targetNode) {
+      mutationObserver.observe(targetNode, {
         attributes: true,
-        subtree: true,
         attributeFilter: ['transform', 'x', 'y', 'width', 'height', 'style']
       });
     }
@@ -1241,7 +966,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     }
 
     return () => {
-      if (trackingRafId) cancelAnimationFrame(trackingRafId);
       cleanup();
       resizeObserver.disconnect();
       mutationObserver.disconnect();
@@ -1251,6 +975,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         containerTarget.removeEventListener('mousedown', handleTargetMouseDown);
         containerTarget.removeEventListener('click', handleTargetClick);
       }
+      scrollableAncestor.removeEventListener('scroll', positionOverlay);
       // Restore original overflow
       pageContainer.style.overflow = prevOverflow;
     };
@@ -1284,7 +1009,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
       if (res.data.url) {
         return {
-          url: res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`,
+          url: `${backendUrl}${res.data.url}`,
           file_v_id: res.data.file_v_id,
           name: res.data.filename
         };
@@ -1316,10 +1041,9 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     setSlideshowImages(prev => [...prev, ...optimisticImages]);
     e.target.value = '';
 
-    // 2. Upload in Background Concurrently and Update State
-    await Promise.all(optimisticImages.map(async (img) => {
-      const compressedFile = await compressImage(img.file_orig);
-      const uploadedData = await uploadFile(compressedFile);
+    // 2. Upload in Background and Update State
+    for (const img of optimisticImages) {
+      const uploadedData = await uploadFile(img.file_orig);
 
       setSlideshowImages(prev => prev.map(item => {
         if (item.id === img.id) {
@@ -1331,7 +1055,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         }
         return item;
       }));
-    }));
+    }
   }, [slideshowImages, uploadFile]);
 
   const handleReplaceFileChange = useCallback(async (e) => {
@@ -1354,8 +1078,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     e.target.value = '';
 
     // Upload
-    const compressedFile = await compressImage(file);
-    const uploadedData = await uploadFile(compressedFile, targetImg.file_v_id);
+    const uploadedData = await uploadFile(file, targetImg.file_v_id);
 
     // Final update
     setSlideshowImages(current =>
@@ -1407,8 +1130,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
     // Upload
     if (fileToUpload) {
-      const compressedFile = await compressImage(fileToUpload);
-      const uploadedData = await uploadFile(compressedFile, targetImage.file_v_id); // Pass existing v_id for replacement
+      const uploadedData = await uploadFile(fileToUpload, targetImage.file_v_id); // Pass existing v_id for replacement
 
       if (uploadedData) {
         setSlideshowImages(prev => prev.map((item, idx) => {
@@ -1489,27 +1211,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   }, [libraryTargetIndex, activeSlideIndex]);
 
   const updateSetting = (key, value) => {
-    setSlideshowSettings(prev => ({ ...prev, [key]: value }));
+    setSlideshowSettings({ ...slideshowSettings, [key]: value });
   };
   const effects = ['Linear', 'Fade', 'Slide', 'Push', 'Flip', 'Reveal'];
 
-  const colorsOnPage = React.useMemo(() => {
-    const doc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
-    const elements = doc.querySelectorAll('[data-fill-color], [data-stroke-color]');
-    const colors = new Set();
-    elements.forEach(el => {
-      const fill = el.getAttribute('data-fill-color');
-      const stroke = el.getAttribute('data-stroke-color');
-      if (fill && fill !== 'none' && fill !== '#' && !fill.includes('gradient')) colors.add(fill.toUpperCase());
-      if (stroke && stroke !== 'none' && stroke !== '#' && !stroke.includes('gradient')) colors.add(stroke.toUpperCase());
-    });
-    colors.add('#FFFFFF');
-    colors.add('#000000');
-    return Array.from(colors).slice(0, 12);
-  }, [activePageIndex]);
-
   return (
-    <div className="space-y-[1vw]">
+    <div ref={sidebarRef} className="space-y-[1vw]">
       <style>{`
         .ss-slider { -webkit-appearance: none; width: 100%; background: transparent; }
         .ss-slider::-webkit-slider-runnable-track { height: 0.5vw; border-radius: 9999px; background: inherit; }
@@ -1630,7 +1337,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                     <div className="w-[1.2vw] h-[1.2vw] border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                   </div>
                 ) : slideshowImages[i] ? (
-                  <img src={slideshowImages[i].url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (slideshowSettings.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain', opacity: localOpacity / 100 }} alt="" />
+                  <img src={slideshowImages[i].url} className="w-full h-full rounded-[0.3vw] transition-all duration-300" style={{ objectFit: (slideshowSettings.imageFitType || 'Fill All') === 'Fill All' ? 'cover' : 'contain' }} alt="" />
                 ) : (
                   <div
                     onClick={(e) => {
@@ -1673,47 +1380,6 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         <input type="file" ref={fileInputRef} onChange={handleFileUpload} multiple accept="image/*" className="hidden" />
         <input type="file" ref={replaceInputRef} onChange={handleReplaceFileChange} accept="image/*" className="hidden" />
 
-        {/* Opacity */}
-        <div className="space-y-[0.5vw]">
-          <div className="flex items-center gap-[0.5vw]">
-            <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
-            <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
-          </div>
-          <div className="flex items-center gap-[1vw] pb-[0.5vw]">
-            <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={localOpacity}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setLocalOpacity(val);
-                  if (selectedElement) {
-                    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                    const targetElement = pageContainer?.querySelector(`[id="${selectedElement.id}"]`) || selectedElement;
-                    if (targetElement) {
-                      targetElement.setAttribute('opacity', (val / 100).toString());
-                      targetElement.style.opacity = (val / 100).toString();
-
-                      const imgEl = getSvgImageEl(targetElement);
-                      if (imgEl && imgEl !== targetElement) {
-                        imgEl.setAttribute('opacity', (val / 100).toString());
-                        imgEl.style.setProperty('opacity', (val / 100).toString(), 'important');
-                      }
-                    }
-                  }
-                }}
-                onMouseUp={(e) => onUpdateOpacity(Number(e.target.value))}
-                onTouchEnd={(e) => onUpdateOpacity(Number(e.target.value))}
-                className="w-full cursor-pointer custom-range-slider"
-                style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${localOpacity}%, #E2E8F0 ${localOpacity}%, #E2E8F0 100%)` }}
-              />
-            </div>
-            <span className="text-[0.85vw] font-medium text-gray-800 w-[2.3vw] text-right">{localOpacity} %</span>
-          </div>
-        </div>
-
         {/* 3. Library Access Button */}
         <button onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">
           <div className="absolute inset-0 flex gap-[0.5vw] opacity-20 group-hover:opacity-40 transition-opacity">
@@ -1727,13 +1393,13 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         </button>
 
         {/* 4. Slideshow Property Consolidated Accordion */}
-        <div ref={accordionRef} className="border border-gray-100 rounded-[0.75vw] overflow-hidden shadow-sm bg-white">
+        <div className="border border-gray-100 rounded-[0.75vw] overflow-hidden shadow-sm bg-white">
           <button
             onClick={() => setIsSlideshowPropOpen(!isSlideshowPropOpen)}
-            className={`w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold hover:bg-gray-50 transition-colors ${isSlideshowPropOpen ? 'text-gray-900' : 'text-gray-500'}`}
+            className="w-full flex items-center justify-between px-[1vw] py-[1vw] text-[0.9vw] font-semibold text-gray-900 hover:bg-gray-50 transition-colors"
           >
             <span>Slideshow Property</span>
-            <ChevronDown size="1.1vw" className={`transition-transform duration-200 ${isSlideshowPropOpen ? 'rotate-180 text-gray-900' : 'text-gray-500'}`} />
+            <ChevronDown size="1.1vw" className={`text-gray-900 transition-transform duration-200 ${isSlideshowPropOpen ? 'rotate-180' : ''}`} />
           </button>
           {isSlideshowPropOpen && (
             <div className="px-[1vw] pt-[0.5vw] border-t border-gray-50 space-y-[1.25vw] animate-in slide-in-from-top-2">
@@ -1761,7 +1427,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                 <div className="flex flex-col gap-[1.2vw] mt-[0.75vw] px-[0.2vw]">
                   {/* Auto Slide Duration Row */}
                   <div className="flex items-center justify-between">
-                    <span className="text-[0.75vw] font-medium text-gray-500 whitespace-nowrap">Auto Slide Duration</span>
+                    <span className="text-[0.75vw] font-medium text-gray-500">Auto Slide Duration</span>
                     <div className="flex-1 border-b border-dashed border-gray-200 mx-[1vw]" />
                     <div className="flex items-center gap-[0.5vw]">
                       <button
@@ -1770,28 +1436,8 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       >
                         <ChevronLeft size="1.1vw" />
                       </button>
-                      <div
-                        className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm cursor-ew-resize"
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          const startX = e.clientX;
-                          const startVal = Math.round(slideshowSettings.speed || 3);
-                          const handleMove = (moveEvent) => {
-                            const delta = moveEvent.clientX - startX;
-                            // Every 15px dragged changes the value by 1
-                            const increments = Math.round(delta / 15);
-                            const newValue = Math.max(1, Math.min(20, startVal + increments));
-                            updateSetting('speed', newValue);
-                          };
-                          const handleUp = () => {
-                            document.removeEventListener('pointermove', handleMove);
-                            document.removeEventListener('pointerup', handleUp);
-                          };
-                          document.addEventListener('pointermove', handleMove);
-                          document.addEventListener('pointerup', handleUp);
-                        }}
-                      >
-                        <span className="text-[0.85vw] font-medium text-gray-800 pointer-events-none">{(slideshowSettings.speed || 3)}s</span>
+                      <div className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm">
+                        <span className="text-[0.85vw] font-medium text-gray-800">{(slideshowSettings.speed || 3)}s</span>
                       </div>
                       <button
                         onClick={() => updateSetting('speed', Math.min(20, (slideshowSettings.speed || 3) + 1))}
@@ -1814,14 +1460,17 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       <div className="flex items-center gap-[0.4vw] shrink-0">
                         <div
                           className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100"
-                          style={{ background: slideshowSettings.navIconColor || '#000000' }}
+                          style={{ backgroundColor: slideshowSettings.navIconColor || '#000000' }}
                           onClick={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const sidebarRect = sidebarRef.current?.getBoundingClientRect() || { left: 0 };
+                            setNavPickerPos({ x: sidebarRect.left - 200, y: rect.bottom - 40 });
                             setShowNavColorPicker(true);
                           }}
                         />
                         <div className="flex items-center justify-between border border-gray-400 rounded-[0.5vw] px-[0.75vw] bg-white h-[2.2vw] w-[8vw]">
-                          <span className="text-[0.75vw] text-gray-700 font-semibold uppercase truncate block w-[4.5vw]" title={slideshowSettings.navIconColor || '#000000'}>{slideshowSettings.navIconColor || '#000000'}</span>
-                          <span className="text-[0.75vw] text-gray-400 shrink-0">100%</span>
+                          <span className="text-[0.75vw] text-gray-700 font-semibold uppercase">{slideshowSettings.navIconColor || '#000000'}</span>
+                          <span className="text-[0.75vw] text-gray-400">100%</span>
                         </div>
                       </div>
 
@@ -1836,12 +1485,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                         </div>
 
                         {/* Icon Content (Blurred on hover) */}
-                        <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:opacity-30">
-                          <div className="flex items-center justify-center shrink-0 transition-all">
-                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '1.8vw', color: '#000000' }).left}
+                        <div className="flex items-center justify-center gap-[0.8vw] w-full h-full transition-all duration-300 group-hover/nav:blur-[1px]">
+                          <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center shrink-0">
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).left}
                           </div>
-                          <div className="flex items-center justify-center shrink-0 transition-all">
-                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '1.8vw', color: '#000000' }).right}
+                          <div className="w-[2vw] h-[2vw] bg-black rounded-[0.4vw] flex items-center justify-center shrink-0">
+                            {NavIconRenderer({ styleId: slideshowSettings.navStyle || 1, size: '0.9vw', color: 'white' }).right}
                           </div>
                         </div>
                       </div>
@@ -1859,19 +1508,27 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                   <Switch enabled={slideshowSettings.showDots ?? true} onChange={(v) => updateSetting('showDots', v)} />
                 </div>
                 {(slideshowSettings.showDots ?? true) && (
-                  <div className="flex items-center justify-center ml-[-2vw] px-[0.5vw] mb-[1vw] animate-in slide-in-from-top-1 fade-in duration-200 mt-[0.5vw]">
-                    <div className="flex items-center gap-[0.4vw] shrink-0">
+                  <div className="flex items-center justify-between px-[0.5vw] mb-[1vw] animate-in slide-in-from-top-1 fade-in duration-200 mt-[0.5vw]">
+                    <span className="text-[0.75vw] pl-[0.5vw] font-medium text-gray-600 mt-[0.5vw]">Pagination Dot Color</span>
+                    <div className="flex items-center gap-[0.4vw]  mt-[0.5vw]">
                       <div
-                        className="w-[2.2vw] h-[2.2vw] rounded-[0.5vw] cursor-pointer shadow-sm border border-gray-100"
-                        style={{ background: slideshowSettings.dotColor || '#000000' }}
+                        className="w-[1.6vw] h-[1.6vw] rounded-[0.3vw] border border-gray-400 overflow-hidden relative cursor-pointer shadow-sm transition-all hover:scale-105 active:scale-95"
+                        style={{ backgroundColor: slideshowSettings.dotColor || '#4F46E5' }}
                         onClick={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const sidebarRect = sidebarRef.current?.getBoundingClientRect() || { left: 0 };
+                          const pickerWidth = window.innerWidth * 0.15;
+                          setDotPickerPos({
+                            x: sidebarRect.left - (pickerWidth / 2),
+                            y: Math.min(window.innerHeight - 350, rect.top - 150)
+                          });
                           setShowDotColorPicker(true);
                         }}
                       />
                       {/* Hex code */}
-                      <div className="flex items-center justify-between border border-gray-400 rounded-[0.5vw] px-[0.75vw] bg-white h-[2.2vw] w-[8vw]">
-                        <span className="text-[0.75vw] text-gray-700 font-semibold uppercase truncate block w-[4.5vw]" title={slideshowSettings.dotColor || '#000000'}>{slideshowSettings.dotColor || '#000000'}</span>
-                        <span className="text-[0.75vw] text-gray-400 shrink-0">100%</span>
+                      <div className="flex items-center justify-between border border-gray-500 rounded-[0.4vw] px-[0.5vw] bg-white h-[1.8vw] w-[6.5vw]">
+                        <span className="text-[0.75vw] text-gray-700 font-medium uppercase">{slideshowSettings.dotColor || '#4F46E5'}</span>
+                        <span className="text-[0.75vw] text-gray-700">100%</span>
                       </div>
                     </div>
                   </div>
@@ -1889,40 +1546,34 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
 
       {/* Popups & Pickers */}
-      {showDotColorPicker && createPortal(
-        <div id="slideshow-color-picker" className="fixed z-[9999]" style={{ top: '160px', right: '10.5vw' }}>
-          <div className="relative">
-            <div className="fixed inset-0" onClick={() => setShowDotColorPicker(false)} />
-            <ColorPicker
-              color={slideshowSettings.dotColor || '#000000'}
-              onChange={(val) => updateSetting('dotColor', val)}
-              opacity={slideshowSettings.dotOpacity ?? 100}
-              onOpacityChange={(val) => updateSetting('dotOpacity', val)}
-              onClose={() => setShowDotColorPicker(false)}
-              className="relative z-[10000]"
-              colorsOnPage={colorsOnPage}
-            />
-          </div>
-        </div>,
-        document.body
+      {showDotColorPicker && (
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={() => setShowDotColorPicker(false)} />
+          <ColorPicker
+            color={slideshowSettings.dotColor || '#4F46E5'}
+            onChange={(val) => updateSetting('dotColor', val)}
+            opacity={slideshowSettings.dotOpacity ?? 100}
+            onOpacityChange={(val) => updateSetting('dotOpacity', val)}
+            onClose={() => setShowDotColorPicker(false)}
+            className="fixed z-[210]"
+            style={{ left: dotPickerPos.x, top: dotPickerPos.y }}
+          />
+        </>
       )}
 
-      {showNavColorPicker && createPortal(
-        <div id="slideshow-nav-color-picker" className="fixed z-[9999]" style={{ top: '160px', right: '10.5vw' }}>
-          <div className="relative">
-            <div className="fixed inset-0" onClick={() => setShowNavColorPicker(false)} />
-            <ColorPicker
-              color={slideshowSettings.navIconColor || '#000000'}
-              onChange={(val) => updateSetting('navIconColor', val)}
-              opacity={slideshowSettings.navIconOpacity ?? 100}
-              onOpacityChange={(val) => updateSetting('navIconOpacity', val)}
-              onClose={() => setShowNavColorPicker(false)}
-              className="relative z-[10000]"
-              colorsOnPage={colorsOnPage}
-            />
-          </div>
-        </div>,
-        document.body
+      {showNavColorPicker && (
+        <>
+          <div className="fixed inset-0 z-[200]" onClick={() => setShowNavColorPicker(false)} />
+          <ColorPicker
+            color={slideshowSettings.navIconColor || '#000000'}
+            onChange={(val) => updateSetting('navIconColor', val)}
+            opacity={slideshowSettings.navIconOpacity ?? 100}
+            onOpacityChange={(val) => updateSetting('navIconOpacity', val)}
+            onClose={() => setShowNavColorPicker(false)}
+            className="fixed z-[210]"
+            style={{ left: navPickerPos.x, top: navPickerPos.y }}
+          />
+        </>
       )}
 
       {showNavStylesPopup && (

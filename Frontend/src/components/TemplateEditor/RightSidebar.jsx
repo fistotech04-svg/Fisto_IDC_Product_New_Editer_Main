@@ -510,18 +510,6 @@ const RightSidebar = ({
                     }
                  }
               }
-              
-              // Apply visual crop offsets so properties panel reflects the visual bounds
-              const cropStr = actualEl.getAttribute('data-crop-data');
-              if (cropStr && cropStr !== 'null') {
-                 try {
-                    const crop = JSON.parse(cropStr);
-                    x = (parseFloat(x) + (parseFloat(crop.left) / 100) * parseFloat(w)).toString();
-                    y = (parseFloat(y) + (parseFloat(crop.top) / 100) * parseFloat(h)).toString();
-                    w = (parseFloat(w) * (parseFloat(crop.width) / 100)).toString();
-                    h = (parseFloat(h) * (parseFloat(crop.height) / 100)).toString();
-                 } catch (e) {}
-              }
            } catch (e) {
               console.warn("Failed to get BBox for element", e);
            }
@@ -961,18 +949,6 @@ const RightSidebar = ({
                 </div>
                 <div
                   onClick={handleUploadClick}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const files = e.dataTransfer.files;
-                    if (files && files.length > 0) {
-                      handleFileChange({ target: { files: files } });
-                    }
-                  }}
                   className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
                 >
                   <input 
