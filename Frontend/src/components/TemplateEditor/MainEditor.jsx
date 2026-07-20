@@ -47,7 +47,7 @@ export const getVisualBBox = (el) => {
   if (clipMatch && clipMatch[1]) {
     const clipEl = document.getElementById(clipMatch[1]);
     if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
-      try { return clipEl.firstElementChild.getBBox(); } catch (e) { }
+      try { return clipEl.firstElementChild.getBBox(); } catch (e) {}
     }
   }
 
@@ -1325,7 +1325,7 @@ const MainEditor = ({
           el.removeAttribute('data-slideshow-manual');
         });
       }
-    }, 50); // Check every 50ms for accurate timing
+    }, 1000); // Check every second
 
     return () => clearInterval(globalSlideshowInterval);
   }, []);
@@ -1558,7 +1558,6 @@ const MainEditor = ({
             background: 'transparent',
             zIndex: '9999',
             pointerEvents: 'none',
-            filter: 'drop-shadow(0px 0px 4px rgba(0,0,0,0.8))',
           });
 
           // Establish a base font-size linked to width for proportional scaling
@@ -1688,10 +1687,10 @@ const MainEditor = ({
           Object.assign(timeDisplay.style, {
             alignSelf: 'flex-start',
             color: 'white',
-            fontSize: '0.6vw',
+            fontSize: '5em',
             fontFamily: 'sans-serif',
             opacity: '0.9',
-            marginBottom: '0.2vw',
+            marginBottom: '1em',
           });
 
           const formatTime = (sec) => {
@@ -4533,7 +4532,7 @@ const MainEditor = ({
                       const leaf = getDraggableElement(target, svgElement);
                       const isBase = leaf ? topFrames.some(f => f.id === leaf.id) : true;
                       if (isBase || target === svgElement || target.getAttribute('data-name') === 'Overlay') {
-                        isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                         isHit = hitTest(selEl, event.clientX, event.clientY, 2);
                       }
                     }
 
@@ -5092,7 +5091,7 @@ const MainEditor = ({
             const isImageGroup = el.tagName?.toLowerCase() === 'g' && (el.getAttribute('data-type') === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif');
             if (isImageGroup && ['n', 's', 'e', 'w'].includes(dir)) {
               el.setAttribute('data-object-fit', 'Crop');
-
+              
               // We must use centered slice to avoid DOM wrappers, as pure SVG <image> 
               // cannot do pinned side-crops without an <svg> wrapper or percentages.
               el.setAttribute('data-crop-align', 'xMidYMid');
@@ -5347,12 +5346,10 @@ const MainEditor = ({
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
               }
             }
-
+            
             if (isImage && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir)) {
               if (isCtrlPressedMove) {
-                const currentFit = el.getAttribute('data-object-fit');
-                if (currentFit !== 'Crop') {
-                  if (currentFit) el.setAttribute('data-previous-object-fit', currentFit);
+                if (el.getAttribute('data-object-fit') !== 'Crop') {
                   el.setAttribute('data-object-fit', 'Crop');
                 }
                 el.removeAttribute('data-crop-align'); // Cleanup old align
@@ -5536,7 +5533,7 @@ const MainEditor = ({
                         child.setAttribute('y', local.y);
                         child.setAttribute('width', local.width);
                         child.setAttribute('height', local.height);
-
+                        
                         if ((tag === 'image' || tag === 'video') && el.tagName === 'g') {
                           const svg = child.ownerSVGElement;
                           const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
@@ -5619,92 +5616,65 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
-                        
-                        if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video')) {
-                          const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
-                          if (cropStr && cropStr !== 'null') {
-                            try {
-                              const crop = JSON.parse(cropStr);
-                              const cropW = parseFloat(crop.width) / 100;
-                              const cropH = parseFloat(crop.height) / 100;
-                              const cropL = parseFloat(crop.left) / 100;
-                              const cropT = parseFloat(crop.top) / 100;
-
-                              if (cropW > 0) {
-                                imgW = newLocW / cropW;
-                                imgX = newLocX - cropL * imgW;
-                              }
-                              if (cropH > 0) {
-                                imgH = newLocH / cropH;
-                                imgY = newLocY - cropT * imgH;
-                              }
-                            } catch (e) {}
-                          }
-                          el.setAttribute('data-crop-orig-w', imgW.toString());
-                          el.setAttribute('data-crop-orig-h', imgH.toString());
-                          el.setAttribute('data-crop-orig-x', imgX.toString());
-                          el.setAttribute('data-crop-orig-y', imgY.toString());
-                        }
-
                         if ((tag === 'image' || tag === 'video') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
-                          imgX = el.hasAttribute('data-crop-orig-x') ? parseFloat(el.getAttribute('data-crop-orig-x')) : state.initialImgState.x;
-                          imgY = el.hasAttribute('data-crop-orig-y') ? parseFloat(el.getAttribute('data-crop-orig-y')) : state.initialImgState.y;
-                          imgW = el.hasAttribute('data-crop-orig-w') ? parseFloat(el.getAttribute('data-crop-orig-w')) : state.initialImgState.w;
-                          imgH = el.hasAttribute('data-crop-orig-h') ? parseFloat(el.getAttribute('data-crop-orig-h')) : state.initialImgState.h;
+                           imgX = state.initialImgState.x;
+                           imgY = state.initialImgState.y;
+                           imgW = state.initialImgState.w;
+                           imgH = state.initialImgState.h;
 
-                          if (imgW > 0 && imgH > 0) {
-                            let existingCrop = {};
-                            let hasExistingCrop = false;
-                            try {
-                              const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
-                              if (cropStr && cropStr !== 'null') {
-                                existingCrop = JSON.parse(cropStr);
-                                hasExistingCrop = Object.keys(existingCrop).length > 0;
-                              }
-                            } catch (e) { }
+                           if (imgW > 0 && imgH > 0) {
+                             let existingCrop = {};
+                             let hasExistingCrop = false;
+                             try {
+                               const cropStr = el.getAttribute('data-crop-data');
+                               if (cropStr && cropStr !== 'null') {
+                                 existingCrop = JSON.parse(cropStr);
+                                 hasExistingCrop = Object.keys(existingCrop).length > 0;
+                               }
+                             } catch (e) {}
 
-                            // If starting a fresh crop (e.g., after changing fit type which clears crop data),
-                            // we must reset the orig dimensions to the current image dimensions so percentages match.
-                            if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
-                              el.setAttribute('data-crop-orig-w', imgW.toString());
-                              el.setAttribute('data-crop-orig-h', imgH.toString());
-                              el.setAttribute('data-crop-orig-x', imgX.toString());
-                              el.setAttribute('data-crop-orig-y', imgY.toString());
-                            }
+                             // If starting a fresh crop (e.g., after changing fit type which clears crop data),
+                             // we must reset the orig dimensions to the current image dimensions so percentages match.
+                             if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
+                               el.setAttribute('data-crop-orig-w', imgW.toString());
+                               el.setAttribute('data-crop-orig-h', imgH.toString());
+                               el.setAttribute('data-crop-orig-x', imgX.toString());
+                               el.setAttribute('data-crop-orig-y', imgY.toString());
+                             }
 
-                            const cropTop = Math.max(0, ((finalY - imgY) / imgH) * 100);
-                            const cropLeft = Math.max(0, ((finalX - imgX) / imgW) * 100);
-                            const cropWidth = Math.max(0, (finalWidth / imgW) * 100);
-                            const cropHeight = Math.max(0, (finalHeight / imgH) * 100);
-                            const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
-                            const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
+                             const cropTop = Math.max(0, ((finalY - imgY) / imgH) * 100);
+                             const cropLeft = Math.max(0, ((finalX - imgX) / imgW) * 100);
+                             const cropWidth = Math.max(0, (finalWidth / imgW) * 100);
+                             const cropHeight = Math.max(0, (finalHeight / imgH) * 100);
+                             const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
+                             const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
 
-                            let clipTarget = el.querySelector('.image-inner-content') || el;
+                             let clipTarget = el.querySelector('.image-inner-content') || el;
+                             
+                             let radiusStr = '';
+                             if (el.hasAttribute('data-effect-radius-tl')) {
+                               const tl = el.getAttribute('data-effect-radius-tl') || 0;
+                               const tr = el.getAttribute('data-effect-radius-tr') || 0;
+                               const br = el.getAttribute('data-effect-radius-br') || 0;
+                               const bl = el.getAttribute('data-effect-radius-bl') || 0;
+                               radiusStr = ` round ${tl}px ${tr}px ${br}px ${bl}px`;
+                             }
 
-                            let radiusStr = '';
-                            if (el.hasAttribute('data-effect-radius-tl')) {
-                              const tl = el.getAttribute('data-effect-radius-tl') || 0;
-                              const tr = el.getAttribute('data-effect-radius-tr') || 0;
-                              const br = el.getAttribute('data-effect-radius-br') || 0;
-                              const bl = el.getAttribute('data-effect-radius-bl') || 0;
-                              radiusStr = ` round ${tl}px ${tr}px ${br}px ${bl}px`;
-                            }
+                             const clipVal = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%${radiusStr})`;
+                             clipTarget.style.setProperty('clip-path', clipVal, 'important');
+                             clipTarget.style.setProperty('-webkit-clip-path', clipVal, 'important');
+                             if (clipTarget !== el) el.style.removeProperty('clip-path');
 
-                            const clipVal = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%${radiusStr})`;
-                            clipTarget.style.setProperty('clip-path', clipVal, 'important');
-                            clipTarget.style.setProperty('-webkit-clip-path', clipVal, 'important');
-                            if (clipTarget !== el) el.style.removeProperty('clip-path');
-
-                            el.setAttribute('data-crop-data', JSON.stringify({ ...existingCrop, left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }));
-                            el.setAttribute('data-effect-crop-inset', 'true');
-                          }
+                             el.setAttribute('data-crop-data', JSON.stringify({ ...existingCrop, left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }));
+                             el.setAttribute('data-effect-crop-inset', 'true');
+                           }
                         }
 
                         child.setAttribute('x', imgX);
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
-
+                        
                         if (tag === 'image' || tag === 'video') {
                           const svg = child.ownerSVGElement;
                           const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
@@ -6278,10 +6248,10 @@ const MainEditor = ({
     if (!hitCandidate || topFrames.some(f => f.id === hitCandidate.id)) {
       const leafTarget = getDraggableElement(e.target, svg);
       if (leafTarget) {
-        const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
-        if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
-          hitCandidate = leafTarget;
-        }
+         const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
+         if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
+            hitCandidate = leafTarget;
+         }
       }
     }
 
@@ -6332,7 +6302,7 @@ const MainEditor = ({
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
     // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
-    const shouldStartMarquee = ((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    const shouldStartMarquee = ( (e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -8031,7 +8001,7 @@ const MainEditor = ({
         const topLevelEls = getTopLevelFrames(svg);
         let hitTopFrame = null;
         let targetEl = getDraggableElement(e.target, e.currentTarget);
-
+        
         let currEl = targetEl;
         while (currEl && currEl !== svg) {
           if (topLevelEls.includes(currEl)) {
@@ -8077,7 +8047,7 @@ const MainEditor = ({
     // 1. Identify which top-level frame was hit (topmost in z-order)
     let hitFrame = null;
     let target = getDraggableElement(e.target, e.currentTarget);
-
+    
     // First, try to find the frame directly from the clicked target's DOM ancestry
     // This is robust against coordinate-based hitTest failing due to UI overlays (like the Upload panel)
     let currentEl = target;
