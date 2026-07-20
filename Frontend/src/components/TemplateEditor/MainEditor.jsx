@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
-import { syncGradient } from './TemplateEditor';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -48,7 +47,7 @@ export const getVisualBBox = (el) => {
   if (clipMatch && clipMatch[1]) {
     const clipEl = document.getElementById(clipMatch[1]);
     if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
-      try { return clipEl.firstElementChild.getBBox(); } catch (e) {}
+      try { return clipEl.firstElementChild.getBBox(); } catch (e) { }
     }
   }
 
@@ -1326,7 +1325,7 @@ const MainEditor = ({
           el.removeAttribute('data-slideshow-manual');
         });
       }
-    }, 1000); // Check every second
+    }, 50); // Check every 50ms for accurate timing
 
     return () => clearInterval(globalSlideshowInterval);
   }, []);
@@ -1559,6 +1558,7 @@ const MainEditor = ({
             background: 'transparent',
             zIndex: '9999',
             pointerEvents: 'none',
+            filter: 'drop-shadow(0px 0px 4px rgba(0,0,0,0.8))',
           });
 
           // Establish a base font-size linked to width for proportional scaling
@@ -1688,10 +1688,10 @@ const MainEditor = ({
           Object.assign(timeDisplay.style, {
             alignSelf: 'flex-start',
             color: 'white',
-            fontSize: '5em',
+            fontSize: '0.6vw',
             fontFamily: 'sans-serif',
             opacity: '0.9',
-            marginBottom: '1em',
+            marginBottom: '0.2vw',
           });
 
           const formatTime = (sec) => {
@@ -1950,57 +1950,6 @@ const MainEditor = ({
     const interval = setInterval(syncOverlays, 100);
     return () => clearInterval(interval);
   }, [activePageIndex]);
-
-  // Page-wide gradient restore: runs after every page render (including page switches and auto-saves).
-  // Scans ALL image groups on the active page and restores gradient fills that the browser failed
-  // to resolve after dangerouslySetInnerHTML injection — fixes black background when no element is selected.
-  useLayoutEffect(() => {
-    const restorePageGradients = () => {
-      const container = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-      if (!container) return;
-
-      const imageGroups = container.querySelectorAll('[data-is-image-group="true"], [data-fill-type="gradient"]');
-      imageGroups.forEach(group => {
-        const dataFill = group.getAttribute('data-fill-color') || '';
-        if (!dataFill.includes('gradient')) return;
-
-        const fillLayer = group.querySelector('.image-fill-layer');
-        if (!fillLayer) return;
-
-        const fillAttr = fillLayer.getAttribute('fill') || '';
-        if (!fillAttr.includes('url(#') && !fillAttr.includes('gradient')) return;
-
-        // CRITICAL: Sync the latest gradient data from the image group's data-* attributes
-        // onto the fillLayer BEFORE calling syncGradient. This ensures color changes from
-        // the color picker are reflected — otherwise syncGradient reads stale fill-stops
-        // from the last serialized state of the fillLayer.
-        const latestStops = group.getAttribute('data-fill-stops');
-        const latestGradType = group.getAttribute('data-fill-gradient-type') || 'linear';
-        const latestAngle = group.getAttribute('data-fill-angle') || '0';
-        const latestRadius = group.getAttribute('data-fill-radius') || '100';
-
-        if (latestStops) {
-          fillLayer.setAttribute('fill-stops', latestStops);
-          fillLayer.setAttribute('fill-gradient-type', latestGradType);
-          fillLayer.setAttribute('fill-angle', latestAngle);
-          fillLayer.setAttribute('fill-radius', latestRadius);
-          fillLayer.setAttribute('fill-type', 'gradient');
-        }
-
-        syncGradient(group.ownerDocument || document, fillLayer, 'fill');
-
-        // Force browser to re-resolve the url(#...) reference
-        const resolvedFill = fillLayer.getAttribute('fill');
-        if (resolvedFill && resolvedFill.startsWith('url(#')) {
-          fillLayer.setAttribute('fill', 'none');
-          fillLayer.getBoundingClientRect(); // force synchronous reflow
-          fillLayer.setAttribute('fill', resolvedFill);
-        }
-      });
-    };
-
-    restorePageGradients();
-  }, [activePageIndex, pages]);
 
   // Handle external asset insertion events
   useEffect(() => {
@@ -4708,56 +4657,6 @@ const MainEditor = ({
               }
             }
 
-            const shiftDragHandler = (e) => {
-              if (e.key === 'Shift') {
-                const state = event.interaction.dragState;
-                if (!state || !state.lastClientX) return;
-
-                const isShift = e.shiftKey || e.type === 'keydown';
-
-                if (state.multiDragItems) {
-                  for (const item of state.multiDragItems) {
-                    const currentPointLocal = getLocalPoint(state.svgElement, item.element.parentNode, state.lastClientX, state.lastClientY);
-                    if (!currentPointLocal || !item.startPointLocal) continue;
-
-                    let dx = currentPointLocal.x - item.startPointLocal.x;
-                    let dy = currentPointLocal.y - item.startPointLocal.y;
-
-                    if (isShift) {
-                      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                      else dx = 0;
-                    }
-
-                    const translation = new DOMMatrix().translate(dx, dy);
-                    const nextMatrix = translation.multiply(item.initialMatrix);
-                    item.element.setAttribute('transform', matrixToTransform(nextMatrix));
-                  }
-                  drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
-                } else {
-                  const target = state.element;
-                  const currentPointLocal = getLocalPoint(state.svgElement, target.parentNode, state.lastClientX, state.lastClientY);
-                  if (!currentPointLocal || !state.startPointLocal) return;
-
-                  let dx = currentPointLocal.x - state.startPointLocal.x;
-                  let dy = currentPointLocal.y - state.startPointLocal.y;
-
-                  if (isShift) {
-                    if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                    else dx = 0;
-                  }
-
-                  const translation = new DOMMatrix().translate(dx, dy);
-                  const nextMatrix = translation.multiply(state.initialMatrix);
-                  target.setAttribute('transform', matrixToTransform(nextMatrix));
-                  if (typeof drawOverlayHighlight === 'function') {
-                    drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
-                  }
-                }
-              }
-            };
-            document.addEventListener('keydown', shiftDragHandler);
-            document.addEventListener('keyup', shiftDragHandler);
-
             event.interaction.dragState = {
               element: elementToDrag,
               startPoint: startPoint,
@@ -4769,8 +4668,7 @@ const MainEditor = ({
               multiDragItems: multiDragItems.length > 0 ? multiDragItems : null,
               initialClientX: event.clientX,
               initialClientY: event.clientY,
-              thresholdMet: false,
-              shiftDragHandler
+              thresholdMet: false
             };
           },
           move(event) {
@@ -4835,9 +4733,6 @@ const MainEditor = ({
               }
             }
 
-            dragState.lastClientX = event.clientX;
-            dragState.lastClientY = event.clientY;
-
             const isAltPressedCurrent = event.altKey || (event.sourceEvent && event.sourceEvent.altKey);
             if (isAltPressedCurrent && !dragState.hasDuplicated) {
               dragState.hasDuplicated = true;
@@ -4897,13 +4792,8 @@ const MainEditor = ({
                 const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
                 if (!currentPointLocal || !item.startPointLocal) continue;
 
-                let dx = currentPointLocal.x - item.startPointLocal.x;
-                let dy = currentPointLocal.y - item.startPointLocal.y;
-
-                if (event.shiftKey) {
-                  if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                  else dx = 0;
-                }
+                const dx = currentPointLocal.x - item.startPointLocal.x;
+                const dy = currentPointLocal.y - item.startPointLocal.y;
 
                 const translation = new DOMMatrix().translate(dx, dy);
                 const nextMatrix = translation.multiply(item.initialMatrix);
@@ -4916,13 +4806,8 @@ const MainEditor = ({
               const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY);
               if (!currentPointLocal || !dragState.startPointLocal) return;
 
-              let dx = currentPointLocal.x - dragState.startPointLocal.x;
-              let dy = currentPointLocal.y - dragState.startPointLocal.y;
-
-              if (event.shiftKey) {
-                if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                else dx = 0;
-              }
+              const dx = currentPointLocal.x - dragState.startPointLocal.x;
+              const dy = currentPointLocal.y - dragState.startPointLocal.y;
 
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
@@ -4951,11 +4836,6 @@ const MainEditor = ({
           end(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
-
-            if (dragState.shiftDragHandler) {
-              document.removeEventListener('keydown', dragState.shiftDragHandler);
-              document.removeEventListener('keyup', dragState.shiftDragHandler);
-            }
 
             if (!dragState.thresholdMet) {
               delete event.interaction.dragState;
@@ -5212,7 +5092,7 @@ const MainEditor = ({
             const isImageGroup = el.tagName?.toLowerCase() === 'g' && (el.getAttribute('data-type') === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif');
             if (isImageGroup && ['n', 's', 'e', 'w'].includes(dir)) {
               el.setAttribute('data-object-fit', 'Crop');
-              
+
               // We must use centered slice to avoid DOM wrappers, as pure SVG <image> 
               // cannot do pinned side-crops without an <svg> wrapper or percentages.
               el.setAttribute('data-crop-align', 'xMidYMid');
@@ -5467,10 +5347,12 @@ const MainEditor = ({
                 scaleY = s * (Math.sign(scaleY) / Math.sign(scaleX) || 1);
               }
             }
-            
+
             if (isImage && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir)) {
               if (isCtrlPressedMove) {
-                if (el.getAttribute('data-object-fit') !== 'Crop') {
+                const currentFit = el.getAttribute('data-object-fit');
+                if (currentFit !== 'Crop') {
+                  if (currentFit) el.setAttribute('data-previous-object-fit', currentFit);
                   el.setAttribute('data-object-fit', 'Crop');
                 }
                 el.removeAttribute('data-crop-align'); // Cleanup old align
@@ -5654,7 +5536,7 @@ const MainEditor = ({
                         child.setAttribute('y', local.y);
                         child.setAttribute('width', local.width);
                         child.setAttribute('height', local.height);
-                        
+
                         if ((tag === 'image' || tag === 'video') && el.tagName === 'g') {
                           const svg = child.ownerSVGElement;
                           const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);
@@ -5737,65 +5619,92 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
+                        
+                        if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video')) {
+                          const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
+                          if (cropStr && cropStr !== 'null') {
+                            try {
+                              const crop = JSON.parse(cropStr);
+                              const cropW = parseFloat(crop.width) / 100;
+                              const cropH = parseFloat(crop.height) / 100;
+                              const cropL = parseFloat(crop.left) / 100;
+                              const cropT = parseFloat(crop.top) / 100;
+
+                              if (cropW > 0) {
+                                imgW = newLocW / cropW;
+                                imgX = newLocX - cropL * imgW;
+                              }
+                              if (cropH > 0) {
+                                imgH = newLocH / cropH;
+                                imgY = newLocY - cropT * imgH;
+                              }
+                            } catch (e) {}
+                          }
+                          el.setAttribute('data-crop-orig-w', imgW.toString());
+                          el.setAttribute('data-crop-orig-h', imgH.toString());
+                          el.setAttribute('data-crop-orig-x', imgX.toString());
+                          el.setAttribute('data-crop-orig-y', imgY.toString());
+                        }
+
                         if ((tag === 'image' || tag === 'video') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
-                           imgX = state.initialImgState.x;
-                           imgY = state.initialImgState.y;
-                           imgW = state.initialImgState.w;
-                           imgH = state.initialImgState.h;
+                          imgX = el.hasAttribute('data-crop-orig-x') ? parseFloat(el.getAttribute('data-crop-orig-x')) : state.initialImgState.x;
+                          imgY = el.hasAttribute('data-crop-orig-y') ? parseFloat(el.getAttribute('data-crop-orig-y')) : state.initialImgState.y;
+                          imgW = el.hasAttribute('data-crop-orig-w') ? parseFloat(el.getAttribute('data-crop-orig-w')) : state.initialImgState.w;
+                          imgH = el.hasAttribute('data-crop-orig-h') ? parseFloat(el.getAttribute('data-crop-orig-h')) : state.initialImgState.h;
 
-                           if (imgW > 0 && imgH > 0) {
-                             let existingCrop = {};
-                             let hasExistingCrop = false;
-                             try {
-                               const cropStr = el.getAttribute('data-crop-data');
-                               if (cropStr && cropStr !== 'null') {
-                                 existingCrop = JSON.parse(cropStr);
-                                 hasExistingCrop = Object.keys(existingCrop).length > 0;
-                               }
-                             } catch (e) {}
+                          if (imgW > 0 && imgH > 0) {
+                            let existingCrop = {};
+                            let hasExistingCrop = false;
+                            try {
+                              const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
+                              if (cropStr && cropStr !== 'null') {
+                                existingCrop = JSON.parse(cropStr);
+                                hasExistingCrop = Object.keys(existingCrop).length > 0;
+                              }
+                            } catch (e) { }
 
-                             // If starting a fresh crop (e.g., after changing fit type which clears crop data),
-                             // we must reset the orig dimensions to the current image dimensions so percentages match.
-                             if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
-                               el.setAttribute('data-crop-orig-w', imgW.toString());
-                               el.setAttribute('data-crop-orig-h', imgH.toString());
-                               el.setAttribute('data-crop-orig-x', imgX.toString());
-                               el.setAttribute('data-crop-orig-y', imgY.toString());
-                             }
+                            // If starting a fresh crop (e.g., after changing fit type which clears crop data),
+                            // we must reset the orig dimensions to the current image dimensions so percentages match.
+                            if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
+                              el.setAttribute('data-crop-orig-w', imgW.toString());
+                              el.setAttribute('data-crop-orig-h', imgH.toString());
+                              el.setAttribute('data-crop-orig-x', imgX.toString());
+                              el.setAttribute('data-crop-orig-y', imgY.toString());
+                            }
 
-                             const cropTop = Math.max(0, ((finalY - imgY) / imgH) * 100);
-                             const cropLeft = Math.max(0, ((finalX - imgX) / imgW) * 100);
-                             const cropWidth = Math.max(0, (finalWidth / imgW) * 100);
-                             const cropHeight = Math.max(0, (finalHeight / imgH) * 100);
-                             const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
-                             const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
+                            const cropTop = Math.max(0, ((finalY - imgY) / imgH) * 100);
+                            const cropLeft = Math.max(0, ((finalX - imgX) / imgW) * 100);
+                            const cropWidth = Math.max(0, (finalWidth / imgW) * 100);
+                            const cropHeight = Math.max(0, (finalHeight / imgH) * 100);
+                            const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
+                            const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
 
-                             let clipTarget = el.querySelector('.image-inner-content') || el;
-                             
-                             let radiusStr = '';
-                             if (el.hasAttribute('data-effect-radius-tl')) {
-                               const tl = el.getAttribute('data-effect-radius-tl') || 0;
-                               const tr = el.getAttribute('data-effect-radius-tr') || 0;
-                               const br = el.getAttribute('data-effect-radius-br') || 0;
-                               const bl = el.getAttribute('data-effect-radius-bl') || 0;
-                               radiusStr = ` round ${tl}px ${tr}px ${br}px ${bl}px`;
-                             }
+                            let clipTarget = el.querySelector('.image-inner-content') || el;
 
-                             const clipVal = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%${radiusStr})`;
-                             clipTarget.style.setProperty('clip-path', clipVal, 'important');
-                             clipTarget.style.setProperty('-webkit-clip-path', clipVal, 'important');
-                             if (clipTarget !== el) el.style.removeProperty('clip-path');
+                            let radiusStr = '';
+                            if (el.hasAttribute('data-effect-radius-tl')) {
+                              const tl = el.getAttribute('data-effect-radius-tl') || 0;
+                              const tr = el.getAttribute('data-effect-radius-tr') || 0;
+                              const br = el.getAttribute('data-effect-radius-br') || 0;
+                              const bl = el.getAttribute('data-effect-radius-bl') || 0;
+                              radiusStr = ` round ${tl}px ${tr}px ${br}px ${bl}px`;
+                            }
 
-                             el.setAttribute('data-crop-data', JSON.stringify({ ...existingCrop, left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }));
-                             el.setAttribute('data-effect-crop-inset', 'true');
-                           }
+                            const clipVal = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%${radiusStr})`;
+                            clipTarget.style.setProperty('clip-path', clipVal, 'important');
+                            clipTarget.style.setProperty('-webkit-clip-path', clipVal, 'important');
+                            if (clipTarget !== el) el.style.removeProperty('clip-path');
+
+                            el.setAttribute('data-crop-data', JSON.stringify({ ...existingCrop, left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }));
+                            el.setAttribute('data-effect-crop-inset', 'true');
+                          }
                         }
 
                         child.setAttribute('x', imgX);
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
                         child.setAttribute('height', imgH);
-                        
+
                         if (tag === 'image' || tag === 'video') {
                           const svg = child.ownerSVGElement;
                           const clip = svg?.querySelector(`clipPath[id="clip-shape-${el.id}"]`);

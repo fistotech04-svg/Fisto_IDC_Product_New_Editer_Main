@@ -631,7 +631,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     let cloneAnim, realAnim;
 
     if (effect === 'fade') {
-      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: 0 }, { opacity: baseOpacity }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'push') {
       const dx = dir === 'next' ? -100 : 100;
@@ -642,16 +642,19 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       realAnim = animEl.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration: 0, fill: 'forwards' });
     } else if (effect === 'slide') {
       const dx = dir === 'next' ? -100 : 100;
-      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: '0% 0%' }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: `${dx}% 0%` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
       realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'flip') {
-      clone.style.transformBox = 'fill-box';
-      clone.style.transformOrigin = 'center';
-      cloneAnim = clone.animate([{ rotate: 'y 0deg' }, { rotate: 'y 90deg' }], { duration: duration / 2, easing: 'ease-in', fill: 'forwards' });
-      realAnim = animEl.animate([{ rotate: 'y -90deg' }, { rotate: 'y 0deg' }], { duration: duration / 2, delay: duration / 2, easing: 'ease-out', fill: 'forwards' });
+      animEl.style.transformBox = 'fill-box';
+      animEl.style.transformOrigin = 'center';
+      cloneAnim = clone.animate([{ opacity: 0 }, { opacity: 0 }], { duration, fill: 'forwards' });
+      realAnim = animEl.animate([
+        { rotate: 'y 90deg', opacity: 0 },
+        { rotate: 'y 0deg', opacity: baseOpacity }
+      ], { duration, easing: 'ease-out', fill: 'forwards' });
     } else if (effect === 'reveal') {
       const startClip = dir === 'next' ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)';
-      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ clipPath: startClip }, { clipPath: 'inset(0 0 0 0)' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else {
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration: 0, fill: 'forwards' });
@@ -1617,7 +1620,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                 <div className="flex flex-col gap-[1.2vw] mt-[0.75vw] px-[0.2vw]">
                   {/* Auto Slide Duration Row */}
                   <div className="flex items-center justify-between">
-                    <span className="text-[0.75vw] font-medium text-gray-500">Auto Slide Duration</span>
+                    <span className="text-[0.75vw] font-medium text-gray-500 whitespace-nowrap">Auto Slide Duration</span>
                     <div className="flex-1 border-b border-dashed border-gray-200 mx-[1vw]" />
                     <div className="flex items-center gap-[0.5vw]">
                       <button
@@ -1626,8 +1629,28 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       >
                         <ChevronLeft size="1.1vw" />
                       </button>
-                      <div className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm">
-                        <span className="text-[0.85vw] font-medium text-gray-800">{(slideshowSettings.speed || 3)}s</span>
+                      <div
+                        className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm cursor-ew-resize"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          const startX = e.clientX;
+                          const startVal = Math.round(slideshowSettings.speed || 3);
+                          const handleMove = (moveEvent) => {
+                            const delta = moveEvent.clientX - startX;
+                            // Every 15px dragged changes the value by 1
+                            const increments = Math.round(delta / 15);
+                            const newValue = Math.max(1, Math.min(20, startVal + increments));
+                            updateSetting('speed', newValue);
+                          };
+                          const handleUp = () => {
+                            document.removeEventListener('pointermove', handleMove);
+                            document.removeEventListener('pointerup', handleUp);
+                          };
+                          document.addEventListener('pointermove', handleMove);
+                          document.addEventListener('pointerup', handleUp);
+                        }}
+                      >
+                        <span className="text-[0.85vw] font-medium text-gray-800 pointer-events-none">{(slideshowSettings.speed || 3)}s</span>
                       </div>
                       <button
                         onClick={() => updateSetting('speed', Math.min(20, (slideshowSettings.speed || 3) + 1))}

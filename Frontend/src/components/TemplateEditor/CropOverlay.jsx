@@ -268,6 +268,16 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
             newCrop.width = newCrop.height * aspect;
             newCrop.left = dragStart.crop.left + dragStart.crop.width - newCrop.width;
           }
+        } else if (dragType === 'n') {
+          newCrop.top += dy;
+          newCrop.height -= dy;
+        } else if (dragType === 's') {
+          newCrop.height += dy;
+        } else if (dragType === 'e') {
+          newCrop.width += dx;
+        } else if (dragType === 'w') {
+          newCrop.left += dx;
+          newCrop.width -= dx;
         }
       }
 
@@ -308,6 +318,15 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     return `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
   }, [pageRect, overlayRect]);
 
+  const imgObjectFit = useMemo(() => {
+    if (!targetElement) return 'fill';
+    const fit = targetElement.getAttribute('data-object-fit');
+    if (fit === 'Fit' || fit === 'Original') return 'contain';
+    if (fit === 'Fill' || fit === 'Crop') return 'cover';
+    if (fit === 'Stretch') return 'fill';
+    return 'fill';
+  }, [targetElement]);
+
   if (!overlayRect) return null;
 
   return createPortal(
@@ -336,12 +355,12 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
       }}
     >
       <div className="absolute inset-0 pointer-events-none" style={{ clipPath: clipPathStyle }}>
-        <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" style={{ transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})` }} draggable={false} />
+        <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" style={{ objectFit: imgObjectFit, transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})` }} draggable={false} />
         <div className="absolute inset-0 pointer-events-none" style={{
           clipPath: `inset(${crop.top}% ${100 - crop.left - crop.width}% ${100 - crop.top - crop.height}% ${crop.left}%)`
         }}>
           <img src={src} className="absolute inset-0 w-full h-full block pointer-events-none" style={{
-            transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`
+            objectFit: imgObjectFit, transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`
           }} draggable={false} />
         </div>
       </div>
@@ -378,6 +397,18 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
         {/* SW Corner */}
         <div className="absolute -left-[2px] -bottom-[2px] w-5 h-5 border-b-[4px] border-l-[4px] border-indigo-600 drop-shadow-md cursor-nesw-resize" onPointerDown={(e) => handlePointerDown(e, 'sw')} />
+        
+        {/* N Edge */}
+        <div className="absolute left-1/2 -top-[2px] -translate-x-1/2 w-6 h-[4px] bg-indigo-600 drop-shadow-md cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 'n')} />
+
+        {/* E Edge */}
+        <div className="absolute top-1/2 -right-[2px] -translate-y-1/2 w-[4px] h-6 bg-indigo-600 drop-shadow-md cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'e')} />
+
+        {/* S Edge */}
+        <div className="absolute left-1/2 -bottom-[2px] -translate-x-1/2 w-6 h-[4px] bg-indigo-600 drop-shadow-md cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 's')} />
+
+        {/* W Edge */}
+        <div className="absolute top-1/2 -left-[2px] -translate-y-1/2 w-[4px] h-6 bg-indigo-600 drop-shadow-md cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'w')} />
       </div>
     </div>,
     document.body
