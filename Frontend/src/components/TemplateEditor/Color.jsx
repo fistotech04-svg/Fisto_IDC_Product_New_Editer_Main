@@ -198,6 +198,7 @@ const Color = ({
   ...props
 }) => {
   const containerRef = useRef(null);
+  const isDraggingRef = useRef(false);
 
   // --- Standalone Mode State ---
   const [internalBackgroundColor, setInternalBackgroundColor] = useState({
@@ -272,20 +273,78 @@ const Color = ({
       if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
         el.setAttribute('data-fill-color', backgroundColor.fill);
         el.setAttribute('data-fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+        
+        const isGradient = backgroundColor.fill.includes('gradient');
+        
         if (!isImage) {
-          el.setAttribute('fill', backgroundColor.fill);
+          if (!isGradient) el.setAttribute('fill', backgroundColor.fill);
           el.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
         } else {
+          // --- Fast path: directly patch existing SVG gradient stops ---
+          // If a gradient fill layer already exists with a url(#...) fill, we update
+          // the <stop> elements directly in the SVG defs. This completely bypasses the
+          // MutationObserver -> React re-render cycle for real-time color drag updates.
           let fillLayer = el.querySelector('.image-fill-layer') || el.querySelector('.video-fill-layer');
+          if (isGradient && fillLayer) {
+            const existingFill = fillLayer.getAttribute('fill') || '';
+            if (existingFill.startsWith('url(#')) {
+              const gradId = existingFill.match(/url\(#([^)]+)\)/)?.[1];
+              const svgRoot = el.closest('svg');
+              const gradEl = gradId && svgRoot ? svgRoot.querySelector(`#${gradId}`) : null;
+              if (gradEl) {
+                const parsed = parseGradient(backgroundColor.fill);
+                const existingStops = Array.from(gradEl.querySelectorAll('stop'));
+                
+                const isTargetLinear = parsed?.type?.toLowerCase() === 'linear';
+                const isCurrentLinear = gradEl.tagName.toLowerCase() === 'lineargradient';
+                
+                if (parsed && isTargetLinear === isCurrentLinear && parsed.stops.length > 0 && parsed.stops.length === existingStops.length) {
+                  // Same stop count and same type — just update colors and angle/radius in-place (fastest path, no React cycle)
+                  parsed.stops.forEach((ns, i) => {
+                    existingStops[i].setAttribute('stop-color', ns.color);
+                    existingStops[i].setAttribute('stop-opacity', (ns.opacity !== undefined ? ns.opacity / 100 : 1).toString());
+                  });
+                  
+                  // Update angle/radius
+                  if (parsed.type.toLowerCase() === 'linear') {
+                    const angleRad = ((parsed.angle || 0) * Math.PI) / 180;
+                    const dx = Math.sin(angleRad) * 50;
+                    const dy = -Math.cos(angleRad) * 50;
+                    gradEl.setAttribute('x1', Math.round(50 - dx) + '%');
+                    gradEl.setAttribute('y1', Math.round(50 - dy) + '%');
+                    gradEl.setAttribute('x2', Math.round(50 + dx) + '%');
+                    gradEl.setAttribute('y2', Math.round(50 + dy) + '%');
+                  } else {
+                    const radius = parsed.radius || 50;
+                    gradEl.setAttribute('r', radius + '%');
+                    gradEl.setAttribute('cx', '50%');
+                    gradEl.setAttribute('cy', '50%');
+                  }
+                  
+                  fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
+                  
+                  // Only skip onUpdate and data-fill-color during active drag to prevent lag.
+                  // If it's a preset click or drag has finished, we must sync state!
+                  if (!isDraggingRef.current) {
+                    el.setAttribute('data-fill-color', backgroundColor.fill);
+                    if (onUpdate) onUpdate({ shouldRefresh: true });
+                  }
+                  
+                  return; // Done — skip the slow full-sync path below
+                }
+              }
+            }
+          }
+          // Fallback / slow path: non-gradient fill or first-time gradient application
           if (fillLayer) {
-            fillLayer.setAttribute('fill', backgroundColor.fill);
+            if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
             fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
           } else if (isImage) {
             // Basic fallback if layer missing
             fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             fillLayer.classList.add('image-fill-layer');
             fillLayer.style.pointerEvents = 'none';
-            fillLayer.setAttribute('fill', backgroundColor.fill);
+            if (!isGradient) fillLayer.setAttribute('fill', backgroundColor.fill);
             fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
             // Insert at beginning
             el.insertBefore(fillLayer, el.firstChild);
@@ -311,6 +370,8 @@ const Color = ({
       } else {
         el.setAttribute('data-stroke-color', backgroundColor.stroke);
         el.setAttribute('data-stroke-width', backgroundColor.strokeWeight.toString());
+        
+        const isStrokeGradient = backgroundColor.stroke.includes('gradient');
 
         const dashArray = backgroundColor.strokeDashStyle === 'Dashed'
           ? `${backgroundColor.strokeDashLength ?? 10},${backgroundColor.strokeDashGap ?? 10}`
@@ -435,7 +496,9 @@ const Color = ({
             }
 
           } else {
-            el.setAttribute('stroke', backgroundColor.stroke);
+            if (!isStrokeGradient) {
+              el.setAttribute('stroke', backgroundColor.stroke);
+            }
             el.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
             if (dashArray !== 'none') {
               el.setAttribute('stroke-dasharray', dashArray);
@@ -452,9 +515,11 @@ const Color = ({
             }
           }
         } else {
-          let strokeLayer = el.querySelector('.svg-image-stroke-overlay');
+          let strokeLayer = el.querySelector('.svg-image-stroke-overlay') || el.querySelector('.video-stroke-overlay');
           if (strokeLayer) {
-            strokeLayer.setAttribute('stroke', backgroundColor.stroke);
+            if (!isStrokeGradient) {
+              strokeLayer.setAttribute('stroke', backgroundColor.stroke);
+            }
             strokeLayer.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
           }
         }
@@ -463,9 +528,19 @@ const Color = ({
       if (onUpdate) onUpdate({ shouldRefresh: true });
     };
 
-    // Debounce slightly to avoid thrashing
-    const timer = setTimeout(applyColorsToDOM, 50);
-    return () => clearTimeout(timer);
+    // For gradient fills, apply immediately (no debounce) so dragging the color picker
+    // feels instant. For solid color / stroke-only changes, a rAF is enough to batch
+    // multiple rapid fire events within the same frame without visible lag.
+    const isGradientFill = backgroundColor.fill && backgroundColor.fill.includes('gradient');
+    if (isGradientFill) {
+      applyColorsToDOM();
+      return;
+    }
+
+    let rafId;
+    const raf = () => { rafId = requestAnimationFrame(applyColorsToDOM); };
+    raf();
+    return () => cancelAnimationFrame(rafId);
   }, [backgroundColor, standaloneMode, selectedElement]);
 
 
@@ -821,7 +896,8 @@ const Color = ({
                 return pseudoProps[activeColorPicker] || '#000000';
               })()}
               disableGradient={isText && activeColorPicker === 'stroke'}
-              onChange={(newVal) => {
+              onChange={(newVal, isDragging = false) => {
+                isDraggingRef.current = isDragging;
                 if (newVal.includes('gradient')) {
                   const parsed = parseGradient(newVal);
                   if (parsed) {
