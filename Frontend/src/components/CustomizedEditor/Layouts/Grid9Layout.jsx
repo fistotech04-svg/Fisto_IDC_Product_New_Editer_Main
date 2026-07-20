@@ -429,7 +429,7 @@ const Grid9Layout = ({
         >
             {/* ═══════════ Global Click Overlay Dropdowns ═══════════ */}
             {/* Captures clicks reliably before they hit the flipbook which swallows propagation */}
-            {(showTopBookmarkOptions || showTopNotesOptions) && (
+            {!isTablet && (showTopBookmarkOptions || showTopNotesOptions) && (
                 <div
                     className="absolute inset-0 z-[40]"
                     onClick={() => {
@@ -440,6 +440,7 @@ const Grid9Layout = ({
             )}
 
             {/* ═══════════ Top Overlay Area ═══════════ */}
+            {!isTablet && (
             <div
                 className="absolute top-[2vh] left-[2vw] right-[2vw] flex items-center justify-between z-[100] pointer-events-none transition-all duration-500 ease-in-out"
                 style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
@@ -775,6 +776,8 @@ const Grid9Layout = ({
                     )}
                 </div>
             </div>
+            )}
+
 
             {/* ═══════════ Main Book Canvas ═══════════ */}
             <div className="flex-1 flex justify-center items-center w-full z-10 pt-[8vh] pb-[12vh]"
@@ -808,7 +811,7 @@ const Grid9Layout = ({
 
             {/* ═══════════ Top Thumbnail Bar ═══════════ */}
             <>
-                {showThumbnails && (
+                {!isTablet && showThumbnails && (
                     <>
                         {/* Invisible click-to-close overlay */}
                         <div
@@ -931,6 +934,7 @@ const Grid9Layout = ({
             </>
 
             {/* ═══════════ Bottom Navigation Bar ═══════════ */}
+            {!isTablet && (
             <div
                 className={`absolute bottom-0 w-full ${isTablet ? 'h-[8.5vh]' : 'h-[10vh]'} flex flex-col justify-center items-center z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? (!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none') : 'pointer-events-auto'}`}
                 style={{ opacity: isFullscreen && isCanvasHovered ? 0 : 1 }}
@@ -1103,6 +1107,8 @@ const Grid9Layout = ({
                     )}
                 </div>
             </div>
+            )}
+
         </div>
     );
 };

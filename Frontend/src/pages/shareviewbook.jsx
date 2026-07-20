@@ -105,6 +105,23 @@ const ShareViewBook = () => {
 
                 let processedData = res.data;
 
+                // Normalize settings keys and fix relative image URLs for the public view
+                if (processedData?.settings) {
+                    if (processedData.settings.otherSetup && !processedData.settings.othersetup) {
+                        processedData.settings.othersetup = processedData.settings.otherSetup;
+                    }
+                    
+                    // Fix gallery image URLs if they are relative
+                    if (processedData.settings.othersetup?.gallery?.images) {
+                        processedData.settings.othersetup.gallery.images = processedData.settings.othersetup.gallery.images.map(imgUrl => {
+                            if (typeof imgUrl === 'string' && imgUrl.startsWith('/uploads/')) {
+                                return `${getBackendUrl()}${imgUrl}`;
+                            }
+                            return imgUrl;
+                        });
+                    }
+                }
+
                 if (!processedData || !processedData.pages || processedData.pages.length === 0) {
                     throw new Error("Invalid or empty flipbook data received");
                 }
@@ -338,6 +355,7 @@ const ShareViewBook = () => {
                 isMobile={isMobileDevice}
                 onClose={null}
                 baseUrl={bookData.meta?.baseUrl ? `${getBackendUrl()}${bookData.meta.baseUrl}` : null}
+                isPublishedPreview={true}
             />
         </div>
     );

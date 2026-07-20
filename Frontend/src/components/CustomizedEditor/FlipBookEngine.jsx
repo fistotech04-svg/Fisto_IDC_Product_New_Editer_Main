@@ -29,6 +29,90 @@ const buildPageDoc = (rawHtml) => `<!DOCTYPE html>
     -webkit-backface-visibility: hidden !important;
   }
   * { box-sizing: border-box; outline: none !important; }
+
+  /* Ensure text inside contentEditable boxes and scrollable features wrap correctly */
+  .text-edit-box,
+  [contenteditable="true"],
+  [data-scrollable="true"],
+  foreignObject div {
+    white-space: pre-wrap !important;
+    word-wrap: break-word !important;
+    word-break: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  foreignObject {
+    overflow: visible !important;
+    clip-path: none !important;
+  }
+
+  foreignObject * {
+    clip-path: none !important;
+  }
+
+  .flipbook-text-scrollbar::-webkit-scrollbar,
+  [data-scrollable="true"]::-webkit-scrollbar,
+  [data-scrollable="true"] *::-webkit-scrollbar {
+    width: 6px !important;
+    height: 6px !important;
+    background: transparent !important;
+    display: block !important;
+    -webkit-appearance: none !important;
+  }
+
+  .flipbook-text-scrollbar::-webkit-scrollbar-track,
+  [data-scrollable="true"]::-webkit-scrollbar-track,
+  [data-scrollable="true"] *::-webkit-scrollbar-track {
+    background: #E5E7EB !important;
+    border-radius: 10px !important;
+  }
+
+  .flipbook-text-scrollbar::-webkit-scrollbar-thumb,
+  [data-scrollable="true"]::-webkit-scrollbar-thumb,
+  [data-scrollable="true"] *::-webkit-scrollbar-thumb {
+    background: #4B5563 !important;
+    border-radius: 10px !important;
+    border: none !important;
+  }
+
+  .flipbook-text-scrollbar::-webkit-scrollbar-thumb:hover,
+  [data-scrollable="true"]::-webkit-scrollbar-thumb:hover,
+  [data-scrollable="true"] *::-webkit-scrollbar-thumb:hover {
+    background: #374151 !important;
+  }
+
+  .flipbook-text-scrollbar::-webkit-scrollbar-thumb:active,
+  [data-scrollable="true"]::-webkit-scrollbar-thumb:active,
+  [data-scrollable="true"] *::-webkit-scrollbar-thumb:active {
+    background: #1F2937 !important;
+  }
+
+  foreignObject:not([data-scrollable="true"]):not([data-editing="true"])>div {
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  foreignObject[data-sizing-mode="fixed"]>div {
+    display: block !important;
+  }
+
+  foreignObject[data-scrollable="true"]>div {
+    width: 100% !important;
+    height: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+    -webkit-user-select: text !important;
+    user-select: text !important;
+  }
+
+  foreignObject[data-scrollable="true"] * {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    pointer-events: auto !important;
+  }
 </style>
 </head>
 <body>${rawHtml || ''}</body>
