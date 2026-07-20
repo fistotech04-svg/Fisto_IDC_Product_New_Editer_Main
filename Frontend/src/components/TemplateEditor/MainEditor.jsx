@@ -1594,8 +1594,8 @@ const MainEditor = ({
             opacity: '0.8',
           });
 
-          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
-          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
 
           const updateVolumeIcon = () => {
             volumeBtn.innerHTML = (video.muted || video.volume === 0) ? VOL_OFF_SVG : VOL_ON_SVG;
@@ -1625,8 +1625,8 @@ const MainEditor = ({
             pointerEvents: 'none',
           });
 
-          const REWIND_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
-          const FORWARD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
+          const REWIND_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
+          const FORWARD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
           const PLAY_SVG = `<svg width="50%" height="50%" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
           const PAUSE_SVG = `<svg width="50%" height="50%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
 
@@ -1825,6 +1825,18 @@ const MainEditor = ({
 
       const shapes = svg.querySelectorAll('[data-stroke-position="Outside"], [data-stroke-position="Inside"]');
       shapes.forEach(el => {
+        // Skip elements that manage their own stroke offsets (Images, Videos, and their dedicated overlays)
+        if (
+          el.tagName.toLowerCase() === 'image' ||
+          el.tagName.toLowerCase() === 'foreignobject' ||
+          el.tagName.toLowerCase() === 'g' ||
+          el.classList.contains('svg-image-stroke-overlay') ||
+          el.classList.contains('svg-video-stroke-overlay')
+        ) {
+          const existingOverlay = el.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${el.id}"]`);
+          if (existingOverlay) existingOverlay.remove();
+          return;
+        }
         const pos = el.getAttribute('data-stroke-position');
         const sw = parseFloat(el.getAttribute('data-stroke-width') || '0');
         if (sw <= 0) {
@@ -1925,12 +1937,8 @@ const MainEditor = ({
         overlay.style.translate = el.style.translate;
         overlay.style.scale = el.style.scale;
         overlay.style.rotate = el.style.rotate;
-        if (refShape) {
-          refShape.style.transform = el.style.transform;
-          refShape.style.translate = el.style.translate;
-          refShape.style.scale = el.style.scale;
-          refShape.style.rotate = el.style.rotate;
-        }
+        // Do NOT copy style.transform to refShape, because the mask/clip automatically operates
+        // in the user coordinate space of the overlay. Applying it again causes double-transform bugs.
       });
 
       // Cleanup orphan overlays
@@ -5619,7 +5627,7 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
-                        
+
                         if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video')) {
                           const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
                           if (cropStr && cropStr !== 'null') {
@@ -5638,7 +5646,7 @@ const MainEditor = ({
                                 imgH = newLocH / cropH;
                                 imgY = newLocY - cropT * imgH;
                               }
-                            } catch (e) {}
+                            } catch (e) { }
                           }
                           el.setAttribute('data-crop-orig-w', imgW.toString());
                           el.setAttribute('data-crop-orig-h', imgH.toString());

@@ -792,11 +792,24 @@ const GifEditor = ({
             const pos = backgroundColor.strokePosition || 'Center';
             const sw = backgroundColor.strokeWeight || 0;
 
+            let scaleX = 1;
+            let scaleY = 1;
+            try {
+              const ctm = targetEl.getScreenCTM();
+              if (ctm) {
+                scaleX = Math.abs(ctm.a) || 1;
+                scaleY = Math.abs(ctm.d) || 1;
+              }
+            } catch(e) {}
+
+            const offsetX = (sw / 2) / scaleX;
+            const offsetY = (sw / 2) / scaleY;
+
             let ox = bx, oy = by, ow = bw, oh = bh;
             if (pos === 'Inside') {
-              ox += sw / 2; oy += sw / 2; ow -= sw; oh -= sw;
+              ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
             } else if (pos === 'Outside') {
-              ox -= sw / 2; oy -= sw / 2; ow += sw; oh += sw;
+              ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
             }
 
             let tl = radius.tl || 0;
@@ -805,15 +818,15 @@ const GifEditor = ({
             let bl = radius.bl || 0;
 
             if (pos === 'Inside') {
-              tl = Math.max(0, tl - sw / 2);
-              tr = Math.max(0, tr - sw / 2);
-              br = Math.max(0, br - sw / 2);
-              bl = Math.max(0, bl - sw / 2);
+              tl = Math.max(0, tl - offsetX);
+              tr = Math.max(0, tr - offsetX);
+              br = Math.max(0, br - offsetX);
+              bl = Math.max(0, bl - offsetX);
             } else if (pos === 'Outside') {
-              tl = tl > 0 ? tl + sw / 2 : 0;
-              tr = tr > 0 ? tr + sw / 2 : 0;
-              br = br > 0 ? br + sw / 2 : 0;
-              bl = bl > 0 ? bl + sw / 2 : 0;
+              tl = tl > 0 ? tl + offsetX : 0;
+              tr = tr > 0 ? tr + offsetX : 0;
+              br = br > 0 ? br + offsetX : 0;
+              bl = bl > 0 ? bl + offsetX : 0;
             }
 
             const maxR = Math.min(ow, oh) / 2;
@@ -1353,9 +1366,10 @@ const GifEditor = ({
       <style>{`
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+        .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
         .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
         .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         .no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
       `}</style>

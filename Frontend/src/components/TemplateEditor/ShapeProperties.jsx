@@ -381,6 +381,12 @@ const ShapeProperties = ({
         .hide-opacity-bar .space-y-\\[1vw\\] > div:nth-child(2) {
           display: none !important;
         }
+        input[type='range'] {
+          position: relative;
+        }
+        input[type='range']::before {
+          content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1;
+        }
         input[type='range']::-webkit-slider-thumb {
           -webkit-appearance: none;
           height: 1.1vw;
@@ -390,6 +396,8 @@ const ShapeProperties = ({
           border: 0.1vw solid #e5e7eb;
           box-shadow: 0 0.1vw 0.3vw rgba(0,0,0,0.1);
           cursor: pointer;
+          position: relative;
+          z-index: 2;
         }
         input[type='range'].blue-thumb::-webkit-slider-thumb {
           background: #6366f1;

@@ -643,11 +643,24 @@ const VideoEditor = ({
         let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
         let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+        let scaleX = 1;
+        let scaleY = 1;
+        try {
+          const ctm = visualTarget.getScreenCTM();
+          if (ctm) {
+            scaleX = Math.abs(ctm.a) || 1;
+            scaleY = Math.abs(ctm.d) || 1;
+          }
+        } catch(e) {}
+
+        const offsetX = (weight / 2) / scaleX;
+        const offsetY = (weight / 2) / scaleY;
+
         let ox = bx, oy = by, ow = bw, oh = bh;
         if (pos === 'Inside') {
-          ox += weight / 2; oy += weight / 2; ow -= weight; oh -= weight;
+          ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
         } else if (pos === 'Outside') {
-          ox -= weight / 2; oy -= weight / 2; ow += weight; oh += weight;
+          ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
         }
 
         strokeOverlay.style.setProperty('x', `${ox}px`, 'important');
@@ -705,9 +718,9 @@ const VideoEditor = ({
         const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
         let adjR = maxR;
         if (pos === 'Inside') {
-          adjR = Math.max(0, maxR - weight / 2);
+          adjR = Math.max(0, maxR - offsetX);
         } else if (pos === 'Outside') {
-          adjR = maxR > 0 ? maxR + weight / 2 : 0;
+          adjR = maxR > 0 ? maxR + offsetX : 0;
         }
 
         if (adjR > 0) strokeOverlay.setAttribute('rx', adjR.toString());
@@ -1665,9 +1678,10 @@ const VideoEditor = ({
   return (
     <div className="flex flex-col w-full font-sans text-gray-700 space-y-[1.5vw]">
       <style>{`
-        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+        .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
         .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
         .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         body.is-scrubbing { overflow: hidden !important; }
       `}</style>

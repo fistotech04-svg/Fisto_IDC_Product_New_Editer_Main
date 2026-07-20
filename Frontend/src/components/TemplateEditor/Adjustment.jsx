@@ -18,6 +18,17 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
           appearance: none;
           width: 100%;
           background: transparent;
+          position: relative;
+        }
+        .invisible-range::before {
+          content: "";
+          position: absolute;
+          top: -0.75vw;
+          bottom: -0.75vw;
+          left: 0;
+          right: 0;
+          cursor: pointer;
+          z-index: 1;
         }
         .invisible-range::-webkit-slider-thumb {
           -webkit-appearance: none;

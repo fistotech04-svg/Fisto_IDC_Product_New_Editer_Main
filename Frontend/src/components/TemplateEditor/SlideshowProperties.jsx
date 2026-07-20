@@ -1512,9 +1512,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   return (
     <div className="space-y-[1vw]">
       <style>{`
-        .ss-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .ss-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+        .ss-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
         .ss-slider::-webkit-slider-runnable-track { height: 0.5vw; border-radius: 9999px; background: inherit; }
-        .ss-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1.6vw; width: 1.6vw; border-radius: 50%; background: #4D47FF; border: 0.2vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .ss-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1.6vw; width: 1.6vw; border-radius: 50%; background: #4D47FF; border: 0.2vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
         .ss-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
 
         .image-editor-toggle {
@@ -1676,11 +1677,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
         {/* Opacity */}
         <div className="space-y-[0.5vw]">
-          <div className="flex items-center gap-[0.5vw]">
+          <div className="flex items-center">
             <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
             <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
           </div>
-          <div className="flex items-center gap-[1vw] pb-[0.5vw]">
+          <div className="flex items-center gap-[1vw]">
             <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
               <input
                 type="range"
