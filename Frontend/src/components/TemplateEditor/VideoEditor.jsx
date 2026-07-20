@@ -95,10 +95,10 @@ const VideoEditor = ({
   const [controls, setControls] = useState(true);
   const [controlsSize, setControlsSize] = useState(100);
 
-  const [width, setWidth] = useState(0);
-  const [height, setHeight] = useState(0);
   const [opacity, setOpacity] = useState(100);
   const [coverOption, setCoverOption] = useState("auto"); // "upload" or "auto"
+  const [activeSection, setActiveSection] = useState('main');
+  const [showGallery, setShowGallery] = useState(false);
 
   const [backgroundColor, setBackgroundColor] = useState({
     fill: '#000000', fillOpacity: 100, stroke: 'transparent', strokeOpacity: 100, strokeType: 'Solid', strokeWeight: 0
@@ -190,14 +190,10 @@ const VideoEditor = ({
     if (!target) return;
     const visualTarget = container || target;
 
-    // 1. Dimensions
-    const w = parseInt(visualTarget.getAttribute('data-width') || visualTarget.getAttribute('width') || visualTarget.style.width) || 0;
-    const h = parseInt(visualTarget.getAttribute('data-height') || visualTarget.getAttribute('height') || visualTarget.style.height) || 0;
-    setWidth(w);
-    setHeight(h);
+    // Dimensions state removed to allow interact.js to manage it naturally without reversions
 
     // 2. Opacity
-    const op = parseFloat(visualTarget.getAttribute('data-opacity') || visualTarget.style.opacity || visualTarget.getAttribute('opacity') || "1");
+    const op = parseFloat(target.getAttribute('data-opacity') || target.style.opacity || target.getAttribute('opacity') || visualTarget.getAttribute('data-opacity') || visualTarget.style.opacity || visualTarget.getAttribute('opacity') || "1");
     setOpacity(Math.round(op * 100));
 
     // 3. Colors & Stroke
@@ -448,13 +444,7 @@ const VideoEditor = ({
 
     isUpdatingDOM.current = true;
     try {
-      // Dimensions
-      visualTarget.setAttribute('width', width);
-      visualTarget.setAttribute('height', height);
-      visualTarget.setAttribute('data-width', width);
-      visualTarget.setAttribute('data-height', height);
-      visualTarget.style.width = `${width}px`;
-      visualTarget.style.height = `${height}px`;
+      // Dimensions are managed natively by the editor drag-resize logic
       if (container) {
         target.setAttribute('width', '100%');
         target.setAttribute('height', '100%');
@@ -464,9 +454,15 @@ const VideoEditor = ({
 
       // Opacity
       const opVal = opacity / 100;
-      visualTarget.style.opacity = opVal;
-      visualTarget.setAttribute('opacity', opVal);
-      visualTarget.setAttribute('data-opacity', opVal);
+      target.style.opacity = opVal;
+      target.setAttribute('opacity', opVal);
+      target.setAttribute('data-opacity', opVal);
+
+      if (visualTarget !== target) {
+        visualTarget.style.opacity = '';
+        visualTarget.removeAttribute('opacity');
+        visualTarget.removeAttribute('data-opacity');
+      }
 
       // Styling
       let fillLayer = liveElement.querySelector('.video-fill-layer');
@@ -532,6 +528,7 @@ const VideoEditor = ({
           liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
         } else {
           fillLayer.setAttribute('fill', backgroundColor.fill);
+          if (fillLayer.style) fillLayer.style.removeProperty('fill');
           fillLayer.removeAttribute('data-fill-type');
           fillLayer.removeAttribute('data-fill-stops');
           fillLayer.removeAttribute('data-fill-gradient-type');
@@ -646,11 +643,24 @@ const VideoEditor = ({
         let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
         let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
 
+        let scaleX = 1;
+        let scaleY = 1;
+        try {
+          const ctm = visualTarget.getScreenCTM();
+          if (ctm) {
+            scaleX = Math.abs(ctm.a) || 1;
+            scaleY = Math.abs(ctm.d) || 1;
+          }
+        } catch(e) {}
+
+        const offsetX = (weight / 2) / scaleX;
+        const offsetY = (weight / 2) / scaleY;
+
         let ox = bx, oy = by, ow = bw, oh = bh;
         if (pos === 'Inside') {
-          ox += weight / 2; oy += weight / 2; ow -= weight; oh -= weight;
+          ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
         } else if (pos === 'Outside') {
-          ox -= weight / 2; oy -= weight / 2; ow += weight; oh += weight;
+          ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
         }
 
         strokeOverlay.style.setProperty('x', `${ox}px`, 'important');
@@ -693,6 +703,7 @@ const VideoEditor = ({
           strokeOverlay.removeAttribute('stroke-radius');
 
           strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+          if (strokeOverlay.style) strokeOverlay.style.removeProperty('stroke');
         }
         strokeOverlay.setAttribute('stroke-width', weight.toString());
         if (backgroundColor.strokeDashStyle === 'Dashed') {
@@ -707,9 +718,9 @@ const VideoEditor = ({
         const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
         let adjR = maxR;
         if (pos === 'Inside') {
-          adjR = Math.max(0, maxR - weight / 2);
+          adjR = Math.max(0, maxR - offsetX);
         } else if (pos === 'Outside') {
-          adjR = maxR > 0 ? maxR + weight / 2 : 0;
+          adjR = maxR > 0 ? maxR + offsetX : 0;
         }
 
         if (adjR > 0) strokeOverlay.setAttribute('rx', adjR.toString());
@@ -745,7 +756,7 @@ const VideoEditor = ({
       const anyR = radius.tl || radius.tr || radius.br || radius.bl;
       const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
       const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
-      
+
       visualTarget.style.borderRadius = radiusStr;
       visualTarget.setAttribute('data-radius', JSON.stringify(radius));
       visualTarget.style.overflow = 'hidden';
@@ -779,18 +790,38 @@ const VideoEditor = ({
               if (maxR > 0) rect.setAttribute('rx', maxR.toString());
               else rect.removeAttribute('rx');
 
-              liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-              liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              const foreignObj = liveElement.querySelector('foreignObject');
+              if (foreignObj) {
+                foreignObj.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                foreignObj.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+                liveElement.style.removeProperty('clip-path');
+                liveElement.style.removeProperty('-webkit-clip-path');
+              } else {
+                liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              }
             }
           } else {
             liveElement.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
           }
         } else {
           liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          const foreignObj = liveElement.querySelector('foreignObject');
+          if (foreignObj) {
+            foreignObj.style.removeProperty('clip-path');
+            foreignObj.style.removeProperty('-webkit-clip-path');
+          }
         }
       } else {
         visualTarget.style.removeProperty('clip-path');
         liveElement.style.removeProperty('clip-path');
+        liveElement.style.removeProperty('-webkit-clip-path');
+        const foreignObj = liveElement.querySelector('foreignObject');
+        if (foreignObj) {
+          foreignObj.style.removeProperty('clip-path');
+          foreignObj.style.removeProperty('-webkit-clip-path');
+        }
       }
 
       // Object Fit
@@ -1025,16 +1056,12 @@ const VideoEditor = ({
         }
       }
 
-      visualTarget.style.filter = filterStr.trim() || 'none';
-      if (blurStr.trim()) {
-        liveElement.style.setProperty('filter', blurStr.trim(), 'important');
-      } else {
-        liveElement.style.removeProperty('filter');
-      }
+      visualTarget.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+      liveElement.style.removeProperty('filter');
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
-      
+
       liveElement.setAttribute('data-effect-blur', activeEffects.includes('Blur') ? 'true' : 'false');
       if (effectSettings['Blur']) {
         liveElement.setAttribute('data-effect-blur-value', effectSettings['Blur'].blur.toString());
@@ -1174,7 +1201,7 @@ const VideoEditor = ({
     } catch (e) {
       console.error("Error applying video visuals:", e);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, width, height, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, debouncedUpdate]);
+  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, debouncedUpdate]);
 
   useEffect(() => {
     applyVisuals();
@@ -1384,32 +1411,8 @@ const VideoEditor = ({
 
     const tempVideo = document.createElement('video');
     tempVideo.onloadedmetadata = async () => {
-      const vw = tempVideo.videoWidth;
-      const vh = tempVideo.videoHeight;
-
-      if (vw && vh) {
-        const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
-
-        const fitW = oldW;
-        const fitH = oldW * (vh / vw);
-
-        liveElement.style.width = '';
-        liveElement.style.height = '';
-
-        liveElement.setAttribute('width', fitW.toString());
-        liveElement.setAttribute('height', fitH.toString());
-        liveElement.setAttribute('data-width', fitW.toString());
-        liveElement.setAttribute('data-height', fitH.toString());
-
-        if (target !== liveElement) {
-          target.style.width = '';
-          target.style.height = '';
-          target.setAttribute('width', fitW.toString());
-          target.setAttribute('height', fitH.toString());
-          target.setAttribute('data-width', fitW.toString());
-          target.setAttribute('data-height', fitH.toString());
-        }
-      }
+      // Retain the current element's dimension size and don't recalculate based on new aspect ratio.
+      // This ensures replacing a video keeps the exact same size and bounding box.
 
       target.src = videoURL;
       target.setAttribute("src", videoURL);
@@ -1675,9 +1678,10 @@ const VideoEditor = ({
   return (
     <div className="flex flex-col w-full font-sans text-gray-700 space-y-[1.5vw]">
       <style>{`
-        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+        .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
         .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.4vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
         .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         body.is-scrubbing { overflow: hidden !important; }
       `}</style>
@@ -1762,6 +1766,20 @@ const VideoEditor = ({
               onClick={() => fileInputRef.current?.click()}
               className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
               style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  const file = e.dataTransfer.files[0];
+                  if (file.type === 'video/mp4') {
+                    handleVideoUpload({ target: { files: e.dataTransfer.files } });
+                  }
+                }
+              }}
             >
               <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
                 Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
