@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
-import { syncGradient } from './TemplateEditor';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Icon } from '@iconify/react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1950,57 +1949,6 @@ const MainEditor = ({
     const interval = setInterval(syncOverlays, 100);
     return () => clearInterval(interval);
   }, [activePageIndex]);
-
-  // Page-wide gradient restore: runs after every page render (including page switches and auto-saves).
-  // Scans ALL image groups on the active page and restores gradient fills that the browser failed
-  // to resolve after dangerouslySetInnerHTML injection — fixes black background when no element is selected.
-  useLayoutEffect(() => {
-    const restorePageGradients = () => {
-      const container = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-      if (!container) return;
-
-      const imageGroups = container.querySelectorAll('[data-is-image-group="true"], [data-fill-type="gradient"]');
-      imageGroups.forEach(group => {
-        const dataFill = group.getAttribute('data-fill-color') || '';
-        if (!dataFill.includes('gradient')) return;
-
-        const fillLayer = group.querySelector('.image-fill-layer');
-        if (!fillLayer) return;
-
-        const fillAttr = fillLayer.getAttribute('fill') || '';
-        if (!fillAttr.includes('url(#') && !fillAttr.includes('gradient')) return;
-
-        // CRITICAL: Sync the latest gradient data from the image group's data-* attributes
-        // onto the fillLayer BEFORE calling syncGradient. This ensures color changes from
-        // the color picker are reflected — otherwise syncGradient reads stale fill-stops
-        // from the last serialized state of the fillLayer.
-        const latestStops = group.getAttribute('data-fill-stops');
-        const latestGradType = group.getAttribute('data-fill-gradient-type') || 'linear';
-        const latestAngle = group.getAttribute('data-fill-angle') || '0';
-        const latestRadius = group.getAttribute('data-fill-radius') || '100';
-
-        if (latestStops) {
-          fillLayer.setAttribute('fill-stops', latestStops);
-          fillLayer.setAttribute('fill-gradient-type', latestGradType);
-          fillLayer.setAttribute('fill-angle', latestAngle);
-          fillLayer.setAttribute('fill-radius', latestRadius);
-          fillLayer.setAttribute('fill-type', 'gradient');
-        }
-
-        syncGradient(group.ownerDocument || document, fillLayer, 'fill');
-
-        // Force browser to re-resolve the url(#...) reference
-        const resolvedFill = fillLayer.getAttribute('fill');
-        if (resolvedFill && resolvedFill.startsWith('url(#')) {
-          fillLayer.setAttribute('fill', 'none');
-          fillLayer.getBoundingClientRect(); // force synchronous reflow
-          fillLayer.setAttribute('fill', resolvedFill);
-        }
-      });
-    };
-
-    restorePageGradients();
-  }, [activePageIndex, pages]);
 
   // Handle external asset insertion events
   useEffect(() => {
@@ -4606,7 +4554,7 @@ const MainEditor = ({
                       const leaf = getDraggableElement(target, svgElement);
                       const isBase = leaf ? topFrames.some(f => f.id === leaf.id) : true;
                       if (isBase || target === svgElement || target.getAttribute('data-name') === 'Overlay') {
-                        isHit = hitTest(selEl, event.clientX, event.clientY, 2);
+                         isHit = hitTest(selEl, event.clientX, event.clientY, 2);
                       }
                     }
 
@@ -4730,56 +4678,6 @@ const MainEditor = ({
               }
             }
 
-            const shiftDragHandler = (e) => {
-              if (e.key === 'Shift') {
-                const state = event.interaction.dragState;
-                if (!state || !state.lastClientX) return;
-
-                const isShift = e.shiftKey || e.type === 'keydown';
-
-                if (state.multiDragItems) {
-                  for (const item of state.multiDragItems) {
-                    const currentPointLocal = getLocalPoint(state.svgElement, item.element.parentNode, state.lastClientX, state.lastClientY);
-                    if (!currentPointLocal || !item.startPointLocal) continue;
-
-                    let dx = currentPointLocal.x - item.startPointLocal.x;
-                    let dy = currentPointLocal.y - item.startPointLocal.y;
-
-                    if (isShift) {
-                      if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                      else dx = 0;
-                    }
-
-                    const translation = new DOMMatrix().translate(dx, dy);
-                    const nextMatrix = translation.multiply(item.initialMatrix);
-                    item.element.setAttribute('transform', matrixToTransform(nextMatrix));
-                  }
-                  drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
-                } else {
-                  const target = state.element;
-                  const currentPointLocal = getLocalPoint(state.svgElement, target.parentNode, state.lastClientX, state.lastClientY);
-                  if (!currentPointLocal || !state.startPointLocal) return;
-
-                  let dx = currentPointLocal.x - state.startPointLocal.x;
-                  let dy = currentPointLocal.y - state.startPointLocal.y;
-
-                  if (isShift) {
-                    if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                    else dx = 0;
-                  }
-
-                  const translation = new DOMMatrix().translate(dx, dy);
-                  const nextMatrix = translation.multiply(state.initialMatrix);
-                  target.setAttribute('transform', matrixToTransform(nextMatrix));
-                  if (typeof drawOverlayHighlight === 'function') {
-                    drawOverlayHighlight(target, currentFrameIdRef.current && target.id !== currentFrameIdRef.current ? 'child-selected' : 'selected');
-                  }
-                }
-              }
-            };
-            document.addEventListener('keydown', shiftDragHandler);
-            document.addEventListener('keyup', shiftDragHandler);
-
             event.interaction.dragState = {
               element: elementToDrag,
               startPoint: startPoint,
@@ -4791,8 +4689,7 @@ const MainEditor = ({
               multiDragItems: multiDragItems.length > 0 ? multiDragItems : null,
               initialClientX: event.clientX,
               initialClientY: event.clientY,
-              thresholdMet: false,
-              shiftDragHandler
+              thresholdMet: false
             };
           },
           move(event) {
@@ -4857,9 +4754,6 @@ const MainEditor = ({
               }
             }
 
-            dragState.lastClientX = event.clientX;
-            dragState.lastClientY = event.clientY;
-
             const isAltPressedCurrent = event.altKey || (event.sourceEvent && event.sourceEvent.altKey);
             if (isAltPressedCurrent && !dragState.hasDuplicated) {
               dragState.hasDuplicated = true;
@@ -4919,13 +4813,8 @@ const MainEditor = ({
                 const currentPointLocal = getLocalPoint(dragState.svgElement, item.element.parentNode, event.clientX, event.clientY);
                 if (!currentPointLocal || !item.startPointLocal) continue;
 
-                let dx = currentPointLocal.x - item.startPointLocal.x;
-                let dy = currentPointLocal.y - item.startPointLocal.y;
-
-                if (event.shiftKey) {
-                  if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                  else dx = 0;
-                }
+                const dx = currentPointLocal.x - item.startPointLocal.x;
+                const dy = currentPointLocal.y - item.startPointLocal.y;
 
                 const translation = new DOMMatrix().translate(dx, dy);
                 const nextMatrix = translation.multiply(item.initialMatrix);
@@ -4938,13 +4827,8 @@ const MainEditor = ({
               const currentPointLocal = getLocalPoint(dragState.svgElement, target.parentNode, event.clientX, event.clientY);
               if (!currentPointLocal || !dragState.startPointLocal) return;
 
-              let dx = currentPointLocal.x - dragState.startPointLocal.x;
-              let dy = currentPointLocal.y - dragState.startPointLocal.y;
-
-              if (event.shiftKey) {
-                if (Math.abs(dx) > Math.abs(dy)) dy = 0;
-                else dx = 0;
-              }
+              const dx = currentPointLocal.x - dragState.startPointLocal.x;
+              const dy = currentPointLocal.y - dragState.startPointLocal.y;
 
               const translation = new DOMMatrix().translate(dx, dy);
               const nextMatrix = translation.multiply(dragState.initialMatrix);
@@ -4973,11 +4857,6 @@ const MainEditor = ({
           end(event) {
             const dragState = event.interaction.dragState;
             if (!dragState) return;
-
-            if (dragState.shiftDragHandler) {
-              document.removeEventListener('keydown', dragState.shiftDragHandler);
-              document.removeEventListener('keyup', dragState.shiftDragHandler);
-            }
 
             if (!dragState.thresholdMet) {
               delete event.interaction.dragState;
@@ -6391,10 +6270,10 @@ const MainEditor = ({
     if (!hitCandidate || topFrames.some(f => f.id === hitCandidate.id)) {
       const leafTarget = getDraggableElement(e.target, svg);
       if (leafTarget) {
-        const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
-        if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
-          hitCandidate = leafTarget;
-        }
+         const leafIsBase = topFrames.some(f => f.id === leafTarget.id);
+         if (!leafIsBase && leafTarget.getAttribute('data-name') !== 'Overlay') {
+            hitCandidate = leafTarget;
+         }
       }
     }
 
@@ -6445,7 +6324,7 @@ const MainEditor = ({
 
     // Start marquee if user holds Ctrl (unless clicking a selected image) OR if they clicked on the background/base frame
     // (Also start if Shift is held so Shift+Drag can draw marquee over elements without Ctrl)
-    const shouldStartMarquee = ((e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
+    const shouldStartMarquee = ( (e.ctrlKey || e.shiftKey) && !hitSelectedImage) || ((!hitCandidate || hitBaseFrame) && selectedSelectToolRef.current !== 'direct' && !isEditingTextRef.current);
 
     if (shouldStartMarquee) {
       const rect = container.getBoundingClientRect();
@@ -8161,7 +8040,7 @@ const MainEditor = ({
         const topLevelEls = getTopLevelFrames(svg);
         let hitTopFrame = null;
         let targetEl = getDraggableElement(e.target, e.currentTarget);
-
+        
         let currEl = targetEl;
         while (currEl && currEl !== svg) {
           if (topLevelEls.includes(currEl)) {
@@ -8207,7 +8086,7 @@ const MainEditor = ({
     // 1. Identify which top-level frame was hit (topmost in z-order)
     let hitFrame = null;
     let target = getDraggableElement(e.target, e.currentTarget);
-
+    
     // First, try to find the frame directly from the clicked target's DOM ancestry
     // This is robust against coordinate-based hitTest failing due to UI overlays (like the Upload panel)
     let currentEl = target;

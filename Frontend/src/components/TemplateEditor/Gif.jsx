@@ -94,7 +94,7 @@ const GifEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
-    'Blur': { blur: 0.5, spread: 0, clipContent: false }
+    'Blur': { blur: 0.5, spread: 0 }
   });
 
   const [backgroundColor, setBackgroundColor] = useState({
@@ -412,7 +412,7 @@ const GifEditor = ({
       // --- Radius & Clip-path ---
       const anyR = radius.tl || radius.tr || radius.br || radius.bl;
       const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
-
+      
       let exactPathD = '';
       let targetElForPath = svgImageEl || liveElement;
       if (isSvgEl) {
@@ -433,16 +433,16 @@ const GifEditor = ({
         exactPathD = getPathD(bx, by, Math.max(0, bw), Math.max(0, bh), c_tl, c_tr, c_br, c_bl);
       }
 
-      const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
-
-      targetElForPath.style.borderRadius = radiusStr;
-      targetElForPath.setAttribute('data-radius', JSON.stringify(radius));
-      targetElForPath.style.overflow = 'hidden';
-
       if (anyR || forceClip) {
-        targetElForPath.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-        if (forceClip) {
-          if (isSvgEl) {
+        const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
+        const clipVal = `inset(0% 0% 0% 0% round ${radiusStr})`;
+
+        if (isSvgEl) {
+          if (svgImageEl && svgImageEl !== liveElement) {
+            svgImageEl.style.clipPath = clipVal;
+            svgImageEl.style.webkitClipPath = clipVal;
+          }
+          if (forceClip && exactPathD) {
             let clipId = `clip-content-${liveElement.id || 'gif'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
             if (!defs && liveElement.ownerSVGElement) {
@@ -454,78 +454,83 @@ const GifEditor = ({
               if (!clipNode) {
                 clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
                 clipNode.id = clipId;
-                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 clipNode.appendChild(clipPathEl);
                 defs.appendChild(clipNode);
               }
-              const rect = clipNode.firstChild;
-
-              let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = targetElForPath.getBBox(); } catch (e) { }
-              let bxStr = targetElForPath.getAttribute('x') || '0';
-              let byStr = targetElForPath.getAttribute('y') || '0';
-              let bwStr = targetElForPath.getAttribute('width') || '100%';
-              let bhStr = targetElForPath.getAttribute('height') || '100%';
-              let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-              let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-              let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-              let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
-
-              rect.setAttribute('x', bx);
-              rect.setAttribute('y', by);
-              rect.setAttribute('width', Math.max(0, bw));
-              rect.setAttribute('height', Math.max(0, bh));
-              rect.setAttribute('transform', targetElForPath.getAttribute('transform') || '');
-              const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
-              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-              else rect.removeAttribute('rx');
-
-              const targetEl = svgImageEl || liveElement;
-              targetEl.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-              targetEl.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
-
-              if (targetEl !== liveElement) {
-                liveElement.style.removeProperty('clip-path');
-                liveElement.style.removeProperty('-webkit-clip-path');
-              }
+              clipNode.firstChild.setAttribute('d', exactPathD);
+              clipNode.firstChild.setAttribute('transform', targetElForPath.getAttribute('transform') || '');
+              
+              liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
             }
           } else {
-            liveElement.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+            liveElement.style.clipPath = '';
+            liveElement.style.webkitClipPath = '';
           }
+          liveElement.style.transformBox = '';
+
+          if (tagLower === 'rect') {
+            const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+            liveElement.setAttribute('rx', maxR.toString());
+          }
+
+          liveElement.setAttribute('data-effect-radius-tl', radius.tl.toString());
+          liveElement.setAttribute('data-effect-radius-tr', radius.tr.toString());
+          liveElement.setAttribute('data-effect-radius-br', radius.br.toString());
+          liveElement.setAttribute('data-effect-radius-bl', radius.bl.toString());
         } else {
-          liveElement.style.removeProperty('clip-path');
-          liveElement.style.removeProperty('-webkit-clip-path');
-          if (svgImageEl && svgImageEl !== liveElement) {
-            svgImageEl.style.removeProperty('clip-path');
-            svgImageEl.style.removeProperty('-webkit-clip-path');
+          // HTML: Use pure border-radius
+          liveElement.style.clipPath = '';
+          liveElement.style.webkitClipPath = '';
+          if (forceClip) {
+            const radStr = `inset(0% 0% 0% 0% round ${radius.tl || 0}px ${radius.tr || 0}px ${radius.br || 0}px ${radius.bl || 0}px)`;
+            liveElement.style.setProperty('clip-path', radStr, 'important');
           }
+          liveElement.style.setProperty('border-radius', radiusStr, 'important');
+          liveElement.style.setProperty('overflow', 'hidden', 'important');
+          if (svgImageEl && svgImageEl !== liveElement) {
+            svgImageEl.style.setProperty('border-radius', radiusStr, 'important');
+          }
+          liveElement.setAttribute('data-effect-radius-tl', radius.tl.toString());
+          liveElement.setAttribute('data-effect-radius-tr', radius.tr.toString());
+          liveElement.setAttribute('data-effect-radius-br', radius.br.toString());
+          liveElement.setAttribute('data-effect-radius-bl', radius.bl.toString());
         }
       } else {
-        targetElForPath.style.removeProperty('clip-path');
-        targetElForPath.style.removeProperty('-webkit-clip-path');
-        liveElement.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('-webkit-clip-path');
+        // Reset radius
+        liveElement.style.clipPath = '';
+        liveElement.style.webkitClipPath = '';
+        liveElement.style.borderRadius = '';
+        liveElement.style.overflow = '';
+        liveElement.style.transformBox = '';
+        liveElement.removeAttribute('clip-path');
+        liveElement.removeAttribute('data-effect-radius-tl');
+        liveElement.removeAttribute('data-effect-radius-tr');
+        liveElement.removeAttribute('data-effect-radius-br');
+        liveElement.removeAttribute('data-effect-radius-bl');
+        if (svgImageEl && svgImageEl !== liveElement) {
+          svgImageEl.style.clipPath = '';
+          svgImageEl.style.webkitClipPath = '';
+          svgImageEl.style.borderRadius = '';
+        }
+        if (tagLower === 'rect') {
+          liveElement.removeAttribute('rx');
+          liveElement.removeAttribute('ry');
+        }
       }
 
       // --- Filter Application ---
       const adjustOnlyFilter = adjustOnlyStr.trim() || 'none';
       const shadowOnlyFilter = dsCssString.trim() || 'none';
       const blurOnlyFilter = blurStr.trim() || 'none';
-      const totalHtmlFilter = `${adjustOnlyStr} ${blurStr} ${dsCssString}`.trim() || 'none';
 
       if (isSvgEl) {
         const hasClip = anyR || forceClip;
 
         // 1. Apply Adjustments to the actual image content (leaf)
         if (svgImageEl) {
-          let leafFilter = adjustOnlyFilter;
-          if (!hasClip && shadowOnlyFilter !== 'none') {
-            leafFilter = `${adjustOnlyStr} ${dsCssString}`.trim();
-          }
-          if (forceClip && blurOnlyFilter !== 'none') {
-            leafFilter = `${leafFilter} ${blurStr}`.trim();
-          }
-          svgImageEl.style.setProperty('filter', leafFilter, 'important');
+          svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
         }
 
         // 2. Apply Drop Shadow to a sibling caster (best for SVG with clips)
@@ -558,7 +563,7 @@ const GifEditor = ({
         }
 
         // 3. Apply layer-level Blur to the selection element itself
-        if (blurOnlyFilter !== 'none' && !forceClip) {
+        if (blurOnlyFilter !== 'none') {
           liveElement.style.setProperty('filter', blurOnlyFilter, 'important');
         } else {
           liveElement.style.removeProperty('filter');
@@ -569,7 +574,7 @@ const GifEditor = ({
         }
       } else {
         // FOR HTML
-        liveElement.style.setProperty('filter', totalHtmlFilter, 'important');
+        liveElement.style.setProperty('filter', adjustOnlyFilter === 'none' && blurOnlyFilter === 'none' ? 'none' : `${adjustOnlyStr} ${blurStr}`.trim(), 'important');
         if (liveElement.parentElement) liveElement.parentElement.style.removeProperty('filter');
 
         if (activeEffects.includes('Drop Shadow') || activeEffects.includes('Blur')) {
@@ -669,7 +674,6 @@ const GifEditor = ({
             liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
-            if (fillLayer.style) fillLayer.style.removeProperty('fill');
             fillLayer.removeAttribute('data-fill-type');
             fillLayer.removeAttribute('data-fill-stops');
             fillLayer.removeAttribute('data-fill-gradient-type');
@@ -844,7 +848,6 @@ const GifEditor = ({
               strokeOverlay.removeAttribute('stroke-radius');
 
               strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
-              if (strokeOverlay.style) strokeOverlay.style.removeProperty('stroke');
             }
             strokeOverlay.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
             strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());

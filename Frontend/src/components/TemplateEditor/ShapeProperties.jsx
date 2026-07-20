@@ -147,8 +147,8 @@ const ShapeProperties = ({
     strokeRadius: parseFloat(selectedElementProps['stroke-radius'] || 100),
     strokeWeight: parseFloat(selectedElementProps['stroke-width'] || 0),
     strokeDashStyle: (selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid',
-    strokeDashLength: parseInt((selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[0]) || 10,
-    strokeDashGap: parseInt(((selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[1] || (selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[0])) || 10,
+    strokeDashLength: parseInt((selectedElementProps.strokeDasharray || '10,10').split(',')[0]),
+    strokeDashGap: parseInt(((selectedElementProps.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps.strokeDasharray || '10,10').split(',')[0])),
     strokeLinecap: selectedElementProps['stroke-linecap'] || 'butt',
     strokePosition: selectedElementProps['data-stroke-position'] || 'Center',
   };
