@@ -200,6 +200,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   const ignoreClickRef = useRef(false);
   const containerRef = useRef(null);
   const lastGeneratedColor = useRef(null);
+  const isColorDragging = useRef(false);
 
   // Dragging state for popup
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
@@ -391,6 +392,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   }, [colorsOnPage]);
 
   useEffect(() => {
+    if (isColorDragging.current) return;
     if (color && color !== lastGeneratedColor.current) {
       if (color.includes("gradient") && !disableGradient) {
         setMode("gradient");
@@ -453,7 +455,9 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     const isDragging = useRef(false);
     const containerRef = useRef(null);
     const onMouseDown = (e) => {
+      e.preventDefault();
       isDragging.current = true;
+      isColorDragging.current = true;
       handler(e, containerRef.current, true);
       window.addEventListener("mousemove", onMouseMove);
       window.addEventListener("mouseup", onMouseUp);
@@ -466,6 +470,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     };
     const onMouseUp = (e) => {
       isDragging.current = false;
+      isColorDragging.current = false;
       handler(e, containerRef.current, false);
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
@@ -857,19 +862,35 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                           className="absolute -translate-x-1/2 flex flex-col items-center pointer-events-auto cursor-grab active:cursor-grabbing"
                           style={{ left: `${stop.offset}%`, bottom: '0.6vw' }}
                           onMouseDown={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
+                            isColorDragging.current = true;
+                            
+                            // Select this stop immediately upon starting the drag
+                            setEditingStopIndex(idx);
+                            setHsv(hexToHsv(stop.color));
+
                             const startX = e.clientX;
                             const startOffset = stop.offset;
                             const rect = e.currentTarget.parentElement.parentElement.getBoundingClientRect();
+                            let rafId = null;
+                            let lastOffset = startOffset;
 
                             const handleMouseMove = (moveEvent) => {
+                              moveEvent.preventDefault();
                               const dx = ((moveEvent.clientX - startX) / rect.width) * 100;
-                              const newOffset = Math.min(100, Math.max(0, Math.round(startOffset + dx)));
-                              updateGradientStop(idx, { offset: newOffset }, true);
+                              lastOffset = Math.min(100, Math.max(0, Math.round(startOffset + dx)));
+                              
+                              if (rafId) cancelAnimationFrame(rafId);
+                              rafId = requestAnimationFrame(() => {
+                                updateGradientStop(idx, { offset: lastOffset }, true);
+                              });
                             };
 
                             const handleMouseUp = () => {
-                              updateGradientStop(idx, undefined, false);
+                              isColorDragging.current = false;
+                              if (rafId) cancelAnimationFrame(rafId);
+                              updateGradientStop(idx, { offset: lastOffset }, false);
                               window.removeEventListener('mousemove', handleMouseMove);
                               window.removeEventListener('mouseup', handleMouseUp);
                             };

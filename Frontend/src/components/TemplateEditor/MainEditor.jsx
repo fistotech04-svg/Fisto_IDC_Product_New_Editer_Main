@@ -4360,9 +4360,31 @@ const MainEditor = ({
           const ctm = el.getScreenCTM();
           if (ctm) {
             const localPt = pt.matrixTransform(ctm.inverse());
-            const bbox = el.getBBox();
             // Calculate scale from CTM to convert screen buffer into local coordinate units
             const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
+
+            if (el.tagName && el.tagName.toLowerCase() === 'line') {
+              const x1 = parseFloat(el.getAttribute('x1')) || 0;
+              const y1 = parseFloat(el.getAttribute('y1')) || 0;
+              const x2 = parseFloat(el.getAttribute('x2')) || 0;
+              const y2 = parseFloat(el.getAttribute('y2')) || 0;
+              
+              const l2 = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+              let t = 0;
+              if (l2 > 0) {
+                 t = ((localPt.x - x1) * (x2 - x1) + (localPt.y - y1) * (y2 - y1)) / l2;
+                 t = Math.max(0, Math.min(1, t));
+              }
+              const projX = x1 + t * (x2 - x1);
+              const projY = y1 + t * (y2 - y1);
+              const dist = Math.sqrt((localPt.x - projX) * (localPt.x - projX) + (localPt.y - projY) * (localPt.y - projY));
+              
+              const lineBuffer = 6 / scale; // 6px screen buffer for mild padding
+              const strokeWidth = parseFloat(el.getAttribute('stroke-width')) || 1;
+              return dist <= (strokeWidth / 2) + lineBuffer;
+            }
+
+            const bbox = el.getBBox();
             const localBuffer = buffer / scale;
 
             return localPt.x >= (bbox.x - localBuffer) && localPt.x <= (bbox.x + bbox.width + localBuffer) &&
@@ -6639,10 +6661,27 @@ const MainEditor = ({
             shape.setAttribute('ry', ry);
             break;
           }
-          case 'line':
-            shape.setAttribute('x2', pt.x);
-            shape.setAttribute('y2', pt.y);
+          case 'line': {
+            if (e.shiftKey) {
+              const absDx = Math.abs(dx);
+              const absDy = Math.abs(dy);
+              
+              let newDx = 0, newDy = 0;
+              if (absDx >= absDy) {
+                newDx = dx;
+                newDy = 0;
+              } else {
+                newDx = 0;
+                newDy = dy;
+              }
+              shape.setAttribute('x2', start.x + newDx);
+              shape.setAttribute('y2', start.y + newDy);
+            } else {
+              shape.setAttribute('x2', pt.x);
+              shape.setAttribute('y2', pt.y);
+            }
             break;
+          }
           case 'polygon': {
             const radius = Math.sqrt(dx * dx + dy * dy);
             const sides = parseInt(shape.getAttribute('data-count') || 3);

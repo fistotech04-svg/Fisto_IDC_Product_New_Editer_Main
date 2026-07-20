@@ -199,6 +199,7 @@ const Color = ({
 }) => {
   const containerRef = useRef(null);
   const isDraggingRef = useRef(false);
+  const [dragEndCounter, setDragEndCounter] = useState(0);
 
   // --- Standalone Mode State ---
   const [internalBackgroundColor, setInternalBackgroundColor] = useState({
@@ -541,7 +542,7 @@ const Color = ({
     const raf = () => { rafId = requestAnimationFrame(applyColorsToDOM); };
     raf();
     return () => cancelAnimationFrame(rafId);
-  }, [backgroundColor, standaloneMode, selectedElement]);
+  }, [backgroundColor, standaloneMode, selectedElement, dragEndCounter]);
 
 
   useEffect(() => {
@@ -897,7 +898,13 @@ const Color = ({
               })()}
               disableGradient={isText && activeColorPicker === 'stroke'}
               onChange={(newVal, isDragging = false) => {
+                const wasDragging = isDraggingRef.current;
                 isDraggingRef.current = isDragging;
+                
+                if (wasDragging && !isDragging) {
+                  setDragEndCounter(c => c + 1);
+                }
+                
                 if (newVal.includes('gradient')) {
                   const parsed = parseGradient(newVal);
                   if (parsed) {
