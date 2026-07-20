@@ -112,6 +112,100 @@ const parseLayersFromSVG = (element) => {
  * TemplateEditor Layout Component
  * Integrates the various sub-components into a single editor interface.
  */
+export const syncGradient = (doc, element, baseAttr) => {
+    const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
+    const currentValue = element.getAttribute(baseAttr);
+    const isUrl = currentValue && currentValue.startsWith('url(#');
+    const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
+    const stopsJson = element.getAttribute(`${baseAttr}-stops`);
+
+    if (type === 'solid' || type === 'none') {
+      return;
+    }
+    if (!type && !isUrl) return;
+    if (!stopsJson) return;
+
+    let stops = [];
+    try { stops = JSON.parse(stopsJson); } catch (e) { return; }
+
+    const svgRoot = element.closest ? element.closest('svg') : null || doc.querySelector('svg');
+    if (!svgRoot) return; // Prevent crash if no SVG found in document
+
+    let defs = svgRoot.querySelector('defs');
+    if (!defs) {
+      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
+      svgRoot.insertBefore(defs, svgRoot.firstChild);
+    }
+
+    if (!element.id) {
+      element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    const gradId = `grad-${element.id}-${baseAttr}`;
+    let gradEl = defs.querySelector(`[id="${gradId}"]`);
+
+    const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
+
+    if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
+      gradEl.remove();
+      gradEl = null;
+    }
+
+    if (!gradEl) {
+      gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
+      gradEl.id = gradId;
+      defs.appendChild(gradEl);
+    }
+
+    if (svgGradType === 'linear') {
+      let angleStr = element.getAttribute(`${baseAttr}-angle`);
+      if (!angleStr && currentValue) {
+         const match = currentValue.match(/(\d+)deg/);
+         if (match) angleStr = match[1];
+      }
+      const angleDeg = parseFloat(angleStr || '0');
+      const theta = (angleDeg - 90) * (Math.PI / 180);
+      const length = Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta));
+      const x1 = 50 - (Math.cos(theta) * length * 50);
+      const y1 = 50 - (Math.sin(theta) * length * 50);
+      const x2 = 50 + (Math.cos(theta) * length * 50);
+      const y2 = 50 + (Math.sin(theta) * length * 50);
+
+      gradEl.setAttribute('x1', `${x1}%`);
+      gradEl.setAttribute('y1', `${y1}%`);
+      gradEl.setAttribute('x2', `${x2}%`);
+      gradEl.setAttribute('y2', `${y2}%`);
+    } else {
+      let radiusStr = element.getAttribute(`${baseAttr}-radius`);
+      if (!radiusStr && currentValue) {
+        const maxPctMatch = [...currentValue.matchAll(/([\d.]+)%/g)].map(m => parseFloat(m[1]));
+        if (maxPctMatch.length > 0) radiusStr = Math.max(...maxPctMatch).toString();
+      }
+      const radius = parseFloat(radiusStr || '100');
+      
+      gradEl.setAttribute('cx', '50%');
+      gradEl.setAttribute('cy', '50%');
+      gradEl.setAttribute('r', `${50 * (radius / 100)}%`);
+    }
+
+    while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
+    stops.forEach(s => {
+      const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
+      stop.setAttribute('offset', `${s.offset}%`);
+      stop.setAttribute('stop-color', s.color);
+      stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
+      gradEl.appendChild(stop);
+    });
+
+    element.setAttribute(baseAttr, `url(#${gradId})`);
+
+    if (element.tagName.toLowerCase() === 'g') {
+      Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
+        child.removeAttribute(baseAttr);
+        if (child.style) child.style.removeProperty(baseAttr);
+      });
+    }
+  };
+
 const TemplateEditor = () => {
   const { folder, v_id } = useParams();
   const location = useLocation();
@@ -2115,86 +2209,7 @@ const TemplateEditor = () => {
     });
   };
 
-  const syncGradient = (doc, element, baseAttr) => {
-    const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
-    const currentValue = element.getAttribute(baseAttr);
-    const isUrl = currentValue && currentValue.startsWith('url(#');
-    const gradType = element.getAttribute(`${baseAttr}-gradient-type`) || 'linear'; // 'linear', 'radial', 'angular', or 'diamond'
-    const stopsJson = element.getAttribute(`${baseAttr}-stops`);
 
-    // SKILLFUL RETURN: Only apply gradient logic if the element is currently in gradient mode.
-    // If it's 'solid' or 'none', the attribute (fill/stroke) should be left as is (the actual color).
-    if (type === 'solid' || type === 'none') {
-      return;
-    }
-
-    // Default to solid if type missing and it's not currently an url()
-    if (!type && !isUrl) return;
-
-    if (!stopsJson) return;
-
-    let stops = [];
-    try { stops = JSON.parse(stopsJson); } catch (e) { return; }
-
-    const svgRoot = doc.querySelector('svg');
-    let defs = svgRoot.querySelector('defs');
-    if (!defs) {
-      defs = doc.createElementNS("http://www.w3.org/2000/svg", "defs");
-      svgRoot.insertBefore(defs, svgRoot.firstChild);
-    }
-
-    if (!element.id) {
-      element.id = `${element.tagName}-${Math.random().toString(36).substr(2, 9)}`;
-    }
-    const gradId = `grad-${element.id}-${baseAttr}`;
-    let gradEl = defs.querySelector(`[id="${gradId}"]`);
-
-    // Support Angular and Diamond fallbacks for SVG
-    const svgGradType = (gradType === 'angular' || gradType === 'diamond') ? (gradType === 'angular' ? 'linear' : 'radial') : gradType;
-
-    // Remove if wrong type (case-insensitive check for safety, but creation is exact)
-    if (gradEl && gradEl.tagName.toLowerCase() !== `${svgGradType}gradient`.toLowerCase()) {
-      gradEl.remove();
-      gradEl = null;
-    }
-
-    if (!gradEl) {
-      gradEl = doc.createElementNS("http://www.w3.org/2000/svg", `${svgGradType}Gradient`);
-      gradEl.id = gradId;
-      if (svgGradType === 'linear') {
-        gradEl.setAttribute('x1', '0%');
-        gradEl.setAttribute('y1', '0%');
-        gradEl.setAttribute('x2', '100%');
-        gradEl.setAttribute('y2', '0%');
-      } else {
-        gradEl.setAttribute('cx', '50%');
-        gradEl.setAttribute('cy', '50%');
-        gradEl.setAttribute('r', '50%');
-      }
-      defs.appendChild(gradEl);
-    }
-
-    // Update stops
-    while (gradEl.firstChild) gradEl.removeChild(gradEl.firstChild);
-    stops.forEach(s => {
-      const stop = doc.createElementNS("http://www.w3.org/2000/svg", "stop");
-      stop.setAttribute('offset', `${s.offset}%`);
-      stop.setAttribute('stop-color', s.color);
-      stop.setAttribute('stop-opacity', (s.opacity !== undefined && s.opacity !== null) ? s.opacity : 1);
-      gradEl.appendChild(stop);
-    });
-
-    element.setAttribute(baseAttr, `url(#${gradId})`);
-
-    // If it's a group (like a vpath), child elements might have their own fill/stroke
-    // which prevents inheritance. We remove them to let the gradient through.
-    if (element.tagName.toLowerCase() === 'g') {
-      Array.from(element.querySelectorAll('path, rect, circle, ellipse, polyline, polygon')).forEach(child => {
-        child.removeAttribute(baseAttr);
-        if (child.style) child.style.removeProperty(baseAttr);
-      });
-    }
-  };
 
   const syncFilters = (doc, element) => {
     const svgRoot = doc.querySelector('svg');
@@ -2236,12 +2251,107 @@ const TemplateEditor = () => {
     // Helper to get attribute with default
     const getVal = (attr, def) => element.getAttribute(attr) || def;
 
-    // We chain effects by tracking the current input name
-    let currentIn = "SourceGraphic";
+    // We chain effects by tracking the graphic layer
+    let graphicIn = "SourceGraphic";
 
-    // Wait, Blur is moved to the end!
+    // 1. Inner Shadow
+    if (hasInnerShadow) {
+      const color = getVal('data-effect-inner-shadow-color', '#000000');
+      const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
+      const dx = getVal('data-effect-inner-shadow-x', '0');
+      const dy = getVal('data-effect-inner-shadow-y', '4');
+      const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
+      const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
 
-    // 2. Drop Shadow
+      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
+      morph.setAttribute('radius', Math.abs(spread));
+      morph.setAttribute('in', 'SourceAlpha');
+      morph.setAttribute('result', 'is_morph');
+      filterEl.appendChild(morph);
+
+      const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      gauss.setAttribute('stdDeviation', blur);
+      gauss.setAttribute('in', 'is_morph');
+      gauss.setAttribute('result', 'is_blur');
+      filterEl.appendChild(gauss);
+
+      const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
+      offset.setAttribute('dx', dx);
+      offset.setAttribute('dy', dy);
+      offset.setAttribute('in', 'is_blur');
+      offset.setAttribute('result', 'is_offset');
+      filterEl.appendChild(offset);
+
+      const compOut = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compOut.setAttribute('operator', 'out');
+      compOut.setAttribute('in', 'SourceAlpha');
+      compOut.setAttribute('in2', 'is_offset');
+      compOut.setAttribute('result', 'is_inverse');
+      filterEl.appendChild(compOut);
+
+      const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
+      flood.setAttribute('flood-color', color);
+      flood.setAttribute('flood-opacity', opacity);
+      flood.setAttribute('result', 'is_flood');
+      filterEl.appendChild(flood);
+
+      const compIn = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compIn.setAttribute('operator', 'in');
+      compIn.setAttribute('in', 'is_flood');
+      compIn.setAttribute('in2', 'is_inverse');
+      compIn.setAttribute('result', 'is_final');
+      filterEl.appendChild(compIn);
+
+      const compOver = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compOver.setAttribute('operator', 'over');
+      compOver.setAttribute('in', 'is_final');
+      compOver.setAttribute('in2', graphicIn);
+      compOver.setAttribute('result', 'inner_shadow_merged');
+      filterEl.appendChild(compOver);
+
+      graphicIn = "inner_shadow_merged";
+    }
+
+    // 2. Layer Blur (applies to Graphic + Inner Shadow)
+    if (hasBlur) {
+      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
+      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
+
+      let blurSource = graphicIn;
+
+      if (spreadVal !== 0) {
+        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
+        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
+        morph.setAttribute('radius', Math.abs(spreadVal));
+        morph.setAttribute('in', graphicIn);
+        morph.setAttribute('result', 'blur_morph');
+        filterEl.appendChild(morph);
+        blurSource = "blur_morph";
+      }
+
+      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+      blurNode.setAttribute('stdDeviation', blurVal);
+      blurNode.setAttribute('in', blurSource);
+      blurNode.setAttribute('result', 'blur_out');
+      filterEl.appendChild(blurNode);
+      graphicIn = "blur_out";
+    }
+
+    // 3. Clip Content (clips the blurred graphic + inner shadow to SourceAlpha)
+    if (hasClipContent) {
+      const compClip = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
+      compClip.setAttribute('operator', 'in');
+      compClip.setAttribute('in', graphicIn);
+      compClip.setAttribute('in2', 'SourceAlpha');
+      compClip.setAttribute('result', 'clipped_final');
+      filterEl.appendChild(compClip);
+      graphicIn = 'clipped_final';
+    }
+
+    // 4. Drop Shadow (generated from SourceAlpha, placed behind the final graphic)
+    let finalOutput = graphicIn;
+
     if (hasDropShadow) {
       const color = getVal('data-effect-drop-shadow-color', '#000000');
       const opacity = parseFloat(getVal('data-effect-drop-shadow-opacity', '25')) / 100;
@@ -2250,10 +2360,8 @@ const TemplateEditor = () => {
       const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
       const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
-      // a. Spread (Morphology)
       let dsSource = 'SourceAlpha';
       if (spread !== 0) {
-        // a. Spread (Morphology)
         const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
         morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
         morph.setAttribute('radius', Math.abs(spread));
@@ -2263,14 +2371,12 @@ const TemplateEditor = () => {
         dsSource = 'ds_morph';
       }
 
-      // b. Blur
       const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
       gauss.setAttribute('stdDeviation', blur);
       gauss.setAttribute('in', dsSource);
       gauss.setAttribute('result', 'ds_blur');
       filterEl.appendChild(gauss);
 
-      // c. Offset
       const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
       offset.setAttribute('dx', dx);
       offset.setAttribute('dy', dy);
@@ -2278,14 +2384,12 @@ const TemplateEditor = () => {
       offset.setAttribute('result', 'ds_offset');
       filterEl.appendChild(offset);
 
-      // d. Color
       const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
       flood.setAttribute('flood-color', color);
       flood.setAttribute('flood-opacity', opacity);
       flood.setAttribute('result', 'ds_flood');
       filterEl.appendChild(flood);
 
-      // e. Composite (Clip to Alpha)
       const comp = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
       comp.setAttribute('in', 'ds_flood');
       comp.setAttribute('in2', 'ds_offset');
@@ -2293,121 +2397,18 @@ const TemplateEditor = () => {
       comp.setAttribute('result', 'ds_final');
       filterEl.appendChild(comp);
 
-      // f. Merge with current chain
       const merge = doc.createElementNS("http://www.w3.org/2000/svg", "feMerge");
       const nodeShadow = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
       nodeShadow.setAttribute('in', 'ds_final');
       const nodeInput = doc.createElementNS("http://www.w3.org/2000/svg", "feMergeNode");
-      nodeInput.setAttribute('in', currentIn);
+      nodeInput.setAttribute('in', graphicIn);
+      
       merge.appendChild(nodeShadow);
       merge.appendChild(nodeInput);
-      merge.setAttribute('result', 'drop_shadow_merged');
+      merge.setAttribute('result', 'final_merged');
       filterEl.appendChild(merge);
-
-      currentIn = "drop_shadow_merged";
-    }
-
-    // 3. Inner Shadow
-    if (hasInnerShadow) {
-      const color = getVal('data-effect-inner-shadow-color', '#000000');
-      const opacity = parseFloat(getVal('data-effect-inner-shadow-opacity', '25')) / 100;
-      const dx = getVal('data-effect-inner-shadow-x', '0');
-      const dy = getVal('data-effect-inner-shadow-y', '4');
-      const blur = parseFloat(getVal('data-effect-inner-shadow-blur', '4'));
-      const spread = parseFloat(getVal('data-effect-inner-shadow-spread', '0'));
-
-      // a. Spread (Morphology)
-      const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-      morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
-      morph.setAttribute('radius', Math.abs(spread));
-      morph.setAttribute('in', 'SourceAlpha');
-      morph.setAttribute('result', 'is_morph');
-      filterEl.appendChild(morph);
-
-      // b. Blur
-      const gauss = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      gauss.setAttribute('stdDeviation', blur);
-      gauss.setAttribute('in', 'is_morph');
-      gauss.setAttribute('result', 'is_blur');
-      filterEl.appendChild(gauss);
-
-      // c. Offset
-      const offset = doc.createElementNS("http://www.w3.org/2000/svg", "feOffset");
-      offset.setAttribute('dx', dx);
-      offset.setAttribute('dy', dy);
-      offset.setAttribute('in', 'is_blur');
-      offset.setAttribute('result', 'is_offset');
-      filterEl.appendChild(offset);
-
-      // d. Invert to get inner part
-      const compOut = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
-      compOut.setAttribute('operator', 'out');
-      compOut.setAttribute('in', 'SourceAlpha');
-      compOut.setAttribute('in2', 'is_offset');
-      compOut.setAttribute('result', 'is_inverse');
-      filterEl.appendChild(compOut);
-
-      // e. Color
-      const flood = doc.createElementNS("http://www.w3.org/2000/svg", "feFlood");
-      flood.setAttribute('flood-color', color);
-      flood.setAttribute('flood-opacity', opacity);
-      flood.setAttribute('result', 'is_flood');
-      filterEl.appendChild(flood);
-
-      // f. Clip color to inner shape
-      const compIn = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
-      compIn.setAttribute('operator', 'in');
-      compIn.setAttribute('in', 'is_flood');
-      compIn.setAttribute('in2', 'is_inverse');
-      compIn.setAttribute('result', 'is_final');
-      filterEl.appendChild(compIn);
-
-      // g. Composite over current chain
-      const compOver = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
-      compOver.setAttribute('operator', 'over');
-      compOver.setAttribute('in', 'is_final');
-      compOver.setAttribute('in2', currentIn);
-      compOver.setAttribute('result', 'inner_shadow_merged');
-      filterEl.appendChild(compOver);
-
-      currentIn = "inner_shadow_merged";
-    }
-
-    // 4. Layer Blur (Applied LAST so it blurs shadows and strokes too)
-    if (hasBlur) {
-      const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
-      const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
-
-      let blurSource = currentIn;
-
-      // a. Spread (Morphology)
-      if (spreadVal !== 0) {
-        const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
-        morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
-        morph.setAttribute('radius', Math.abs(spreadVal));
-        morph.setAttribute('in', currentIn);
-        morph.setAttribute('result', 'blur_morph');
-        filterEl.appendChild(morph);
-        blurSource = "blur_morph";
-      }
-
-      // b. Blur
-      const blurNode = doc.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-      blurNode.setAttribute('stdDeviation', blurVal);
-      blurNode.setAttribute('in', blurSource);
-      blurNode.setAttribute('result', 'blur_out');
-      filterEl.appendChild(blurNode);
-      currentIn = "blur_out";
-    }
-
-    if (hasClipContent) {
-      const compClip = doc.createElementNS("http://www.w3.org/2000/svg", "feComposite");
-      compClip.setAttribute('operator', 'in');
-      compClip.setAttribute('in', currentIn);
-      compClip.setAttribute('in2', 'SourceAlpha');
-      compClip.setAttribute('result', 'clipped_final');
-      filterEl.appendChild(compClip);
-      currentIn = 'clipped_final';
+      
+      finalOutput = 'final_merged';
     }
 
     element.setAttribute('filter', `url(#${filterId})`);
@@ -3492,7 +3493,7 @@ const TemplateEditor = () => {
 
               // Re-parse layers from HTML if missing or invalid (source of truth)
               const doc = parser.parseFromString(updatedHtml, 'image/svg+xml');
-              
+
               // Force rebuild of effects and dynamic shapes to ensure they are visually correct upon reload
               const allEls = doc.querySelectorAll('*');
               allEls.forEach(el => {

@@ -95,7 +95,7 @@ const ShapeProperties = ({
   updateElementAttribute
 }) => {
   const [openSubSection, setOpenSubSection] = useState('color');
-  
+
   // UI states for Color
   const [activeColorPicker, setActiveColorPicker] = useState(null);
   const [showStrokeSettings, setShowStrokeSettings] = useState(false);
@@ -122,7 +122,7 @@ const ShapeProperties = ({
   }, [selectedElementProps, activePageIndex]);
 
   const shapeType = selectedElementProps['data-shape-type'] || selectedElementProps.tagName?.toLowerCase();
-  
+
   if (!selectedElementProps) return null;
 
   const updateAttr = (attribute, value) => {
@@ -147,15 +147,15 @@ const ShapeProperties = ({
     strokeRadius: parseFloat(selectedElementProps['stroke-radius'] || 100),
     strokeWeight: parseFloat(selectedElementProps['stroke-width'] || 0),
     strokeDashStyle: (selectedElementProps.strokeDasharray && selectedElementProps.strokeDasharray !== 'none') ? 'Dashed' : 'Solid',
-    strokeDashLength: parseInt((selectedElementProps.strokeDasharray || '10,10').split(',')[0]),
-    strokeDashGap: parseInt(((selectedElementProps.strokeDasharray || '10,10').split(',')[1] || (selectedElementProps.strokeDasharray || '10,10').split(',')[0])),
+    strokeDashLength: parseInt((selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[0]) || 10,
+    strokeDashGap: parseInt(((selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[1] || (selectedElementProps.strokeDasharray === 'none' ? '10,10' : (selectedElementProps.strokeDasharray || '10,10')).split(',')[0])) || 10,
     strokeLinecap: selectedElementProps['stroke-linecap'] || 'butt',
     strokePosition: selectedElementProps['data-stroke-position'] || 'Center',
   };
 
   const handleSetBackgroundColor = (updater) => {
     const next = typeof updater === 'function' ? updater(backgroundColor) : updater;
-    
+
     const updates = {};
     if (backgroundColor.fill !== next.fill) updates['fill'] = next.fill;
     if (backgroundColor.fillOpacity !== next.fillOpacity) updates['opacity'] = (next.fillOpacity / 100).toString();
@@ -168,9 +168,9 @@ const ShapeProperties = ({
     }
     if (backgroundColor.strokeDashStyle !== next.strokeDashStyle || backgroundColor.strokeDashLength !== next.strokeDashLength || backgroundColor.strokeDashGap !== next.strokeDashGap) {
       if (next.strokeDashStyle === 'none' || next.strokeDashStyle === 'Solid') {
-         updates['stroke-dasharray'] = 'none';
+        updates['stroke-dasharray'] = 'none';
       } else {
-         updates['stroke-dasharray'] = `${next.strokeDashLength || 10},${next.strokeDashGap || 10}`;
+        updates['stroke-dasharray'] = `${next.strokeDashLength || 10},${next.strokeDashGap || 10}`;
       }
     }
     if (backgroundColor.strokePosition !== next.strokePosition) updates['data-stroke-position'] = next.strokePosition;
@@ -210,8 +210,8 @@ const ShapeProperties = ({
     if (radius.tr !== next.tr) updates['data-tr'] = next.tr.toString();
     if (radius.bl !== next.bl) updates['data-bl'] = next.bl.toString();
     if (radius.br !== next.br) updates['data-br'] = next.br.toString();
-    
-    const maxR = Math.max(next.tl||0, next.tr||0, next.bl||0, next.br||0);
+
+    const maxR = Math.max(next.tl || 0, next.tr || 0, next.bl || 0, next.br || 0);
     updates['rx'] = maxR.toString();
     updates['ry'] = maxR.toString();
 
@@ -221,7 +221,7 @@ const ShapeProperties = ({
   };
 
   const handleSetIsRadiusLinked = (val) => {
-     updateElementAttribute(activePageIndex, selectedLayerId, 'data-corner-linked', val ? 'true' : 'false');
+    updateElementAttribute(activePageIndex, selectedLayerId, 'data-corner-linked', val ? 'true' : 'false');
   };
 
   const activeEffects = [];
@@ -279,11 +279,11 @@ const ShapeProperties = ({
       if (effectSettings[type].color !== next[type].color) updates[`data-effect-${prefix}-color`] = next[type].color;
       if (effectSettings[type].opacity !== next[type].opacity) updates[`data-effect-${prefix}-opacity`] = next[type].opacity.toString();
     });
-    
+
     if (effectSettings['Blur'].blur !== next['Blur'].blur) updates[`data-effect-blur-value`] = next['Blur'].blur.toString();
     if (effectSettings['Blur'].spread !== next['Blur'].spread) updates[`data-effect-blur-spread`] = next['Blur'].spread.toString();
     if (effectSettings['Blur'].clipContent !== next['Blur'].clipContent) updates[`data-effect-blur-clip`] = next['Blur'].clipContent ? 'true' : 'false';
-    
+
     if (Object.keys(updates).length > 0) updateElementAttribute(activePageIndex, selectedLayerId, updates);
   };
 
@@ -326,31 +326,31 @@ const ShapeProperties = ({
 
       <div className="mt-[0.4vw]">
         <Color
-        openSubSection={openSubSection}
-        setOpenSubSection={setOpenSubSection}
-        backgroundColor={backgroundColor}
-        setBackgroundColor={handleSetBackgroundColor}
-        activeColorPicker={activeColorPicker}
-        setActiveColorPicker={setActiveColorPicker}
-        showStrokeSettings={showStrokeSettings}
-        setShowStrokeSettings={setShowStrokeSettings}
-        isStrokeStyleOpen={isStrokeStyleOpen}
-        setIsStrokeStyleOpen={setIsStrokeStyleOpen}
-        dropdownPos={dropdownPos}
-        setDropdownPos={setDropdownPos}
-        strokeSettingsPos={strokeSettingsPos}
-        setStrokeSettingsPos={setStrokeSettingsPos}
-        isDashPosOpen={isDashPosOpen}
-        setIsDashPosOpen={setIsDashPosOpen}
-        activePopup={activePopup}
-        setActivePopup={setActivePopup}
-        colorsOnPage={colorsOnPage}
-        showDetailedPicker={showDetailedPicker}
-        setShowDetailedPicker={setShowDetailedPicker}
-        hideFill={shapeType === 'line' || shapeType === 'path'}
-      />
+          openSubSection={openSubSection}
+          setOpenSubSection={setOpenSubSection}
+          backgroundColor={backgroundColor}
+          setBackgroundColor={handleSetBackgroundColor}
+          activeColorPicker={activeColorPicker}
+          setActiveColorPicker={setActiveColorPicker}
+          showStrokeSettings={showStrokeSettings}
+          setShowStrokeSettings={setShowStrokeSettings}
+          isStrokeStyleOpen={isStrokeStyleOpen}
+          setIsStrokeStyleOpen={setIsStrokeStyleOpen}
+          dropdownPos={dropdownPos}
+          setDropdownPos={setDropdownPos}
+          strokeSettingsPos={strokeSettingsPos}
+          setStrokeSettingsPos={setStrokeSettingsPos}
+          isDashPosOpen={isDashPosOpen}
+          setIsDashPosOpen={setIsDashPosOpen}
+          activePopup={activePopup}
+          setActivePopup={setActivePopup}
+          colorsOnPage={colorsOnPage}
+          showDetailedPicker={showDetailedPicker}
+          setShowDetailedPicker={setShowDetailedPicker}
+          hideFill={shapeType === 'line' || shapeType === 'path'}
+        />
       </div>
-      
+
       {(shapeType === 'rect' || shapeType === 'rectangle') && (
         <CornerRadius
           openSubSection={openSubSection}
@@ -375,11 +375,17 @@ const ShapeProperties = ({
         showDetailedPicker={showDetailedPicker}
         setShowDetailedPicker={setShowDetailedPicker}
       />
-      
+
       {/* CUSTOM CSS */}
       <style>{`
         .hide-opacity-bar .space-y-\\[1vw\\] > div:nth-child(2) {
           display: none !important;
+        }
+        input[type='range'] {
+          position: relative;
+        }
+        input[type='range']::before {
+          content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1;
         }
         input[type='range']::-webkit-slider-thumb {
           -webkit-appearance: none;
@@ -390,6 +396,8 @@ const ShapeProperties = ({
           border: 0.1vw solid #e5e7eb;
           box-shadow: 0 0.1vw 0.3vw rgba(0,0,0,0.1);
           cursor: pointer;
+          position: relative;
+          z-index: 2;
         }
         input[type='range'].blue-thumb::-webkit-slider-thumb {
           background: #6366f1;

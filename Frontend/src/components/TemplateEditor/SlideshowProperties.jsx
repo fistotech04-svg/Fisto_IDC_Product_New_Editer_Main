@@ -3,6 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown,
+  LayoutGrid,
+  Maximize,
+  MoveHorizontal,
+  Settings,
+  Type,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Maximize2,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -12,6 +21,7 @@ import {
 } from 'lucide-react';
 import GalleryImage from './GalleryImage';
 import { Icon } from '@iconify/react';
+import { getVisualBBox } from './MainEditor';
 
 // Clean up any lingering debuggers from Vite HMR
 ['my-slideshow-debug', 'my-slideshow-debug2', 'my-slideshow-debug3'].forEach(id => {
@@ -351,7 +361,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
             if (!force && prev.length > 0) return prev;
 
-            return newImages;
+            return newImages.map((img, idx) => {
+              if (idx === 0 && img.isOriginalCrop === undefined) {
+                 return { ...img, isOriginalCrop: true }; // Retroactive fix for old saves
+              }
+              return img;
+            });
           });
         }
       } else {
@@ -377,7 +392,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           const hasOptimistic = prev.some(img => img.isUploading || (img.url && img.url.startsWith('blob:')));
           if (hasOptimistic) return prev;
           if (prev.length > 0 && !force) return prev;
-          return currentSrc ? [{ id: Date.now(), url: currentSrc, name: 'Main Image' }] : [];
+          return currentSrc ? [{ id: Date.now(), url: currentSrc, name: 'Main Image', isOriginalCrop: true }] : [];
         });
       }
 
@@ -434,12 +449,61 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         // Sync active slide URL to href/src
         const targetImg = getSvgImageEl(targetElement) || targetElement;
         if (slideshowImages[activeSlideIndex]) {
-          const url = slideshowImages[activeSlideIndex].url;
+          const imgObj = slideshowImages[activeSlideIndex];
+          const url = imgObj.url;
           if (targetImg.getAttribute('href') !== url || targetImg.src !== url) {
             targetImg.setAttribute('href', url);
             try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
             if (targetImg.tagName?.toLowerCase() === 'img') targetImg.src = url;
             if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
+          }
+
+          // Ensure the crop viewport correctly frames the image for transitions
+          const cropStr = targetElement.getAttribute('data-crop-data');
+          if (cropStr && cropStr !== 'null') {
+            try {
+              const crop = JSON.parse(cropStr);
+              const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || targetImg.getAttribute('data-crop-orig-x') || '0');
+              const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || targetImg.getAttribute('data-crop-orig-y') || '0');
+              const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || targetImg.getAttribute('data-crop-orig-w') || targetImg.getAttribute('width') || '100');
+              const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || targetImg.getAttribute('data-crop-orig-h') || targetImg.getAttribute('height') || '100');
+
+              // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
+              const wrapper = targetImg.parentNode;
+              if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
+                let anchor = wrapper.querySelector('.bbox-anchor');
+                if (!anchor) {
+                  anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                  anchor.setAttribute('class', 'bbox-anchor');
+                  anchor.setAttribute('fill', 'none');
+                  anchor.style.pointerEvents = 'none';
+                  wrapper.insertBefore(anchor, wrapper.firstChild);
+                }
+                anchor.setAttribute('x', origX);
+                anchor.setAttribute('y', origY);
+                anchor.setAttribute('width', origW);
+                anchor.setAttribute('height', origH);
+              }
+
+              if (imgObj?.isOriginalCrop) {
+                targetImg.setAttribute('x', origX);
+                targetImg.setAttribute('y', origY);
+                targetImg.setAttribute('width', origW);
+                targetImg.setAttribute('height', origH);
+                targetImg.style.removeProperty('transform');
+              } else {
+                const cropX = origX + (origW * (parseFloat(crop.left) / 100));
+                const cropY = origY + (origH * (parseFloat(crop.top) / 100));
+                const cropW = origW * (parseFloat(crop.width) / 100);
+                const cropH = origH * (parseFloat(crop.height) / 100);
+
+                targetImg.setAttribute('x', cropX);
+                targetImg.setAttribute('y', cropY);
+                targetImg.setAttribute('width', cropW);
+                targetImg.setAttribute('height', cropH);
+                targetImg.style.removeProperty('transform');
+              }
+            } catch (e) { console.error("Error applying crop to gallery image", e); }
           }
         }
 
@@ -569,11 +633,58 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       }, 50);
     };
 
-    const setElSrc = (url) => {
+    const setElSrc = (url, imgObj) => {
       imgEl.setAttribute('href', url);
       try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
       if (imgEl.tagName?.toLowerCase() === 'img') imgEl.src = url;
       if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
+
+      const cropStr = targetElement.getAttribute('data-crop-data');
+      if (cropStr && cropStr !== 'null') {
+        try {
+          const crop = JSON.parse(cropStr);
+          const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || imgEl.getAttribute('data-crop-orig-x') || '0');
+          const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || imgEl.getAttribute('data-crop-orig-y') || '0');
+          const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || imgEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100');
+          const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || imgEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100');
+
+          // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
+          const wrapper = imgEl.parentNode;
+          if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
+            let anchor = wrapper.querySelector('.bbox-anchor');
+            if (!anchor) {
+              anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              anchor.setAttribute('class', 'bbox-anchor');
+              anchor.setAttribute('fill', 'none');
+              anchor.style.pointerEvents = 'none';
+              wrapper.insertBefore(anchor, wrapper.firstChild);
+            }
+            anchor.setAttribute('x', origX);
+            anchor.setAttribute('y', origY);
+            anchor.setAttribute('width', origW);
+            anchor.setAttribute('height', origH);
+          }
+
+          if (imgObj?.isOriginalCrop) {
+            imgEl.setAttribute('x', origX);
+            imgEl.setAttribute('y', origY);
+            imgEl.setAttribute('width', origW);
+            imgEl.setAttribute('height', origH);
+            imgEl.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
+          } else {
+            const cropX = origX + (origW * (parseFloat(crop.left) / 100));
+            const cropY = origY + (origH * (parseFloat(crop.top) / 100));
+            const cropW = origW * (parseFloat(crop.width) / 100);
+            const cropH = origH * (parseFloat(crop.height) / 100);
+
+            imgEl.setAttribute('x', cropX);
+            imgEl.setAttribute('y', cropY);
+            imgEl.setAttribute('width', cropW);
+            imgEl.setAttribute('height', cropH);
+            imgEl.style.setProperty('transform', 'none', 'important');
+          }
+        } catch (e) { console.error("Error applying crop to gallery image", e); }
+      }
     };
 
     const animEl = targetElement;
@@ -586,6 +697,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     // Create a temporary clone for seamless simultaneous transitions
     const clone = animEl.cloneNode(true);
     clone.removeAttribute('id');
+    clone.classList.add('slideshow-transition-clone');
     clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
     clone.style.pointerEvents = 'none';
 
@@ -618,12 +730,19 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     animEl.parentNode.insertBefore(clone, animEl);
 
     // Swap src on the original element immediately (it will act as the incoming element)
-    setElSrc(nextUrl);
+    setElSrc(nextUrl, images[newIdx]);
 
-    // Calculate dimensions for translations
-    let w = 0;
+    // Calculate dimensions for translations using visual width
+    let w = 100;
     try {
-      w = animEl.getBBox().width;
+      const cropStr = animEl.getAttribute('data-crop-data');
+      if (cropStr && cropStr !== 'null') {
+        const origW = parseFloat(animEl.getAttribute('data-crop-orig-w') || animEl.getAttribute('width') || 100);
+        const crop = JSON.parse(cropStr);
+        w = origW * (parseFloat(crop.width) / 100);
+      } else {
+        w = animEl.getBBox().width;
+      }
     } catch (e) {
       w = animEl.clientWidth || 100;
     }
@@ -631,27 +750,30 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     let cloneAnim, realAnim;
 
     if (effect === 'fade') {
-      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: 0 }, { opacity: baseOpacity }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'push') {
-      const dx = dir === 'next' ? -100 : 100;
-      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: `${dx}% 0%` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
-      realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      const dx = dir === 'next' ? -w : w;
+      cloneAnim = clone.animate([{ translate: '0px 0px' }, { translate: `${dx}px 0px` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      realAnim = animEl.animate([{ translate: `${-dx}px 0px` }, { translate: '0px 0px' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'linear') {
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration: 0, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration: 0, fill: 'forwards' });
     } else if (effect === 'slide') {
-      const dx = dir === 'next' ? -100 : 100;
-      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: '0% 0%' }], { duration, fill: 'forwards' });
-      realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      const dx = dir === 'next' ? -w : w;
+      cloneAnim = clone.animate([{ translate: '0px 0px' }, { translate: `${dx}px 0px` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      realAnim = animEl.animate([{ translate: `${-dx}px 0px` }, { translate: '0px 0px' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'flip') {
-      clone.style.transformBox = 'fill-box';
-      clone.style.transformOrigin = 'center';
-      cloneAnim = clone.animate([{ rotate: 'y 0deg' }, { rotate: 'y 90deg' }], { duration: duration / 2, easing: 'ease-in', fill: 'forwards' });
-      realAnim = animEl.animate([{ rotate: 'y -90deg' }, { rotate: 'y 0deg' }], { duration: duration / 2, delay: duration / 2, easing: 'ease-out', fill: 'forwards' });
+      animEl.style.transformBox = 'fill-box';
+      animEl.style.transformOrigin = 'center';
+      cloneAnim = clone.animate([{ opacity: 0 }, { opacity: 0 }], { duration, fill: 'forwards' });
+      realAnim = animEl.animate([
+        { rotate: 'y 90deg', opacity: 0 },
+        { rotate: 'y 0deg', opacity: baseOpacity }
+      ], { duration, easing: 'ease-out', fill: 'forwards' });
     } else if (effect === 'reveal') {
       const startClip = dir === 'next' ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)';
-      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration, fill: 'forwards' });
+      cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ clipPath: startClip }, { clipPath: 'inset(0 0 0 0)' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else {
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration: 0, fill: 'forwards' });
@@ -753,7 +875,30 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       }
 
       const containerRect = pageContainer.parentElement.getBoundingClientRect();
-      const elRect = freshTarget.getBoundingClientRect();
+      
+      // Use getVisualBBox to correctly size the overlay to the CROP box, not the original bounds
+      let elRect = freshTarget.getBoundingClientRect();
+      try {
+        const visualBBox = getVisualBBox(freshTarget);
+        if (visualBBox && visualBBox.width > 0) {
+          const svg = freshTarget.ownerSVGElement;
+          const matrix = freshTarget.getScreenCTM();
+          if (matrix && svg) {
+            const pt1 = svg.createSVGPoint();
+            pt1.x = visualBBox.x; pt1.y = visualBBox.y;
+            const pt2 = svg.createSVGPoint();
+            pt2.x = visualBBox.x + visualBBox.width; pt2.y = visualBBox.y + visualBBox.height;
+            const screenPt1 = pt1.matrixTransform(matrix);
+            const screenPt2 = pt2.matrixTransform(matrix);
+            elRect = {
+              left: Math.min(screenPt1.x, screenPt2.x),
+              top: Math.min(screenPt1.y, screenPt2.y),
+              width: Math.abs(screenPt2.x - screenPt1.x),
+              height: Math.abs(screenPt2.y - screenPt1.y)
+            };
+          }
+        }
+      } catch(e) {}
 
       // Compute actual CSS scale of the container
       const scaleX = containerRect.width / (pageContainer.offsetWidth || 1);
@@ -1367,9 +1512,10 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   return (
     <div className="space-y-[1vw]">
       <style>{`
-        .ss-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .ss-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+        .ss-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
         .ss-slider::-webkit-slider-runnable-track { height: 0.5vw; border-radius: 9999px; background: inherit; }
-        .ss-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1.6vw; width: 1.6vw; border-radius: 50%; background: #4D47FF; border: 0.2vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .ss-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1.6vw; width: 1.6vw; border-radius: 50%; background: #4D47FF; border: 0.2vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
         .ss-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
 
         .image-editor-toggle {
@@ -1531,11 +1677,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
         {/* Opacity */}
         <div className="space-y-[0.5vw]">
-          <div className="flex items-center gap-[0.5vw]">
+          <div className="flex items-center">
             <span className="text-[0.9vw]  font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
             <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
           </div>
-          <div className="flex items-center gap-[1vw] pb-[0.5vw]">
+          <div className="flex items-center gap-[1vw]">
             <div className="flex-1 flex items-center h-[1.5vw] rounded-full outline-none">
               <input
                 type="range"
@@ -1617,7 +1763,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                 <div className="flex flex-col gap-[1.2vw] mt-[0.75vw] px-[0.2vw]">
                   {/* Auto Slide Duration Row */}
                   <div className="flex items-center justify-between">
-                    <span className="text-[0.75vw] font-medium text-gray-500">Auto Slide Duration</span>
+                    <span className="text-[0.75vw] font-medium text-gray-500 whitespace-nowrap">Auto Slide Duration</span>
                     <div className="flex-1 border-b border-dashed border-gray-200 mx-[1vw]" />
                     <div className="flex items-center gap-[0.5vw]">
                       <button
@@ -1626,8 +1772,28 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
                       >
                         <ChevronLeft size="1.1vw" />
                       </button>
-                      <div className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm">
-                        <span className="text-[0.85vw] font-medium text-gray-800">{(slideshowSettings.speed || 3)}s</span>
+                      <div
+                        className="w-[3vw] h-[2vw] border border-gray-300 rounded-[0.4vw] flex items-center justify-center bg-white shadow-sm cursor-ew-resize"
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          const startX = e.clientX;
+                          const startVal = Math.round(slideshowSettings.speed || 3);
+                          const handleMove = (moveEvent) => {
+                            const delta = moveEvent.clientX - startX;
+                            // Every 15px dragged changes the value by 1
+                            const increments = Math.round(delta / 15);
+                            const newValue = Math.max(1, Math.min(20, startVal + increments));
+                            updateSetting('speed', newValue);
+                          };
+                          const handleUp = () => {
+                            document.removeEventListener('pointermove', handleMove);
+                            document.removeEventListener('pointerup', handleUp);
+                          };
+                          document.addEventListener('pointermove', handleMove);
+                          document.addEventListener('pointerup', handleUp);
+                        }}
+                      >
+                        <span className="text-[0.85vw] font-medium text-gray-800 pointer-events-none">{(slideshowSettings.speed || 3)}s</span>
                       </div>
                       <button
                         onClick={() => updateSetting('speed', Math.min(20, (slideshowSettings.speed || 3) + 1))}
