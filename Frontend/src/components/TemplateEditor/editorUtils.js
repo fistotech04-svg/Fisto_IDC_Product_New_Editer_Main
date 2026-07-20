@@ -53,14 +53,10 @@ export const syncGradient = (doc, element, baseAttr) => {
     if (svgGradType === 'linear') {
       const angle = parseFloat(element.getAttribute(`${baseAttr}-angle`) || '0');
       const angleRad = (angle * Math.PI) / 180;
-      // CSS gradient angle uses bearings (0deg = up, 90deg = right)
-      // SVG y-axis points down
-      const dx = Math.sin(angleRad) * 50;
-      const dy = -Math.cos(angleRad) * 50;
-      gradEl.setAttribute('x1', Math.round(50 - dx) + '%');
-      gradEl.setAttribute('y1', Math.round(50 - dy) + '%');
-      gradEl.setAttribute('x2', Math.round(50 + dx) + '%');
-      gradEl.setAttribute('y2', Math.round(50 + dy) + '%');
+      gradEl.setAttribute('x1', Math.round(50 - Math.cos(angleRad) * 50) + '%');
+      gradEl.setAttribute('y1', Math.round(50 - Math.sin(angleRad) * 50) + '%');
+      gradEl.setAttribute('x2', Math.round(50 + Math.cos(angleRad) * 50) + '%');
+      gradEl.setAttribute('y2', Math.round(50 + Math.sin(angleRad) * 50) + '%');
     } else {
       const radius = parseFloat(element.getAttribute(`${baseAttr}-radius`) || '50');
       gradEl.setAttribute('cx', '50%');

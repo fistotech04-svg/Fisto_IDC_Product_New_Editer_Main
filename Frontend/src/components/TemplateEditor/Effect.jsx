@@ -165,7 +165,7 @@ const Effect = ({
         if (e.target && !document.contains(e.target)) {
           return;
         }
-
+        
         const isEffectPopup = e.target.closest('.effect-popup-container');
         const isEffectRow = e.target.closest('.effect-row');
         const isPicker = e.target.closest('#deep-color-picker');
@@ -486,23 +486,23 @@ const Effect = ({
                       </div>
                       <div className="w-[0.5vw]"></div>
                     </div>
-                  )
-                })}
+                )})}
 
                 <div className="h-px bg-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.05)] ml-[-1.2vw] mr-[-1.2vw] mt-[2vw] mb-[0.5vw]"></div>
-                <div className={`flex items-center justify-between pt-[0.4vw] transition-opacity ${parseFloat(pseudoProps['data-effect-blur-value'] || 0) === 0 ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className="flex items-center justify-between pt-[0.4vw]">
                   <span className="text-[0.8vw] font-medium text-gray-800">Clip Content</span>
                   <button
                     onClick={() => {
-                      if (parseFloat(pseudoProps['data-effect-blur-value'] || 0) === 0) return;
                       const currentVal = pseudoProps['data-effect-blur-clip'] === 'true';
                       updateAttr('data-effect-blur-clip', (!currentVal).toString());
                     }}
-                    className={`relative block w-[2.2vw] h-[1.2vw] rounded-full transition-colors duration-200 ease-in-out outline-none shrink-0 cursor-pointer ${pseudoProps['data-effect-blur-clip'] === 'true' ? 'bg-[#4D47FF]' : 'bg-gray-300'
-                      }`}
+                    className={`relative block w-[2.2vw] h-[1.2vw] rounded-full transition-colors duration-200 ease-in-out outline-none shrink-0 cursor-pointer ${
+                      pseudoProps['data-effect-blur-clip'] === 'true' ? 'bg-[#4D47FF]' : 'bg-gray-300'
+                    }`}
                   >
-                    <div className={`absolute top-[0.1vw] w-[1vw] h-[1vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_1px_3px_rgba(0,0,0,0.2)] ${pseudoProps['data-effect-blur-clip'] === 'true' ? 'left-[1.1vw]' : 'left-[0.1vw]'
-                      }`} />
+                    <div className={`absolute top-[0.1vw] w-[1vw] h-[1vw] bg-white rounded-full transition-all duration-200 ease-in-out shadow-[0_1px_3px_rgba(0,0,0,0.2)] ${
+                      pseudoProps['data-effect-blur-clip'] === 'true' ? 'left-[1.1vw]' : 'left-[0.1vw]'
+                    }`} />
                   </button>
                 </div>
               </div>
