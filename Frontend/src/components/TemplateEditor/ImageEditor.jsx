@@ -1537,9 +1537,15 @@ const ImageEditor = ({
                 const cropW = origW * (parseFloat(crop.width) / 100);
                 const cropH = origH * (parseFloat(crop.height) / 100);
 
-                if (effectiveImageType === 'Original') {
-                  targetX = cropX;
-                  targetY = cropY;
+                const currentImgType = stateRef.current.imageType || imageType;
+                if (currentImgType === 'Crop') {
+                  targetX = origX;
+                  targetY = origY;
+                  targetW = origW;
+                  targetH = origH;
+                } else if (effectiveImageType === 'Original') {
+                  targetX = origX;
+                  targetY = origY;
                   targetW = origW;
                   targetH = origH;
                 } else {
@@ -1549,8 +1555,10 @@ const ImageEditor = ({
                   targetH = cropH;
                 }
 
-                liveElement.setAttribute('data-saved-crop-data', cropStr);
-                liveElement.removeAttribute('data-crop-data');
+                if (currentImgType !== 'Crop') {
+                  liveElement.setAttribute('data-saved-crop-data', cropStr);
+                  liveElement.removeAttribute('data-crop-data');
+                }
               } catch (e) { }
             }
 
@@ -1585,7 +1593,8 @@ const ImageEditor = ({
             liveElement.src = liveElement.getAttribute('data-original-src');
           }
 
-          const isCropped = imageType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
+          const currentImgType = stateRef.current.imageType || imageType;
+          const isCropped = currentImgType === 'Crop' && (liveElement.getAttribute('data-crop-data') || (selectedElement && selectedElement.getAttribute('data-crop-data')));
 
           if (isCropped) {
             if (anyR) {
@@ -3174,37 +3183,42 @@ const ImageEditor = ({
 
             const restoreOrig = (el) => {
               if (!el) return;
-              if (el.hasAttribute('data-crop-orig-w')) {
-                const targetEl = el.tagName?.toLowerCase() === 'image' ? el : (el.querySelector('image') || el);
+              const targetEl = el.tagName?.toLowerCase() === 'image' ? el : (el.querySelector('image') || el);
 
-                const origW = parseFloat(el.getAttribute('data-crop-orig-w')) || 100;
-                const origH = parseFloat(el.getAttribute('data-crop-orig-h')) || 100;
-                const origX = parseFloat(el.getAttribute('data-crop-orig-x')) || 0;
-                const origY = parseFloat(el.getAttribute('data-crop-orig-y')) || 0;
+              const currentW = parseFloat(targetEl.getAttribute('width')) || parseFloat(el.getAttribute('width')) || 100;
+              const currentH = parseFloat(targetEl.getAttribute('height')) || parseFloat(el.getAttribute('height')) || 100;
+              const currentX = parseFloat(targetEl.getAttribute('x')) || parseFloat(el.getAttribute('x')) || 0;
+              const currentY = parseFloat(targetEl.getAttribute('y')) || parseFloat(el.getAttribute('y')) || 0;
 
-                if (targetEl.hasAttribute('x') || targetEl.hasAttribute('width')) {
-                  targetEl.setAttribute('width', origW);
-                  targetEl.setAttribute('height', origH);
-                  targetEl.setAttribute('x', origX);
-                  targetEl.setAttribute('y', origY);
-                  if (el !== targetEl && el.hasAttribute('width')) {
-                    el.setAttribute('width', origW);
-                    el.setAttribute('height', origH);
-                    el.setAttribute('x', origX);
-                    el.setAttribute('y', origY);
-                  }
-                } else if (el.style) {
-                  el.style.width = origW + 'px';
-                  el.style.height = origH + 'px';
-                  el.style.left = origX + 'px';
-                  el.style.top = origY + 'px';
+              const origW = el.hasAttribute('data-crop-orig-w') ? parseFloat(el.getAttribute('data-crop-orig-w')) : currentW;
+              const origH = el.hasAttribute('data-crop-orig-h') ? parseFloat(el.getAttribute('data-crop-orig-h')) : currentH;
+              const origX = el.hasAttribute('data-crop-orig-x') ? parseFloat(el.getAttribute('data-crop-orig-x')) : currentX;
+              const origY = el.hasAttribute('data-crop-orig-y') ? parseFloat(el.getAttribute('data-crop-orig-y')) : currentY;
+
+              if (targetEl.hasAttribute('x') || targetEl.hasAttribute('width')) {
+                targetEl.setAttribute('width', origW);
+                targetEl.setAttribute('height', origH);
+                targetEl.setAttribute('x', origX);
+                targetEl.setAttribute('y', origY);
+                if (el !== targetEl && el.hasAttribute('width')) {
+                  el.setAttribute('width', origW);
+                  el.setAttribute('height', origH);
+                  el.setAttribute('x', origX);
+                  el.setAttribute('y', origY);
                 }
-                el.removeAttribute('data-crop-orig-w');
-                el.removeAttribute('data-crop-orig-h');
-                el.removeAttribute('data-crop-orig-x');
-                el.removeAttribute('data-crop-orig-y');
-                el.removeAttribute('data-baked-crop');
+              } else if (el.style) {
+                el.style.width = origW + 'px';
+                el.style.height = origH + 'px';
+                el.style.left = origX + 'px';
+                el.style.top = origY + 'px';
               }
+              
+              if (!el.hasAttribute('data-crop-orig-w')) el.setAttribute('data-crop-orig-w', origW);
+              if (!el.hasAttribute('data-crop-orig-h')) el.setAttribute('data-crop-orig-h', origH);
+              if (!el.hasAttribute('data-crop-orig-x')) el.setAttribute('data-crop-orig-x', origX);
+              if (!el.hasAttribute('data-crop-orig-y')) el.setAttribute('data-crop-orig-y', origY);
+
+              el.removeAttribute('data-baked-crop');
             };
 
             restoreOrig(selectedElement);

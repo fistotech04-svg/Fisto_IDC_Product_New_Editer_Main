@@ -5619,6 +5619,33 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
+                        
+                        if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video')) {
+                          const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
+                          if (cropStr && cropStr !== 'null') {
+                            try {
+                              const crop = JSON.parse(cropStr);
+                              const cropW = parseFloat(crop.width) / 100;
+                              const cropH = parseFloat(crop.height) / 100;
+                              const cropL = parseFloat(crop.left) / 100;
+                              const cropT = parseFloat(crop.top) / 100;
+
+                              if (cropW > 0) {
+                                imgW = newLocW / cropW;
+                                imgX = newLocX - cropL * imgW;
+                              }
+                              if (cropH > 0) {
+                                imgH = newLocH / cropH;
+                                imgY = newLocY - cropT * imgH;
+                              }
+                            } catch (e) {}
+                          }
+                          el.setAttribute('data-crop-orig-w', imgW.toString());
+                          el.setAttribute('data-crop-orig-h', imgH.toString());
+                          el.setAttribute('data-crop-orig-x', imgX.toString());
+                          el.setAttribute('data-crop-orig-y', imgY.toString());
+                        }
+
                         if ((tag === 'image' || tag === 'video') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
                           imgX = el.hasAttribute('data-crop-orig-x') ? parseFloat(el.getAttribute('data-crop-orig-x')) : state.initialImgState.x;
                           imgY = el.hasAttribute('data-crop-orig-y') ? parseFloat(el.getAttribute('data-crop-orig-y')) : state.initialImgState.y;

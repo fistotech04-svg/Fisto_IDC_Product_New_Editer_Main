@@ -268,6 +268,16 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
             newCrop.width = newCrop.height * aspect;
             newCrop.left = dragStart.crop.left + dragStart.crop.width - newCrop.width;
           }
+        } else if (dragType === 'n') {
+          newCrop.top += dy;
+          newCrop.height -= dy;
+        } else if (dragType === 's') {
+          newCrop.height += dy;
+        } else if (dragType === 'e') {
+          newCrop.width += dx;
+        } else if (dragType === 'w') {
+          newCrop.left += dx;
+          newCrop.width -= dx;
         }
       }
 
@@ -387,6 +397,18 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
         {/* SW Corner */}
         <div className="absolute -left-[2px] -bottom-[2px] w-5 h-5 border-b-[4px] border-l-[4px] border-indigo-600 drop-shadow-md cursor-nesw-resize" onPointerDown={(e) => handlePointerDown(e, 'sw')} />
+        
+        {/* N Edge */}
+        <div className="absolute left-1/2 -top-[2px] -translate-x-1/2 w-6 h-[4px] bg-indigo-600 drop-shadow-md cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 'n')} />
+
+        {/* E Edge */}
+        <div className="absolute top-1/2 -right-[2px] -translate-y-1/2 w-[4px] h-6 bg-indigo-600 drop-shadow-md cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'e')} />
+
+        {/* S Edge */}
+        <div className="absolute left-1/2 -bottom-[2px] -translate-x-1/2 w-6 h-[4px] bg-indigo-600 drop-shadow-md cursor-ns-resize" onPointerDown={(e) => handlePointerDown(e, 's')} />
+
+        {/* W Edge */}
+        <div className="absolute top-1/2 -left-[2px] -translate-y-1/2 w-[4px] h-6 bg-indigo-600 drop-shadow-md cursor-ew-resize" onPointerDown={(e) => handlePointerDown(e, 'w')} />
       </div>
     </div>,
     document.body

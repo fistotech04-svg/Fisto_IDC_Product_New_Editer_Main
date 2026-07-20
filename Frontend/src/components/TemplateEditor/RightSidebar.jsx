@@ -510,6 +510,18 @@ const RightSidebar = ({
                     }
                  }
               }
+              
+              // Apply visual crop offsets so properties panel reflects the visual bounds
+              const cropStr = actualEl.getAttribute('data-crop-data');
+              if (cropStr && cropStr !== 'null') {
+                 try {
+                    const crop = JSON.parse(cropStr);
+                    x = (parseFloat(x) + (parseFloat(crop.left) / 100) * parseFloat(w)).toString();
+                    y = (parseFloat(y) + (parseFloat(crop.top) / 100) * parseFloat(h)).toString();
+                    w = (parseFloat(w) * (parseFloat(crop.width) / 100)).toString();
+                    h = (parseFloat(h) * (parseFloat(crop.height) / 100)).toString();
+                 } catch (e) {}
+              }
            } catch (e) {
               console.warn("Failed to get BBox for element", e);
            }
