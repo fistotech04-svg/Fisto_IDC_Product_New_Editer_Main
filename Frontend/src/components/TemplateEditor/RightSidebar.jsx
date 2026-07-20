@@ -1011,6 +1011,7 @@ const RightSidebar = ({
                           selectedLayerId={selectedLayerId}
                           activePageIndex={activePageIndex}
                           onUpdate={(newHtml) => {
+                            window.__skipCanvasUpdateForPage = activePageIndex;
                             if (typeof newHtml === 'string') {
                               updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
                             } else {
@@ -1060,6 +1061,7 @@ const RightSidebar = ({
                             return el;
                           })()}
                           onUpdate={(newHtml) => {
+                            window.__skipCanvasUpdateForPage = activePageIndex;
                             if (typeof newHtml === 'string') {
                               updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
                             } else {
@@ -1099,6 +1101,7 @@ const RightSidebar = ({
                           selectedLayerId={selectedLayerId}
                           activePageIndex={activePageIndex}
                           onUpdate={(newHtml) => {
+                            window.__skipCanvasUpdateForPage = activePageIndex;
                             if (typeof newHtml === 'string') {
                               updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
                             } else {
@@ -1139,6 +1142,7 @@ const RightSidebar = ({
                           })()}
                           selectedLayerId={selectedLayerId}
                           onUpdate={(newHtml) => {
+                            window.__skipCanvasUpdateForPage = activePageIndex;
                             if (typeof newHtml === 'string') {
                               updateElementAttribute(activePageIndex, selectedLayerId, '__dom_sync__', newHtml);
                             } else {
