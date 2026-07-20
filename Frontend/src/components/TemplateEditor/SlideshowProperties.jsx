@@ -3,6 +3,15 @@ import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import {
   ChevronDown,
+  LayoutGrid,
+  Maximize,
+  MoveHorizontal,
+  Settings,
+  Type,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  Maximize2,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
@@ -12,6 +21,7 @@ import {
 } from 'lucide-react';
 import GalleryImage from './GalleryImage';
 import { Icon } from '@iconify/react';
+import { getVisualBBox } from './MainEditor';
 
 // Clean up any lingering debuggers from Vite HMR
 ['my-slideshow-debug', 'my-slideshow-debug2', 'my-slideshow-debug3'].forEach(id => {
@@ -351,7 +361,12 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
 
             if (!force && prev.length > 0) return prev;
 
-            return newImages;
+            return newImages.map((img, idx) => {
+              if (idx === 0 && img.isOriginalCrop === undefined) {
+                 return { ...img, isOriginalCrop: true }; // Retroactive fix for old saves
+              }
+              return img;
+            });
           });
         }
       } else {
@@ -377,7 +392,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           const hasOptimistic = prev.some(img => img.isUploading || (img.url && img.url.startsWith('blob:')));
           if (hasOptimistic) return prev;
           if (prev.length > 0 && !force) return prev;
-          return currentSrc ? [{ id: Date.now(), url: currentSrc, name: 'Main Image' }] : [];
+          return currentSrc ? [{ id: Date.now(), url: currentSrc, name: 'Main Image', isOriginalCrop: true }] : [];
         });
       }
 
@@ -434,12 +449,61 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         // Sync active slide URL to href/src
         const targetImg = getSvgImageEl(targetElement) || targetElement;
         if (slideshowImages[activeSlideIndex]) {
-          const url = slideshowImages[activeSlideIndex].url;
+          const imgObj = slideshowImages[activeSlideIndex];
+          const url = imgObj.url;
           if (targetImg.getAttribute('href') !== url || targetImg.src !== url) {
             targetImg.setAttribute('href', url);
             try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
             if (targetImg.tagName?.toLowerCase() === 'img') targetImg.src = url;
             if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
+          }
+
+          // Ensure the crop viewport correctly frames the image for transitions
+          const cropStr = targetElement.getAttribute('data-crop-data');
+          if (cropStr && cropStr !== 'null') {
+            try {
+              const crop = JSON.parse(cropStr);
+              const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || targetImg.getAttribute('data-crop-orig-x') || '0');
+              const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || targetImg.getAttribute('data-crop-orig-y') || '0');
+              const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || targetImg.getAttribute('data-crop-orig-w') || targetImg.getAttribute('width') || '100');
+              const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || targetImg.getAttribute('data-crop-orig-h') || targetImg.getAttribute('height') || '100');
+
+              // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
+              const wrapper = targetImg.parentNode;
+              if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
+                let anchor = wrapper.querySelector('.bbox-anchor');
+                if (!anchor) {
+                  anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                  anchor.setAttribute('class', 'bbox-anchor');
+                  anchor.setAttribute('fill', 'none');
+                  anchor.style.pointerEvents = 'none';
+                  wrapper.insertBefore(anchor, wrapper.firstChild);
+                }
+                anchor.setAttribute('x', origX);
+                anchor.setAttribute('y', origY);
+                anchor.setAttribute('width', origW);
+                anchor.setAttribute('height', origH);
+              }
+
+              if (imgObj?.isOriginalCrop) {
+                targetImg.setAttribute('x', origX);
+                targetImg.setAttribute('y', origY);
+                targetImg.setAttribute('width', origW);
+                targetImg.setAttribute('height', origH);
+                targetImg.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
+              } else {
+                const cropX = origX + (origW * (parseFloat(crop.left) / 100));
+                const cropY = origY + (origH * (parseFloat(crop.top) / 100));
+                const cropW = origW * (parseFloat(crop.width) / 100);
+                const cropH = origH * (parseFloat(crop.height) / 100);
+
+                targetImg.setAttribute('x', cropX);
+                targetImg.setAttribute('y', cropY);
+                targetImg.setAttribute('width', cropW);
+                targetImg.setAttribute('height', cropH);
+                targetImg.style.setProperty('transform', 'none', 'important');
+              }
+            } catch (e) { console.error("Error applying crop to gallery image", e); }
           }
         }
 
@@ -569,11 +633,58 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       }, 50);
     };
 
-    const setElSrc = (url) => {
+    const setElSrc = (url, imgObj) => {
       imgEl.setAttribute('href', url);
       try { imgEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
       if (imgEl.tagName?.toLowerCase() === 'img') imgEl.src = url;
       if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
+
+      const cropStr = targetElement.getAttribute('data-crop-data');
+      if (cropStr && cropStr !== 'null') {
+        try {
+          const crop = JSON.parse(cropStr);
+          const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || imgEl.getAttribute('data-crop-orig-x') || '0');
+          const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || imgEl.getAttribute('data-crop-orig-y') || '0');
+          const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || imgEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100');
+          const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || imgEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100');
+
+          // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
+          const wrapper = imgEl.parentNode;
+          if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
+            let anchor = wrapper.querySelector('.bbox-anchor');
+            if (!anchor) {
+              anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              anchor.setAttribute('class', 'bbox-anchor');
+              anchor.setAttribute('fill', 'none');
+              anchor.style.pointerEvents = 'none';
+              wrapper.insertBefore(anchor, wrapper.firstChild);
+            }
+            anchor.setAttribute('x', origX);
+            anchor.setAttribute('y', origY);
+            anchor.setAttribute('width', origW);
+            anchor.setAttribute('height', origH);
+          }
+
+          if (imgObj?.isOriginalCrop) {
+            imgEl.setAttribute('x', origX);
+            imgEl.setAttribute('y', origY);
+            imgEl.setAttribute('width', origW);
+            imgEl.setAttribute('height', origH);
+            imgEl.style.setProperty('transform', `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, 'important');
+          } else {
+            const cropX = origX + (origW * (parseFloat(crop.left) / 100));
+            const cropY = origY + (origH * (parseFloat(crop.top) / 100));
+            const cropW = origW * (parseFloat(crop.width) / 100);
+            const cropH = origH * (parseFloat(crop.height) / 100);
+
+            imgEl.setAttribute('x', cropX);
+            imgEl.setAttribute('y', cropY);
+            imgEl.setAttribute('width', cropW);
+            imgEl.setAttribute('height', cropH);
+            imgEl.style.setProperty('transform', 'none', 'important');
+          }
+        } catch (e) { console.error("Error applying crop to gallery image", e); }
+      }
     };
 
     const animEl = targetElement;
@@ -618,12 +729,19 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     animEl.parentNode.insertBefore(clone, animEl);
 
     // Swap src on the original element immediately (it will act as the incoming element)
-    setElSrc(nextUrl);
+    setElSrc(nextUrl, images[newIdx]);
 
-    // Calculate dimensions for translations
-    let w = 0;
+    // Calculate dimensions for translations using visual width
+    let w = 100;
     try {
-      w = animEl.getBBox().width;
+      const cropStr = animEl.getAttribute('data-crop-data');
+      if (cropStr && cropStr !== 'null') {
+        const origW = parseFloat(animEl.getAttribute('data-crop-orig-w') || animEl.getAttribute('width') || 100);
+        const crop = JSON.parse(cropStr);
+        w = origW * (parseFloat(crop.width) / 100);
+      } else {
+        w = animEl.getBBox().width;
+      }
     } catch (e) {
       w = animEl.clientWidth || 100;
     }
@@ -634,16 +752,16 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: 0 }, { opacity: baseOpacity }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'push') {
-      const dx = dir === 'next' ? -100 : 100;
-      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: `${dx}% 0%` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
-      realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      const dx = dir === 'next' ? -w : w;
+      cloneAnim = clone.animate([{ translate: '0px 0px' }, { translate: `${dx}px 0px` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      realAnim = animEl.animate([{ translate: `${-dx}px 0px` }, { translate: '0px 0px' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'linear') {
       cloneAnim = clone.animate([{ opacity: baseOpacity }, { opacity: 0 }], { duration: 0, fill: 'forwards' });
       realAnim = animEl.animate([{ opacity: baseOpacity }, { opacity: baseOpacity }], { duration: 0, fill: 'forwards' });
     } else if (effect === 'slide') {
-      const dx = dir === 'next' ? -100 : 100;
-      cloneAnim = clone.animate([{ translate: '0% 0%' }, { translate: `${dx}% 0%` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
-      realAnim = animEl.animate([{ translate: `${-dx}% 0%` }, { translate: '0% 0%' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      const dx = dir === 'next' ? -w : w;
+      cloneAnim = clone.animate([{ translate: '0px 0px' }, { translate: `${dx}px 0px` }], { duration, easing: 'ease-in-out', fill: 'forwards' });
+      realAnim = animEl.animate([{ translate: `${-dx}px 0px` }, { translate: '0px 0px' }], { duration, easing: 'ease-in-out', fill: 'forwards' });
     } else if (effect === 'flip') {
       animEl.style.transformBox = 'fill-box';
       animEl.style.transformOrigin = 'center';
@@ -756,7 +874,30 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       }
 
       const containerRect = pageContainer.parentElement.getBoundingClientRect();
-      const elRect = freshTarget.getBoundingClientRect();
+      
+      // Use getVisualBBox to correctly size the overlay to the CROP box, not the original bounds
+      let elRect = freshTarget.getBoundingClientRect();
+      try {
+        const visualBBox = getVisualBBox(freshTarget);
+        if (visualBBox && visualBBox.width > 0) {
+          const svg = freshTarget.ownerSVGElement;
+          const matrix = freshTarget.getScreenCTM();
+          if (matrix && svg) {
+            const pt1 = svg.createSVGPoint();
+            pt1.x = visualBBox.x; pt1.y = visualBBox.y;
+            const pt2 = svg.createSVGPoint();
+            pt2.x = visualBBox.x + visualBBox.width; pt2.y = visualBBox.y + visualBBox.height;
+            const screenPt1 = pt1.matrixTransform(matrix);
+            const screenPt2 = pt2.matrixTransform(matrix);
+            elRect = {
+              left: Math.min(screenPt1.x, screenPt2.x),
+              top: Math.min(screenPt1.y, screenPt2.y),
+              width: Math.abs(screenPt2.x - screenPt1.x),
+              height: Math.abs(screenPt2.y - screenPt1.y)
+            };
+          }
+        }
+      } catch(e) {}
 
       // Compute actual CSS scale of the container
       const scaleX = containerRect.width / (pageContainer.offsetWidth || 1);
