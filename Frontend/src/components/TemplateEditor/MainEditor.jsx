@@ -51,12 +51,21 @@ export const getVisualBBox = (el) => {
     }
   }
 
-  if (el.tagName.toLowerCase() === 'g' && el.querySelector('[data-crop-data]')) {
+  const isImgGrp = el.getAttribute('data-is-image-group') === 'true' || el.getAttribute('data-is-video-group') === 'true' || el.getAttribute('data-is-gif-group') === 'true';
+  if (el.tagName.toLowerCase() === 'g' && (el.querySelector('[data-crop-data]') || isImgGrp)) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const children = Array.from(el.children);
     let hasValidChild = false;
 
     for (const child of children) {
+      if (child.classList && (
+        child.classList.contains('svg-image-stroke-overlay') || 
+        child.classList.contains('svg-gif-stroke-overlay') || 
+        child.classList.contains('svg-shape-stroke-overlay') || 
+        child.classList.contains('svg-drop-shadow-caster')
+      )) {
+        continue;
+      }
       if (typeof child.getBBox === 'function' && child.style.display !== 'none' && child.style.visibility !== 'hidden' && child.tagName.toLowerCase() !== 'defs') {
         const childBBox = getVisualBBox(child);
         let childMatrix = new DOMMatrix();
@@ -95,6 +104,60 @@ export const getVisualBBox = (el) => {
   }
 
   return el.getBBox();
+};
+
+const syncDOM = (oldNode, newNode) => {
+  if (!oldNode || !newNode) return;
+  if (oldNode.isEqualNode(newNode)) return;
+
+  if (oldNode.nodeType === 1 && newNode.nodeType === 1) {
+    if (oldNode.tagName !== newNode.tagName) {
+      oldNode.replaceWith(newNode.cloneNode(true));
+      return;
+    }
+
+    const oldAttrs = oldNode.attributes;
+    const newAttrs = newNode.attributes;
+
+    for (let i = oldAttrs.length - 1; i >= 0; i--) {
+      if (!newNode.hasAttribute(oldAttrs[i].name)) {
+        oldNode.removeAttribute(oldAttrs[i].name);
+      }
+    }
+    for (let i = 0; i < newAttrs.length; i++) {
+      if (oldNode.getAttribute(newAttrs[i].name) !== newAttrs[i].value) {
+        oldNode.setAttribute(newAttrs[i].name, newAttrs[i].value);
+      }
+    }
+
+    const tag = oldNode.tagName.toUpperCase();
+    if (tag === 'VIDEO' || tag === 'IFRAME') {
+      return;
+    }
+    if (tag === 'IMG' && (oldNode.getAttribute('src') || '').includes('.gif')) {
+      return;
+    }
+
+    const oldChildren = Array.from(oldNode.childNodes);
+    const newChildren = Array.from(newNode.childNodes);
+    const maxLength = Math.max(oldChildren.length, newChildren.length);
+
+    for (let i = 0; i < maxLength; i++) {
+      if (!oldChildren[i]) {
+        oldNode.appendChild(newChildren[i].cloneNode(true));
+      } else if (!newChildren[i]) {
+        oldNode.removeChild(oldChildren[i]);
+      } else {
+        syncDOM(oldChildren[i], newChildren[i]);
+      }
+    }
+  } else if (oldNode.nodeType === 3 && newNode.nodeType === 3) {
+    if (oldNode.nodeValue !== newNode.nodeValue) {
+      oldNode.nodeValue = newNode.nodeValue;
+    }
+  } else {
+    oldNode.replaceWith(newNode.cloneNode(true));
+  }
 };
 
 // Global style to ensure injected SVGs always fill their container perfectly
@@ -5107,7 +5170,12 @@ const MainEditor = ({
 
               const imgEl = el.querySelector('image, video');
               if (imgEl) {
-                imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                const dataType = el.getAttribute('data-type');
+                if (dataType === 'image') {
+                  imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                } else {
+                  imgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                }
               }
             }
 
@@ -5344,9 +5412,9 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && ((isText && !isForeignObject) || (isImage && !isCtrlPressedMove)))) {
+            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
-              if (!isCorner && ((isText && !isForeignObject) || (isImage && !isCtrlPressedMove))) {
+              if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
                 scaleX = sSide;
                 scaleY = sSide;
@@ -5514,6 +5582,18 @@ const MainEditor = ({
 
                   state.childrenData.forEach(cData => {
                     const { child, initialMatrix, bound } = cData;
+
+                    const isStrokeOverlay = child.classList && (
+                      child.classList.contains('svg-shape-stroke-overlay') ||
+                      child.classList.contains('svg-image-stroke-overlay') ||
+                      child.classList.contains('svg-gif-stroke-overlay') ||
+                      child.classList.contains('svg-video-stroke-overlay')
+                    );
+
+                    if (isStrokeOverlay) {
+                      return; // Skip completely. Let syncOverlay handle it dynamically.
+                    }
+
                     const tag = child.tagName?.toLowerCase();
                     const isChildText = tag === 'text' || child.getAttribute('data-type') === 'text';
 
@@ -5594,6 +5674,18 @@ const MainEditor = ({
 
                   state.childrenData.forEach(cData => {
                     const { child, initialMatrix, bound } = cData;
+
+                    const isStrokeOverlay = child.classList && (
+                      child.classList.contains('svg-shape-stroke-overlay') ||
+                      child.classList.contains('svg-image-stroke-overlay') ||
+                      child.classList.contains('svg-gif-stroke-overlay') ||
+                      child.classList.contains('svg-video-stroke-overlay')
+                    );
+
+                    if (isStrokeOverlay) {
+                      return; // Skip completely. Let syncOverlay handle it dynamically.
+                    }
+
                     const tag = child.tagName?.toLowerCase();
                     const isChildText = tag === 'text' || child.getAttribute('data-type') === 'text';
 
@@ -5628,7 +5720,7 @@ const MainEditor = ({
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
 
-                        if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video')) {
+                        if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video' || tag === 'svg' || tag === 'foreignobject')) {
                           const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
                           if (cropStr && cropStr !== 'null') {
                             try {
@@ -9284,38 +9376,23 @@ const MainEditor = ({
                                     window.__skipCanvasUpdateForPage = -1;
                                     el.__lastHtml = newHtml;
                                   } else if (el.__lastHtml !== newHtml) {
-                                    const videos = Array.from(el.querySelectorAll('video'));
-                                    const videoStates = videos.map(v => ({
-                                      id: v.id || v.closest('[id]')?.id,
-                                      node: v
-                                    }));
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(newHtml, 'text/html');
+                                    const newChildren = Array.from(doc.body.childNodes);
 
-                                    let safeBin = document.getElementById('video-safe-bin');
-                                    if (!safeBin) {
-                                      safeBin = document.createElement('div');
-                                      safeBin.id = 'video-safe-bin';
-                                      safeBin.style.display = 'none';
-                                      document.body.appendChild(safeBin);
-                                    }
-                                    videoStates.forEach(state => safeBin.appendChild(state.node));
+                                    const oldChildren = Array.from(el.childNodes);
+                                    const maxLength = Math.max(oldChildren.length, newChildren.length);
 
-                                    el.innerHTML = newHtml;
-
-                                    videoStates.forEach(state => {
-                                      if (!state.id) return;
-                                      const newContainer = el.querySelector(`[id="${state.id}"]`);
-                                      if (newContainer) {
-                                        const newVideo = newContainer.querySelector('video');
-                                        if (newVideo && newVideo.parentNode) {
-                                          Array.from(newVideo.attributes).forEach(attr => {
-                                            if (attr.name !== 'src' || state.node.getAttribute('src') === attr.value) {
-                                              state.node.setAttribute(attr.name, attr.value);
-                                            }
-                                          });
-                                          newVideo.parentNode.replaceChild(state.node, newVideo);
-                                        }
+                                    for (let i = 0; i < maxLength; i++) {
+                                      if (!oldChildren[i]) {
+                                        el.appendChild(newChildren[i].cloneNode(true));
+                                      } else if (!newChildren[i]) {
+                                        el.removeChild(oldChildren[i]);
+                                      } else {
+                                        syncDOM(oldChildren[i], newChildren[i]);
                                       }
-                                    });
+                                    }
+
                                     el.__lastHtml = newHtml;
                                   }
                                 }
@@ -9487,38 +9564,23 @@ const MainEditor = ({
                                     window.__skipCanvasUpdateForPage = -1;
                                     el.__lastHtml = newHtml;
                                   } else if (el.__lastHtml !== newHtml) {
-                                    const videos = Array.from(el.querySelectorAll('video'));
-                                    const videoStates = videos.map(v => ({
-                                      id: v.id || v.closest('[id]')?.id,
-                                      node: v
-                                    }));
+                                    const parser = new DOMParser();
+                                    const doc = parser.parseFromString(newHtml, 'text/html');
+                                    const newChildren = Array.from(doc.body.childNodes);
 
-                                    let safeBin = document.getElementById('video-safe-bin');
-                                    if (!safeBin) {
-                                      safeBin = document.createElement('div');
-                                      safeBin.id = 'video-safe-bin';
-                                      safeBin.style.display = 'none';
-                                      document.body.appendChild(safeBin);
-                                    }
-                                    videoStates.forEach(state => safeBin.appendChild(state.node));
+                                    const oldChildren = Array.from(el.childNodes);
+                                    const maxLength = Math.max(oldChildren.length, newChildren.length);
 
-                                    el.innerHTML = newHtml;
-
-                                    videoStates.forEach(state => {
-                                      if (!state.id) return;
-                                      const newContainer = el.querySelector(`[id="${state.id}"]`);
-                                      if (newContainer) {
-                                        const newVideo = newContainer.querySelector('video');
-                                        if (newVideo && newVideo.parentNode) {
-                                          Array.from(newVideo.attributes).forEach(attr => {
-                                            if (attr.name !== 'src' || state.node.getAttribute('src') === attr.value) {
-                                              state.node.setAttribute(attr.name, attr.value);
-                                            }
-                                          });
-                                          newVideo.parentNode.replaceChild(state.node, newVideo);
-                                        }
+                                    for (let i = 0; i < maxLength; i++) {
+                                      if (!oldChildren[i]) {
+                                        el.appendChild(newChildren[i].cloneNode(true));
+                                      } else if (!newChildren[i]) {
+                                        el.removeChild(oldChildren[i]);
+                                      } else {
+                                        syncDOM(oldChildren[i], newChildren[i]);
                                       }
-                                    });
+                                    }
+
                                     el.__lastHtml = newHtml;
                                   }
                                 }

@@ -625,6 +625,50 @@ const VideoEditor = ({
             strokeOverlay.style.scale = visualTarget.style.scale;
             strokeOverlay.style.rotate = visualTarget.style.rotate;
             strokeOverlay.style.transformOrigin = visualTarget.style.transformOrigin;
+
+            let bBox = { x: 0, y: 0, width: 100, height: 100 };
+            try { bBox = visualTarget.getBBox(); } catch (e) { }
+
+            let bxStr = visualTarget.getAttribute('x') || '0';
+            let byStr = visualTarget.getAttribute('y') || '0';
+            let bwStr = visualTarget.getAttribute('width') || '100%';
+            let bhStr = visualTarget.getAttribute('height') || '100%';
+
+            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+            let scaleX = 1; let scaleY = 1;
+            try {
+              const ctm = visualTarget.getScreenCTM();
+              if (ctm) { scaleX = Math.abs(ctm.a) || 1; scaleY = Math.abs(ctm.d) || 1; }
+            } catch(e) {}
+
+            const offsetX = (weight / 2) / scaleX;
+            const offsetY = (weight / 2) / scaleY;
+
+            let ox = bx, oy = by, ow = bw, oh = bh;
+            if (pos === 'Inside') {
+              ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
+            } else if (pos === 'Outside') {
+              ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
+            }
+
+            strokeOverlay.style.setProperty('x', `${ox}px`, 'important');
+            strokeOverlay.style.setProperty('y', `${oy}px`, 'important');
+            strokeOverlay.style.setProperty('width', `${Math.max(0, ow)}px`, 'important');
+            strokeOverlay.style.setProperty('height', `${Math.max(0, oh)}px`, 'important');
+
+            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+            let adjR = maxR;
+            if (pos === 'Inside') {
+              adjR = Math.max(0, maxR - offsetX);
+            } else if (pos === 'Outside') {
+              adjR = maxR > 0 ? maxR + offsetX : 0;
+            }
+            if (adjR > 0) strokeOverlay.setAttribute('rx', adjR.toString());
+            else strokeOverlay.removeAttribute('rx');
           };
           const obs = new MutationObserver(syncOverlay);
           obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
