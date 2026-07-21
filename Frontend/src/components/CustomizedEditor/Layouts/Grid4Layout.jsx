@@ -144,7 +144,7 @@ const MagneticSidebarBtn = ({ iconEl, label, displayLabel, onClick, extraStyle =
                 </motion.span>
                 {addTextBelowIcons && (
                     <span
-                        className={`${isTablet ? 'text-[0.28vw]' : 'text-[0.55vw]'} font-medium mt-[0.15vw] leading-snug text-center`}
+                        className={`${'text-[0.55vw]'} font-medium mt-[0.15vw] leading-snug text-center`}
                         style={{ color: extraStyle?.color || '#FFFFFF', fontFamily: textFont, opacity: extraStyle?.opacity || 1 }}
                     >{displayLabel ?? label}</span>
                 )}
@@ -164,7 +164,7 @@ const MagneticSidebarBtn = ({ iconEl, label, displayLabel, onClick, extraStyle =
                         color: '#ffffff',
                         padding: '0.25vw 0.5vw',
                         borderRadius: '0.3vw',
-                        fontSize: isTablet ? '0.55vw' : '0.65vw',
+                        fontSize: '0.65vw',
                         boxShadow: '0 8px 32px rgba(0, 0, 0, 0.25)',
                         pointerEvents: 'none',
                         zIndex: 9999,
@@ -275,14 +275,14 @@ const Grid4Layout = ({
     const initialWidth = (children && children.props && children.props.WIDTH) ? children.props.WIDTH : 400;
     const initialHeight = (children && children.props && children.props.HEIGHT) ? children.props.HEIGHT : 566;
 
-    const [dimWidth, setDimWidth] = useState(isTablet ? initialWidth * 0.7 : initialWidth);
-    const [dimHeight, setDimHeight] = useState(isTablet ? initialHeight * 0.7 : initialHeight);
+    const [dimWidth, setDimWidth] = useState(initialWidth);
+    const [dimHeight, setDimHeight] = useState(initialHeight);
     const aspectRatio = initialHeight / initialWidth;
 
     // Reset dimensions to default when tablet mode changes or initial props change
     React.useEffect(() => {
-        setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
-        setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
+        setDimWidth(initialWidth);
+        setDimHeight(initialHeight);
     }, [isTablet, initialWidth, initialHeight]);
 
     const zoomIn = () => {
@@ -485,31 +485,49 @@ const Grid4Layout = ({
     );
 
 
+    if (isTablet) {
+        return (
+            <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={backgroundStyle}>
+                <div className="flex-1 flex items-center justify-center relative">
+                    <div
+                        className="transition-transform duration-600 ease-in-out"
+                        style={{
+                            transform: `translateX(${localOffset}px) scale(1)`,
+                            transformOrigin: 'center center'
+                        }}
+                    >
+                        {modifiedChildren}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="flex-1 flex flex-col h-full w-full min-h-0 overflow-hidden relative font-sans" style={backgroundStyle} onClick={() => setRecommendations([])}>
             {/* Top Bar: Brand - Title - Search */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5.5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1000] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-[1000] border-b border-white/5 shadow-lg transition-all duration-500 ${isFullscreen ? `absolute top-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
                 <div className="flex items-center">
                     {settings.brandingProfile.logo && logoSettings?.src && (
                         <img
                             src={logoSettings.src}
                             alt="Logo"
-                            className={`${isTablet ? 'h-[1.5vw]' : 'h-[2vw]'} w-auto transition-all`}
+                            className={`${'h-[2vw]'} w-auto transition-all`}
                             style={{ opacity: (logoSettings.opacity ?? 100) / 100 }}
                         />
                     )}
                 </div>
 
                 <div className={`absolute left-1/2 -translate-x-1/2 text-center pointer-events-none ${isMobileLandscape ? 'mt-[1.5vh]' : ''}`}>
-                    <span className={`text-white ${isMobileLandscape ? 'text-[2.2vw]' : isTablet ? 'text-[1.1vw]' : 'text-[1.25vw]'} font-medium tracking-tight whitespace-nowrap`}>{bookName}</span>
+                    <span className={`text-white ${isMobileLandscape ? 'text-[2.2vw]' : 'text-[1.25vw]'} font-medium tracking-tight whitespace-nowrap`}>{bookName}</span>
                 </div>
 
                 {/* Search Wrapper */}
                 {(settings?.interaction?.search ?? true) && !isPdfProject && (
                     <div className={`relative ${isMobileLandscape ? 'mr-[5vw]' : ''}`} onClick={(e) => e.stopPropagation()}>
-                        <div className={`flex items-center ${isMobileLandscape ? 'px-[1.5vw] py-[1vh] w-[22vw]' : isTablet ? 'px-[0.6vw] py-[0.3vw] w-[13vw]' : 'px-[1vw] py-[0.5vh] w-[16vw]'} shadow-inner border border-gray-100/30 transition-all relative z-[101]`}
+                        <div className={`flex items-center ${isMobileLandscape ? 'px-[1.5vw] py-[1vh] w-[22vw]' : 'px-[1vw] py-[0.5vh] w-[16vw]'} shadow-inner border border-gray-100/30 transition-all relative z-[101]`}
                             style={{ backgroundColor: getLayoutColor('search-bg-v2', '#E0E3F5') }}>
-                            <Icon icon="lucide:search" className={`${isTablet ? 'w-[0.9vw] h-[0.9vw]' : 'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
+                            <Icon icon="lucide:search" className={`${'w-[1.2vw] h-[1.2vw]'}`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }} />
                             <input
                                 type="text"
                                 value={localSearchQuery}
@@ -558,7 +576,7 @@ const Grid4Layout = ({
                                     }
                                 }}
                                 placeholder="Quick Search..."
-                                className={`bg-transparent border-0 outline-none focus:ring-0 ${isTablet ? 'text-[0.68vw]' : 'text-[0.9vw]'} ml-[0.8vw] w-full font-medium`}
+                                className={`bg-transparent border-0 outline-none focus:ring-0 ${'text-[0.9vw]'} ml-[0.8vw] w-full font-medium`}
                                 style={{
                                     color: getLayoutColor('search-text-v1', '#575C9C'),
                                     '--placeholder-color': getLayoutColorRgba('search-text-v1', '87, 92, 156', '0.7')
@@ -568,14 +586,14 @@ const Grid4Layout = ({
 
                         {/* Recommendations Dropdown */}
                         {recommendations.length > 0 && (
-                            <div className={`absolute top-full left-0 ${isTablet ? 'w-[13vw]' : 'w-[16vw]'} shadow-2xl z-[100] overflow-hidden -mt-[1px] bg-white animate-in fade-in slide-in-from-top-1 duration-200`}
+                            <div className={`absolute top-full left-0 ${'w-[16vw]'} shadow-2xl z-[100] overflow-hidden -mt-[1px] bg-white animate-in fade-in slide-in-from-top-1 duration-200`}
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="w-full h-full border-x border-b border-gray-100"
                                     style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                                 >
                                     <div className="px-[1.2vw] py-[1.2vh]">
-                                        <span className={`${isTablet ? 'text-[0.8vw]' : 'text-[1vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Suggestion</span>
+                                        <span className={`${'text-[1vw]'} font-bold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Suggestion</span>
                                     </div>
                                     <div className="flex flex-col pb-[1vh]">
                                         {recommendations.map((rec, idx) => (
@@ -592,12 +610,12 @@ const Grid4Layout = ({
                                                     }}
                                                 >
                                                     <div className="flex flex-col items-start overflow-hidden flex-1 mr-[0.5vw]">
-                                                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.9vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
+                                                        <span className={`${'text-[0.9vw]'} opacity-90 group-hover:opacity-100 truncate w-full text-left`}>
                                                             <span className="font-bold mr-[0.3vw]" style={{ fontWeight: 800 }}>{rec.word}</span>
                                                             {rec.context && <span className="font-normal opacity-70">{rec.context}</span>}
                                                         </span>
                                                     </div>
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium opacity-80 tabular-nums shrink-0`}>Pg {rec.pageNumber}</span>
+                                                    <span className={`${'text-[0.85vw]'} font-medium opacity-80 tabular-nums shrink-0`}>Pg {rec.pageNumber}</span>
                                                 </button>
                                             </div>
                                         ))}
@@ -616,10 +634,10 @@ const Grid4Layout = ({
                     ref={buttonsRef}
                     onMouseMove={(e) => setSidebarMousePos({ x: e.clientX, y: e.clientY })}
                     onMouseLeave={() => setSidebarMousePos(null)}
-                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : isTablet ? 'w-[3vw] items-center' : !isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col ${isFullscreen ? 'justify-center' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : isTablet ? '2vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
+                    className={`${isMobileLandscape ? 'w-[10vw] items-end pr-[1.5vw]' : !isBigBars ? 'w-[3.5vw] items-center' : 'w-[4.2vw] items-center'} flex flex-col ${isFullscreen ? 'justify-center' : 'pt-[8vh] pb-[2vh]'} gap-[${isMobileLandscape ? '3.5vh' : '3vh'}] border-r border-white/5 shadow-xl z-[1000] shrink-0 transition-all duration-500 ${isFullscreen ? `absolute left-0 top-0 bottom-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('toolbar-bg', '#575C9C') }}>
 
                     {(settings?.navigation?.tableOfContents ?? true) && renderSidebarBtn(
-                        <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="fluent:text-bullet-list-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Table of Contents",
                         () => {
                             setShowTOCMemo(!showTOC);
@@ -632,7 +650,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.navigation?.pageThumbnails ?? true) && renderSidebarBtn(
-                        <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="ph:squares-four-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Thumbnails",
                         () => {
                             setShowThumbnails(!showThumbnails);
@@ -644,7 +662,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.interaction?.gallery ?? true) && renderSidebarBtn(
-                        <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="clarity:image-gallery-solid" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Gallery",
                         () => {
                             setShowGalleryPopupMemo(true);
@@ -657,7 +675,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.media?.backgroundAudio ?? true) && renderSidebarBtn(
-                        <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[2.2vw] h-[2.2vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="solar:music-notes-bold" className={`${isMobileLandscape ? 'w-[2.2vw] h-[2.2vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Sound",
                         (e) => {
                             e.stopPropagation();
@@ -670,7 +688,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.brandingProfile?.profile ?? true) && renderSidebarBtn(
-                        <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="fluent:person-24-filled" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Profile",
                         () => {
                             setShowProfilePopup(!showProfilePopup);
@@ -682,7 +700,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.shareExport?.share ?? true) && renderSidebarBtn(
-                        <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="mage:share-fill" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Share",
                         () => {
                             handleShare();
@@ -697,7 +715,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.shareExport?.download ?? true) && renderSidebarBtn(
-                        <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon="meteor-icons:download" className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         "Download",
                         () => {
                             handleDownload();
@@ -710,7 +728,7 @@ const Grid4Layout = ({
                     )}
 
                     {(settings?.viewing?.fullScreen ?? true) && renderSidebarBtn(
-                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? (isTablet ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.6vw] h-[1.6vw]') : (isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]')}`} />,
+                        <Icon icon={isFullscreen ? "mingcute:fullscreen-exit-fill" : "lucide:fullscreen"} className={`${isMobileLandscape ? 'w-[2.4vw] h-[2.4vw]' : (isFullscreen && typeof document !== 'undefined' && !!document.fullscreenElement) ? ('w-[1.6vw] h-[1.6vw]') : ('w-[1.2vw] h-[1.2vw]')}`} />,
                         isFullscreen ? "Exit Fullscreen" : "Fullscreen",
                         () => {
                             handleFullScreen();
@@ -725,7 +743,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Thumbnail Sidebar Integration */}
                 {showThumbnails && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[14vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[14vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                         >
@@ -733,7 +751,7 @@ const Grid4Layout = ({
                             <div className="flex flex-col pt-[1.5vh] pb-0">
                                 <div className="flex items-center justify-between px-[1vw]">
                                     <span
-                                        className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold`}
+                                        className={`${'text-[1.1vw]'} font-bold`}
                                         style={{ color: getLayoutColor('dropdown-text', '#3E4491'), fontFamily: "'Poppins', sans-serif" }}
                                     >Thumbnail</span>
                                     <button
@@ -741,7 +759,7 @@ const Grid4Layout = ({
                                         className="transition-colors opacity-60 hover:opacity-100"
                                         style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}
                                     >
-                                        <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                        <Icon icon="lucide:x" className={`${'w-[1.2vw] h-[1.2vw]'}`} />
                                     </button>
                                 </div>
                                 <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
@@ -790,7 +808,7 @@ const Grid4Layout = ({
                                                     })}
                                                 </div>
                                             </div>
-                                            <span className={`mt-[0.5vh] ${isTablet ? 'text-[0.6vw]' : 'text-[0.75vw]'} font-bold transition-all`}
+                                            <span className={`mt-[0.5vh] ${'text-[0.75vw]'} font-bold transition-all`}
                                                 style={{ color: isSelected ? getLayoutColor('thumbnail-inner-v2', '#3E4491') : getLayoutColor('dropdown-text', '#666666') }}
                                             >
                                                 {spread.label}
@@ -805,7 +823,7 @@ const Grid4Layout = ({
 
                 {/* Vertical Table of Contents Sidebar */}
                 {showTOC && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[11vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[16vw]' : 'left-[4.2vw] w-[13vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('toc-bg', '#FFFFFF') }}
                         >
@@ -813,7 +831,7 @@ const Grid4Layout = ({
                             <div className="flex flex-col pt-[1.5vh] pb-0">
                                 <div className="flex items-center justify-between px-[1vw]">
                                     <span
-                                        className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-bold`}
+                                        className={`${'text-[1.1vw]'} font-bold`}
                                         style={{ color: getLayoutColor('toc-text', '#575C9C'), fontFamily: "'Poppins', sans-serif" }}
                                     >Table of Contents</span>
                                     <button
@@ -821,7 +839,7 @@ const Grid4Layout = ({
                                         className="transition-colors opacity-70 hover:opacity-100"
                                         style={{ color: getLayoutColor('toc-text', '#575C9C') }}
                                     >
-                                        <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                        <Icon icon="lucide:x" className={`${'w-[1.2vw] h-[1.2vw]'}`} />
                                     </button>
                                 </div>
                                 <div className="mt-[0.6vh] mb-[1vh] rounded-full" style={{ height: '2px', backgroundColor: '#3E4491', margin: '0' }} />
@@ -879,12 +897,12 @@ const Grid4Layout = ({
                                                     style={{ color: getLayoutColor('toc-text', '#575C9C') }}
                                                     onClick={() => onPageClick && onPageClick(heading.page - 1)}
                                                 >
-                                                    <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium truncate pr-[0.5vw] flex items-center`}>
+                                                    <span className={`${'text-[0.85vw]'} font-medium truncate pr-[0.5vw] flex items-center`}>
                                                         {(settings.tocSettings?.addSerialNumberHeading !== false) && <span className="mr-1">{hIdx + 1}.</span>}
                                                         {heading.title}
                                                     </span>
                                                     {settings.tocSettings?.addPageNumber !== false && (
-                                                        <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium tabular-nums ml-[0.3vw]`}>
+                                                        <span className={`${'text-[0.85vw]'} font-medium tabular-nums ml-[0.3vw]`}>
                                                             {heading.page < 10 ? `0${heading.page}` : heading.page}
                                                         </span>
                                                     )}
@@ -898,12 +916,12 @@ const Grid4Layout = ({
                                                             style={{ color: getLayoutColor('toc-text', '#575C9C') }}
                                                             onClick={() => onPageClick && onPageClick(sub.page - 1)}
                                                         >
-                                                            <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-normal truncate pr-[0.5vw] flex items-center`}>
+                                                            <span className={`${'text-[0.85vw]'} font-normal truncate pr-[0.5vw] flex items-center`}>
                                                                 {(settings.tocSettings?.addSerialNumberSubheading !== false) && <span className="mr-1">{hIdx + 1}.{sIdx + 1}</span>}
                                                                 {sub.title}
                                                             </span>
                                                             {settings.tocSettings?.addPageNumber !== false && (
-                                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-normal tabular-nums ml-[0.2vw]`}>
+                                                                <span className={`${'text-[0.85vw]'} font-normal tabular-nums ml-[0.2vw]`}>
                                                                     {sub.page < 10 ? `0${sub.page}` : sub.page}
                                                                 </span>
                                                             )}
@@ -925,19 +943,19 @@ const Grid4Layout = ({
 
                 {/* Vertical Profile Sidebar */}
                 {showProfilePopup && (
-                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : isTablet ? 'left-[3vw] w-[14vw]' : !isBigBars ? 'left-[3.5vw] w-[13vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
+                    <div className={`absolute ${isMobileLandscape ? 'left-[7.5vw] w-[16vw]' : !isBigBars ? 'left-[3.5vw] w-[13vw]' : 'left-[4.2vw] w-[11.5vw]'} ${isFullscreen ? (isBigBars ? 'top-[7.5vh] bottom-[7.5vh]' : 'top-[6.5vh] bottom-[6.5vh]') : 'top-0 h-full'} bg-white z-30 border-r border-gray-200`}>
                         <div ref={sidebarContentRef} className="flex flex-col h-full animate-in slide-in-from-left duration-300"
                             style={{ backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF') }}
                         >
                             {/* Header */}
                             <div className="flex items-center justify-between px-[1vw] py-[1.5vh] border-b" style={{ borderColor: getLayoutColorRgba('dropdown-text', '62, 68, 145', '0.2') }}>
-                                <span className={`${isTablet ? 'text-[0.9vw]' : 'text-[1.1vw]'} font-semibold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Profile</span>
+                                <span className={`${'text-[1.1vw]'} font-semibold`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Profile</span>
                                 <button
                                     onClick={() => setShowProfilePopup(false)}
                                     className="transition-colors opacity-60 hover:opacity-100"
                                     style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}
                                 >
-                                    <Icon icon="lucide:x" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.2vw] h-[1.2vw]'}`} />
+                                    <Icon icon="lucide:x" className={`${'w-[1.2vw] h-[1.2vw]'}`} />
                                 </button>
                             </div>
 
@@ -946,37 +964,37 @@ const Grid4Layout = ({
                                 {profileSettings?.name || profileSettings?.about ? (
                                     <>
                                         <div className="flex items-start gap-[0.5vw]">
-                                            <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Name :</span>
-                                            <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{profileSettings?.name}</span>
+                                            <span className={`${'text-[0.85vw]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Name :</span>
+                                            <span className={`${'text-[0.85vw]'} font-medium opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>{profileSettings?.name}</span>
                                         </div>
 
                                         <div className="flex flex-col gap-[0.5vh]">
                                             <div className="flex items-start gap-[0.5vw]">
-                                                <span className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>About :</span>
-                                                <div className={`${isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium leading-relaxed text-justify opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
+                                                <span className={`${'text-[0.85vw]'} font-bold whitespace-nowrap`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>About :</span>
+                                                <div className={`${'text-[0.85vw]'} font-medium leading-relaxed text-justify opacity-80`} style={{ color: getLayoutColor('dropdown-text', '#575C9C') }}>
                                                     {profileSettings?.about}
                                                 </div>
                                             </div>
                                         </div>
 
                                         <div className="mt-[1vh]">
-                                            <h3 className={`${isTablet ? 'text-[0.8vw]' : 'text-[1vw]'} font-bold mb-[1vh]`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Contact</h3>
+                                            <h3 className={`${'text-[1vw]'} font-bold mb-[1vh]`} style={{ color: getLayoutColor('dropdown-text', '#3E4491') }}>Contact</h3>
                                             <div className="flex items-center gap-[0.75vw] flex-wrap">
                                                 {profileSettings?.contacts?.filter(c => c.value).map((contact) => (
                                                     <button
                                                         key={contact.id}
-                                                        className={`${isTablet ? 'w-[1.8vw] h-[1.8vw]' : 'w-[2.2vw] h-[2.2vw]'} rounded-[0.5vw] flex items-center justify-center transition-transform hover:scale-110 shadow-sm ${contact.type === 'x' ? 'bg-black' :
+                                                        className={`${'w-[2.2vw] h-[2.2vw]'} rounded-[0.5vw] flex items-center justify-center transition-transform hover:scale-110 shadow-sm ${contact.type === 'x' ? 'bg-black' :
                                                             contact.type === 'facebook' ? 'bg-[#3138A9]' :
                                                                 contact.type === 'instagram' ? 'bg-gradient-to-tr from-[#FFD600] via-[#FF0100] to-[#D800FF]' :
                                                                     'bg-white border border-gray-300'
                                                             }`}
                                                     >
-                                                        {contact.type === 'x' && <Icon icon="ri:twitter-x-fill" className={`text-white ${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />}
-                                                        {contact.type === 'facebook' && <Icon icon="ri:facebook-fill" className={`text-white ${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />}
-                                                        {(contact.type === 'email' || contact.type === 'gmail') && <Icon icon="logos:google-gmail" className={`${isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />}
-                                                        {contact.type === 'instagram' && <Icon icon="ri:instagram-line" className={`text-white ${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.4vw] h-[1.4vw]'}`} />}
-                                                        {(contact.type === 'phone' || contact.type === 'contact') && <Icon icon="ph:phone-fill" className={`text-[#4B4EFC] ${isTablet ? 'w-[1.1vw] h-[1.1vw]' : 'w-[1.3vw] h-[1.3vw]'} -rotate-90`} />}
-                                                        {contact.type === 'linkedin' && <Icon icon="logos:linkedin-icon" width={isTablet ? '1vw' : '1.3vw'} />}
+                                                        {contact.type === 'x' && <Icon icon="ri:twitter-x-fill" className={`text-white ${'w-[1.3vw] h-[1.3vw]'}`} />}
+                                                        {contact.type === 'facebook' && <Icon icon="ri:facebook-fill" className={`text-white ${'w-[1.5vw] h-[1.5vw]'}`} />}
+                                                        {(contact.type === 'email' || contact.type === 'gmail') && <Icon icon="logos:google-gmail" className={`${'w-[1.3vw] h-[1.3vw]'}`} />}
+                                                        {contact.type === 'instagram' && <Icon icon="ri:instagram-line" className={`text-white ${'w-[1.4vw] h-[1.4vw]'}`} />}
+                                                        {(contact.type === 'phone' || contact.type === 'contact') && <Icon icon="ph:phone-fill" className={`text-[#4B4EFC] ${'w-[1.3vw] h-[1.3vw]'} -rotate-90`} />}
+                                                        {contact.type === 'linkedin' && <Icon icon="logos:linkedin-icon" width={'1.3vw'} />}
                                                     </button>
                                                 ))}
                                             </div>
@@ -1012,40 +1030,40 @@ const Grid4Layout = ({
                     {/* Navigation Arrows */}
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
-                            className={`absolute top-1/2 -translate-y-1/2 hover:scale-110 transition-all z-20 flex items-center justify-center ${isTablet ? 'w-[1.9vw] h-[1.9vw]' : 'w-[2.4vw] h-[2.4vw]'} rounded-full`}
+                            className={`absolute top-1/2 -translate-y-1/2 hover:scale-110 transition-all z-20 flex items-center justify-center ${'w-[2.4vw] h-[2.4vw]'} rounded-full`}
                             style={{
                                 color: getLayoutColor('toolbar-icon', '#FFFFFF'),
                                 backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.15'),
-                                left: `max(2vw, calc(50% + ${localOffset}px ${currentPage === 0 ? '' : `- ${dimWidth}px`} - ${(currentPage === 0 || (currentPage >= pages.length - 1 && currentPage % 2 === 0)) ? (isTablet ? '6vw' : '8vw') : (isTablet ? '2.5vw' : '3vw')}))`
+                                left: `max(2vw, calc(50% + ${localOffset}px ${currentPage === 0 ? '' : `- ${dimWidth}px`} - ${(currentPage === 0 || (currentPage >= pages.length - 1 && currentPage % 2 === 0)) ? ('8vw') : ('3vw')}))`
                             }}
                             onClick={() => bookRef.current?.pageFlip()?.flipPrev()}
                         >
-                            <Icon icon="lucide:chevron-left" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />
+                            <Icon icon="lucide:chevron-left" className={`${'w-[1.5vw] h-[1.5vw]'}`} />
                         </button>
                     )}
                     {(settings?.navigation?.nextPrevButtons ?? true) && (
                         <button
-                            className={`absolute top-1/2 -translate-y-1/2 hover:scale-110 transition-all z-20 flex items-center justify-center ${isTablet ? 'w-[1.9vw] h-[1.9vw]' : 'w-[2.4vw] h-[2.4vw]'} rounded-full`}
+                            className={`absolute top-1/2 -translate-y-1/2 hover:scale-110 transition-all z-20 flex items-center justify-center ${'w-[2.4vw] h-[2.4vw]'} rounded-full`}
                             style={{
                                 color: getLayoutColor('toolbar-icon', '#FFFFFF'),
                                 backgroundColor: getLayoutColorRgba('toolbar-bg', '87, 92, 156', '0.15'),
-                                right: `max(2vw, calc(50% - ${localOffset}px - ${(currentPage >= pages.length - 1 && currentPage % 2 === 0) ? 0 : dimWidth}px - ${(currentPage === 0 || (currentPage >= pages.length - 1 && currentPage % 2 === 0)) ? (isTablet ? '6vw' : '8vw') : (isTablet ? '2.5vw' : '3vw')}))`
+                                right: `max(2vw, calc(50% - ${localOffset}px - ${(currentPage >= pages.length - 1 && currentPage % 2 === 0) ? 0 : dimWidth}px - ${(currentPage === 0 || (currentPage >= pages.length - 1 && currentPage % 2 === 0)) ? ('8vw') : ('3vw')}))`
                             }}
                             onClick={() => bookRef.current?.pageFlip()?.flipNext()}
                         >
-                            <Icon icon="lucide:chevron-right" className={`${isTablet ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.5vw] h-[1.5vw]'}`} />
+                            <Icon icon="lucide:chevron-right" className={`${'w-[1.5vw] h-[1.5vw]'}`} />
                         </button>
                     )}
 
                     {/* Page Indicator Badge */}
                     {(settings?.navigation?.pageQuickAccess ?? true) && (
-                        <div className={`absolute left-[1.5vw] rounded-[0.4vw] ${!isBigBars ? 'px-[0.4vw] py-[0.1vw]' : isTablet ? 'px-[0.6vw] py-[0.3vw]' : 'px-[0.8vw] py-[0.4vw]'} shadow-md z-20`}
+                        <div className={`absolute left-[1.5vw] rounded-[0.4vw] ${!isBigBars ? 'px-[0.4vw] py-[0.1vw]' : 'px-[0.8vw] py-[0.4vw]'} shadow-md z-20`}
                             style={{
                                 backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'),
                                 bottom: isFullscreen ? '9vh' : '3vh'
                             }}
                         >
-                            <span className={`${!isBigBars ? 'text-[0.6vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
+                            <span className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}>Page </span>
                             <input
                                 type="text"
                                 value={pageInputValue}
@@ -1074,10 +1092,10 @@ const Grid4Layout = ({
                                         setPageInputValue(String(currentPage + 1));
                                     }
                                 }}
-                                className={`${!isBigBars ? 'text-[0.6vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium bg-transparent border-none outline-none text-center p-0`}
+                                className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium bg-transparent border-none outline-none text-center p-0`}
                                 style={{ width: `${String(pages.length).length + 1}ch`, color: getLayoutColor('search-text-v1', '#575C9C') }}
                             />
-                            <span className={`${!isBigBars ? 'text-[0.6vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}> / {totalPages}</span>
+                            <span className={`${!isBigBars ? 'text-[0.6vw]' : 'text-[0.85vw]'} font-medium`} style={{ color: getLayoutColor('search-text-v1', '#575C9C') }}> / {totalPages}</span>
                         </div>
                     )}
 
@@ -1098,22 +1116,22 @@ const Grid4Layout = ({
             </div>
 
             {/* Bottom Bar: Multi-Region Integration */}
-            <div className={`${isMobileLandscape ? 'h-[12%]' : isTablet ? 'h-[5vh]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1000] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
+            <div className={`${isMobileLandscape ? 'h-[12%]' : !isBigBars ? 'h-[6.5vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[2.5vw] shrink-0 w-full z-[1000] border-t border-white/5 transition-all duration-500 ${isFullscreen ? `absolute bottom-0 left-0 ${(!isCanvasHovered || showThumbnails || showTOC || showProfilePopup || showSoundPopup) ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`} style={{ backgroundColor: getLayoutColor('bottom-toolbar-bg', '#575C9C') }}>
                 {/* Left: Playback Icons */}
                 <div className="flex items-center gap-[1.5vw]">
                     {(settings?.navigation?.startEndNav ?? true) && (
                         <button onClick={() => onPageClick && onPageClick(0)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="lucide:skip-back" className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
+                            <Icon icon="lucide:skip-back" className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
                         </button>
                     )}
                     {(settings?.media?.autoFlip ?? true) && (
                         <button onClick={() => setIsPlaying(!isAutoFlipping)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isMobileLandscape ? 'w-[1.4vw] h-[1.4vw]' : isTablet ? 'w-[1vw] h-[1vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />
+                            <Icon icon={isAutoFlipping ? "ph:pause-fill" : "ph:play-fill"} className={`${isMobileLandscape ? 'w-[1.4vw] h-[1.4vw]' : 'w-[1.3vw] h-[1.3vw]'}`} />
                         </button>
                     )}
                     {(settings?.navigation?.startEndNav ?? true) && (
                         <button onClick={() => onPageClick && onPageClick(totalPages - 1)} className="hover:scale-110 transition-all p-[0.2vw]" style={{ color: getLayoutColor('toolbar-icon', '#FFFFFF') }}>
-                            <Icon icon="lucide:skip-forward" className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : isTablet ? 'w-[0.8vw] h-[0.8vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
+                            <Icon icon="lucide:skip-forward" className={`${isMobileLandscape ? 'w-[1.2vw] h-[1.2vw]' : 'w-[1.1vw] h-[1.1vw]'}`} />
                         </button>
                     )}
                 </div>
@@ -1133,7 +1151,7 @@ const Grid4Layout = ({
                         {/* Track Underlay (before fill) */}
                         <div
                             className="absolute inset-0 transition-colors duration-300"
-                            style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: isTablet ? 0.4 : 0.3 }}
+                            style={{ backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'), opacity: 0.3 }}
                         />
                         {/* Progress Fill (after fill) */}
                         <div
@@ -1141,7 +1159,7 @@ const Grid4Layout = ({
                             style={{
                                 width: `${progressPercentage}%`,
                                 backgroundColor: getLayoutColor('toolbar-icon', '#FFFFFF'),
-                                opacity: isTablet ? 1 : 'var(--toolbar-icon-opacity, 1)'
+                                opacity: 'var(--toolbar-icon-opacity, 1)'
                             }}
                         />
                     </div>
@@ -1158,18 +1176,18 @@ const Grid4Layout = ({
                                 style={{ left: `${progressHover.x}px` }}
                             >
                                 <div
-                                    className={`absolute bottom-0 flex flex-col items-center ${isTablet ? 'p-[0.6vw] rounded-[0.6vw]' : 'p-[0.5vw] rounded-[0.8vw]'} shadow-[0_10px_40px_rgba(0,0,0,0.3)]`}
+                                    className={`absolute bottom-0 flex flex-col items-center ${'p-[0.5vw] rounded-[0.8vw]'} shadow-[0_10px_40px_rgba(0,0,0,0.3)]`}
                                     style={{
                                         backgroundColor: getLayoutColor('dropdown-bg', '#FFFFFF'),
                                         transform: 'translateX(-50%)',
-                                        minWidth: isTablet ? '7vw' : '9vw'
+                                        minWidth: '9vw'
                                     }}
                                 >
                                     <div className="w-full flex flex-col items-center px-[0.3vw]">
                                         <span
                                             className="font-bold whitespace-nowrap"
                                             style={{
-                                                fontSize: isMobileLandscape ? '1.2vw' : isTablet ? '0.7vw' : '0.85vw',
+                                                fontSize: isMobileLandscape ? '1.2vw' : '0.85vw',
                                                 color: getLayoutColor('dropdown-text', '#575C9C')
                                             }}
                                         >
@@ -1179,22 +1197,22 @@ const Grid4Layout = ({
                                         <div
                                             className="w-full rounded-full"
                                             style={{
-                                                height: isTablet ? '2px' : '2.5px',
+                                                height: '2.5px',
                                                 backgroundColor: getLayoutColor('dropdown-text', '#575C9C'),
-                                                margin: isTablet ? '0.4vw 0' : '0.5vw 0'
+                                                margin: '0.5vw 0'
                                             }}
                                         />
 
                                         <div
                                             className="flex justify-center overflow-hidden rounded-[0.3vw] shadow-inner"
                                             style={{
-                                                width: `${(400 * (isTablet ? 50 : 70) / 566) * 2 + 1}px`,
+                                                width: `${(400 * (70) / 566) * 2 + 1}px`,
                                                 backgroundColor: '#f3f4f6'
                                             }}
                                         >
                                             <div className="flex gap-[1px] bg-gray-100 p-[1px]">
                                                 {progressHover.spread.pages.map((page, pIdx) => {
-                                                    const boxHeight = isTablet ? 50 : 70;
+                                                    const boxHeight = 70;
                                                     const scale = boxHeight / 566;
                                                     const boxWidth = 400 * scale;
                                                     return (
@@ -1219,9 +1237,9 @@ const Grid4Layout = ({
                                     <div
                                         className="absolute top-full w-0 h-0 border-solid border-l-transparent border-r-transparent shadow-xl"
                                         style={{
-                                            borderTopWidth: isTablet ? '0.6vw' : '0.8vw',
-                                            borderLeftWidth: isTablet ? '0.5vw' : '0.6vw',
-                                            borderRightWidth: isTablet ? '0.5vw' : '0.6vw',
+                                            borderTopWidth: '0.8vw',
+                                            borderLeftWidth: '0.6vw',
+                                            borderRightWidth: '0.6vw',
                                             borderTopColor: getLayoutColor('dropdown-bg', '#FFFFFF'),
                                             left: '50%',
                                             transform: 'translateX(-50%)',
@@ -1245,21 +1263,21 @@ const Grid4Layout = ({
                         >
                             <div className={`flex items-center ${!isBigBars ? 'gap-[0.3vw]' : 'gap-[0.8vw]'}`}>
                                 <button onClick={(e) => { e.stopPropagation(); zoomOut(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#3E4491') }}>
-                                    <Icon icon="lucide:zoom-out" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
+                                    <Icon icon="lucide:zoom-out" className={`${'w-[0.9vw]'} ${'h-[0.9vw]'}`} />
                                 </button>
-                                <span className={`font-bold ${isMobileLandscape ? 'text-[1.2vw]' : isTablet ? 'text-[0.75vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`} style={{ color: getLayoutColor('search-text-v1', '#3E4491') }}>
+                                <span className={`font-bold ${isMobileLandscape ? 'text-[1.2vw]' : 'text-[0.85vw]'} tabular-nums min-w-[2.5vw] text-center`} style={{ color: getLayoutColor('search-text-v1', '#3E4491') }}>
                                     {Math.round((dimWidth / initialWidth) * 100)}%
                                 </span>
                                 <button onClick={(e) => { e.stopPropagation(); zoomIn(); }} className="hover:scale-110" style={{ color: getLayoutColor('search-text-v1', '#3E4491') }}>
-                                    <Icon icon="lucide:zoom-in" className={`${isTablet ? 'w-[0.8vw]' : 'w-[0.9vw]'} ${isTablet ? 'h-[0.8vw]' : 'h-[0.9vw]'}`} />
+                                    <Icon icon="lucide:zoom-in" className={`${'w-[0.9vw]'} ${'h-[0.9vw]'}`} />
                                 </button>
                             </div>
                             <button
                                 onClick={() => {
-                                    setDimWidth(isTablet ? initialWidth * 0.7 : initialWidth);
-                                    setDimHeight(isTablet ? initialHeight * 0.7 : initialHeight);
+                                    setDimWidth(initialWidth);
+                                    setDimHeight(initialHeight);
                                 }}
-                                className={`${!isBigBars ? 'text-[0.6vw] px-[0.4vw] py-[0.15vw] rounded-[0.3vw]' : isMobileLandscape ? 'text-[1.2vw]' : isTablet ? 'text-[0.65vw]' : 'text-[0.8vw] px-[0.8vw] py-[0.35vw] rounded-[0.4vw]'} font-bold active:scale-95 transition-all shadow-sm`}
+                                className={`${!isBigBars ? 'text-[0.6vw] px-[0.4vw] py-[0.15vw] rounded-[0.3vw]' : isMobileLandscape ? 'text-[1.2vw]' : 'text-[0.8vw] px-[0.8vw] py-[0.35vw] rounded-[0.4vw]'} font-bold active:scale-95 transition-all shadow-sm`}
                                 style={{ backgroundColor: getLayoutColor('search-bg-v2', '#FFFFFF'), color: getLayoutColor('search-text-v1', '#3E4491') }}
                             >
                                 Reset

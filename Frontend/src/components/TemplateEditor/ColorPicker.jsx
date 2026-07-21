@@ -453,6 +453,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
     const isDragging = useRef(false);
     const containerRef = useRef(null);
     const onMouseDown = (e) => {
+      e.preventDefault();
       isDragging.current = true;
       handler(e, containerRef.current, true);
       window.addEventListener("mousemove", onMouseMove);

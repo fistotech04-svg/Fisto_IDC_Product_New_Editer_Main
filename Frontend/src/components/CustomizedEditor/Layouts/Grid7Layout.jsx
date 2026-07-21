@@ -317,6 +317,10 @@ const Grid7Layout = ({
     const isPdfProject = pages?.some(p => p.html && p.html.includes('data-name="PDF Background"'));
     const progressPercentage = pagesCount > 1 ? (currentPage / (pagesCount - 1)) * 100 : 0;
 
+    if (isTablet) {
+        return <div className="w-full h-full bg-transparent flex items-center justify-center"></div>;
+    }
+
     return (
         <div
             className="flex flex-col h-full w-full overflow-hidden font-sans select-none relative"

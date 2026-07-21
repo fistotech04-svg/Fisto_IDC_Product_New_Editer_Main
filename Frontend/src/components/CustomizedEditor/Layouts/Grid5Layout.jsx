@@ -103,8 +103,7 @@ const Grid5Layout = ({
     isTablet,
     showTOC,
     isMobileLandscape,
-    isFullscreen: isFullscreenProp
-    ,
+    isFullscreen: isFullscreenProp,
     offset = 0,
 }) => {
     // ... rest of the setup logic
@@ -492,6 +491,7 @@ const Grid5Layout = ({
             setShowSoundPopupMemo(false);
         }}>
             {/* ── TOP BAR ── White with search | title | logo */}
+            {!isTablet && (
             <div
                 className={`magazine-toolbar ${isMobileLandscape ? 'h-[14%]' : isTablet ? 'h-[5.2vh]' : 'h-[7.5vh]'} flex items-center justify-between px-[1.5vw] shrink-0 w-full z-50 transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}
             >
@@ -628,6 +628,7 @@ const Grid5Layout = ({
                     )}
                 </div>
             </div>
+            )}
 
             {/* ── MAIN CONTENT AREA ── */}
             {/* Book Viewer Container */}
@@ -682,6 +683,7 @@ const Grid5Layout = ({
             </div>
 
             {/* ── BOTTOM BAR ── UI Match to Screenshot */}
+            {!isTablet && (
             <div className={`magazine-toolbar ${isMobileLandscape ? 'h-[11%]' : isTablet ? 'h-[5.5vh]' : 'h-[8vh]'} flex items-center px-[1.5vw] justify-between shrink-0 w-full z-40 bg-transparent overflow-visible transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}` : 'relative'}`}>
                 {(settings?.navigation?.pageQuickAccess ?? true) && (
                     <div className={`rounded-full flex items-center p-[0.3vw] shadow-[0_0.2vw_1vw_rgba(0,0,0,0.06)] border border-gray-100 shrink-0 ${isMobileLandscape ? 'h-[65%] gap-[0.5vw] px-[0.8vw]' : isTablet ? 'h-[4vh] gap-[0.2vw] px-[0.2vw]' : 'h-[6vh] gap-[0.3vw] px-[0.5vw]'}`}
@@ -1365,9 +1367,10 @@ const Grid5Layout = ({
                     </div>
                 )}
             </div>
+            )}
 
             {/* ── THUMBNAIL BAR ── Exact Match to Screenshot */}
-            {showThumbnails && (
+            {showThumbnails && !isTablet && (
                 <>
                     {/* Main Container - Rounded Capsule */}
                     <div

@@ -10,6 +10,7 @@ import bgSound1 from '../../../assets/Audios/bg music1.mp3';
 import bgSound2 from '../../../assets/Audios/bg music2.mp3';
 import bgSound3 from '../../../assets/Audios/bg music3.mp3';
 import bgSound4 from '../../../assets/Audios/bg music4.mp3';
+import TabletLayoutSound from '../Tablet/TabletLayouts/TabletLayoutSound';
 
 // --- Shared Helper for RGBA Colors ---
 const getLayoutColorRgba = (id, defaultRgb, defaultOpacity) =>
@@ -1023,7 +1024,7 @@ const Sound = ({
 
     useEffect(() => {
         if (isOpen && isTablet && layout === 1) {
-            const findAnchor = () => {
+            const updatePos = () => {
                 const anchor = document.querySelector('.tablet-layout-1-sound-icon-anchor');
                 if (anchor && soundContainerRef.current) {
                     const rect = anchor.getBoundingClientRect();
@@ -1035,7 +1036,13 @@ const Sound = ({
                     setDynamicPos({ ready: false });
                 }
             };
-            setTimeout(findAnchor, 50);
+            
+            // Initial positioning
+            setTimeout(updatePos, 50);
+            
+            // Re-calculate on resize to make it responsive
+            window.addEventListener('resize', updatePos);
+            return () => window.removeEventListener('resize', updatePos);
         } else {
             setDynamicPos({ ready: false });
         }
@@ -1499,6 +1506,30 @@ const Sound = ({
                 </div>
             );
         }
+
+        if (isTablet && (layout == 1 || layout == 2 || layout == 3 || layout == 4)) {
+            const anchor = document.getElementById('tablet-sound-portal');
+            if (anchor) {
+                return ReactDOM.createPortal(
+                    <div className="absolute inset-0 pointer-events-auto" onClick={onClose}>
+                        {layout == 1 ? (
+                            <div 
+                                className="absolute pointer-events-auto"
+                                style={{ bottom: 'calc(8% + 1.5cqw)', right: '30.2cqw', transform: 'translateX(50%)' }}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <TabletLayoutSound {...commonProps} />
+                            </div>
+                        ) : (
+                            <TabletLayoutSound {...commonProps} />
+                        )}
+                    </div>,
+                    anchor
+                );
+            }
+            return null; // Wait for portal target to be ready
+        }
+
 
 
         const popupContent = (() => {
