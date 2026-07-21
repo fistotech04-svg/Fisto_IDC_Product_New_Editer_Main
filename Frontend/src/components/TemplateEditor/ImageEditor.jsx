@@ -805,7 +805,7 @@ const ImageEditor = ({
         // Only images use CSS clip-path which clips shadows. Shapes use native rx/ry.
         const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
         const hasClip = forceClip || (isImageElement && ((effImgType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl)));
-        const useShadowCaster = hasClip || activeEffects.includes('Blur');
+        const useShadowCaster = true;
 
         if (shadowOnlyFilter !== 'none' && useShadowCaster) {
           if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'rect') {
@@ -871,7 +871,35 @@ const ImageEditor = ({
             if (maxR > 0) shadowCaster.setAttribute('rx', maxR.toString());
             else shadowCaster.removeAttribute('rx');
 
-            shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+            const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
+            const totalBlur = effSet.blur / 2;
+            
+            let shadowFilterId = `ds-only-${liveElement.id || 'img'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let svgFilt = defs.querySelector(`#${shadowFilterId}`);
+              if (!svgFilt) {
+                svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                svgFilt.id = shadowFilterId;
+                defs.appendChild(svgFilt);
+              }
+              // Safely set innerHTML to generate only the shadow (hollowed out by SourceAlpha)
+              svgFilt.innerHTML = `
+                <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
+                <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
+                <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
+                <feComposite in2="offsetBlur" operator="in" result="shadow"/>
+                <feComposite in="shadow" in2="SourceAlpha" operator="out"/>
+              `;
+              shadowCaster.style.setProperty('filter', `url(#${shadowFilterId})`, 'important');
+            } else {
+              shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+            }
+            
             shadowCaster.style.setProperty('display', 'block', 'important');
           }
         } else if (shadowCaster) {
@@ -880,8 +908,8 @@ const ImageEditor = ({
 
         // 3. Apply layer-level filters
         const hasCropWrapper = liveElement.parentElement?.classList.contains('svg-crop-wrapper');
-        const activeShadowFilter = (useShadowCaster && shadowOnlyFilter !== 'none') ? '' : shadowFilter;
-        const innerFilter = (adjustmentFilters + activeShadowFilter).trim() || 'none';
+        const activeShadowFilter = ''; // We always use shadowCaster for drop-shadows now
+        const innerFilter = adjustmentFilters.trim() || 'none';
 
         if (!hasCropWrapper) {
           const applyToLeaf = svgImageEl && svgImageEl !== liveElement;
