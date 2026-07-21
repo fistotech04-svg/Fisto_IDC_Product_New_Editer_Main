@@ -21,6 +21,33 @@ export const getVisualBBox = (el) => {
 
   const cropStr = el.getAttribute('data-crop-data');
   if (cropStr && cropStr !== 'null') {
+    // ── PRIORITY: Read from the live SVG clipPath rect (crop-group-clip-{id}) ──
+    // applyVisuals and the live resize sync always keep this rect accurate.
+    const clipAttrCrop = el.getAttribute('clip-path') || '';
+    const clipMatchCrop = clipAttrCrop.match(/url\(['"']?#([^)'"]+)['"']?\)/);
+    if (clipMatchCrop && clipMatchCrop[1]) {
+      const clipElId = clipMatchCrop[1];
+      if (clipElId.startsWith('crop-group-clip-') || clipElId.startsWith('crop-clip-')) {
+        const clipEl = el.ownerSVGElement?.querySelector(`[id="${clipElId}"]`) || document.getElementById(clipElId);
+        if (clipEl && clipEl.firstElementChild) {
+          try {
+            const r = clipEl.firstElementChild;
+            const rx = parseFloat(r.getAttribute('x') || '0');
+            const ry = parseFloat(r.getAttribute('y') || '0');
+            const rw = parseFloat(r.getAttribute('width') || '0');
+            const rh = parseFloat(r.getAttribute('height') || '0');
+            if (rw > 0 && rh > 0) {
+              // The clip rect is in userSpaceOnUse (absolute SVG coords / parent space).
+              // getVisualBBox must return coords in el's OWN local space.
+              let lx = rx, ly = ry;
+              return { x: lx, y: ly, width: rw, height: rh };
+            }
+          } catch (e) { }
+        }
+      }
+    }
+
+    // ── FALLBACK: Compute from stored orig dims + crop percentages ──
     let bboxW = 0, bboxH = 0, bboxX = 0, bboxY = 0;
     if (el.hasAttribute('data-crop-orig-w')) {
       bboxW = parseFloat(el.getAttribute('data-crop-orig-w'));
@@ -43,7 +70,7 @@ export const getVisualBBox = (el) => {
   }
 
   const clipAttr = el.getAttribute('clip-path') || el.style.clipPath || '';
-  const clipMatch = clipAttr.match(/url\(['"]?#([^)'"]+)['"]?\)/);
+  const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
   if (clipMatch && clipMatch[1]) {
     const clipEl = document.getElementById(clipMatch[1]);
     if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
@@ -96,6 +123,7 @@ export const getVisualBBox = (el) => {
 
   return el.getBBox();
 };
+
 
 // Global style to ensure injected SVGs always fill their container perfectly
 const svgGlobalStyles = `
@@ -5187,15 +5215,35 @@ const MainEditor = ({
             let initialImgState = null;
             if (isImageGroupResize) {
               const imgEl = el.querySelector('image, video');
+              let natW = 0, natH = 0;
               if (imgEl) {
+                const href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.src;
+                if (href) {
+                  const temp = new Image();
+                  temp.src = href;
+                  natW = temp.naturalWidth;
+                  natH = temp.naturalHeight;
+                }
                 initialImgState = {
                   x: parseFloat(imgEl.getAttribute('x') || '0'),
                   y: parseFloat(imgEl.getAttribute('y') || '0'),
                   w: parseFloat(imgEl.getAttribute('width') || '0'),
                   h: parseFloat(imgEl.getAttribute('height') || '0'),
+                  natW,
+                  natH
                 };
               }
             }
+
+            let initialCrop = {};
+            try {
+              const cropStr = el.getAttribute('data-crop-data');
+              if (cropStr && cropStr !== 'null') {
+                initialCrop = JSON.parse(cropStr);
+              }
+            } catch(e) {}
+
+            const initialObjectFit = el.getAttribute('data-object-fit') || 'Fit';
 
             event.interaction.resizeState = {
               el,
@@ -5209,6 +5257,9 @@ const MainEditor = ({
               childrenData,
               isImageGroupResize,
               initialImgState,
+              initialCrop,
+              initialObjectFit,
+              cropInitialized: false,
               cursor: currentCursor // Store for reinforcement
             };
           },
@@ -5649,65 +5700,48 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
+                        if ((tag === 'image' || tag === 'video' || tag === 'svg') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
+                           // Keep the element exactly as it was, do not resize it!
+                           imgX = child.getAttribute('x') || 0;
+                           imgY = child.getAttribute('y') || 0;
+                           imgW = child.getAttribute('width') || state.bbox.width;
+                           imgH = child.getAttribute('height') || state.bbox.height;
 
-                        if (!isCtrlPressedMoveInner && (tag === 'image' || tag === 'video')) {
-                          const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
-                          if (cropStr && cropStr !== 'null') {
-                            try {
-                              const crop = JSON.parse(cropStr);
-                              const cropW = parseFloat(crop.width) / 100;
-                              const cropH = parseFloat(crop.height) / 100;
-                              const cropL = parseFloat(crop.left) / 100;
-                              const cropT = parseFloat(crop.top) / 100;
+                           if (state.bbox.width > 0 && state.bbox.height > 0) {
+                             let existingCrop = state.initialCrop || {};
+                             let hasExistingCrop = Object.keys(existingCrop).length > 0;
 
-                              if (cropW > 0) {
-                                imgW = newLocW / cropW;
-                                imgX = newLocX - cropL * imgW;
-                              }
-                              if (cropH > 0) {
-                                imgH = newLocH / cropH;
-                                imgY = newLocY - cropT * imgH;
-                              }
-                            } catch (e) { }
-                          }
-                          el.setAttribute('data-crop-orig-w', imgW.toString());
-                          el.setAttribute('data-crop-orig-h', imgH.toString());
-                          el.setAttribute('data-crop-orig-x', imgX.toString());
-                          el.setAttribute('data-crop-orig-y', imgY.toString());
-                        }
+                             if (!state.cropInitialized) {
+                               state.cropInitialized = true;
+                               if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
+                                 el.setAttribute('data-crop-orig-w', state.bbox.width.toString());
+                                 el.setAttribute('data-crop-orig-h', state.bbox.height.toString());
+                                 el.setAttribute('data-crop-orig-x', imgX.toString());
+                                 el.setAttribute('data-crop-orig-y', imgY.toString());
+                                 let fitType = state.initialObjectFit;
+                                 if (fitType === 'Crop') fitType = el.getAttribute('data-crop-underlying-fit') || 'Fit';
+                                 el.setAttribute('data-crop-underlying-fit', fitType);
+                               }
+                             }
 
-                        if ((tag === 'image' || tag === 'video') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
-                          imgX = el.hasAttribute('data-crop-orig-x') ? parseFloat(el.getAttribute('data-crop-orig-x')) : state.initialImgState.x;
-                          imgY = el.hasAttribute('data-crop-orig-y') ? parseFloat(el.getAttribute('data-crop-orig-y')) : state.initialImgState.y;
-                          imgW = el.hasAttribute('data-crop-orig-w') ? parseFloat(el.getAttribute('data-crop-orig-w')) : state.initialImgState.w;
-                          imgH = el.hasAttribute('data-crop-orig-h') ? parseFloat(el.getAttribute('data-crop-orig-h')) : state.initialImgState.h;
+                             let prevLeft = 0, prevTop = 0, prevW = 100, prevH = 100;
+                             if (hasExistingCrop) {
+                               prevLeft = parseFloat(existingCrop.left) || 0;
+                               prevTop = parseFloat(existingCrop.top) || 0;
+                               prevW = parseFloat(existingCrop.width) || 100;
+                               prevH = parseFloat(existingCrop.height) || 100;
+                             }
 
-                          if (imgW > 0 && imgH > 0) {
-                            let existingCrop = {};
-                            let hasExistingCrop = false;
-                            try {
-                              const cropStr = el.getAttribute('data-crop-data') || el.getAttribute('data-saved-crop-data');
-                              if (cropStr && cropStr !== 'null') {
-                                existingCrop = JSON.parse(cropStr);
-                                hasExistingCrop = Object.keys(existingCrop).length > 0;
-                              }
-                            } catch (e) { }
-
-                            // If starting a fresh crop (e.g., after changing fit type which clears crop data),
-                            // we must reset the orig dimensions to the current image dimensions so percentages match.
-                            if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
-                              el.setAttribute('data-crop-orig-w', imgW.toString());
-                              el.setAttribute('data-crop-orig-h', imgH.toString());
-                              el.setAttribute('data-crop-orig-x', imgX.toString());
-                              el.setAttribute('data-crop-orig-y', imgY.toString());
-                            }
-
-                            const cropTop = Math.max(0, ((finalY - imgY) / imgH) * 100);
-                            const cropLeft = Math.max(0, ((finalX - imgX) / imgW) * 100);
-                            const cropWidth = Math.max(0, (finalWidth / imgW) * 100);
-                            const cropHeight = Math.max(0, (finalHeight / imgH) * 100);
-                            const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
-                            const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
+                             const deltaLeftPct = ((finalX - state.bbox.x) / state.bbox.width) * prevW;
+                             const deltaTopPct = ((finalY - state.bbox.y) / state.bbox.height) * prevH;
+                             
+                             const cropLeft = Math.max(0, Math.min(100, prevLeft + deltaLeftPct));
+                             const cropTop = Math.max(0, Math.min(100, prevTop + deltaTopPct));
+                             const cropWidth = Math.max(0, Math.min(100 - cropLeft, (finalWidth / state.bbox.width) * prevW));
+                             const cropHeight = Math.max(0, Math.min(100 - cropTop, (finalHeight / state.bbox.height) * prevH));
+                             
+                             const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
+                             const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
 
                             let clipTarget = el.querySelector('.image-inner-content') || el;
 
@@ -5835,6 +5869,57 @@ const MainEditor = ({
               const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
               drawOverlayHighlight(el, highlightType);
             }
+
+            // ── LIVE CROP CLIP SYNC DURING RESIZE DRAG ─────────────────────────────
+            // For cropped image groups, update the SVG clipPath rects in real-time
+            // so the crop boundary stays in sync with the element while dragging.
+            if (
+              el &&
+              typeof el.getAttribute === 'function' &&
+              el.getAttribute('data-crop-data') &&
+              el.getAttribute('data-crop-data') !== 'null' &&
+              (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-effect-crop-inset')) &&
+              state.childrenData
+            ) {
+              try {
+                const imgElLive = el.querySelector('image, video');
+                if (imgElLive) {
+                  const liveW = parseFloat(imgElLive.getAttribute('width') || '0');
+                  const liveH = parseFloat(imgElLive.getAttribute('height') || '0');
+                  const liveX = parseFloat(imgElLive.getAttribute('x') || '0');
+                  const liveY = parseFloat(imgElLive.getAttribute('y') || '0');
+                  if (liveW > 0 && liveH > 0) {
+                    const cropDataStr = el.getAttribute('data-crop-data');
+                    const cropData = JSON.parse(cropDataStr);
+                    const cLeft   = parseFloat(cropData.left)   || 0;
+                    const cTop    = parseFloat(cropData.top)    || 0;
+                    const cWidth  = parseFloat(cropData.width)  || 100;
+                    const cHeight = parseFloat(cropData.height) || 100;
+                    const clipX = liveX + (liveW * cLeft) / 100;
+                    const clipY = liveY + (liveH * cTop) / 100;
+                    const clipW = (liveW * cWidth) / 100;
+                    const clipH = (liveH * cHeight) / 100;
+                    const svgRootLive = el.ownerSVGElement || imgElLive.ownerSVGElement;
+                    if (svgRootLive) {
+                      const imgClipPath = svgRootLive.querySelector(`[id="crop-clip-${el.id}"]`);
+                      if (imgClipPath) {
+                        const r = imgClipPath.querySelector('rect');
+                        if (r) { r.setAttribute('x', clipX); r.setAttribute('y', clipY); r.setAttribute('width', Math.max(0, clipW)); r.setAttribute('height', Math.max(0, clipH)); }
+                      }
+                      const grpClipPath = svgRootLive.querySelector(`[id="crop-group-clip-${el.id}"]`);
+                      if (grpClipPath) {
+                        const gr = grpClipPath.querySelector('rect');
+                        if (gr) {
+                          gr.setAttribute('x', clipX); 
+                          gr.setAttribute('y', clipY);
+                          gr.setAttribute('width', Math.max(0, clipW)); gr.setAttribute('height', Math.max(0, clipH));
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (_e) { /* non-critical */ }
+            }
           },
           end(event) {
             // Unlock cursor back to default
@@ -5844,6 +5929,98 @@ const MainEditor = ({
 
             const state = event.interaction.resizeState;
             if (state && updatePageHtmlRef.current) {
+              if (state.isImageGroupResize && state.el.hasAttribute('data-effect-crop-inset')) {
+                state.el.setAttribute('data-object-fit', 'Crop');
+              }
+
+              // ── CROP REMAP AFTER RESIZE ────────────────────────────────────────────
+              // When a cropped image is resized, ImageEditor.applyVisuals later reads
+              // data-crop-orig-w/h and RESETS the image element to those OLD dimensions,
+              // effectively undoing the resize. The fix:
+              //   1. Compute the crop's absolute pixel bounds (in old-dim space).
+              //   2. Express those same pixel bounds as NEW percentages relative to the
+              //      newly scaled element size.
+              //   3. Update data-crop-orig-w/h/x/y and data-crop-data so applyVisuals
+              //      restores the element at the correct NEW size with the same visual crop.
+              const el = state.el;
+              if (
+                el &&
+                typeof el.getAttribute === 'function' &&
+                el.getAttribute('data-crop-data') &&
+                el.getAttribute('data-crop-data') !== 'null' &&
+                (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-effect-crop-inset'))
+              ) {
+                try {
+                  const imgEl = el.querySelector('image, video');
+                  if (imgEl) {
+                    // The NEW element dimensions (after resize)
+                    const newW = parseFloat(imgEl.getAttribute('width') || '0');
+                    const newH = parseFloat(imgEl.getAttribute('height') || '0');
+                    const newX = parseFloat(imgEl.getAttribute('x') || '0');
+                    const newY = parseFloat(imgEl.getAttribute('y') || '0');
+
+                    // The OLD (stored) original dimensions before this resize
+                    const oldW = parseFloat(el.getAttribute('data-crop-orig-w') || '0');
+                    const oldH = parseFloat(el.getAttribute('data-crop-orig-h') || '0');
+                    const oldX = parseFloat(el.getAttribute('data-crop-orig-x') || '0');
+                    const oldY = parseFloat(el.getAttribute('data-crop-orig-y') || '0');
+
+                    if (newW > 0 && newH > 0 && oldW > 0 && oldH > 0) {
+                      const cropStr = el.getAttribute('data-crop-data');
+                      const crop = JSON.parse(cropStr);
+
+                      // Compute absolute pixel crop bounds in OLD-dim space
+                      const absLeft   = oldX + (parseFloat(crop.left)   / 100) * oldW;
+                      const absTop    = oldY + (parseFloat(crop.top)    / 100) * oldH;
+                      const absCropW  = (parseFloat(crop.width)  / 100) * oldW;
+                      const absCropH  = (parseFloat(crop.height) / 100) * oldH;
+
+                      // Re-express as percentages relative to NEW element size
+                      const newCropLeft   = Math.max(0, Math.min(100, ((absLeft - newX) / newW) * 100));
+                      const newCropTop    = Math.max(0, Math.min(100, ((absTop  - newY) / newH) * 100));
+                      const newCropWidth  = Math.max(0, Math.min(100 - newCropLeft, (absCropW / newW) * 100));
+                      const newCropHeight = Math.max(0, Math.min(100 - newCropTop,  (absCropH / newH) * 100));
+
+                      // Persist the remapped crop percentages
+                      const newCropData = {
+                        ...crop,
+                        left:   newCropLeft,
+                        top:    newCropTop,
+                        width:  newCropWidth,
+                        height: newCropHeight
+                      };
+                      el.setAttribute('data-crop-data', JSON.stringify(newCropData));
+
+                      // Update stored orig dims so applyVisuals restores to the NEW size
+                      el.setAttribute('data-crop-orig-w', newW.toString());
+                      el.setAttribute('data-crop-orig-h', newH.toString());
+                      el.setAttribute('data-crop-orig-x', newX.toString());
+                      el.setAttribute('data-crop-orig-y', newY.toString());
+
+                      // Recompute and update the SVG clipPath rects in <defs>
+                      const clipX = newX + (newW * newCropLeft) / 100;
+                      const clipY = newY + (newH * newCropTop)  / 100;
+                      const clipW = (newW * newCropWidth)  / 100;
+                      const clipH = (newH * newCropHeight) / 100;
+
+                      const svgRoot = el.ownerSVGElement || imgEl.ownerSVGElement;
+                      if (svgRoot) {
+                        const imgClip = svgRoot.querySelector(`[id="crop-clip-${el.id}"]`);
+                        if (imgClip) {
+                          const r = imgClip.querySelector('rect');
+                          if (r) { r.setAttribute('x', clipX); r.setAttribute('y', clipY); r.setAttribute('width', Math.max(0, clipW)); r.setAttribute('height', Math.max(0, clipH)); }
+                        }
+                        const grpClip = svgRoot.querySelector(`[id="crop-group-clip-${el.id}"]`);
+                        if (grpClip) {
+                          const gr = grpClip.querySelector('rect');
+                          if (gr) { gr.setAttribute('x', clipX); gr.setAttribute('y', clipY); gr.setAttribute('width', Math.max(0, clipW)); gr.setAttribute('height', Math.max(0, clipH)); }
+                        }
+                      }
+                    }
+                  }
+                } catch (_e) { /* non-critical */ }
+              }
+
               // state.el may be a fake object for multi-selection, use state.svg's container
               const container = state.svg?.closest?.('.page-svg-container') ||
                 (state.el?.closest ? state.el.closest('.page-svg-container') : null);
