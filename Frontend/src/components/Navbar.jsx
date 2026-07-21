@@ -1,5 +1,5 @@
 // src/components/Navbar.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../assets/logo/Fisto_logo.png';
 import { User, Share2, Save, Download, Loader2, Eye, ChevronDown, Monitor, Tablet, Smartphone } from 'lucide-react';
@@ -14,6 +14,21 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const [isPublishMenuOpen, setIsPublishMenuOpen] = useState(false);
+  const deviceMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (deviceMenuRef.current && !deviceMenuRef.current.contains(event.target)) {
+        setIsDeviceMenuOpen(false);
+      }
+    };
+    if (isDeviceMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isDeviceMenuOpen]);
   const location = useLocation();
   const navigate = useNavigate();
   useEffect(() => {
@@ -125,7 +140,7 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
 
           {/* Device Switcher (Customized Editor only) */}
           {location.pathname.includes('customized_editor') && (
-            <div className="relative">
+            <div className="relative" ref={deviceMenuRef}>
               <button
                 onClick={() => setIsDeviceMenuOpen(!isDeviceMenuOpen)}
                 className="flex items-center gap-[0.4vw] p-[0.6vw] px-[0.8vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700"
@@ -140,7 +155,6 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
               
               {isDeviceMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setIsDeviceMenuOpen(false)} />
                   <div className="absolute left-1/2 -translate-x-1/2 top-full mt-[1vw] bg-gray-50 border border-gray-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] rounded-[0.8vw] p-[0.5vw] w-[11vw] z-50 flex flex-col gap-[0.5vw]">
                     {/* Top Row: Mobile & Tablet */}
                     <div className="flex gap-[0.5vw] w-full">
