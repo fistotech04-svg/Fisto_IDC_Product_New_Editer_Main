@@ -1,8 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { getVisualBBox } from './MainEditor';
 
-const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, activePageIndex }) => {
+const CropOverlay = ({ src, initialCrop, targetElement, activePageIndex, onCancel, onDone, underlyingFit }) => {
   const [crop, setCrop] = useState(() => {
     try {
       if (typeof initialCrop === 'string') {
@@ -29,56 +28,64 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
     if (!targetElement) return;
 
     const updateRect = () => {
-      let rect;
+      let fullL, fullT, fullW, fullH;
 
       const isSvgEl = targetElement instanceof SVGElement && targetElement.tagName.toLowerCase() !== 'svg';
       if (isSvgEl) {
         try {
-          const bbox = getVisualBBox(targetElement);
           const svg = targetElement.ownerSVGElement;
-
-          if (svg && bbox.width > 0) {
+          if (svg) {
             const matrix = targetElement.getScreenCTM();
             if (matrix) {
-              const pt1 = svg.createSVGPoint();
-              pt1.x = bbox.x; pt1.y = bbox.y;
-              const pt2 = svg.createSVGPoint();
-              pt2.x = bbox.x + bbox.width; pt2.y = bbox.y + bbox.height;
+              // Always use the FULL (un-cropped) bbox so the overlay covers the entire image
+              let bboxX = 0, bboxY = 0, bboxW = 0, bboxH = 0;
 
-              const screenPt1 = pt1.matrixTransform(matrix);
-              const screenPt2 = pt2.matrixTransform(matrix);
-
-              const cropStr = targetElement.getAttribute('data-crop-data');
-              let cropOffX = 0, cropOffY = 0, cropL = 0, cropT = 0, cropW = 100, cropH = 100;
-              if (cropStr && cropStr !== 'null') {
-                try {
-                  const crop = JSON.parse(cropStr);
-                  cropOffX = (parseFloat(crop.offX) || 0) / 100;
-                  cropOffY = (parseFloat(crop.offY) || 0) / 100;
-                  cropL = parseFloat(crop.left) / 100;
-                  cropT = parseFloat(crop.top) / 100;
-                  cropW = parseFloat(crop.width) / 100;
-                  cropH = parseFloat(crop.height) / 100;
-                } catch (e) { }
+              // Prefer stored original dimensions (set when crop was first applied)
+              if (targetElement.hasAttribute('data-crop-orig-w')) {
+                bboxW = parseFloat(targetElement.getAttribute('data-crop-orig-w')) || 0;
+                bboxH = parseFloat(targetElement.getAttribute('data-crop-orig-h')) || 0;
+                bboxX = parseFloat(targetElement.getAttribute('data-crop-orig-x')) || 0;
+                bboxY = parseFloat(targetElement.getAttribute('data-crop-orig-y')) || 0;
+              } else {
+                // Check inner image element for orig dims
+                const innerImg = targetElement.querySelector('image[data-crop-orig-w]');
+                if (innerImg) {
+                  bboxW = parseFloat(innerImg.getAttribute('data-crop-orig-w')) || 0;
+                  bboxH = parseFloat(innerImg.getAttribute('data-crop-orig-h')) || 0;
+                  bboxX = parseFloat(innerImg.getAttribute('data-crop-orig-x')) || 0;
+                  bboxY = parseFloat(innerImg.getAttribute('data-crop-orig-y')) || 0;
+                }
               }
 
-              const rawWidth = Math.abs(screenPt2.x - screenPt1.x);
-              const rawHeight = Math.abs(screenPt2.y - screenPt1.y);
+              // Fallback: temporarily remove clip-path so getBBox gives the real full bounds
+              if (bboxW <= 0 || bboxH <= 0) {
+                const savedClipStyle = targetElement.style.clipPath;
+                const savedClipAttr = targetElement.getAttribute('clip-path');
+                targetElement.style.removeProperty('clip-path');
+                targetElement.removeAttribute('clip-path');
+                try {
+                  const bb = targetElement.getBBox();
+                  bboxW = bb.width; bboxH = bb.height;
+                  bboxX = bb.x; bboxY = bb.y;
+                } catch (e) { }
+                // Restore clip
+                if (savedClipStyle) targetElement.style.setProperty('clip-path', savedClipStyle, 'important');
+                if (savedClipAttr) targetElement.setAttribute('clip-path', savedClipAttr);
+              }
 
-              if (cropStr && cropStr !== 'null') {
-                rect = {
-                  left: Math.min(screenPt1.x, screenPt2.x),
-                  top: Math.min(screenPt1.y, screenPt2.y),
-                  width: rawWidth,
-                  height: rawHeight
-                };
-              } else {
-                rect = {
-                  left: Math.min(screenPt1.x, screenPt2.x),
-                  top: Math.min(screenPt1.y, screenPt2.y),
-                  width: Math.abs(screenPt2.x - screenPt1.x),
-                  height: Math.abs(screenPt2.y - screenPt1.y)
-                };
+              if (bboxW > 0 && bboxH > 0) {
+                const pt1 = svg.createSVGPoint();
+                pt1.x = bboxX; pt1.y = bboxY;
+                const pt2 = svg.createSVGPoint();
+                pt2.x = bboxX + bboxW; pt2.y = bboxY + bboxH;
+
+                const screenPt1 = pt1.matrixTransform(matrix);
+                const screenPt2 = pt2.matrixTransform(matrix);
+
+                fullL = Math.min(screenPt1.x, screenPt2.x);
+                fullT = Math.min(screenPt1.y, screenPt2.y);
+                fullW = Math.abs(screenPt2.x - screenPt1.x);
+                fullH = Math.abs(screenPt2.y - screenPt1.y);
               }
             }
           }
@@ -87,26 +94,27 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
         }
       }
 
-      if (!rect) {
-        rect = targetElement.getBoundingClientRect();
-      }
+      // Fallback to getBoundingClientRect for HTML elements
+      if (!fullW || fullW <= 0) {
+        const rect = targetElement.getBoundingClientRect();
+        fullL = rect.left;
+        fullT = rect.top;
+        fullW = rect.width;
+        fullH = rect.height;
 
-      let fullW = rect.width;
-      let fullH = rect.height;
-      let fullL = rect.left;
-      let fullT = rect.top;
-
-      try {
-        if (initialCrop) {
-          const cropData = typeof initialCrop === 'string' ? JSON.parse(initialCrop) : initialCrop;
-          if (cropData && cropData.width && cropData.height) {
-            fullW = rect.width / (cropData.width / 100);
-            fullH = rect.height / (cropData.height / 100);
-            fullL = rect.left - (cropData.left / 100) * fullW;
-            fullT = rect.top - (cropData.top / 100) * fullH;
-          }
+        // For HTML elements that may have been visually cropped with background-image sizing
+        if (initialCrop && !(targetElement instanceof SVGElement)) {
+          try {
+            const cropData = typeof initialCrop === 'string' ? JSON.parse(initialCrop) : initialCrop;
+            if (cropData && cropData.width && cropData.height && cropData.width < 100) {
+              fullW = rect.width / (cropData.width / 100);
+              fullH = rect.height / (cropData.height / 100);
+              fullL = rect.left - (cropData.left / 100) * fullW;
+              fullT = rect.top - (cropData.top / 100) * fullH;
+            }
+          } catch (e) { }
         }
-      } catch (e) { }
+      }
 
       setOverlayRect(prev => {
         if (prev && prev.left === fullL && prev.top === fullT && prev.width === fullW && prev.height === fullH) {
@@ -176,7 +184,8 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
       if (e.key === 'Enter') onDone(cropRef.current);
     };
     const handleKeyUp = (e) => {
-      if (e.key === 'Control') onDone(cropRef.current);
+      // Only close on plain Ctrl release — not Ctrl+Z, Ctrl+S, etc.
+      if (e.key === 'Control' && !e.shiftKey && !e.altKey) onDone(cropRef.current);
     };
 
     // Add with a small delay so the opening click doesn't trigger it immediately
@@ -214,8 +223,12 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
       const panDx = ((e.clientX - dragStart.x) / origImgWidth) * 100;
       const panDy = ((e.clientY - dragStart.y) / origImgHeight) * 100;
 
-      newCrop.offX = (dragStart.crop.offX || 0) + panDx;
-      newCrop.offY = (dragStart.crop.offY || 0) + panDy;
+      const scale = dragStart.crop.scale || 1;
+      let nextOffX = (dragStart.crop.offX || 0) + panDx;
+      let nextOffY = (dragStart.crop.offY || 0) + panDy;
+
+      newCrop.offX = nextOffX;
+      newCrop.offY = nextOffY;
     } else {
       if (dragType === 'move') {
         const dx = ((e.clientX - dragStart.x) / container.width) * 100;
@@ -301,10 +314,10 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
 
   const clipPathStyle = useMemo(() => {
     if (!pageRect || !overlayRect) return undefined;
-    const insetTop = Math.max(0, pageRect.top - overlayRect.top);
-    const insetRight = Math.max(0, (overlayRect.left + overlayRect.width) - pageRect.right);
-    const insetBottom = Math.max(0, (overlayRect.top + overlayRect.height) - pageRect.bottom);
-    const insetLeft = Math.max(0, pageRect.left - overlayRect.left);
+    const insetTop = pageRect.top - overlayRect.top;
+    const insetRight = (overlayRect.left + overlayRect.width) - pageRect.right;
+    const insetBottom = (overlayRect.top + overlayRect.height) - pageRect.bottom;
+    const insetLeft = pageRect.left - overlayRect.left;
     return `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
   }, [pageRect, overlayRect]);
 
@@ -330,19 +343,57 @@ const CropOverlay = ({ src, initialCrop, onCancel, onDone, targetElement, active
         e.stopPropagation();
         const zoomDelta = e.deltaY > 0 ? -0.1 : 0.1;
         setCrop(prev => {
-          const newScale = Math.max(0.1, Math.min(10, (prev.scale || 1) + zoomDelta));
-          return { ...prev, scale: newScale };
+          const newScale = Math.max(1, Math.min(10, (prev.scale || 1) + zoomDelta));
+          let nextOffX = prev.offX || 0;
+          let nextOffY = prev.offY || 0;
+
+          return { ...prev, scale: newScale, offX: nextOffX, offY: nextOffY };
         });
       }}
     >
+      {/* Wrapper clipped to the page boundary */}
       <div className="absolute inset-0 pointer-events-none" style={{ clipPath: clipPathStyle }}>
-        <img src={src} alt="To crop" className="w-full h-full block opacity-40 pointer-events-none" style={{ transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})` }} draggable={false} />
+        {/* Full image at full brightness — serves as the "inside crop" layer */}
+        <img
+          src={src}
+          alt="To crop"
+          className={`w-full h-full block pointer-events-none ${underlyingFit === 'Fill' ? 'object-cover' : underlyingFit === 'Fit' || underlyingFit === 'Original' ? 'object-contain' : ''}`}
+          style={{ transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`, transformOrigin: '50% 50%' }}
+          draggable={false}
+        />
+        {/* Dark mask over the OUTER (non-crop) region — punches out to show image inside crop box */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: `
+              linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55))
+              content-box
+            `,
+            clipPath: `polygon(
+              0% 0%, 100% 0%, 100% 100%, 0% 100%,
+              0% 0%,
+              ${crop.left}% ${crop.top}%,
+              ${crop.left}% ${crop.top + crop.height}%,
+              ${crop.left + crop.width}% ${crop.top + crop.height}%,
+              ${crop.left + crop.width}% ${crop.top}%,
+              ${crop.left}% ${crop.top}%,
+              0% 0%
+            )`,
+          }}
+        />
+        {/* Bright image clipped strictly to the crop selection — appears above the dark mask */}
         <div className="absolute inset-0 pointer-events-none" style={{
           clipPath: `inset(${crop.top}% ${100 - crop.left - crop.width}% ${100 - crop.top - crop.height}% ${crop.left}%)`
         }}>
-          <img src={src} className="absolute inset-0 w-full h-full block pointer-events-none" style={{
-            transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`
-          }} draggable={false} />
+          <img
+            src={src}
+            className={`absolute inset-0 w-full h-full block pointer-events-none ${underlyingFit === 'Fill' ? 'object-cover' : underlyingFit === 'Fit' || underlyingFit === 'Original' ? 'object-contain' : ''}`}
+            style={{
+              transform: `translate(${crop.offX || 0}%, ${crop.offY || 0}%) scale(${crop.scale || 1})`,
+              transformOrigin: '50% 50%',
+            }}
+            draggable={false}
+          />
         </div>
       </div>
 
