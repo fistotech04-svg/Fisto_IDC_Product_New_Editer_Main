@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
+import TabletProfilePopup from '../Tablet/TabletLayouts/TabletProfilePopup';
 
 const isLightColor = (hex) => {
     if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return false;
@@ -156,6 +158,41 @@ const ProfilePopup = ({ onClose, profileSettings, activeLayout, isTablet, isMobi
             window.open(url, '_blank', 'noopener,noreferrer');
         }
     };
+
+    if (isTablet && (isLayout1 || activeLayout == 2 || activeLayout == 3) && !isMobile) {
+        const anchor = document.getElementById('tablet-profile-portal');
+        if (anchor) {
+            return ReactDOM.createPortal(
+                <div className="absolute inset-0 pointer-events-auto" onClick={onClose}>
+                    {isLayout1 ? (
+                        <div 
+                            className="absolute pointer-events-auto"
+                            style={{ bottom: 'calc(8% + 1.5cqw)', right: '24.6cqw', transform: 'translateX(50%)' }}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <TabletProfilePopup 
+                                activeLayout={activeLayout}
+                                profileSettings={profileSettings}
+                                layoutColors={layoutColors}
+                                handleContactClick={handleContactClick}
+                                fallbackText={fallbackText}
+                            />
+                        </div>
+                    ) : (
+                        <TabletProfilePopup 
+                            activeLayout={activeLayout}
+                            profileSettings={profileSettings}
+                            layoutColors={layoutColors}
+                            handleContactClick={handleContactClick}
+                            fallbackText={fallbackText}
+                        />
+                    )}
+                </div>,
+                anchor
+            );
+        }
+        return null; // Wait for portal target to be ready
+    }
 
     if (isMobile && isLandscape) {
         if (isLayout1) {

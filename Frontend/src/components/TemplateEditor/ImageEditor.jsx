@@ -3,7 +3,7 @@ import { Icon } from '@iconify/react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
 import { getVisualBBox } from './MainEditor';
-import { getSvgImageEl } from './editorUtils';
+import { getSvgImageEl, syncGradient } from './editorUtils';
 import {
   Image as ImageIcon,
   Upload,
@@ -133,7 +133,7 @@ const ImageEditor = ({
   const [effectSettings, setEffectSettings] = useState({
     'Drop Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
     'Inner Shadow': { color: '#000000', opacity: 35, x: 2, y: 2, blur: 1, spread: 0 },
-    'Blur': { blur: 0.3, spread: 0 }
+    'Blur': { blur: 0.3, spread: 0, clipContent: false }
   });
 
   // Color state removed to use standalone Color.jsx
@@ -258,29 +258,8 @@ const ImageEditor = ({
       const isSvgImage = targetImg.tagName?.toLowerCase() === 'image';
 
       const processUpload = async (nw, nh) => {
-        if (nw && nh) {
-          const oldW = parseFloat(liveElement.getAttribute('width') || liveElement.style.width || 100);
-
-          const fitW = oldW;
-          const fitH = oldW * (nh / nw);
-
-          liveElement.style.width = '';
-          liveElement.style.height = '';
-
-          liveElement.setAttribute('width', fitW.toString());
-          liveElement.setAttribute('height', fitH.toString());
-          liveElement.setAttribute('data-width', fitW.toString());
-          liveElement.setAttribute('data-height', fitH.toString());
-
-          if (targetImg !== liveElement) {
-            targetImg.style.width = '';
-            targetImg.style.height = '';
-            targetImg.setAttribute('width', fitW.toString());
-            targetImg.setAttribute('height', fitH.toString());
-            targetImg.setAttribute('data-width', fitW.toString());
-            targetImg.setAttribute('data-height', fitH.toString());
-          }
-        }
+        // Retain the current element's dimension size and don't recalculate based on new aspect ratio.
+        // This ensures replacing an image keeps the exact same size and bounding box.
 
         if (isSvgImage) {
           targetImg.setAttribute('href', imageUrl);
@@ -312,6 +291,8 @@ const ImageEditor = ({
         }
 
         setPreviewSrc(imageUrl);
+        // Do not reset crop data and imageType to 'Original' to maintain the current visual state
+        // (like Fill or Crop), dimensions, effects, etc. on the new replaced image.
         liveElement.removeAttribute('data-original-src');
         liveElement.removeAttribute('data-cropped-src');
         liveElement.removeAttribute('data-effect-crop-inset');
@@ -512,10 +493,12 @@ const ImageEditor = ({
       Object.keys(newSettings[name]).forEach(key => {
         let attr = `${prefix}-${key}`;
         if (name === 'Blur' && key === 'blur') attr = 'data-effect-blur-value';
+        if (name === 'Blur' && key === 'clipContent') attr = 'data-effect-blur-clip';
         if (selectedElement.hasAttribute(attr)) {
           const val = selectedElement.getAttribute(attr);
           let finalVal = val;
-          if (key !== 'color') finalVal = parseFloat(val);
+          if (key === 'clipContent') finalVal = (val === 'true');
+          else if (key !== 'color') finalVal = parseFloat(val);
           if (newSettings[name][key] !== finalVal) {
             newSettings[name][key] = finalVal;
             hasSettingsChange = true;
@@ -708,6 +691,16 @@ const ImageEditor = ({
       }
     };
 
+    let dashLen = 10, dashGap = 10;
+    const strokeArray = liveElement.getAttribute('data-stroke-dasharray') || liveElement.getAttribute('stroke-dasharray') || 'none';
+    if (strokeArray !== 'none' && strokeArray !== '') {
+      const parts = strokeArray.split(',');
+      const parsedLen = parseInt(parts[0]);
+      dashLen = isNaN(parsedLen) ? 10 : parsedLen;
+      const parsedGap = parts.length > 1 ? parseInt(parts[1]) : parsedLen;
+      dashGap = isNaN(parsedGap) ? dashLen : parsedGap;
+    }
+
     // Reconstruct backgroundColor from live DOM so the rest of applyVisuals works smoothly
     const backgroundColor = {
       fill: liveElement.getAttribute('data-fill-color') || 'transparent',
@@ -715,7 +708,9 @@ const ImageEditor = ({
       stroke: liveElement.getAttribute('data-stroke-color') || 'transparent',
       strokeOpacity: parseFloat(liveElement.getAttribute('data-stroke-opacity') || '1') * 100,
       strokeWeight: parseFloat(liveElement.getAttribute('data-stroke-width') || '0'),
-      strokeDashStyle: (liveElement.getAttribute('data-stroke-dasharray') && liveElement.getAttribute('data-stroke-dasharray') !== 'none') ? 'Dashed' : 'Solid',
+      strokeDashStyle: (strokeArray !== 'none') ? 'Dashed' : 'Solid',
+      strokeDashLength: dashLen,
+      strokeDashGap: dashGap,
       strokePosition: liveElement.getAttribute('data-stroke-position') || 'Center',
       strokeLinecap: liveElement.getAttribute('stroke-linecap') || 'butt',
       strokeType: liveElement.getAttribute('data-stroke-type') || 'solid'
@@ -782,7 +777,7 @@ const ImageEditor = ({
         shadowFilter = `drop-shadow(${ds.x}px ${ds.y}px ${ds.blur}px ${colorWithAlpha}) `;
       }
 
-      const totalFilter = (adjustmentFilters + shadowFilter).trim() || 'none';
+      const totalFilter = (adjustmentFilters + effectFilters + shadowFilter).trim() || 'none';
       const adjustOnlyFilter = adjustmentFilters.trim() || 'none';
       const shadowOnlyFilter = shadowFilter.trim() || 'none';
       const blurOnlyFilter = effectFilters.trim() || 'none';
@@ -791,7 +786,8 @@ const ImageEditor = ({
       if (isSvgEl) {
 
         // 1. Apply Adjustments to the actual image content (leaf)
-        if (svgImageEl) {
+        // We defer applying to svgImageEl if we need to apply blur to it later for forceClip
+        if (svgImageEl && !activeEffects.includes('Blur')) {
           svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
         }
 
@@ -809,8 +805,9 @@ const ImageEditor = ({
         // Only images use CSS clip-path which clips shadows. Shapes use native rx/ry.
         const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
         const hasClip = forceClip || (isImageElement && ((effImgType === 'Crop') || (radius.tl || radius.tr || radius.br || radius.bl)));
+        const useShadowCaster = hasClip || activeEffects.includes('Blur');
 
-        if (shadowOnlyFilter !== 'none' && hasClip) {
+        if (shadowOnlyFilter !== 'none' && useShadowCaster) {
           if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'rect') {
             if (shadowCaster) shadowCaster.remove();
             shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -857,7 +854,7 @@ const ImageEditor = ({
                 ch = ch * (parseFloat(crop.height) / 100);
               } catch (e) { }
             }
-            
+
             const trans = targetElForShadow.getAttribute('transform') || '';
             const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
 
@@ -882,79 +879,175 @@ const ImageEditor = ({
         }
 
         // 3. Apply layer-level filters
-        if (!isImageElement) {
-          liveElement.style.setProperty('filter', totalFilter, 'important');
-        } else {
-          liveElement.style.removeProperty('filter');
-          
-          if (liveElement.parentElement?.classList.contains('svg-crop-wrapper')) {
-            if (blurOnlyFilter !== 'none') {
-               liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
-            } else {
-               liveElement.parentElement.style.removeProperty('filter');
-            }
-            if (forceClip) {
-               let targetElForShadow = svgImageEl || liveElement;
-               if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
-                 targetElForShadow = svgImageEl.parentNode;
-               }
-               let bb = { x: 0, y: 0, width: 100, height: 100 };
-               try { bb = targetElForShadow.getBBox(); } catch (e) { }
-               let cxStr = targetElForShadow.getAttribute('x') || '0';
-               let cyStr = targetElForShadow.getAttribute('y') || '0';
-               let cwStr = targetElForShadow.getAttribute('width') || '100%';
-               let chStr = targetElForShadow.getAttribute('height') || '100%';
-               let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
-               let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
-               let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
-               let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
-               const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-               if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
-                 try {
-                   const crop = JSON.parse(cropStrShadow);
-                   cx = cx + (parseFloat(crop.left) / 100) * cw;
-                   cy = cy + (parseFloat(crop.top) / 100) * ch;
-                   cw = cw * (parseFloat(crop.width) / 100);
-                   ch = ch * (parseFloat(crop.height) / 100);
-                 } catch (e) { }
-               }
-               
-               let clipId = `clip-content-${liveElement.id || 'image'}`;
-               let defs = liveElement.ownerSVGElement?.querySelector('defs');
-               if (!defs && liveElement.ownerSVGElement) {
-                 defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-                 liveElement.ownerSVGElement.prepend(defs);
-               }
-               if (defs) {
-                 let clipNode = defs.querySelector(`#${clipId}`);
-                 if (!clipNode) {
-                   clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                   clipNode.id = clipId;
-                   const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                   clipNode.appendChild(clipPathEl);
-                   defs.appendChild(clipNode);
-                 }
-                 const rect = clipNode.firstChild;
-                 rect.setAttribute('x', cx);
-                 rect.setAttribute('y', cy);
-                 rect.setAttribute('width', Math.max(0, cw));
-                 rect.setAttribute('height', Math.max(0, ch));
-                 rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
-                 const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-                 if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-                 else rect.removeAttribute('rx');
+        const hasCropWrapper = liveElement.parentElement?.classList.contains('svg-crop-wrapper');
+        const activeShadowFilter = (useShadowCaster && shadowOnlyFilter !== 'none') ? '' : shadowFilter;
+        const innerFilter = (adjustmentFilters + activeShadowFilter).trim() || 'none';
 
-                 liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-                 liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
-               }
-            } else {
-               liveElement.parentElement.style.removeProperty('clip-path');
+        if (!hasCropWrapper) {
+          const applyToLeaf = svgImageEl && svgImageEl !== liveElement;
+
+          if (applyToLeaf) {
+            liveElement.style.setProperty('filter', innerFilter, 'important');
+            const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+            svgImageEl.style.setProperty('filter', leafFilter, 'important');
+          } else {
+            const appliedTotalFilter = (adjustmentFilters + effectFilters + activeShadowFilter).trim() || 'none';
+            liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            if (svgImageEl) {
+              svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
             }
           }
 
+          if (forceClip) {
+            let targetElForShadow = svgImageEl || liveElement;
+            let bb = { x: 0, y: 0, width: 100, height: 100 };
+            try { bb = targetElForShadow.getBBox(); } catch (e) { }
+            let cxStr = targetElForShadow.getAttribute('x') || '0';
+            let cyStr = targetElForShadow.getAttribute('y') || '0';
+            let cwStr = targetElForShadow.getAttribute('width') || '100%';
+            let chStr = targetElForShadow.getAttribute('height') || '100%';
+            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+
+            let clipId = `clip-content-${liveElement.id || 'image'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let clipNode = defs.querySelector(`#${clipId}`);
+              if (!clipNode) {
+                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipNode.id = clipId;
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipNode.appendChild(clipPathEl);
+                defs.appendChild(clipNode);
+              }
+              const rect = clipNode.firstChild;
+              rect.setAttribute('x', cx);
+              rect.setAttribute('y', cy);
+              rect.setAttribute('width', Math.max(0, cw));
+              rect.setAttribute('height', Math.max(0, ch));
+              rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+              else rect.removeAttribute('rx');
+
+              if (applyToLeaf && svgImageEl) {
+                // Wrap the image in a <g> to apply the clip-path, otherwise the blur bleeds past the clip-path due to a browser bug with SVG elements
+                let clipperGroup = svgImageEl.parentNode;
+                if (!clipperGroup.classList.contains('svg-image-clipper')) {
+                  clipperGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                  clipperGroup.classList.add('svg-image-clipper');
+                  svgImageEl.parentNode.insertBefore(clipperGroup, svgImageEl);
+                  clipperGroup.appendChild(svgImageEl);
+                }
+                clipperGroup.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                clipperGroup.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+
+                svgImageEl.style.removeProperty('clip-path');
+                svgImageEl.style.removeProperty('-webkit-clip-path');
+                liveElement.style.removeProperty('clip-path');
+                liveElement.style.removeProperty('-webkit-clip-path');
+              } else {
+                liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              }
+            }
+          } else {
+            liveElement.style.removeProperty('clip-path');
+            liveElement.style.removeProperty('-webkit-clip-path');
+            if (svgImageEl) {
+              svgImageEl.style.removeProperty('clip-path');
+              svgImageEl.style.removeProperty('-webkit-clip-path');
+              if (svgImageEl.parentNode && svgImageEl.parentNode.classList.contains('svg-image-clipper')) {
+                svgImageEl.parentNode.style.removeProperty('clip-path');
+                svgImageEl.parentNode.style.removeProperty('-webkit-clip-path');
+              }
+            }
+          }
+
+          if (liveElement.parentElement) {
+            liveElement.parentElement.style.removeProperty('clip-path');
+            liveElement.parentElement.style.removeProperty('-webkit-clip-path');
+          }
+        } else {
+          if (innerFilter !== 'none') {
+            liveElement.style.setProperty('filter', innerFilter, 'important');
+          } else {
+            liveElement.style.removeProperty('filter');
+          }
+
+          if (blurOnlyFilter !== 'none') {
+            liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
+          } else {
+            liveElement.parentElement.style.removeProperty('filter');
+          }
+          if (forceClip) {
+            let targetElForShadow = svgImageEl || liveElement;
+            if (effImgType === 'Crop' && svgImageEl && svgImageEl.parentNode?.classList.contains('svg-crop-wrapper')) {
+              targetElForShadow = svgImageEl.parentNode;
+            }
+
+            let bb = { x: 0, y: 0, width: 100, height: 100 };
+            try { bb = targetElForShadow.getBBox(); } catch (e) { }
+            let cxStr = targetElForShadow.getAttribute('x') || '0';
+            let cyStr = targetElForShadow.getAttribute('y') || '0';
+            let cwStr = targetElForShadow.getAttribute('width') || '100%';
+            let chStr = targetElForShadow.getAttribute('height') || '100%';
+            let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+            let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+            let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+            let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+            const cropStrShadow = targetElForShadow.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+            if (effImgType === 'Crop' && cropStrShadow && cropStrShadow !== 'null') {
+              try {
+                const crop = JSON.parse(cropStrShadow);
+                cx = cx + (parseFloat(crop.left) / 100) * cw;
+                cy = cy + (parseFloat(crop.top) / 100) * ch;
+                cw = cw * (parseFloat(crop.width) / 100);
+                ch = ch * (parseFloat(crop.height) / 100);
+              } catch (e) { }
+            }
+
+            let clipId = `clip-content-${liveElement.id || 'image'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let clipNode = defs.querySelector(`#${clipId}`);
+              if (!clipNode) {
+                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                clipNode.id = clipId;
+                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                clipNode.appendChild(clipPathEl);
+                defs.appendChild(clipNode);
+              }
+              const rect = clipNode.firstChild;
+              rect.setAttribute('x', cx);
+              rect.setAttribute('y', cy);
+              rect.setAttribute('width', Math.max(0, cw));
+              rect.setAttribute('height', Math.max(0, ch));
+              rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+              else rect.removeAttribute('rx');
+
+              liveElement.parentElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.parentElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+            }
+          } else {
+            liveElement.parentElement.style.removeProperty('clip-path');
+            liveElement.parentElement.style.removeProperty('-webkit-clip-path');
+          }
         }
         if (liveElement.parentElement) {
-          if (!liveElement.parentElement.classList.contains('svg-crop-wrapper') && !forceClip && blurOnlyFilter === 'none') {
+          if (!hasCropWrapper && !forceClip && blurOnlyFilter === 'none') {
             liveElement.parentElement.style.setProperty('overflow', 'visible', 'important');
           }
         }
@@ -987,7 +1080,10 @@ const ImageEditor = ({
         Object.entries(effectSettings).forEach(([name, settings]) => {
           const prefix = `data-effect-${name.toLowerCase().replace(/ /g, '-')}`;
           Object.entries(settings).forEach(([key, val]) => {
-            liveElement.setAttribute(`${prefix}-${key}`, val.toString());
+            let attr = `${prefix}-${key}`;
+            if (name === 'Blur' && key === 'blur') attr = 'data-effect-blur-value';
+            if (name === 'Blur' && key === 'clipContent') attr = 'data-effect-blur-clip';
+            liveElement.setAttribute(attr, val.toString());
           });
         });
       }
@@ -1022,6 +1118,12 @@ const ImageEditor = ({
         // --- SVG: Image fit via preserveAspectRatio ---
         const parMap = { 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
         let meetOrSlice = parMap[effectiveImageType] || 'meet';
+        if (effectiveImageType === 'Crop') {
+          const savedFit = liveElement.getAttribute('data-previous-object-fit') || liveElement.getAttribute('data-object-fit');
+          if (savedFit && savedFit !== 'Crop' && parMap[savedFit]) {
+            meetOrSlice = parMap[savedFit];
+          }
+        }
         let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
         if (meetOrSlice === 'meet') parAlign = 'xMidYMid'; // Standard center for Fit
         if (svgImageEl) {
@@ -1527,14 +1629,26 @@ const ImageEditor = ({
             if (cropStr && cropStr !== 'null') {
               try {
                 const crop = JSON.parse(cropStr);
-                targetX = origX + (origW * parseFloat(crop.left) / 100);
-                targetY = origY + (origH * parseFloat(crop.top) / 100);
-                targetW = origW * (parseFloat(crop.width) / 100);
-                targetH = origH * (parseFloat(crop.height) / 100);
-                
+                const cropX = origX + (origW * parseFloat(crop.left) / 100);
+                const cropY = origY + (origH * parseFloat(crop.top) / 100);
+                const cropW = origW * (parseFloat(crop.width) / 100);
+                const cropH = origH * (parseFloat(crop.height) / 100);
+
+                if (effectiveImageType === 'Original') {
+                  targetX = cropX;
+                  targetY = cropY;
+                  targetW = origW;
+                  targetH = origH;
+                } else {
+                  targetX = cropX;
+                  targetY = cropY;
+                  targetW = cropW;
+                  targetH = cropH;
+                }
+
                 liveElement.setAttribute('data-saved-crop-data', cropStr);
                 liveElement.removeAttribute('data-crop-data');
-              } catch(e) {}
+              } catch (e) { }
             }
 
             targetImgForFrame.style.removeProperty('display');
@@ -1542,7 +1656,7 @@ const ImageEditor = ({
             targetImgForFrame.setAttribute('height', targetH.toString() + (isHPercent ? '%' : ''));
             targetImgForFrame.setAttribute('x', targetX.toString() + (isXPercent ? '%' : ''));
             targetImgForFrame.setAttribute('y', targetY.toString() + (isYPercent ? '%' : ''));
-            
+
             targetImgForFrame.style.removeProperty('clip-path');
             targetImgForFrame.removeAttribute('clip-path');
 
@@ -2046,6 +2160,7 @@ const ImageEditor = ({
             liveElement.setAttribute('data-fill-angle', parsedFill.angle || 90);
           } else {
             fillLayer.setAttribute('fill', backgroundColor.fill);
+            if (fillLayer.style) fillLayer.style.removeProperty('fill');
             fillLayer.removeAttribute('data-fill-type');
             fillLayer.removeAttribute('data-fill-stops');
             fillLayer.removeAttribute('fill-type');
@@ -2132,6 +2247,7 @@ const ImageEditor = ({
             liveElement.removeAttribute('stroke-angle');
             liveElement.removeAttribute('stroke-radius');
             liveElement.setAttribute('stroke', backgroundColor.stroke);
+            if (liveElement.style) liveElement.style.removeProperty('stroke');
           }
 
           liveElement.setAttribute('stroke-width', backgroundColor.strokeWeight.toString());
@@ -2222,11 +2338,28 @@ const ImageEditor = ({
           const pos = backgroundColor.strokePosition || 'Center';
           const sw = backgroundColor.strokeWeight || 0;
 
+          // Calculate exact local offset needed by querying the current screen transform matrix.
+          // Since the global CSS enforces vector-effect: non-scaling-stroke, the stroke width
+          // is fixed on screen. We must inversely scale our coordinate offset so it exactly
+          // matches half the stroke width on screen.
+          let scaleX = 1;
+          let scaleY = 1;
+          try {
+            const ctm = targetElForStroke.getScreenCTM();
+            if (ctm) {
+              scaleX = Math.abs(ctm.a) || 1;
+              scaleY = Math.abs(ctm.d) || 1;
+            }
+          } catch(e) {}
+
+          const offsetX = (sw / 2) / scaleX;
+          const offsetY = (sw / 2) / scaleY;
+
           let ox = bx, oy = by, ow = bw, oh = bh;
           if (pos === 'Inside') {
-            ox += sw / 2; oy += sw / 2; ow -= sw; oh -= sw;
+            ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
           } else if (pos === 'Outside') {
-            ox -= sw / 2; oy -= sw / 2; ow += sw; oh += sw;
+            ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
           }
 
           let tl = radius.tl || 0;
@@ -2235,15 +2368,15 @@ const ImageEditor = ({
           let bl = radius.bl || 0;
 
           if (pos === 'Inside') {
-            tl = Math.max(0, tl - sw / 2);
-            tr = Math.max(0, tr - sw / 2);
-            br = Math.max(0, br - sw / 2);
-            bl = Math.max(0, bl - sw / 2);
+            tl = Math.max(0, tl - offsetX);
+            tr = Math.max(0, tr - offsetX);
+            br = Math.max(0, br - offsetX);
+            bl = Math.max(0, bl - offsetX);
           } else if (pos === 'Outside') {
-            tl = tl > 0 ? tl + sw / 2 : 0;
-            tr = tr > 0 ? tr + sw / 2 : 0;
-            br = br > 0 ? br + sw / 2 : 0;
-            bl = bl > 0 ? bl + sw / 2 : 0;
+            tl = tl > 0 ? tl + offsetX : 0;
+            tr = tr > 0 ? tr + offsetX : 0;
+            br = br > 0 ? br + offsetX : 0;
+            bl = bl > 0 ? bl + offsetX : 0;
           }
 
           const maxR = Math.min(ow, oh) / 2;
@@ -2289,8 +2422,12 @@ const ImageEditor = ({
             strokeOverlay.removeAttribute('stroke-stops');
             strokeOverlay.removeAttribute('stroke-angle');
             strokeOverlay.removeAttribute('stroke-radius');
+
             strokeOverlay.setAttribute('stroke', backgroundColor.stroke);
+            if (strokeOverlay.style) strokeOverlay.style.removeProperty('stroke');
           }
+
+          strokeOverlay.setAttribute('d', getPathD(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
 
           strokeOverlay.setAttribute('stroke-width', sw.toString());
           strokeOverlay.setAttribute('stroke-opacity', (backgroundColor.strokeOpacity / 100).toString());
@@ -2302,7 +2439,18 @@ const ImageEditor = ({
             strokeOverlay.removeAttribute('stroke-dasharray');
           }
 
-          strokeOverlay.setAttribute('data-stroke-position', pos);
+          strokeOverlay.removeAttribute('clip-path');
+          strokeOverlay.removeAttribute('mask');
+
+          strokeOverlay.setAttribute('data-img-stroke-position', pos); // Renamed to avoid MainEditor syncOverlays
+          strokeOverlay.removeAttribute('data-stroke-position');
+          
+          // Forcefully cleanup any orphaned MainEditor overlays that might have been applied previously
+          if (liveElement.parentElement) {
+            const orphans = liveElement.parentElement.querySelectorAll(`.svg-shape-stroke-overlay[data-target="${liveElement.id}"], .svg-shape-stroke-overlay[data-target=""]`);
+            orphans.forEach(o => o.remove());
+          }
+
           strokeOverlay.setAttribute('stroke-linecap', backgroundColor.strokeLinecap || 'butt');
           strokeOverlay.setAttribute('stroke-linejoin', (backgroundColor.strokeLinecap || 'butt') === 'round' ? 'round' : 'miter');
 
@@ -2510,9 +2658,10 @@ const ImageEditor = ({
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 0.25vw; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 0.5vw; }
-        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; }
+        .custom-range-slider { -webkit-appearance: none; width: 100%; background: transparent; position: relative; }
+        .custom-range-slider::before { content: ""; position: absolute; top: -0.75vw; bottom: -0.75vw; left: 0; right: 0; cursor: pointer; z-index: 1; }
         .custom-range-slider::-webkit-slider-runnable-track { height: 0.2vw; border-radius: 0.1vw; background: inherit; }
-        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; }
+        .custom-range-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 1vw; width: 1vw; border-radius: 50%; background: #4D47FF; border: 0.02vw solid #ffffff; box-shadow: 0 0.15vw 0.5vw rgba(77,71,255,0.4); margin-top: -0.55vw; cursor: pointer; transition: box-shadow 0.15s ease; position: relative; z-index: 2; }
         .custom-range-slider::-webkit-slider-thumb:hover { box-shadow: 0 0.15vw 0.75vw rgba(77,71,255,0.6); }
         
         .image-editor-toggle {
@@ -2820,7 +2969,7 @@ const ImageEditor = ({
                                 setImageType(type);
                                 stateRef.current.imageType = type;
                                 // Setting type automatically natively fits/fills the original image within the resized bounds.
-                                
+
                                 // Also update the element's attribute so other parts of the system know the active fit
                                 if (selectedElement) {
                                   selectedElement.setAttribute('data-object-fit', type);
@@ -2877,6 +3026,20 @@ const ImageEditor = ({
                     htmlFor="image-editor-upload-input"
                     className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
                     style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                        const file = e.dataTransfer.files[0];
+                        if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+                          handleFileUpload({ target: { files: e.dataTransfer.files } });
+                        }
+                      }
+                    }}
                   >
                     <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
                       Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
@@ -3035,6 +3198,7 @@ const ImageEditor = ({
                 }
 
                 setPreviewSrc(optimisticUrl);
+                // Preserve current dimensions and crop type state
                 liveElement.removeAttribute('data-original-src');
                 liveElement.removeAttribute('data-cropped-src');
 
@@ -3133,9 +3297,6 @@ const ImageEditor = ({
           activePageIndex={activePageIndex}
           onCancel={() => setShowCropModal(false)}
           onDone={(newCrop) => {
-            setImageType('Crop');
-            stateRef.current.imageType = 'Crop';
-
             const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
             const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
 

@@ -321,6 +321,15 @@ const CropOverlay = ({ src, initialCrop, targetElement, activePageIndex, onCance
     return `inset(${insetTop}px ${insetRight}px ${insetBottom}px ${insetLeft}px)`;
   }, [pageRect, overlayRect]);
 
+  const imgObjectFit = useMemo(() => {
+    if (!targetElement) return 'fill';
+    const fit = targetElement.getAttribute('data-object-fit');
+    if (fit === 'Fit' || fit === 'Original') return 'contain';
+    if (fit === 'Fill' || fit === 'Crop') return 'cover';
+    if (fit === 'Stretch') return 'fill';
+    return 'fill';
+  }, [targetElement]);
+
   if (!overlayRect) return null;
 
   return createPortal(

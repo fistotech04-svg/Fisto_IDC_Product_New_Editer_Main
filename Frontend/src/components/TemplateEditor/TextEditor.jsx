@@ -389,15 +389,15 @@ const syncTextEffect = (doc, element) => {
     return;
   }
 
-    if (!filterEl) {
-      filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
-      filterEl.id = filterId;
-      filterEl.setAttribute('x', '-50%');
-      filterEl.setAttribute('y', '-50%');
-      filterEl.setAttribute('width', '200%');
-      filterEl.setAttribute('height', '200%');
-      defs.appendChild(filterEl);
-    }
+  if (!filterEl) {
+    filterEl = d.createElementNS("http://www.w3.org/2000/svg", "filter");
+    filterEl.id = filterId;
+    filterEl.setAttribute('x', '-50%');
+    filterEl.setAttribute('y', '-50%');
+    filterEl.setAttribute('width', '200%');
+    filterEl.setAttribute('height', '200%');
+    defs.appendChild(filterEl);
+  }
 
   while (filterEl.firstChild) filterEl.removeChild(filterEl.firstChild);
 
@@ -527,9 +527,9 @@ const syncTextEffect = (doc, element) => {
   if (hasBlur) {
     const blurVal = parseFloat(getVal('data-effect-blur-value', '0.3'));
     const spreadVal = parseFloat(getVal('data-effect-blur-spread', '0'));
-    
+
     let blurSource = currentIn;
-    
+
     if (spreadVal !== 0) {
       const morph = d.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
       morph.setAttribute('operator', spreadVal >= 0 ? 'dilate' : 'erode');
@@ -539,7 +539,7 @@ const syncTextEffect = (doc, element) => {
       filterEl.appendChild(morph);
       blurSource = "blur_morph";
     }
-    
+
     const blurNode = d.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
     blurNode.setAttribute('stdDeviation', blurVal);
     blurNode.setAttribute('in', blurSource);
@@ -2592,8 +2592,8 @@ const TextEditor = ({
               title="Fixed Size — width and height are fixed, text wraps and overflows or scrolls"
               onClick={() => applyTextSizingMode('fixed')}
               className={`flex-1 h-[2vw] rounded-[0.45vw] flex items-center justify-center gap-[0.25vw] text-[0.7vw] font-medium transition-all duration-150 ${sizingMode === 'fixed'
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
                 }`}
             >
               <Maximize size="0.9vw" className="flex-shrink-0" strokeWidth={2.5} />

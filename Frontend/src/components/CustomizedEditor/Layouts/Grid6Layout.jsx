@@ -425,6 +425,7 @@ const Grid6Layout = ({
             }}
         >
             {/* Top Header */}
+            {!isTablet && (
             <div
                 className={`${isTablet ? 'h-[6vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center justify-between pl-[1.5vw] ${isTablet ? 'pr-[4.5vw]' : (isFullscreen ? 'pr-[6vw]' : 'pr-[4.5vw]')} shrink-0 w-full z-[100] transition-all duration-500 ease-in-out ${isFullscreen ? `absolute top-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
@@ -580,7 +581,8 @@ const Grid6Layout = ({
                         )
                     )}
                 </div>
-            </div>
+                </div>
+            )}
 
             {/* Main Content Area */}
             <div className="flex flex-1 relative min-h-0">
@@ -622,7 +624,7 @@ const Grid6Layout = ({
                         rightBound = shift + scaledPage;
                     }
 
-                    return (
+                    return !isTablet ? (
                         <>
                             {/* Left Navigation Arrows */}
                             {(settings?.navigation?.nextPrevButtons ?? true) && (
@@ -658,12 +660,14 @@ const Grid6Layout = ({
                                 </div>
                             )}
                         </>
-                    );
+                    ) : null;
                 })()}
 
 
 
                 {/* Page Counter Badge */}
+                {!isTablet && (
+                <>
                 {(settings?.navigation?.pageQuickAccess ?? true) && (
                     <div
                         className={`absolute ${isTablet ? 'right-[5.5vw] bottom-[6vh] rounded-[0.4vw]' : 'right-[6.5vw] bottom-[10vh] rounded-[0.6vw]'} px-[1.2vw] py-[0.6vw] shadow-[0_0.4vw_1.5vw_rgba(0,0,0,0.1)] z-30 border`}
@@ -710,6 +714,8 @@ const Grid6Layout = ({
                         <span className={`${isTablet ? 'text-[0.75vw]' : 'text-[0.9vw]'} font-bold`} style={{ color: getLayoutColor('toolbar-text-main', '#575C9C') }}> / {pagesCount}</span>
                     </div>
                 )}
+                </>
+                )}
 
                 {/* Book Viewer Container */}
                 <div className={`flex-1 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-[4vw] pr-[7.5vw]'} magazine-canvas`}
@@ -739,6 +745,7 @@ const Grid6Layout = ({
             </div>
 
             {/* Bottom Footer */}
+            {!isTablet && (
             <div
                 className={`${isTablet ? 'h-[5vh]' : (isFullscreen ? 'h-[7vh]' : 'h-[6vh]')} flex items-center px-[1vw] shrink-0 w-full z-[100] border-t transition-all duration-500 ease-in-out ${isFullscreen ? `absolute bottom-0 left-0 ${!isCanvasHovered ? 'pointer-events-auto' : 'pointer-events-none'}` : 'relative'}`}
                 style={{
@@ -935,8 +942,10 @@ const Grid6Layout = ({
                     </div>
                 )}
             </div>
+            )}
 
             {/* Right Sidebar Icons - MOVED TO ROOT FOR FULL HEIGHT */}
+            {!isTablet && (<>
             {(() => {
                 const addTextBelowIcons = settings?.toolbar?.addTextBelowIcons ?? false;
                 const textFont = settings?.toolbar?.textProperties?.font || 'inherit';
@@ -1059,8 +1068,10 @@ const Grid6Layout = ({
             </div>
                 );
             })()}
+            </>)}
 
             {/* Thumbnail Bar Panel - MOVED TO ROOT FOR FULL HEIGHT */}
+            {!isTablet && (
             <AnimatePresence>
                 {showRadialThumbnails && (
                     <div
@@ -1143,8 +1154,10 @@ const Grid6Layout = ({
                     </div>
                 )}
             </AnimatePresence>
+            )}
 
             {/* Table of Contents Panel - MOVED TO ROOT FOR FULL HEIGHT */}
+            {!isTablet && (
             <AnimatePresence>
                 {showTOC && (
                     <div
@@ -1287,6 +1300,7 @@ const Grid6Layout = ({
                     </div>
                 )}
             </AnimatePresence>
+            )}
 
             {/* Popups handled by PreviewArea */}
 

@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Icon } from '@iconify/react';
 import { motion } from 'framer-motion';
+import { useTableOfContents } from './useTableOfContents';
 
 const isLightColor = (hex) => {
     if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return false;
@@ -14,7 +15,6 @@ const isLightColor = (hex) => {
 const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout, isTablet, isMobile, isLandscape, isSidebarOpen, isEditor, layoutColors, isMobileLandscape, isFullscreen, isMobilePortraitOverride, addTextBelowIcons = false }) => {
     // Ensure settings is at least an empty object if it's null
     const safeSettings = settings || {};
-    const [searchQuery, setSearchQuery] = useState('');
 
     if (!onClose) return null;
 
@@ -41,45 +41,16 @@ const TableOfContentsPopup = ({ onClose, onNavigate, settings = {}, activeLayout
     const tocBgHex = layoutColors && Array.isArray(layoutColors) ? layoutColors.find(c => c && c.id === 'toc-bg')?.hex || '#575C9C' : '#575C9C';
     const tocTextHex = layoutColors && Array.isArray(layoutColors) ? layoutColors.find(c => c && c.id === 'toc-text')?.hex || '#FFFFFF' : '#FFFFFF';
     const bodyTextColor = isLightColor(tocBgHex) ? tocTextHex : tocBgHex;
-
     const {
-        addSearch = true,
-        addPageNumber = true,
-        addSerialNumberHeading = true,
-        addSerialNumberSubheading = true,
-        content: propContent,
-        items: propItems,
-        toc: propToc
-    } = safeSettings;
+        searchQuery,
+        setSearchQuery,
+        addSearch,
+        addPageNumber,
+        addSerialNumberHeading,
+        addSerialNumberSubheading,
+        filteredContent
+    } = useTableOfContents(settings);
 
-    // Robust extraction: check content, then items, then nested toc items
-    const content = (Array.isArray(propContent) && propContent.length > 0)
-        ? propContent
-        : (Array.isArray(propItems) && propItems.length > 0)
-            ? propItems
-            : (Array.isArray(propToc?.items) && propToc.items.length > 0)
-                ? propToc.items
-                : (propContent || propItems || propToc?.items || []);
-
-    const safeContent = Array.isArray(content) ? content : [];
-
-    const filteredContent = useMemo(() => safeContent.map(heading => {
-        const title = (heading?.title || heading?.label || '').toString();
-        const matchesHeading = !searchQuery || title.toLowerCase().includes(searchQuery.toLowerCase());
-        const filteredSubheadings = heading?.subheadings?.filter(sub => {
-            const subTitle = (sub?.title || sub?.label || '').toString();
-            return !searchQuery || subTitle.toLowerCase().includes(searchQuery.toLowerCase());
-        }) || [];
-
-        if (matchesHeading || filteredSubheadings.length > 0) {
-            return {
-                ...heading,
-                title: title, // ensure title exists
-                subheadings: matchesHeading ? (heading.subheadings || []) : filteredSubheadings
-            };
-        }
-        return null;
-    }).filter(Boolean), [safeContent, searchQuery]);
 
     const isLayout2 = Number(activeLayout) === 2 || activeLayout === 'Layout2';
     const isLayout1 = Number(activeLayout) === 1 || activeLayout === 'Layout1';
