@@ -937,7 +937,34 @@ const VideoEditor = ({
 
           const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
           const shadowOnlyFilter = `drop-shadow(${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.color}${alpha})`;
-          shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+          
+          const totalBlur = effSet.blur / 2;
+          
+          let shadowFilterId = `ds-only-${liveElement.id || 'vid'}`;
+          let defs = liveElement.ownerSVGElement?.querySelector('defs');
+          if (!defs && liveElement.ownerSVGElement) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            liveElement.ownerSVGElement.prepend(defs);
+          }
+          if (defs) {
+            let svgFilt = defs.querySelector(`#${shadowFilterId}`);
+            if (!svgFilt) {
+              svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+              svgFilt.id = shadowFilterId;
+              defs.appendChild(svgFilt);
+            }
+            svgFilt.innerHTML = `
+              <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
+              <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
+              <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
+              <feComposite in2="offsetBlur" operator="in" result="shadow"/>
+              <feComposite in="shadow" in2="SourceAlpha" operator="out"/>
+            `;
+            shadowCaster.style.setProperty('filter', `url(#${shadowFilterId})`, 'important');
+          } else {
+            shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+          }
+          
           shadowCaster.style.setProperty('display', 'block', 'important');
         }
       } else if (shadowCaster) {

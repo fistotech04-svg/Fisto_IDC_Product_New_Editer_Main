@@ -293,6 +293,9 @@ const svgGlobalStyles = `
     display: block !important;
     border: none !important;
     outline: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
   }
 
   .hide-controls::-webkit-media-controls {
@@ -1764,17 +1767,19 @@ const MainEditor = ({
             flexDirection: 'column',
             width: '100%',
             gap: '1em',
+            containerType: 'inline-size',
           });
 
           const timeDisplay = document.createElement('div');
           Object.assign(timeDisplay.style, {
             alignSelf: 'flex-start',
-            color: 'white',
-            fontSize: '0.6vw',
-            fontFamily: 'sans-serif',
-            opacity: '0.9',
-            marginBottom: '0.2vw',
+            width: '40%',
+            marginBottom: '1%',
+            pointerEvents: 'none',
           });
+          
+          timeDisplay.innerHTML = `<svg viewBox="0 0 100 15" width="100%" preserveAspectRatio="xMinYMid meet"><text x="0" y="12" fill="white" font-family="Inter, sans-serif" font-size="12" opacity="0.9">00:00 / 00:00</text></svg>`;
+          const timeTextEl = timeDisplay.querySelector('text');
 
           const formatTime = (sec) => {
             if (isNaN(sec)) return "00:00";
@@ -1818,7 +1823,9 @@ const MainEditor = ({
             if (video.duration) {
               const pct = (video.currentTime / video.duration) * 100;
               progFill.style.width = `${pct}%`;
-              timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+              const t = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+              if (timeTextEl) timeTextEl.textContent = t;
+              else timeDisplay.textContent = t;
             }
           };
           video.addEventListener('timeupdate', onTimeUpdate);
@@ -2139,11 +2146,17 @@ const MainEditor = ({
       if (file) fo.setAttribute('data-filename', file.name);
 
       const video = document.createElement('video');
+      video.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
       video.src = videoUrl;
       video.setAttribute('width', '100%');
       video.setAttribute('height', '100%');
       video.setAttribute('controls', 'true');
       video.style.objectFit = 'cover';
+      video.style.margin = '0';
+      video.style.padding = '0';
+      video.style.display = 'block';
+      video.style.width = '100%';
+      video.style.height = '100%';
       // video.style.backgroundColor = 'transparent';
 
       fo.appendChild(video);

@@ -42,11 +42,11 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Drop Shadow': {
-              color: p['Drop Shadow']?.color || '#000000',
-              opacity: p['Drop Shadow']?.opacity ?? 35,
-              x: p['Drop Shadow']?.x ?? 2,
-              y: p['Drop Shadow']?.y ?? 2,
-              blur: p['Drop Shadow']?.blur ?? 1
+              color: '#000000',
+              opacity: 35,
+              x: 2,
+              y: 2,
+              blur: 1
             }
           }));
         }
@@ -56,11 +56,11 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Inner Shadow': {
-              color: p['Inner Shadow']?.color || '#000000',
-              opacity: p['Inner Shadow']?.opacity ?? 35,
-              x: p['Inner Shadow']?.x ?? 2,
-              y: p['Inner Shadow']?.y ?? 2,
-              blur: p['Inner Shadow']?.blur ?? 1
+              color: '#000000',
+              opacity: 35,
+              x: 2,
+              y: 2,
+              blur: 1
             }
           }));
         }
@@ -70,8 +70,8 @@ const Effect = ({
           setEffectSettings(p => ({
             ...p,
             'Blur': {
-              blur: p['Blur']?.blur ?? 0.3,
-              clipContent: p['Blur']?.clipContent ?? false
+              blur: 0.3,
+              clipContent: false
             }
           }));
         }

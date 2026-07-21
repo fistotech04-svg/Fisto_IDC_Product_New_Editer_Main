@@ -534,18 +534,15 @@ const GifEditor = ({
         // 1. Apply Adjustments to the actual image content (leaf)
         if (svgImageEl) {
           let leafFilter = adjustOnlyFilter;
-          if (!hasClip && shadowOnlyFilter !== 'none') {
-            leafFilter = `${adjustOnlyStr} ${dsCssString}`.trim();
-          }
           if (forceClip && blurOnlyFilter !== 'none') {
             leafFilter = `${leafFilter} ${blurStr}`.trim();
           }
           svgImageEl.style.setProperty('filter', leafFilter, 'important');
         }
 
-        // 2. Apply Drop Shadow to a sibling caster (best for SVG with clips)
+        // 2. Apply Drop Shadow to a sibling caster (best for SVG to decouple from blur and clips)
         let shadowCaster = liveElement.querySelector('.svg-drop-shadow-caster');
-        if (shadowOnlyFilter !== 'none' && hasClip) {
+        if (shadowOnlyFilter !== 'none') {
           if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'path') {
             if (shadowCaster) shadowCaster.remove();
             shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -565,7 +562,35 @@ const GifEditor = ({
 
             shadowCaster.style.removeProperty('clip-path');
 
-            shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+            const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
+            const totalBlur = effSet.blur / 2;
+            
+            let shadowFilterId = `ds-only-${liveElement.id || 'gif'}`;
+            let defs = liveElement.ownerSVGElement?.querySelector('defs');
+            if (!defs && liveElement.ownerSVGElement) {
+              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+              liveElement.ownerSVGElement.prepend(defs);
+            }
+            if (defs) {
+              let svgFilt = defs.querySelector(`#${shadowFilterId}`);
+              if (!svgFilt) {
+                svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                svgFilt.id = shadowFilterId;
+                defs.appendChild(svgFilt);
+              }
+              // Safely set innerHTML to generate only the shadow, hollowed out by SourceAlpha
+              svgFilt.innerHTML = `
+                <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
+                <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
+                <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
+                <feComposite in2="offsetBlur" operator="in" result="shadow"/>
+                <feComposite in="shadow" in2="SourceAlpha" operator="out"/>
+              `;
+              shadowCaster.style.setProperty('filter', `url(#${shadowFilterId})`, 'important');
+            } else {
+              shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+            }
+            
             shadowCaster.style.setProperty('display', 'block', 'important');
           }
         } else if (shadowCaster) {
