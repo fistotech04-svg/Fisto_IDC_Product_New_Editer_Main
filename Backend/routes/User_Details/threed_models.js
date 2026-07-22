@@ -5,6 +5,8 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
+import { uploadFileToSupabase, deleteFileFromSupabase } from "../../config/supabase.js";
+
 
 const router = express.Router();
 
@@ -92,13 +94,22 @@ router.post("/upload-model", (req, res) => {
       }
 
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+      let relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+
+      // Upload file to Supabase Storage
+      const destinationPath = `${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+      const supabaseUrl = await uploadFileToSupabase(req.file.path, destinationPath);
+      if (supabaseUrl) {
+        relativeUrl = supabaseUrl;
+      }
+
       const type = path.extname(req.file.filename).slice(1);
       const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
 
       let model;
       let interactionModel = null;
-      let finalRelativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+      let finalRelativeUrl = relativeUrl;
+
 
       if (modelId) {
           model = await ThreedModel.findOne({ modelId, userEmail: emailId });
@@ -142,6 +153,10 @@ router.post("/upload-model", (req, res) => {
           await interactionModel.save();
 
           finalRelativeUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+
+          // Upload 3D model to Supabase Storage in flipbook assets/3D_Model
+          const interactionSupabasePath = `${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+          uploadFileToSupabase(newPath, interactionSupabasePath).catch(err => console.warn("[Supabase] 3D Model asset upload warning:", err));
       } else {
           // Save as new ThreedModel (Global)
           model = new ThreedModel({
@@ -153,6 +168,7 @@ router.post("/upload-model", (req, res) => {
           });
           await model.save();
       }
+
 
       res.status(200).json({
         message: modelId ? "Model updated successfully" : "Model uploaded successfully",
@@ -230,17 +246,24 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
 
         // Save to Database
         const saveToDb = async () => {
+             const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
+             const supabaseUrl = await uploadFileToSupabase(finalPath, destinationPath);
+             const modelUrl = supabaseUrl || `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`;
+
              const existing = await ThreedModel.findOne({ userEmail: emailId, name: fileName });
              if (!existing) {
                  const newModel = new ThreedModel({
                      userEmail: emailId,
                      name: fileName,
-                     url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
+                     url: modelUrl,
                      type: type,
                      size: sizeStr
                  });
                  await newModel.save();
                  return newModel;
+             } else {
+                 existing.url = modelUrl;
+                 await existing.save();
              }
              return existing;
         };
@@ -248,7 +271,7 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
         saveToDb().then(model => {
             res.status(200).json({
                 message: "Model uploaded and merged successfully",
-                url: `/uploads/${sanitizedEmail}/3D_Modals/${fileName}`,
+                url: model.url,
                 name: fileName,
                 modelId: model.modelId
             });
@@ -260,6 +283,7 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
                 name: fileName
             });
         });
+
       });
 
       writeStream.on("error", (err) => {
@@ -297,8 +321,8 @@ router.get("/get-models", async (req, res) => {
     // 1. Get models from Database
     let dbModels = await ThreedModel.find({ userEmail: emailId }).sort({ createdAt: -1 });
 
-    // 2. Sync logic: If DB is empty or missing files that exist on disk, import them
-    const files = fs.readdirSync(userFolderPath);
+    const files = (userFolderPath && fs.existsSync(userFolderPath)) ? fs.readdirSync(userFolderPath) : [];
+
     const validFiles = files.filter(f => [".glb", ".gltf", ".obj", ".stl"].includes(path.extname(f).toLowerCase()));
 
     if (dbModels.length < validFiles.length) {
@@ -549,32 +573,54 @@ router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
         }
     }
 
-    if (!userFolderPath) {
-        console.error("User folder not found. Checked:", pathsToTry);
-        return res.status(404).json({ message: "Storage folder not found on server" });
+    // Delete local physical file if user folder exists
+
+    if (userFolderPath) {
+      const filePath = path.join(userFolderPath, fileName);
+      if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            console.log("Deleted model file:", filePath);
+          } catch(e) {}
+      }
     }
 
-    // 3. Delete Physical Files
-    const filePath = path.join(userFolderPath, fileName);
-    if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log("Deleted model file:", filePath);
+    // Delete model file from Supabase Storage (unconditional)
+    const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
+    await deleteFileFromSupabase(destinationPath);
+    if (model.url) {
+      await deleteFileFromSupabase(model.url);
     }
+
 
     // Try to delete thumbnail
-    const files = fs.readdirSync(userFolderPath);
-    const ext = path.extname(fileName);
-    const baseName = path.basename(fileName, ext);
-    const thumbnail = files.find(f => {
-      const fExt = path.extname(f).toLowerCase();
-      return path.basename(f, fExt) === baseName && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
-    });
+    if (userFolderPath && fs.existsSync(userFolderPath)) {
+      try {
+        const files = fs.readdirSync(userFolderPath);
+        const ext = path.extname(fileName);
+        const baseName = path.basename(fileName, ext);
+        const thumbnail = files.find(f => {
+          const fExt = path.extname(f).toLowerCase();
+          return path.basename(f, fExt) === baseName && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
+        });
 
-    if (thumbnail) {
-      const thumbPath = path.join(userFolderPath, thumbnail);
-      fs.unlinkSync(thumbPath);
-      console.log("Deleted associated thumbnail:", thumbPath);
+        if (thumbnail) {
+          const thumbPath = path.join(userFolderPath, thumbnail);
+          try { fs.unlinkSync(thumbPath); } catch(e) {}
+          console.log("Deleted associated thumbnail:", thumbPath);
+
+          const thumbDestPath = `${sanitizedEmail}/3D_Modals/${thumbnail}`;
+          await deleteFileFromSupabase(thumbDestPath);
+          if (model.thumbnailUrl) {
+            await deleteFileFromSupabase(model.thumbnailUrl);
+          }
+        }
+      } catch (e) {
+        console.warn("Thumbnail delete warning:", e);
+      }
     }
+
+
 
     // 4. Delete Database Record
     await ThreedModel.deleteOne({ modelId });

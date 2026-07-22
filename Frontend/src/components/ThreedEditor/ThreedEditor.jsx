@@ -213,8 +213,10 @@ export default function ThreedEditor() {
           try {
             const res = await axios.get(`${backendUrl}/api/3d-models/get-model/${urlModelId}`);
             if (res.data) {
-              const modelData = res.data;
-              const fullUrl = `${backendUrl}${modelData.url}`;
+              const fullUrl = (modelData.url && (modelData.url.startsWith('http://') || modelData.url.startsWith('https://')))
+                ? modelData.url
+                : `${backendUrl}${modelData.url}`;
+
               const newModel = {
                 id: Date.now().toString(),
                 modelId: modelData.modelId,
@@ -463,10 +465,14 @@ export default function ThreedEditor() {
               const glbRes = await axios.post(`${backendUrl}/api/3d-models/upload-model`, glbFormData);
               
               if (glbRes.data && glbRes.data.url) {
+                  const targetGlbUrl = (glbRes.data.url.startsWith('http://') || glbRes.data.url.startsWith('https://'))
+                      ? glbRes.data.url
+                      : `${backendUrl}${glbRes.data.url}`;
+
                   // Keep UI name clean, but update underlying record info
                   nextModels[0] = {
                       ...nextModels[0],
-                      url: `${backendUrl}${glbRes.data.url}`,
+                      url: targetGlbUrl,
                       name: nextModels[0]?.displayName || (originalFileName ? originalFileName : `${defaultBaseName}.glb`),
                       fileName: originalFileName,
                       type: 'glb',
@@ -477,7 +483,8 @@ export default function ThreedEditor() {
                   if (!originalFileName) {
                       setModelName(defaultBaseName); // Keep extension-less for toolbar if it's a new standalone model
                   }
-                  setModelUrl(`${backendUrl}${glbRes.data.url}`);
+                  setModelUrl(targetGlbUrl);
+
                   
                   // Broadcast save to InteractionPanel to bust browser cache
                   try {
@@ -1382,9 +1389,10 @@ export default function ThreedEditor() {
     if (!model) return;
 
     setManualLoading(true);
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-    const modelUrlPath = model.url.startsWith('/') ? model.url : `/${model.url}`;
-    const fullUrl = `${backendUrl}${modelUrlPath}`;
+    const fullUrl = (model.url && (model.url.startsWith('http://') || model.url.startsWith('https://')))
+      ? model.url
+      : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`;
+
 
     // Clear existing models if we are 'replacing'
     if (models.length > 0) {

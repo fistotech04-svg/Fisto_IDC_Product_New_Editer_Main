@@ -5,6 +5,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { addTexture, getUserTextures, updateTexture, deleteTexture } from "../../controllers/Texture/textureController.js";
 import { getCategories, addCategory, deleteCategory, renameCategory, clearTexturesInCategory } from "../../controllers/Texture/textureCategoryController.js";
+import { uploadFileToSupabase } from "../../config/supabase.js";
+
 
 const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
@@ -132,11 +134,17 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
           // Cleanup temp dir
           if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
           
+          // Upload to Supabase Storage
+          const destinationPath = `${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`;
+          const supabaseUrl = await uploadFileToSupabase(finalPath, destinationPath);
+          const mapUrl = supabaseUrl || `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`;
+
           res.status(200).json({
               message: "Chunk merged successfully",
-              url: `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`,
+              url: mapUrl,
               fieldName
           });
+
       } catch (err) {
           console.error("Merging Error:", err);
           res.status(500).json({ message: "Error during chunk merging" });

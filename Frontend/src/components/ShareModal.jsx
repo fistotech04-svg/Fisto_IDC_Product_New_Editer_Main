@@ -6,6 +6,8 @@ import ColorPicker from './ThreedEditor/ColorPicker';
 import TemplateColorPicker from './TemplateEditor/ColorPicker';
 import QRCodeStyling from 'qr-code-styling';
 import html2canvas from 'html2canvas';
+import { getSupabaseBaseUrl } from '../utils/supabaseUtils';
+
 
 // Lazy-load preview iframe: only fetches HTML when card is visible in viewport
 const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
@@ -263,14 +265,17 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
         const user = storedUser ? JSON.parse(storedUser) : null;
         const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
         const emailFolder = user?.emailId ? user.emailId.replace(/[@.]/g, "_") : '';
-        const basePath = `${backendUrl}/uploads/${emailFolder}/My_Flipbooks/${encodeURIComponent(currentBook.folder)}/${encodeURIComponent(currentBook.realName || currentBook.title)}/`;
+        const folderName = currentBook?.folder || currentBook?.folderName || '';
+        const bookName = currentBook?.realName || currentBook?.title || currentBook?.flipbookName || '';
+        const basePath = getSupabaseBaseUrl(emailFolder, folderName, bookName);
 
         let resolvedHtml = currentBook.firstPageHtml;
-        resolvedHtml = resolvedHtml.replace(/href="\.\/assets\//g, `href="${basePath}assets/`);
-        resolvedHtml = resolvedHtml.replace(/href="assets\//g, `href="${basePath}assets/`);
-        resolvedHtml = resolvedHtml.replace(/xlink:href="\.\/assets\//g, `xlink:href="${basePath}assets/`);
-        resolvedHtml = resolvedHtml.replace(/xlink:href="assets\//g, `xlink:href="${basePath}assets/`);
+        resolvedHtml = resolvedHtml.replace(/(href|src|xlink:href)=(["'])\.?\/?assets\//g, `$1=$2${basePath}assets/`);
+        if (typeof rewriteHtmlUploadsToSupabase === 'function') {
+            resolvedHtml = rewriteHtmlUploadsToSupabase(resolvedHtml);
+        }
         return resolvedHtml;
+
     };
     const [copied, setCopied] = useState(false);
     const [embedCopied, setEmbedCopied] = useState(false);
@@ -1100,9 +1105,15 @@ const ShareModal = ({ isOpen, onClose, flipbookUrl, flipbookThumbnail, currentBo
                                         const emailId = user?.emailId || '';
                                         const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
                                         const emailFolder = emailId ? emailId.replace(/[@.]/g, "_") : '';
-                                        const actualFolder = currentBook?.folder || '';
-                                        const realName = currentBook?.realName || currentBook?.title || '';
-                                        const iframeBaseUrl = `${backendUrl}/uploads/${emailFolder}/My_Flipbooks/${encodeURIComponent(actualFolder)}/${encodeURIComponent(realName)}/`;
+                                        const actualFolder = currentBook?.folder || currentBook?.folderName || '';
+                                        const realName = currentBook?.realName || currentBook?.title || currentBook?.flipbookName || '';
+                                        const iframeBaseUrl = getSupabaseBaseUrl(
+                                            emailFolder,
+                                            actualFolder,
+                                            realName
+                                        );
+
+
 
                                         return (
                                             <LazyPreview
