@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { OAuth2Client } from 'google-auth-library';
 import nodemailer from 'nodemailer';
+import { ensureUserFoldersInSupabase } from '../../config/supabase.js';
 
 const router = express.Router();
 
@@ -39,7 +40,7 @@ const ensureUserFolders = (sanitizedEmail) => {
       fs.mkdirSync(userFolderPath, { recursive: true });
     }
 
-    const foldersToCreate = ['My_Flipbooks', 'Images', 'Videos', 'gifs', '3D_Modals', '3D_Screenshot'];
+    const foldersToCreate = ['My_Flipbooks', 'Images', 'Videos', 'gifs', '3D_Modals', '3D_Screenshot', 'Texture'];
     foldersToCreate.forEach(folder => {
       const folderPath = path.join(userFolderPath, folder);
       if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
@@ -47,6 +48,12 @@ const ensureUserFolders = (sanitizedEmail) => {
 
     const publicBookPath = path.join(userFolderPath, 'My_Flipbooks', 'Recent Book');
     if (!fs.existsSync(publicBookPath)) fs.mkdirSync(publicBookPath, { recursive: true });
+
+    // Also create folder structure in Supabase Storage (non-blocking)
+    ensureUserFoldersInSupabase(sanitizedEmail).catch(err => {
+      console.warn("[Supabase] Async folder creation warning:", err);
+    });
+
     
     return true;
   } catch (folderError) {
@@ -54,6 +61,7 @@ const ensureUserFolders = (sanitizedEmail) => {
     return false;
   }
 };
+
 
 
 // @route   POST /api/auth/google-login

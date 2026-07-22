@@ -1,0 +1,440 @@
+import { createClient } from "@supabase/supabase-js";
+import fs from "fs";
+import path from "path";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+export const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || "uploads";
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn("[Supabase] SUPABASE_URL or keys missing in environment variables.");
+}
+
+export const supabase = createClient(supabaseUrl || "https://placeholder.supabase.co", supabaseKey || "placeholder");
+export const SUPABASE_URL = supabaseUrl || "";
+
+/**
+ * Rewrite all /uploads/... references in HTML content to Supabase CDN public URLs.
+ * So the browser loads assets directly from Supabase instead of going through the backend proxy.
+ */
+export const rewriteUploadsToSupabase = (html) => {
+  if (!html || !supabaseUrl) return html;
+  const cdnBase = `${supabaseUrl}/storage/v1/object/public/${SUPABASE_BUCKET}/`;
+  // Replace /uploads/ prefix (both absolute and relative variants)
+  return html
+    .replace(/(['"\s(])(\/uploads\/)/g, (match, prefix, _) => `${prefix}${cdnBase}`)
+    .replace(/(href|src|url)=(["']?)(\/uploads\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}`);
+};
+
+
+
+const mimeTypes = {
+  ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
+  ".obj": "text/plain",
+  ".stl": "model/stl",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".json": "application/json",
+  ".pdf": "application/pdf",
+  ".hdr": "image/vnd.radiance"
+};
+
+/**
+ * Upload a local file on disk to Supabase Storage.
+ * Returns public URL on success, or null on failure.
+ */
+export const uploadFileToSupabase = async (localFilePath, destinationPath) => {
+  try {
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn("[Supabase] Credentials not configured.");
+      return null;
+    }
+
+    if (!fs.existsSync(localFilePath)) {
+      console.error(`[Supabase] File does not exist on disk: ${localFilePath}`);
+      return null;
+    }
+
+    const fileData = fs.readFileSync(localFilePath);
+    const ext = path.extname(localFilePath).toLowerCase();
+    const contentType = mimeTypes[ext] || "application/octet-stream";
+
+    const cleanDestination = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
+
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(cleanDestination, fileData, {
+        contentType,
+        upsert: true
+      });
+
+    if (error) {
+      console.error("[Supabase Upload Error]:", error.message || error);
+      return null;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(SUPABASE_BUCKET)
+      .getPublicUrl(cleanDestination);
+
+    console.log(`[Supabase] Uploaded successfully: ${publicUrlData.publicUrl}`);
+    return publicUrlData.publicUrl;
+  } catch (err) {
+    console.error("[Supabase] Failed to upload file:", err);
+    return null;
+  }
+};
+
+/**
+ * Upload a binary Buffer to Supabase Storage.
+ * Returns public URL on success, or null on failure.
+ */
+export const uploadBufferToSupabase = async (buffer, destinationPath, contentType = "application/octet-stream") => {
+  try {
+    if (!supabaseUrl || !supabaseKey) return null;
+
+    const cleanDestination = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
+
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(cleanDestination, buffer, {
+        contentType,
+        upsert: true
+      });
+
+    if (error) {
+      console.error("[Supabase Buffer Upload Error]:", error.message || error);
+      return null;
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from(SUPABASE_BUCKET)
+      .getPublicUrl(cleanDestination);
+
+    return publicUrlData.publicUrl;
+  } catch (err) {
+    console.error("[Supabase] Failed to upload buffer:", err);
+    return null;
+  }
+};
+
+/**
+ * Delete a file from Supabase Storage bucket.
+ */
+export const deleteFileFromSupabase = async (destinationPath) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !destinationPath) return;
+
+    let key = destinationPath;
+    if (key.includes(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)) {
+      key = key.split(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)[1];
+    } else if (key.includes("/uploads/")) {
+      key = key.substring(key.indexOf("/uploads/") + "/uploads/".length);
+    } else if (key.startsWith("uploads/")) {
+      key = key.substring("uploads/".length);
+    }
+
+    let cleanDestination = key.replace(/\\/g, "/").replace(/^\/+/, "");
+    if (cleanDestination.startsWith("uploads/")) {
+      cleanDestination = cleanDestination.substring("uploads/".length);
+    }
+
+    let decodedDestination = cleanDestination;
+    try {
+      decodedDestination = decodeURIComponent(cleanDestination);
+    } catch(e) {}
+
+    const keysToRemove = [...new Set([cleanDestination, decodedDestination])].filter(Boolean);
+
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .remove(keysToRemove);
+
+    if (error) {
+      console.warn("[Supabase Delete Warning]:", error.message || error);
+    } else {
+      console.log(`[Supabase] Successfully deleted object(s) from bucket "${SUPABASE_BUCKET}":`, keysToRemove);
+    }
+  } catch (err) {
+    console.warn("[Supabase] Delete operation failed:", err);
+  }
+};
+
+
+/**
+ * Recursively list all files under a folder prefix in Supabase Storage and remove them.
+ */
+export const deleteFolderFromSupabase = async (folderPrefix) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !folderPrefix) return;
+
+    let prefix = folderPrefix;
+    if (prefix.includes(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)) {
+      prefix = prefix.split(`/storage/v1/object/public/${SUPABASE_BUCKET}/`)[1];
+    } else if (prefix.includes("/uploads/")) {
+      prefix = prefix.substring(prefix.indexOf("/uploads/") + "/uploads/".length);
+    } else if (prefix.startsWith("uploads/")) {
+      prefix = prefix.substring("uploads/".length);
+    }
+
+    let cleanPrefix = prefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    let decodedPrefix = cleanPrefix;
+    try {
+      decodedPrefix = decodeURIComponent(cleanPrefix);
+    } catch(e) {}
+
+    const prefixesToList = [...new Set([cleanPrefix, decodedPrefix])].filter(Boolean);
+
+    const listAllFiles = async (dirPath) => {
+      let files = [];
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .list(dirPath, { limit: 1000 });
+
+      if (error || !data) return files;
+
+      for (const item of data) {
+        const itemPath = `${dirPath}/${item.name}`;
+        if (!item.id && (!item.metadata || Object.keys(item.metadata).length === 0)) {
+          const subFiles = await listAllFiles(itemPath);
+          files = files.concat(subFiles);
+        } else {
+          files.push(itemPath);
+        }
+      }
+      return files;
+    };
+
+    let allFileKeys = [];
+    for (const p of prefixesToList) {
+      const keys = await listAllFiles(p);
+      allFileKeys = allFileKeys.concat(keys);
+    }
+
+    allFileKeys = [...new Set(allFileKeys)];
+
+    if (allFileKeys.length > 0) {
+      const { data, error: removeError } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .remove(allFileKeys);
+
+      if (removeError) {
+        console.warn("[Supabase Folder Delete Warning]:", removeError.message || removeError);
+      } else {
+        console.log(`[Supabase] Successfully deleted ${allFileKeys.length} files from folder prefix "${cleanPrefix}":`, allFileKeys);
+      }
+    } else {
+      console.log(`[Supabase] No files found under folder prefix "${cleanPrefix}" to delete.`);
+    }
+  } catch (err) {
+    console.warn("[Supabase] Delete folder operation failed:", err);
+  }
+};
+
+
+
+/**
+ * Ensure user folders exist in Supabase Storage by creating placeholder files.
+ */
+export const ensureUserFoldersInSupabase = async (sanitizedEmail) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !sanitizedEmail) return;
+
+    const foldersToCreate = [
+      "My_Flipbooks",
+      "Images",
+      "Videos",
+      "gifs",
+      "3D_Modals",
+      "3D_Screenshot",
+      "Texture"
+    ];
+
+    const tasks = foldersToCreate.map(folder => {
+      const keepFilePath = `${sanitizedEmail}/${folder}/.keep`;
+      return uploadBufferToSupabase(Buffer.from(""), keepFilePath, "text/plain");
+    });
+
+    await Promise.allSettled(tasks);
+    console.log(`[Supabase] Created user folder structure for: ${sanitizedEmail}`);
+  } catch (err) {
+    console.warn("[Supabase] Could not create user folders in Supabase:", err);
+  }
+};
+
+/**
+ * Ensure flipbook subfolders (assets/Image, assets/gif, assets/video, assets/3D_Model, assets/audio, assets/download) exist in Supabase Storage.
+ */
+export const ensureFlipbookFoldersInSupabase = async (sanitizedEmail, physicalFolderName, flipbookName) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !sanitizedEmail || !flipbookName) return;
+
+    const folder = physicalFolderName || "My Flipbooks";
+    const subfolders = ["Image", "gif", "video", "3D_Model", "audio", "download"];
+
+    const keepPaths = [
+      `${sanitizedEmail}/My_Flipbooks/${folder}/.keep`,
+      `${sanitizedEmail}/My_Flipbooks/${folder}/${flipbookName}/.keep`,
+      ...subfolders.map(sub => `${sanitizedEmail}/My_Flipbooks/${folder}/${flipbookName}/assets/${sub}/.keep`)
+    ];
+
+    const tasks = keepPaths.map(keepPath =>
+      uploadBufferToSupabase(Buffer.from(""), keepPath, "text/plain")
+    );
+
+    await Promise.allSettled(tasks);
+    console.log(`[Supabase] Auto-created flipbook subfolders for: ${flipbookName}`);
+  } catch (err) {
+    console.warn("[Supabase] Could not create flipbook subfolders in Supabase:", err);
+  }
+};
+
+/**
+ * Rename/move all objects under an old prefix to a new prefix in Supabase Storage.
+ */
+export const renamePathInSupabase = async (oldPrefix, newPrefix) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !oldPrefix || !newPrefix) return;
+
+    let cleanOld = oldPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    let cleanNew = newPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+
+    if (cleanOld.startsWith("uploads/")) cleanOld = cleanOld.substring("uploads/".length);
+    if (cleanNew.startsWith("uploads/")) cleanNew = cleanNew.substring("uploads/".length);
+
+    const listAllFiles = async (dirPath) => {
+      let files = [];
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .list(dirPath, { limit: 1000 });
+
+      if (error || !data) return files;
+
+      for (const item of data) {
+        const itemPath = `${dirPath}/${item.name}`;
+        if (!item.id && (!item.metadata || Object.keys(item.metadata).length === 0)) {
+          const subFiles = await listAllFiles(itemPath);
+          files = files.concat(subFiles);
+        } else {
+          files.push(itemPath);
+        }
+      }
+      return files;
+    };
+
+    const allOldKeys = await listAllFiles(cleanOld);
+
+    if (allOldKeys.length > 0) {
+      for (const oldKey of allOldKeys) {
+        const relativePath = oldKey.substring(cleanOld.length);
+        const newKey = `${cleanNew}${relativePath}`;
+
+        const { error: moveError } = await supabase.storage
+          .from(SUPABASE_BUCKET)
+          .move(oldKey, newKey);
+
+        if (moveError) {
+          console.warn(`[Supabase] Move error for ${oldKey} -> ${newKey}:`, moveError.message || moveError);
+        }
+      }
+      console.log(`[Supabase] Moved ${allOldKeys.length} objects from "${cleanOld}" to "${cleanNew}"`);
+    }
+  } catch (err) {
+    console.warn("[Supabase] Rename operation failed:", err);
+  }
+};
+
+/**
+ * Recursively upload a local directory to Supabase Storage.
+ */
+export const uploadFolderToSupabase = async (localFolderPath, supabaseFolderPrefix) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !localFolderPath || !supabaseFolderPrefix) return;
+    if (!fs.existsSync(localFolderPath)) return;
+
+    let cleanPrefix = supabaseFolderPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    if (cleanPrefix.startsWith("uploads/")) {
+      cleanPrefix = cleanPrefix.substring("uploads/".length);
+    }
+
+    const uploadDirRecursive = async (currentLocalDir, currentSupabaseDir) => {
+      const entries = fs.readdirSync(currentLocalDir, { withFileTypes: true });
+      for (const entry of entries) {
+        const localPath = path.join(currentLocalDir, entry.name);
+        const supabasePath = `${currentSupabaseDir}/${entry.name}`;
+        if (entry.isDirectory()) {
+          await uploadDirRecursive(localPath, supabasePath);
+        } else if (entry.isFile()) {
+          await uploadFileToSupabase(localPath, supabasePath);
+        }
+      }
+    };
+
+    await uploadDirRecursive(localFolderPath, cleanPrefix);
+    console.log(`[Supabase] Uploaded local directory to Supabase Storage: ${cleanPrefix}`);
+  } catch (err) {
+    console.warn("[Supabase] Upload folder operation failed:", err);
+  }
+};
+
+/**
+ * Get Supabase Public URL for a given destination path.
+ */
+export const getSupabasePublicUrl = (destinationPath) => {
+  if (!supabaseUrl || !destinationPath) return null;
+  let key = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (key.startsWith("uploads/")) {
+    key = key.substring("uploads/".length);
+  }
+  try {
+    key = decodeURIComponent(key);
+  } catch(e) {}
+  const { data } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(key);
+  return data?.publicUrl || `${supabaseUrl}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodeURIComponent(key)}`;
+};
+
+/**
+ * Download a file's content (Buffer) from Supabase Storage.
+ */
+export const downloadFileFromSupabase = async (destinationPath) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !destinationPath) return null;
+
+    let cleanDestination = destinationPath.replace(/\\/g, "/").replace(/^\/+/, "");
+    if (cleanDestination.startsWith("uploads/")) {
+      cleanDestination = cleanDestination.substring("uploads/".length);
+    }
+    try {
+      cleanDestination = decodeURIComponent(cleanDestination);
+    } catch(e) {}
+
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .download(cleanDestination);
+
+    if (error || !data) {
+      return null;
+    }
+
+    const arrayBuffer = await data.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (err) {
+    console.warn("[Supabase] Download file failed:", err);
+    return null;
+  }
+};
+
+
+
+
+
+
+
+
+
