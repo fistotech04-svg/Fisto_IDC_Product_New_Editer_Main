@@ -2365,12 +2365,19 @@ const TemplateEditor = () => {
       const blur = parseFloat(getVal('data-effect-drop-shadow-blur', '4'));
       const spread = parseFloat(getVal('data-effect-drop-shadow-spread', '0'));
 
-      let dsSource = 'SourceAlpha';
+      const extractAlpha = doc.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+      extractAlpha.setAttribute('type', 'matrix');
+      extractAlpha.setAttribute('values', '0 0 0 0 0   0 0 0 0 0   0 0 0 0 0   0 0 0 1 0');
+      extractAlpha.setAttribute('in', graphicIn);
+      extractAlpha.setAttribute('result', 'ds_alpha');
+      filterEl.appendChild(extractAlpha);
+
+      let dsSource = 'ds_alpha';
       if (spread !== 0) {
         const morph = doc.createElementNS("http://www.w3.org/2000/svg", "feMorphology");
         morph.setAttribute('operator', spread >= 0 ? 'dilate' : 'erode');
         morph.setAttribute('radius', Math.abs(spread));
-        morph.setAttribute('in', 'SourceAlpha');
+        morph.setAttribute('in', 'ds_alpha');
         morph.setAttribute('result', 'ds_morph');
         filterEl.appendChild(morph);
         dsSource = 'ds_morph';

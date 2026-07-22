@@ -68,8 +68,23 @@ foreignObject {
   clip-path: none !important;
 }
 
+foreignObject html,
+foreignObject body {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-color: transparent !important;
+  overflow: hidden !important;
+}
+
 foreignObject * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
   clip-path: none !important;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 foreignObject[data-editing="true"]>div {

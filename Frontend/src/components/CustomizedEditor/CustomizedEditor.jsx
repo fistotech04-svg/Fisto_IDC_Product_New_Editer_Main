@@ -363,7 +363,7 @@ const CustomizedEditor = () => {
           icon: 'default',
           font: 'Arial'
         },
-        startEndNav: false,
+        startEndNav: true,
       },
       viewing: {
         zoom: true,
