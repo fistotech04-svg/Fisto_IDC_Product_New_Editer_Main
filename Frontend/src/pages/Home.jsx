@@ -226,7 +226,8 @@ export default function Home() {
         await axios.post(`${backendUrl}/api/flipbook/save-pages-batch`, {
           emailId,
           v_id,
-          pages: batchPages
+          pages: batchPages,
+          keepBase64: true
         });
       }
 
