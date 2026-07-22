@@ -46,9 +46,11 @@ const processAndSaveBase64Assets = ({
   flipbookDir,
   flipbook_v_id,
   newFlipbookAssets = [],
-  savedBase64Map = new Map()
+  savedBase64Map = new Map(),
+  skipBase64Extraction = false
 }) => {
   if (!htmlContent) return "";
+  if (skipBase64Extraction) return htmlContent;
 
   const assetsDir = path.join(flipbookDir, "assets");
   ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
@@ -1019,7 +1021,7 @@ router.post("/save-page", async (req, res) => {
 // @body   { emailId, v_id, pages: [{ pageName, content, pageNumber }] }
 router.post("/save-pages-batch", async (req, res) => {
   try {
-    const { emailId, v_id, pages } = req.body;
+    const { emailId, v_id, pages, keepBase64 = true } = req.body;
 
     if (!emailId || !v_id || !Array.isArray(pages) || pages.length === 0) {
       return res.status(400).json({ message: "Missing required fields or pages array is empty" });
@@ -1061,14 +1063,15 @@ router.post("/save-pages-batch", async (req, res) => {
         flipbookDir,
         flipbook_v_id: doc.v_id,
         newFlipbookAssets,
-        savedBase64Map
+        savedBase64Map,
+        skipBase64Extraction: keepBase64
       });
 
       // Write HTML file to disk
       fs.writeFileSync(filePath, processedContent, "utf8");
 
       const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${fileName}`;
-      uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
+      await uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
 
       // Update or insert into DB pages array
       const existingPageIdx = doc.pages.findIndex((p) => p.name === pageName);
@@ -2117,11 +2120,22 @@ router.get("/get", async (req, res) => {
                 v_id: p.v_id,
              };
           }
-          // Fetch exclusively from Supabase Storage
+          // Fetch from Supabase Storage with local disk fallback
           const supabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/${p.fileName}`;
-          const buf = await downloadFileFromSupabase(supabasePath);
-          // Rewrite /uploads/ references to Supabase CDN so browser loads assets directly from Supabase
-          const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8")) : "";
+          let buf = await downloadFileFromSupabase(supabasePath);
+
+          if (!buf || buf.length === 0) {
+            const localFilePath = path.join(bookPath, p.fileName);
+            if (fs.existsSync(localFilePath)) {
+              buf = fs.readFileSync(localFilePath);
+              // Trigger background upload to Supabase if missing
+              uploadFileToSupabase(localFilePath, supabasePath).catch(() => {});
+            }
+          }
+
+          // Rewrite /uploads/ and relative ./assets/ references to Supabase CDN
+          const flipbookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}`;
+          const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8"), flipbookPrefix) : "";
 
           return {
             name: p.name,

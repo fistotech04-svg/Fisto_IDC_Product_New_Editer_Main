@@ -17,16 +17,25 @@ export const supabase = createClient(supabaseUrl || "https://placeholder.supabas
 export const SUPABASE_URL = supabaseUrl || "";
 
 /**
- * Rewrite all /uploads/... references in HTML content to Supabase CDN public URLs.
+ * Rewrite all /uploads/... and relative ./assets/... references in HTML content to Supabase CDN public URLs.
  * So the browser loads assets directly from Supabase instead of going through the backend proxy.
  */
-export const rewriteUploadsToSupabase = (html) => {
+export const rewriteUploadsToSupabase = (html, baseUrlPrefix = "") => {
   if (!html || !supabaseUrl) return html;
   const cdnBase = `${supabaseUrl}/storage/v1/object/public/${SUPABASE_BUCKET}/`;
-  // Replace /uploads/ prefix (both absolute and relative variants)
-  return html
+
+  let result = html
     .replace(/(['"\s(])(\/uploads\/)/g, (match, prefix, _) => `${prefix}${cdnBase}`)
     .replace(/(href|src|url)=(["']?)(\/uploads\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}`);
+
+  if (baseUrlPrefix) {
+    const cleanPrefix = baseUrlPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    result = result
+      .replace(/(href|src|url)=(["']?)(\.\/assets\/|assets\/)/g, (match, attr, quote, _) => `${attr}=${quote}${cdnBase}${cleanPrefix}/assets/`)
+      .replace(/(['"\s(])(\.\/assets\/|assets\/)/g, (match, prefix, _) => `${prefix}${cdnBase}${cleanPrefix}/assets/`);
+  }
+
+  return result;
 };
 
 

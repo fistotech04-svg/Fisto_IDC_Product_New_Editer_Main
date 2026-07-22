@@ -18,30 +18,31 @@ const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.or
 export const getVisualBBox = (el) => {
   if (!el || typeof el.getBBox !== 'function') return { x: 0, y: 0, width: 0, height: 0 };
 
+
   const cropStr = el.getAttribute('data-crop-data');
   if (cropStr && cropStr !== 'null') {
-    // ── PRIORITY: Compute directly from live image dimensions and crop percentages ──
-    if (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-effect-crop-inset')) {
-      const imgEl = el.querySelector('image, video');
-      if (imgEl) {
-        const liveW = parseFloat(imgEl.getAttribute('width') || '0');
-        const liveH = parseFloat(imgEl.getAttribute('height') || '0');
-        const liveX = parseFloat(imgEl.getAttribute('x') || '0');
-        const liveY = parseFloat(imgEl.getAttribute('y') || '0');
-        if (liveW > 0 && liveH > 0) {
+    // ── PRIORITY: Read from the live SVG clipPath rect (crop-group-clip-{id}) ──
+    // applyVisuals and the live resize sync always keep this rect accurate.
+    const clipAttrCrop = el.getAttribute('clip-path') || '';
+    const clipMatchCrop = clipAttrCrop.match(/url\(['"']?#([^)'"]+)['"']?\)/);
+    if (clipMatchCrop && clipMatchCrop[1]) {
+      const clipElId = clipMatchCrop[1];
+      if (clipElId.startsWith('crop-group-clip-') || clipElId.startsWith('crop-clip-')) {
+        const clipEl = el.ownerSVGElement?.querySelector(`[id="${clipElId}"]`) || document.getElementById(clipElId);
+        if (clipEl && clipEl.firstElementChild) {
           try {
-            const cropData = JSON.parse(cropStr);
-            const cL = parseFloat(cropData.left) || 0;
-            const cT = parseFloat(cropData.top) || 0;
-            const cW = parseFloat(cropData.width) || 100;
-            const cH = parseFloat(cropData.height) || 100;
-            return {
-              x: liveX + (liveW * cL) / 100,
-              y: liveY + (liveH * cT) / 100,
-              width: (liveW * cW) / 100,
-              height: (liveH * cH) / 100
-            };
-          } catch (e) {}
+            const r = clipEl.firstElementChild;
+            const rx = parseFloat(r.getAttribute('x') || '0');
+            const ry = parseFloat(r.getAttribute('y') || '0');
+            const rw = parseFloat(r.getAttribute('width') || '0');
+            const rh = parseFloat(r.getAttribute('height') || '0');
+            if (rw > 0 && rh > 0) {
+              // The clip rect is in userSpaceOnUse (absolute SVG coords / parent space).
+              // getVisualBBox must return coords in el's OWN local space.
+              let lx = rx, ly = ry;
+              return { x: lx, y: ly, width: rw, height: rh };
+            }
+          } catch (e) { }
         }
       }
     }
@@ -54,10 +55,8 @@ export const getVisualBBox = (el) => {
       bboxX = parseFloat(el.getAttribute('data-crop-orig-x'));
       bboxY = parseFloat(el.getAttribute('data-crop-orig-y'));
     } else {
-      try {
-        const bbox = el.getBBox();
-        bboxW = bbox.width; bboxH = bbox.height; bboxX = bbox.x; bboxY = bbox.y;
-      } catch (e) {}
+      const bbox = el.getBBox();
+      bboxW = bbox.width; bboxH = bbox.height; bboxX = bbox.x; bboxY = bbox.y;
     }
     try {
       const crop = JSON.parse(cropStr);
@@ -68,6 +67,15 @@ export const getVisualBBox = (el) => {
         height: bboxH * (parseFloat(crop.height) / 100)
       };
     } catch (e) { }
+  }
+
+  const clipAttr = el.getAttribute('clip-path') || el.style.clipPath || '';
+  const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
+  if (clipMatch && clipMatch[1]) {
+    const clipEl = document.getElementById(clipMatch[1]);
+    if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
+      try { return clipEl.firstElementChild.getBBox(); } catch (e) { }
+    }
   }
 
   const isImgGrp = el.getAttribute('data-is-image-group') === 'true' || el.getAttribute('data-is-video-group') === 'true' || el.getAttribute('data-is-gif-group') === 'true';
@@ -87,12 +95,10 @@ export const getVisualBBox = (el) => {
       }
       if (typeof child.getBBox === 'function' && child.style.display !== 'none' && child.style.visibility !== 'hidden' && child.tagName.toLowerCase() !== 'defs') {
         const childBBox = getVisualBBox(child);
-        if (!childBBox || (childBBox.width === 0 && childBBox.height === 0)) continue;
-
         let childMatrix = new DOMMatrix();
         try {
-          const parentCTM = el.getScreenCTM();
-          const childCTM = child.getScreenCTM();
+          const parentCTM = el.getCTM();
+          const childCTM = child.getCTM();
           if (parentCTM && childCTM) {
             childMatrix = parentCTM.inverse().multiply(childCTM);
           }
@@ -114,7 +120,7 @@ export const getVisualBBox = (el) => {
       }
     }
 
-    if (hasValidChild && isFinite(minX) && isFinite(minY) && isFinite(maxX) && isFinite(maxY)) {
+    if (hasValidChild) {
       return {
         x: minX,
         y: minY,
@@ -124,44 +130,8 @@ export const getVisualBBox = (el) => {
     }
   }
 
-  // Single element clip-path check
-  const svgClipAttr = el.getAttribute('clip-path') || el.style.clipPath || '';
-  const clipMatch = svgClipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
-  if (clipMatch && clipMatch[1]) {
-    const clipEl = document.getElementById(clipMatch[1]) || el.ownerSVGElement?.querySelector(`[id="${clipMatch[1]}"]`);
-    if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
-      try {
-        const clipChild = clipEl.firstElementChild;
-        const clipBBox = clipChild.getBBox();
-        let clipMatrix = new DOMMatrix();
-        const parentCTM = el.getScreenCTM();
-        const childCTM = clipChild.getScreenCTM();
-        if (parentCTM && childCTM) {
-          clipMatrix = parentCTM.inverse().multiply(childCTM);
-        }
-        const pt1 = new DOMPoint(clipBBox.x, clipBBox.y).matrixTransform(clipMatrix);
-        const pt2 = new DOMPoint(clipBBox.x + clipBBox.width, clipBBox.y).matrixTransform(clipMatrix);
-        const pt3 = new DOMPoint(clipBBox.x + clipBBox.width, clipBBox.y + clipBBox.height).matrixTransform(clipMatrix);
-        const pt4 = new DOMPoint(clipBBox.x, clipBBox.y + clipBBox.height).matrixTransform(clipMatrix);
-        const pts = [pt1, pt2, pt3, pt4];
-        const minX = Math.min(...pts.map(p => p.x));
-        const maxX = Math.max(...pts.map(p => p.x));
-        const minY = Math.min(...pts.map(p => p.y));
-        const maxY = Math.max(...pts.map(p => p.y));
-        return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-      } catch (e) { }
-    }
-  }
-
-  try {
-    return el.getBBox();
-  } catch (e) {
-    return { x: 0, y: 0, width: 0, height: 0 };
-  }
+  return el.getBBox();
 };
-
-
-
 
 
 // Global style to ensure injected SVGs always fill their container perfectly
@@ -2755,30 +2725,32 @@ const MainEditor = ({
       // Fallback for elements where getBBox() returns 0 or suspiciously small dimensions (e.g. foreignObjects, nested SVGs, percentages)
       // ALSO fallback for frames, because getBBox() ignores percentage-sized children (like width="100%" backgrounds in popup templates)
       const isFrame = el.getAttribute('data-type') === 'frame';
-      const elTag = el.tagName.toLowerCase();
-      const isContainerTag = elTag === 'foreignobject' || elTag === 'svg' || isFrame;
-      if (isContainerTag && (bbox.width === 0 || bbox.height === 0)) {
+      if (isFrame || ((bbox.width < 5 || bbox.height < 5) && el.tagName.toLowerCase() !== 'line')) {
         const clientRect = el.getBoundingClientRect();
-        if (clientRect.width > 0 && clientRect.height > 0) {
-          el.dataset.overlayRetries = '0'; // reset retries on success
-          const elInverse = ctm.inverse();
-          const pt = overlay.createSVGPoint();
+        // Only apply if the screen size is actually significantly larger than the getBBox size or if it's a frame
+        // (to prevent inflating bounding boxes of legitimately small elements)
+        const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
+        if (isFrame || clientRect.width / scale > 10 || clientRect.height / scale > 10 || el.tagName.toLowerCase() === 'svg' || el.tagName.toLowerCase() === 'foreignobject') {
+          if (clientRect.width > 0 && clientRect.height > 0) {
+            el.dataset.overlayRetries = '0'; // reset retries on success
+            const elInverse = ctm.inverse();
+            const pt = overlay.createSVGPoint();
 
-          pt.x = clientRect.left; pt.y = clientRect.top;
-          const localTL = pt.matrixTransform(elInverse);
+            pt.x = clientRect.left; pt.y = clientRect.top;
+            const localTL = pt.matrixTransform(elInverse);
 
-          pt.x = clientRect.right; pt.y = clientRect.bottom;
-          const localBR = pt.matrixTransform(elInverse);
+            pt.x = clientRect.right; pt.y = clientRect.bottom;
+            const localBR = pt.matrixTransform(elInverse);
 
-          bbox = {
-            x: Math.min(localTL.x, localBR.x),
-            y: Math.min(localTL.y, localBR.y),
-            width: Math.abs(localBR.x - localTL.x),
-            height: Math.abs(localBR.y - localTL.y)
-          };
+            bbox = {
+              x: Math.min(localTL.x, localBR.x),
+              y: Math.min(localTL.y, localBR.y),
+              width: Math.abs(localBR.x - localTL.x),
+              height: Math.abs(localBR.y - localTL.y)
+            };
+          }
         }
       }
-
 
       if (bbox.width === 0 && bbox.height === 0) {
         // Element hasn't painted yet or is completely empty. Retry up to 5 times.
@@ -4380,27 +4352,6 @@ const MainEditor = ({
     }
   }, [selectedLayerId, currentFrameId, multiSelectedIds, pages, activePageIndex, isDoublePage, zoom, activeTopTool]);
 
-  // ── Force selection redraw after crop is applied ───────────────────────────
-  useEffect(() => {
-    const handleForceSelectionRedraw = (e) => {
-      const id = e.detail?.id || selectedLayerIdRef.current;
-      if (!id) return;
-      // Small delay so applyVisuals (which updates the clip-path) runs first
-      setTimeout(() => {
-        clearOverlayType('selected');
-        clearOverlayType('child-selected');
-        document.querySelectorAll('.resize-handle').forEach(h => h.remove());
-        document.querySelectorAll(`[id="${id}"]`).forEach(el => {
-          const type = (currentFrameIdRef.current && id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
-          el.setAttribute(`data-${type}`, 'true');
-          drawOverlayHighlight(el, type);
-        });
-      }, 60);
-    };
-    window.addEventListener('force-selection-redraw', handleForceSelectionRedraw);
-    return () => window.removeEventListener('force-selection-redraw', handleForceSelectionRedraw);
-  }, []);
-
   // Sync refs
   useEffect(() => {
     currentFrameIdRef.current = currentFrameId;
@@ -4408,16 +4359,13 @@ const MainEditor = ({
 
   // Helper: get direct children of SVG root that have IDs (top-level frames)
   const getTopLevelFrames = (svg) => {
-    if (!svg || !svg.children) return [];
-    return Array.from(svg.children).filter(el => {
-      const tag = el.tagName ? el.tagName.toLowerCase() : '';
-      if (tag === 'style' || tag === 'defs' || tag === 'metadata' || tag === 'script') return false;
-      if (el.getAttribute('data-hidden') === 'true' || el.getAttribute('data-locked') === 'true') return false;
-      if (!el.id) {
-        el.id = `${tag}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-      }
-      return true;
-    });
+    return Array.from(svg.children).filter(el =>
+      el.id &&
+      el.tagName.toLowerCase() !== 'style' &&
+      el.tagName.toLowerCase() !== 'defs' &&
+      el.getAttribute('data-hidden') !== 'true' &&
+      el.getAttribute('data-locked') !== 'true'
+    );
   };
 
   // Helper: get direct children of a given element that have IDs
@@ -4433,17 +4381,15 @@ const MainEditor = ({
       return [];
     }
 
-    return Array.from(el.children).filter(child => {
-      const childTag = child.tagName ? child.tagName.toLowerCase() : '';
-      if (childTag === 'style' || childTag === 'defs' || childTag === 'metadata' || childTag === 'script') return false;
-      if (child.getAttribute('data-hidden') === 'true' || child.getAttribute('data-locked') === 'true' || child.getAttribute('data-name') === 'Overlay') return false;
-      if (!child.id) {
-        child.id = `${childTag}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
-      }
-      return true;
-    });
+    return Array.from(el.children).filter(child =>
+      child.id &&
+      child.tagName.toLowerCase() !== 'style' &&
+      child.tagName.toLowerCase() !== 'defs' &&
+      child.getAttribute('data-hidden') !== 'true' &&
+      child.getAttribute('data-locked') !== 'true' &&
+      child.getAttribute('data-name') !== 'Overlay'
+    );
   };
-
 
   // Helper: check if a point (clientX, clientY) hits an element's bounding box mathematically mapped
   const hitTest = (el, clientX, clientY, buffer = 0) => {
@@ -4452,7 +4398,7 @@ const MainEditor = ({
     // 1. Pixel-perfect fast check: native browser hit testing
     // Handles thin lines, complex strokes, and accurately painted bounds natively
     const hitElements = document.elementsFromPoint(clientX, clientY);
-    if (hitElements.includes(el) || hitElements.some(hitEl => el.contains && el.contains(hitEl))) return true;
+    if (hitElements.includes(el)) return true;
 
     // 2. Extrapolated local Bounding Box hit testing
     // Handles hitting transparent gaps, transparent shape areas, or hitting areas expanded by exact buffers
@@ -4490,7 +4436,7 @@ const MainEditor = ({
               return dist <= (strokeWidth / 2) + lineBuffer;
             }
 
-            const bbox = getVisualBBox(el);
+            const bbox = el.getBBox();
             const localBuffer = buffer / scale;
 
             return localPt.x >= (bbox.x - localBuffer) && localPt.x <= (bbox.x + bbox.width + localBuffer) &&
@@ -4499,7 +4445,6 @@ const MainEditor = ({
         } catch (e) { }
       }
     }
-
     const rect = el.getBoundingClientRect();
     return clientX >= rect.left - buffer && clientX <= rect.right + buffer &&
       clientY >= rect.top - buffer && clientY <= rect.bottom + buffer;
@@ -4507,27 +4452,12 @@ const MainEditor = ({
 
   // Helper to get all valid SVG elements at a point (z-index ordered, top to bottom)
   const getElementsAtPoint = (x, y) => {
-    const hits = new Set();
-    const elements = document.elementsFromPoint(x, y);
-    for (const rawEl of elements) {
-      const container = rawEl.closest('.page-svg-container');
-      if (!container) continue;
-      const tag = rawEl.tagName ? rawEl.tagName.toLowerCase() : '';
-      if (tag === 'svg' || tag === 'html' || tag === 'body') continue;
-      if (rawEl.getAttribute('data-name') === 'Overlay' || rawEl.getAttribute('data-type') === 'background') continue;
-      if (rawEl.getAttribute('data-hidden') === 'true') continue;
-
-      const canvasContent = container.querySelector('[id^="canvas-content-"]');
-      const rootSvg = canvasContent ? canvasContent.querySelector('svg') : container.querySelector('svg');
-
-      const draggable = getDraggableElement(rawEl, rootSvg);
-      if (draggable && draggable.id) {
-        hits.add(draggable);
-      }
-    }
-    return Array.from(hits);
+    return document.elementsFromPoint(x, y).filter(el => {
+      const isSvgContent = el.closest('.page-svg-container') && el.id && el.tagName.toLowerCase() !== 'svg';
+      const isVisible = el.getAttribute('data-hidden') !== 'true';
+      return isSvgContent && isVisible;
+    });
   };
-
 
 
 
@@ -4604,26 +4534,8 @@ const MainEditor = ({
       current = current.parentNode;
     }
 
-    // Auto-assign ID to top-level shape if no ancestor had an ID
-    if (target && target.tagName && target !== canvasRoot && target.tagName.toLowerCase() !== 'svg') {
-      let topShape = target;
-      while (topShape.parentNode && topShape.parentNode !== canvasRoot && topShape.parentNode.tagName?.toLowerCase() !== 'svg') {
-        if (topShape.parentNode.id && topShape.parentNode.id !== 'main-svg-root') {
-          return topShape.parentNode;
-        }
-        topShape = topShape.parentNode;
-      }
-      if (!topShape.id && topShape.tagName.toLowerCase() !== 'svg') {
-        const tag = topShape.tagName.toLowerCase();
-        topShape.id = `${tag}-${Math.random().toString(36).substr(2, 9)}`;
-        return topShape;
-      }
-    }
-
     return null;
   };
-
-
 
   useEffect(() => {
     // Setup interactjs for elements within the SVG - targeting both elements and the background
@@ -4770,14 +4682,15 @@ const MainEditor = ({
                 const frameId = currentFrameIdRef.current;
                 let context = frameId ? svgElement.querySelector(`[id="${frameId}"]`) : svgElement;
 
-                // Auto-Enter logic for single-page root frames (matching mousedown behavior)
+                // Auto-Enter logic for root frames (matching mousedown behavior)
                 const topFrames = getTopLevelFrames(svgElement);
-                if (!frameId && topFrames.length === 1) {
-                  if (hitTest(topFrames[0], event.clientX, event.clientY)) {
-                    context = topFrames[0];
+                if (!frameId) {
+                  const hitFrame = topFrames.find(f => hitTest(f, event.clientX, event.clientY));
+                  if (hitFrame) {
+                    context = hitFrame;
                     if (setCurrentFrameId) {
-                      setCurrentFrameId(topFrames[0].id);
-                      currentFrameIdRef.current = topFrames[0].id;
+                      setCurrentFrameId(hitFrame.id);
+                      currentFrameIdRef.current = hitFrame.id;
                     }
                   }
                 }
@@ -4798,8 +4711,6 @@ const MainEditor = ({
                   }
                 }
               }
-
-
             }
 
             // Safety check for metadata-based 'locked' or 'hidden'
@@ -5875,14 +5786,8 @@ const MainEditor = ({
                       const forceNative = (tag === 'image' || tag === 'video' || tag === 'svg');
 
                       if (forceNative || !hasTransform || hasTransform === 'matrix(1 0 0 1 0 0)') {
-                        const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
-                        const hasCrop = el.hasAttribute('data-crop-data') && el.getAttribute('data-crop-data') !== 'null' && (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-effect-crop-inset'));
-
                         if (forceNative && hasTransform && hasTransform !== 'matrix(1 0 0 1 0 0)') {
-                          // DO NOT remove transform if it's a cropped image, because the transform holds its inner pan/scale!
-                          if (!hasCrop) {
-                            child.removeAttribute('transform');
-                          }
+                          child.removeAttribute('transform');
                         }
                         // Attributes are already in <g> local space — set directly
                         let imgX = newLocX;
@@ -5890,35 +5795,7 @@ const MainEditor = ({
                         let imgW = newLocW;
                         let imgH = newLocH;
 
-                        if ((tag === 'image' || tag === 'video' || tag === 'svg') && el.tagName === 'g' && hasCrop && !isCtrlPressedMoveInner) {
-                          // NORMAL RESIZE FOR CROPPED IMAGE:
-                          // newLocW/H are the new dimensions of the CROPPED region.
-                          // The underlying image must be scaled proportionally from its full uncropped dimensions!
-                          const oldW = parseFloat(el.getAttribute('data-crop-orig-w') || child.getAttribute('width'));
-                          const oldH = parseFloat(el.getAttribute('data-crop-orig-h') || child.getAttribute('height'));
-                          const oldX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('x'));
-                          const oldY = parseFloat(el.getAttribute('data-crop-orig-y') || child.getAttribute('y'));
-
-                          imgW = oldW * scaleX;
-                          imgH = oldH * scaleY;
-                          imgX = la.x + (oldX - la.x) * scaleX;
-                          imgY = la.y + (oldY - la.y) * scaleY;
-
-                          // Recompute and maintain the crop's internal pan/scale transform
-                          try {
-                            const crop = JSON.parse(el.getAttribute('data-crop-data'));
-                            const centerX = imgX + (imgW / 2);
-                            const centerY = imgY + (imgH / 2);
-                            const panX = (imgW * (parseFloat(crop.offX) || 0)) / 100;
-                            const panY = (imgH * (parseFloat(crop.offY) || 0)) / 100;
-                            const finalScale = parseFloat(crop.scale) || 1;
-                            child.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${finalScale}) translate(${-centerX} ${-centerY})`);
-                          } catch (e) {
-                            // ignore parsing errors during drag
-                          }
-                        }
-
-
+                        const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
                         if ((tag === 'image' || tag === 'video' || tag === 'svg') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
                           // Keep the element exactly as it was, do not resize it!
                           imgX = child.getAttribute('x') || 0;
@@ -6047,10 +5924,51 @@ const MainEditor = ({
               el.setAttribute('transform', matrixToTransform(nextMatrix));
             }
 
+            // Sync shape stroke overlays dynamically
+            const syncOverlay = (targetEl) => {
+              const overlay = targetEl.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${targetEl.id}"]`);
+              if (overlay) {
+                const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'transform', 'points'];
+                const svg = targetEl.ownerSVGElement;
+                const clip = svg?.querySelector(`clipPath[id="clip-shape-${targetEl.id}"]`);
+                const mask = svg?.querySelector(`mask[id="mask-shape-${targetEl.id}"]`);
+                const refShape = clip ? clip.firstChild : (mask ? mask.lastChild : null);
+
+                attrsToSync.forEach(attr => {
+                  const val = targetEl.getAttribute(attr);
+                  if (val !== null) {
+                    overlay.setAttribute(attr, val);
+                    if (refShape) refShape.setAttribute(attr, val);
+                  } else {
+                    overlay.removeAttribute(attr);
+                    if (refShape) refShape.removeAttribute(attr);
+                  }
+                });
+                overlay.style.transform = targetEl.style.transform;
+                overlay.style.translate = targetEl.style.translate;
+                overlay.style.scale = targetEl.style.scale;
+                overlay.style.rotate = targetEl.style.rotate;
+                if (refShape) {
+                  refShape.style.transform = targetEl.style.transform;
+                  refShape.style.translate = targetEl.style.translate;
+                  refShape.style.scale = targetEl.style.scale;
+                  refShape.style.rotate = targetEl.style.rotate;
+                }
+              }
+            };
+
+            if (el.tagName === 'multi') {
+              if (state.childrenData) state.childrenData.forEach(c => syncOverlay(c.child));
+              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
+            } else {
+              syncOverlay(el);
+              const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
+              drawOverlayHighlight(el, highlightType);
+            }
+
             // ── LIVE CROP CLIP SYNC DURING RESIZE DRAG ─────────────────────────────
             // For cropped image groups, update the SVG clipPath rects in real-time
             // so the crop boundary stays in sync with the element while dragging.
-            // This MUST happen before drawOverlayHighlight so getVisualBBox reads the updated crop rects!
             if (
               el &&
               typeof el.getAttribute === 'function' &&
@@ -6098,48 +6016,6 @@ const MainEditor = ({
                 }
               } catch (_e) { /* non-critical */ }
             }
-
-            // Sync shape stroke overlays dynamically
-            const syncOverlay = (targetEl) => {
-              const overlay = targetEl.parentNode?.querySelector(`.svg-shape-stroke-overlay[data-target="${targetEl.id}"]`);
-              if (overlay) {
-                const attrsToSync = ['x', 'y', 'width', 'height', 'd', 'cx', 'cy', 'r', 'rx', 'ry', 'transform', 'points'];
-                const svg = targetEl.ownerSVGElement;
-                const clip = svg?.querySelector(`clipPath[id="clip-shape-${targetEl.id}"]`);
-                const mask = svg?.querySelector(`mask[id="mask-shape-${targetEl.id}"]`);
-                const refShape = clip ? clip.firstChild : (mask ? mask.lastChild : null);
-
-                attrsToSync.forEach(attr => {
-                  const val = targetEl.getAttribute(attr);
-                  if (val !== null) {
-                    overlay.setAttribute(attr, val);
-                    if (refShape) refShape.setAttribute(attr, val);
-                  } else {
-                    overlay.removeAttribute(attr);
-                    if (refShape) refShape.removeAttribute(attr);
-                  }
-                });
-                overlay.style.transform = targetEl.style.transform;
-                overlay.style.translate = targetEl.style.translate;
-                overlay.style.scale = targetEl.style.scale;
-                overlay.style.rotate = targetEl.style.rotate;
-                if (refShape) {
-                  refShape.style.transform = targetEl.style.transform;
-                  refShape.style.translate = targetEl.style.translate;
-                  refShape.style.scale = targetEl.style.scale;
-                  refShape.style.rotate = targetEl.style.rotate;
-                }
-              }
-            };
-
-            if (el.tagName === 'multi') {
-              if (state.childrenData) state.childrenData.forEach(c => syncOverlay(c.child));
-              drawMultiSelectionHighlight(multiSelectedIdsRef.current, 'selected');
-            } else {
-              syncOverlay(el);
-              const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
-              drawOverlayHighlight(el, highlightType);
-            }
           },
           end(event) {
             // Unlock cursor back to default
@@ -6153,10 +6029,15 @@ const MainEditor = ({
                 state.el.setAttribute('data-object-fit', 'Crop');
               }
 
-              // ── SYNC SCALED ORIG DIMS AFTER RESIZE ────────────────────────────────
-              // When a cropped image is resized, the crop percentages remain identical
-              // because both the crop bounds and the full image scale proportionally.
-              // We just need to update data-crop-orig-* so applyVisuals restores the NEW size.
+              // ── CROP REMAP AFTER RESIZE ────────────────────────────────────────────
+              // When a cropped image is resized, ImageEditor.applyVisuals later reads
+              // data-crop-orig-w/h and RESETS the image element to those OLD dimensions,
+              // effectively undoing the resize. The fix:
+              //   1. Compute the crop's absolute pixel bounds (in old-dim space).
+              //   2. Express those same pixel bounds as NEW percentages relative to the
+              //      newly scaled element size.
+              //   3. Update data-crop-orig-w/h/x/y and data-crop-data so applyVisuals
+              //      restores the element at the correct NEW size with the same visual crop.
               const el = state.el;
               if (
                 el &&
@@ -6168,25 +6049,55 @@ const MainEditor = ({
                 try {
                   const imgEl = el.querySelector('image, video');
                   if (imgEl) {
+                    // The NEW element dimensions (after resize)
                     const newW = parseFloat(imgEl.getAttribute('width') || '0');
                     const newH = parseFloat(imgEl.getAttribute('height') || '0');
                     const newX = parseFloat(imgEl.getAttribute('x') || '0');
                     const newY = parseFloat(imgEl.getAttribute('y') || '0');
 
-                    if (newW > 0 && newH > 0) {
+                    // The OLD (stored) original dimensions before this resize
+                    const oldW = parseFloat(el.getAttribute('data-crop-orig-w') || '0');
+                    const oldH = parseFloat(el.getAttribute('data-crop-orig-h') || '0');
+                    const oldX = parseFloat(el.getAttribute('data-crop-orig-x') || '0');
+                    const oldY = parseFloat(el.getAttribute('data-crop-orig-y') || '0');
+
+                    if (newW > 0 && newH > 0 && oldW > 0 && oldH > 0) {
+                      const cropStr = el.getAttribute('data-crop-data');
+                      const crop = JSON.parse(cropStr);
+
+                      // Compute absolute pixel crop bounds in OLD-dim space
+                      const absLeft = oldX + (parseFloat(crop.left) / 100) * oldW;
+                      const absTop = oldY + (parseFloat(crop.top) / 100) * oldH;
+                      const absCropW = (parseFloat(crop.width) / 100) * oldW;
+                      const absCropH = (parseFloat(crop.height) / 100) * oldH;
+
+                      // Re-express as percentages relative to NEW element size
+                      const newCropLeft = Math.max(0, Math.min(100, ((absLeft - newX) / newW) * 100));
+                      const newCropTop = Math.max(0, Math.min(100, ((absTop - newY) / newH) * 100));
+                      const newCropWidth = Math.max(0, Math.min(100 - newCropLeft, (absCropW / newW) * 100));
+                      const newCropHeight = Math.max(0, Math.min(100 - newCropTop, (absCropH / newH) * 100));
+
+                      // Persist the remapped crop percentages
+                      const newCropData = {
+                        ...crop,
+                        left: newCropLeft,
+                        top: newCropTop,
+                        width: newCropWidth,
+                        height: newCropHeight
+                      };
+                      el.setAttribute('data-crop-data', JSON.stringify(newCropData));
+
+                      // Update stored orig dims so applyVisuals restores to the NEW size
                       el.setAttribute('data-crop-orig-w', newW.toString());
                       el.setAttribute('data-crop-orig-h', newH.toString());
                       el.setAttribute('data-crop-orig-x', newX.toString());
                       el.setAttribute('data-crop-orig-y', newY.toString());
-                    }
 
                       // Recompute and update the SVG clipPath rects in <defs>
-                      const cropStr = el.getAttribute('data-crop-data');
-                      const crop = JSON.parse(cropStr);
-                      const clipX = newX + (newW * (parseFloat(crop.left) || 0)) / 100;
-                      const clipY = newY + (newH * (parseFloat(crop.top) || 0))  / 100;
-                      const clipW = (newW * (parseFloat(crop.width) || 100))  / 100;
-                      const clipH = (newH * (parseFloat(crop.height) || 100)) / 100;
+                      const clipX = newX + (newW * newCropLeft) / 100;
+                      const clipY = newY + (newH * newCropTop) / 100;
+                      const clipW = (newW * newCropWidth) / 100;
+                      const clipH = (newH * newCropHeight) / 100;
 
                       const svgRoot = el.ownerSVGElement || imgEl.ownerSVGElement;
                       if (svgRoot) {
@@ -6202,6 +6113,7 @@ const MainEditor = ({
                         }
                       }
                     }
+                  }
                 } catch (_e) { /* non-critical */ }
               }
 
@@ -7057,12 +6969,12 @@ const MainEditor = ({
     if (!svg) return;
 
     // Clear all hover states
-    document.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
-    document.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
+    svg.querySelectorAll('[data-hovered="true"]').forEach(el => el.removeAttribute('data-hovered'));
+    svg.querySelectorAll('[data-child-hovered="true"]').forEach(el => el.removeAttribute('data-child-hovered'));
     clearOverlayType('hover');
     clearOverlayType('child-hover');
 
-    // ── Direct selection mode: hover the deepest element ──
+    // ── Direct selection mode: hover the deepest element with an ID ──────────
     if (selectedSelectTool === 'direct') {
       const target = getDraggableElement(e.target, svg);
       if (target && target.id && target.tagName.toLowerCase() !== 'svg') {
@@ -7074,54 +6986,67 @@ const MainEditor = ({
       }
     }
 
-    // ── Standard selection mode: hover candidate resolution ──
     const frameId = currentFrameIdRef.current;
-    const context = frameId ? svg.querySelector(`[id="${frameId}"]`) : null;
 
-    let hoverTarget = null;
-    const leafTarget = getDraggableElement(e.target, svg);
-
-    if (leafTarget) {
-      let candidate = leafTarget;
-      if (context && context.contains(leafTarget)) {
-        // Inside an entered frame context: climb up to direct child of context
-        while (candidate.parentNode && candidate.parentNode !== context && candidate.parentNode !== svg) {
-          candidate = candidate.parentNode;
-        }
-      } else {
-        // Outside entered frame context: climb up to top-level element/group child of svg
-        while (candidate.parentNode && candidate.parentNode !== svg && candidate.parentNode.tagName?.toLowerCase() !== 'svg') {
-          if (candidate.parentNode.id && candidate.parentNode.id === 'main-svg-root') break;
-          candidate = candidate.parentNode;
-        }
-      }
-
-      const isBaseOverlay = candidate.getAttribute('data-name') === 'Overlay' || candidate.getAttribute('data-type') === 'background';
-      if (!isBaseOverlay && candidate.id && candidate.tagName.toLowerCase() !== 'svg') {
-        hoverTarget = candidate;
+    // ── DYNAMIC CONTEXT (Double Page): Auto-adjust target level for easy edit ─────
+    // If we're on a spread, always try to "enter" the page we are hovering
+    let effectiveFrameId = frameId;
+    if (isDoublePage) {
+      const tops = getTopLevelFrames(svg);
+      const hitRoot = tops.find(f => hitTest(f, e.clientX, e.clientY));
+      if (hitRoot && tops.length === 1 && effectiveFrameId !== hitRoot.id) {
+        effectiveFrameId = hitRoot.id;
+        // No need to set state via setCurrentFrameId here, 
+        // the handleClick will finalize it. 
+        // Just use local effectiveFrameId for hover highlighting.
       }
     }
 
-    // Fallback: If e.target was not directly hit, check elements at mouse point
-    if (!hoverTarget) {
-      const hits = getElementsAtPoint(e.clientX, e.clientY);
-      for (const cand of hits) {
-        if (cand && cand.id && cand.getAttribute('data-name') !== 'Overlay' && cand.getAttribute('data-type') !== 'background') {
-          hoverTarget = cand;
-          break;
+    if (effectiveFrameId) {
+      // ── Inside a frame: hover its direct children ──
+      const frameEl = svg.querySelector(`[id="${effectiveFrameId}"]`);
+      if (frameEl) {
+        const children = getDirectChildFrames(frameEl);
+        for (let i = children.length - 1; i >= 0; i--) {
+          if (hitTest(children[i], e.clientX, e.clientY)) {
+            // Only hover if not already selected
+            if (!multiSelectedIdsRef.current.has(children[i].id) && selectedLayerIdRef.current !== children[i].id) {
+              children[i].setAttribute('data-child-hovered', 'true');
+              drawOverlayHighlight(children[i], 'child-hover');
+            }
+            return;
+          }
+        }
+
+        // Falling outside current frame context: highlight top-level elements
+        if (!hitTest(frameEl, e.clientX, e.clientY)) {
+          const topLevelEls = getTopLevelFrames(svg);
+          for (let i = topLevelEls.length - 1; i >= 0; i--) {
+            if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+              // Only hover if not already selected
+              if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+                topLevelEls[i].setAttribute('data-hovered', 'true');
+                drawOverlayHighlight(topLevelEls[i], 'hover');
+              }
+              return;
+            }
+          }
+        }
+      }
+    } else {
+      // ── Top-level: hover top-level frames ──
+      const topLevelEls = getTopLevelFrames(svg);
+      for (let i = topLevelEls.length - 1; i >= 0; i--) {
+        if (hitTest(topLevelEls[i], e.clientX, e.clientY)) {
+          // Only hover if not already selected
+          if (!multiSelectedIdsRef.current.has(topLevelEls[i].id) && selectedLayerIdRef.current !== topLevelEls[i].id) {
+            topLevelEls[i].setAttribute('data-hovered', 'true');
+            drawOverlayHighlight(topLevelEls[i], 'hover');
+          }
+          return;
         }
       }
     }
-
-    if (hoverTarget && hoverTarget.id) {
-      const isAlreadySelected = multiSelectedIdsRef.current.has(hoverTarget.id) || selectedLayerIdRef.current === hoverTarget.id;
-      if (!isAlreadySelected) {
-        const hoverType = (frameId && hoverTarget.id !== frameId && context?.contains(hoverTarget)) ? 'child-hover' : 'hover';
-        hoverTarget.setAttribute(`data-${hoverType}ed`, 'true');
-        drawOverlayHighlight(hoverTarget, hoverType);
-      }
-    }
-
   };
 
   // ── MARQUEE SELECTION LOGIC (Optimized) ──
