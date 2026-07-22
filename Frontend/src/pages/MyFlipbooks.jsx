@@ -10,6 +10,8 @@ import { convertPdfToImages, getPdfPageCount, generatePdfPageSvg } from '../util
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
+import { getSupabaseBaseUrl } from '../utils/supabaseUtils';
+
 
 // Lazy-load preview iframe: only fetches HTML when card is visible in viewport
 const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl }) => {
@@ -1576,7 +1578,13 @@ export default function MyFlipbooks() {
                                 }
 
                                 // Use actualFolder and book.realName (folder name on server) to generate the base path
-                                const iframeBaseUrl = `${backendUrl}/uploads/${user?.emailId?.replace(/[@.]/g, "_")}/My_Flipbooks/${encodeURIComponent(actualFolder)}/${encodeURIComponent(book.realName)}/`;
+                                const iframeBaseUrl = getSupabaseBaseUrl(
+                                    user?.emailId?.replace(/[@.]/g, "_"),
+                                    actualFolder,
+                                    book.realName
+                                );
+
+
 
                                 return (
                                     <div

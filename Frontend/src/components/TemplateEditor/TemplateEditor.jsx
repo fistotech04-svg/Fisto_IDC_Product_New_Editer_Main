@@ -14,6 +14,8 @@ import AlertModal from '../AlertModal';
 import PdfProcessingLoader from '../PdfProcessingLoader';
 import PopupTemplateSelection, { TEMPLATES as popupTemplates } from './PopupTemplateSelection';
 import Model3DPreviewModal from './Interaction3DPreview';
+import { getSupabaseBaseUrl, resolveUploadsPath } from '../../utils/supabaseUtils';
+
 
 /**
  * Internal helper to parse layers from SVG content recursively.
@@ -525,9 +527,10 @@ const TemplateEditor = () => {
               if (uploadRes.data && uploadRes.data.url) {
                 // url is relative: ./assets/3D_Model/<filename>
                 const finalUrl = uploadRes.data.url;
-                const absoluteUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${finalUrl.replace(/^\.\//, '')}`;
+                const absoluteUrl = `${getSupabaseBaseUrl(sanitizedEmail, fNameFor3D, bNameFor3D)}${finalUrl.replace(/^\.\//, '')}`;
 
                 let newHtmlVal = dataVal.replace(actualDataUri, absoluteUrl);
+
                 if (dataVal.startsWith('{') && uploadRes.data.v_id) {
                   try {
                     const obj = JSON.parse(newHtmlVal);
@@ -649,10 +652,11 @@ const TemplateEditor = () => {
                 const assetPathMatch = finalUrl.match(/assets\/[^/]+\/[^/]+$/);
                 const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
                 const absoluteUrl = assetPathMatch
-                  ? `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fNameFor3D}/${bNameFor3D}/${assetPathMatch[0]}`
+                  ? `${getSupabaseBaseUrl(sanitizedEmail, fNameFor3D, bNameFor3D)}${assetPathMatch[0]}`
                   : finalUrl;
 
                 // Replace the data URI directly in the raw HTML
+
                 newHtml = newHtml.split(actualDataUri).join(absoluteUrl);
 
                 // Update the live DOM element so InteractionPanel shows the image immediately
@@ -744,9 +748,10 @@ const TemplateEditor = () => {
             const folderNameArr = Array.isArray(currentBook?.folderName) ? currentBook.folderName : [currentBook?.folderName || location.state?.folderName || 'Recent Book'];
             const fName = folderNameArr.find(f => f !== 'Recent Book' && f !== 'All Books') || folderNameArr[0] || 'Recent Book';
             const bName = currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook';
-            const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${fName}/${bName}/`;
+            const projectBaseUrl = getSupabaseBaseUrl(sanitizedEmail, fName, bName);
 
             // Convert absolute paths back to relative for storage portability
+
             if (content && content.includes(projectBaseUrl)) {
               content = content.split(projectBaseUrl).join('./');
             }
@@ -3443,7 +3448,7 @@ const TemplateEditor = () => {
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: { emailId: user?.emailId, v_id, folderName: folder || location.state?.folderName, bookName: decodeURIComponent(v_id), metadataOnly: true }
+            params: { emailId: user?.emailId, v_id, folderName: folder || location.state?.folderName, bookName: decodeURIComponent(v_id) }
           });
 
           if (res.data && res.data.pages) {
@@ -3452,20 +3457,13 @@ const TemplateEditor = () => {
             const folderNameArr = Array.isArray(res.data.meta.folderName) ? res.data.meta.folderName : [res.data.meta.folderName || 'Recent Book'];
             const actualFolderName = folderNameArr.find(f => f !== 'Recent Book' && f !== 'All Books') || folderNameArr[0] || 'Recent Book';
             const bookName = res.data.meta.flipbookName || 'Untitled Flipbook';
-            const projectBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${actualFolderName}/${bookName}/`;
+            const projectBaseUrl = getSupabaseBaseUrl(sanitizedEmail, actualFolderName, bookName);
+
 
             const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
               const name = p.name || `Page ${i + 1}`;
               let pageHtml = p.html;
 
-              if (!pageHtml && p.fileName) {
-                try {
-                  const htmlRes = await axios.get(`${projectBaseUrl}${p.fileName}?t=${Date.now()}`);
-                  pageHtml = htmlRes.data;
-                } catch (e) {
-                  console.error(`Failed to fetch HTML for ${p.fileName}`, e);
-                }
-              }
 
               if (!pageHtml || typeof pageHtml !== 'string' || pageHtml.trim() === '') {
                 const { html, layers } = createDefaultPageData(name);
@@ -3477,7 +3475,7 @@ const TemplateEditor = () => {
                 };
               }
 
-              // Transform relative paths to absolute for the editor's canvas
+              // Transform relative paths to absolute Supabase CDN URLs for the editor's canvas
               let updatedHtml = pageHtml;
               if (updatedHtml.includes('./assets/')) {
                 updatedHtml = updatedHtml.split('./assets/').join(`${projectBaseUrl}assets/`);
@@ -3653,9 +3651,9 @@ const TemplateEditor = () => {
         finalVal = JSON.parse(val).data || JSON.parse(val).url || val;
       }
       if (typeof finalVal === 'string' && finalVal.startsWith('/uploads/')) {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-        finalVal = `${backendUrl}${finalVal}`;
+        finalVal = resolveUploadsPath(finalVal);
       }
+
       return finalVal;
     } catch (e) {
       return null;

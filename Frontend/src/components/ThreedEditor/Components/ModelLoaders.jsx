@@ -14,11 +14,15 @@ import { LoadingSpinner } from "./GlobalLoader";
 const resolveUrl = (url) => {
     if (!url) return null;
     if (typeof url !== 'string') return url;
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+        return url;
+    }
     if (url.startsWith('/uploads')) {
         return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
     }
     return url;
 };
+
 
 // GLB Loader Component
 export const GLBModel = React.forwardRef(({ url, shouldClone, ...props }, ref) => {
