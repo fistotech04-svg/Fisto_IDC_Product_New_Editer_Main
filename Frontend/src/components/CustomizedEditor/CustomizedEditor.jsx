@@ -14,6 +14,8 @@ import Statistic from './Statistic';
 import FlipbookPreview from '../TemplateEditor/FlipbookPreview.jsx';
 import { getFromDB, saveToDB } from '../../utils/dbUtils';
 import { getDominantColors, REACT_BITS_THEMES_COLORS } from '../../utils/colorExtractor';
+import { getSupabaseBaseUrl } from '../../utils/supabaseUtils';
+
 
 // Helper functions for color synchronization (matching Layout.jsx logic)
 const getTint = (hex, weight = 0.8) => {
@@ -361,7 +363,7 @@ const CustomizedEditor = () => {
           icon: 'default',
           font: 'Arial'
         },
-        startEndNav: false,
+        startEndNav: true,
       },
       viewing: {
         zoom: true,
@@ -831,17 +833,18 @@ const CustomizedEditor = () => {
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
 
           const res = await axios.get(`${backendUrl}/api/flipbook/get`, {
-            params: { emailId: user.emailId, v_id, folderName: folder, bookName: decodeURIComponent(v_id), metadataOnly: true }
+            params: { emailId: user.emailId, v_id, folderName: folder, bookName: decodeURIComponent(v_id) }
           });
 
           if (res.data) {
             let pBaseUrl = null;
             if (res.data.meta) {
               const sanitizedEmail = user?.emailId?.replace(/[@.]/g, "_");
-              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-              pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
+              pBaseUrl = getSupabaseBaseUrl(sanitizedEmail, res.data.meta.folderName, res.data.meta.flipbookName);
               setProjectBaseUrl(pBaseUrl);
             }
+
+
 
             // ONLY overwrite pages if we DON'T have an autosave
             if (!isAutosaveLoaded) {
@@ -852,15 +855,6 @@ const CustomizedEditor = () => {
               if (res.data.pages) {
                 const mappedPages = await Promise.all(res.data.pages.map(async (p, i) => {
                   let rawHTML = p.html || p.content || '';
-
-                  if (!rawHTML && p.fileName) {
-                     try {
-                       const htmlRes = await axios.get(`${pBaseUrl}${p.fileName}?t=${Date.now()}`);
-                       rawHTML = htmlRes.data;
-                     } catch(e) {
-                       console.error(`Failed to fetch HTML for ${p.fileName}`, e);
-                     }
-                  }
 
                   if (!rawHTML || typeof rawHTML !== 'string' || rawHTML.trim() === '') {
                     const defaultData = createDefaultPageData(p.name || `Page ${i + 1}`);

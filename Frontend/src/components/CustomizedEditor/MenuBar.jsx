@@ -560,7 +560,7 @@ const MenuBar = ({ onBack, settings, onUpdate, activeLayout, onNavigateToOtherSe
 
           <MenuItem
             label="Start / End Navigation"
-            enabled={settings.navigation?.startEndNav}
+            enabled={settings.navigation?.startEndNav ?? true}
             onChange={(val) => updateSection('navigation', 'startEndNav', val)}
           />
         </div>

@@ -3078,6 +3078,9 @@ const ImageEditor = ({
                                     }
                                   }
                                 }
+                                // Mark imageType as Crop immediately so applyVisuals works correctly on first use
+                                setImageType('Crop');
+                                stateRef.current.imageType = 'Crop';
                                 setShowCropModal(true);
                               } else {
                                 setImageType(type);
@@ -3418,25 +3421,31 @@ const ImageEditor = ({
               const scale = parseFloat(newCrop.scale) || 1;
               const offX = parseFloat(newCrop.offX) || 0;
               const offY = parseFloat(newCrop.offY) || 0;
-              // Trust the crop data from CropOverlay completely.
-
-              newCrop.width = Math.max(5, newCrop.width);
-              newCrop.height = Math.max(5, newCrop.height);
+              // Trust the crop data from CropOverlay completely — no size clamping.
 
               selectedElement.setAttribute('data-effect-crop-inset', 'true');
               selectedElement.setAttribute('data-crop-data', JSON.stringify(newCrop));
+              selectedElement.setAttribute('data-object-fit', 'Crop');
             }
             if (liveEl && liveEl !== selectedElement) {
               liveEl.setAttribute('data-effect-crop-inset', 'true');
               liveEl.setAttribute('data-crop-data', JSON.stringify(newCrop));
+              liveEl.setAttribute('data-object-fit', 'Crop');
             }
+
+            // Ensure imageType is 'Crop' so applyVisuals correctly applies SVG crop clip
+            setImageType('Crop');
+            stateRef.current.imageType = 'Crop';
 
             setShowCropModal(false);
 
             setTimeout(() => {
+              isHydrating.current = false; // Force-clear hydration so applyVisuals can run
               applyVisuals();
               if (onUpdateRef.current) onUpdateRef.current({ shouldRefresh: true });
-            }, 0);
+              // Force a re-selection redraw so the indigo selection box snaps to the cropped region
+              window.dispatchEvent(new CustomEvent('force-selection-redraw', { detail: { id: selectedLayerId } }));
+            }, 80);
           }}
         />
       )}

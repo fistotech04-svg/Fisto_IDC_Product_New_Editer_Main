@@ -219,6 +219,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   const isHoveringRef = useRef(false);
   const sidebarRef = useRef(null);
 
+  const transitionEffectRef = useRef(slideshowSettings.transitionEffect || 'Linear');
+  useEffect(() => {
+    transitionEffectRef.current = slideshowSettings.transitionEffect || 'Linear';
+  }, [slideshowSettings.transitionEffect]);
+
   const [showEffectDropdown, setShowEffectDropdown] = useState(false);
   const [showFitDropdown, setShowFitDropdown] = useState(false);
   const [openContextMenu, setOpenContextMenu] = useState(null);
@@ -413,7 +418,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
   }, [selectedElement]);
 
   const applyDesign = useCallback(() => {
-    if (!selectedElement?.id || isDisabling || isUpdatingDOM.current) return;
+    if (!selectedElement?.id || isDisabling) return;
 
     const apply = () => {
       const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
@@ -429,10 +434,11 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
         const newDataStr = JSON.stringify(dataToSave);
         const oldDataStr = targetElement.getAttribute('data-slideshow');
 
-        // Use a unique signature for the "core" visual state (excluding current index)
+        // Use a unique signature for the "core" visual state (excluding current index and runtime interactive settings)
         const visualStateSignature = JSON.stringify({
           id: selectedElement.id,
-          data: dataToSave,
+          images: slideshowImages.map(img => ({ url: img.url, isOriginalCrop: img.isOriginalCrop, cropData: img.cropData })),
+          imageFitType: slideshowSettings.imageFitType,
           opacity: opacity
         });
 
@@ -442,108 +448,120 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
           targetElement.dataset.slideshow = newDataStr;
           targetElement.dataset.isSlideshow = 'true';
           targetElement.setAttribute('data-slideshow-manual', 'true');
+
+          // Trigger a silent background save to the parent appData
+          // We debounce this specifically to avoid massive lag when dragging sliders.
+          if (onUpdateRef.current) {
+            if (onUpdateTimerRef.current) clearTimeout(onUpdateTimerRef.current);
+            onUpdateTimerRef.current = setTimeout(() => {
+              if (onUpdateRef.current) onUpdateRef.current({});
+            }, 500);
+          }
         }
 
         targetElement.setAttribute('data-active-index', activeSlideIndex.toString());
 
         // Sync active slide URL to href/src
+
         const targetImg = getSvgImageEl(targetElement) || targetElement;
-        if (slideshowImages[activeSlideIndex]) {
-          const imgObj = slideshowImages[activeSlideIndex];
-          const url = imgObj.url;
-          if (targetImg.getAttribute('href') !== url || targetImg.src !== url) {
-            targetImg.setAttribute('href', url);
-            try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
-            if (targetImg.tagName?.toLowerCase() === 'img') targetImg.src = url;
-            if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
-          }
+        
+        // ONLY touch the visual image properties (href, crop, opacity) if an animation isn't currently running.
+        // The timer (performTransition) has exclusive control over these during active transitions.
+        if (!isAnimatingRef.current) {
+          if (slideshowImages[activeSlideIndex]) {
+            const imgObj = slideshowImages[activeSlideIndex];
+            const url = imgObj.url;
+            if (targetImg.getAttribute('href') !== url || targetImg.src !== url) {
+              targetImg.setAttribute('href', url);
+              try { targetImg.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', url); } catch (e) { }
+              if (targetImg.tagName?.toLowerCase() === 'img') targetImg.src = url;
+              if (setPreviewSrcRef.current) setPreviewSrcRef.current(url);
+            }
 
-          // Ensure the crop viewport correctly frames the image for transitions
-          const cropStr = targetElement.getAttribute('data-crop-data');
-          if (cropStr && cropStr !== 'null') {
-            try {
-              const crop = JSON.parse(cropStr);
-              const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || targetImg.getAttribute('data-crop-orig-x') || '0');
-              const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || targetImg.getAttribute('data-crop-orig-y') || '0');
-              const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || targetImg.getAttribute('data-crop-orig-w') || targetImg.getAttribute('width') || '100');
-              const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || targetImg.getAttribute('data-crop-orig-h') || targetImg.getAttribute('height') || '100');
+            // Ensure the crop viewport correctly frames the image for transitions
+            const cropStr = targetElement.getAttribute('data-crop-data');
+            if (cropStr && cropStr !== 'null') {
+              try {
+                const crop = JSON.parse(cropStr);
+                const origX = parseFloat(targetElement.getAttribute('data-crop-orig-x') || targetImg.getAttribute('data-crop-orig-x') || '0');
+                const origY = parseFloat(targetElement.getAttribute('data-crop-orig-y') || targetImg.getAttribute('data-crop-orig-y') || '0');
+                const origW = parseFloat(targetElement.getAttribute('data-crop-orig-w') || targetImg.getAttribute('data-crop-orig-w') || targetImg.getAttribute('width') || '100');
+                const origH = parseFloat(targetElement.getAttribute('data-crop-orig-h') || targetImg.getAttribute('data-crop-orig-h') || targetImg.getAttribute('height') || '100');
 
-              // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
-              const wrapper = targetImg.parentNode;
-              if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
-                let anchor = wrapper.querySelector('.bbox-anchor');
-                if (!anchor) {
-                  anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                  anchor.setAttribute('class', 'bbox-anchor');
-                  anchor.setAttribute('fill', 'none');
-                  anchor.style.pointerEvents = 'none';
-                  wrapper.insertBefore(anchor, wrapper.firstChild);
+                // Ensure bounding box anchor exists to prevent CSS clip-path percentage shifts
+                const wrapper = targetImg.parentNode;
+                if (wrapper && wrapper.tagName.toLowerCase() === 'g') {
+                  let anchor = wrapper.querySelector('.bbox-anchor');
+                  if (!anchor) {
+                    anchor = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    anchor.setAttribute('class', 'bbox-anchor');
+                    anchor.setAttribute('fill', 'none');
+                    anchor.style.pointerEvents = 'none';
+                    wrapper.insertBefore(anchor, wrapper.firstChild);
+                  }
+                  anchor.setAttribute('x', origX);
+                  anchor.setAttribute('y', origY);
+                  anchor.setAttribute('width', origW);
+                  anchor.setAttribute('height', origH);
                 }
-                anchor.setAttribute('x', origX);
-                anchor.setAttribute('y', origY);
-                anchor.setAttribute('width', origW);
-                anchor.setAttribute('height', origH);
-              }
 
-              if (imgObj?.isOriginalCrop) {
-                targetImg.setAttribute('x', origX);
-                targetImg.setAttribute('y', origY);
-                targetImg.setAttribute('width', origW);
-                targetImg.setAttribute('height', origH);
-                targetImg.style.removeProperty('transform');
-              } else {
-                const cropX = origX + (origW * (parseFloat(crop.left) / 100));
-                const cropY = origY + (origH * (parseFloat(crop.top) / 100));
-                const cropW = origW * (parseFloat(crop.width) / 100);
-                const cropH = origH * (parseFloat(crop.height) / 100);
+                if (imgObj?.isOriginalCrop) {
+                  targetImg.setAttribute('x', origX);
+                  targetImg.setAttribute('y', origY);
+                  targetImg.setAttribute('width', origW);
+                  targetImg.setAttribute('height', origH);
+                  targetImg.style.removeProperty('transform');
+                } else {
+                  const cropX = origX + (origW * (parseFloat(crop.left) / 100));
+                  const cropY = origY + (origH * (parseFloat(crop.top) / 100));
+                  const cropW = origW * (parseFloat(crop.width) / 100);
+                  const cropH = origH * (parseFloat(crop.height) / 100);
 
-                targetImg.setAttribute('x', cropX);
-                targetImg.setAttribute('y', cropY);
-                targetImg.setAttribute('width', cropW);
-                targetImg.setAttribute('height', cropH);
-                targetImg.style.removeProperty('transform');
-              }
-            } catch (e) { console.error("Error applying crop to gallery image", e); }
+                  targetImg.setAttribute('x', cropX);
+                  targetImg.setAttribute('y', cropY);
+                  targetImg.setAttribute('width', cropW);
+                  targetImg.setAttribute('height', cropH);
+                  targetImg.style.removeProperty('transform');
+                }
+              } catch (e) { console.error("Error applying crop to gallery image", e); }
+            }
           }
-        }
 
-        // Fit mode
-        if (targetImg.tagName?.toLowerCase() === 'image') {
-          const val = slideshowSettings.imageFitType === 'Fill All' ? 'xMidYMid slice' : 'xMidYMid meet';
-          targetImg.setAttribute('preserveAspectRatio', val);
-        } else if (targetImg.tagName?.toLowerCase() === 'img') {
-          const val = slideshowSettings.imageFitType === 'Fill All' ? 'cover' : 'contain';
-          targetImg.style.objectFit = val;
-          targetImg.style.width = '100%';
-          targetImg.style.height = '100%';
-        }
+          // Fit mode
+          if (targetImg.tagName?.toLowerCase() === 'image') {
+            const val = slideshowSettings.imageFitType === 'Fill All' ? 'xMidYMid slice' : 'xMidYMid meet';
+            targetImg.setAttribute('preserveAspectRatio', val);
+          } else if (targetImg.tagName?.toLowerCase() === 'img') {
+            const val = slideshowSettings.imageFitType === 'Fill All' ? 'cover' : 'contain';
+            targetImg.style.objectFit = val;
+            targetImg.style.width = '100%';
+            targetImg.style.height = '100%';
+          }
 
-        // Ensure container doesn't bleed
-        if (targetElement !== targetImg) {
-          if (targetElement.tagName?.toLowerCase() === 'svg') {
+          // Ensure container doesn't bleed
+          if (targetElement !== targetImg) {
+            if (targetElement.tagName?.toLowerCase() === 'svg') {
+              targetElement.style.setProperty('overflow', 'hidden', 'important');
+              targetElement.setAttribute('overflow', 'hidden');
+            }
+          } else if (targetElement.tagName?.toLowerCase() !== 'image' && targetElement.tagName?.toLowerCase() !== 'svg') {
             targetElement.style.setProperty('overflow', 'hidden', 'important');
-            targetElement.setAttribute('overflow', 'hidden');
           }
-        } else if (targetElement.tagName?.toLowerCase() !== 'image' && targetElement.tagName?.toLowerCase() !== 'svg') {
-          targetElement.style.setProperty('overflow', 'hidden', 'important');
+
+          // Apply Opacity
+          targetElement.setAttribute('opacity', (opacity / 100).toString());
+          targetElement.style.opacity = (opacity / 100).toString();
+
+          if (targetImg && targetImg !== targetElement) {
+            targetImg.setAttribute('opacity', (opacity / 100).toString());
+            targetImg.style.opacity = (opacity / 100).toString(); // Do NOT use !important as it breaks Fade transitions
+          }
         }
 
-        // Apply Opacity
-        targetElement.setAttribute('opacity', (opacity / 100).toString());
-        targetElement.style.opacity = (opacity / 100).toString();
-
-        if (targetImg && targetImg !== targetElement) {
-          targetImg.setAttribute('opacity', (opacity / 100).toString());
-          targetImg.style.setProperty('opacity', (opacity / 100).toString(), 'important');
-        }
-
-        // Only trigger a full refresh if the core structural data changed.
-        // Changing the activeSlideIndex should NOT trigger onUpdate({shouldRefresh: true})
-        // because that causes a full SVG re-render in the parent, leading to flickering.
-        if (lastSyncedDataRef.current !== visualStateSignature) {
-          lastSyncedDataRef.current = visualStateSignature;
-          if (onUpdateRef.current) onUpdateRef.current({ shouldRefresh: true });
-        }
+        // No need to trigger a full React re-render of the SVG (shouldRefresh: true)
+        // because the necessary attributes (data-slideshow, href, opacity) are directly mutated on the DOM node above.
+        // Forcing a refresh here causes the DOM to be wiped and rebuilt from the parent's stale state,
+        // which ruins any active CSS transitions and resets the slideshow to Image 1.
       } finally {
         if (isUpdatingDOMTimeoutRef.current) clearTimeout(isUpdatingDOMTimeoutRef.current);
         isUpdatingDOMTimeoutRef.current = setTimeout(() => {
@@ -606,7 +624,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     const nextUrl = images[newIdx]?.url;
     if (!nextUrl || !imgEl) return;
 
-    const effect = (slideshowSettings.transitionEffect || 'Linear').toLowerCase();
+    const effect = (transitionEffectRef.current || 'Linear').toLowerCase();
     const duration = 400;
 
     isAnimatingRef.current = true;
@@ -807,7 +825,20 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       finalize();
     }, duration + 20);
 
-  }, [activePageIndex, selectedElement, slideshowSettings, opacity, setIsUpdatingDOM]);
+  }, [activePageIndex, selectedElement, opacity, setIsUpdatingDOM]);
+
+  const runnerSettingsStr = JSON.stringify({
+    navIconColor: slideshowSettings.navIconColor,
+    navStyle: slideshowSettings.navStyle,
+    showDots: slideshowSettings.showDots,
+    showArrows: slideshowSettings.showArrows,
+    showNav: slideshowSettings.showNav,
+    dotColor: slideshowSettings.dotColor,
+    autoSlide: slideshowSettings.autoSlide,
+    autoPlay: slideshowSettings.autoPlay,
+    speed: slideshowSettings.speed,
+    infiniteLoop: slideshowSettings.infiniteLoop
+  });
 
   useEffect(() => {
     const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
@@ -1255,7 +1286,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       // Restore original overflow
       pageContainer.style.overflow = prevOverflow;
     };
-  }, [selectedElement?.id, slideshowImages.length, JSON.stringify(slideshowSettings), activePageIndex]);
+  }, [selectedElement?.id, slideshowImages.length, runnerSettingsStr, activePageIndex]);
 
 
   const uploadFile = useCallback(async (file, replacingVideoId = null) => {

@@ -11,6 +11,17 @@ import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase } from "../../config/supabase.js";
+
+
+
+
+
+
+
+
+
+
 
 const execAsync = promisify(exec);
 
@@ -25,6 +36,97 @@ const FLIPBOOK_ROOT = "My_Flipbooks";
 
 // Helper to escape regex special characters
 const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const processAndSaveBase64Assets = ({
+  htmlContent,
+  pageVId,
+  sanitizedEmail,
+  physicalFolderName,
+  flipbookName,
+  flipbookDir,
+  flipbook_v_id,
+  newFlipbookAssets = [],
+  savedBase64Map = new Map(),
+  skipBase64Extraction = false
+}) => {
+  if (!htmlContent) return "";
+  if (skipBase64Extraction) return htmlContent;
+
+  const assetsDir = path.join(flipbookDir, "assets");
+  ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
+    const subDir = path.join(assetsDir, sub);
+    if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
+  });
+
+  const base64Regex = /data:([^;]+);base64,([^"&<\s]+)/g;
+  return htmlContent.replace(base64Regex, (match, mimeType, base64Data) => {
+    if (savedBase64Map.has(base64Data)) {
+      return savedBase64Map.get(base64Data);
+    }
+
+    let isDownload = false;
+    let actualMimeType = mimeType;
+    if (mimeType.startsWith('download-')) {
+      isDownload = true;
+      actualMimeType = mimeType.replace('download-', '');
+    }
+
+    const parts = actualMimeType ? actualMimeType.split('/') : ['unknown', 'bin'];
+    const type = parts[0] || 'unknown';
+    const ext = parts[1] || 'bin';
+    let subfolder = type;
+    let normalizedExt = ext;
+    
+    if (isDownload) {
+      subfolder = 'download';
+    } else {
+      if (type === 'image') subfolder = 'Image';
+      else if (type === 'audio') subfolder = 'audio';
+      else if (type === 'video') subfolder = 'video';
+      else if (type === 'model' || ['glb', 'gltf', 'obj', 'stl'].includes(ext)) subfolder = '3D_Model';
+      else subfolder = 'download';
+    }
+
+    
+    if (!isDownload && ext === 'gif') subfolder = 'gif';
+    if (normalizedExt.includes('+')) normalizedExt = normalizedExt.split('+')[0];
+    
+    const assetFileName = `${nanoid()}.${normalizedExt}`;
+    const assetSubDir = path.join(assetsDir, subfolder);
+    if (!fs.existsSync(assetSubDir)) fs.mkdirSync(assetSubDir, { recursive: true });
+    
+    const assetPath = path.join(assetSubDir, assetFileName);
+    try {
+      const buffer = Buffer.from(base64Data, 'base64');
+      fs.writeFileSync(assetPath, buffer);
+      const relativePath = `./assets/${subfolder}/${assetFileName}`;
+
+      const assetDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
+      uploadFileToSupabase(assetPath, assetDestPath).catch(err => console.warn("[Supabase] Asset upload warning:", err));
+
+      const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
+      
+      newFlipbookAssets.push({
+        flipbook_v_id: flipbook_v_id,
+        file_v_id: nanoid(),
+        assetType: subfolder,
+        fileName: assetFileName,
+        page_v_id: pageVId,
+        flipbookName: flipbookName,
+        folderName: physicalFolderName,
+        url: absoluteUrl,
+        size: buffer.length
+      });
+
+      savedBase64Map.set(base64Data, relativePath);
+      return relativePath;
+    } catch(err) {
+      console.error("Error saving base64 asset:", err);
+      return match;
+    }
+  });
+};
+
 
 // Configure multer for asset uploads
 const assetStorage = multer.diskStorage({
@@ -167,6 +269,14 @@ router.post("/upload-3d-model", (req, res) => {
       const type = path.extname(req.file.filename).slice(1);
       const sizeStr = (req.file.size / (1024 * 1024)).toFixed(2) + " MB";
 
+      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+
+      // ── Upload 3D model to Supabase Storage under flipbook assets/3D_Model ──
+      const flipbookAssetSupabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${flipbookName}/assets/3D_Model/${req.file.filename}`;
+      uploadFileToSupabase(req.file.path, flipbookAssetSupabasePath).catch((err) =>
+        console.warn("[Supabase] 3D Model flipbook asset upload warning:", err)
+      );
+
       // ── Save to InteractionThreedModel for flipbook-specific record ────────
       const newInteractionModel = await InteractionThreedModel.create({
         userEmail: emailId,
@@ -181,7 +291,6 @@ router.post("/upload-3d-model", (req, res) => {
       // ── Also copy to user's global 3D_Modals folder ──────────────────────
       let globalUrl = null;
       if (req.body.skipGlobalGallery !== 'true') {
-        const sanitizedEmail = emailId.replace(/[@.]/g, "_");
         const uploadsDir = path.join(__dirname, "../../uploads");
         const globalModalsDir = path.join(uploadsDir, sanitizedEmail, "3D_Modals");
 
@@ -193,6 +302,12 @@ router.post("/upload-3d-model", (req, res) => {
 
         // Copy the already-saved file from the flipbook assets folder
         fs.copyFileSync(req.file.path, globalFilePath);
+
+        // ── Upload 3D model to Supabase Storage under user's global 3D_Modals ──
+        const globalSupabasePath = `${sanitizedEmail}/3D_Modals/${req.file.filename}`;
+        uploadFileToSupabase(globalFilePath, globalSupabasePath).catch((err) =>
+          console.warn("[Supabase] Global 3D Model upload warning:", err)
+        );
 
         // Upsert DB record in ThreedModel so it appears in the user's gallery
         globalUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
@@ -222,6 +337,7 @@ router.post("/upload-3d-model", (req, res) => {
         });
         return;
       }
+
       // ─────────────────────────────────────────────────────────────────────
 
       res.status(200).json({
@@ -404,12 +520,16 @@ router.post("/save", async (req, res) => {
     const savedFileNames = new Set();
     const newPageIds = new Set();
 
-    // Create Default Assets Folders first so we can write to them
+    // Create Default Assets Folders locally and in Supabase Storage
     const assetsDir = path.join(flipbookDir, "assets");
     ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
       const subDir = path.join(assetsDir, sub);
       if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
     });
+    ensureFlipbookFoldersInSupabase(sanitizedEmail, physicalFolderName, flipbookName).catch(err =>
+      console.warn("[Supabase] Auto subfolder create warning:", err)
+    );
+
 
     // Cache to prevent saving the same base64 string multiple times
     const savedBase64Map = new Map();
@@ -417,87 +537,20 @@ router.post("/save", async (req, res) => {
     const flipbook_v_id = req.body.v_id || (existingDoc ? existingDoc.v_id : nanoid(20));
 
     const extractBase64AndSave = (htmlContent, pageVId) => {
-      // Temporarily protect base64 inside tags containing data-name="PDF Background"
-      let protectedContent = htmlContent;
-      const protectedMap = new Map();
-      let placeholderCounter = 0;
-
-      protectedContent = protectedContent.replace(/<(?:image|img)[^>]+data-name=["']PDF Background["'][^>]*>/gi, (match) => {
-        const placeholder = `__PROTECTED_PDF_BG_${placeholderCounter++}__`;
-        protectedMap.set(placeholder, match);
-        return placeholder;
+      return processAndSaveBase64Assets({
+        htmlContent,
+        pageVId,
+        sanitizedEmail,
+        physicalFolderName,
+        flipbookName,
+        flipbookDir,
+        flipbook_v_id,
+        newFlipbookAssets,
+        savedBase64Map
       });
-
-      const base64Regex = /data:([^;]+);base64,([^"&<\s]+)/g;
-      protectedContent = protectedContent.replace(base64Regex, (match, mimeType, base64Data) => {
-        if (savedBase64Map.has(base64Data)) {
-          return savedBase64Map.get(base64Data);
-        }
-
-        let isDownload = false;
-        let actualMimeType = mimeType;
-        if (mimeType.startsWith('download-')) {
-          isDownload = true;
-          actualMimeType = mimeType.replace('download-', '');
-        }
-
-        const parts = actualMimeType ? actualMimeType.split('/') : ['unknown', 'bin'];
-        const type = parts[0] || 'unknown';
-        const ext = parts[1] || 'bin';
-        let subfolder = type;
-        let normalizedExt = ext;
-        
-        if (isDownload) {
-          subfolder = 'download';
-        } else {
-          if (type === 'image') subfolder = 'Image';
-          else if (type === 'audio') subfolder = 'audio';
-          else if (type === 'video') subfolder = 'video';
-          else subfolder = 'download';
-        }
-        
-        if (!isDownload && ext === 'gif') subfolder = 'gif';
-        if (normalizedExt.includes('+')) normalizedExt = normalizedExt.split('+')[0];
-        
-        const assetFileName = `${nanoid()}.${normalizedExt}`;
-        const assetSubDir = path.join(assetsDir, subfolder);
-        if (!fs.existsSync(assetSubDir)) fs.mkdirSync(assetSubDir, { recursive: true });
-        
-        const assetPath = path.join(assetSubDir, assetFileName);
-        try {
-          const buffer = Buffer.from(base64Data, 'base64');
-          fs.writeFileSync(assetPath, buffer);
-          const relativePath = `./assets/${subfolder}/${assetFileName}`;
-          
-          const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
-          
-          newFlipbookAssets.push({
-            flipbook_v_id: flipbook_v_id,
-            file_v_id: nanoid(),
-            assetType: subfolder,
-            fileName: assetFileName,
-            page_v_id: pageVId,
-            flipbookName: flipbookName,
-            folderName: physicalFolderName,
-            url: absoluteUrl,
-            size: buffer.length
-          });
-
-          savedBase64Map.set(base64Data, relativePath);
-          return relativePath;
-        } catch(err) {
-          console.error("Error saving base64 asset:", err);
-          return match;
-        }
-      });
-
-      // Restore protected tags
-      for (const [placeholder, originalMatch] of protectedMap.entries()) {
-        protectedContent = protectedContent.replace(placeholder, originalMatch);
-      }
-
-      return protectedContent;
     };
+
+
 
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
@@ -521,9 +574,12 @@ router.post("/save", async (req, res) => {
         pageVId = nanoid();
       }
 
+      const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${fileName}`;
+
       if (content !== undefined && content !== null) {
         const processedContent = extractBase64AndSave(content, pageVId);
         fs.writeFileSync(filePath, processedContent, "utf8");
+        uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
       } else if (page.contentChunkId) {
         // Reassemble from chunks
         const tempDir = path.join(__dirname, "../../temp_uploads", page.contentChunkId);
@@ -539,6 +595,7 @@ router.post("/save", async (req, res) => {
           
           const processedContent = extractBase64AndSave(assembledContent, pageVId);
           fs.writeFileSync(filePath, processedContent, "utf8");
+          uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
           
           // Cleanup chunks after save (optional, but good practice)
           setTimeout(() => {
@@ -546,6 +603,7 @@ router.post("/save", async (req, res) => {
           }, 5000);
         }
       }
+
       savedPages.push(fileName);
       savedFileNames.add(fileName);
 
@@ -593,11 +651,16 @@ router.post("/save", async (req, res) => {
         
         for (const asset of orphanedAssets) {
           try {
-            if (asset.url && asset.url.startsWith("/uploads")) {
-              const assetPath = path.join(__dirname, "../../", asset.url);
-              if (fs.existsSync(assetPath)) {
-                fs.unlinkSync(assetPath);
-                console.log(`Deleted orphaned asset file: ${assetPath}`);
+            if (asset.url) {
+              deleteFileFromSupabase(asset.url).catch((e) =>
+                console.warn("[Supabase] Delete orphaned asset warning:", e)
+              );
+              if (asset.url.startsWith("/uploads")) {
+                const assetPath = path.join(__dirname, "../../", asset.url);
+                if (fs.existsSync(assetPath)) {
+                  fs.unlinkSync(assetPath);
+                  console.log(`Deleted orphaned asset file: ${assetPath}`);
+                }
               }
             }
             await FlipbookAsset.deleteOne({ _id: asset._id });
@@ -630,13 +693,17 @@ router.post("/save", async (req, res) => {
         if (file.endsWith(".html")) {
           if (!expectedNames.has(file)) {
             fs.unlinkSync(path.join(flipbookDir, file));
+            const supabasePagePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${file}`;
+            deleteFileFromSupabase(supabasePagePath).catch((e) =>
+              console.warn("[Supabase] Delete orphaned page warning:", e)
+            );
           } else {
             // If it's an expected HTML file, scan it for all asset usages
             try {
               const filePath = path.join(flipbookDir, file);
               const content = fs.readFileSync(filePath, "utf8");
               // Extract filenames correctly avoiding HTML entities like &quot;
-              const matches = content.match(/\.\/assets\/(3D_Model|Image|image|gif|video|audio|download)\/([a-zA-Z0-9_.-]+)/gi);
+              const matches = content.match(/\.\/assets\/(3D_Model|3D_Modals|3d_model|Image|image|gif|video|audio|download)\/([a-zA-Z0-9_.-]+)/gi);
               if (matches) {
                 matches.forEach(m => {
                   const parts = m.split('/');
@@ -651,16 +718,25 @@ router.post("/save", async (req, res) => {
       });
 
       // Now cleanup all asset folders
-      const subFolders = ["3D_Model", "Image", "image", "gif", "video", "audio", "download"];
+      const subFolders = ["3D_Model", "3D_Modals", "3d_model", "Image", "image", "gif", "video", "audio", "download"];
       for (const subFolder of subFolders) {
+
         const assetSubDir = path.join(flipbookDir, "assets", subFolder);
         if (fs.existsSync(assetSubDir)) {
           const existingAssetsInDir = fs.readdirSync(assetSubDir);
           for (const assetFile of existingAssetsInDir) {
             if (!activeAssets.has(assetFile)) {
               try {
+                // Delete local file
                 fs.unlinkSync(path.join(assetSubDir, assetFile));
                 console.log(`Deleted orphaned asset: ${assetFile} from ${subFolder}`);
+
+                // Delete asset from Supabase Storage
+                const supabaseAssetPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subFolder}/${assetFile}`;
+                deleteFileFromSupabase(supabaseAssetPath).catch((e) =>
+                  console.warn("[Supabase] Delete unreferenced asset warning:", e)
+                );
+
                 if (subFolder === "3D_Model") {
                   await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: assetFile });
                 } else {
@@ -675,6 +751,7 @@ router.post("/save", async (req, res) => {
         }
       }
     }
+
 
     // Prepare Folder List for DB (Current Folder + 'Recent Book')
     // Using Set to ensure uniqueness
@@ -880,10 +957,34 @@ router.post("/save-page", async (req, res) => {
       fs.mkdirSync(flipbookDir, { recursive: true });
     }
 
-    // Write the HTML file for this page
+    // Write the HTML file for this page after extracting base64 assets
     const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
     const filePath = path.join(flipbookDir, fileName);
-    fs.writeFileSync(filePath, content, "utf8");
+
+    const newFlipbookAssets = [];
+    const processedContent = processAndSaveBase64Assets({
+      htmlContent: content,
+      pageVId: v_id,
+      sanitizedEmail,
+      physicalFolderName: realFolder,
+      flipbookName: doc.flipbookName,
+      flipbookDir,
+      flipbook_v_id: doc.v_id,
+      newFlipbookAssets
+    });
+
+    fs.writeFileSync(filePath, processedContent, "utf8");
+
+    const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${fileName}`;
+    uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
+
+    if (newFlipbookAssets.length > 0) {
+      try {
+        await FlipbookAsset.insertMany(newFlipbookAssets);
+      } catch (err) {
+        console.error("Error inserting extracted page assets:", err);
+      }
+    }
 
     // Update or insert this page in the DB pages array
     const existingPageIdx = doc.pages ? doc.pages.findIndex((p) => p.name === pageName) : -1;
@@ -920,7 +1021,7 @@ router.post("/save-page", async (req, res) => {
 // @body   { emailId, v_id, pages: [{ pageName, content, pageNumber }] }
 router.post("/save-pages-batch", async (req, res) => {
   try {
-    const { emailId, v_id, pages } = req.body;
+    const { emailId, v_id, pages, keepBase64 = true } = req.body;
 
     if (!emailId || !v_id || !Array.isArray(pages) || pages.length === 0) {
       return res.status(400).json({ message: "Missing required fields or pages array is empty" });
@@ -945,13 +1046,32 @@ router.post("/save-pages-batch", async (req, res) => {
     }
 
     doc.pages = doc.pages || [];
+    const newFlipbookAssets = [];
+    const savedBase64Map = new Map();
 
     for (const page of pages) {
-      const { pageName, content, pageNumber } = page;
+      const { pageName, content, pageNumber, v_id: pageVId } = page;
       const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
-      
+      const filePath = path.join(flipbookDir, fileName);
+
+      const processedContent = processAndSaveBase64Assets({
+        htmlContent: content,
+        pageVId: pageVId || `page_${Math.random().toString(36).substr(2, 9)}`,
+        sanitizedEmail,
+        physicalFolderName: realFolder,
+        flipbookName: doc.flipbookName,
+        flipbookDir,
+        flipbook_v_id: doc.v_id,
+        newFlipbookAssets,
+        savedBase64Map,
+        skipBase64Extraction: keepBase64
+      });
+
       // Write HTML file to disk
-      fs.writeFileSync(path.join(flipbookDir, fileName), content, "utf8");
+      fs.writeFileSync(filePath, processedContent, "utf8");
+
+      const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${fileName}`;
+      await uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
 
       // Update or insert into DB pages array
       const existingPageIdx = doc.pages.findIndex((p) => p.name === pageName);
@@ -963,10 +1083,19 @@ router.post("/save-pages-batch", async (req, res) => {
           pageNumber: pageNumber || doc.pages.length + 1,
           name: pageName,
           fileName,
-          v_id: `page_${Math.random().toString(36).substr(2, 9)}`,
+          v_id: pageVId || `page_${Math.random().toString(36).substr(2, 9)}`,
         });
       }
     }
+
+    if (newFlipbookAssets.length > 0) {
+      try {
+        await FlipbookAsset.insertMany(newFlipbookAssets);
+      } catch (err) {
+        console.error("Error inserting extracted batch assets:", err);
+      }
+    }
+
 
     doc.lastUpdated = new Date();
     doc.markModified("pages");
@@ -1230,13 +1359,15 @@ router.get("/list", async (req, res) => {
 router.get("/preview/:v_id", async (req, res) => {
   try {
     const { v_id } = req.params;
-    const { emailId } = req.query;
-    if (!emailId || !v_id) {
-      return res.status(400).json({ message: "Missing emailId or v_id" });
+    const { emailId: reqEmailId } = req.query;
+    if (!v_id) {
+      return res.status(400).json({ message: "Missing v_id" });
     }
 
-    const doc = await Flipbook.findOne({ userEmail: emailId, v_id });
+    const doc = await Flipbook.findOne({ v_id });
     if (!doc) return res.status(404).json({ message: "Flipbook not found" });
+
+    const emailId = reqEmailId || doc.userEmail;
 
     // Resolve physical folder (skip 'Recent Book' virtual tag)
     const realFolders = Array.isArray(doc.folderName)
@@ -1257,16 +1388,26 @@ router.get("/preview/:v_id", async (req, res) => {
     const firstPage = doc.pages?.find((p) => p.pageNumber === 1) || doc.pages?.[0];
     if (!firstPage) return res.json({ html: null });
 
-    const firstPagePath = path.join(bookPath, firstPage.fileName);
-    if (!fs.existsSync(firstPagePath)) return res.json({ html: null });
+    let html = null;
+    const supabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${firstPage.fileName}`;
+    const buf = await downloadFileFromSupabase(supabasePath);
+    if (buf) {
+      html = buf.toString("utf8");
+    } else {
+      const firstPagePath = path.join(bookPath, firstPage.fileName);
+      if (fs.existsSync(firstPagePath)) {
+        html = fs.readFileSync(firstPagePath, "utf8");
+      }
+    }
 
-    const html = fs.readFileSync(firstPagePath, "utf8");
+
     res.json({ html });
   } catch (err) {
     console.error("Error fetching preview:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // @route   GET /api/flipbook/folders
 // @desc    Get list of folders in My_Flipbooks
@@ -1329,12 +1470,20 @@ router.post("/folder/create", (req, res) => {
     }
 
     fs.mkdirSync(targetDir, { recursive: true });
+
+    // Sync folder creation to Supabase Storage by uploading placeholder .keep file
+    const supabaseFolderKeep = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/.keep`;
+    uploadBufferToSupabase(Buffer.from(""), supabaseFolderKeep, "text/plain").catch((err) =>
+      console.warn("[Supabase] Folder create warning:", err)
+    );
+
     res.json({ message: "Folder created", folder: safeFolderName });
   } catch (err) {
-    console.error(err);
+    console.error("Error creating folder:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // Helper for recursive copy
 const copyRecursiveSync = (src, dest) => {
@@ -1409,13 +1558,19 @@ router.post("/folder/rename", async (req, res) => {
       }
     }
 
+    // Rename folder in Supabase Storage
+    const oldSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${oldName}`;
+    const newSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeNewName}`;
+    renamePathInSupabase(oldSupabasePrefix, newSupabasePrefix).catch((err) =>
+      console.warn("[Supabase] Folder rename warning:", err)
+    );
+
     // Update MongoDB for all books in this folder
-    // Update MongoDB for all books in this folder
-    // Since folderName is an array, we must update the specific element while preserving others (e.g. 'Recent Book')
     const booksToUpdate = await Flipbook.find({
       userEmail: emailId,
       folderName: oldName,
     });
+
 
     for (const book of booksToUpdate) {
       if (Array.isArray(book.folderName)) {
@@ -1614,12 +1769,19 @@ router.post("/folder/duplicate", async (req, res) => {
       }
     }
 
+    // Upload duplicated folder structure and files to Supabase Storage
+    const supabaseDupFolderPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${copyName}`;
+    uploadFolderToSupabase(targetPath, supabaseDupFolderPrefix).catch((err) =>
+      console.warn("[Supabase] Duplicate folder upload warning:", err)
+    );
+
     res.json({ message: "Duplicated successfully", newFolderName: copyName });
   } catch (err) {
-    console.error(err);
+    console.error("Error duplicating folder:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // @route POST /api/flipbook/duplicate (Duplicate Book)
 router.post("/duplicate", async (req, res) => {
@@ -1836,18 +1998,34 @@ router.post("/duplicate", async (req, res) => {
       });
     }
 
+    // Upload duplicated flipbook directory and assets to Supabase Storage
+    const supabaseDupBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${copyName}`;
+    uploadFolderToSupabase(targetPath, supabaseDupBookPrefix).catch((err) =>
+      console.warn("[Supabase] Duplicate book upload warning:", err)
+    );
+
     res.json({ message: "Duplicated successfully", newBookName: copyName });
   } catch (err) {
-    console.error(err);
+    console.error("Error duplicating book:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // @route   GET /api/flipbook/get
 // @desc    Get specific flipbook content (pages)
 router.get("/get", async (req, res) => {
   try {
-    const { emailId, folderName, bookName, v_id, metadataOnly } = req.query;
+    const { emailId: reqEmailId, folderName, bookName, v_id, metadataOnly } = req.query;
+
+    // V_ID Lookup Logic
+    let dbDoc = null;
+    if (v_id) {
+      dbDoc = await Flipbook.findOne({ v_id: v_id });
+    }
+
+    const emailId = reqEmailId || (dbDoc ? dbDoc.userEmail : null);
+
     if (!emailId || (!v_id && (!folderName || !bookName)))
       return res.status(400).json({ message: "Missing fields" });
 
@@ -1856,18 +2034,12 @@ router.get("/get", async (req, res) => {
     let effectiveFolderName = folderName;
     let effectiveBookName = bookName;
 
-    // V_ID Lookup Logic
-    let dbDoc = null;
-    if (v_id) {
-      dbDoc = await Flipbook.findOne({ v_id: v_id });
-    }
-
     if (dbDoc) {
-      // Ensure it matches user (optional but safer)
-      if (dbDoc.userEmail !== emailId)
+      if (reqEmailId && dbDoc.userEmail !== reqEmailId)
         return res.status(403).json({ message: "Unauthorized" });
 
       effectiveBookName = dbDoc.flipbookName;
+
 
       // Resolve folder logic
       if (Array.isArray(dbDoc.folderName)) {
@@ -1917,12 +2089,9 @@ router.get("/get", async (req, res) => {
       effectiveBookName,
     );
 
-    if (!fs.existsSync(bookPath))
-      return res.status(404).json({ message: "Book not found" });
-
     let pages = [];
 
-    // 1. Try fetching from MongoDB
+    // 1. Try fetching from MongoDB first
     let dbBook = dbDoc;
     if (!dbBook) {
       dbBook = await Flipbook.findOne({
@@ -1932,12 +2101,16 @@ router.get("/get", async (req, res) => {
       });
     }
 
+    if (!dbBook && !fs.existsSync(bookPath)) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+
     if (dbBook && dbBook.pages && dbBook.pages.length > 0) {
       // Sort by pageNumber to ensure correct order
       dbBook.pages.sort((a, b) => a.pageNumber - b.pageNumber);
 
       const pagePromises = dbBook.pages.map(async (p) => {
-        const filePath = path.join(bookPath, p.fileName);
         try {
           if (metadataOnly === 'true') {
              return {
@@ -1947,14 +2120,31 @@ router.get("/get", async (req, res) => {
                 v_id: p.v_id,
              };
           }
-          // Use async reading for better performance
-          const content = await fs.promises.readFile(filePath, "utf8");
+          // Fetch from Supabase Storage with local disk fallback
+          const supabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}/${p.fileName}`;
+          let buf = await downloadFileFromSupabase(supabasePath);
+
+          if (!buf || buf.length === 0) {
+            const localFilePath = path.join(bookPath, p.fileName);
+            if (fs.existsSync(localFilePath)) {
+              buf = fs.readFileSync(localFilePath);
+              // Trigger background upload to Supabase if missing
+              uploadFileToSupabase(localFilePath, supabasePath).catch(() => {});
+            }
+          }
+
+          // Rewrite /uploads/ and relative ./assets/ references to Supabase CDN
+          const flipbookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${effectiveBookName}`;
+          const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8"), flipbookPrefix) : "";
+
           return {
             name: p.name,
             fileName: p.fileName,
             html: content,
             v_id: p.v_id,
           };
+
+
         } catch (e) {
           return null;
         }
@@ -1962,55 +2152,14 @@ router.get("/get", async (req, res) => {
       pages = (await Promise.all(pagePromises)).filter(Boolean);
     }
 
-    // 2. Fallback: Scan files if DB has no pages or document not found
-    if (pages.length === 0) {
-      const files = fs.readdirSync(bookPath).filter((f) => f.endsWith(".html"));
-      files.sort((a, b) =>
-        a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-      );
-
-      const pagePromises = files.map(async (file) => {
-        if (metadataOnly === 'true') {
-           return {
-              name: file.replace(".html", ""),
-              fileName: file,
-              html: "",
-           };
-        }
-        const content = await fs.promises.readFile(path.join(bookPath, file), "utf8");
-        return {
-          name: file.replace(".html", ""),
-          fileName: file,
-          html: content,
-        };
-      });
-      pages = await Promise.all(pagePromises);
-
-      // AUTO-HEAL: If pages found on disk but no DB record, create one to ensure v_id
-      if (!dbBook && pages.length > 0) {
-        try {
-          const newVId = nanoid(10);
-          const stats = fs.statSync(bookPath);
-          const dbPages = pages.map((p, i) => ({
-            pageNumber: i + 1,
-            name: p.name,
-            fileName: `${p.name}.html`,
-            v_id: nanoid()
-          }));
-
-          dbBook = await Flipbook.create({
-            userEmail: emailId,
-            folderName: [effectiveFolderName],
-            flipbookName: effectiveBookName,
-            pages: dbPages,
-            v_id: newVId,
-            createdAt: stats.birthtime || new Date(),
-            lastUpdated: stats.mtime || new Date(),
-          });
-        } catch (e) {
-          console.error("Auto-heal in get failed", e);
-        }
-      }
+    // 2. Fallback: If DB has pages but Supabase returned no content, list files from Supabase via DB metadata
+    if (pages.length === 0 && dbBook && dbBook.pages && dbBook.pages.length > 0) {
+      pages = dbBook.pages.map(p => ({
+        name: p.name,
+        fileName: p.fileName,
+        html: "",
+        v_id: p.v_id,
+      }));
     }
 
     // Ensure shareId exists (Auto-heal for legacy data)
@@ -2215,11 +2364,22 @@ router.delete("/folder", async (req, res) => {
       folderName,
     );
 
-    if (!fs.existsSync(targetDir))
-      return res.status(404).json({ message: "Folder not found" });
+    // Delete local directory if it exists
+    if (fs.existsSync(targetDir)) {
+      try {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      } catch (rmErr) {
+        console.warn("Local folder rmSync warning:", rmErr);
+      }
+    }
 
-    // Use fs.rmSync to delete recursive
-    fs.rmSync(targetDir, { recursive: true, force: true });
+    // Delete folder from Supabase Storage
+    const supabaseFolderPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}`;
+    await deleteFolderFromSupabase(supabaseFolderPrefix).catch((e) =>
+      console.warn("[Supabase] Delete folder warning:", e)
+    );
+
+
 
     // Find all books to be deleted to get their v_ids
     const booksToDelete = await Flipbook.find({
@@ -2233,16 +2393,22 @@ router.delete("/folder", async (req, res) => {
         `Deleting assets for ${bookVIds.length} flipbooks in folder: ${folderName}`,
       );
       try {
+        const folderAssets = await FlipbookAsset.find({ flipbook_v_id: { $in: bookVIds } });
+        for (const asset of folderAssets) {
+          if (asset.url) {
+            deleteFileFromSupabase(asset.url).catch(e => console.warn("[Supabase] Delete asset warning:", e));
+          }
+        }
         // Remove asset records
         const result = await FlipbookAsset.deleteMany({
           flipbook_v_id: { $in: bookVIds },
         });
         console.log(`Deleted ${result.deletedCount} asset records.`);
-        // Physical files are deleted by fs.rmSync(targetDir) above since assets reside in book folder
       } catch (assetErr) {
         console.error("Error cleaning up folder assets:", assetErr);
       }
     }
+
 
     // Delete from MongoDB
     await Flipbook.deleteMany({ userEmail: emailId, folderName: folderName });
@@ -2324,7 +2490,16 @@ router.post("/rename", async (req, res) => {
       }
     }
 
+    // Sync book folder rename to Supabase Storage
+    const oldSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${oldName}`;
+    const newSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${safeNewName}`;
+    renamePathInSupabase(oldSupabaseBookPrefix, newSupabaseBookPrefix).catch((err) =>
+      console.warn("[Supabase] Book rename warning:", err)
+    );
+
     // Update MongoDB
+
+
     // Find doc using unique fields (Name + Folder Tag found).
     // Since we resolved effectiveFolderName, we use that for lookup safety, OR just match the bookName+email.
     // Note: We need to update flipbookName.
@@ -2475,7 +2650,16 @@ router.post("/move", async (req, res) => {
       }
     }
 
+    // Move flipbook directory in Supabase Storage
+    const oldSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveCurrentFolder}/${bookName}`;
+    const newSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${bookName}`;
+    renamePathInSupabase(oldSupabaseMovePrefix, newSupabaseMovePrefix).catch((err) =>
+      console.warn("[Supabase] Book move warning:", err)
+    );
+
     // Update MongoDB
+
+
     // Swap old folder tag with new folder tag, preserving 'Recent Book' if present
     // FIX: Use $in to search array folderName
     const bookToMove = await Flipbook.findOne({
@@ -2608,6 +2792,11 @@ router.delete("/delete", async (req, res) => {
       );
     }
 
+    // Delete flipbook folder and all files from Supabase Storage
+    const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${bookName}`;
+    deleteFolderFromSupabase(supabaseBookPrefix).catch(e => console.warn("[Supabase] Delete book folder warning:", e));
+
+
     // Delete from MongoDB
     const deletedBook = await Flipbook.findOneAndDelete({
       userEmail: emailId,
@@ -2624,22 +2813,10 @@ router.delete("/delete", async (req, res) => {
           flipbook_v_id: deletedBook.v_id,
         });
         for (const asset of assets) {
-          // Physical deletion might already happen via recursive rmSync above IF they are in the book folder.
-          // BUT, if assets are stored elsewhere or if rmSync missed something, we try.
-          // Actually, assets are likely inside the book folder: /My_Flipbooks/Folder/Book/assets/
-          // So fs.rmSync(bookPath) likely deleted the files.
-          // WE JUST NEED TO CLEAN UP DB RECORDS.
-
-          // Extra safety: check if file exists and delete if so (e.g. if asset url was weird)
           if (asset.url) {
+            deleteFileFromSupabase(asset.url).catch(e => console.warn("[Supabase] Delete asset warning:", e));
             const assetPath = path.join(__dirname, "../../", asset.url);
             if (fs.existsSync(assetPath)) {
-              // This means rmSync of book folder didn't catch it??
-              // Ah, maybe gallery assets used in flipbook?
-              // Gallery assets have their own folder. We should NOT delete them if they are Gallery assets.
-              // But here we query by flipbook_v_id. Gallery assets usually don't have flipbook_v_id linked to a specific book?
-              // Wait, if I upload to Gallery, it has no flipbook_v_id?
-              // Let's assume standard assets.
               try {
                 fs.unlinkSync(assetPath);
               } catch (e) {}
@@ -2651,6 +2828,7 @@ router.delete("/delete", async (req, res) => {
       } catch (assetErr) {
         console.error("Error cleaning up assets:", assetErr);
       }
+
 
       try {
         const deleted3DModels = await InteractionThreedModel.deleteMany({
@@ -2915,14 +3093,15 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
           oldFilename = oldAsset.fileName;
           oldUrl = oldAsset.url;
 
-          // Delete physical file
-          if (oldAsset.url && oldAsset.url.startsWith("/uploads")) {
-            const oldFilePath = path.join(__dirname, "../../", oldAsset.url);
-            if (fs.existsSync(oldFilePath)) {
-              fs.unlinkSync(oldFilePath);
-              console.log(`Deleted old asset file: ${oldFilePath}`);
-            } else {
-              console.log(`Old asset file NOT FOUND on disk: ${oldFilePath}`);
+          // Delete physical file & Supabase asset
+          if (oldAsset.url) {
+            deleteFileFromSupabase(oldAsset.url).catch(e => console.warn("[Supabase] Delete old asset warning:", e));
+            if (oldAsset.url.startsWith("/uploads")) {
+              const oldFilePath = path.join(__dirname, "../../", oldAsset.url);
+              if (fs.existsSync(oldFilePath)) {
+                fs.unlinkSync(oldFilePath);
+                console.log(`Deleted old asset file: ${oldFilePath}`);
+              }
             }
           }
           // Delete DB record
@@ -2959,6 +3138,11 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
 
     // Generate relative URL
     const relativeUrl = `${relativeUrlBase}/${uniqueFilename}`;
+
+    // Upload new asset to Supabase Storage
+    const supabaseDestPath = relativeUrl.replace(/^\/uploads\//, "");
+    uploadFileToSupabase(targetPath, supabaseDestPath).catch(err => console.warn("[Supabase] Asset upload warning:", err));
+
 
     // UPDATE HTML TEMPLATES if Replacing
     // This block is only relevant for flipbook assets, not gallery assets.
@@ -3096,45 +3280,98 @@ router.get("/get-gallery-assets", async (req, res) => {
 
 
 
-// @route   DELETE /api/flipbook/delete-asset
-// @desc    Delete an asset from flipbook
+// @route   POST & DELETE /api/flipbook/delete-asset
+// @desc    Delete an asset from flipbook & Supabase Storage
 // @access  Public
-router.delete("/delete-asset", async (req, res) => {
+const deleteAssetHandler = async (req, res) => {
   try {
-    const { fileVId, emailId } = req.query;
+    const fileVId = req.body?.file_v_id || req.body?.fileVId || req.query?.file_v_id || req.query?.fileVId;
+    const emailId = req.body?.emailId || req.query?.emailId;
+    const assetUrl = req.body?.url || req.query?.url;
+    let fileName = req.body?.fileName || req.body?.filename || req.query?.fileName || req.query?.filename;
+    if (!fileName && assetUrl) fileName = path.basename(assetUrl);
+    if (!fileName && req.body?.src) fileName = path.basename(req.body.src);
+    if (!fileName && req.body?.name) fileName = path.basename(req.body.name);
+    const folderName = req.body?.folderName || req.query?.folderName;
+    const bookName = req.body?.bookName || req.body?.flipbookName || req.query?.bookName || req.query?.flipbookName;
+    const assetType = req.body?.assetType || req.query?.assetType || "Image";
 
-    if (!fileVId) {
-      return res.status(400).json({ message: "Missing file_v_id" });
+
+
+    let asset = null;
+    if (fileVId) {
+      asset = await FlipbookAsset.findOne({ file_v_id: fileVId });
+    }
+    if (!asset && assetUrl) {
+      let urlQuery = assetUrl.startsWith('http') ? new URL(assetUrl).pathname : assetUrl;
+      urlQuery = decodeURIComponent(urlQuery);
+      const escaped = urlQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      asset = await FlipbookAsset.findOne({ url: { $regex: escaped + '$' } });
+    }
+    if (!asset && fileName && emailId) {
+      const sanitizedEmail = emailId.replace(/[@.]/g, "_");
+      asset = await FlipbookAsset.findOne({ fileName: fileName, url: { $regex: sanitizedEmail } });
     }
 
-    // Find asset in database
-    const asset = await FlipbookAsset.findOne({ file_v_id: fileVId });
-
-    if (!asset) {
-      return res.status(404).json({ message: "Asset not found" });
+    if (asset) {
+      fileName = asset.fileName;
     }
 
-    // Verify ownership if emailId provided
+    const candidateUrls = new Set();
+    if (asset && asset.url) candidateUrls.add(asset.url);
+    if (assetUrl) candidateUrls.add(assetUrl);
+
     if (emailId) {
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      if (!asset.url.includes(sanitizedEmail)) {
-        return res.status(403).json({ message: "Unauthorized" });
+      const targetFolder = (folderName || "My Flipbooks").replace(/[^a-zA-Z0-9 _-]/g, "").trim();
+      const targetBook = (bookName || "Untitled Document").replace(/[^a-zA-Z0-9 _-]/g, "").trim();
+
+      if (fileName) {
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/${assetType}/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3D_Model/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3D_Modals/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/3d_model/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/Image/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/gif/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/video/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/audio/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${targetBook}/assets/download/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/3D_Modals/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/3D_Model/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/Images/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/Videos/${fileName}`);
+        candidateUrls.add(`/uploads/${sanitizedEmail}/gifs/${fileName}`);
       }
     }
 
-    // Delete physical file
-    if (asset.url && asset.url.startsWith("/uploads")) {
-      const filePath = path.join(__dirname, "../../", asset.url);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`Deleted asset file: ${filePath}`);
+    for (const urlPath of candidateUrls) {
+      await deleteFileFromSupabase(urlPath).catch((e) =>
+        console.warn("[Supabase] Delete asset candidate warning:", e)
+      );
+
+      if (urlPath.startsWith("/uploads")) {
+        const filePath = path.join(__dirname, "../../", urlPath);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+            console.log(`Deleted local asset file: ${filePath}`);
+          } catch (e) {}
+        }
       }
     }
 
-    // Delete from database
-    await FlipbookAsset.deleteOne({ file_v_id: fileVId });
+    if (asset) {
+      await FlipbookAsset.deleteOne({ _id: asset._id });
+    } else if (fileVId) {
+      await FlipbookAsset.deleteOne({ file_v_id: fileVId });
+    }
 
-    res.status(200).json({ message: "Asset deleted successfully" });
+    if (fileName && emailId) {
+      await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: fileName }).catch(() => {});
+    }
+
+    res.status(200).json({ message: "Asset deleted successfully from Supabase and local storage" });
+
   } catch (error) {
     console.error("Error deleting asset:", error);
     res.status(500).json({
@@ -3142,7 +3379,12 @@ router.delete("/delete-asset", async (req, res) => {
       error: error.message,
     });
   }
-});
+};
+
+router.post("/delete-asset", deleteAssetHandler);
+router.delete("/delete-asset", deleteAssetHandler);
+
+
 
 // @route  POST /api/flipbook/inline-svgs
 // @desc   Migration: read HTML pages that reference external SVG asset files and

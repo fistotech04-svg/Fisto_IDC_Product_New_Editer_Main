@@ -3,8 +3,10 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { getFromDB } from '../utils/dbUtils';
+import { rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
 
 const PreviewPage = () => {
+
   const [data, setData] = useState(null);
   const location = useLocation();
 
@@ -54,14 +56,12 @@ const PreviewPage = () => {
             
             processedData.pages = processedData.pages.map(p => {
                 let html = p.html || p.content || '';
-                html = html.replace(/(src|href|xlink:href)=(["'])https?:\/\/[^\/]+\/uploads\//g, `$1=$2${backendUrl}/uploads/`);
-                if (html.includes('nullassets/')) html = html.split('nullassets/').join(`${bUrl}assets/`);
-                if (html.includes('./assets/')) html = html.split('./assets/').join(`${bUrl}assets/`);
-                if (html.includes('src="/uploads/') || html.includes("src='/uploads/")) {
-                    html = html.replace(/src="\/uploads\//g, `src="${backendUrl}/uploads/`).replace(/src='\/uploads\//g, `src='${backendUrl}/uploads/`);
-                }
+                if (html.includes('nullassets/') && bUrl) html = html.split('nullassets/').join(`${bUrl}assets/`);
+                if (html.includes('./assets/') && bUrl) html = html.split('./assets/').join(`${bUrl}assets/`);
+                html = rewriteHtmlUploadsToSupabase(html);
                 return { ...p, html };
             });
+
 
             // Extra 3s loading time to match preview behavior
             await new Promise(resolve => setTimeout(resolve, 3000));

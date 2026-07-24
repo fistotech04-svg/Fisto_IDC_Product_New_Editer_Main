@@ -12,11 +12,36 @@ import flipbookRoutes from "./routes/Flipbook/flipbook.js";
 import threedModelRoutes from "./routes/User_Details/threed_models.js";
 import textureRoutes from "./routes/Texture/texture.js";
 import compression from "compression";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+
 // Connect to database
 connectDB();
+
+import { SUPABASE_BUCKET, downloadFileFromSupabase } from "./config/supabase.js";
+
+console.log(`[Supabase] Storage integration initialized for bucket '${SUPABASE_BUCKET}'.`);
+
+const mimeTypes = {
+  ".glb": "model/gltf-binary",
+  ".gltf": "model/gltf+json",
+  ".obj": "text/plain",
+  ".stl": "model/stl",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".json": "application/json",
+  ".pdf": "application/pdf",
+  ".svg": "image/svg+xml",
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".hdr": "image/vnd.radiance"
+};
+
 
 const app = express();
 app.use(compression());
@@ -41,9 +66,31 @@ app.use(
 app.use(express.json({ limit: "500mb" }));
 app.use(bodyParser.urlencoded({ limit: "500mb", extended: true }));
 
-// Serve Static Uploads
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Serve /uploads EXCLUSIVELY from Supabase Storage (no local disk)
+app.use("/uploads", async (req, res, next) => {
+  const relPath = req.path;
+
+  try {
+    const fileBuffer = await downloadFileFromSupabase(relPath);
+    if (fileBuffer) {
+      const ext = path.extname(relPath).toLowerCase();
+      const mimeType = mimeTypes[ext] || "application/octet-stream";
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Cache-Control", "public, max-age=300");
+      return res.send(fileBuffer);
+    }
+  } catch (err) {
+    console.warn("[Supabase /uploads Error]:", err);
+  }
+
+  console.warn(`[/uploads] File not found in Supabase: ${relPath}`);
+  return res.status(404).json({ message: "File not found in storage" });
+});
+
 app.use("/textures", express.static(path.join(__dirname, "Texture")));
+
+
+
 
 // Basic Route
 app.get("/", (req, res) => {
