@@ -82,7 +82,7 @@ const GifEditor = ({
   const [activeSection, setActiveSection] = useState('main');
   const [showGallery, setShowGallery] = useState(false);
   const [opacity, setOpacity] = useState(100);
-  const [imageType, setImageType] = useState('Fit');
+  const [imageType, setImageType] = useState('Fill');
   const [showImageTypeDropdown, setShowImageTypeDropdown] = useState(false);
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activePopup, setActivePopup] = useState(null);
@@ -204,9 +204,10 @@ const GifEditor = ({
     }
 
     // Image Type
-    const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop', 'fill': 'Fit' };
-    const currentFit = (svgImageEl || selectedElement).style.objectFit || 'contain';
-    setImageType(fitMapRev[currentFit] || 'Fit');
+    const target = (svgImageEl || selectedElement);
+    const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop', 'fill': 'Stretch' };
+    const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'cover';
+    setImageType(fitMapRev[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
 
     // Filters & Effects
     if (selectedElement.hasAttribute('data-active-effects')) {
@@ -439,10 +440,24 @@ const GifEditor = ({
       targetElForPath.setAttribute('data-radius', JSON.stringify(radius));
       targetElForPath.style.overflow = 'hidden';
 
-      if (anyR || forceClip) {
-        targetElForPath.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-        if (forceClip) {
-          if (isSvgEl) {
+      if (isSvgEl) {
+        const hasClip = anyR || forceClip || imageType === 'Crop';
+
+        if (hasClip) {
+          let cropInset = '0% 0% 0% 0%';
+          if (imageType === 'Crop') {
+            const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100}';
+            try {
+              const crop = JSON.parse(cropStr);
+              const insetTop = crop.top;
+              const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width));
+              const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height));
+              const insetLeft = crop.left;
+              cropInset = `${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%`;
+            } catch(e) {}
+          }
+          
+          if (forceClip) {
             let clipId = `clip-content-${liveElement.id || 'gif'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
             if (!defs && liveElement.ownerSVGElement) {
@@ -459,35 +474,17 @@ const GifEditor = ({
                 defs.appendChild(clipNode);
               }
               const rect = clipNode.firstChild;
-
-              let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = targetElForPath.getBBox(); } catch (e) { }
-              let bxStr = targetElForPath.getAttribute('x') || '0';
-              let byStr = targetElForPath.getAttribute('y') || '0';
-              let bwStr = targetElForPath.getAttribute('width') || '100%';
-              let bhStr = targetElForPath.getAttribute('height') || '100%';
-              let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-              let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-              let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-              let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
-
-              rect.setAttribute('x', bx);
-              rect.setAttribute('y', by);
-              rect.setAttribute('width', Math.max(0, bw));
-              rect.setAttribute('height', Math.max(0, bh));
-              rect.setAttribute('transform', targetElForPath.getAttribute('transform') || '');
+              rect.setAttribute('x', svgImageEl ? svgImageEl.getAttribute('x') || '0' : '0');
+              rect.setAttribute('y', svgImageEl ? svgImageEl.getAttribute('y') || '0' : '0');
+              rect.setAttribute('width', svgImageEl ? svgImageEl.getAttribute('width') || '100%' : '100%');
+              rect.setAttribute('height', svgImageEl ? svgImageEl.getAttribute('height') || '100%' : '100%');
+              rect.setAttribute('transform', svgImageEl ? svgImageEl.getAttribute('transform') || '' : '');
               const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
               if (maxR > 0) rect.setAttribute('rx', maxR.toString());
               else rect.removeAttribute('rx');
 
-              if (svgImageEl) {
-                let clipperGroup = svgImageEl.parentNode;
-                if (!clipperGroup.classList.contains('svg-image-clipper')) {
-                  clipperGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                  clipperGroup.classList.add('svg-image-clipper');
-                  svgImageEl.parentNode.insertBefore(clipperGroup, svgImageEl);
-                  clipperGroup.appendChild(svgImageEl);
-                }
+              const clipperGroup = svgImageEl.parentNode;
+              if (clipperGroup && clipperGroup.classList.contains('svg-image-clipper')) {
                 clipperGroup.style.setProperty('clip-path', `url(#${clipId})`, 'important');
                 clipperGroup.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
 
@@ -501,7 +498,7 @@ const GifEditor = ({
               }
             }
           } else {
-            liveElement.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+            liveElement.style.setProperty('clip-path', `inset(${cropInset} round ${radiusStr})`, 'important');
           }
         } else {
           liveElement.style.removeProperty('clip-path');

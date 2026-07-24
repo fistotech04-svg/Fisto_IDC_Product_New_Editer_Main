@@ -5668,6 +5668,9 @@ const MainEditor = ({
 
             // Maintain Aspect Ratio for images, text, or if Shift key is held (only for corners, but force for text on all handles to prevent distortion)
             const isImage = el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif';
+            const childImage = el.tagName?.toLowerCase() === 'g' ? el.querySelector('image, img') : null;
+            const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || (childImage ? (childImage.getAttribute('href') || childImage.getAttribute('xlink:href') || childImage.getAttribute('src')) : '') || '';
+            const isGif = el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif' || src.split('?')[0].toLowerCase().endsWith('.gif') || src.toLowerCase().startsWith('data:image/gif') || (el.getAttribute('data-name') || '').toLowerCase().includes('gif') || el.id.toLowerCase().includes('gif');
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
             const isForeignObject = el.tagName?.toLowerCase() === 'foreignobject';
             const isGroup = el.tagName?.toLowerCase() === 'g' || el.tagName === 'multi';
@@ -5731,7 +5734,7 @@ const MainEditor = ({
               }
             }
 
-            if (isImage && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir)) {
+            if (isImage && !isGif && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir)) {
               if (isCtrlPressedMove) {
                 const currentFit = el.getAttribute('data-object-fit');
                 if (currentFit !== 'Crop') {
@@ -6026,7 +6029,7 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
-                        if ((tag === 'image' || tag === 'video' || tag === 'svg') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
+                        if ((tag === 'image' || tag === 'video' || tag === 'svg') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner && !isGif) {
                           // Keep the element exactly as it was, do not resize it!
                           imgX = child.getAttribute('x') || 0;
                           imgY = child.getAttribute('y') || 0;
