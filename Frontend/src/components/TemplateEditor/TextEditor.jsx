@@ -1590,6 +1590,9 @@ const TextEditor = ({
           }
         } else {
           element.setAttribute(attribute, value);
+          if (liveEl) {
+            liveEl.setAttribute(attribute, value);
+          }
 
           // Handle scrollable updates for virtual doc
           if (tag === 'foreignobject' && element.firstElementChild) {

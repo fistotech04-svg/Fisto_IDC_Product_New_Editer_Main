@@ -576,6 +576,10 @@ const GifEditor = ({
               if (!svgFilt) {
                 svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
                 svgFilt.id = shadowFilterId;
+                svgFilt.setAttribute('x', '-50%');
+                svgFilt.setAttribute('y', '-50%');
+                svgFilt.setAttribute('width', '200%');
+                svgFilt.setAttribute('height', '200%');
                 defs.appendChild(svgFilt);
               }
               // Safely set innerHTML to generate only the shadow, hollowed out by SourceAlpha
@@ -1148,6 +1152,10 @@ const GifEditor = ({
             if (!filterEl) {
               filterEl = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
               filterEl.id = filterId;
+              filterEl.setAttribute('x', '-50%');
+              filterEl.setAttribute('y', '-50%');
+              filterEl.setAttribute('width', '200%');
+              filterEl.setAttribute('height', '200%');
               svgDefs.appendChild(filterEl);
             }
 
@@ -1487,23 +1495,7 @@ const GifEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
-      <div className="flex items-center gap-[0.5vw] flex-1">
-        <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Image fix type</span>
-        <div className="h-[0px] flex-1 border-t border-dashed border-gray-300 mx-[0.25vw]" />
-        <div className="relative">
-          <button onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)} className="flex items-center justify-between w-[6.5vw] px-[0.75vw] py-[0.55vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-sm hover:bg-gray-50 transition-colors">
-            <span className="text-[0.85vw] font-normal text-gray-700">{imageType}</span>
-            <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showImageTypeDropdown ? 'rotate-180' : ''}`} />
-          </button>
-          {showImageTypeDropdown && (
-            <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl z-[100] flex flex-col py-[0.2vw]">
-              {['Fit', 'Fill', 'Stretch'].map((type) => (
-                <button key={type} onClick={() => { setImageType(type); setShowImageTypeDropdown(false); }} className="px-[1vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-[#4D47FF] text-left transition-colors">{type}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+
 
       {/* Upload/Replace Row */}
       <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
