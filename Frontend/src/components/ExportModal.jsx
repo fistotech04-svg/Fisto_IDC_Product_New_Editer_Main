@@ -9,6 +9,8 @@ import html2canvas from 'html2canvas';
 import domtoimage from 'dom-to-image-more';
 import ColorPicker from './ThreedEditor/ColorPicker';
 import TemplateColorPicker from './TemplateEditor/ColorPicker';
+import { getSupabaseBaseUrl } from '../utils/supabaseUtils';
+
 
 const SCRIBBLE_ICONS = {
   Facebook: (
@@ -776,19 +778,16 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
       const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder || 'My Flipbooks');
       const bookName = currentBook.flipbookName || currentBook.title;
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-      
-      let pBaseUrl = '';
-      if (currentBook.meta) {
-        pBaseUrl = currentBook.meta.baseUrl ? `${backendUrl}${currentBook.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${currentBook.meta.folderName}/${currentBook.meta.flipbookName}/`;
-      } else {
-        pBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-      }
-      
+      let pBaseUrl = getSupabaseBaseUrl(
+        sanitizedEmail,
+        currentBook.meta ? currentBook.meta.folderName : folderName,
+        currentBook.meta ? currentBook.meta.flipbookName : bookName
+      );
       if (pBaseUrl && !pBaseUrl.endsWith('/')) {
         pBaseUrl += '/';
       }
       setProjectBaseUrl(pBaseUrl);
+
     }
 
     const normalizePages = (pagesList) => {
@@ -832,17 +831,16 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
           .then(async res => {
             if (res.data) {
               const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-              const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-              let pBaseUrl = '';
-              if (res.data.meta) {
-                pBaseUrl = res.data.meta.baseUrl ? `${backendUrl}${res.data.meta.baseUrl}` : `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${res.data.meta.folderName}/${res.data.meta.flipbookName}/`;
-              } else {
-                pBaseUrl = `${backendUrl}/uploads/${sanitizedEmail}/My_Flipbooks/${folderName}/${bookName}/`;
-              }
+              let pBaseUrl = getSupabaseBaseUrl(
+                sanitizedEmail,
+                res.data.meta ? res.data.meta.folderName : folderName,
+                res.data.meta ? res.data.meta.flipbookName : bookName
+              );
               if (pBaseUrl && !pBaseUrl.endsWith('/')) {
                 pBaseUrl += '/';
               }
               setProjectBaseUrl(pBaseUrl);
+
 
               if (res.data.pages) {
                 const fetchedPages = await Promise.all(res.data.pages.map(async (p, i) => {

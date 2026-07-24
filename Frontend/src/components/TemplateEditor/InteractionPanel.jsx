@@ -2252,8 +2252,13 @@ const InteractionPanel = ({
           setActive3DGalleryItem(null); // Close modal immediately
 
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
-          const fullUrl = `${backendUrl}${modelUrlPath}`;
+          const fullUrl = model.url 
+            ? (model.url.startsWith('http://') || model.url.startsWith('https://') || model.url.startsWith('blob:') || model.url.startsWith('data:')
+                ? model.url
+                : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`)
+            : '';
+
+
 
           try {
             // Fetch as a blob so it behaves exactly like a direct upload,

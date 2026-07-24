@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import backgroundComponents from './Backgrounds';
 import animationComponents from './Animations';
 import * as BookAppearanceHelpers from './bookAppearanceHelpers';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
+
 
 import TableOfContentsPopup from './popups/TableOfContentsPopup';
 import MobileFrame from './MobileFrame';
@@ -2212,10 +2214,10 @@ const PreviewArea = React.memo(({
             } else if (e.data && e.data.type === 'show-3d-viewer' && e.data.url) {
                 let finalUrl = e.data.url;
                 if (typeof finalUrl === 'string' && finalUrl.startsWith('/uploads/')) {
-                    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-                    finalUrl = `${backendUrl}${finalUrl}`;
+                    finalUrl = resolveUploadsPath(finalUrl);
                 }
                 setActive3DModelUrl(finalUrl);
+
                 setActive3DModelVId(e.data.v_id || null);
                 if (e.data.config) {
                     setActive3DModelConfig(e.data.config);

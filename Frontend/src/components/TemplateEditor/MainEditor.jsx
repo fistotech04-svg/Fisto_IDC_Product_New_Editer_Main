@@ -130,6 +130,72 @@ export const getVisualBBox = (el) => {
     }
   }
 
+  // For all other <g> groups (user-created groups, icon groups, vector groups, etc.),
+  // iterate children to get a tight bounding box. This prevents the "full sheet" effect
+  // when a group's getBBox() includes page-spanning background elements.
+  const isNonFrameGroup = el.tagName.toLowerCase() === 'g' &&
+    el.getAttribute('data-type') !== 'frame' &&
+    el.getAttribute('data-type') !== 'background' &&
+    el.getAttribute('data-name') !== 'Overlay';
+  if (isNonFrameGroup) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const children = Array.from(el.children);
+    let hasValidChild = false;
+
+    for (const child of children) {
+      if (child.classList && (
+        child.classList.contains('svg-image-stroke-overlay') ||
+        child.classList.contains('svg-gif-stroke-overlay') ||
+        child.classList.contains('svg-shape-stroke-overlay') ||
+        child.classList.contains('svg-drop-shadow-caster')
+      )) {
+        continue;
+      }
+      if (child.tagName.toLowerCase() === 'defs') continue;
+      if (child.style.display === 'none' || child.style.visibility === 'hidden') continue;
+      if (typeof child.getBBox !== 'function') continue;
+
+      try {
+        const childBBox = getVisualBBox(child);
+        if (!childBBox || (childBBox.width === 0 && childBBox.height === 0)) continue;
+
+        let childMatrix = new DOMMatrix();
+        try {
+          const parentCTM = el.getCTM();
+          const childCTM = child.getCTM();
+          if (parentCTM && childCTM) {
+            childMatrix = parentCTM.inverse().multiply(childCTM);
+          }
+        } catch (e) { }
+
+        const pt1 = new DOMPoint(childBBox.x, childBBox.y).matrixTransform(childMatrix);
+        const pt2 = new DOMPoint(childBBox.x + childBBox.width, childBBox.y).matrixTransform(childMatrix);
+        const pt3 = new DOMPoint(childBBox.x + childBBox.width, childBBox.y + childBBox.height).matrixTransform(childMatrix);
+        const pt4 = new DOMPoint(childBBox.x, childBBox.y + childBBox.height).matrixTransform(childMatrix);
+
+        const pts = [pt1, pt2, pt3, pt4];
+        for (const pt of pts) {
+          if (isFinite(pt.x) && isFinite(pt.y)) {
+            if (pt.x < minX) minX = pt.x;
+            if (pt.y < minY) minY = pt.y;
+            if (pt.x > maxX) maxX = pt.x;
+            if (pt.y > maxY) maxY = pt.y;
+            hasValidChild = true;
+          }
+        }
+      } catch (e) { }
+    }
+
+    if (hasValidChild && isFinite(minX) && isFinite(minY)) {
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      };
+    }
+  }
+
   return el.getBBox();
 };
 
@@ -2677,6 +2743,114 @@ const MainEditor = ({
   };
   drawMeasurementOverlayRef.current = drawMeasurementOverlay;
 
+  const drawInteractionBadge = (el, mapped, htmlOverlay, zoomScale, bbox) => {
+    if (activeTopToolRef.current !== 'interaction') return;
+    if (!htmlOverlay) return;
+
+    const badgeId = `interaction-badge-${el.id}`;
+    let badge = htmlOverlay.querySelector(`[id="${badgeId}"]`);
+
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = badgeId;
+      badge.className = 'absolute z-[2000] cursor-pointer flex flex-col items-center group/badge pointer-events-auto';
+
+      const mainBox = document.createElement('div');
+      mainBox.setAttribute('data-badge-mainbox', 'true');
+      mainBox.className = 'relative bg-[#3F3F46] rounded-[0.3vw] p-[0.2vw] shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border border-dashed border-black';
+      mainBox.style.width = '1.6vw';
+      mainBox.style.height = '1.6vw';
+
+      mainBox.innerHTML = `
+        <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934M6.54475 16.3864C6.81275 16.7104 7.08375 17.0884 7.42375 17.5184M9.52975 21.9994V21.0534C9.60275 19.8904 8.54675 18.9574 7.42375 17.5184M7.42375 17.5184C7.34275 17.4144 7.49975 17.6154 7.42375 17.5184ZM7.42375 17.5184L8.53075 18.8724" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      `;
+
+      const plusBadge = document.createElement('div');
+      plusBadge.setAttribute('data-badge-plus', 'true');
+      plusBadge.className = 'absolute -top-1 -right-1 flex items-center justify-center';
+      plusBadge.style.width = '0.75vw';
+      plusBadge.style.height = '0.75vw';
+      plusBadge.innerHTML = `
+        <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
+          <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
+          <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
+        </svg>
+      `;
+      mainBox.appendChild(plusBadge);
+
+      const label = document.createElement('div');
+      label.setAttribute('data-badge-label', 'true');
+      label.className = 'absolute top-1/2 -translate-y-1/2 bg-black text-white text-[0.5vw] font-medium px-[0.5vw] py-[0.25vw] shadow-lg whitespace-nowrap flex items-center opacity-0 group-hover/badge:opacity-100 transition-opacity duration-200 pointer-events-none';
+      label.style.left = '100%';
+      label.style.marginLeft = '0.5vw';
+      label.innerHTML = 'Click To Add Interaction';
+
+      const arrow = document.createElement('div');
+      arrow.setAttribute('data-badge-arrow', 'true');
+      arrow.className = 'absolute w-0 h-0';
+      arrow.style.cssText = 'position:absolute; left:-5px; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black;';
+      label.appendChild(arrow);
+      label.appendChild(document.createTextNode(''));
+      badge.appendChild(mainBox);
+      badge.appendChild(label);
+
+      const triggerEvent = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const event = new CustomEvent('add-free-frame', {
+          detail: {
+            elementId: el.id,
+            bbox: bbox
+          }
+        });
+        window.dispatchEvent(event);
+      };
+      badge.onpointerdown = triggerEvent;
+      badge.onclick = triggerEvent;
+
+      htmlOverlay.appendChild(badge);
+    }
+
+    if (badge) {
+      const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
+      const vwOffset = (window.innerWidth * 0.006) / zoomScale;
+      badge.style.left = `${midN.x}px`;
+
+      if (midN.y < 35 / zoomScale) {
+        badge.style.top = `${midN.y + vwOffset}px`;
+        badge.style.transformOrigin = 'top center';
+        badge.style.transform = `translate(-50%, 0%) scale(${1 / zoomScale})`;
+      } else {
+        badge.style.top = `${midN.y - vwOffset}px`;
+        badge.style.transformOrigin = 'bottom center';
+        badge.style.transform = `translate(-50%, -100%) scale(${1 / zoomScale})`;
+      }
+
+      const containerWidth = htmlOverlay?.getBoundingClientRect?.()?.width || 9999;
+      const labelEl = badge.querySelector('[data-badge-label]');
+      const arrowEl = badge.querySelector('[data-badge-arrow]');
+      if (labelEl && arrowEl) {
+        if (midN.x > containerWidth * 0.55) {
+          labelEl.style.left = 'auto';
+          labelEl.style.right = '100%';
+          labelEl.style.marginLeft = '0';
+          labelEl.style.marginRight = '0.5vw';
+          arrowEl.style.cssText = 'position:absolute; right:-5px; left:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:5px solid black; border-right:none;';
+        } else {
+          labelEl.style.left = '100%';
+          labelEl.style.right = 'auto';
+          labelEl.style.marginLeft = '0.5vw';
+          labelEl.style.marginRight = '0';
+          arrowEl.style.cssText = 'position:absolute; left:-5px; right:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black; border-left:none;';
+        }
+      }
+    }
+  };
+
   const drawOverlayHighlight = (el, type) => {
     if (!el || typeof el.getBBox !== 'function' || typeof el.getScreenCTM !== 'function') return;
 
@@ -2693,6 +2867,16 @@ const MainEditor = ({
             selectedEl.getAttribute('data-type') === 'frame';
           if (!isSelectedBackgroundOrFrame) return; // Suppress blue hover outline during Alt comparison
         }
+      }
+    }
+
+    if (type === 'entered') {
+      const isRealFrame = el.getAttribute('data-type') === 'frame';
+      const isParentGroup = el.tagName.toLowerCase() === 'g' && el.id !== selectedLayerIdRef.current;
+      if ((!isRealFrame && !isParentGroup) || document.querySelector('[data-dragging="true"]')) {
+        const existingPoly = overlay.querySelector(`[id="overlay-poly-entered-${el.id}"]`);
+        if (existingPoly) existingPoly.remove();
+        return;
       }
     }
     // Skip if element is hidden or it's the base "Overlay" (background) / Base Page Frame
@@ -2722,9 +2906,161 @@ const MainEditor = ({
       const overlayCtm = overlay.getScreenCTM();
       if (!ctm || !overlayCtm) return;
 
+      const isFrame = el.getAttribute('data-type') === 'frame';
+      const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
+      const tagLower = el.tagName.toLowerCase();
+      const isLine = tagLower === 'line';
+
+      // ── PIXEL-PERFECT PATH for non-frame, non-line, non-FreeFrame elements ──
+      // Use getBoundingClientRect() to get actual screen-space visual bounds, then
+      // map 4 corners directly to overlay coordinates via a single matrix inverse.
+      // Lines and Free Frames are excluded: Lines need directional handle coords,
+      // and Free Frames need L-bracket corner rendering via the matrix path.
+      if (!isFrame && !isLine && !isFreeFrame) {
+        const clientRect = el.getBoundingClientRect();
+        if (clientRect.width > 0 && clientRect.height > 0) {
+          el.dataset.overlayRetries = '0';
+          const overlayInverse = overlayCtm.inverse();
+          const pt = overlay.createSVGPoint();
+
+          pt.x = clientRect.left;  pt.y = clientRect.top;
+          const overlayTL = pt.matrixTransform(overlayInverse);
+          pt.x = clientRect.right; pt.y = clientRect.top;
+          const overlayTR = pt.matrixTransform(overlayInverse);
+          pt.x = clientRect.right; pt.y = clientRect.bottom;
+          const overlayBR = pt.matrixTransform(overlayInverse);
+          pt.x = clientRect.left;  pt.y = clientRect.bottom;
+          const overlayBL = pt.matrixTransform(overlayInverse);
+
+          const mapped = [overlayTL, overlayTR, overlayBR, overlayBL];
+          const pointsStr = mapped.map(p => `${p.x},${p.y}`).join(' ');
+
+          const zoomScale = zoom / 100;
+          const isBeingEditedCheck = isEditingTextRef.current && el.id === selectedLayerIdRef.current;
+          let polyId = `overlay-poly-${type}-${el.id}`;
+          let polygon = overlay.querySelector(`[id="${polyId}"]`);
+          if (!polygon) {
+            polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.id = polyId;
+            polygon.setAttribute('class', `overlay-type-${type}`);
+            polygon.setAttribute('fill', 'none');
+            if (el.getAttribute('data-name') === 'Free Frame') {
+              polygon.setAttribute('stroke', type === 'hover' || type === 'child-hover' ? 'transparent' : '#000000');
+            } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
+              polygon.setAttribute('stroke', '#000000');
+            } else if (type === 'hover' || type === 'child-hover') {
+              polygon.setAttribute('stroke', '#6366F1');
+              polygon.setAttribute('fill', 'none');
+            } else if (type === 'selected' || type === 'child-selected' || type === 'multi-child-selected') {
+              polygon.setAttribute('stroke', '#6366F1');
+            } else if (type === 'entered') {
+              polygon.setAttribute('stroke', '#6366F1');
+            }
+            polygon.setAttribute('pointer-events', 'none');
+            overlay.appendChild(polygon);
+          }
+          polygon.setAttribute('points', pointsStr);
+
+          if (el.getAttribute('data-name') === 'Free Frame') {
+            polygon.setAttribute('stroke-width', String(1 / zoomScale));
+            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+          } else if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && (type === 'selected' || type === 'child-selected')) {
+            polygon.setAttribute('stroke-width', String(1 / zoomScale));
+            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+          } else if (type === 'hover' || type === 'child-hover') {
+            polygon.setAttribute('stroke-width', String(1 / zoomScale));
+            if (type === 'child-hover') polygon.setAttribute('stroke-dasharray', `${2 / zoomScale},${2 / zoomScale}`);
+            else polygon.removeAttribute('stroke-dasharray');
+          } else if (type === 'selected' || type === 'child-selected') {
+            polygon.setAttribute('stroke-width', String((type === 'selected' ? 1.5 : 1.2) / zoomScale));
+            polygon.removeAttribute('stroke-dasharray');
+          } else if (type === 'multi-child-selected') {
+            polygon.setAttribute('stroke-width', String(1.2 / zoomScale));
+            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+          } else if (type === 'entered') {
+            polygon.setAttribute('stroke-width', String(1 / zoomScale));
+            polygon.setAttribute('stroke-dasharray', `${4 / zoomScale},${4 / zoomScale}`);
+          }
+
+          // Draw resize handles for selected groups
+          const isMultiSelectionBox = el.id === 'multi' || el.id === 'multi-selection-bounds';
+          const selectionCount = isMultiSelectionBox ? 1 : (multiSelectedIdsRef.current.size > 0 ? multiSelectedIdsRef.current.size : (selectedLayerIdRef.current ? 1 : 0));
+          if (selectionCount === 1 && (type === 'selected' || type === 'child-selected') && !isBeingEditedCheck) {
+            const htmlOverlay = getHtmlOverlayForElement(el);
+            const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
+            const hideHandles = (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && !isFreeFrame;
+            if (hideHandles && htmlOverlay) {
+              const existingHandles = htmlOverlay.querySelectorAll(`[id^="resize-handle-${el.id}-"]`);
+              existingHandles.forEach(h => h.remove());
+            }
+
+            if (!hideHandles && htmlOverlay) {
+              const handleSize = 7.5;
+              const handleNames = ['nw', 'ne', 'se', 'sw', 'n', 'e', 's', 'w'];
+              const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
+              const midE = { x: (mapped[1].x + mapped[2].x) / 2, y: (mapped[1].y + mapped[2].y) / 2 };
+              const midS = { x: (mapped[2].x + mapped[3].x) / 2, y: (mapped[2].y + mapped[3].y) / 2 };
+              const midW = { x: (mapped[3].x + mapped[0].x) / 2, y: (mapped[3].y + mapped[0].y) / 2 };
+              const allPts = [...mapped, midN, midE, midS, midW];
+              const matrix = getElementMatrix(el);
+              const rotation = Math.round(Math.atan2(matrix.b, matrix.a) * (180 / Math.PI));
+
+              allPts.forEach((p, i) => {
+                const name = handleNames[i];
+                const isSide = ['n', 'e', 's', 'w'].includes(name);
+                const handleId = `resize-handle-${el.id}-${name}`;
+                let handle = htmlOverlay.querySelector(`[id="${handleId}"]`);
+                if (!handle) {
+                  handle = document.createElement('div');
+                  handle.id = handleId;
+                  handle.className = `resize-handle overlay-type-${type} absolute`;
+                  if (isSide) {
+                    handle.style.backgroundColor = 'rgba(255, 255, 255, 0.01)';
+                  } else {
+                    handle.style.backgroundColor = '#FFFFFF';
+                    handle.style.border = '1.5px solid #6366F1';
+                    handle.style.boxShadow = '0 1.5px 4px rgba(0,0,0,0.2)';
+                    handle.style.borderRadius = '0px';
+                  }
+                  handle.style.boxSizing = 'border-box';
+                  handle.style.pointerEvents = 'auto';
+                  handle.style.zIndex = isSide ? '999' : '1000';
+                  htmlOverlay.appendChild(handle);
+                }
+                if (handle) {
+                  if (isSide) {
+                    const isHorizontal = (name === 'n' || name === 's');
+                    const dist = isHorizontal
+                      ? Math.hypot(mapped[1].x - mapped[0].x, mapped[1].y - mapped[0].y)
+                      : Math.hypot(mapped[2].x - mapped[1].x, mapped[2].y - mapped[1].y);
+                    const thickness = 8 / zoomScale;
+                    handle.style.width = isHorizontal ? `${dist}px` : `${thickness}px`;
+                    handle.style.height = isHorizontal ? `${thickness}px` : `${dist}px`;
+                    handle.style.left = `${p.x}px`;
+                    handle.style.top = `${p.y}px`;
+                    handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+                  } else {
+                    handle.style.width = `${handleSize}px`;
+                    handle.style.height = `${handleSize}px`;
+                    handle.style.left = `${p.x}px`;
+                    handle.style.top = `${p.y}px`;
+                    handle.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 / zoomScale})`;
+                  }
+                  handle.style.cursor = getRotatingCursor(name, rotation);
+                }
+              });
+            }
+
+            if (activeTopToolRef.current === 'interaction') {
+              drawInteractionBadge(el, mapped, htmlOverlay, zoomScale, bbox);
+            }
+          }
+          return; // ← Early return: group handled via pixel-perfect path
+        }
+      }
+
       // Fallback for elements where getBBox() returns 0 or suspiciously small dimensions (e.g. foreignObjects, nested SVGs, percentages)
       // ALSO fallback for frames, because getBBox() ignores percentage-sized children (like width="100%" backgrounds in popup templates)
-      const isFrame = el.getAttribute('data-type') === 'frame';
       if (isFrame || ((bbox.width < 5 || bbox.height < 5) && el.tagName.toLowerCase() !== 'line')) {
         const clientRect = el.getBoundingClientRect();
         // Only apply if the screen size is actually significantly larger than the getBBox size or if it's a frame
@@ -2779,7 +3115,6 @@ const MainEditor = ({
       const screenOffset = 0; // Use zero offset for tightest fitting selection
       const localOffset = screenOffset / scale;
 
-      const isLine = el.tagName.toLowerCase() === 'line';
       let pts;
       if (isLine) {
         const x1 = parseFloat(el.getAttribute('x1')) || 0;
@@ -3006,120 +3341,7 @@ const MainEditor = ({
 
         // ── INTERACTION BADGE (Floating above the top-middle) ──
         if (activeTopToolRef.current === 'interaction') {
-          const badgeId = `interaction-badge-${el.id}`;
-          let badge = htmlOverlay?.querySelector(`[id="${badgeId}"]`);
-
-          if (!badge && htmlOverlay) {
-            badge = document.createElement('div');
-            badge.id = badgeId;
-            badge.className = 'absolute z-[2000] cursor-pointer flex flex-col items-center group/badge pointer-events-auto';
-
-            // Main Badge Container (Dark gray box)
-            const mainBox = document.createElement('div');
-            mainBox.setAttribute('data-badge-mainbox', 'true');
-            mainBox.className = 'relative bg-[#3F3F46] rounded-[0.3vw] p-[0.2vw] shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 border border-dashed border-black';
-            mainBox.style.width = '1.6vw';
-            mainBox.style.height = '1.6vw';
-
-            // Touch Interaction Icon (Further reduced size)
-            mainBox.innerHTML = `
-                        <svg width="1vw" height="1vw" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M7 7.99791H6.176C4.679 7.99791 3.93 7.99791 3.466 7.55791C3 7.12091 3 6.41391 3 5.00091C3 3.58791 3 2.88091 3.465 2.44291C3.93 2.00391 4.679 2.00391 6.176 2.00391H17.823C19.321 2.00391 20.07 2.00391 20.535 2.44291C21 2.88191 21 3.58691 21 4.99991C21 6.41291 21 7.11991 20.535 7.55891C20.07 7.99791 19.321 7.99791 17.823 7.99791H16.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M7.42375 17.5184L6.54475 16.3864L5.42475 14.9414C4.98275 14.3964 4.90275 13.7304 5.18275 13.1414C5.28206 12.9339 5.43587 12.7573 5.62775 12.6304C6.24475 12.2234 7.09575 12.1744 7.62775 12.7114L9.59875 14.3894V6.63744C9.59875 5.77444 10.4187 5.02344 11.3447 5.02344C12.2707 5.02344 13.0967 5.77444 13.0967 6.63744V10.7274C14.6217 10.6054 17.0677 11.1684 18.5117 12.2754C19.7727 13.2404 20.5777 13.7774 19.5257 16.9554C19.1997 17.9384 18.3847 19.2914 18.2527 19.6734C18.1217 20.0534 17.9817 20.2804 18.0317 21.9934M6.54475 16.3864C6.81275 16.7104 7.08375 17.0884 7.42375 17.5184M9.52975 21.9994V21.0534C9.60275 19.8904 8.54675 18.9574 7.42375 17.5184M7.42375 17.5184C7.34275 17.4144 7.49975 17.6154 7.42375 17.5184ZM7.42375 17.5184L8.53075 18.8724" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    `;
-
-            // Plus Icon Badge (Further reduced size)
-            const plusBadge = document.createElement('div');
-            plusBadge.setAttribute('data-badge-plus', 'true');
-            plusBadge.className = 'absolute -top-1 -right-1 flex items-center justify-center';
-            plusBadge.style.width = '0.75vw';
-            plusBadge.style.height = '0.75vw';
-            plusBadge.innerHTML = `
-                        <svg width="0.75vw" height="0.75vw" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" fill="white"/>
-                            <path d="M8 0.5C12.1421 0.5 15.5 3.85786 15.5 8C15.5 12.1421 12.1421 15.5 8 15.5C3.85786 15.5 0.5 12.1421 0.5 8C0.5 3.85786 3.85786 0.5 8 0.5Z" stroke="#4A3AFF"/>
-                            <path d="M12.0007 8.66536H8.66732V11.9987C8.66732 12.3654 8.36732 12.6654 8.00065 12.6654C7.63398 12.6654 7.33398 12.3654 7.33398 11.9987V8.66536H4.00065C3.63398 8.66536 3.33398 8.36536 3.33398 7.9987C3.33398 7.63203 3.63398 7.33203 4.00065 7.33203H7.33398V3.9987C7.33398 3.63203 7.63398 3.33203 8.00065 3.33203C8.36732 3.33203 8.66732 3.63203 8.66732 3.9987V7.33203H12.0007C12.3673 7.33203 12.6673 7.63203 12.6673 7.9987C12.6673 8.36536 12.3673 8.66536 12.0007 8.66536Z" fill="#4A3AFF"/>
-                        </svg>
-                    `;
-            mainBox.appendChild(plusBadge);
-
-            // Permanent Label (Speech bubble style - Further reduced)
-            const label = document.createElement('div');
-            label.setAttribute('data-badge-label', 'true');
-            label.className = 'absolute top-1/2 -translate-y-1/2 bg-black text-white text-[0.5vw] font-medium px-[0.5vw] py-[0.25vw] shadow-lg whitespace-nowrap flex items-center opacity-0 group-hover/badge:opacity-100 transition-opacity duration-200 pointer-events-none';
-            label.style.left = '100%';
-            label.style.marginLeft = '0.5vw';
-            label.innerHTML = 'Click To Add Interaction';
-
-            // Small triangle arrow for the speech bubble
-            const arrow = document.createElement('div');
-            arrow.setAttribute('data-badge-arrow', 'true');
-            arrow.className = 'absolute w-0 h-0';
-            arrow.style.cssText = 'position:absolute; left:-5px; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black;';
-            label.appendChild(arrow);
-            label.appendChild(document.createTextNode(''));
-            badge.appendChild(mainBox);
-            badge.appendChild(label);
-
-            // Click Event
-            const triggerEvent = (e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              // Dispatch the event that the InteractionPanel listens to
-              const event = new CustomEvent('add-free-frame', {
-                detail: {
-                  elementId: el.id,
-                  bbox: bbox
-                }
-              });
-              window.dispatchEvent(event);
-            };
-            badge.onpointerdown = triggerEvent;
-            badge.onclick = triggerEvent;
-
-            htmlOverlay.appendChild(badge);
-          }
-
-          if (badge) {
-            const midN = { x: (mapped[0].x + mapped[1].x) / 2, y: (mapped[0].y + mapped[1].y) / 2 };
-            const vwOffset = (window.innerWidth * 0.006) / zoomScale;
-            badge.style.left = `${midN.x}px`;
-
-            // If the top edge of the selection bounding box is too close to the top of the page (e.g. less than 35px),
-            // position the badge inside the top edge instead of above it, to prevent clipping.
-            if (midN.y < 35 / zoomScale) {
-              badge.style.top = `${midN.y + vwOffset}px`;
-              badge.style.transformOrigin = 'top center';
-              badge.style.transform = `translate(-50%, 0%) scale(${1 / zoomScale})`;
-            } else {
-              badge.style.top = `${midN.y - vwOffset}px`;
-              badge.style.transformOrigin = 'bottom center';
-              badge.style.transform = `translate(-50%, -100%) scale(${1 / zoomScale})`;
-            }
-
-            // Flip label to left if badge is near the right edge of the overlay
-            const containerWidth = htmlOverlay?.getBoundingClientRect?.()?.width || 9999;
-            const labelEl = badge.querySelector('[data-badge-label]');
-            const arrowEl = badge.querySelector('[data-badge-arrow]');
-            if (labelEl && arrowEl) {
-              if (midN.x > containerWidth * 0.55) {
-                // Flip: label appears to the LEFT of the badge
-                labelEl.style.left = 'auto';
-                labelEl.style.right = '100%';
-                labelEl.style.marginLeft = '0';
-                labelEl.style.marginRight = '0.5vw';
-                arrowEl.style.cssText = 'position:absolute; right:-5px; left:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-left:5px solid black; border-right:none;';
-              } else {
-                // Default: label appears to the RIGHT of the badge
-                labelEl.style.left = '100%';
-                labelEl.style.right = 'auto';
-                labelEl.style.marginLeft = '0.5vw';
-                labelEl.style.marginRight = '0';
-                arrowEl.style.cssText = 'position:absolute; left:-5px; right:auto; top:50%; margin-top:-4px; width:0; height:0; border-top:4px solid transparent; border-bottom:4px solid transparent; border-right:5px solid black; border-left:none;';
-              }
-            }
-          }
+          drawInteractionBadge(el, mapped, htmlOverlay, zoomScale, bbox);
         }
       }
     } catch (e) { }
@@ -4335,14 +4557,22 @@ const MainEditor = ({
           const type = (currentFrameId && id !== currentFrameId) ? 'child-selected' : 'selected';
           el.setAttribute(`data-${type}`, 'true');
           drawOverlayHighlight(el, type);
+
+          // If this selected element is inside a parent group, highlight the parent group with a dotted line!
+          const parentGroup = el.parentElement?.closest('g');
+          if (parentGroup && parentGroup.id && parentGroup.id !== id && parentGroup.getAttribute('data-type') !== 'frame' && parentGroup.getAttribute('data-name') !== 'Overlay') {
+            drawOverlayHighlight(parentGroup, 'entered');
+          }
         });
       });
     }
 
     if (currentFrameId) {
       document.querySelectorAll(`[id="${currentFrameId}"]`).forEach(el => {
-        el.setAttribute('data-frame-entered', 'true');
-        drawOverlayHighlight(el, 'entered');
+        if (el.getAttribute('data-type') === 'frame') {
+          el.setAttribute('data-frame-entered', 'true');
+          drawOverlayHighlight(el, 'entered');
+        }
       });
     }
 
@@ -8061,7 +8291,7 @@ const MainEditor = ({
     }
 
     if (e.target.tagName.toLowerCase() === 'polygon' && e.target.id?.includes('overlay-poly-')) {
-      const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
+      const polySelectionId = e.target.id.replace(/^overlay-poly-(selected|child-selected|hover|child-hover|entered|multi-child-selected)-/, '');
 
       if (polySelectionId === 'multi') {
         return;
@@ -8290,7 +8520,7 @@ const MainEditor = ({
           let target = getDraggableElement(e.target, e.currentTarget);
 
           if (e.target.tagName.toLowerCase() === 'polygon' && e.target.id?.includes('overlay-poly-')) {
-            const polySelectionId = e.target.id.replace('overlay-poly-selected-', '').replace('overlay-poly-child-selected-', '').replace('overlay-poly-hover-', '');
+            const polySelectionId = e.target.id.replace(/^overlay-poly-(selected|child-selected|hover|child-hover|entered|multi-child-selected)-/, '');
             const underlyingEl = svg.querySelector(`[id="${polySelectionId}"]`);
             if (underlyingEl) target = underlyingEl;
           }

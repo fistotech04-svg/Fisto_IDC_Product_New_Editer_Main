@@ -3,6 +3,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import Texture from "../../models/Texture.js";
 import TextureCategory from "../../models/TextureCategory.js";
+import { uploadFileToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase } from "../../config/supabase.js";
+
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,15 +46,18 @@ export const addTexture = async (req, res) => {
       const relativeBaseDir = `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}`;
       
       const mapKeys = ["preview", "base", "metallic", "roughness", "normal", "ao", "displacement", "opacity", "emissive"];
-      mapKeys.forEach(key => {
+      for (const key of mapKeys) {
         if (req.files[key]) {
           const file = req.files[key][0];
-          mappedUrls[key] = `${relativeBaseDir}/${file.filename}`;
+          const destPath = `${sanitizedEmail}/Texture/${sanitizedMaterialName}/${file.filename}`;
+          const supabaseUrl = await uploadFileToSupabase(file.path, destPath);
+          mappedUrls[key] = supabaseUrl || `${relativeBaseDir}/${file.filename}`;
         } else {
           mappedUrls[key] = null;
         }
-      });
+      }
     }
+
 
     // Verify required maps exist in mappedUrls
     const requiredMapsList = ["base", "metallic", "roughness", "normal"];
@@ -185,9 +191,23 @@ export const deleteTexture = async (req, res) => {
         if (fs.existsSync(targetDir)) {
             fs.rmSync(targetDir, { recursive: true, force: true });
         }
+
+        // Delete map files and folder from Supabase Storage
+        const texturePrefix = `${sanitizedEmail}/Texture/${sanitizedMaterialName}`;
+        await deleteFolderFromSupabase(texturePrefix);
+        if (texture.maps) {
+          for (const key of Object.keys(texture.maps)) {
+            const mapUrl = texture.maps[key];
+            if (mapUrl) {
+              await deleteFileFromSupabase(mapUrl);
+            }
+          }
+        }
+
     } catch (e) {
-        console.warn("Could not delete physical files:", e);
+        console.warn("Could not delete physical or Supabase files:", e);
     }
+
 
     await Texture.findByIdAndDelete(id);
     res.status(200).json({ message: "Texture deleted successfully" });

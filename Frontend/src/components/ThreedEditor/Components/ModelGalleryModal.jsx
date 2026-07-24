@@ -20,8 +20,12 @@ const ModelThumbnail = React.memo(({ model }) => {
         ? (thumbnailPath.startsWith('http') ? thumbnailPath : `${backendUrl}${thumbnailPath.startsWith('/') ? '' : '/'}${thumbnailPath}`)
         : null;
 
-    const modelUrlPath = model.url?.startsWith('/') ? model.url : `/${model.url || ''}`;
-    const fullUrl = `${backendUrl}${modelUrlPath}`;
+    const fullUrl = model.url 
+        ? (model.url.startsWith('http://') || model.url.startsWith('https://') || model.url.startsWith('blob:') || model.url.startsWith('data:')
+            ? model.url 
+            : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`)
+        : '';
+
 
     useEffect(() => {
         if (!viewRef.current || fullThumbnailUrl) return;
