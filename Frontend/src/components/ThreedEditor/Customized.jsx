@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { textureData } from "../../data/textureData";
 import { useRef } from "react";
 import { useEffect } from "react";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
 // --- Reusable UI Components (Matched to PreDefined.jsx) ---
 
@@ -583,13 +584,9 @@ export default function Customized({
     // Support Uploaded Textures: Fallback to current selection if ID matches
     const applied = controls.appliedTexture;
     if (applied && (applied.id === selectedTextureId || applied._id === selectedTextureId)) {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
       return {
         ...applied,
-        // Resolve preview if it's a relative path
-        preview: typeof applied.thumb === "string" && applied.thumb.startsWith("/uploads")
-          ? `${backendUrl}${applied.thumb}`
-          : applied.preview || applied.thumb,
+        preview: resolveUploadsPath(applied.thumb || applied.preview),
       };
     }
     return null;

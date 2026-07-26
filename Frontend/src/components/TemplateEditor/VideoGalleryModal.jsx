@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Upload, X, Check, Replace } from "lucide-react";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
 export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, selectedLayerId, activePageIndex, currentPageVId, flipbookVId, folderName, flipbookName }) {
   const [tempSelectedVideo, setTempSelectedVideo] = useState(null);
@@ -29,7 +30,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
           const formattedAssets = res.data.assets.map(asset => ({
             id: asset.name, // Use filename as ID
             name: asset.name.replace(/\.[^/.]+$/, ''), // Remove extension
-            url: `${backendUrl}${asset.url}`,
+            url: resolveUploadsPath(asset.url),
             type: asset.type,
             uploadedAt: asset.uploadedAt
           }));
@@ -86,7 +87,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
             const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
 
             if (res.data.url) {
-                const serverUrl = `${backendUrl}${res.data.url}`;
+                const serverUrl = resolveUploadsPath(res.data.url);
                 // Update the local item with the server URL and file_v_id
                 setUploadedVideos((prev) => prev.map(v => v.id === newVideoData.id ? { ...v, url: serverUrl, file_v_id: res.data.file_v_id } : v));
                 setTempSelectedVideo(prev => prev && prev.id === newVideoData.id ? { ...prev, url: serverUrl, file_v_id: res.data.file_v_id } : prev);
@@ -182,7 +183,7 @@ export default function VideoGalleryModal({ onClose, onUpdate, selectedElement, 
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             target.src = serverUrl;
             target.dataset.fileVid = res.data.file_v_id;
             const source = target.querySelector("source");

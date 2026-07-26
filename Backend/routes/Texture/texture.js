@@ -12,37 +12,26 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure dynamic storage for textures
+// Configure dynamic storage for textures in temp_uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const { userEmail, materialName } = req.body;
-    
-    if (!userEmail || !materialName) {
-      return cb(new Error("Email and Material Name are required for upload"));
+    const tempDir = path.join(__dirname, "../../temp_uploads/textures");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
-
-    const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
-    const sanitizedMaterialName = materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    
-    // Standardize to same root path as controller/chunks
-    const uploadPath = path.join(__dirname, "../../uploads", sanitizedEmail, "Texture", sanitizedMaterialName);
-
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    cb(null, uploadPath);
+    cb(null, tempDir);
   },
   filename: (req, file, cb) => {
     const { materialName } = req.body;
     const sanitizedMaterialName = materialName ? materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase() : 'texture';
     const ext = path.extname(file.originalname);
-    const uniqueName = `${sanitizedMaterialName}_${file.fieldname}${ext}`;
+    const uniqueName = `${sanitizedMaterialName}_${file.fieldname}_${Date.now()}${ext}`;
     cb(null, uniqueName);
   }
 });
 
 const upload = multer({ 
+  storage,
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB per map for direct upload (if used)
 });
 
@@ -93,20 +82,15 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
     const curIndex = parseInt(chunkIndex);
     const total = parseInt(totalChunks);
 
-    // If it's the last chunk, start merging
+    // If it's the last chunk, start merging inside tempDir
     if (curIndex === total - 1) {
       const tempDir = path.join(__dirname, "../../temp_uploads/textures", uploadId);
       const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
       const sanitizedMaterialName = materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const targetDir = path.join(__dirname, "../../uploads", sanitizedEmail, "Texture", sanitizedMaterialName);
-
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
 
       const ext = path.extname(fileName);
       const uniqueFileName = `${sanitizedMaterialName}_${fieldName}${ext}`;
-      const finalPath = path.join(targetDir, uniqueFileName);
+      const finalPath = path.join(tempDir, uniqueFileName);
 
       try {
           // Reset file if it exists
@@ -130,14 +114,14 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
                   throw new Error(`Chunk ${i} not found after retries`);
               }
           }
-
-          // Cleanup temp dir
-          if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
           
-          // Upload to Supabase Storage
+          // Upload merged file from tempDir to Supabase Storage
           const destinationPath = `${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`;
           const supabaseUrl = await uploadFileToSupabase(finalPath, destinationPath);
           const mapUrl = supabaseUrl || `/uploads/${sanitizedEmail}/Texture/${sanitizedMaterialName}/${uniqueFileName}`;
+
+          // Cleanup temp dir completely
+          if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
 
           res.status(200).json({
               message: "Chunk merged successfully",

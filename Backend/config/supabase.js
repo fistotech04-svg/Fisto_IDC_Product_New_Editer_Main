@@ -257,6 +257,7 @@ export const ensureUserFoldersInSupabase = async (sanitizedEmail) => {
 
     const foldersToCreate = [
       "My_Flipbooks",
+      "My_Flipbooks/My_Flipbooks",
       "Images",
       "Videos",
       "gifs",
@@ -284,7 +285,7 @@ export const ensureFlipbookFoldersInSupabase = async (sanitizedEmail, physicalFo
   try {
     if (!supabaseUrl || !supabaseKey || !sanitizedEmail || !flipbookName) return;
 
-    const folder = physicalFolderName || "My Flipbooks";
+    const folder = physicalFolderName || "My_Flipbooks";
     const subfolders = ["Image", "gif", "video", "3D_Model", "audio", "download"];
 
     const keepPaths = [
@@ -356,6 +357,64 @@ export const renamePathInSupabase = async (oldPrefix, newPrefix) => {
     }
   } catch (err) {
     console.warn("[Supabase] Rename operation failed:", err);
+  }
+};
+
+/**
+ * Copy all objects under an old prefix to a new prefix in Supabase Storage.
+ */
+export const copyPathInSupabase = async (oldPrefix, newPrefix) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !oldPrefix || !newPrefix) return;
+
+    let cleanOld = oldPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    let cleanNew = newPrefix.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+
+    if (cleanOld.startsWith("uploads/")) cleanOld = cleanOld.substring("uploads/".length);
+    if (cleanNew.startsWith("uploads/")) cleanNew = cleanNew.substring("uploads/".length);
+
+    const listAllFiles = async (dirPath) => {
+      let files = [];
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .list(dirPath, { limit: 1000 });
+
+      if (error || !data) return files;
+
+      for (const item of data) {
+        const itemPath = `${dirPath}/${item.name}`;
+        if (!item.id && (!item.metadata || Object.keys(item.metadata).length === 0)) {
+          const subFiles = await listAllFiles(itemPath);
+          files = files.concat(subFiles);
+        } else {
+          files.push(itemPath);
+        }
+      }
+      return files;
+    };
+
+    const allOldKeys = await listAllFiles(cleanOld);
+
+    if (allOldKeys.length > 0) {
+      for (const oldKey of allOldKeys) {
+        const relativePath = oldKey.substring(cleanOld.length);
+        const newKey = `${cleanNew}${relativePath}`;
+
+        const { error: copyError } = await supabase.storage
+          .from(SUPABASE_BUCKET)
+          .copy(oldKey, newKey);
+
+        if (copyError) {
+          console.warn(`[Supabase] Copy error for ${oldKey} -> ${newKey}:`, copyError.message || copyError);
+        }
+      }
+      console.log(`[Supabase] Copied ${allOldKeys.length} objects from "${cleanOld}" to "${cleanNew}"`);
+    } else {
+      const keepPath = `${cleanNew}/.keep`;
+      await uploadBufferToSupabase(Buffer.from(""), keepPath, "text/plain");
+    }
+  } catch (err) {
+    console.warn("[Supabase] Copy operation failed:", err);
   }
 };
 
@@ -438,6 +497,98 @@ export const downloadFileFromSupabase = async (destinationPath) => {
     return null;
   }
 };
+
+/**
+ * List top-level subfolders under a user's My_Flipbooks directory in Supabase Storage.
+ */
+export const listFoldersFromSupabase = async (sanitizedEmail) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !sanitizedEmail) return [];
+
+    const prefix = `${sanitizedEmail}/My_Flipbooks`;
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .list(prefix, { limit: 100 });
+
+    if (error || !data) return [];
+
+    const folderNames = data
+      .map((item) => item.name)
+      .filter(
+        (name) =>
+          name &&
+          name !== ".keep" &&
+          name !== "Recent Book" &&
+          !name.endsWith(".json") &&
+          !name.endsWith(".png") &&
+          !name.endsWith(".jpg") &&
+          !name.endsWith(".svg") &&
+          !name.endsWith(".html"),
+      );
+
+    return folderNames;
+  } catch (err) {
+    console.warn("[Supabase] Error listing folders:", err);
+    return [];
+  }
+};
+
+/**
+ * List all files in a specific folder path in Supabase Storage.
+ */
+export const listFilesInSupabaseFolder = async (folderPath) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !folderPath) return [];
+    let cleanPath = folderPath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
+    if (cleanPath.startsWith("uploads/")) {
+      cleanPath = cleanPath.substring("uploads/".length);
+    }
+
+    const { data, error } = await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .list(cleanPath, { limit: 1000 });
+
+    if (error || !data) return [];
+    return data.filter(item => item && item.name && item.name !== ".keep" && item.id);
+  } catch (err) {
+    console.warn("[Supabase] Error listing files in folder:", err);
+    return [];
+  }
+};
+
+/**
+ * Recursively list all files for a user in Supabase Storage and sum their size in bytes.
+ */
+export const getUserStorageSizeFromSupabase = async (sanitizedEmail) => {
+  try {
+    if (!supabaseUrl || !supabaseKey || !sanitizedEmail) return 0;
+
+    const listAllFiles = async (dirPath) => {
+      let totalSize = 0;
+      const { data, error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .list(dirPath, { limit: 1000 });
+
+      if (error || !data) return 0;
+
+      for (const item of data) {
+        const itemPath = `${dirPath}/${item.name}`;
+        if (!item.id && (!item.metadata || Object.keys(item.metadata).length === 0)) {
+          totalSize += await listAllFiles(itemPath);
+        } else if (item.metadata && item.metadata.size) {
+          totalSize += item.metadata.size;
+        }
+      }
+      return totalSize;
+    };
+
+    return await listAllFiles(sanitizedEmail);
+  } catch (err) {
+    console.warn("[Supabase] Failed to calculate user storage size:", err);
+    return 0;
+  }
+};
+
 
 
 

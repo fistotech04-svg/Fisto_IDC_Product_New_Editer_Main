@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { createRoot } from 'react-dom/client';
 import { createPortal } from 'react-dom';
 import {
@@ -1299,7 +1300,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
     if (flipbookVId) formData.append('v_id', flipbookVId);
 
     // Provide defaults for unsaved books
-    formData.append('folderName', folderName || 'My Flipbooks');
+    formData.append('folderName', folderName || 'My_Flipbooks');
     formData.append('flipbookName', flipbookName || 'Untitled Document');
 
     formData.append('type', 'image');
@@ -1316,7 +1317,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
       const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
       if (res.data.url) {
         return {
-          url: res.data.url.startsWith('http') ? res.data.url : `${backendUrl}${res.data.url}`,
+          url: resolveUploadsPath(res.data.url),
           file_v_id: res.data.file_v_id,
           name: res.data.filename
         };
@@ -1474,7 +1475,7 @@ const SlideshowProperties = ({ selectedElement, activePageIndex, onUpdate, isOpe
             emailId: user.emailId,
             file_v_id: img.file_v_id,
             assetType: 'Image',
-            folderName: folderName || 'My Flipbooks',
+            folderName: folderName || 'My_Flipbooks',
             bookName: flipbookName || 'Untitled Document'
           });
         }

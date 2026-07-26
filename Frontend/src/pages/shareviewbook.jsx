@@ -128,7 +128,7 @@ const ShareViewBook = () => {
                 }
 
                 const bUrl = processedData.meta?.baseUrl
-                    ? `${backendUrl}${processedData.meta.baseUrl}`
+                    ? resolveUploadsPath(processedData.meta.baseUrl)
                     : '';
 
                 if (processedData.pages) {

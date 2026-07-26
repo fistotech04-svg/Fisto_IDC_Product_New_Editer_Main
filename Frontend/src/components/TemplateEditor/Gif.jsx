@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import ReactDOM from 'react-dom';
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import {
   Image as ImageIcon,
   Upload,
@@ -1451,7 +1452,7 @@ const GifEditor = ({
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             setSrc(targetImg, serverUrl);
             liveElement.dataset.fileVid = res.data.file_v_id;
             onUpdateRef.current?.();

@@ -52,7 +52,7 @@ const PreviewPage = () => {
                 return;
             }
 
-            const bUrl = processedData.meta?.baseUrl ? `${backendUrl}${processedData.meta.baseUrl}` : '';
+            const bUrl = processedData.meta?.baseUrl ? resolveUploadsPath(processedData.meta.baseUrl) : '';
             
             processedData.pages = processedData.pages.map(p => {
                 let html = p.html || p.content || '';

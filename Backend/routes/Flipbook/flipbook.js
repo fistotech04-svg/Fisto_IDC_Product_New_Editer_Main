@@ -1,6 +1,7 @@
 import express from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 import Flipbook from "../../models/Flipbook.js"; // Import Model
 import { nanoid } from "nanoid";
@@ -11,7 +12,7 @@ import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
 import { exec } from "child_process";
 import { promisify } from "util";
-import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase } from "../../config/supabase.js";
+import { uploadFileToSupabase, uploadBufferToSupabase, uploadFolderToSupabase, deleteFileFromSupabase, deleteFolderFromSupabase, ensureFlipbookFoldersInSupabase, renamePathInSupabase, copyPathInSupabase, downloadFileFromSupabase, rewriteUploadsToSupabase, listFoldersFromSupabase, listFilesInSupabaseFolder } from "../../config/supabase.js";
 
 
 
@@ -52,12 +53,6 @@ const processAndSaveBase64Assets = ({
   if (!htmlContent) return "";
   if (skipBase64Extraction) return htmlContent;
 
-  const assetsDir = path.join(flipbookDir, "assets");
-  ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
-    const subDir = path.join(assetsDir, sub);
-    if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
-  });
-
   const base64Regex = /data:([^;]+);base64,([^"&<\s]+)/g;
   return htmlContent.replace(base64Regex, (match, mimeType, base64Data) => {
     if (savedBase64Map.has(base64Data)) {
@@ -91,18 +86,14 @@ const processAndSaveBase64Assets = ({
     if (!isDownload && ext === 'gif') subfolder = 'gif';
     if (normalizedExt.includes('+')) normalizedExt = normalizedExt.split('+')[0];
     
-    const assetFileName = `${nanoid()}.${normalizedExt}`;
-    const assetSubDir = path.join(assetsDir, subfolder);
-    if (!fs.existsSync(assetSubDir)) fs.mkdirSync(assetSubDir, { recursive: true });
+    const contentHash = crypto.createHash('md5').update(base64Data).digest('hex').slice(0, 16);
+    const assetFileName = `asset_${contentHash}.${normalizedExt}`;
+    const relativePath = `./assets/${subfolder}/${assetFileName}`;
     
-    const assetPath = path.join(assetSubDir, assetFileName);
     try {
       const buffer = Buffer.from(base64Data, 'base64');
-      fs.writeFileSync(assetPath, buffer);
-      const relativePath = `./assets/${subfolder}/${assetFileName}`;
-
       const assetDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
-      uploadFileToSupabase(assetPath, assetDestPath).catch(err => console.warn("[Supabase] Asset upload warning:", err));
+      uploadBufferToSupabase(buffer, assetDestPath, actualMimeType).catch(err => console.warn("[Supabase] Asset upload warning:", err));
 
       const absoluteUrl = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subfolder}/${assetFileName}`;
       
@@ -128,36 +119,16 @@ const processAndSaveBase64Assets = ({
 };
 
 
-// Configure multer for asset uploads
+// Configure multer for asset uploads in temp_uploads
 const assetStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const { emailId, folderName, flipbookName, assetType } = req.body;
-
-    if (!emailId || !folderName || !flipbookName || !assetType) {
-      return cb(new Error("Missing required fields"));
+    const tempDir = path.join(__dirname, "../../temp_uploads/flipbook_assets");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
-
-    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const assetDir = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      folderName,
-      flipbookName,
-      "assets",
-      assetType,
-    );
-
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(assetDir)) {
-      fs.mkdirSync(assetDir, { recursive: true });
-    }
-
-    cb(null, assetDir);
+    cb(null, tempDir);
   },
   filename: (req, file, cb) => {
-    // Generate unique filename using nanoid + original extension
     const ext = path.extname(file.originalname);
     const uniqueName = `${nanoid()}${ext}`;
     cb(null, uniqueName);
@@ -192,32 +163,14 @@ const assetUpload = multer({
   },
 });
 
-// Configure multer for 3D model uploads into flipbook assets/3D_Model folder
+// Configure multer for 3D model uploads in temp_uploads
 const model3DStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const { emailId, folderName, flipbookName } = req.body;
-
-    if (!emailId || !folderName || !flipbookName) {
-      return cb(new Error("Missing required fields: emailId, folderName, flipbookName"));
+    const tempDir = path.join(__dirname, "../../temp_uploads/flipbook_assets");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
-
-    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const modelDir = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      folderName,
-      flipbookName,
-      "assets",
-      "3D_Model",
-    );
-
-    if (!fs.existsSync(modelDir)) {
-      fs.mkdirSync(modelDir, { recursive: true });
-    }
-
-    cb(null, modelDir);
+    cb(null, tempDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
@@ -258,6 +211,7 @@ router.post("/upload-3d-model", (req, res) => {
     try {
       const { emailId, folderName, flipbookName } = req.body;
       if (!emailId || !folderName || !flipbookName) {
+        if (req.file && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
         return res.status(400).json({ message: "Missing required fields" });
       }
       if (!req.file) {
@@ -273,7 +227,7 @@ router.post("/upload-3d-model", (req, res) => {
 
       // ── Upload 3D model to Supabase Storage under flipbook assets/3D_Model ──
       const flipbookAssetSupabasePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${flipbookName}/assets/3D_Model/${req.file.filename}`;
-      uploadFileToSupabase(req.file.path, flipbookAssetSupabasePath).catch((err) =>
+      await uploadFileToSupabase(req.file.path, flipbookAssetSupabasePath).catch((err) =>
         console.warn("[Supabase] 3D Model flipbook asset upload warning:", err)
       );
 
@@ -288,28 +242,14 @@ router.post("/upload-3d-model", (req, res) => {
         type: type,
       });
 
-      // ── Also copy to user's global 3D_Modals folder ──────────────────────
+      // ── Also copy to user's global 3D_Modals in Supabase ──────────────────────
       let globalUrl = null;
       if (req.body.skipGlobalGallery !== 'true') {
-        const uploadsDir = path.join(__dirname, "../../uploads");
-        const globalModalsDir = path.join(uploadsDir, sanitizedEmail, "3D_Modals");
-
-        if (!fs.existsSync(globalModalsDir)) {
-          fs.mkdirSync(globalModalsDir, { recursive: true });
-        }
-
-        const globalFilePath = path.join(globalModalsDir, req.file.filename);
-
-        // Copy the already-saved file from the flipbook assets folder
-        fs.copyFileSync(req.file.path, globalFilePath);
-
-        // ── Upload 3D model to Supabase Storage under user's global 3D_Modals ──
         const globalSupabasePath = `${sanitizedEmail}/3D_Modals/${req.file.filename}`;
-        uploadFileToSupabase(globalFilePath, globalSupabasePath).catch((err) =>
+        await uploadFileToSupabase(req.file.path, globalSupabasePath).catch((err) =>
           console.warn("[Supabase] Global 3D Model upload warning:", err)
         );
 
-        // Upsert DB record in ThreedModel so it appears in the user's gallery
         globalUrl = `/uploads/${sanitizedEmail}/3D_Modals/${req.file.filename}`;
 
         const existingModel = await ThreedModel.findOne({
@@ -317,9 +257,8 @@ router.post("/upload-3d-model", (req, res) => {
           name: req.file.filename,
         });
 
-        let createdThreedModel = null;
         if (!existingModel) {
-          createdThreedModel = await ThreedModel.create({
+          await ThreedModel.create({
             userEmail: emailId,
             name: req.file.filename,
             url: globalUrl,
@@ -327,18 +266,12 @@ router.post("/upload-3d-model", (req, res) => {
             size: sizeStr,
           });
         }
-        
-        res.status(200).json({
-          message: "3D model uploaded successfully",
-          url: relativeUrl,       // relative path for page HTML
-          globalUrl,              // absolute path in 3D_Modals gallery
-          filename: req.file.filename,
-          v_id: newInteractionModel.v_id,
-        });
-        return;
       }
 
-      // ─────────────────────────────────────────────────────────────────────
+      // Cleanup local temp file
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch(e) {}
+      }
 
       res.status(200).json({
         message: "3D model uploaded successfully",
@@ -348,6 +281,9 @@ router.post("/upload-3d-model", (req, res) => {
         v_id: newInteractionModel.v_id,
       });
     } catch (error) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch(e) {}
+      }
       console.error("Error processing 3D model upload:", error);
       res.status(500).json({ message: "Server error during processing" });
     }
@@ -426,7 +362,9 @@ router.post("/save", async (req, res) => {
     }
 
     // PHYSICAL PATH RESOLUTION
-    let physicalFolderName = targetFolder;
+    let physicalFolderName = (targetFolder && targetFolder !== "Recent Book" && targetFolder !== "Recent book")
+      ? targetFolder
+      : "My_Flipbooks";
 
     // If updating an existing book, use its existing physical folder (to handle 'Recent Book' cases)
     if (existingDoc && existingDoc.folderName) {
@@ -440,50 +378,18 @@ router.post("/save", async (req, res) => {
       if (realFolder) physicalFolderName = realFolder;
     }
 
-    const userTargetFolderDir = path.join(myFlipbooksDir, physicalFolderName);
-    const flipbookDir = path.join(userTargetFolderDir, flipbookName);
     let oldFlipbookName = null;
 
-    // PHYSICAL DIRECTORY RENAME DETECTION (using robust pattern from /rename)
+    // SUPABASE FOLDER RENAME DETECTION
     if (existingDoc && existingDoc.flipbookName !== flipbookName) {
       oldFlipbookName = existingDoc.flipbookName;
-      const oldFlipbookDir = path.join(userTargetFolderDir, oldFlipbookName);
-
-      if (fs.existsSync(oldFlipbookDir) && oldFlipbookDir !== flipbookDir) {
-        try {
-          console.log(
-            `Physically renaming directory from "${oldFlipbookName}" to "${flipbookName}"`,
-          );
-          if (!fs.existsSync(flipbookDir)) {
-             try {
-               fs.renameSync(oldFlipbookDir, flipbookDir);
-             } catch (err) {
-               if (["EPERM", "EACCES", "EBUSY"].includes(err.code)) {
-                 await new Promise((resolve) => setTimeout(resolve, 500));
-                 try {
-                   fs.renameSync(oldFlipbookDir, flipbookDir);
-                 } catch (retryErr) {
-                   console.log("Renaming failed in save, attempting copy-delete fallback...");
-                   copyRecursiveSync(oldFlipbookDir, flipbookDir);
-                   try { fs.rmSync(oldFlipbookDir, { recursive: true, force: true }); } catch (e) {}
-                 }
-               } else throw err;
-             }
-          } else {
-            console.warn(
-              "Target directory already exists during rename, skipping renameSync.",
-            );
-          }
-        } catch (err) {
-          console.error(
-            "Failed to physically rename directory during save:",
-            err,
-          );
-        }
-      }
+      const oldPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${oldFlipbookName}`;
+      const newPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}`;
+      renamePathInSupabase(oldPath, newPath).catch(err =>
+        console.warn("[Supabase] Rename flipbook folder warning:", err)
+      );
 
       // PRE-PROCESS PAGES: Update URLs in the current request payload to reflect new name
-      // Use regex to match the path regardless of what the root folder (My_Flipbooks) is named
       const escapedFolder = escapeRegex(physicalFolderName).replace(/ /g, "(?: |%20)");
       const escapedOldName = escapeRegex(oldFlipbookName).replace(/ /g, "(?: |%20)");
       const pathRegex = new RegExp(`/[^/]+/${escapedFolder}/${escapedOldName}/`, "g");
@@ -497,39 +403,15 @@ router.post("/save", async (req, res) => {
       console.log(`Updated URLs in ${pages.length} pages in memory before write.`);
     }
 
-    // Ensure My_Flipbooks and Target Folder exist
-    if (!fs.existsSync(myFlipbooksDir))
-      fs.mkdirSync(myFlipbooksDir, { recursive: true });
-    if (!fs.existsSync(userTargetFolderDir))
-      fs.mkdirSync(userTargetFolderDir, { recursive: true });
-
-    // Check Existence / Overwrite
-    const isActuallyNew = !existingDoc;
-    if (fs.existsSync(flipbookDir)) {
-      if (isActuallyNew && !overwrite) {
-        return res
-          .status(409)
-          .json({ message: "Flipbook already exists", code: "EXISTS" });
-      }
-    } else {
-      fs.mkdirSync(flipbookDir, { recursive: true });
-    }
-
     const savedPages = [];
     const dbPages = [];
     const savedFileNames = new Set();
     const newPageIds = new Set();
 
-    // Create Default Assets Folders locally and in Supabase Storage
-    const assetsDir = path.join(flipbookDir, "assets");
-    ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
-      const subDir = path.join(assetsDir, sub);
-      if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
-    });
+    // Ensure Default Assets Folders exist in Supabase Storage
     ensureFlipbookFoldersInSupabase(sanitizedEmail, physicalFolderName, flipbookName).catch(err =>
       console.warn("[Supabase] Auto subfolder create warning:", err)
     );
-
 
     // Cache to prevent saving the same base64 string multiple times
     const savedBase64Map = new Map();
@@ -543,14 +425,16 @@ router.post("/save", async (req, res) => {
         sanitizedEmail,
         physicalFolderName,
         flipbookName,
-        flipbookDir,
+        flipbookDir: "",
         flipbook_v_id,
         newFlipbookAssets,
         savedBase64Map
       });
     };
 
-
+    const pageHtmlMap = new Map();
+    const modifiedPageIds = new Set();
+    let allHtmlContents = "";
 
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
@@ -560,7 +444,6 @@ router.post("/save", async (req, res) => {
       const fileName = pageName.endsWith(".html")
         ? pageName
         : `${pageName}.html`;
-      const filePath = path.join(flipbookDir, fileName);
 
       // Resolve pageVId early so we can use it for DB assets
       let pageVId = incomingPageVId;
@@ -575,13 +458,16 @@ router.post("/save", async (req, res) => {
       }
 
       const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${fileName}`;
+      let processedContent = "";
+
+      const isContentProvided = (content !== undefined && content !== null) || page.contentChunkId !== undefined;
 
       if (content !== undefined && content !== null) {
-        const processedContent = extractBase64AndSave(content, pageVId);
-        fs.writeFileSync(filePath, processedContent, "utf8");
-        uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
+        processedContent = extractBase64AndSave(content, pageVId);
+        const pageBuffer = Buffer.from(processedContent, "utf8");
+        await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
       } else if (page.contentChunkId) {
-        // Reassemble from chunks
+        // Reassemble from chunks in temp_uploads
         const tempDir = path.join(__dirname, "../../temp_uploads", page.contentChunkId);
         if (fs.existsSync(tempDir)) {
           const chunks = fs.readdirSync(tempDir).sort((a, b) => {
@@ -593,15 +479,19 @@ router.post("/save", async (req, res) => {
             assembledContent += fs.readFileSync(path.join(tempDir, chunkFile), "utf8");
           }
           
-          const processedContent = extractBase64AndSave(assembledContent, pageVId);
-          fs.writeFileSync(filePath, processedContent, "utf8");
-          uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
+          processedContent = extractBase64AndSave(assembledContent, pageVId);
+          const pageBuffer = Buffer.from(processedContent, "utf8");
+          await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
           
-          // Cleanup chunks after save (optional, but good practice)
-          setTimeout(() => {
-            try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
-          }, 5000);
+          // Cleanup chunks after save
+          try { fs.rmSync(tempDir, { recursive: true, force: true }); } catch (e) {}
         }
+      }
+
+      if (isContentProvided && processedContent) {
+        allHtmlContents += " " + processedContent;
+        pageHtmlMap.set(pageVId, processedContent.toLowerCase());
+        modifiedPageIds.add(pageVId);
       }
 
       savedPages.push(fileName);
@@ -617,160 +507,118 @@ router.post("/save", async (req, res) => {
       });
     }
 
-    // Insert new base64 assets into DB
+    // Upsert base64 assets into DB (prevents duplicate DB rows for identical asset filenames)
     if (newFlipbookAssets.length > 0) {
       try {
-        await FlipbookAsset.insertMany(newFlipbookAssets);
-        console.log(`Inserted ${newFlipbookAssets.length} extracted base64 assets into DB`);
+        for (const assetObj of newFlipbookAssets) {
+          await FlipbookAsset.updateOne(
+            { flipbook_v_id: assetObj.flipbook_v_id, fileName: assetObj.fileName },
+            { $set: assetObj },
+            { upsert: true }
+          );
+        }
+        console.log(`Upserted ${newFlipbookAssets.length} extracted base64 assets in DB`);
       } catch (err) {
-        console.error("Error inserting extracted assets:", err);
+        console.error("Error upserting extracted assets:", err);
       }
     }
 
-    // Handle Cascading Deletion of Assets for Deleted Pages
+    // Handle Cascading Deletion & Deduplication of DB Asset Records
     try {
-      let currentFlipbookVId = req.body.v_id;
-      if (existingDoc && existingDoc.v_id) {
-        currentFlipbookVId = existingDoc.v_id;
-      }
+      let currentFlipbookVId = req.body.v_id || (existingDoc && existingDoc.v_id) || flipbook_v_id;
+      const allHtmlLower = allHtmlContents ? allHtmlContents.toLowerCase() : "";
+      const existingPageVIds = new Set(existingDoc && existingDoc.pages ? existingDoc.pages.map(p => p.v_id) : []);
       
-      // Find all assets associated with this flipbook
+      // 1. Clean up FlipbookAsset records: remove deleted page assets, unreferenced page assets, and duplicate DB rows
       const allFlipbookAssets = await FlipbookAsset.find({ flipbook_v_id: currentFlipbookVId });
+      const seenAssets = new Set();
       
-      // Identify assets whose page_v_id is no longer in the newPageIds set.
-      // We skip 'global' because legacy assets were uploaded with 'global' 
-      // and we cannot safely determine if they belong to a deleted page.
-      const orphanedAssets = allFlipbookAssets.filter(asset => 
-        asset.page_v_id && 
-        asset.page_v_id !== 'global' && 
-        !newPageIds.has(asset.page_v_id)
-      );
+      for (const asset of allFlipbookAssets) {
+        const isPageDeleted = asset.page_v_id && asset.page_v_id !== 'global' && existingPageVIds.has(asset.page_v_id) && !newPageIds.has(asset.page_v_id);
+        const isPageModifiedInRequest = asset.page_v_id && modifiedPageIds.has(asset.page_v_id);
+        const pageHtml = isPageModifiedInRequest ? pageHtmlMap.get(asset.page_v_id) || "" : null;
+        const isRemovedFromPage = isPageModifiedInRequest && asset.fileName && asset.page_v_id !== 'global' && !pageHtml.includes(asset.fileName.toLowerCase());
 
-      if (orphanedAssets.length > 0) {
-        console.log("Deleting orphaned assets for removed pages...");
-        
-        for (const asset of orphanedAssets) {
-          try {
-            if (asset.url) {
+        if (isPageDeleted || isRemovedFromPage) {
+          console.log(`[Save Cleanup] Processing removed/page-deleted asset: ${asset.fileName}`);
+          const isGalleryFile = asset.folderName === 'Gallery' || asset.isGallery || (asset.url && (
+            asset.url.includes(`/${sanitizedEmail}/Images/`) ||
+            asset.url.includes(`/${sanitizedEmail}/Videos/`) ||
+            asset.url.includes(`/${sanitizedEmail}/gifs/`) ||
+            asset.url.includes(`/${sanitizedEmail}/3D_Modals/`) ||
+            asset.url.includes(`/${sanitizedEmail}/Image/`) ||
+            asset.url.includes(`/${sanitizedEmail}/video/`) ||
+            asset.url.includes(`/${sanitizedEmail}/gif/`) ||
+            asset.url.includes(`/${sanitizedEmail}/3D_Model/`)
+          ));
+
+          if (!isGalleryFile) {
+            const assetSubFolder = asset.assetType || "Image";
+            const supabaseAssetPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${assetSubFolder}/${asset.fileName}`;
+            deleteFileFromSupabase(supabaseAssetPath).catch((e) =>
+              console.warn("[Supabase] Delete orphaned asset warning:", e)
+            );
+            if (asset.url && !asset.url.includes(`/${sanitizedEmail}/Images/`) && !asset.url.includes(`/${sanitizedEmail}/Videos/`) && !asset.url.includes(`/${sanitizedEmail}/gifs/`) && !asset.url.includes(`/${sanitizedEmail}/3D_Modals/`)) {
               deleteFileFromSupabase(asset.url).catch((e) =>
-                console.warn("[Supabase] Delete orphaned asset warning:", e)
+                console.warn("[Supabase] Delete orphaned asset URL warning:", e)
               );
-              if (asset.url.startsWith("/uploads")) {
-                const assetPath = path.join(__dirname, "../../", asset.url);
-                if (fs.existsSync(assetPath)) {
-                  fs.unlinkSync(assetPath);
-                  console.log(`Deleted orphaned asset file: ${assetPath}`);
-                }
-              }
             }
-            await FlipbookAsset.deleteOne({ _id: asset._id });
-          } catch (e) {
-            console.warn(`Failed to delete orphaned asset ${asset._id}:`, e.message);
+          } else {
+            console.log(`[Save Cleanup] Preserving global gallery asset file in Supabase: ${asset.fileName}`);
+          }
+          await FlipbookAsset.deleteOne({ _id: asset._id });
+        } else if (seenAssets.has(asset.fileName)) {
+          console.log(`[Save Cleanup] Purging duplicate DB asset document: ${asset.fileName}`);
+          await FlipbookAsset.deleteOne({ _id: asset._id });
+        } else {
+          seenAssets.add(asset.fileName);
+        }
+      }
+
+      // 2. Clean up unreferenced InteractionThreedModel records & files
+      const all3DModels = await InteractionThreedModel.find({ userEmail: emailId, flipbookName: flipbookName });
+      for (const model of all3DModels) {
+        const isModelRemoved = model.fileName && !allHtmlLower.includes(model.fileName.toLowerCase());
+        if (isModelRemoved) {
+          console.log(`[Save Cleanup] Deleting unreferenced 3D model: ${model.fileName}`);
+          const supabaseModelPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/3D_Model/${model.fileName}`;
+          deleteFileFromSupabase(supabaseModelPath).catch((e) =>
+            console.warn("[Supabase] Delete orphaned 3D model warning:", e)
+          );
+          deleteFileFromSupabase(`${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/3D_Modals/${model.fileName}`).catch(() => {});
+          if (model.url) {
+            deleteFileFromSupabase(model.url).catch((e) =>
+              console.warn("[Supabase] Delete orphaned 3D model URL warning:", e)
+            );
+          }
+          await InteractionThreedModel.deleteOne({ _id: model._id });
+        }
+      }
+
+      // 3. Clean up deleted HTML page files from Supabase Storage
+      if (existingDoc && existingDoc.pages) {
+        for (const oldPage of existingDoc.pages) {
+          if (oldPage.fileName && !savedFileNames.has(oldPage.fileName)) {
+            console.log(`[Save Cleanup] Deleting removed page file: ${oldPage.fileName}`);
+            const supabasePagePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${oldPage.fileName}`;
+            deleteFileFromSupabase(supabasePagePath).catch((e) =>
+              console.warn("[Supabase] Delete removed page file warning:", e)
+            );
           }
         }
       }
     } catch (err) {
-      console.error("Error cleaning up orphaned assets:", err);
+      console.error("Error cleaning up orphaned assets and pages:", err);
     }
 
-    // Clean up orphaned HTML files (Deleted or Renamed pages) and all orphaned assets
-    if (fs.existsSync(flipbookDir)) {
-      const existingFiles = fs.readdirSync(flipbookDir);
-      const activeAssets = new Set();
-
-      existingFiles.forEach((file) => {
-        const expectedNames = new Set(
-          pages
-            .map((p) =>
-              p.pageName
-                ? p.pageName.endsWith(".html")
-                  ? p.pageName
-                  : `${p.pageName}.html`
-                : null,
-            )
-            .filter(Boolean),
-        );
-        if (file.endsWith(".html")) {
-          if (!expectedNames.has(file)) {
-            fs.unlinkSync(path.join(flipbookDir, file));
-            const supabasePagePath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/${file}`;
-            deleteFileFromSupabase(supabasePagePath).catch((e) =>
-              console.warn("[Supabase] Delete orphaned page warning:", e)
-            );
-          } else {
-            // If it's an expected HTML file, scan it for all asset usages
-            try {
-              const filePath = path.join(flipbookDir, file);
-              const content = fs.readFileSync(filePath, "utf8");
-              // Extract filenames correctly avoiding HTML entities like &quot;
-              const matches = content.match(/\.\/assets\/(3D_Model|3D_Modals|3d_model|Image|image|gif|video|audio|download)\/([a-zA-Z0-9_.-]+)/gi);
-              if (matches) {
-                matches.forEach(m => {
-                  const parts = m.split('/');
-                  activeAssets.add(parts[parts.length - 1]);
-                });
-              }
-            } catch (err) {
-              console.error(`Error reading ${file} for assets scan:`, err);
-            }
-          }
-        }
-      });
-
-      // Now cleanup all asset folders
-      const subFolders = ["3D_Model", "3D_Modals", "3d_model", "Image", "image", "gif", "video", "audio", "download"];
-      for (const subFolder of subFolders) {
-
-        const assetSubDir = path.join(flipbookDir, "assets", subFolder);
-        if (fs.existsSync(assetSubDir)) {
-          const existingAssetsInDir = fs.readdirSync(assetSubDir);
-          for (const assetFile of existingAssetsInDir) {
-            if (!activeAssets.has(assetFile)) {
-              try {
-                // Delete local file
-                fs.unlinkSync(path.join(assetSubDir, assetFile));
-                console.log(`Deleted orphaned asset: ${assetFile} from ${subFolder}`);
-
-                // Delete asset from Supabase Storage
-                const supabaseAssetPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/assets/${subFolder}/${assetFile}`;
-                deleteFileFromSupabase(supabaseAssetPath).catch((e) =>
-                  console.warn("[Supabase] Delete unreferenced asset warning:", e)
-                );
-
-                if (subFolder === "3D_Model") {
-                  await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: assetFile });
-                } else {
-                  await FlipbookAsset.deleteMany({ flipbook_v_id: flipbook_v_id, fileName: assetFile });
-                }
-                console.log(`Deleted DB entry for orphaned asset: ${assetFile}`);
-              } catch (e) {
-                console.error(`Error deleting orphaned asset ${assetFile}:`, e);
-              }
-            }
-          }
-        }
-      }
-    }
-
-
-    // Prepare Folder List for DB (Current Folder + 'Recent Book')
-    // Using Set to ensure uniqueness
-    const folderList = [targetFolder];
-    if (targetFolder !== "Recent Book") {
+    // Prepare Folder List for DB (Current Physical Folder + 'Recent Book')
+    const folderList = [physicalFolderName];
+    if (!folderList.includes("Recent Book")) {
       folderList.push("Recent Book");
     }
     const uniqueFolders = [...new Set(folderList)];
 
     // Save Metadata to MongoDB
-    // We find by primary keys. We update folderName to include Recent Book if missing.
-    // Create Default Assets Folders (just ensuring they exist if they weren't created before)
-    ["Image", "gif", "video", "3D_Model", "audio", "download"].forEach((sub) => {
-      const subDir = path.join(assetsDir, sub);
-      if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
-    });
-
-    // SAVE METADATA TO MONGO
-    // We find by primary keys. We update folderName to include Recent Book if missing.
     const v_id = flipbook_v_id; // Use the one we generated at the top
 
     if (oldFlipbookName) {
@@ -779,16 +627,13 @@ router.post("/save", async (req, res) => {
       );
     }
 
-    // We use findOneAndUpdate but we just fetched existingDoc, so we could just save().
-    // But let's stick to findOneAndUpdate to be atomic-ish or just robust.
-    // Determine search criteria for the update/upsert
     const updateQuery =
       req.body.v_id || (existingDoc && existingDoc.v_id)
         ? { userEmail: emailId, v_id: req.body.v_id || existingDoc.v_id }
         : {
             userEmail: emailId,
             flipbookName: flipbookName,
-            folderName: targetFolder,
+            folderName: physicalFolderName,
           };
 
     const savedDoc = await Flipbook.findOneAndUpdate(
@@ -856,37 +701,6 @@ router.post("/save", async (req, res) => {
       } catch (err) {
         console.error("❌ Error updating assets after rename:", err);
       }
-
-      // UPDATE HTML CONTENT: Update asset paths in .html files if flipbook was renamed
-      try {
-        console.log(`Updating HTML content for renamed flipbook in save...`);
-        if (fs.existsSync(flipbookDir)) {
-          const files = fs.readdirSync(flipbookDir);
-          const htmlFiles = files.filter((f) => f.endsWith(".html"));
-
-          // Use regex to match the path regardless of what the root folder (My_Flipbooks) is named
-          const escapedFolder = escapeRegex(physicalFolderName).replace(/ /g, "(?: |%20)");
-          const escapedOldName = escapeRegex(oldFlipbookName).replace(/ /g, "(?: |%20)");
-          const pathRegex = new RegExp(`/[^/]+/${escapedFolder}/${escapedOldName}/`, "g");
-          const replacementPath = `/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}/`;
-
-          for (const file of htmlFiles) {
-            const filePath = path.join(flipbookDir, file);
-            let content = fs.readFileSync(filePath, "utf8");
-
-            if (pathRegex.test(content)) {
-              content = content.replace(pathRegex, replacementPath);
-              fs.writeFileSync(filePath, content, "utf8");
-              console.log(`Updated HTML content in save for: ${file}`);
-            }
-          }
-          console.log(
-            `✅ checked/updated ${htmlFiles.length} HTML file(s) in save`,
-          );
-        }
-      } catch (htmlErr) {
-        console.error("❌ Error updating HTML content in save:", htmlErr);
-      }
     }
 
     // FIFO Logic for 'Recent Book' Tag
@@ -911,13 +725,15 @@ router.post("/save", async (req, res) => {
       console.error("Error enforcing Recent Book tag limit:", err);
     }
 
+    const supabaseLocation = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${physicalFolderName}/${flipbookName}`;
+
     res.status(200).json({
       message: "Flipbook saved successfully",
       flipbookName,
       v_id: savedDoc.v_id,
       pages: savedDoc.pages,
       savedPagesCount: savedPages.length,
-      location: flipbookDir,
+      location: supabaseLocation,
     });
   } catch (error) {
     console.error("Error saving flipbook:", error);
@@ -947,19 +763,10 @@ router.post("/save-page", async (req, res) => {
     const realFolders = Array.isArray(doc.folderName)
       ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
       : [doc.folderName];
-    const realFolder = realFolders[0] || "My Flipbooks";
+    const realFolder = realFolders[0] || "My_Flipbooks";
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const flipbookDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, realFolder, doc.flipbookName);
-
-    if (!fs.existsSync(flipbookDir)) {
-      fs.mkdirSync(flipbookDir, { recursive: true });
-    }
-
-    // Write the HTML file for this page after extracting base64 assets
     const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
-    const filePath = path.join(flipbookDir, fileName);
 
     const newFlipbookAssets = [];
     const processedContent = processAndSaveBase64Assets({
@@ -968,15 +775,14 @@ router.post("/save-page", async (req, res) => {
       sanitizedEmail,
       physicalFolderName: realFolder,
       flipbookName: doc.flipbookName,
-      flipbookDir,
+      flipbookDir: "",
       flipbook_v_id: doc.v_id,
       newFlipbookAssets
     });
 
-    fs.writeFileSync(filePath, processedContent, "utf8");
-
     const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${fileName}`;
-    uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
+    const pageBuffer = Buffer.from(processedContent, "utf8");
+    await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
 
     if (newFlipbookAssets.length > 0) {
       try {
@@ -1035,15 +841,9 @@ router.post("/save-pages-batch", async (req, res) => {
     const realFolders = Array.isArray(doc.folderName)
       ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
       : [doc.folderName];
-    const realFolder = realFolders[0] || "My Flipbooks";
+    const realFolder = realFolders[0] || "My_Flipbooks";
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const flipbookDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT, realFolder, doc.flipbookName);
-
-    if (!fs.existsSync(flipbookDir)) {
-      fs.mkdirSync(flipbookDir, { recursive: true });
-    }
 
     doc.pages = doc.pages || [];
     const newFlipbookAssets = [];
@@ -1052,7 +852,6 @@ router.post("/save-pages-batch", async (req, res) => {
     for (const page of pages) {
       const { pageName, content, pageNumber, v_id: pageVId } = page;
       const fileName = pageName.endsWith(".html") ? pageName : `${pageName}.html`;
-      const filePath = path.join(flipbookDir, fileName);
 
       const processedContent = processAndSaveBase64Assets({
         htmlContent: content,
@@ -1060,18 +859,16 @@ router.post("/save-pages-batch", async (req, res) => {
         sanitizedEmail,
         physicalFolderName: realFolder,
         flipbookName: doc.flipbookName,
-        flipbookDir,
+        flipbookDir: "",
         flipbook_v_id: doc.v_id,
         newFlipbookAssets,
         savedBase64Map,
         skipBase64Extraction: keepBase64
       });
 
-      // Write HTML file to disk
-      fs.writeFileSync(filePath, processedContent, "utf8");
-
       const pageDestPath = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${realFolder}/${doc.flipbookName}/${fileName}`;
-      await uploadFileToSupabase(filePath, pageDestPath).catch(err => console.warn("[Supabase] Page upload warning:", err));
+      const pageBuffer = Buffer.from(processedContent, "utf8");
+      await uploadBufferToSupabase(pageBuffer, pageDestPath, "text/html").catch(err => console.warn("[Supabase] Page upload warning:", err));
 
       // Update or insert into DB pages array
       const existingPageIdx = doc.pages.findIndex((p) => p.name === pageName);
@@ -1151,204 +948,112 @@ router.get("/list", async (req, res) => {
       FLIPBOOK_ROOT,
     );
 
-    if (!fs.existsSync(myFlipbooksDir)) {
-      // Even if no folders, we might check DB? But likely empty.
-      return res.json({ books: [] });
-    }
-
-    const folders = fs
-      .readdirSync(myFlipbooksDir, { withFileTypes: true })
-      .filter((dirent) => dirent.isDirectory())
-      .map((dirent) => dirent.name);
-
-    let books = [];
-
-    // 0. Fetch all DB records for this user to map v_ids
-    const userDbBooks = await Flipbook.find({ userEmail: emailId });
+    // 0. Fetch all DB records for this user
+    const userDbBooks = await Flipbook.find({ userEmail: emailId }).sort({ lastUpdated: -1 });
 
     // Fetch all assets for this user to use as thumbnails AND calculate sizes
     const bookVIds = userDbBooks.map((b) => b.v_id).filter(Boolean);
     const allAssets = await FlipbookAsset.find({
-      flipbook_v_id: { $in: bookVIds },
+      $or: [
+        { flipbook_v_id: { $in: bookVIds } },
+        { userEmail: emailId }
+      ]
     });
 
-    // Map to store the first image URL for each flipbook v_id
     const firstImageAssetMap = new Map();
     const bookSizeMap = new Map();
 
-    // Sort to ensure 'page-1.png' or similar comes first if possible
     allAssets.sort((a, b) =>
-      a.fileName.localeCompare(b.fileName, undefined, {
+      (a.fileName || '').localeCompare(b.fileName || '', undefined, {
         numeric: true,
         sensitivity: "base",
       }),
     );
     allAssets.forEach((asset) => {
-      if (asset.assetType === "image" && !firstImageAssetMap.has(asset.flipbook_v_id)) {
+      if (asset.assetType === "image" && asset.flipbook_v_id && !firstImageAssetMap.has(asset.flipbook_v_id)) {
         firstImageAssetMap.set(asset.flipbook_v_id, asset.url);
       }
 
-      if (asset.size) {
+      if (asset.size && asset.flipbook_v_id) {
         const currentSize = bookSizeMap.get(asset.flipbook_v_id) || 0;
         bookSizeMap.set(asset.flipbook_v_id, currentSize + asset.size);
       }
     });
 
-    // 1. FS Scan for Physical Books
-    // 1. FS Scan for Physical Books
-    for (const folder of folders) {
-      const folderPath = path.join(myFlipbooksDir, folder);
+    let books = [];
+    const processedVIds = new Set();
 
-      let bookDirs = [];
-      try {
-        bookDirs = fs
-          .readdirSync(folderPath, { withFileTypes: true })
-          .filter((dirent) => dirent.isDirectory());
-      } catch (e) {
-        console.error(`Error reading folder ${folder}:`, e);
-        continue;
+    // 1. Process all MongoDB DB books first (primary source of truth)
+    for (const doc of userDbBooks) {
+      if (doc.folderName === "Recent Book" || (Array.isArray(doc.folderName) && doc.folderName.length === 1 && doc.folderName[0] === "Recent Book")) {
+        continue; // Handled in recentBooks section
       }
 
-      for (const bookDir of bookDirs) {
-        const bookPath = path.join(folderPath, bookDir.name);
+      const realFolders = Array.isArray(doc.folderName)
+        ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
+        : [doc.folderName];
+      const folder = realFolders[0] || "My_Flipbooks";
 
-        // Get Metadata (Creation time, page count)
-        let htmlFiles = [];
-        let stats = {};
-        let sizeBytes = 0;
+      const createdDate = doc.createdAt
+        ? new Date(doc.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-") + " " + new Date(doc.createdAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })
+        : "";
 
-        try {
-          const files = fs.readdirSync(bookPath);
-          htmlFiles = files.filter((f) => f.endsWith(".html"));
-          stats = fs.statSync(bookPath);
+      const totalSize = bookSizeMap.get(doc.v_id) || 0;
 
-          // Calculate size of HTML files directly (no recursive traversal)
-          for (const f of htmlFiles) {
-            try {
-              const stat = fs.statSync(path.join(bookPath, f));
-              sizeBytes += stat.size;
-            } catch (e) {}
-          }
-        } catch (e) {
-          console.error("Error reading book details", e);
-        }
+      processedVIds.add(doc.v_id);
 
-        // Find DB Match
-        let dbMatch = userDbBooks.find(
-          (b) =>
-            b.flipbookName === bookDir.name &&
-            (b.folderName === folder ||
-              (Array.isArray(b.folderName) && b.folderName.includes(folder))),
-        );
-
-        // Add DB asset size (much faster than recursive fs calls)
-        if (dbMatch && dbMatch.v_id && bookSizeMap.has(dbMatch.v_id)) {
-          sizeBytes += bookSizeMap.get(dbMatch.v_id);
-        }
-
-        // AUTO-HEAL: If no DB match, create one to ensure v_id
-        if (!dbMatch) {
-          try {
-            const newVId = nanoid(10);
-            // Sort pages
-            const sortedHtmlFiles = [...htmlFiles].sort((a, b) =>
-              a.localeCompare(b, undefined, {
-                numeric: true,
-                sensitivity: "base",
-              }),
-            );
-
-            const newPages = sortedHtmlFiles.map((f, idx) => ({
-              pageNumber: idx + 1,
-              name: f.replace(".html", ""),
-              fileName: f,
-              v_id: nanoid()
-            }));
-
-            const newDoc = await Flipbook.create({
-              userEmail: emailId,
-              folderName: [folder],
-              flipbookName: bookDir.name,
-              pages: newPages,
-              v_id: newVId,
-              createdAt: stats.birthtime || new Date(),
-              lastUpdated: stats.mtime || new Date(),
-            });
-            dbMatch = newDoc;
-          } catch (err) {
-            console.error(
-              "Auto-heal DB creation failed for",
-              bookDir.name,
-              err,
-            );
-          }
-        }
-
-        books.push({
-          id: `${folder}_${bookDir.name}`,
-          v_id: dbMatch ? dbMatch.v_id : null, // ID from DB
-          realName: bookDir.name,
-          title: bookDir.name,
-          folder: folder,
-          pages: htmlFiles.length,
-          created: stats.birthtime
-            ? stats.birthtime.toLocaleDateString("en-GB").replace(/\//g, "-") + " " + stats.birthtime.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })
-            : "",
-          views: 0,
-          size: formatSize(sizeBytes),
-          image: dbMatch ? firstImageAssetMap.get(dbMatch.v_id) || null : null,
-          // firstPageHtml is NOT sent in list – fetch lazily via /preview/:v_id
-          mtime: stats.mtime,
-          share: dbMatch ? dbMatch.share : null,
-        });
-      }
+      books.push({
+        id: `${folder}_${doc.flipbookName}`,
+        v_id: doc.v_id,
+        realName: doc.flipbookName,
+        title: doc.flipbookName,
+        folder: folder,
+        pages: doc.pages ? doc.pages.length : 0,
+        created: createdDate,
+        views: 0,
+        size: formatSize(totalSize),
+        image: firstImageAssetMap.get(doc.v_id) || null,
+        mtime: doc.lastUpdated || doc.createdAt,
+        share: doc.share || null,
+      });
     }
 
-    // 2. DB Fetch for 'Recent Book' smart tag
-    const recentDocs = await Flipbook.find({
-      userEmail: emailId,
-      folderName: "Recent Book",
-    }).sort({ lastUpdated: -1 });
+    // 2. Generate 'Recent Book' view for all user flipbooks sorted by lastUpdated
+    const sortedUserBooks = [...userDbBooks].sort((a, b) => new Date(b.lastUpdated || b.createdAt) - new Date(a.lastUpdated || a.createdAt));
 
-    const recentBooks = recentDocs.map((doc) => {
-      // Determine Real Folder
-      // doc.folderName is an array.
+    const recentBooks = sortedUserBooks.map((doc) => {
       const realFolders = Array.isArray(doc.folderName)
-        ? doc.folderName.filter((f) => f !== "Recent Book")
+        ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
         : doc.folderName === "Recent Book"
           ? []
           : [doc.folderName];
-      const realFolder = realFolders.length > 0 ? realFolders[0] : "";
+      const realFolder = realFolders.length > 0 ? realFolders[0] : "My_Flipbooks";
 
-      // Try to find size/created from the FS scan list if possible?
-      // Or simpler: just use DB data + fallbacks.
-      const matchingPhysicalBook = books.find(
-        (b) => b.realName === doc.flipbookName && b.folder === realFolder,
-      );
+      const createdDate = doc.createdAt
+        ? new Date(doc.createdAt).toLocaleDateString("en-GB").replace(/\//g, "-") + " " + new Date(doc.createdAt).toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' })
+        : "";
 
       return {
-        id: `Recent_${doc.flipbookName}`,
+        id: `Recent_${doc.v_id || doc.flipbookName}`,
         realName: doc.flipbookName,
         v_id: doc.v_id,
         title: doc.flipbookName,
-        folder: "Recent Book", // Virtual Folder
+        folder: "Recent Book",
+        actualFolder: realFolder,
         pages: doc.pages ? doc.pages.length : 0,
-        created: matchingPhysicalBook ? matchingPhysicalBook.created : "", // Reuse if found
+        created: createdDate,
         views: 0,
-        size: matchingPhysicalBook ? matchingPhysicalBook.size : "0 B",
+        size: formatSize(bookSizeMap.get(doc.v_id) || 0),
         image: firstImageAssetMap.get(doc.v_id) || null,
-        // firstPageHtml is NOT sent in list – fetch lazily via /preview/:v_id
         mtime: doc.lastUpdated || doc.createdAt,
         share: doc.share || null,
       };
     });
 
-    // Merge
     const allBooks = [...books, ...recentBooks];
-
     res.json({ books: allBooks });
   } catch (err) {
-    console.error(err);
+    console.error("Error in /list:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1373,7 +1078,7 @@ router.get("/preview/:v_id", async (req, res) => {
     const realFolders = Array.isArray(doc.folderName)
       ? doc.folderName.filter((f) => f !== "Recent Book" && f !== "Recent book")
       : [doc.folderName];
-    const realFolder = realFolders[0] || "My Flipbooks";
+    const realFolder = realFolders[0] || "My_Flipbooks";
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
     const bookPath = path.join(
@@ -1412,34 +1117,46 @@ router.get("/preview/:v_id", async (req, res) => {
 // @route   GET /api/flipbook/folders
 // @desc    Get list of folders in My_Flipbooks
 // @access  Public
-router.get("/folders", (req, res) => {
+router.get("/folders", async (req, res) => {
   try {
     const { emailId } = req.query;
     if (!emailId) {
       return res.status(400).json({ message: "Missing emailId" });
     }
 
+    const folderSet = new Set();
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const myFlipbooksDir = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-    );
 
-    if (!fs.existsSync(myFlipbooksDir)) {
-      // Return default
-      return res.status(200).json({ folders: ["Recent Book"] });
+    // Fetch all folders from MongoDB DB documents
+    const dbBooks = await Flipbook.find({ userEmail: emailId });
+    dbBooks.forEach((doc) => {
+      if (Array.isArray(doc.folderName)) {
+        doc.folderName.forEach((f) => {
+          if (f && f !== "Recent Book" && f !== "Recent book") folderSet.add(f);
+        });
+      } else if (doc.folderName && doc.folderName !== "Recent Book" && doc.folderName !== "Recent book") {
+        folderSet.add(doc.folderName);
+      }
+    });
+
+    // Fetch all folders from Supabase Storage
+    const supabaseFolders = await listFoldersFromSupabase(sanitizedEmail);
+    supabaseFolders.forEach((f) => folderSet.add(f));
+
+    // Also check disk directory if present
+    const uploadsDir = path.join(__dirname, "../../uploads");
+    const myFlipbooksDir = path.join(uploadsDir, sanitizedEmail, FLIPBOOK_ROOT);
+
+    if (fs.existsSync(myFlipbooksDir)) {
+      try {
+        const items = fs.readdirSync(myFlipbooksDir, { withFileTypes: true });
+        items
+          .filter((item) => item.isDirectory())
+          .forEach((item) => folderSet.add(item.name));
+      } catch (e) {}
     }
 
-    const items = fs.readdirSync(myFlipbooksDir, { withFileTypes: true });
-    const folders = items
-      .filter((item) => item.isDirectory())
-      .map((item) => item.name);
-
-    // Sort alphabetical
-    folders.sort((a, b) => a.localeCompare(b));
-
+    const folders = Array.from(folderSet).sort((a, b) => a.localeCompare(b));
     res.status(200).json({ folders });
   } catch (error) {
     console.error("Error fetching folders:", error);
@@ -1455,21 +1172,7 @@ router.post("/folder/create", (req, res) => {
       return res.status(400).json({ message: "Missing fields" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    // Sanitize folder name
     const safeFolderName = folderName.replace(/[^a-zA-Z0-9 _-]/g, "");
-    const targetDir = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      safeFolderName,
-    );
-
-    if (fs.existsSync(targetDir)) {
-      return res.status(409).json({ message: "Folder Already Exists" });
-    }
-
-    fs.mkdirSync(targetDir, { recursive: true });
 
     // Sync folder creation to Supabase Storage by uploading placeholder .keep file
     const supabaseFolderKeep = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/.keep`;
@@ -1484,25 +1187,6 @@ router.post("/folder/create", (req, res) => {
   }
 });
 
-
-// Helper for recursive copy
-const copyRecursiveSync = (src, dest) => {
-  const exists = fs.existsSync(src);
-  const stats = exists && fs.statSync(src);
-  const isDirectory = exists && stats.isDirectory();
-  if (isDirectory) {
-    fs.mkdirSync(dest, { recursive: true });
-    fs.readdirSync(src).forEach((childItemName) => {
-      copyRecursiveSync(
-        path.join(src, childItemName),
-        path.join(dest, childItemName),
-      );
-    });
-  } else {
-    fs.copyFileSync(src, dest);
-  }
-};
-
 // @route POST /api/flipbook/folder/rename
 router.post("/folder/rename", async (req, res) => {
   try {
@@ -1511,162 +1195,58 @@ router.post("/folder/rename", async (req, res) => {
       return res.status(400).json({ message: "Missing fields" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const myFlipbooksDir = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-    );
-
-    const oldPath = path.join(myFlipbooksDir, oldName);
     const safeNewName = newName.replace(/[^a-zA-Z0-9 _-]/g, "");
-    const newPath = path.join(myFlipbooksDir, safeNewName);
 
-    if (!fs.existsSync(oldPath))
-      return res.status(404).json({ message: "Folder not found" });
+    // 1. Fetch all books belonging to this folder in MongoDB
+    const booksToUpdate = await Flipbook.find({
+      userEmail: emailId,
+      $or: [{ folderName: oldName }, { folderName: { $in: [oldName] } }]
+    });
 
-    // Check if destination exists (unless solely a case change, which implies same physical path on Windows)
-    if (
-      oldPath.toLowerCase() !== newPath.toLowerCase() &&
-      fs.existsSync(newPath)
-    ) {
-      return res.status(409).json({ message: "New name already exists" });
-    }
-
-    // Robust Rename for Windows (Handling EPERM/EBUSY)
-    try {
-      fs.renameSync(oldPath, newPath);
-    } catch (err) {
-      if (["EPERM", "EACCES", "EBUSY"].includes(err.code)) {
-        // 1. Wait 500ms and retry
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        try {
-          fs.renameSync(oldPath, newPath);
-        } catch (retryErr) {
-          // 2. Fallback: Recursive Copy + Delete
-          console.log("Rename failed, attempting copy-delete fallback...");
-          copyRecursiveSync(oldPath, newPath);
-          try {
-            fs.rmSync(oldPath, { recursive: true, force: true });
-          } catch (delErr) {
-            console.error("Cleanup of old folder failed:", delErr);
-            // We continue because the new data is there. Old data might stick around briefly or require manual cleanup.
-          }
-        }
-      } else {
-        throw err;
-      }
-    }
-
-    // Rename folder in Supabase Storage
+    // 2. Rename folder in Supabase Storage
     const oldSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${oldName}`;
     const newSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeNewName}`;
     renamePathInSupabase(oldSupabasePrefix, newSupabasePrefix).catch((err) =>
       console.warn("[Supabase] Folder rename warning:", err)
     );
 
-    // Update MongoDB for all books in this folder
-    const booksToUpdate = await Flipbook.find({
-      userEmail: emailId,
-      folderName: oldName,
-    });
-
-
+    // 3. Update MongoDB for all books in this folder
     for (const book of booksToUpdate) {
       if (Array.isArray(book.folderName)) {
         book.folderName = book.folderName.map((f) =>
           f === oldName ? safeNewName : f,
         );
       } else {
-        // Fallback for legacy single-string data if any
         book.folderName = [safeNewName];
       }
       book.lastUpdated = new Date();
       await book.save();
     }
 
-    // UPDATE ASSETS: Update folderName and reconstruct URLs for all assets in this folder
+    // 4. Update assets
     try {
-      console.log(
-        `Updating assets for renamed folder: "${oldName}" → "${safeNewName}"`,
-      );
-
-      // Find assets belonging to this user and folder
-      // Filter by URL prefix to ensure user isolation
       const assets = await FlipbookAsset.find({
-        folderName: oldName,
-        url: { $regex: new RegExp(`^/uploads/${sanitizedEmail}/`) },
+        userEmail: emailId,
+        $or: [{ folderName: oldName }, { url: { $regex: new RegExp(`/${FLIPBOOK_ROOT}/${oldName}/`) } }]
       });
 
-      if (assets.length > 0) {
-        for (const asset of assets) {
-          // Update folderName field
-          asset.folderName = safeNewName;
-
-          // Reconstruct URL safely
-          // URL format: .../My_Flipbooks/{folder}/{book}/...
-          const parts = asset.url.split(`/${FLIPBOOK_ROOT}/`);
-          if (parts.length === 2) {
-            const remainingPath = parts[1]; // {folder}/{book}/...
-            const pathParts = remainingPath.split("/");
-
-            // Verify the first part matches oldName before replacing
-            if (pathParts[0] === oldName) {
-              pathParts[0] = safeNewName;
-              asset.url = `${parts[0]}/${FLIPBOOK_ROOT}/${pathParts.join("/")}`;
-              await asset.save();
-            }
-          }
+      for (const asset of assets) {
+        asset.folderName = safeNewName;
+        if (asset.url) {
+          asset.url = asset.url.replace(
+            `/${FLIPBOOK_ROOT}/${oldName}/`,
+            `/${FLIPBOOK_ROOT}/${safeNewName}/`
+          );
         }
-        console.log(`✅ Updated ${assets.length} asset(s) for renamed folder`);
+        await asset.save();
       }
     } catch (assetErr) {
-      console.error("❌ Error updating assets after folder rename:", assetErr);
-    }
-
-    // UPDATE HTML CONTENT: Update asset paths in .html files for ALL flipbooks in this folder
-    try {
-      console.log(
-        `Updating HTML content for flipbooks in renamed folder: "${oldName}" → "${safeNewName}"`,
-      );
-      if (fs.existsSync(newPath)) {
-        // newPath is the renamed folder containing multiple flipbook directories
-        const flipbookDirs = fs
-          .readdirSync(newPath, { withFileTypes: true })
-          .filter((d) => d.isDirectory())
-          .map((d) => d.name);
-
-        for (const bookDirName of flipbookDirs) {
-          const bookPath = path.join(newPath, bookDirName);
-          const files = fs.readdirSync(bookPath);
-          const htmlFiles = files.filter((f) => f.endsWith(".html"));
-
-          for (const file of htmlFiles) {
-            const filePath = path.join(bookPath, file);
-            let content = fs.readFileSync(filePath, "utf8");
-
-            // Use regex for robust replacement
-            const escapedOldFolder = escapeRegex(oldName).replace(/ /g, "(?: |%20)");
-            const escapedBookDir = escapeRegex(bookDirName).replace(/ /g, "(?: |%20)");
-            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedOldFolder}/${escapedBookDir}/`, "g");
-            const replacementPath = `/${FLIPBOOK_ROOT}/${safeNewName}/${bookDirName}/`;
-
-            if (pathRegex.test(content)) {
-              content = content.replace(pathRegex, replacementPath);
-              fs.writeFileSync(filePath, content, "utf8");
-              console.log(`Updated HTML content for: ${bookDirName}/${file}`);
-            }
-          }
-        }
-        console.log(`✅ Checked/updated HTML content for ${flipbookDirs.length} flipbook(s)`);
-      }
-    } catch (htmlErr) {
-      console.error("❌ Error updating HTML content after folder rename:", htmlErr);
+      console.error("Error updating assets after folder rename:", assetErr);
     }
 
     res.json({ message: "Renamed successfully", newName: safeNewName });
   } catch (err) {
-    console.error(err);
+    console.error("Error renaming folder:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -1679,101 +1259,116 @@ router.post("/folder/duplicate", async (req, res) => {
       return res.status(400).json({ message: "Missing fields" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const myFlipbooksDir = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-    );
 
-    const sourcePath = path.join(myFlipbooksDir, folderName);
-    if (!fs.existsSync(sourcePath))
+    // Fetch MongoDB Documents for this folder
+    const sourceDocs = await Flipbook.find({
+      userEmail: emailId,
+      $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
+    });
+
+    if (sourceDocs.length === 0) {
       return res.status(404).json({ message: "Folder not found" });
+    }
 
-    // Generate Target Name
-    let copyName = `${folderName} Copy`;
-    let targetPath = path.join(myFlipbooksDir, copyName);
+    // Determine unique copy name
+    const existingDbBooks = await Flipbook.find({ userEmail: emailId });
+    const existingFolders = new Set();
+    existingDbBooks.forEach(b => {
+      if (Array.isArray(b.folderName)) b.folderName.forEach(f => existingFolders.add(f));
+      else if (b.folderName) existingFolders.add(b.folderName);
+    });
+
+    let copyName = `${folderName}_Copy`;
     let counter = 1;
-    while (fs.existsSync(targetPath)) {
-      copyName = `${folderName} Copy ${counter}`;
-      targetPath = path.join(myFlipbooksDir, copyName);
+    while (existingFolders.has(copyName)) {
+      copyName = `${folderName}_Copy_${counter}`;
       counter++;
     }
 
-    // Copy Files
-    copyRecursiveSync(sourcePath, targetPath);
+    // Initialize .keep in Supabase Storage for the duplicated folder
+    const supabaseFolderKeep = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${copyName}/.keep`;
+    await uploadBufferToSupabase(Buffer.from(""), supabaseFolderKeep, "text/plain").catch(() => {});
 
-    // Copy MongoDB Documents
-    const sourceDocs = await Flipbook.find({
-      userEmail: emailId,
-      folderName: folderName,
-    });
-    if (sourceDocs.length > 0) {
-      for (const doc of sourceDocs) {
-        const newVId = nanoid(10);
-        // Create new Flipbook doc
-        await Flipbook.create({
-          userEmail: doc.userEmail,
-          folderName: [copyName],
-          flipbookName: doc.flipbookName,
-          pages: doc.pages,
-          v_id: newVId,
-          lastUpdated: new Date(),
-        });
+    // Copy MongoDB Documents & Rename each book to <bookName>_copy
+    for (const doc of sourceDocs) {
+      const newBookName = `${doc.flipbookName}_copy`;
+      const newVId = nanoid(20);
+      const pageIdMap = new Map();
 
-        // Duplicate asset records for this book
-        const sourceAssets = await FlipbookAsset.find({ flipbook_v_id: doc.v_id });
-        if (sourceAssets.length > 0) {
-          const newAssets = sourceAssets.map(asset => {
-            const assetObj = asset.toObject();
-            delete assetObj._id;
-            assetObj.flipbook_v_id = newVId;
-            assetObj.folderName = copyName;
-            assetObj.file_v_id = nanoid(); // Each asset needs unique ID
-            
-            // Update URL to point to new folder
-            const parts = assetObj.url.split(`/${FLIPBOOK_ROOT}/`);
-            if (parts.length === 2) {
-              const remainingPath = parts[1]; 
-              const pathParts = remainingPath.split("/");
-              if (pathParts[0] === folderName) {
-                pathParts[0] = copyName;
-                assetObj.url = `${parts[0]}/${FLIPBOOK_ROOT}/${pathParts.join("/")}`;
-              }
-            }
-            return assetObj;
-          });
-          await FlipbookAsset.insertMany(newAssets);
-        }
+      const newPages = (doc.pages || []).map((page) => {
+        const newPageVId = nanoid(20);
+        if (page.v_id) pageIdMap.set(page.v_id, newPageVId);
 
-        // Update HTML content for this duplicated book
-        const bookPath = path.join(targetPath, doc.flipbookName);
-        if (fs.existsSync(bookPath)) {
-          const files = fs.readdirSync(bookPath);
-          const htmlFiles = files.filter(f => f.endsWith(".html"));
-          for (const file of htmlFiles) {
-            const filePath = path.join(bookPath, file);
-            let content = fs.readFileSync(filePath, "utf8");
-            
-            const escapedFolder = escapeRegex(folderName).replace(/ /g, "(?: |%20)");
-            const escapedBookName = escapeRegex(doc.flipbookName).replace(/ /g, "(?: |%20)");
-            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedFolder}/${escapedBookName}/`, "g");
-            const replacementPath = `/${FLIPBOOK_ROOT}/${copyName}/${doc.flipbookName}/`;
+        return {
+          pageNumber: page.pageNumber,
+          name: page.name,
+          fileName: page.fileName,
+          v_id: newPageVId,
+        };
+      });
 
-            if (pathRegex.test(content)) {
-              content = content.replace(pathRegex, replacementPath);
-              fs.writeFileSync(filePath, content, "utf8");
-            }
+      await Flipbook.create({
+        userEmail: doc.userEmail,
+        folderName: [copyName],
+        flipbookName: newBookName,
+        pages: newPages,
+        v_id: newVId,
+        settings: doc.settings,
+        share: {
+          shareId: nanoid(12),
+          access: doc.share?.access || 'public'
+        },
+        lastUpdated: new Date(),
+      });
+
+      // Duplicate asset records
+      const sourceAssets = await FlipbookAsset.find({ flipbook_v_id: doc.v_id });
+      if (sourceAssets.length > 0) {
+        const newAssets = sourceAssets.map(asset => {
+          const assetObj = asset.toObject();
+          delete assetObj._id;
+          assetObj.flipbook_v_id = newVId;
+          assetObj.folderName = copyName;
+          assetObj.flipbookName = newBookName;
+          assetObj.file_v_id = nanoid(20);
+          if (assetObj.page_v_id && pageIdMap.has(assetObj.page_v_id)) {
+            assetObj.page_v_id = pageIdMap.get(assetObj.page_v_id);
           }
-        }
+          if (assetObj.url) {
+            assetObj.url = assetObj.url
+              .replace(`/${FLIPBOOK_ROOT}/${folderName}/`, `/${FLIPBOOK_ROOT}/${copyName}/`)
+              .replace(`/${doc.flipbookName}/`, `/${newBookName}/`);
+          }
+          return assetObj;
+        });
+        await FlipbookAsset.insertMany(newAssets);
       }
-    }
 
-    // Upload duplicated folder structure and files to Supabase Storage
-    const supabaseDupFolderPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${copyName}`;
-    uploadFolderToSupabase(targetPath, supabaseDupFolderPrefix).catch((err) =>
-      console.warn("[Supabase] Duplicate folder upload warning:", err)
-    );
+      // Duplicate 3D model interaction records
+      const sourceModels = await InteractionThreedModel.find({ userEmail: doc.userEmail, flipbookName: doc.flipbookName });
+      if (sourceModels.length > 0) {
+        const newModels = sourceModels.map(model => {
+          const modelObj = model.toObject();
+          delete modelObj._id;
+          modelObj.flipbookName = newBookName;
+          modelObj.folderName = copyName;
+          if (modelObj.page_v_id && pageIdMap.has(modelObj.page_v_id)) {
+            modelObj.page_v_id = pageIdMap.get(modelObj.page_v_id);
+          }
+          return modelObj;
+        });
+        await InteractionThreedModel.insertMany(newModels);
+      }
+
+      // Copy book files in Supabase Storage directly from old book prefix to new book prefix
+      const sourceBookSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${doc.flipbookName}`;
+      const targetBookSupabasePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${copyName}/${newBookName}`;
+      await copyPathInSupabase(sourceBookSupabasePrefix, targetBookSupabasePrefix).catch((err) =>
+        console.warn("[Supabase] Book copy error:", err)
+      );
+
+      ensureFlipbookFoldersInSupabase(sanitizedEmail, copyName, newBookName).catch(() => {});
+    }
 
     res.json({ message: "Duplicated successfully", newFolderName: copyName });
   } catch (err) {
@@ -1791,217 +1386,118 @@ router.post("/duplicate", async (req, res) => {
       return res.status(400).json({ message: "Missing fields" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
-    const folderPath = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      folderName,
-    );
-    const sourcePath = path.join(folderPath, bookName);
 
-    if (!fs.existsSync(sourcePath))
-      return res.status(404).json({ message: "Book not found" });
-
-    // Generate Target Name
-    let copyName = `${bookName} Copy`;
-    let targetPath = path.join(folderPath, copyName);
-    let counter = 1;
-    while (fs.existsSync(targetPath)) {
-      copyName = `${bookName} Copy ${counter}`;
-      targetPath = path.join(folderPath, copyName);
-      counter++;
-    }
-
-    copyRecursiveSync(sourcePath, targetPath);
-
-    // Ensure Default Assets Folders in Duplicate
-    const assetsDir = path.join(targetPath, "assets");
-    ["Image", "gif", "video","3D_Model"].forEach((sub) => {
-      const subDir = path.join(assetsDir, sub);
-      if (!fs.existsSync(subDir)) fs.mkdirSync(subDir, { recursive: true });
-    });
-
-    // Duplicate MongoDB Document
+    // Fetch MongoDB Document for source book
     const sourceDoc = await Flipbook.findOne({
       userEmail: emailId,
-      folderName: folderName,
       flipbookName: bookName,
     });
 
+    if (!sourceDoc) {
+      return res.status(404).json({ message: "Book not found" });
+    }
+
+    // Determine unique copy name
+    const existingDbBooks = await Flipbook.find({ userEmail: emailId });
+    const existingNames = new Set(existingDbBooks.map(b => b.flipbookName));
+
+    let copyName = `${bookName}_Copy`;
+    let counter = 1;
+    while (existingNames.has(copyName)) {
+      copyName = `${bookName}_Copy ${counter}`;
+      counter++;
+    }
+
+    // Duplicate MongoDB Document
     if (sourceDoc) {
       const newFlipbookVId = nanoid(20);
+      const pageIdMap = new Map();
 
-      // 1. Map pages to new IDs and update HTML content
-      const pageIdMap = new Map(); // old_v_id -> new_v_id
+      const newPages = (sourceDoc.pages || []).map((page) => {
+        const newPageVId = nanoid(20);
+        if (page.v_id) pageIdMap.set(page.v_id, newPageVId);
 
-      // 2. Duplicate Assets & Rename Physical Files
-      const assetFilenameMap = new Map(); // oldFileName -> newFileName
-      const assetIdMap = new Map(); // old_file_v_id -> new_file_v_id
+        return {
+          pageNumber: page.pageNumber,
+          name: page.name,
+          fileName: page.fileName,
+          v_id: newPageVId,
+        };
+      });
 
+      await Flipbook.create({
+        userEmail: emailId,
+        folderName: Array.isArray(sourceDoc.folderName) ? sourceDoc.folderName : [folderName],
+        flipbookName: copyName,
+        pages: newPages,
+        v_id: newFlipbookVId,
+        settings: sourceDoc.settings || {},
+        share: {
+          shareId: nanoid(12),
+          access: sourceDoc.share?.access || 'public'
+        },
+        lastUpdated: new Date(),
+      });
+
+      // Duplicate asset records
       if (sourceDoc.v_id) {
         try {
           const assets = await FlipbookAsset.find({
             flipbook_v_id: sourceDoc.v_id,
           });
-          const newAssets = [];
 
-          for (const asset of assets) {
-            const newFileVId = nanoid(); // New unique asset ID
-            const ext = path.extname(asset.fileName);
-            const newFileName = `${newFileVId}${ext}`; // Generate new filename
-
-            // Map IDs
-            if (asset.file_v_id) {
-              assetIdMap.set(asset.file_v_id, newFileVId);
-            }
-
-            // Rename Physical File in Target Directory
-            const oldAssetPath = path.join(
-              targetPath,
-              "assets",
-              asset.assetType,
-              asset.fileName,
-            );
-            const newAssetPath = path.join(
-              targetPath,
-              "assets",
-              asset.assetType,
-              newFileName,
-            );
-
-            if (fs.existsSync(oldAssetPath)) {
-              try {
-                fs.renameSync(oldAssetPath, newAssetPath);
-                assetFilenameMap.set(asset.fileName, newFileName);
-              } catch (renameErr) {
-                console.error(
-                  `Failed to rename duplicated asset: ${asset.fileName}`,
-                  renameErr,
-                );
-              }
-            }
-
-            const finalFileName = assetFilenameMap.has(asset.fileName)
-              ? newFileName
-              : asset.fileName;
-
-            // Construct new URL
-            const escapedFolder = escapeRegex(folderName).replace(/ /g, "(?: |%20)");
-            const escapedBookName = escapeRegex(bookName).replace(/ /g, "(?: |%20)");
-            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedFolder}/${escapedBookName}/`, "g");
-            const replacementPath = `/${FLIPBOOK_ROOT}/${folderName}/${copyName}/`;
-            
-            let newUrl = asset.url.replace(pathRegex, replacementPath);
-
-            if (assetFilenameMap.has(asset.fileName)) {
-              const urlParts = newUrl.split("/");
-              urlParts[urlParts.length - 1] = finalFileName;
-              newUrl = urlParts.join("/");
-            }
-
-            newAssets.push({
-              flipbook_v_id: newFlipbookVId,
-              file_v_id: newFileVId,
-              page_v_id: asset.page_v_id, // Placeholder, will fix below
-              assetType: asset.assetType,
-              fileName: finalFileName,
-              flipbookName: copyName,
-              folderName: folderName,
-              url: newUrl,
-              size: asset.size,
-              _original_page_v_id: asset.page_v_id, // Temp store for later mapping
+          if (assets.length > 0) {
+            const newAssets = assets.map(asset => {
+              const newFileVId = nanoid(20);
+              return {
+                flipbook_v_id: newFlipbookVId,
+                file_v_id: newFileVId,
+                page_v_id: asset.page_v_id && pageIdMap.has(asset.page_v_id) ? pageIdMap.get(asset.page_v_id) : "global",
+                assetType: asset.assetType,
+                fileName: asset.fileName,
+                flipbookName: copyName,
+                folderName: folderName,
+                url: asset.url ? asset.url.replace(`/${bookName}/`, `/${copyName}/`) : "",
+                size: asset.size,
+                userEmail: emailId
+              };
             });
-          }
-
-          // 3. Pre-Calculate Page IDs
-          sourceDoc.pages.forEach((p) => {
-            if (p.v_id) pageIdMap.set(p.v_id, nanoid());
-          });
-
-          // Update asset page_v_ids
-          newAssets.forEach((a) => {
-            if (a._original_page_v_id && a._original_page_v_id !== "global") {
-              a.page_v_id = pageIdMap.get(a._original_page_v_id) || "global";
-            }
-            delete a._original_page_v_id;
-          });
-
-          if (newAssets.length > 0) {
             await FlipbookAsset.insertMany(newAssets);
           }
         } catch (assetErr) {
           console.error("Error duplicating assets:", assetErr);
         }
-      } else {
-        // Even if no assets, we must map page IDs
-        sourceDoc.pages.forEach((p) => {
-          if (p.v_id) pageIdMap.set(p.v_id, nanoid());
-        });
       }
 
-      // 4. Update Page HTML Content & Build Page DB Objects
-      const newPages = sourceDoc.pages.map((page) => {
-        const newPageVId = page.v_id ? pageIdMap.get(page.v_id) : nanoid();
-
-        try {
-          const pageFilePath = path.join(targetPath, page.fileName);
-          if (fs.existsSync(pageFilePath)) {
-            let content = fs.readFileSync(pageFilePath, "utf8");
-
-            // A. Update Folder Path in URLs (Essential for all links)
-            const escapedFolder = escapeRegex(folderName).replace(/ /g, "(?: |%20)");
-            const escapedBookName = escapeRegex(bookName).replace(/ /g, "(?: |%20)");
-            const pathRegex = new RegExp(`/${FLIPBOOK_ROOT}/${escapedFolder}/${escapedBookName}/`, "g");
-            const replacementPath = `/${FLIPBOOK_ROOT}/${folderName}/${copyName}/`;
-            
-            content = content.replace(pathRegex, replacementPath);
-
-            // B. Update Asset Filenames (If renamed)
-            assetFilenameMap.forEach((newF, oldF) => {
-              // Replace /oldFilename with /newFilename
-              content = content.split(`/${oldF}`).join(`/${newF}`);
-            });
-
-            // C. Update data-file-vid attributes
-            assetIdMap.forEach((newId, oldId) => {
-              content = content
-                .split(`data-file-vid="${oldId}"`)
-                .join(`data-file-vid="${newId}"`);
-            });
-
-            fs.writeFileSync(pageFilePath, content, "utf8");
-          }
-        } catch (readErr) {
-          console.warn(
-            `Failed to update content for page ${page.fileName}`,
-            readErr,
-          );
+      // Duplicate 3D model interaction records
+      try {
+        const sourceModels = await InteractionThreedModel.find({ userEmail: emailId, flipbookName: bookName });
+        if (sourceModels.length > 0) {
+          const newModels = sourceModels.map(model => {
+            const modelObj = model.toObject();
+            delete modelObj._id;
+            modelObj.flipbookName = copyName;
+            modelObj.folderName = folderName;
+            if (modelObj.page_v_id && pageIdMap.has(modelObj.page_v_id)) {
+              modelObj.page_v_id = pageIdMap.get(modelObj.page_v_id);
+            }
+            return modelObj;
+          });
+          await InteractionThreedModel.insertMany(newModels);
         }
+      } catch (modelErr) {
+        console.error("Error duplicating 3D models:", modelErr);
+      }
 
-        return {
-          pageNumber: page.pageNumber,
-          name: page.name,
-          fileName: page.fileName, // Filename of PAGE remains same
-          v_id: newPageVId,
-        };
-      });
-
-      // 3. Create New Flipbook Record
-      await Flipbook.create({
-        userEmail: emailId,
-        folderName: [folderName], // Ensure array
-        flipbookName: copyName,
-        pages: newPages,
-        v_id: newFlipbookVId,
-        lastUpdated: new Date(),
-      });
+      // Initialize Supabase Storage structure for duplicated book
+      ensureFlipbookFoldersInSupabase(sanitizedEmail, folderName, copyName).catch(() => {});
     }
 
-    // Upload duplicated flipbook directory and assets to Supabase Storage
-    const supabaseDupBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${copyName}`;
-    uploadFolderToSupabase(targetPath, supabaseDupBookPrefix).catch((err) =>
-      console.warn("[Supabase] Duplicate book upload warning:", err)
+    // Duplicate book in Supabase Storage
+    const oldSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${bookName}`;
+    const newSupabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${copyName}`;
+    await copyPathInSupabase(oldSupabaseBookPrefix, newSupabaseBookPrefix).catch((err) =>
+      console.warn("[Supabase] Duplicate book warning:", err)
     );
 
     res.json({ message: "Duplicated successfully", newBookName: copyName });
@@ -2045,7 +1541,7 @@ router.get("/get", async (req, res) => {
       if (Array.isArray(dbDoc.folderName)) {
         const realFolders = dbDoc.folderName.filter((f) => f !== "Recent Book");
         if (realFolders.length > 0) effectiveFolderName = realFolders[0];
-        else effectiveFolderName = "My Flipbooks"; // Fallback
+        else effectiveFolderName = "My_Flipbooks"; // Fallback
       } else {
         effectiveFolderName = dbDoc.folderName;
       }
@@ -2096,7 +1592,6 @@ router.get("/get", async (req, res) => {
     if (!dbBook) {
       dbBook = await Flipbook.findOne({
         userEmail: emailId,
-        folderName: effectiveFolderName,
         flipbookName: effectiveBookName,
       });
     }
@@ -2105,6 +1600,11 @@ router.get("/get", async (req, res) => {
       return res.status(404).json({ message: "Book not found" });
     }
 
+
+    if (dbBook) {
+      dbBook.lastUpdated = new Date();
+      dbBook.save().catch(() => {});
+    }
 
     if (dbBook && dbBook.pages && dbBook.pages.length > 0) {
       // Sort by pageNumber to ensure correct order
@@ -2262,46 +1762,51 @@ router.get("/public/get/:shareId", async (req, res) => {
 
     console.log(`[PublicGet] v_id: ${dbDoc.v_id}, effectiveFolderName: ${effectiveFolderName}, bookPath: ${bookPath}`);
 
-    if (!fs.existsSync(bookPath)) {
-      console.error(`[PublicGet] Book path not found: ${bookPath}`);
-      return res.status(404).json({ message: "Book files not found" });
-    }
-
-    // AUTO-HEAL: If DB has no pages but files exist on disk, populate it (similar to main get route)
+    // AUTO-HEAL: If DB has no pages but files exist on disk, populate it
     if (!dbDoc.pages || dbDoc.pages.length === 0) {
-        console.log(`[PublicGet] Auto-healing pages for v_id: ${dbDoc.v_id}`);
+      if (fs.existsSync(bookPath)) {
         try {
-            const files = await fs.promises.readdir(bookPath);
-            const svgFiles = files.filter(f => f.endsWith('.svg')).sort((a, b) => {
-                const aNum = parseInt(a.match(/\d+/)?.[0] || 0);
-                const bNum = parseInt(b.match(/\d+/)?.[0] || 0);
-                return aNum - bNum;
-            });
+          const files = await fs.promises.readdir(bookPath);
+          const svgFiles = files.filter(f => f.endsWith('.svg') || f.endsWith('.html')).sort((a, b) => {
+            const aNum = parseInt(a.match(/\d+/)?.[0] || 0);
+            const bNum = parseInt(b.match(/\d+/)?.[0] || 0);
+            return aNum - bNum;
+          });
 
-            if (svgFiles.length > 0) {
-                const autoHealedPages = svgFiles.map((fileName, idx) => ({
-                    pageNumber: idx + 1,
-                    name: `Page ${idx + 1}`,
-                    fileName: fileName,
-                    v_id: `page_${nanoid(8)}`
-                }));
+          if (svgFiles.length > 0) {
+            const autoHealedPages = svgFiles.map((fileName, idx) => ({
+              pageNumber: idx + 1,
+              name: `Page ${idx + 1}`,
+              fileName: fileName,
+              v_id: `page_${nanoid(8)}`
+            }));
 
-                // Update the document so future requests are faster
-                dbDoc.pages = autoHealedPages;
-                await dbDoc.save();
-                console.log(`[PublicGet] Auto-healed ${autoHealedPages.length} pages`);
-            }
+            dbDoc.pages = autoHealedPages;
+            await dbDoc.save();
+          }
         } catch (e) {
-            console.error(`[PublicGet] Auto-heal failed for v_id: ${dbDoc.v_id}`, e);
+          console.error(`[PublicGet] Auto-heal failed for v_id: ${dbDoc.v_id}`, e);
         }
+      }
     }
 
-    // Sort and read pages
+    // Sort and read pages from Supabase Storage (fallback to local disk)
     dbDoc.pages.sort((a, b) => a.pageNumber - b.pageNumber);
+    const flipbookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveFolderName}/${dbDoc.flipbookName}`;
+
     const pagePromises = dbDoc.pages.map(async (p) => {
-      const filePath = path.join(bookPath, p.fileName);
       try {
-        const content = await fs.promises.readFile(filePath, "utf8");
+        const supabasePath = `${flipbookPrefix}/${p.fileName}`;
+        let buf = await downloadFileFromSupabase(supabasePath);
+
+        if (!buf || buf.length === 0) {
+          const filePath = path.join(bookPath, p.fileName);
+          if (fs.existsSync(filePath)) {
+            buf = await fs.promises.readFile(filePath);
+          }
+        }
+
+        const content = buf ? rewriteUploadsToSupabase(buf.toString("utf8"), flipbookPrefix) : "";
         return { name: p.name, html: content, v_id: p.v_id };
       } catch (e) {
         return null;
@@ -2384,7 +1889,7 @@ router.delete("/folder", async (req, res) => {
     // Find all books to be deleted to get their v_ids
     const booksToDelete = await Flipbook.find({
       userEmail: emailId,
-      folderName: folderName,
+      $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
     });
     const bookVIds = booksToDelete.map((b) => b.v_id).filter(Boolean);
 
@@ -2409,9 +1914,11 @@ router.delete("/folder", async (req, res) => {
       }
     }
 
-
     // Delete from MongoDB
-    await Flipbook.deleteMany({ userEmail: emailId, folderName: folderName });
+    await Flipbook.deleteMany({
+      userEmail: emailId,
+      $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
+    });
 
     res.json({ message: "Deleted successfully" });
   } catch (err) {
@@ -2421,13 +1928,10 @@ router.delete("/folder", async (req, res) => {
 });
 
 // @route POST /api/flipbook/rename
-// @route POST /api/flipbook/rename
 router.post("/rename", async (req, res) => {
   try {
     const { emailId, folderName, oldName, newName } = req.body;
-    // Rename book directory
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
 
     // Resolve Real Folder
     let effectiveFolderName = folderName;
@@ -2449,45 +1953,25 @@ router.post("/rename", async (req, res) => {
       }
     }
 
-    const folderPath = path.join(
-      uploadsDir,
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      effectiveFolderName,
-    );
-    const oldBookPath = path.join(folderPath, oldName);
     const safeNewName = newName.replace(/[^a-zA-Z0-9 _-]/g, "");
-    const newBookPath = path.join(folderPath, safeNewName);
 
-    if (!fs.existsSync(oldBookPath))
-      return res.status(404).json({ message: "Book not found" });
-    if (fs.existsSync(newBookPath))
+    // Check MongoDB for source book and target conflict
+    const docToUpdate = await Flipbook.findOne({
+      userEmail: emailId,
+      flipbookName: oldName,
+    });
+
+    const targetDoc = await Flipbook.findOne({
+      userEmail: emailId,
+      flipbookName: safeNewName,
+    });
+
+    if (targetDoc && targetDoc.v_id !== docToUpdate?.v_id) {
       return res.status(409).json({ message: "Name exists" });
+    }
 
-    // Robust Rename for Windows (Handling EPERM/EBUSY)
-    try {
-      fs.renameSync(oldBookPath, newBookPath);
-    } catch (err) {
-      if (["EPERM", "EACCES", "EBUSY"].includes(err.code)) {
-        // 1. Wait 500ms and retry
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        try {
-          fs.renameSync(oldBookPath, newBookPath);
-        } catch (retryErr) {
-          // 2. Fallback: Recursive Copy + Delete
-          console.log("Book Rename failed, attempting copy-delete fallback...");
-          try {
-            copyRecursiveSync(oldBookPath, newBookPath);
-            // Try to delete old folder
-            fs.rmSync(oldBookPath, { recursive: true, force: true });
-          } catch (fallbackErr) {
-            console.error("Cleanup of old book folder failed:", fallbackErr);
-            // Continue as new data is likely safe, but warn
-          }
-        }
-      } else {
-        throw err;
-      }
+    if (!docToUpdate) {
+      return res.status(404).json({ message: "Book not found" });
     }
 
     // Sync book folder rename to Supabase Storage
@@ -2498,41 +1982,28 @@ router.post("/rename", async (req, res) => {
     );
 
     // Update MongoDB
-
-
-    // Find doc using unique fields (Name + Folder Tag found).
-    // Since we resolved effectiveFolderName, we use that for lookup safety, OR just match the bookName+email.
-    // Note: We need to update flipbookName.
-    const updatedDoc = await Flipbook.findOneAndUpdate(
-      {
-        userEmail: emailId,
-        flipbookName: oldName,
-        folderName: effectiveFolderName,
-      },
-      { flipbookName: safeNewName, lastUpdated: new Date() },
-      { new: true },
-    );
+    if (docToUpdate) {
+      docToUpdate.flipbookName = safeNewName;
+      docToUpdate.lastUpdated = new Date();
+      await docToUpdate.save();
+    }
 
     // UPDATE ASSETS: Update flipbookName and reconstruct URLs
-    if (updatedDoc && updatedDoc.v_id) {
+    if (docToUpdate && docToUpdate.v_id) {
       try {
         console.log(
           `Updating assets for renamed flipbook: "${oldName}" → "${safeNewName}"`,
         );
 
         const assets = await FlipbookAsset.find({
-          flipbook_v_id: updatedDoc.v_id,
+          flipbook_v_id: docToUpdate.v_id,
         });
 
         if (assets.length > 0) {
           for (const asset of assets) {
-            // Update flipbookName field
             asset.flipbookName = safeNewName;
-
-            // Reconstruct URL with new flipbook name
             const emailPart = asset.url.split(`/${FLIPBOOK_ROOT}/`)[0];
             asset.url = `${emailPart}/${FLIPBOOK_ROOT}/${asset.folderName}/${safeNewName}/assets/${asset.assetType}/${asset.fileName}`;
-
             await asset.save();
           }
           console.log(
@@ -2542,35 +2013,6 @@ router.post("/rename", async (req, res) => {
       } catch (err) {
         console.error("❌ Error updating assets after rename:", err);
       }
-    }
-
-    // UPDATE HTML CONTENT: Update asset paths in .html files
-    try {
-      console.log(`Updating HTML content for renamed flipbook...`);
-      if (fs.existsSync(newBookPath)) {
-        const files = fs.readdirSync(newBookPath);
-        const htmlFiles = files.filter((f) => f.endsWith(".html"));
-
-        for (const file of htmlFiles) {
-          const filePath = path.join(newBookPath, file);
-          let content = fs.readFileSync(filePath, "utf8");
-
-          // Use regex for robust replacement
-          const escapedFolderName = escapeRegex(effectiveFolderName).replace(/ /g, "(?: |%20)");
-          const escapedOldName = escapeRegex(oldName).replace(/ /g, "(?: |%20)");
-          const pathRegex = new RegExp(`/[^/]+/${escapedFolderName}/${escapedOldName}/`, "g");
-          const replacementPath = `/${FLIPBOOK_ROOT}/${effectiveFolderName}/${safeNewName}/`;
-
-          if (pathRegex.test(content)) {
-            content = content.replace(pathRegex, replacementPath);
-            fs.writeFileSync(filePath, content, "utf8");
-            console.log(`Updated HTML content for: ${file}`);
-          }
-        }
-        console.log(`✅ checked/updated ${htmlFiles.length} HTML file(s)`);
-      }
-    } catch (htmlErr) {
-      console.error("❌ Error updating HTML content:", htmlErr);
     }
 
     res.json({ message: "Renamed", newName: safeNewName });
@@ -2585,12 +2027,6 @@ router.post("/move", async (req, res) => {
   try {
     const { emailId, bookName, currentFolder, targetFolder } = req.body;
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const baseDir = path.join(
-      __dirname,
-      "../../uploads",
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-    );
 
     // Resolve Real Source Folder
     let effectiveCurrentFolder = currentFolder;
@@ -2612,44 +2048,6 @@ router.post("/move", async (req, res) => {
       }
     }
 
-    const oldPath = path.join(baseDir, effectiveCurrentFolder, bookName);
-    const newPath = path.join(baseDir, targetFolder, bookName);
-
-    if (!fs.existsSync(oldPath))
-      return res.status(404).json({ message: "Book not found" });
-
-    if (!fs.existsSync(path.join(baseDir, targetFolder))) {
-      fs.mkdirSync(path.join(baseDir, targetFolder), { recursive: true });
-    }
-    if (fs.existsSync(newPath))
-      return res.status(409).json({ message: "Book exists in target" });
-
-    // Move the flipbook directory with Robust Retry for Windows
-    try {
-      fs.renameSync(oldPath, newPath);
-    } catch (err) {
-      if (["EPERM", "EACCES", "EBUSY"].includes(err.code)) {
-        // 1. Wait 500ms and retry
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        try {
-          fs.renameSync(oldPath, newPath);
-        } catch (retryErr) {
-          // 2. Fallback: Recursive Copy + Delete
-          console.log("Move failed, attempting copy-delete fallback...");
-          try {
-            copyRecursiveSync(oldPath, newPath);
-            // Try to delete old folder
-            fs.rmSync(oldPath, { recursive: true, force: true });
-          } catch (fallbackErr) {
-            console.error("Cleanup of old book folder failed:", fallbackErr);
-            // Continue as new data is likely safe, but warn
-          }
-        }
-      } else {
-        throw err;
-      }
-    }
-
     // Move flipbook directory in Supabase Storage
     const oldSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${effectiveCurrentFolder}/${bookName}`;
     const newSupabaseMovePrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${targetFolder}/${bookName}`;
@@ -2658,26 +2056,21 @@ router.post("/move", async (req, res) => {
     );
 
     // Update MongoDB
-
-
-    // Swap old folder tag with new folder tag, preserving 'Recent Book' if present
-    // FIX: Use $in to search array folderName
     const bookToMove = await Flipbook.findOne({
       userEmail: emailId,
-      folderName: { $in: [effectiveCurrentFolder] }, // Search in array
+      folderName: { $in: [effectiveCurrentFolder] },
       flipbookName: bookName,
     });
 
     if (bookToMove) {
       if (Array.isArray(bookToMove.folderName)) {
-        // Remove the source folder (effectiveCurrentFolder)
         let tags = bookToMove.folderName.filter(
           (f) => f !== effectiveCurrentFolder,
         );
         tags.push(targetFolder);
         bookToMove.folderName = [...new Set(tags)];
       } else {
-        bookToMove.folderName = [targetFolder]; // Fallback
+        bookToMove.folderName = [targetFolder];
       }
       bookToMove.lastUpdated = new Date();
       await bookToMove.save();
@@ -2685,23 +2078,15 @@ router.post("/move", async (req, res) => {
       // UPDATE ASSETS: Update folderName and reconstruct URLs
       if (bookToMove.v_id) {
         try {
-          console.log(
-            `Updating assets for moved flipbook: "${effectiveCurrentFolder}" → "${targetFolder}"`,
-          );
-
           const assets = await FlipbookAsset.find({
             flipbook_v_id: bookToMove.v_id,
           });
 
           if (assets.length > 0) {
             for (const asset of assets) {
-              // Update folderName field
               asset.folderName = targetFolder;
-
-              // Reconstruct URL with new folder name
               const emailPart = asset.url.split(`/${FLIPBOOK_ROOT}/`)[0];
               asset.url = `${emailPart}/${FLIPBOOK_ROOT}/${targetFolder}/${asset.flipbookName}/assets/${asset.assetType}/${asset.fileName}`;
-
               await asset.save();
             }
             console.log(
@@ -2712,35 +2097,6 @@ router.post("/move", async (req, res) => {
           console.error("❌ Error updating assets after move:", err);
         }
       }
-    }
-
-    // UPDATE HTML CONTENT: Update asset paths in .html files
-    try {
-      console.log(`Updating HTML content for moved flipbook...`);
-      if (fs.existsSync(newPath)) {
-        const files = fs.readdirSync(newPath);
-        const htmlFiles = files.filter((f) => f.endsWith(".html"));
-
-        for (const file of htmlFiles) {
-          const filePath = path.join(newPath, file);
-          let content = fs.readFileSync(filePath, "utf8");
-
-          // Use regex for robust replacement
-          const escapedCurrentFolder = escapeRegex(effectiveCurrentFolder).replace(/ /g, "(?: |%20)");
-          const escapedBookName = escapeRegex(bookName).replace(/ /g, "(?: |%20)");
-          const pathRegex = new RegExp(`/[^/]+/${escapedCurrentFolder}/${escapedBookName}/`, "g");
-          const replacementPath = `/${FLIPBOOK_ROOT}/${targetFolder}/${bookName}/`;
-
-          if (pathRegex.test(content)) {
-            content = content.replace(pathRegex, replacementPath);
-            fs.writeFileSync(filePath, content, "utf8");
-            console.log(`Updated HTML content for: ${file}`);
-          }
-        }
-        console.log(`✅ checked/updated ${htmlFiles.length} HTML file(s)`);
-      }
-    } catch (htmlErr) {
-      console.error("❌ Error updating HTML content:", htmlErr);
     }
 
     res.json({ message: "Moved" });
@@ -2757,7 +2113,6 @@ router.post("/remove-recent", async (req, res) => {
     if (!emailId || !bookName)
       return res.status(400).json({ message: "Missing fields" });
 
-    // Just remove the 'Recent Book' tag
     await Flipbook.updateOne(
       { userEmail: emailId, flipbookName: bookName, folderName: "Recent Book" },
       { $pull: { folderName: "Recent Book" } },
@@ -2774,35 +2129,24 @@ router.delete("/delete", async (req, res) => {
   try {
     const { emailId, folderName, bookName } = req.body;
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const bookPath = path.join(
-      __dirname,
-      "../../uploads",
-      sanitizedEmail,
-      FLIPBOOK_ROOT,
-      folderName,
-      bookName,
-    );
-
-    // Delete physical folder if it exists
-    if (fs.existsSync(bookPath)) {
-      fs.rmSync(bookPath, { recursive: true, force: true });
-    } else {
-      console.warn(
-        `Attempted to delete physical book at ${bookPath} but it was already missing.`,
-      );
-    }
 
     // Delete flipbook folder and all files from Supabase Storage
     const supabaseBookPrefix = `${sanitizedEmail}/${FLIPBOOK_ROOT}/${folderName}/${bookName}`;
     deleteFolderFromSupabase(supabaseBookPrefix).catch(e => console.warn("[Supabase] Delete book folder warning:", e));
 
-
     // Delete from MongoDB
-    const deletedBook = await Flipbook.findOneAndDelete({
+    let deletedBook = await Flipbook.findOneAndDelete({
       userEmail: emailId,
-      folderName: folderName,
       flipbookName: bookName,
+      $or: [{ folderName: folderName }, { folderName: { $in: [folderName] } }]
     });
+
+    if (!deletedBook) {
+      deletedBook = await Flipbook.findOneAndDelete({
+        userEmail: emailId,
+        flipbookName: bookName,
+      });
+    }
 
     if (deletedBook && deletedBook.v_id) {
       console.log(
@@ -2815,12 +2159,6 @@ router.delete("/delete", async (req, res) => {
         for (const asset of assets) {
           if (asset.url) {
             deleteFileFromSupabase(asset.url).catch(e => console.warn("[Supabase] Delete asset warning:", e));
-            const assetPath = path.join(__dirname, "../../", asset.url);
-            if (fs.existsSync(assetPath)) {
-              try {
-                fs.unlinkSync(assetPath);
-              } catch (e) {}
-            }
           }
         }
         await FlipbookAsset.deleteMany({ flipbook_v_id: deletedBook.v_id });
@@ -2828,7 +2166,6 @@ router.delete("/delete", async (req, res) => {
       } catch (assetErr) {
         console.error("Error cleaning up assets:", assetErr);
       }
-
 
       try {
         const deleted3DModels = await InteractionThreedModel.deleteMany({
@@ -2866,7 +2203,7 @@ const storage = multer.diskStorage({
 const upload = multer({ 
   storage: storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit (SVG files from complex PDFs can be large)
+    fileSize: 50 * 1024 * 1024,
   },
 });
 
@@ -2877,8 +2214,8 @@ router.post("/convert-pdf-to-svg", upload.single("pdf"), async (req, res) => {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    // Temporary output directory for SVG files
-    const outDir = path.join(__dirname, "../../uploads/temp_svg_" + Date.now());
+    // Temporary output directory for SVG files in temp_uploads
+    const outDir = path.join(__dirname, "../../temp_uploads/temp_svg_" + Date.now());
     if (!fs.existsSync(outDir)) {
       fs.mkdirSync(outDir, { recursive: true });
     }
@@ -2970,8 +2307,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       const maxStorage = userSettings?.maxStorage || 300 * 1024 * 1024;
       
       const sanitizedEmailForStorage = emailId.replace(/[@.]/g, "_");
-      const userUploadsDirForCheck = path.join(__dirname, "../../uploads", sanitizedEmailForStorage);
-      const currentUsedStorage = getDirSize(userUploadsDirForCheck);
+      const currentUsedStorage = await getUserStorageSizeFromSupabase(sanitizedEmailForStorage);
 
       if (currentUsedStorage + file.size > maxStorage) {
         if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
@@ -2982,7 +2318,6 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
       }
     } catch (storageErr) {
       console.error("Error during storage limit check:", storageErr);
-      // Continue upload if check fails? Or block? Safe to continue but log error.
     }
 
     // 1. Resolve Project Metadata (V_ID, Folder, Name)
@@ -2998,7 +2333,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
           folderName =
             realFolders.length > 0
               ? realFolders[0]
-              : dbDoc.folderName[0] || "My Flipbooks";
+              : dbDoc.folderName[0] || "My_Flipbooks";
         } else {
           folderName = dbDoc.folderName;
         }
@@ -3011,7 +2346,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
     }
 
     // Sanitize identifiers to avoid illegal path characters & Ensure non-empty fallback
-    let safeFolderName = (folderName || "My Flipbooks")
+    let safeFolderName = (folderName || "My_Flipbooks")
       .replace(/[^a-zA-Z0-9 _-]/g, "")
       .trim();
     if (!safeFolderName) safeFolderName = FLIPBOOK_ROOT;
@@ -3022,49 +2357,26 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
     if (!safeFlipbookName) safeFlipbookName = "Untitled_Document";
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
 
     // Define Paths
-    let targetDir; // Final directory for file
     let relativeUrlBase; // Base for URL
 
     const assetType = (type || "video").toLowerCase();
 
     if (req.body.isGallery === "true" || req.body.isGallery === true) {
-      // Gallery Upload -> Use Global Folders (Images, Videos, gifs)
-      // Observed structure: uploads/email/Images, uploads/email/Videos, uploads/email/gifs
       const typeMap = {
         image: "Images",
         video: "Videos",
         gif: "gifs",
-        svg: "Images", // Icons share Images folder? Or separate? Defaulting to Images for now.
+        svg: "Images",
       };
       const targetFolder = typeMap[assetType] || "Images";
-
-      targetDir = path.join(uploadsDir, sanitizedEmail, targetFolder);
       relativeUrlBase = `/uploads/${sanitizedEmail}/${targetFolder}`;
 
-      // Mock DB fields for Gallery assets
       safeFolderName = "Gallery";
       safeFlipbookName = targetFolder;
     } else {
-      // Standard Flipbook Upload -> uploads/email/FLIPBOOK_ROOT/Folder/Book/assets/type
-      const flipbookDir = path.join(
-        uploadsDir,
-        sanitizedEmail,
-        FLIPBOOK_ROOT,
-        safeFolderName,
-        safeFlipbookName,
-      );
-      if (!fs.existsSync(flipbookDir)) {
-        fs.mkdirSync(flipbookDir, { recursive: true });
-      }
-      targetDir = path.join(flipbookDir, "assets", assetType);
       relativeUrlBase = `/uploads/${sanitizedEmail}/${FLIPBOOK_ROOT}/${safeFolderName}/${safeFlipbookName}/assets/${assetType}`;
-    }
-
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
     }
 
     // --- Handle Replacement / Old File Deletion ---
@@ -3082,8 +2394,6 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
               ? new URL(replacing_file_url).pathname 
               : replacing_file_url;
           urlQuery = decodeURIComponent(urlQuery);
-          console.log(`Searching for old asset with URL ending in: ${urlQuery}`);
-          // Escape regex characters just in case, though exact match is often better
           const escapedUrlQuery = urlQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           oldAsset = await FlipbookAsset.findOne({ url: { $regex: escapedUrlQuery + '$' } });
         }
@@ -3093,21 +2403,12 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
           oldFilename = oldAsset.fileName;
           oldUrl = oldAsset.url;
 
-          // Delete physical file & Supabase asset
+          // Delete Supabase asset
           if (oldAsset.url) {
             deleteFileFromSupabase(oldAsset.url).catch(e => console.warn("[Supabase] Delete old asset warning:", e));
-            if (oldAsset.url.startsWith("/uploads")) {
-              const oldFilePath = path.join(__dirname, "../../", oldAsset.url);
-              if (fs.existsSync(oldFilePath)) {
-                fs.unlinkSync(oldFilePath);
-                console.log(`Deleted old asset file: ${oldFilePath}`);
-              }
-            }
           }
           // Delete DB record
           await FlipbookAsset.deleteOne({ _id: oldAsset._id });
-        } else {
-          console.log("Old asset NOT FOUND in DB for the given query.");
         }
       } catch (delErr) {
         console.warn("Failed to delete old asset:", delErr.message);
@@ -3118,64 +2419,18 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
     const fileExt = path.extname(file.originalname);
     const file_v_id = nanoid();
     const uniqueFilename = `${file_v_id}${fileExt}`;
-    const targetPath = path.join(targetDir, uniqueFilename);
     const finalPageVId = page_v_id || "global";
-
-    // Robust File Move (handles cross-device moves)
-    try {
-      fs.renameSync(file.path, targetPath);
-    } catch (renameErr) {
-      console.warn(
-        `Rename failed (${renameErr.code}), attempting copy-unlink...`,
-      );
-      fs.copyFileSync(file.path, targetPath);
-      try {
-        fs.unlinkSync(file.path);
-      } catch (e) {
-        console.warn("Failed to unlink temp file", e);
-      }
-    }
 
     // Generate relative URL
     const relativeUrl = `${relativeUrlBase}/${uniqueFilename}`;
 
-    // Upload new asset to Supabase Storage
+    // Upload new asset to Supabase Storage directly from temp file
     const supabaseDestPath = relativeUrl.replace(/^\/uploads\//, "");
-    uploadFileToSupabase(targetPath, supabaseDestPath).catch(err => console.warn("[Supabase] Asset upload warning:", err));
+    await uploadFileToSupabase(file.path, supabaseDestPath).catch(err => console.warn("[Supabase] Asset upload warning:", err));
 
-
-    // UPDATE HTML TEMPLATES if Replacing
-    // This block is only relevant for flipbook assets, not gallery assets.
-    // The `flipbookDir` variable is only defined in the `else` block of the `isGallery` check.
-    // If `isGallery` is true, `flipbookDir` will be undefined, so this check will correctly prevent execution.
-    if (oldFilename && oldFilename !== uniqueFilename) {
-      try {
-        // flipbookDir will only be defined if it's a standard flipbook upload
-        if (typeof flipbookDir !== "undefined" && fs.existsSync(flipbookDir)) {
-          const files = fs.readdirSync(flipbookDir);
-          const htmlFiles = files.filter((f) => f.endsWith(".html"));
-
-          for (const file of htmlFiles) {
-            const fPath = path.join(flipbookDir, file);
-            const content = fs.readFileSync(fPath, "utf8");
-
-            if (content.includes(oldFilename)) {
-              const newContent = content
-                .split(oldFilename)
-                .join(uniqueFilename);
-              fs.writeFileSync(fPath, newContent, "utf8");
-              console.log(
-                `Updated HTML template ${file}: Replaced ${oldFilename} with ${uniqueFilename}`,
-              );
-            }
-          }
-        }
-      } catch (htmlErr) {
-        console.error(
-          "Error updating HTML templates during asset replacement:",
-          htmlErr,
-        );
-      }
+    // Cleanup temp file
+    if (file && file.path && fs.existsSync(file.path)) {
+      try { fs.unlinkSync(file.path); } catch(e) {}
     }
 
     // Save to Database
@@ -3193,7 +2448,7 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
 
     await newAsset.save();
 
-    console.log(`Asset saved successfully: ${uniqueFilename}`);
+    console.log(`Asset saved successfully to Supabase: ${uniqueFilename}`);
     res.json({
       url: relativeUrl,
       file_v_id: file_v_id,
@@ -3214,59 +2469,103 @@ router.post("/upload-asset", upload.single("file"), async (req, res) => {
 });
 
 // @route GET /api/flipbook/get-gallery-assets
-// @desc Get gallery assets (images, videos, gifs) from user's workspace folder
+// @desc Get global gallery assets (images, videos, gifs, 3d models) from Supabase Storage & MongoDB
 router.get("/get-gallery-assets", async (req, res) => {
   try {
-    const { emailId, type } = req.query;
+    const { emailId, type, currentUrl, currentFileName } = req.query;
 
     if (!emailId) {
       return res.status(400).json({ message: "Missing emailId" });
     }
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const uploadsDir = path.join(__dirname, "../../uploads");
+    const requestedType = type ? type.toLowerCase() : null;
+    const assetsMap = new Map();
 
-    // Map asset types to folder names
-    const typeMap = {
-      image: "Images",
-      video: "Videos",
-      gif: "gifs",
+    // 1. Query MongoDB FlipbookAsset collection ONLY for global gallery assets (excluding page assets under My_Flipbooks)
+    const escapedEmail = escapeRegex(sanitizedEmail);
+    const dbAssets = await FlipbookAsset.find({
+      $and: [
+        { userEmail: emailId },
+        {
+          $or: [
+            { folderName: "Gallery" },
+            { isGallery: true },
+            { url: { $regex: `\/uploads\/${escapedEmail}\/(?:Images|Videos|gifs|3D_Modals|Image|video|gif)\/` } }
+          ]
+        }
+      ]
+    }).sort({ createdAt: -1 });
+
+    for (const asset of dbAssets) {
+      if (asset.url && asset.fileName) {
+        // Exclude currently selected asset if specified
+        if (currentFileName && (asset.fileName === currentFileName || asset.file_v_id === currentFileName)) continue;
+        if (currentUrl && asset.url && asset.url.toLowerCase().includes(currentUrl.toLowerCase())) continue;
+
+        let detectedType = (asset.assetType || "").toLowerCase();
+        if (!detectedType) {
+          if (asset.url.includes('/Videos/') || asset.url.includes('/video/')) detectedType = 'video';
+          else if (asset.url.includes('/gifs/') || asset.url.includes('/gif/')) detectedType = 'gif';
+          else if (asset.url.includes('/3D_Model/') || asset.url.includes('/3D_Modals/')) detectedType = '3d';
+          else detectedType = 'image';
+        } else if (detectedType === 'images') detectedType = 'image';
+        else if (detectedType === 'videos') detectedType = 'video';
+        else if (detectedType === '3d_model' || detectedType === '3d_modals') detectedType = '3d';
+
+        if (!requestedType || detectedType === requestedType || (requestedType === 'image' && detectedType === 'image') || (requestedType === '3d' && detectedType === '3d')) {
+          assetsMap.set(asset.fileName, {
+            id: asset.fileName,
+            name: asset.fileName,
+            url: asset.url,
+            type: detectedType,
+            size: asset.size || 0,
+            uploadedAt: asset.createdAt || new Date()
+          });
+        }
+      }
+    }
+
+    // 2. Fetch files directly from global user Supabase Storage gallery subfolders
+    const supabaseFolderMap = {
+      image: [`${sanitizedEmail}/Images`, `${sanitizedEmail}/Image`],
+      video: [`${sanitizedEmail}/Videos`, `${sanitizedEmail}/video`],
+      gif: [`${sanitizedEmail}/gifs`, `${sanitizedEmail}/gif`],
+      '3d': [`${sanitizedEmail}/3D_Modals`, `${sanitizedEmail}/3D_Model`]
     };
 
-    const assets = [];
+    const targetTypes = requestedType ? [requestedType] : ['image', 'video', 'gif', '3d'];
 
-    // If type is specified, fetch only that type
-    const typesToFetch = type ? [type] : ["image", "video", "gif"];
+    for (const t of targetTypes) {
+      const folders = supabaseFolderMap[t] || [];
+      for (const folder of folders) {
+        const supabaseFiles = await listFilesInSupabaseFolder(folder);
+        for (const fileObj of supabaseFiles) {
+          if (fileObj.name && !assetsMap.has(fileObj.name)) {
+            // Exclude currently selected asset if specified
+            if (currentFileName && fileObj.name === currentFileName) continue;
+            const folderBaseName = path.basename(folder);
+            const publicUrl = `/uploads/${sanitizedEmail}/${folderBaseName}/${fileObj.name}`;
+            if (currentUrl && publicUrl.toLowerCase().includes(currentUrl.toLowerCase())) continue;
 
-    for (const assetType of typesToFetch) {
-      const folderName = typeMap[assetType];
-      const folderPath = path.join(uploadsDir, sanitizedEmail, folderName);
-
-      if (fs.existsSync(folderPath)) {
-        const files = fs.readdirSync(folderPath);
-
-        for (const file of files) {
-          const filePath = path.join(folderPath, file);
-          const stats = fs.statSync(filePath);
-
-          if (stats.isFile()) {
-            // Construct the URL
-            const url = `/uploads/${sanitizedEmail}/${folderName}/${file}`;
-
-            assets.push({
-              name: file,
-              url: url,
-              type: assetType,
-              size: stats.size,
-              uploadedAt: stats.mtime,
+            assetsMap.set(fileObj.name, {
+              id: fileObj.name,
+              name: fileObj.name,
+              url: publicUrl,
+              type: t,
+              size: fileObj.metadata?.size || 0,
+              uploadedAt: fileObj.created_at || fileObj.updated_at || new Date()
             });
           }
         }
       }
     }
 
-    // Sort by upload date (newest first)
-    assets.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    let assets = Array.from(assetsMap.values());
+    if (requestedType) {
+      assets = assets.filter(a => a.type === requestedType || (requestedType === 'image' && a.type === 'image') || (requestedType === '3d' && (a.type === '3d' || a.type === '3d_model')));
+    }
+    assets.sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
 
     res.json({ assets });
   } catch (err) {
@@ -3323,7 +2622,7 @@ const deleteAssetHandler = async (req, res) => {
 
     if (emailId) {
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      const targetFolder = (folderName || "My Flipbooks").replace(/[^a-zA-Z0-9 _-]/g, "").trim();
+      const targetFolder = (folderName || "My_Flipbooks").replace(/[^a-zA-Z0-9 _-]/g, "").trim();
       const targetBook = (bookName || "Untitled Document").replace(/[^a-zA-Z0-9 _-]/g, "").trim();
 
       if (fileName) {
@@ -3348,16 +2647,6 @@ const deleteAssetHandler = async (req, res) => {
       await deleteFileFromSupabase(urlPath).catch((e) =>
         console.warn("[Supabase] Delete asset candidate warning:", e)
       );
-
-      if (urlPath.startsWith("/uploads")) {
-        const filePath = path.join(__dirname, "../../", urlPath);
-        if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-            console.log(`Deleted local asset file: ${filePath}`);
-          } catch (e) {}
-        }
-      }
     }
 
     if (asset) {
@@ -3370,7 +2659,7 @@ const deleteAssetHandler = async (req, res) => {
       await InteractionThreedModel.deleteOne({ userEmail: emailId, fileName: fileName }).catch(() => {});
     }
 
-    res.status(200).json({ message: "Asset deleted successfully from Supabase and local storage" });
+    res.status(200).json({ message: "Asset deleted successfully from Supabase" });
 
   } catch (error) {
     console.error("Error deleting asset:", error);

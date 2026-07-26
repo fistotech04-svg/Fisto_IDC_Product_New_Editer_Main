@@ -144,19 +144,14 @@ const CropOverlay = ({ src, initialCrop, targetElement, activePageIndex, onCance
       if (e.key === 'Escape') onCancel();
       if (e.key === 'Enter') onDone(cropRef.current);
     };
-    const handleKeyUp = (e) => {
-      if (e.key === 'Control' && !e.shiftKey && !e.altKey) onDone(cropRef.current);
-    };
     const timeout = setTimeout(() => {
       document.addEventListener('pointerdown', handleGlobalPointerDown);
       document.addEventListener('keydown', handleKeyDown);
-      document.addEventListener('keyup', handleKeyUp);
     }, 100);
     return () => {
       clearTimeout(timeout);
       document.removeEventListener('pointerdown', handleGlobalPointerDown);
       document.removeEventListener('keydown', handleKeyDown);
-      document.removeEventListener('keyup', handleKeyUp);
     };
   }, [onCancel, onDone]);
 
@@ -187,14 +182,22 @@ const CropOverlay = ({ src, initialCrop, targetElement, activePageIndex, onCance
       offY = (dragStart.crop.offY || 0) + dy;
 
     } else {
-      // ── Edge / Corner resize — fully independent axes ──
+      // ── Proportional ratio lock if Ctrl or Shift key is held ──
+      const isCornerDrag = dragType === 'nw' || dragType === 'ne' || dragType === 'sw' || dragType === 'se';
+      let effectiveDy = dy;
+      if (isCornerDrag && (e.ctrlKey || e.shiftKey) && dragStart.crop.width > 0 && dragStart.crop.height > 0) {
+        const aspect = dragStart.crop.width / dragStart.crop.height;
+        effectiveDy = dx / aspect;
+      }
+
+      // ── Edge / Corner resize — independent or proportional axes ──
       if (dragType === 'n' || dragType === 'nw' || dragType === 'ne') {
-        const newTop = top + dy;
-        const newH   = height - dy;
+        const newTop = top + (isCornerDrag && (e.ctrlKey || e.shiftKey) ? effectiveDy : dy);
+        const newH   = height - (isCornerDrag && (e.ctrlKey || e.shiftKey) ? effectiveDy : dy);
         if (newH >= MIN_SIZE) { top = newTop; height = newH; }
       }
       if (dragType === 's' || dragType === 'sw' || dragType === 'se') {
-        const newH = height + dy;
+        const newH = height + (isCornerDrag && (e.ctrlKey || e.shiftKey) ? effectiveDy : dy);
         if (newH >= MIN_SIZE) height = newH;
       }
       if (dragType === 'w' || dragType === 'nw' || dragType === 'sw') {

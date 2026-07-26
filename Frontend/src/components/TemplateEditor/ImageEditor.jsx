@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Icon } from '@iconify/react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { getVisualBBox } from './MainEditor';
 import { getSvgImageEl, syncGradient } from './editorUtils';
 import {
@@ -325,7 +326,7 @@ const ImageEditor = ({
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
             const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
             if (res.data.url) {
-              const serverUrl = `${backendUrl}${res.data.url}`;
+              const serverUrl = resolveUploadsPath(res.data.url);
               const svgImgSrv = getSvgImageEl(selectedElement);
               if (svgImgSrv) {
                 svgImgSrv.setAttribute('href', serverUrl);
@@ -3271,7 +3272,7 @@ const ImageEditor = ({
                     const formData = new FormData();
                     formData.append('emailId', user.emailId);
                     if (flipbookVId) formData.append('v_id', flipbookVId);
-                    formData.append('folderName', folderName || 'My Flipbooks');
+                    formData.append('folderName', folderName || 'My_Flipbooks');
                     formData.append('flipbookName', flipbookName || 'Untitled Document');
                     formData.append('type', 'image');
                     formData.append('assetType', 'Image');
@@ -3286,7 +3287,7 @@ const ImageEditor = ({
                     const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
 
                     if (res.data.url) {
-                      const serverUrl = `${backendUrl}${res.data.url}`;
+                      const serverUrl = resolveUploadsPath(res.data.url);
 
                       const finalTarget = getSvgImageEl(liveElement) || liveElement;
                       if (finalTarget.tagName?.toLowerCase() === 'image') {
