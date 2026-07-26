@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import multer from "multer";
 import ThreedModel from "../../models/ThreedModel.js";
 import InteractionThreedModel from "../../models/InteractionThreedModel.js";
-import { uploadFileToSupabase, deleteFileFromSupabase } from "../../config/supabase.js";
+import { uploadFileToSupabase, uploadBufferToSupabase, downloadFileFromSupabase, deleteFileFromSupabase, renamePathInSupabase } from "../../config/supabase.js";
 
 
 const router = express.Router();
@@ -14,32 +14,16 @@ const router = express.Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configure multer for 3D model uploads
+// Configure multer for 3D model uploads (temporary local storage before Supabase)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const { emailId } = req.body;
-    if (!emailId) {
-      return cb(new Error("Email ID is required"));
+    const tempDir = path.join(__dirname, "../../temp_uploads/3d_models");
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
     }
-
-    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const userFolderPath = path.join(
-      __dirname,
-      "../../uploads",
-      sanitizedEmail,
-      "3D_Modals",
-    );
-
-    if (!fs.existsSync(userFolderPath)) {
-      fs.mkdirSync(userFolderPath, { recursive: true });
-    }
-
-    cb(null, userFolderPath);
+    cb(null, tempDir);
   },
   filename: (req, file, cb) => {
-    // Keep original filename or generate a unique one? 
-    // Usually better to keep name but ensure uniqueness if needed.
-    // For now, let's keep it simple as requested.
     cb(null, file.originalname);
   },
 });
@@ -51,13 +35,13 @@ const upload = multer({
   },
 });
 
-// Configure multer for CHUNKED uploads
+// Configure multer for CHUNKED uploads in temp_uploads
 const chunkStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const { uploadId } = req.body;
     if (!uploadId) return cb(new Error("uploadId is required"));
     
-    const tempDir = path.join(__dirname, "../../uploads/temp", uploadId);
+    const tempDir = path.join(__dirname, "../../temp_uploads/3d_models/temp", uploadId);
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
@@ -120,11 +104,6 @@ router.post("/upload-model", (req, res) => {
 
       if (model) {
           // Update ThreedModel
-          if (model.name !== req.file.filename) {
-              const oldPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals", model.name);
-              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-          }
-          
           model.name = req.file.filename;
           model.url = finalRelativeUrl;
           model.type = type;
@@ -132,20 +111,6 @@ router.post("/upload-model", (req, res) => {
           await model.save();
       } else if (interactionModel) {
           // Update InteractionThreedModel
-          const destDir = path.join(__dirname, "../../uploads", sanitizedEmail, "My_Flipbooks", interactionModel.folderName, interactionModel.flipbookName, "assets", "3D_Model");
-          
-          if (!fs.existsSync(destDir)) {
-              fs.mkdirSync(destDir, { recursive: true });
-          }
-
-          if (interactionModel.fileName !== req.file.filename) {
-              const oldPath = path.join(destDir, interactionModel.fileName);
-              if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-          }
-          
-          const newPath = path.join(destDir, req.file.filename);
-          fs.copyFileSync(req.file.path, newPath);
-          
           interactionModel.fileName = req.file.filename;
           interactionModel.url = `./assets/3D_Model/${req.file.filename}`;
           interactionModel.type = type;
@@ -156,7 +121,7 @@ router.post("/upload-model", (req, res) => {
 
           // Upload 3D model to Supabase Storage in flipbook assets/3D_Model
           const interactionSupabasePath = `${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
-          uploadFileToSupabase(newPath, interactionSupabasePath).catch(err => console.warn("[Supabase] 3D Model asset upload warning:", err));
+          uploadFileToSupabase(req.file.path, interactionSupabasePath).catch(err => console.warn("[Supabase] 3D Model asset upload warning:", err));
       } else {
           // Save as new ThreedModel (Global)
           model = new ThreedModel({
@@ -169,6 +134,10 @@ router.post("/upload-model", (req, res) => {
           await model.save();
       }
 
+      // Cleanup local temp file after uploading to Supabase
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch(e) {}
+      }
 
       res.status(200).json({
         message: modelId ? "Model updated successfully" : "Model uploaded successfully",
@@ -179,6 +148,9 @@ router.post("/upload-model", (req, res) => {
         modelId: model ? model.modelId : (interactionModel ? interactionModel.v_id : null)
       });
     } catch (error) {
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try { fs.unlinkSync(req.file.path); } catch(e) {}
+      }
       console.error("Error processing 3D model:", error);
       res.status(500).json({ message: "Server error during processing" });
     }
@@ -199,17 +171,16 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
     const curIndex = parseInt(chunkIndex);
     const total = parseInt(totalChunks);
 
-    // If it's the last chunk, start merging
+    // If it's the last chunk, start merging in tempDir
     if (curIndex === total - 1) {
-      const tempDir = path.join(__dirname, "../../uploads/temp", uploadId);
+      const tempDir = path.join(__dirname, "../../temp_uploads/3d_models/temp", uploadId);
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-      const userFolderPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals");
 
-      if (!fs.existsSync(userFolderPath)) {
-        fs.mkdirSync(userFolderPath, { recursive: true });
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
       }
 
-      const finalPath = path.join(userFolderPath, fileName);
+      const finalPath = path.join(tempDir, fileName);
       const writeStream = fs.createWriteStream(finalPath);
 
       // Merge chunks sequentially
@@ -234,17 +205,11 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
       writeStream.end();
 
       writeStream.on("finish", () => {
-        try {
-          if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
-        } catch (e) {
-          console.error("Error cleaning up temp dir:", e);
-        }
-
         const stats = fs.statSync(finalPath);
         const type = path.extname(fileName).slice(1);
         const sizeStr = (stats.size / (1024 * 1024)).toFixed(2) + " MB";
 
-        // Save to Database
+        // Save to Database & Supabase
         const saveToDb = async () => {
              const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
              const supabaseUrl = await uploadFileToSupabase(finalPath, destinationPath);
@@ -269,6 +234,13 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
         };
 
         saveToDb().then(model => {
+            // Clean up merged file and temp directory
+            try {
+              if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+            } catch (e) {
+              console.error("Error cleaning up temp dir:", e);
+            }
+
             res.status(200).json({
                 message: "Model uploaded and merged successfully",
                 url: model.url,
@@ -276,6 +248,9 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
                 modelId: model.modelId
             });
         }).catch(err => {
+            try {
+              if (fs.existsSync(tempDir)) fs.rmSync(tempDir, { recursive: true, force: true });
+            } catch (e) {}
             console.error("DB Save Error:", err);
             res.status(200).json({
                 message: "Model merged but DB save failed",
@@ -300,7 +275,7 @@ router.post("/upload-chunk", uploadChunk.single("chunk"), async (req, res) => {
 });
 
 // @route   GET /api/3d-models/get-models
-// @desc    Get all 3D models from the user's 3D_Modals folder
+// @desc    Get all 3D models for the user
 // @access  Public
 router.get("/get-models", async (req, res) => {
   try {
@@ -309,50 +284,9 @@ router.get("/get-models", async (req, res) => {
       return res.status(400).json({ message: "Email ID is required" });
     }
 
-    // Sanitize email for folder name (matches auth.js logic)
-    const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const userFolderPath = path.resolve(
-      process.cwd(),
-      "uploads",
-      sanitizedEmail,
-      "3D_Modals",
-    );
+    // Get models from Database
+    const dbModels = await ThreedModel.find({ userEmail: emailId }).sort({ createdAt: -1 });
 
-    // 1. Get models from Database
-    let dbModels = await ThreedModel.find({ userEmail: emailId }).sort({ createdAt: -1 });
-
-    const files = (userFolderPath && fs.existsSync(userFolderPath)) ? fs.readdirSync(userFolderPath) : [];
-
-    const validFiles = files.filter(f => [".glb", ".gltf", ".obj", ".stl"].includes(path.extname(f).toLowerCase()));
-
-    if (dbModels.length < validFiles.length) {
-        console.log("Syncing disk files to database for:", emailId);
-        for (const file of validFiles) {
-            const alreadyInDb = dbModels.find(m => m.name === file);
-            if (!alreadyInDb) {
-                const stats = fs.statSync(path.join(userFolderPath, file));
-                const baseName = path.basename(file, path.extname(file));
-                const thumbnail = files.find(f => {
-                    const fExt = path.extname(f).toLowerCase();
-                    return path.basename(f, fExt) === baseName && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
-                });
-
-                const newModel = new ThreedModel({
-                    userEmail: emailId,
-                    name: file,
-                    url: `/uploads/${sanitizedEmail}/3D_Modals/${file}`,
-                    thumbnailUrl: thumbnail ? `/uploads/${sanitizedEmail}/3D_Modals/${thumbnail}` : null,
-                    size: (stats.size / (1024 * 1024)).toFixed(2) + " MB",
-                    type: path.extname(file).slice(1)
-                });
-                await newModel.save();
-            }
-        }
-        // Re-query after sync
-        dbModels = await ThreedModel.find({ userEmail: emailId }).sort({ createdAt: -1 });
-    }
-
-    // 3. Map to consistent UI format
     const models = dbModels.map(m => ({
         modelId: m.modelId,
         name: m.name,
@@ -371,7 +305,7 @@ router.get("/get-models", async (req, res) => {
 });
 
 // @route   POST /api/3d-models/save-session
-// @desc    Save the current 3D editor state (JSON)
+// @desc    Save the current 3D editor state (JSON) to Supabase Storage
 // @access  Public
 router.post("/save-session", async (req, res) => {
   try {
@@ -381,11 +315,9 @@ router.post("/save-session", async (req, res) => {
     }
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const userFolderPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals");
-    if (!fs.existsSync(userFolderPath)) fs.mkdirSync(userFolderPath, { recursive: true });
-
-    const sessionPath = path.join(userFolderPath, "session.json");
-    fs.writeFileSync(sessionPath, JSON.stringify(state, null, 2));
+    const sessionBuffer = Buffer.from(JSON.stringify(state, null, 2), "utf-8");
+    const destinationPath = `${sanitizedEmail}/3D_Modals/session.json`;
+    await uploadBufferToSupabase(sessionBuffer, destinationPath, "application/json");
 
     res.status(200).json({ message: "3D Session saved successfully" });
   } catch (error) {
@@ -395,7 +327,7 @@ router.post("/save-session", async (req, res) => {
 });
 
 // @route   POST /api/3d-models/rename-model
-// @desc    Rename a model file and its thumbnail in the user's gallery
+// @desc    Rename a model file in Supabase Storage and DB
 // @access  Public
 router.post("/rename-model", async (req, res) => {
   try {
@@ -414,22 +346,16 @@ router.post("/rename-model", async (req, res) => {
     }
     
     const ext = path.extname(oldName);
-    // Sanitize new name and ensure it has correct extension
     let cleanNewName = newName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     if (!cleanNewName.endsWith(ext.toLowerCase())) {
         cleanNewName += ext;
     }
     
-    // Rename in My_Flipbooks if it's an interaction model
     if (interactionModel) {
-        const flipbooksDir = path.join(__dirname, "../../uploads", sanitizedEmail, "My_Flipbooks", interactionModel.folderName, interactionModel.flipbookName, "assets", "3D_Model");
-        const oldFlipbookPath = path.join(flipbooksDir, interactionModel.fileName);
-        const newFlipbookPath = path.join(flipbooksDir, cleanNewName);
-        
-        if (fs.existsSync(oldFlipbookPath)) {
-            fs.renameSync(oldFlipbookPath, newFlipbookPath);
-        }
-        
+        const oldSupabasePath = `${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${interactionModel.fileName}`;
+        const newSupabasePath = `${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${cleanNewName}`;
+        await renamePathInSupabase(oldSupabasePath, newSupabasePath);
+
         interactionModel.fileName = cleanNewName;
         interactionModel.url = `./assets/3D_Model/${cleanNewName}`;
         await interactionModel.save();
@@ -437,42 +363,32 @@ router.post("/rename-model", async (req, res) => {
         finalUrl = `/uploads/${sanitizedEmail}/My_Flipbooks/${interactionModel.folderName}/${interactionModel.flipbookName}/assets/3D_Model/${cleanNewName}`;
     }
 
-    const userFolderPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals");
-    const oldPath = path.join(userFolderPath, oldName);
-    const newPath = path.join(userFolderPath, cleanNewName);
-
-    if (fs.existsSync(oldPath)) {
-        // Rename the main file
-        fs.renameSync(oldPath, newPath);
-
-        // Rename associated thumbnail
-        const files = fs.readdirSync(userFolderPath);
-        const oldBase = path.basename(oldName, ext);
-        const newBase = path.basename(cleanNewName, ext);
-        
-        let newThumbUrl = null;
-        const thumbnail = files.find(f => {
-          const fExt = path.extname(f).toLowerCase();
-          return path.basename(f, fExt) === oldBase && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
-        });
-
-        if (thumbnail) {
-          const thumbExt = path.extname(thumbnail);
-          const newThumbPath = path.join(userFolderPath, newBase + thumbExt);
-          fs.renameSync(path.join(userFolderPath, thumbnail), newThumbPath);
-          newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase + thumbExt}`;
-        }
+    const dbModel = await ThreedModel.findOne({ userEmail: emailId, name: oldName });
+    if (dbModel) {
+        const oldSupabasePath = `${sanitizedEmail}/3D_Modals/${oldName}`;
+        const newSupabasePath = `${sanitizedEmail}/3D_Modals/${cleanNewName}`;
+        await renamePathInSupabase(oldSupabasePath, newSupabasePath);
 
         const relativeUrl = `/uploads/${sanitizedEmail}/3D_Modals/${cleanNewName}`;
         if (!finalUrl) finalUrl = relativeUrl;
 
-        // Update Database
-        await ThreedModel.findOneAndUpdate(
-            { userEmail: emailId, name: oldName },
-            { name: cleanNewName, url: relativeUrl, thumbnailUrl: newThumbUrl }
-        );
+        let newThumbUrl = dbModel.thumbnailUrl;
+        if (dbModel.thumbnailUrl) {
+          const oldBase = path.basename(oldName, ext);
+          const newBase = path.basename(cleanNewName, ext);
+          const thumbExt = path.extname(dbModel.thumbnailUrl);
+          const oldThumbPath = `${sanitizedEmail}/3D_Modals/${oldBase}${thumbExt}`;
+          const newThumbPath = `${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
+          await renamePathInSupabase(oldThumbPath, newThumbPath);
+          newThumbUrl = `/uploads/${sanitizedEmail}/3D_Modals/${newBase}${thumbExt}`;
+        }
+
+        dbModel.name = cleanNewName;
+        dbModel.url = relativeUrl;
+        dbModel.thumbnailUrl = newThumbUrl;
+        await dbModel.save();
     } else if (!interactionModel) {
-        return res.status(404).json({ message: "File not found on server" });
+        return res.status(404).json({ message: "Model not found" });
     }
 
     res.status(200).json({
@@ -488,7 +404,6 @@ router.post("/rename-model", async (req, res) => {
 
 // @route   POST /api/3d-models/rename-label
 // @desc    Update only the display name (fileName) in the DB without renaming any files.
-//          Used when editing a model from the Interaction 3D Viewer so the file path stays intact.
 // @access  Public
 router.post("/rename-label", async (req, res) => {
   try {
@@ -497,13 +412,11 @@ router.post("/rename-label", async (req, res) => {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
-    // Find the InteractionThreedModel by v_id
     const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId, userEmail: emailId });
     if (!interactionModel) {
       return res.status(404).json({ message: "Model record not found" });
     }
 
-    // Keep the physical fileName and url unchanged — only update the display label
     interactionModel.displayName = newName.trim();
     await interactionModel.save();
 
@@ -518,7 +431,7 @@ router.post("/rename-label", async (req, res) => {
 });
 
 // @route   GET /api/3d-models/get-session
-// @desc    Get the saved 3D editor state
+// @desc    Get the saved 3D editor state from Supabase Storage
 // @access  Public
 router.get("/get-session", async (req, res) => {
   try {
@@ -526,10 +439,11 @@ router.get("/get-session", async (req, res) => {
     if (!emailId) return res.status(400).json({ message: "Email is required" });
 
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const sessionPath = path.join(__dirname, "../../uploads", sanitizedEmail, "3D_Modals", "session.json");
+    const sessionPath = `${sanitizedEmail}/3D_Modals/session.json`;
+    const buffer = await downloadFileFromSupabase(sessionPath);
 
-    if (fs.existsSync(sessionPath)) {
-      const state = JSON.parse(fs.readFileSync(sessionPath, "utf-8"));
+    if (buffer) {
+      const state = JSON.parse(buffer.toString("utf-8"));
       res.status(200).json({ state });
     } else {
       res.status(404).json({ message: "No saved session found" });
@@ -541,92 +455,34 @@ router.get("/get-session", async (req, res) => {
 });
 
 // @route   DELETE /api/3d-models/delete-model/:emailId/:modelId
-// @desc    Delete a model record and its physical files
+// @desc    Delete a model record and its files from Supabase Storage
 // @access  Public
 router.delete("/delete-model/:emailId/:modelId", async (req, res) => {
   try {
     const { emailId, modelId } = req.params;
-    console.log("-----------------------------------------");
-    console.log(`Delete request for email: ${emailId}, modelId: ${modelId}`);
 
-    // 1. Find the model in DB first (added security: must match email)
     const model = await ThreedModel.findOne({ modelId, userEmail: emailId });
     if (!model) {
-      console.log("Model record not found in DB:", modelId);
       return res.status(404).json({ message: "Model record not found" });
     }
 
     const { userEmail, name: fileName } = model;
     const sanitizedEmail = userEmail.replace(/[@.]/g, "_");
-    
-    // 2. Resolve folder path
-    const pathsToTry = [
-        path.resolve(process.cwd(), "uploads", sanitizedEmail, "3D_Modals"),
-        path.resolve(__dirname, "../../uploads", sanitizedEmail, "3D_Modals")
-    ];
 
-    let userFolderPath = null;
-    for (const p of pathsToTry) {
-        if (fs.existsSync(p)) {
-            userFolderPath = p;
-            break;
-        }
-    }
-
-    // Delete local physical file if user folder exists
-
-    if (userFolderPath) {
-      const filePath = path.join(userFolderPath, fileName);
-      if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-            console.log("Deleted model file:", filePath);
-          } catch(e) {}
-      }
-    }
-
-    // Delete model file from Supabase Storage (unconditional)
+    // Delete model file from Supabase Storage
     const destinationPath = `${sanitizedEmail}/3D_Modals/${fileName}`;
     await deleteFileFromSupabase(destinationPath);
     if (model.url) {
       await deleteFileFromSupabase(model.url);
     }
-
-
-    // Try to delete thumbnail
-    if (userFolderPath && fs.existsSync(userFolderPath)) {
-      try {
-        const files = fs.readdirSync(userFolderPath);
-        const ext = path.extname(fileName);
-        const baseName = path.basename(fileName, ext);
-        const thumbnail = files.find(f => {
-          const fExt = path.extname(f).toLowerCase();
-          return path.basename(f, fExt) === baseName && [".png", ".jpg", ".jpeg", ".webp"].includes(fExt);
-        });
-
-        if (thumbnail) {
-          const thumbPath = path.join(userFolderPath, thumbnail);
-          try { fs.unlinkSync(thumbPath); } catch(e) {}
-          console.log("Deleted associated thumbnail:", thumbPath);
-
-          const thumbDestPath = `${sanitizedEmail}/3D_Modals/${thumbnail}`;
-          await deleteFileFromSupabase(thumbDestPath);
-          if (model.thumbnailUrl) {
-            await deleteFileFromSupabase(model.thumbnailUrl);
-          }
-        }
-      } catch (e) {
-        console.warn("Thumbnail delete warning:", e);
-      }
+    if (model.thumbnailUrl) {
+      await deleteFileFromSupabase(model.thumbnailUrl);
     }
 
-
-
-    // 4. Delete Database Record
+    // Delete Database Record
     await ThreedModel.deleteOne({ modelId });
-    console.log("Deleted DB record for modelId:", modelId);
 
-    res.status(200).json({ message: "Model deleted successfully from DB and Disk" });
+    res.status(200).json({ message: "Model deleted successfully from DB and Supabase" });
   } catch (error) {
     console.error("Delete Error:", error);
     res.status(500).json({ message: "Server error during deletion" });
@@ -641,8 +497,6 @@ router.get("/get-model/:modelId", async (req, res) => {
     const { modelId } = req.params;
     let model = await ThreedModel.findOne({ modelId });
     
-    // Fallback: Check InteractionThreedModel using v_id
-    // Fallback: Check InteractionThreedModel using v_id
     if (!model) {
       const interactionModel = await InteractionThreedModel.findOne({ v_id: modelId });
       if (interactionModel) {

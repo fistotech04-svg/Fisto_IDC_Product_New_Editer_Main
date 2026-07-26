@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import { X, Upload, Check, AlertCircle, Edit3, ChevronDown } from "lucide-react";
 import axios from "axios";
 import { useToast } from "../../../components/CustomToast";
+import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
 const MapUploadBox = ({ label, id, maps, setMaps, setMapFiles, mapMenuOpen, setMapMenuOpen, handleMapUpload, loadingMaps, setLoadingMaps, isRequired = false, isSmall = false }) => {
   const fileInputRef = useRef(null);
@@ -166,10 +167,7 @@ export default function AddMaterial({ isOpen, onClose, editData, onUpdateSuccess
       const initialLoading = {};
       Object.keys(editData.maps || {}).forEach(key => {
         if (editData.maps[key]) {
-          // If it's a relative path, resolve it with backend URL
-          resolvedMaps[key] = editData.maps[key].startsWith('http') 
-            ? editData.maps[key] 
-            : `${backendUrl}${editData.maps[key]}`;
+          resolvedMaps[key] = resolveUploadsPath(editData.maps[key]);
           initialLoading[key] = true;
         }
       });

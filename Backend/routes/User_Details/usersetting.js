@@ -3,32 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import UserSettings from '../../models/UserSettings.js';
+import { getUserStorageSizeFromSupabase } from '../../config/supabase.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const router = express.Router();
-
-// Helper to get folder size
-const getDirSize = (dirPath) => {
-  let size = 0;
-  try {
-    if (!fs.existsSync(dirPath)) return 0;
-    const files = fs.readdirSync(dirPath);
-    for (const file of files) {
-      const filePath = path.join(dirPath, file);
-      const stats = fs.statSync(filePath);
-      if (stats.isDirectory()) {
-        size += getDirSize(filePath);
-      } else {
-        size += stats.size;
-      }
-    }
-  } catch (e) {
-    return 0;
-  }
-  return size;
-};
 
 // @route   GET /api/usersetting/get-settings
 // @desc    Get user settings by email
@@ -47,10 +27,9 @@ router.get('/get-settings', async (req, res) => {
         await settings.save();
     }
 
-    // Calculate Storage Usage
+    // Calculate Storage Usage from Supabase Storage
     const sanitizedEmail = emailId.replace(/[@.]/g, "_");
-    const userUploadsDir = path.join(__dirname, "../../uploads", sanitizedEmail);
-    const usedStorage = getDirSize(userUploadsDir);
+    const usedStorage = await getUserStorageSizeFromSupabase(sanitizedEmail);
 
     // Return settings with storage info
     res.json({

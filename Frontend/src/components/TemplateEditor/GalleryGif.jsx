@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Upload, X, Check, Replace } from "lucide-react";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
 export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElement, selectedLayerId, activePageIndex, currentPageVId, flipbookVId, folderName, flipbookName }) {
   const [tempSelectedGif, setTempSelectedGif] = useState(null);
@@ -28,7 +29,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
           const formattedAssets = res.data.assets.map(asset => ({
             id: asset.name,
             name: asset.name.replace(/\.[^/.]+$/, ''),
-            url: `${backendUrl}${asset.url}`,
+            url: resolveUploadsPath(asset.url),
             type: asset.type,
             uploadedAt: asset.uploadedAt
           }));
@@ -84,7 +85,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
             const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
 
             if (res.data.url) {
-                const serverUrl = `${backendUrl}${res.data.url}`;
+                const serverUrl = resolveUploadsPath(res.data.url);
                 setUploadedGifs((prev) => prev.map(v => v.id === newGifData.id ? { ...v, url: serverUrl, file_v_id: res.data.file_v_id } : v));
                 setTempSelectedGif(prev => prev && prev.id === newGifData.id ? { ...prev, url: serverUrl, file_v_id: res.data.file_v_id } : prev);
                 console.log("Gallery GIF uploaded:", serverUrl);
@@ -163,7 +164,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
         const formData = new FormData();
         formData.append('emailId', user.emailId);
         if (flipbookVId) formData.append('v_id', flipbookVId);
-        formData.append('folderName', folderName || 'My Flipbooks');
+        formData.append('folderName', folderName || 'My_Flipbooks');
         formData.append('flipbookName', flipbookName || 'Untitled Document');
         formData.append('type', 'gif');
         formData.append('assetType', 'gif');
@@ -176,7 +177,7 @@ export default function GalleryGif({ onClose, onUpdate, onSelect, selectedElemen
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             if (targetImg.tagName.toLowerCase() === 'image') {
               targetImg.setAttribute('href', serverUrl);
               targetImg.setAttribute('xlink:href', serverUrl);

@@ -1130,7 +1130,7 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                          folderName="My Flipbooks"
+                          folderName="My_Flipbooks"
                           flipbookName="Untitled"
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />

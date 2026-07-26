@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import { Icon } from "@iconify/react";
 
 import {
@@ -1521,7 +1522,7 @@ const VideoEditor = ({
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             target.src = serverUrl;
             if (source) source.src = serverUrl;
             debouncedUpdate();

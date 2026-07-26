@@ -297,7 +297,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     formData.append('emailId', user.emailId);
 
     // Provide defaults for unsaved books
-    formData.append('folderName', folderName || 'My Flipbooks');
+    formData.append('folderName', folderName || 'My_Flipbooks');
     formData.append('flipbookName', bookName || 'Untitled Document');
 
     formData.append('type', 'image');
@@ -409,7 +409,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
     const user = JSON.parse(storedUser);
     const formData = new FormData();
     formData.append('emailId', user.emailId);
-    formData.append('folderName', folderName || 'My Flipbooks');
+    formData.append('folderName', folderName || 'My_Flipbooks');
     formData.append('flipbookName', bookName || 'Untitled Document');
     formData.append('type', 'audio');
     formData.append('assetType', 'Audio');
@@ -495,7 +495,7 @@ const OtherSetup = ({ onBack, settings, onUpdate, folderName, bookName, pages = 
             emailId: user.emailId,
             file_v_id: img.file_v_id,
             assetType: 'Image',
-            folderName: folderName || 'My Flipbooks',
+            folderName: folderName || 'My_Flipbooks',
             bookName: bookName || 'Untitled Document'
           });
         }

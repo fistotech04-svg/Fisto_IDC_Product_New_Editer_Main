@@ -11,6 +11,7 @@ import { Canvas } from '@react-three/fiber';
 import { Stage, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import axios from 'axios';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { motion, AnimatePresence } from 'framer-motion';
 const GlbModel = ({ url }) => {
   const { scene } = useGLTF(url);
@@ -2150,7 +2151,12 @@ const InteractionPanel = ({
                                   updateElementAttribute(targetIdx, item.id, {
                                     'data-interaction': null,
                                     'data-interaction-value': null,
-                                    'data-interaction-intent': null
+                                    'data-interaction-intent': null,
+                                    'data-interaction-config': null,
+                                    'data-interaction-popup-custom-html': null,
+                                    'data-interaction-popup-animation': null,
+                                    'data-interaction-popup-speed': null,
+                                    'data-tooltip-settings': null
                                   });
                                 }
                                 if (typeof setSelectedLayerId !== 'undefined' && setSelectedLayerId) setSelectedLayerId(null);
@@ -2251,12 +2257,7 @@ const InteractionPanel = ({
           const currentItem = active3DGalleryItem;
           setActive3DGalleryItem(null); // Close modal immediately
 
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
-          const fullUrl = model.url 
-            ? (model.url.startsWith('http://') || model.url.startsWith('https://') || model.url.startsWith('blob:') || model.url.startsWith('data:')
-                ? model.url
-                : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`)
-            : '';
+          const fullUrl = model.url ? resolveUploadsPath(model.url) : '';
 
 
 

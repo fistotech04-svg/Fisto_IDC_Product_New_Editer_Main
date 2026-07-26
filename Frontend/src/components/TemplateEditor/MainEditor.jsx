@@ -5464,8 +5464,16 @@ const MainEditor = ({
             }
 
             let childrenData = null;
-            if (isMulti || (el.tagName && el.tagName.toLowerCase() === 'g')) {
-              const childrenList = isMulti ? multiIds.map(id => document.getElementById(id)).filter(Boolean) : Array.from(el.children);
+            const isGroupOrImageEl = isMulti || (el.tagName && (
+              el.tagName.toLowerCase() === 'g' ||
+              el.tagName.toLowerCase() === 'image' ||
+              el.tagName.toLowerCase() === 'svg' ||
+              el.getAttribute('data-type') === 'image' ||
+              el.getAttribute('data-type') === 'video' ||
+              el.getAttribute('data-type') === 'gif'
+            ));
+            if (isGroupOrImageEl) {
+              const childrenList = isMulti ? multiIds.map(id => document.getElementById(id)).filter(Boolean) : (el.tagName.toLowerCase() === 'g' && el.children.length > 0 ? Array.from(el.children) : [el]);
               const childLocalToSvgRoot = el._childLocalToSvgRoot;
               childrenData = childrenList.map(child => {
                 const cb = getVisualBBox(child);
@@ -5509,14 +5517,18 @@ const MainEditor = ({
             }
 
             // Store initial image child state for crop-on-resize
-            // Store initial image child state for crop-on-resize
-            const isImageGroupResize = el.tagName?.toLowerCase() === 'g' &&
-              (el.getAttribute('data-type') === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif') &&
-              ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir);
+            const isImageGroupResize = (
+              el.tagName?.toLowerCase() === 'g' ||
+              el.tagName?.toLowerCase() === 'image' ||
+              el.tagName?.toLowerCase() === 'svg' ||
+              el.getAttribute('data-type') === 'image' ||
+              el.getAttribute('data-type') === 'video' ||
+              el.getAttribute('data-type') === 'gif'
+            ) && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir);
 
             let initialImgState = null;
             if (isImageGroupResize) {
-              const imgEl = el.querySelector('image, video');
+              const imgEl = el.querySelector('image, video') || (['image', 'video', 'svg'].includes(el.tagName?.toLowerCase()) ? el : null);
               let natW = 0, natH = 0;
               if (imgEl) {
                 const href = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.src;
@@ -6026,7 +6038,8 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
-                        if ((tag === 'image' || tag === 'video' || tag === 'svg') && el.tagName === 'g' && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
+                        const isImageOrMediaTag = (tag === 'image' || tag === 'video' || tag === 'svg' || tag === 'g' || child === el);
+                        if (isImageOrMediaTag && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
                           // Keep the element exactly as it was, do not resize it!
                           imgX = child.getAttribute('x') || 0;
                           imgY = child.getAttribute('y') || 0;
@@ -6069,7 +6082,7 @@ const MainEditor = ({
                             const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
                             const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
 
-                            let clipTarget = el.querySelector('.image-inner-content') || el;
+                            let clipTarget = el.querySelector('.image-inner-content') || el.querySelector('image') || el;
 
                             let radiusStr = '';
                             if (el.hasAttribute('data-effect-radius-tl')) {

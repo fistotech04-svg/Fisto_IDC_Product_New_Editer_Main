@@ -27,37 +27,17 @@ const getGoogleClient = () => new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper to ensure user folders exist
+// Helper to ensure user folders exist in Supabase
 const ensureUserFolders = (sanitizedEmail) => {
-  const userFolderPath = path.join(__dirname, '../../uploads', sanitizedEmail);
   try {
-    const uploadsDir = path.join(__dirname, '../../uploads');
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    if (!fs.existsSync(userFolderPath)) {
-      fs.mkdirSync(userFolderPath, { recursive: true });
-    }
-
-    const foldersToCreate = ['My_Flipbooks', 'Images', 'Videos', 'gifs', '3D_Modals', '3D_Screenshot', 'Texture'];
-    foldersToCreate.forEach(folder => {
-      const folderPath = path.join(userFolderPath, folder);
-      if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
-    });
-
-    const publicBookPath = path.join(userFolderPath, 'My_Flipbooks', 'Recent Book');
-    if (!fs.existsSync(publicBookPath)) fs.mkdirSync(publicBookPath, { recursive: true });
-
-    // Also create folder structure in Supabase Storage (non-blocking)
+    // Create folder structure in Supabase Storage (non-blocking)
     ensureUserFoldersInSupabase(sanitizedEmail).catch(err => {
       console.warn("[Supabase] Async folder creation warning:", err);
     });
 
-    
     return true;
   } catch (folderError) {
-    console.error('Error creating user folder:', folderError);
+    console.error('Error ensuring user folder in Supabase:', folderError);
     return false;
   }
 };
@@ -194,6 +174,10 @@ router.post('/login', async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
+
+    // Ensure folders exist on Supabase and local storage on login
+    const sanitizedEmail = user.emailId.replace(/[@.]/g, '_');
+    ensureUserFolders(user.userFolder || sanitizedEmail);
 
     res.status(200).json({ 
       message: 'Login successful', 

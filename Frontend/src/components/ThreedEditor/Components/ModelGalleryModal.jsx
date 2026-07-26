@@ -6,6 +6,7 @@ import axios from "axios";
 import RenderModel from "./ModelLoaders";
 import AlertModal from "../../AlertModal";
 import { useToast } from "../../../components/CustomToast";
+import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
 // Internal component for 3D thumbnail with support for static images
 const ModelThumbnail = React.memo(({ model }) => {
@@ -16,15 +17,8 @@ const ModelThumbnail = React.memo(({ model }) => {
     
     // Support for static thumbnails if backend provides them
     const thumbnailPath = model.thumbnail || model.image || model.preview;
-    const fullThumbnailUrl = thumbnailPath 
-        ? (thumbnailPath.startsWith('http') ? thumbnailPath : `${backendUrl}${thumbnailPath.startsWith('/') ? '' : '/'}${thumbnailPath}`)
-        : null;
-
-    const fullUrl = model.url 
-        ? (model.url.startsWith('http://') || model.url.startsWith('https://') || model.url.startsWith('blob:') || model.url.startsWith('data:')
-            ? model.url 
-            : `${backendUrl}${model.url.startsWith('/') ? '' : '/'}${model.url}`)
-        : '';
+    const fullThumbnailUrl = thumbnailPath ? resolveUploadsPath(thumbnailPath) : null;
+    const fullUrl = model.url ? resolveUploadsPath(model.url) : '';
 
 
     useEffect(() => {

@@ -181,7 +181,7 @@ export default function Home() {
       const now = new Date();
       const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
       const uniqueName = `PDF_Flipbook_${timeString}`;
-      const targetFolder = 'My Flipbooks';
+      const targetFolder = 'My_Flipbooks';
 
       // Step 2 — Create the flipbook record with placeholder pages to get a v_id
       setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
@@ -263,7 +263,7 @@ export default function Home() {
       const now = new Date();
       const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
       const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
-      const targetFolder = 'My Flipbooks';
+      const targetFolder = 'My_Flipbooks';
 
       const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
         emailId,
