@@ -156,16 +156,13 @@ const sortCategories = [
 ];
 
 const templates = [
-    { id: 'corporate', label: 'A4', title: 'Corporate Brochure', dim: '(29.7 x 42 Cm)', width: 'w-[2.25vw]', height: 'h-[3vw]' },
-    { id: 'catalogue', label: 'A4', title: 'Product Catalogue', dim: '(21 x 29 Cm)', width: 'w-[3vw]', height: 'h-[2vw]' },
-    { id: 'large_catalogue', label: 'A3', title: 'Large Catalogue', dim: '(29.7 x 42 Cm)', width: 'w-[2.5vw]', height: 'h-[3.5vw]' },
-    { id: 'showcase', label: 'A3', title: 'Showcase Brochure', dim: '(42 x 29.7 Cm)', width: 'w-[3.5vw]', height: 'h-[2.5vw]' },
-    { id: 'mini', label: 'A5', title: 'Mini Brochure', dim: '(14.8 x 21 Cm)', width: 'w-[1.75vw]', height: 'h-[2.5vw]' },
-    { id: 'booklet', label: 'B5', title: 'Standard Booklet', dim: '(17.6 x 25 Cm)', width: 'w-[1.75vw]', height: 'h-[2.5vw]' },
-    { id: 'square', label: 'Square', title: 'Square Lookbook', dim: '(25 x 25 Cm)', width: 'w-[2.5vw]', height: 'h-[2.5vw]' },
-    { id: 'square_small', label: 'Square Small', title: 'Square Small', dim: '(20 x 20 Cm)', width: 'w-[2vw]', height: 'h-[2vw]' },
-    { id: 'digital_mag', label: 'Mag', title: 'Digital Magazine', dim: '(22 x 28 Cm)', width: 'w-[1.75vw]', height: 'h-[2.75vw]' },
-    { id: 'mobile', label: 'Mob', title: 'Mobile Flipbook', dim: '(12 x 21.3 Cm)', width: 'w-[1.5vw]', height: 'h-[2.5vw]' },
+    { id: 'corporate', label: 'A4', title: 'A4 Page', dim: '210 × 297 mm', width: 'w-[2.0vw]', height: 'h-[2.8vw]' },
+    { id: 'large_catalogue', label: 'A3', title: 'A3 Page', dim: '297 × 420 mm', width: 'w-[2.7vw]', height: 'h-[3.8vw]' },
+    { id: 'mini', label: 'A5', title: 'A5 Page', dim: '148 × 210 mm', width: 'w-[1.4vw]', height: 'h-[2.0vw]' },
+    { id: 'letter', label: 'Letter', title: 'Letter Page', dim: '216 × 279 mm', width: 'w-[2.1vw]', height: 'h-[2.7vw]' },
+    { id: 'legal', label: 'Legal', title: 'Legal Page', dim: '216 × 356 mm', width: 'w-[2.0vw]', height: 'h-[3.4vw]' },
+    { id: 'dl', label: 'DL', title: 'DL Flyer', dim: '99 × 210 mm', width: 'w-[1.0vw]', height: 'h-[2.1vw]' },
+    { id: 'square', label: 'Square', title: 'Square Page', dim: '210 × 210 mm', width: 'w-[2.1vw]', height: 'h-[2.1vw]' },
 ];
 
 
@@ -1374,43 +1371,68 @@ export default function MyFlipbooks() {
                     </div>
 
                     {/* Create From Scratch Box */}
-                    <div className="flex-1 bg-white rounded-[0.75vw] py-[0.75vw] px-[1.5vw] shadow-sm flex items-center justify-between min-h-[5.5vw]">
-                        <div className="w-[30%] pl-[0.5vw]">
-                            <h3 className="text-[1.1vw] font-bold text-gray-700 mb-[0.15vw]">Create From Scratch</h3>
-                            <p className="text-[0.65vw] text-gray-500 leading-relaxed pr-[1vw]">Begin with a blank canvas and design your flipbook your way.</p>
+                    <div className="flex-1 bg-white rounded-[0.9vw] py-[0.9vw] px-[1.4vw] shadow-[0_2px_15px_rgba(0,0,0,0.03)] border border-gray-100 flex items-center justify-between min-h-[5.8vw]">
+                        {/* Left Info Area */}
+                        <div className="w-[30%] pr-[0.75vw]">
+                            <h3 className="text-[1.25vw] font-bold text-[#333333] leading-tight mb-[0.25vw]">Create From Scratch</h3>
+                            <p className="text-[0.7vw] text-[#666666] leading-snug">Begin with a blank canvas and design your flipbook your way.</p>
                         </div>
 
-                        <div className="flex-1 flex items-center justify-between px-[1vw]">
-                            <button onClick={prevTemplate} className={`p-[0.25vw] rounded-full transition-colors ${templateIndex > 0 ? 'text-gray-700 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`} disabled={templateIndex === 0}><ChevronLeft size="1.25vw" /></button>
+                        {/* Right Carousel Controls & Items */}
+                        <div className="flex-1 flex items-center justify-end gap-[0.4vw]">
+                            <button
+                                onClick={prevTemplate}
+                                className={`p-[0.2vw] rounded-full transition-colors ${templateIndex > 0 ? 'text-gray-500 hover:text-[#383e93] hover:bg-gray-50 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
+                                disabled={templateIndex === 0}
+                            >
+                                <ChevronLeft size="1.1vw" />
+                            </button>
 
-                            <div className="flex-1 flex justify-center items-center overflow-hidden">
-                                <div className="w-[28vw] overflow-hidden">
-                                    <div
-                                        className="flex items-end gap-[0.75vw] transition-transform duration-500 ease-in-out w-max"
-                                        style={{ transform: `translateX(calc(-${templateIndex} * 5.75vw))` }}
-                                    >
-                                        {templates.map((template) => (
+                            <div className="w-[27.5vw] overflow-hidden">
+                                <div
+                                    className="flex items-end gap-[0.85vw] transition-transform duration-500 ease-in-out w-max"
+                                    style={{ transform: `translateX(calc(-${templateIndex} * 5.4vw))` }}
+                                >
+                                    {templates.map((template) => {
+                                        const isSelected = selectedTemplateIdForModal === template.id;
+                                        return (
                                             <div
                                                 key={template.id}
-                                                className="flex flex-col items-center gap-[0.25vw] cursor-pointer group shrink-0 w-[5vw]"
+                                                className="flex flex-col items-center justify-end cursor-pointer group shrink-0 w-[4.6vw] h-[4.8vw]"
                                                 onClick={() => {
                                                     setSelectedTemplateIdForModal(template.id);
                                                     setCreateModalInitialView('template');
                                                     setIsCreateModalOpen(true);
                                                 }}
                                             >
-                                                <div className={`${template.width} ${template.height} bg-[#a7a2e5] rounded-[0.2vw] shadow-sm group-hover:scale-105 transition-transform flex items-center justify-center text-gray-700 text-[0.45vw] font-bold text-center p-[0.1vw] leading-tight`}>{template.label}</div>
-                                                <div className="text-center mt-[0.15vw]">
-                                                    <p className="text-[0.45vw] font-bold text-gray-600 group-hover:text-[#4c5add]">{template.title}</p>
-                                                    <p className="text-[0.40vw] font-semibold text-gray-400">{template.dim}</p>
+                                                {/* Paper Size Visual Box */}
+                                                <div
+                                                    className={`${template.width} ${template.height} ${
+                                                        isSelected
+                                                            ? 'bg-[#383e93] text-white border border-[#383e93] shadow-sm'
+                                                            : 'bg-white border-[1.5px] border-[#383e93] text-[#383e93] hover:border-[#2a2f75] hover:text-[#2a2f75]'
+                                                    } rounded-none flex items-center justify-center text-[0.65vw] font-medium transition-all duration-200 group-hover:-translate-y-[0.1vw]`}
+                                                >
+                                                    {template.label}
                                                 </div>
+
+                                                {/* Dimension Text Below */}
+                                                <p className="text-[0.58vw] text-gray-500 font-normal mt-[0.4vw] text-center whitespace-nowrap tracking-tight">
+                                                    {template.dim}
+                                                </p>
                                             </div>
-                                        ))}
-                                    </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
-                            <button onClick={nextTemplate} className={`p-[0.25vw] rounded-full transition-colors ${templateIndex < templates.length - 5 ? 'text-gray-700 hover:bg-gray-100 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`} disabled={templateIndex >= templates.length - 5}><ChevronRight size="1.25vw" /></button>
+                            <button
+                                onClick={nextTemplate}
+                                className={`p-[0.2vw] rounded-full transition-colors ${templateIndex < templates.length - 5 ? 'text-gray-500 hover:text-[#383e93] hover:bg-gray-50 cursor-pointer' : 'text-gray-300 cursor-not-allowed'}`}
+                                disabled={templateIndex >= templates.length - 5}
+                            >
+                                <ChevronRight size="1.1vw" />
+                            </button>
                         </div>
                     </div>
                 </div>

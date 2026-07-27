@@ -2,15 +2,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import logo from '../assets/logo/Fisto_logo.png';
-import { User, Share2, Save, Download, Loader2, Eye, ChevronDown, Monitor, Tablet, Smartphone } from 'lucide-react';
+import { User, Share2, Save, Download, Loader2, Eye, ChevronDown, Monitor, Tablet, Smartphone, Settings } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ProfileModal from './ProfileModal';
 import ShareModal from './ShareModal';
+import EditorSettingsModal from './EditorSettingsModal';
 
 
 const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, saveSuccessInfo, isAutoSaveEnabled, onToggleAutoSave, isSaving, activeDevice, setActiveDevice, currentBook }) => {
   const [secondsSinceSave, setSecondsSinceSave] = useState(0);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isEditorSettingsOpen, setIsEditorSettingsOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const [isPublishMenuOpen, setIsPublishMenuOpen] = useState(false);
@@ -289,6 +291,15 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
             <User size="1.2vw" />
           </button>
 
+          {/* Settings Button - In-between Profile and Preview */}
+          <button 
+            onClick={() => setIsEditorSettingsOpen(true)}
+            className="p-[0.6vw] bg-gray-100 hover:bg-gray-200 cursor-pointer rounded-[0.5vw] transition-colors text-gray-700 ml-[0.2vw]"
+            title="Editor Settings"
+          >
+            <Settings size="1.2vw" />
+          </button>
+
           {/* Preview Button - Hidden on 3D Editor */}
           {!isThreedEditor && (
             <button 
@@ -366,6 +377,13 @@ const Navbar = ({ onExport, onSave, onPreview, onPublish, hasUnsavedChanges, sav
       <ProfileModal 
         isOpen={isProfileOpen} 
         onClose={() => setIsProfileOpen(false)} 
+        isAutoSaveEnabled={isAutoSaveEnabled}
+        onToggleAutoSave={onToggleAutoSave}
+      />
+      {/* Render Editor Settings Modal */}
+      <EditorSettingsModal 
+        isOpen={isEditorSettingsOpen}
+        onClose={() => setIsEditorSettingsOpen(false)}
         isAutoSaveEnabled={isAutoSaveEnabled}
         onToggleAutoSave={onToggleAutoSave}
       />

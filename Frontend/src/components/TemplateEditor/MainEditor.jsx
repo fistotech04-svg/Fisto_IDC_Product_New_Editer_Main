@@ -2187,7 +2187,7 @@ const MainEditor = ({
     };
 
     const handleUploadVideo = (e) => {
-      const { videoUrl, pageIndex, file } = e.detail;
+      const { videoUrl, originalUrl, pageIndex, file } = e.detail;
       const targetPageIndex = pageIndex !== undefined ? pageIndex : activePageIndex;
 
       // 1. Find the SVG of the target page in the actual DOM for accurate centering
@@ -2195,14 +2195,91 @@ const MainEditor = ({
       const svg = container?.querySelector('svg');
       if (!svg) return;
 
+      const rawUrl = originalUrl || videoUrl || '';
+      const lowerRaw = rawUrl.toLowerCase();
+      const isYouTube = lowerRaw.includes('youtube.com') || lowerRaw.includes('youtu.be') || (videoUrl && videoUrl.includes('youtube.com/embed'));
+      const isVimeo = lowerRaw.includes('vimeo.com') || (videoUrl && videoUrl.includes('vimeo.com/video'));
+      const isDailymotion = lowerRaw.includes('dailymotion') || lowerRaw.includes('dai.ly');
+      const isLoom = lowerRaw.includes('loom.com');
+      const isWistia = lowerRaw.includes('wistia.com');
+      const isGoogleDrive = lowerRaw.includes('drive.google.com');
+
+      const isIframe = isYouTube || isVimeo || isDailymotion || isLoom || isWistia || isGoogleDrive || (videoUrl && (videoUrl.includes('embed') || videoUrl.includes('player') || videoUrl.includes('preview')));
+
+      let finalEmbedUrl = videoUrl;
+      if (isYouTube) {
+        let videoId = '';
+        if (rawUrl.includes('youtu.be/')) videoId = rawUrl.split('youtu.be/')[1]?.split('?')[0]?.split('&')[0];
+        else if (rawUrl.includes('watch?v=')) videoId = rawUrl.split('v=')[1]?.split('&')[0];
+        else if (rawUrl.includes('shorts/')) videoId = rawUrl.split('shorts/')[1]?.split('?')[0]?.split('&')[0];
+        else if (rawUrl.includes('embed/')) videoId = rawUrl.split('embed/')[1]?.split('?')[0]?.split('&')[0];
+        if (videoId) finalEmbedUrl = `https://www.youtube.com/embed/${videoId}`;
+      } else if (isVimeo) {
+        let videoId = rawUrl.split('vimeo.com/')[1]?.split('?')[0]?.split('/')[0];
+        if (videoId && !isNaN(videoId)) finalEmbedUrl = `https://player.vimeo.com/video/${videoId}`;
+      } else if (isDailymotion) {
+        let videoId = '';
+        if (rawUrl.includes('dai.ly/')) videoId = rawUrl.split('dai.ly/')[1]?.split('?')[0];
+        else if (rawUrl.includes('video/')) videoId = rawUrl.split('video/')[1]?.split('?')[0];
+        if (videoId) finalEmbedUrl = `https://www.dailymotion.com/embed/video/${videoId}`;
+      } else if (isLoom) {
+        let videoId = rawUrl.split('share/')[1]?.split('?')[0];
+        if (videoId) finalEmbedUrl = `https://www.loom.com/embed/${videoId}`;
+      } else if (isWistia) {
+        let videoId = rawUrl.split('medias/')[1]?.split('?')[0];
+        if (videoId) finalEmbedUrl = `https://fast.wistia.net/embed/iframe/${videoId}`;
+      } else if (isGoogleDrive) {
+        const match = rawUrl.match(/\/d\/([^\/]+)/);
+        if (match && match[1]) finalEmbedUrl = `https://drive.google.com/file/d/${match[1]}/preview`;
+      }
+
       const newId = `video-${Date.now()}`;
 
-      // We use foreignObject to host the video element in SVG
+      const isPortrait = e.detail?.isPortrait || 
+                         rawUrl.toLowerCase().includes('shorts') || 
+                         rawUrl.toLowerCase().includes('reel') || 
+                         rawUrl.toLowerCase().includes('tiktok') ||
+                         rawUrl.toLowerCase().includes('portrait') ||
+                         rawUrl.toLowerCase().includes('vertical') ||
+                         (e.detail?.videoWidth && e.detail?.videoHeight && e.detail.videoHeight > e.detail.videoWidth);
+
+      // Calculate dynamic view width and height relative to canvas page dimensions
+      const svgW = parseFloat(svg.getAttribute('width')) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
+      const svgH = parseFloat(svg.getAttribute('height')) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
+
+      let displayWidth, displayHeight;
+
+      if (e.detail?.videoWidth && e.detail?.videoHeight && e.detail.videoWidth > 0 && e.detail.videoHeight > 0) {
+        // Use exact natural video aspect ratio
+        const aspect = e.detail.videoWidth / e.detail.videoHeight;
+        if (aspect < 1) { // Portrait
+          displayHeight = Math.round(svgH * 0.65);
+          displayWidth = Math.round(displayHeight * aspect);
+        } else { // Landscape
+          displayWidth = Math.round(svgW * 0.75);
+          displayHeight = Math.round(displayWidth / aspect);
+        }
+      } else if (isPortrait) {
+        // 9:16 Vertical Portrait Aspect Ratio (Shorts / TikTok / Reels)
+        displayHeight = Math.round(svgH * 0.65);
+        displayWidth = Math.round(displayHeight * (9 / 16));
+        if (displayWidth > svgW * 0.65) {
+          displayWidth = Math.round(svgW * 0.65);
+          displayHeight = Math.round(displayWidth * (16 / 9));
+        }
+      } else {
+        // Standard 16:9 Landscape Aspect Ratio
+        displayWidth = Math.round(svgW * 0.75);
+        displayHeight = Math.round(displayWidth * (9 / 16));
+        if (displayHeight > svgH * 0.85) {
+          displayHeight = Math.round(svgH * 0.85);
+          displayWidth = Math.round(displayHeight * (16 / 9));
+        }
+      }
+
+      // We use foreignObject to host the video/iframe element in SVG
       const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
       fo.id = newId;
-
-      const displayWidth = 150;
-      const displayHeight = 100;
 
       fo.setAttribute('width', displayWidth.toString());
       fo.setAttribute('height', displayHeight.toString());
@@ -2211,21 +2288,59 @@ const MainEditor = ({
       fo.setAttribute('data-object-fit', 'Fill');
       if (file) fo.setAttribute('data-filename', file.name);
 
-      const video = document.createElement('video');
-      video.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-      video.src = videoUrl;
-      video.setAttribute('width', '100%');
-      video.setAttribute('height', '100%');
-      video.setAttribute('controls', 'true');
-      video.style.objectFit = 'cover';
-      video.style.margin = '0';
-      video.style.padding = '0';
-      video.style.display = 'block';
-      video.style.width = '100%';
-      video.style.height = '100%';
-      // video.style.backgroundColor = 'transparent';
+      if (isIframe) {
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+        iframe.src = finalEmbedUrl;
+        iframe.setAttribute('width', '100%');
+        iframe.setAttribute('height', '100%');
+        iframe.setAttribute('frameborder', '0');
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture');
+        iframe.setAttribute('allowfullscreen', 'true');
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.display = 'block';
+        fo.appendChild(iframe);
+      } else {
+        const video = document.createElement('video');
+        video.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+        video.src = videoUrl;
+        video.setAttribute('width', '100%');
+        video.setAttribute('height', '100%');
+        video.setAttribute('controls', 'true');
+        video.style.objectFit = 'cover';
+        video.style.margin = '0';
+        video.style.padding = '0';
+        video.style.display = 'block';
+        video.style.width = '100%';
+        video.style.height = '100%';
+        fo.appendChild(video);
 
-      fo.appendChild(video);
+        // Dynamically probe video file metadata to adjust frame to exact original aspect ratio
+        if (!e.detail?.videoWidth || !e.detail?.videoHeight) {
+          const tempVid = document.createElement('video');
+          tempVid.onloadedmetadata = () => {
+            if (tempVid.videoWidth && tempVid.videoHeight) {
+              const aspect = tempVid.videoWidth / tempVid.videoHeight;
+              let newW, newH;
+              if (aspect < 1) { // Portrait
+                newH = Math.round(svgH * 0.65);
+                newW = Math.round(newH * aspect);
+              } else { // Landscape
+                newW = Math.round(svgW * 0.75);
+                newH = Math.round(newW / aspect);
+              }
+              fo.setAttribute('width', newW.toString());
+              fo.setAttribute('height', newH.toString());
+              if (updatePageHtml) {
+                saveModifiedPageHtml(targetPageIndex, svg);
+              }
+            }
+          };
+          tempVid.src = videoUrl;
+        }
+      }
 
       // 2. Append to root frame or page container and center it
       const topFrames = getTopLevelFrames(svg);
@@ -5746,16 +5861,6 @@ const MainEditor = ({
               }
             }
 
-            if (isImage && !isGif && ['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].includes(dir)) {
-              if (isCtrlPressedMove) {
-                const currentFit = el.getAttribute('data-object-fit');
-                if (currentFit !== 'Crop') {
-                  if (currentFit) el.setAttribute('data-previous-object-fit', currentFit);
-                  el.setAttribute('data-object-fit', 'Crop');
-                }
-                el.removeAttribute('data-crop-align'); // Cleanup old align
-              }
-            }
 
             if (isFreeFrame || isGroup) {
               const newLocalX = state.localAnchor.x + (bbox.x - state.localAnchor.x) * scaleX;
@@ -6040,72 +6145,6 @@ const MainEditor = ({
                         let imgW = newLocW;
                         let imgH = newLocH;
 
-                        const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
-                        const isImageOrMediaTag = (tag === 'image' || tag === 'video' || tag === 'svg' || tag === 'g' || child === el);
-                        if (isImageOrMediaTag && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
-                          // Keep the element exactly as it was, do not resize it!
-                          imgX = child.getAttribute('x') || 0;
-                          imgY = child.getAttribute('y') || 0;
-                          imgW = child.getAttribute('width') || state.bbox.width;
-                          imgH = child.getAttribute('height') || state.bbox.height;
-
-                          if (state.bbox.width > 0 && state.bbox.height > 0) {
-                            let existingCrop = state.initialCrop || {};
-                            let hasExistingCrop = Object.keys(existingCrop).length > 0;
-
-                            if (!state.cropInitialized) {
-                              state.cropInitialized = true;
-                              if (!el.hasAttribute('data-crop-orig-w') || !hasExistingCrop) {
-                                el.setAttribute('data-crop-orig-w', state.bbox.width.toString());
-                                el.setAttribute('data-crop-orig-h', state.bbox.height.toString());
-                                el.setAttribute('data-crop-orig-x', imgX.toString());
-                                el.setAttribute('data-crop-orig-y', imgY.toString());
-                                let fitType = state.initialObjectFit;
-                                if (fitType === 'Crop') fitType = el.getAttribute('data-crop-underlying-fit') || 'Fit';
-                                el.setAttribute('data-crop-underlying-fit', fitType);
-                              }
-                            }
-
-                            let prevLeft = 0, prevTop = 0, prevW = 100, prevH = 100;
-                            if (hasExistingCrop) {
-                              prevLeft = parseFloat(existingCrop.left) || 0;
-                              prevTop = parseFloat(existingCrop.top) || 0;
-                              prevW = parseFloat(existingCrop.width) || 100;
-                              prevH = parseFloat(existingCrop.height) || 100;
-                            }
-
-                            const deltaLeftPct = ((finalX - state.bbox.x) / state.bbox.width) * prevW;
-                            const deltaTopPct = ((finalY - state.bbox.y) / state.bbox.height) * prevH;
-
-                            const cropLeft = Math.max(0, Math.min(100, prevLeft + deltaLeftPct));
-                            const cropTop = Math.max(0, Math.min(100, prevTop + deltaTopPct));
-                            const cropWidth = Math.max(0, Math.min(100 - cropLeft, (finalWidth / state.bbox.width) * prevW));
-                            const cropHeight = Math.max(0, Math.min(100 - cropTop, (finalHeight / state.bbox.height) * prevH));
-
-                            const cropBottom = Math.max(0, 100 - cropTop - cropHeight);
-                            const cropRight = Math.max(0, 100 - cropLeft - cropWidth);
-
-                            let clipTarget = el.querySelector('.image-inner-content') || el.querySelector('image') || el;
-
-                            let radiusStr = '';
-                            if (el.hasAttribute('data-effect-radius-tl')) {
-                              const tl = el.getAttribute('data-effect-radius-tl') || 0;
-                              const tr = el.getAttribute('data-effect-radius-tr') || 0;
-                              const br = el.getAttribute('data-effect-radius-br') || 0;
-                              const bl = el.getAttribute('data-effect-radius-bl') || 0;
-                              radiusStr = ` round ${tl}px ${tr}px ${br}px ${bl}px`;
-                            }
-
-                            const clipVal = `inset(${cropTop}% ${cropRight}% ${cropBottom}% ${cropLeft}%${radiusStr})`;
-                            clipTarget.style.setProperty('clip-path', clipVal, 'important');
-                            clipTarget.style.setProperty('-webkit-clip-path', clipVal, 'important');
-                            if (clipTarget !== el) el.style.removeProperty('clip-path');
-
-                            el.setAttribute('data-crop-data', JSON.stringify({ ...existingCrop, left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight }));
-                            el.setAttribute('data-effect-crop-inset', 'true');
-                          }
-                        }
-
                         child.setAttribute('x', imgX);
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
@@ -6271,98 +6310,6 @@ const MainEditor = ({
 
             const state = event.interaction.resizeState;
             if (state && updatePageHtmlRef.current) {
-              if (state.isImageGroupResize && state.el.hasAttribute('data-effect-crop-inset')) {
-                state.el.setAttribute('data-object-fit', 'Crop');
-              }
-
-              // ── CROP REMAP AFTER RESIZE ────────────────────────────────────────────
-              // When a cropped image is resized, ImageEditor.applyVisuals later reads
-              // data-crop-orig-w/h and RESETS the image element to those OLD dimensions,
-              // effectively undoing the resize. The fix:
-              //   1. Compute the crop's absolute pixel bounds (in old-dim space).
-              //   2. Express those same pixel bounds as NEW percentages relative to the
-              //      newly scaled element size.
-              //   3. Update data-crop-orig-w/h/x/y and data-crop-data so applyVisuals
-              //      restores the element at the correct NEW size with the same visual crop.
-              const el = state.el;
-              if (
-                el &&
-                typeof el.getAttribute === 'function' &&
-                el.getAttribute('data-crop-data') &&
-                el.getAttribute('data-crop-data') !== 'null' &&
-                (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-effect-crop-inset'))
-              ) {
-                try {
-                  const imgEl = el.querySelector('image, video');
-                  if (imgEl) {
-                    // The NEW element dimensions (after resize)
-                    const newW = parseFloat(imgEl.getAttribute('width') || '0');
-                    const newH = parseFloat(imgEl.getAttribute('height') || '0');
-                    const newX = parseFloat(imgEl.getAttribute('x') || '0');
-                    const newY = parseFloat(imgEl.getAttribute('y') || '0');
-
-                    // The OLD (stored) original dimensions before this resize
-                    const oldW = parseFloat(el.getAttribute('data-crop-orig-w') || '0');
-                    const oldH = parseFloat(el.getAttribute('data-crop-orig-h') || '0');
-                    const oldX = parseFloat(el.getAttribute('data-crop-orig-x') || '0');
-                    const oldY = parseFloat(el.getAttribute('data-crop-orig-y') || '0');
-
-                    if (newW > 0 && newH > 0 && oldW > 0 && oldH > 0) {
-                      const cropStr = el.getAttribute('data-crop-data');
-                      const crop = JSON.parse(cropStr);
-
-                      // Compute absolute pixel crop bounds in OLD-dim space
-                      const absLeft = oldX + (parseFloat(crop.left) / 100) * oldW;
-                      const absTop = oldY + (parseFloat(crop.top) / 100) * oldH;
-                      const absCropW = (parseFloat(crop.width) / 100) * oldW;
-                      const absCropH = (parseFloat(crop.height) / 100) * oldH;
-
-                      // Re-express as percentages relative to NEW element size
-                      const newCropLeft = Math.max(0, Math.min(100, ((absLeft - newX) / newW) * 100));
-                      const newCropTop = Math.max(0, Math.min(100, ((absTop - newY) / newH) * 100));
-                      const newCropWidth = Math.max(0, Math.min(100 - newCropLeft, (absCropW / newW) * 100));
-                      const newCropHeight = Math.max(0, Math.min(100 - newCropTop, (absCropH / newH) * 100));
-
-                      // Persist the remapped crop percentages
-                      const newCropData = {
-                        ...crop,
-                        left: newCropLeft,
-                        top: newCropTop,
-                        width: newCropWidth,
-                        height: newCropHeight
-                      };
-                      el.setAttribute('data-crop-data', JSON.stringify(newCropData));
-
-                      // Update stored orig dims so applyVisuals restores to the NEW size
-                      el.setAttribute('data-crop-orig-w', newW.toString());
-                      el.setAttribute('data-crop-orig-h', newH.toString());
-                      el.setAttribute('data-crop-orig-x', newX.toString());
-                      el.setAttribute('data-crop-orig-y', newY.toString());
-
-                      // Recompute and update the SVG clipPath rects in <defs>
-                      const clipX = newX + (newW * newCropLeft) / 100;
-                      const clipY = newY + (newH * newCropTop) / 100;
-                      const clipW = (newW * newCropWidth) / 100;
-                      const clipH = (newH * newCropHeight) / 100;
-
-                      const svgRoot = el.ownerSVGElement || imgEl.ownerSVGElement;
-                      if (svgRoot) {
-                        const imgClip = svgRoot.querySelector(`[id="crop-clip-${el.id}"]`);
-                        if (imgClip) {
-                          const r = imgClip.querySelector('rect');
-                          if (r) { r.setAttribute('x', clipX); r.setAttribute('y', clipY); r.setAttribute('width', Math.max(0, clipW)); r.setAttribute('height', Math.max(0, clipH)); }
-                        }
-                        const grpClip = svgRoot.querySelector(`[id="crop-group-clip-${el.id}"]`);
-                        if (grpClip) {
-                          const gr = grpClip.querySelector('rect');
-                          if (gr) { gr.setAttribute('x', clipX); gr.setAttribute('y', clipY); gr.setAttribute('width', Math.max(0, clipW)); gr.setAttribute('height', Math.max(0, clipH)); }
-                        }
-                      }
-                    }
-                  }
-                } catch (_e) { /* non-critical */ }
-              }
-
               // state.el may be a fake object for multi-selection, use state.svg's container
               const container = state.svg?.closest?.('.page-svg-container') ||
                 (state.el?.closest ? state.el.closest('.page-svg-container') : null);

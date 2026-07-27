@@ -14,6 +14,7 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   // Template View State
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId);
   const [pageCount, setPageCount] = useState(12);
+  const [orientation, setOrientation] = useState('portrait');
 
   const getFormattedDateTime = () => {
     const now = new Date();
@@ -110,16 +111,13 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   };
 
   const templates = [
-    { id: 'corporate', label: 'A4', title: 'Corporate Brochure', dim: '(29.7 x 42 Cm)', width: 'w-[6vw]', height: 'h-[9vw]' },
-    { id: 'catalogue', label: 'A4', title: 'Product Catalogue', dim: '(21 x 29 Cm)', width: 'w-[9vw]', height: 'h-[6vw]' },
-    { id: 'large_catalogue', label: 'A3', title: 'Large Catalogue', dim: '(29.7 x 42 Cm)', width: 'w-[7vw]', height: 'h-[10vw]' },
-    { id: 'showcase', label: 'A3', title: 'Showcase Brochure', dim: '(42 x 29.7 Cm)', width: 'w-[10vw]', height: 'h-[7vw]' },
-    { id: 'mini', label: 'A5', title: 'Mini Brochure', dim: '(14.8 x 21 Cm)', width: 'w-[5vw]', height: 'h-[7vw]' },
-    { id: 'booklet', label: 'B5', title: 'Standard Booklet', dim: '(17.6 x 25 Cm)', width: 'w-[5vw]', height: 'h-[7vw]' },
-    { id: 'square', label: 'Square', title: 'Square Lookbook', dim: '(25 x 25 Cm)', width: 'w-[7vw]', height: 'h-[7vw]' },
-    { id: 'square_small', label: 'Square Small', title: 'Square Small', dim: '(20 x 20 Cm)', width: 'w-[6vw]', height: 'h-[6vw]' },
-    { id: 'digital_mag', label: 'Mag', title: 'Digital Magazine', dim: '(22 x 28 Cm)', width: 'w-[5vw]', height: 'h-[8vw]' },
-    { id: 'mobile', label: 'Mob', title: 'Mobile Flipbook', dim: '(12 x 21.3 Cm)', width: 'w-[4vw]', height: 'h-[7vw]' },
+    { id: 'corporate', label: 'A4', title: 'A4 Page', dim: '210 × 297 mm', width: 'w-[4vw]', height: 'h-[5.8vw]' },
+    { id: 'large_catalogue', label: 'A3', title: 'A3 Page', dim: '297 × 420 mm', width: 'w-[5.5vw]', height: 'h-[7.8vw]' },
+    { id: 'mini', label: 'A5', title: 'A5 Page', dim: '148 × 210 mm', width: 'w-[3.2vw]', height: 'h-[4.5vw]' },
+    { id: 'letter', label: 'Letter', title: 'Letter Page', dim: '216 × 279 mm', width: 'w-[4.2vw]', height: 'h-[5.5vw]' },
+    { id: 'legal', label: 'Legal', title: 'Legal Page', dim: '216 × 356 mm', width: 'w-[4vw]', height: 'h-[7vw]' },
+    { id: 'dl', label: 'DL', title: 'DL Flyer', dim: '99 × 210 mm', width: 'w-[2.2vw]', height: 'h-[4.5vw]' },
+    { id: 'square', label: 'Square', title: 'Square Page', dim: '210 × 210 mm', width: 'w-[4.2vw]', height: 'h-[4.2vw]' },
   ];
 
   const scrollLeft = () => {
@@ -242,8 +240,8 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
     if (nameError || !flipbookName.trim()) return;
     confirmCreation(() => {
       const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
-      console.log("Creating from template:", template, "Pages:", pageCount);
-      onTemplate({ templateId: selectedTemplateId, pageCount, flipbookName: flipbookName.trim() });
+      console.log("Creating from template:", template, "Pages:", pageCount, "Orientation:", orientation);
+      onTemplate({ templateId: selectedTemplateId, pageCount, flipbookName: flipbookName.trim(), orientation });
     });
   };
 
@@ -433,87 +431,149 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
   // Render Template View
   const renderTemplateView = () => {
     const template = templates.find(t => t.id === selectedTemplateId) || templates[0];
+    const isLandscape = orientation === 'landscape';
 
     return (
-      <div className="relative bg-white rounded-[1vw] p-[1.25vw] md:p-[1.5vw] shadow-2xl flex flex-col w-full max-w-[26vw] mx-auto border border-gray-100">
-        {/* Close Button (Red) */}
-        <button
-          onClick={onClose}
-          className="absolute top-[1vw] right-[1vw] text-red-500 border border-red-500 hover:bg-red-50 transition-colors z-50 p-[0.15vw] rounded-[0.3vw]"
-        >
-          <X size="1vw" strokeWidth={2} />
-        </button>
-
+      <div className="relative bg-white rounded-[1.25vw] p-[1.25vw] shadow-2xl flex flex-col w-full max-w-[27vw] mx-auto border border-gray-100/80">
         {/* Header */}
         <div className="mb-[1vw]">
-          <div className="flex items-center mb-[0.2vw]">
-            <h2 className="text-[1.25vw] font-bold text-black pr-[0.75vw]">Built From Starch</h2>
-            <div className="flex-1 h-[0.0625vw] bg-gray-200 mt-[0.2vw] mr-[2vw]"></div>
+          <div className="flex items-center justify-between mb-[0.25vw]">
+            <div className="flex items-center flex-1 mr-[0.75vw]">
+              <h2 className="text-[1.3vw] font-bold text-gray-900 tracking-tight pr-[0.75vw] whitespace-nowrap">Built From Scratch</h2>
+              <div className="flex-1 h-[1px] bg-gray-200 mt-[0.1vw]"></div>
+            </div>
+            {/* Red Close Button */}
+            <button
+              onClick={onClose}
+              className="text-red-500 border border-red-300 hover:bg-red-50 transition-colors p-[0.3vw] rounded-[0.4vw] cursor-pointer flex items-center justify-center"
+            >
+              <X size="1.1vw" strokeWidth={2} />
+            </button>
           </div>
-          <p className="text-[0.6vw] text-gray-500">Create your flipbook from scratch and design every page your way.</p>
+          <p className="text-[0.68vw] text-gray-500">Create your flipbook from scratch and design every page your way</p>
         </div>
 
-        <div className="border border-gray-200 rounded-[0.5vw] p-[1.25vw] mb-[1.25vw]">
+        {/* Form Container Card */}
+        <div className="border border-gray-200 rounded-[0.8vw] p-[1.2vw] mb-[1vw] bg-white">
           {/* Selected Template Preview */}
-          <div className="flex flex-col items-center justify-center mb-[1.25vw]">
-            <div className={`bg-[#b8a9e0] text-gray-700 flex items-center justify-center font-bold text-[0.8vw] shadow-sm rounded-[0.2vw] mb-[0.5vw] ${template.width} ${template.height} max-w-[100%] max-h-[12vw]`} style={{ transform: 'scale(0.85)' }}>
+          <div className="flex flex-col items-center justify-center mb-[1vw]">
+            <div
+              className={`bg-[#383e93] text-white flex items-center justify-center font-medium text-[0.85vw] shadow-sm rounded-none mb-[0.4vw] transition-all duration-300 ${
+                isLandscape ? `${template.height} ${template.width}` : `${template.width} ${template.height}`
+              }`}
+            >
               {template.label}
             </div>
-            <h4 className="text-[0.8vw] font-bold text-[#3b4190]">{template.title}</h4>
-            <p className="text-[0.55vw] text-gray-500">{getFormattedDim(template.dim)}</p>
+            <p className="text-[0.75vw] text-gray-700 font-normal mt-[0.2vw]">{template.dim}</p>
           </div>
 
           {/* Form Fields */}
           <div className="space-y-[1vw]">
+            {/* Flipbook Name */}
             <div>
-              <label className="block text-[0.7vw] font-bold text-black mb-[0.4vw]">Flipbook Name</label>
-              <input 
-                  type="text" 
-                  value={flipbookName} 
-                  onChange={handleNameChange} 
-                  placeholder="Name of the flipbook" 
-                  className={`w-full border rounded-[0.3vw] px-[0.6vw] py-[0.5vw] text-[0.7vw] focus:outline-none ${nameError ? 'border-red-500 text-red-500 bg-red-50' : 'border-gray-300 focus:border-[#4F46E5] text-gray-700'}`} 
+              <label className="block text-[0.75vw] font-bold text-gray-900 mb-[0.35vw]">Flipbook Name</label>
+              <input
+                type="text"
+                value={flipbookName}
+                onChange={handleNameChange}
+                placeholder="Flipbook Name"
+                className={`w-full border rounded-[0.5vw] px-[0.75vw] py-[0.45vw] text-[0.75vw] focus:outline-none bg-white ${
+                  nameError
+                    ? 'border-red-500 text-red-500 bg-red-50 focus:border-red-500'
+                    : 'border-gray-200 text-gray-800 focus:border-[#4c5add]'
+                }`}
               />
               {nameError && <p className="text-red-500 text-[0.55vw] mt-[0.3vw] font-medium">This flipbook name already exists.</p>}
             </div>
 
-            <div className="flex items-center relative" ref={unitRef}>
-              <label className="text-[0.7vw] font-bold text-black mr-[0.5vw]">Units :</label>
-              <div 
-                className="border border-gray-200 rounded-[0.3vw] px-[0.4vw] py-[0.2vw] flex items-center bg-gray-50 shadow-sm cursor-pointer w-fit"
-                onClick={() => setIsUnitDropdownOpen(!isUnitDropdownOpen)}
-              >
-                <span className="text-[0.7vw] text-gray-600 mr-[0.75vw]">
-                    {templateUnit === 'Cm' ? 'Centimeter' : templateUnit === 'Mm' ? 'Millimeter' : 'Pixel'}
-                </span>
-                <ChevronRight size="0.9vw" className={`text-gray-400 transition-transform ${isUnitDropdownOpen ? '-rotate-90' : 'rotate-90'}`} />
-              </div>
-              {isUnitDropdownOpen && (
-                  <div className="absolute top-full left-[2.5vw] mt-[0.2vw] bg-white border border-gray-200 rounded-[0.3vw] shadow-lg overflow-hidden z-10 w-[7vw]">
-                      {['Cm', 'Mm', 'Px'].map(u => (
-                          <div 
-                              key={u}
-                              className="px-[0.5vw] py-[0.3vw] text-[0.7vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
-                              onClick={() => { setTemplateUnit(u); setIsUnitDropdownOpen(false); }}
-                          >
-                              {u === 'Cm' ? 'Centimeter' : u === 'Mm' ? 'Millimeter' : 'Pixel'}
-                          </div>
-                      ))}
+            {/* Pages Orientation */}
+            <div>
+              <label className="block text-[0.75vw] font-bold text-gray-900 mb-[0.4vw]">Pages Orientation</label>
+              <div className="flex gap-[0.75vw]">
+                {/* Portrait Option */}
+                <div
+                  onClick={() => setOrientation('portrait')}
+                  className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
+                    orientation === 'portrait'
+                      ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
+                      : 'border border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`w-[1vw] h-[1vw] rounded-full border-2 ${
+                      orientation === 'portrait' ? 'border-[#4c5add]' : 'border-gray-300'
+                    } flex items-center justify-center flex-shrink-0`}
+                  >
+                    {orientation === 'portrait' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
                   </div>
-              )}
+                  <div className="w-[1.3vw] h-[1.7vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
+                    <svg width="0.7vw" height="0.9vw" viewBox="0 0 12 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 2v12M3 5l3-3 3 3M3 11l3 3 3-3" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-[0.72vw] font-bold text-gray-900">Portrait</span>
+                    <span className="text-[0.55vw] text-gray-400 font-normal">Vertical</span>
+                  </div>
+                </div>
+
+                {/* Landscape Option */}
+                <div
+                  onClick={() => setOrientation('landscape')}
+                  className={`flex-1 flex items-center gap-[0.6vw] p-[0.5vw] rounded-[0.5vw] cursor-pointer transition-all ${
+                    orientation === 'landscape'
+                      ? 'border-[1.5px] border-[#4c5add] bg-[#f0f2fe]'
+                      : 'border border-gray-200 bg-white hover:border-gray-300'
+                  }`}
+                >
+                  <div
+                    className={`w-[1vw] h-[1vw] rounded-full border-2 ${
+                      orientation === 'landscape' ? 'border-[#4c5add]' : 'border-gray-300'
+                    } flex items-center justify-center flex-shrink-0`}
+                  >
+                    {orientation === 'landscape' && <div className="w-[0.5vw] h-[0.5vw] rounded-full bg-[#4c5add]" />}
+                  </div>
+                  <div className="w-[1.7vw] h-[1.3vw] border-[1.5px] border-gray-800 rounded-[0.15vw] flex items-center justify-center flex-shrink-0">
+                    <svg width="0.9vw" height="0.7vw" viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 6h12M5 3L2 6l3 3M11 3l3 3-3 3" />
+                    </svg>
+                  </div>
+                  <div className="flex flex-col leading-tight">
+                    <span className="text-[0.72vw] font-bold text-gray-900">Landscape</span>
+                    <span className="text-[0.55vw] text-gray-400 font-normal">Horizontal</span>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-center">
-              <label className="text-[0.7vw] font-bold text-black mr-[0.5vw]">Number of Pages :</label>
-              <div className="flex items-center gap-[0.4vw]">
-                <button onClick={() => setPageCount(Math.max(4, pageCount - 2))} className="text-gray-400 hover:text-gray-600 cursor-pointer outline-none">
-                  <Minus size="0.9vw" />
+            {/* Number of Pages */}
+            <div>
+              <div className="flex items-center gap-[0.4vw] mb-[0.35vw]">
+                <span className="text-[0.75vw] font-bold text-gray-900">Number of Pages</span>
+                <span className="text-[0.6vw] text-gray-500 font-normal">Min 4 - Max 12 Pages<span className="text-red-500">*</span></span>
+              </div>
+              <div className="flex items-center gap-[0.3vw]">
+                <button
+                  type="button"
+                  onClick={() => setPageCount(Math.max(4, pageCount - 1))}
+                  disabled={pageCount <= 4}
+                  className="w-[2vw] h-[2vw] rounded-[0.3vw] border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-colors"
+                >
+                  <Minus size="0.8vw" />
                 </button>
-                <div className="border border-gray-300 w-[2.5vw] h-[1.5vw] rounded-[0.2vw] flex items-center justify-center text-[0.7vw] font-medium text-black">
-                  <input type="number" value={pageCount} readOnly className="w-full h-full text-center outline-none bg-transparent no-spin cursor-default" />
-                </div>
-                <button onClick={() => setPageCount(Math.min(12, pageCount + 2))} className="text-gray-400 hover:text-gray-600 cursor-pointer outline-none">
-                  <Plus size="0.9vw" />
+                <input
+                  type="number"
+                  value={pageCount}
+                  onChange={(e) => setPageCount(Math.min(12, Math.max(4, parseInt(e.target.value) || 4)))}
+                  className="w-[6vw] h-[2vw] rounded-[0.3vw] border border-gray-200 text-center text-[0.75vw] font-semibold text-gray-800 outline-none focus:border-[#4c5add] bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPageCount(Math.min(12, pageCount + 1))}
+                  disabled={pageCount >= 12}
+                  className="w-[2vw] h-[2vw] rounded-[0.3vw] border border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer bg-white transition-colors"
+                >
+                  <Plus size="0.8vw" />
                 </button>
               </div>
             </div>
@@ -522,14 +582,22 @@ const CreateFlipbookModal = ({ isOpen, onClose, onUpload, onTemplate, initialVie
 
         {/* Action Buttons */}
         <div className="flex gap-[0.75vw]">
-          <button onClick={onClose} className="flex-1 border border-gray-300 rounded-[0.4vw] py-[0.6vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 transition-colors">
+          <button
+            onClick={onClose}
+            className="flex-1 border border-gray-300 rounded-[0.6vw] py-[0.6vw] text-[0.8vw] font-semibold text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
+          >
             Cancel
           </button>
-          <button onClick={handleCreateFromTemplate} className="flex-1 bg-[#4F46E5] rounded-[0.4vw] py-[0.6vw] text-[0.8vw] font-medium text-white hover:bg-[#4338ca] transition-colors shadow-sm">
+          <button
+            onClick={handleCreateFromTemplate}
+            disabled={nameError || !flipbookName.trim()}
+            className={`flex-1 bg-[#4c5add] hover:bg-[#3d4bbd] text-white rounded-[0.6vw] py-[0.6vw] text-[0.8vw] font-semibold shadow-md transition-colors cursor-pointer ${
+              nameError || !flipbookName.trim() ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
             Create Flipbook
           </button>
         </div>
-
       </div>
     );
   };

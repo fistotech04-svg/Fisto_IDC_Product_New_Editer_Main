@@ -42,7 +42,6 @@ import Color from './Color';
 import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
-import CropOverlay from './CropOverlay';
 
 const ImageEditor = ({
   selectedElement,
@@ -92,30 +91,6 @@ const ImageEditor = ({
   const [activeSection, setActiveSection] = useState('main');
   const isMainPanelOpen = activeSection === 'main';
   const [showImageTypeDropdown, setShowImageTypeDropdown] = useState(false);
-  const [showCropModal, setShowCropModal] = useState(false);
-
-  useEffect(() => {
-    if (showCropModal) {
-      document.body.classList.add('crop-modal-active');
-      if (selectedLayerId) {
-        const el = document.getElementById(selectedLayerId);
-        if (el) el.setAttribute('data-cropping', 'true');
-      }
-    } else {
-      document.body.classList.remove('crop-modal-active');
-      if (selectedLayerId) {
-        const el = document.getElementById(selectedLayerId);
-        if (el) el.removeAttribute('data-cropping');
-      }
-    }
-    return () => {
-      document.body.classList.remove('crop-modal-active');
-      if (selectedLayerId) {
-        const el = document.getElementById(selectedLayerId);
-        if (el) el.removeAttribute('data-cropping');
-      }
-    };
-  }, [showCropModal, selectedLayerId]);
 
   const [openSubSection, setOpenSubSection] = useState(null);
   const [isRadiusLinked, setIsRadiusLinked] = useState(true);
@@ -2822,7 +2797,7 @@ const ImageEditor = ({
 
 
       {isMainPanelOpen && (
-        <div className="space-y-[0.60vw] px-[0.3vw]">
+        <div className="space-y-[0.60vw]">
 
           {isSlideshow ? (
             /* ── SLIDESHOW MODE: show only SlideshowProperties ── */
@@ -3051,51 +3026,27 @@ const ImageEditor = ({
                       <span className="text-[0.85vw] font-normal text-gray-700">{imageType}</span>
                       <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showImageTypeDropdown ? 'rotate-180' : ''}`} />
                     </button>
-                    {imageType === 'Crop' && (
-                      <button onClick={() => setShowCropModal(true)} className="p-[0.55vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-sm hover:bg-gray-50 transition-colors text-gray-600" title="Edit Crop">
-                        <Icon icon="lucide:crop" className="w-[0.9vw] h-[0.9vw]" />
-                      </button>
-                    )}
                   </div>
                   {showImageTypeDropdown && (
                     <>
                       <div className="fixed inset-0 z-[90]" onClick={() => setShowImageTypeDropdown(false)} />
                       <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                        {['Fit', 'Fill', 'Stretch', 'Crop'].map((type) => (
+                        {['Fit', 'Fill', 'Stretch'].map((type) => (
                           <button
                             key={type}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               setShowImageTypeDropdown(false);
-                              if (type === 'Crop') {
-                                if (imageType !== 'Crop') {
-                                  if (selectedElement) {
-                                    selectedElement.setAttribute('data-crop-underlying-fit', imageType);
-                                    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                                    const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
-                                    if (liveEl && liveEl !== selectedElement) {
-                                      liveEl.setAttribute('data-crop-underlying-fit', imageType);
-                                    }
-                                  }
-                                }
-                                // Mark imageType as Crop immediately so applyVisuals works correctly on first use
-                                setImageType('Crop');
-                                stateRef.current.imageType = 'Crop';
-                                setShowCropModal(true);
-                              } else {
-                                setImageType(type);
-                                stateRef.current.imageType = type;
-                                // Setting type automatically natively fits/fills the original image within the resized bounds.
+                              setImageType(type);
+                              stateRef.current.imageType = type;
 
-                                // Also update the element's attribute so other parts of the system know the active fit
-                                if (selectedElement) {
-                                  selectedElement.setAttribute('data-object-fit', type);
-                                  const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                                  const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
-                                  if (liveEl && liveEl !== selectedElement) {
-                                    liveEl.setAttribute('data-object-fit', type);
-                                  }
+                              if (selectedElement) {
+                                selectedElement.setAttribute('data-object-fit', type);
+                                const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
+                                if (liveEl && liveEl !== selectedElement) {
+                                  liveEl.setAttribute('data-object-fit', type);
                                 }
                               }
                             }}
@@ -3113,7 +3064,7 @@ const ImageEditor = ({
               <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
                 {/* Current Image */}
                 <div className="flex flex-col items-center gap-[0.35vw]">
-                  <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white flex items-center justify-center group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}>
+                  <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors">
                     <img
                       src={previewSrc || ''}
                       alt="Thumbnail"
@@ -3142,8 +3093,7 @@ const ImageEditor = ({
                 <div className="flex flex-col items-center gap-[0.35vw] flex-1">
                   <label
                     htmlFor="image-editor-upload-input"
-                    className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
-                    style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+                    className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
                     onDragOver={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
@@ -3400,56 +3350,7 @@ const ImageEditor = ({
 
         </div>
       )}
-      {showCropModal && (
-        <CropOverlay
-          underlyingFit={selectedElement?.getAttribute('data-crop-underlying-fit') || 'none'}
-          src={selectedElement?.getAttribute('data-original-src') || previewSrc}
-          initialCrop={(() => {
-            const c = selectedElement?.getAttribute('data-crop-data');
-            if (c && c !== 'null') return c;
-            const b = selectedElement?.getAttribute('data-baked-crop');
-            if (b && b !== 'null') return b;
-            return null;
-          })()}
-          targetElement={document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`)?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement}
-          activePageIndex={activePageIndex}
-          onCancel={() => setShowCropModal(false)}
-          onDone={(newCrop) => {
-            const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-            const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
 
-            if (selectedElement) {
-              const scale = parseFloat(newCrop.scale) || 1;
-              const offX = parseFloat(newCrop.offX) || 0;
-              const offY = parseFloat(newCrop.offY) || 0;
-              // Trust the crop data from CropOverlay completely — no size clamping.
-
-              selectedElement.setAttribute('data-effect-crop-inset', 'true');
-              selectedElement.setAttribute('data-crop-data', JSON.stringify(newCrop));
-              selectedElement.setAttribute('data-object-fit', 'Crop');
-            }
-            if (liveEl && liveEl !== selectedElement) {
-              liveEl.setAttribute('data-effect-crop-inset', 'true');
-              liveEl.setAttribute('data-crop-data', JSON.stringify(newCrop));
-              liveEl.setAttribute('data-object-fit', 'Crop');
-            }
-
-            // Ensure imageType is 'Crop' so applyVisuals correctly applies SVG crop clip
-            setImageType('Crop');
-            stateRef.current.imageType = 'Crop';
-
-            setShowCropModal(false);
-
-            setTimeout(() => {
-              isHydrating.current = false; // Force-clear hydration so applyVisuals can run
-              applyVisuals();
-              if (onUpdateRef.current) onUpdateRef.current({ shouldRefresh: true });
-              // Force a re-selection redraw so the indigo selection box snaps to the cropped region
-              window.dispatchEvent(new CustomEvent('force-selection-redraw', { detail: { id: selectedLayerId } }));
-            }, 80);
-          }}
-        />
-      )}
     </div>
   );
 };
