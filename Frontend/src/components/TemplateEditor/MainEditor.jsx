@@ -750,10 +750,10 @@ const syncDOM = (oldNode, newNode) => {
     }
     return;
   }
-  
+
   const oldAttrs = oldNode.attributes;
   const newAttrs = newNode.attributes;
-  
+
   if (oldAttrs && newAttrs) {
     for (let i = oldAttrs.length - 1; i >= 0; i--) {
       const name = oldAttrs[i].name;
@@ -1636,6 +1636,20 @@ const MainEditor = ({
           background: rgba(255,255,255,0.4) !important;
           border-radius: 1px !important;
         }
+        .custom-video-overlay {
+          opacity: 0;
+          background: transparent;
+          transition: opacity 0.3s ease, background 0.3s ease !important;
+        }
+        .custom-video-overlay.is-paused,
+        .custom-video-overlay.video-is-hovered,
+        [id]:hover > .custom-video-overlay,
+        [id]:hover > foreignObject > .custom-video-overlay,
+        foreignObject:hover > .custom-video-overlay,
+        .custom-video-overlay:hover {
+          opacity: 1 !important;
+          background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%) !important;
+        }
       `;
       document.head.appendChild(ts);
     }
@@ -1672,8 +1686,8 @@ const MainEditor = ({
         const mountPoint = video.parentElement || fo || liveEl;
         if (!mountPoint) return;
 
-        // Force recreate on updates to support HMR seamlessly
-        if (bar) {
+        // If bar exists but points to a different video, recreate it
+        if (bar && bar._video !== video) {
           if (bar._cleanup) bar._cleanup();
           bar.remove();
           bar = null;
@@ -1693,8 +1707,26 @@ const MainEditor = ({
             mountPoint.style.pointerEvents = 'none';
           }
 
+          if (!window._videoHoverTrackerAdded) {
+            window._videoHoverTrackerAdded = true;
+            window.addEventListener('pointermove', (e) => {
+              document.querySelectorAll('.custom-video-overlay').forEach(b => {
+                const rect = b.getBoundingClientRect();
+                const isInside = e.clientX >= rect.left && e.clientX <= rect.right && 
+                                 e.clientY >= rect.top && e.clientY <= rect.bottom;
+                if (isInside) {
+                  b.classList.add('video-is-hovered');
+                } else {
+                  b.classList.remove('video-is-hovered');
+                }
+              });
+            });
+          }
+
           bar = document.createElement('div');
           bar.id = ctrlId;
+          bar._video = video;
+          bar.className = 'custom-video-overlay' + (video.paused ? ' is-paused' : '');
           Object.assign(bar.style, {
             position: 'absolute',
             top: '0',
@@ -1706,7 +1738,6 @@ const MainEditor = ({
             justifyContent: 'space-between',
             padding: '5%',
             boxSizing: 'border-box',
-            background: 'transparent',
             zIndex: '9999',
             pointerEvents: 'none',
             filter: 'drop-shadow(0px 0px 4px rgba(0,0,0,0.8))',
@@ -1755,7 +1786,13 @@ const MainEditor = ({
 
           volumeBtn.onclick = (e) => {
             e.stopPropagation();
-            video.muted = !video.muted;
+            const isMuted = !video.muted;
+            video.muted = isMuted;
+            if (isMuted) {
+              video.setAttribute('muted', '');
+            } else {
+              video.removeAttribute('muted');
+            }
             updateVolumeIcon();
             if (setSelectedLayerId) setSelectedLayerId(layerId);
           };
@@ -1799,8 +1836,8 @@ const MainEditor = ({
             pointerEvents: 'auto'
           });
 
-          const onPlay = () => { playBtn.innerHTML = PAUSE_SVG; };
-          const onPause = () => { playBtn.innerHTML = PLAY_SVG; };
+          const onPlay = () => { playBtn.innerHTML = PAUSE_SVG; bar.classList.remove('is-paused'); };
+          const onPause = () => { playBtn.innerHTML = PLAY_SVG; bar.classList.add('is-paused'); };
           playBtn.innerHTML = video.paused ? PLAY_SVG : PAUSE_SVG;
 
           video.addEventListener('play', onPlay);
@@ -1843,7 +1880,7 @@ const MainEditor = ({
             marginBottom: '1%',
             pointerEvents: 'none',
           });
-          
+
           timeDisplay.innerHTML = `<svg viewBox="0 0 100 15" width="100%" preserveAspectRatio="xMinYMid meet"><text x="0" y="12" fill="white" font-family="Inter, sans-serif" font-size="12" opacity="0.9">00:00 / 00:00</text></svg>`;
           const timeTextEl = timeDisplay.querySelector('text');
 
@@ -3038,13 +3075,13 @@ const MainEditor = ({
           const overlayInverse = overlayCtm.inverse();
           const pt = overlay.createSVGPoint();
 
-          pt.x = clientRect.left;  pt.y = clientRect.top;
+          pt.x = clientRect.left; pt.y = clientRect.top;
           const overlayTL = pt.matrixTransform(overlayInverse);
           pt.x = clientRect.right; pt.y = clientRect.top;
           const overlayTR = pt.matrixTransform(overlayInverse);
           pt.x = clientRect.right; pt.y = clientRect.bottom;
           const overlayBR = pt.matrixTransform(overlayInverse);
-          pt.x = clientRect.left;  pt.y = clientRect.bottom;
+          pt.x = clientRect.left; pt.y = clientRect.bottom;
           const overlayBL = pt.matrixTransform(overlayInverse);
 
           const mapped = [overlayTL, overlayTR, overlayBR, overlayBL];
@@ -5571,9 +5608,11 @@ const MainEditor = ({
               if (imgEl) {
                 const dataType = el.getAttribute('data-type');
                 if (dataType === 'image') {
+                  // Standard images crop by default
                   imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
                 } else {
-                  imgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                  // Video and GIF should stretch (adjust without cutting or scaling proportionally)
+                  imgEl.setAttribute('preserveAspectRatio', 'none');
                 }
               }
             }

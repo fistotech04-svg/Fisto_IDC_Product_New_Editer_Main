@@ -706,7 +706,7 @@ const Color = ({
                         <>
                           <div className="fixed inset-0 z-[9998]" onClick={(e) => { e.stopPropagation(); setIsStrokeStyleOpen(false); }} />
                           <div
-                            className="absolute py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[9999] animate-in fade-in zoom-in duration-200"
+                            className="fixed py-1 bg-white border border-gray-200 rounded-[0.5vw] shadow-xl z-[9999] animate-in fade-in zoom-in duration-200"
                             style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
                           >
                             {['Solid', 'Dashed'].map((type) => (

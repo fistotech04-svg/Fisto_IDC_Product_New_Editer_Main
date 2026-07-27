@@ -1361,10 +1361,40 @@ const GifEditor = ({
         const innerShadow = liveElement.querySelector('.svg-gif-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-rect') || liveElement.querySelector('.svg-inner-shadow-overlay');
         const stroke = liveElement.querySelector('.svg-gif-stroke-overlay') || liveElement.querySelector('.svg-image-stroke-overlay');
 
+        let innerGroup = liveElement.querySelector('.gif-inner-content');
+        if (!innerGroup) {
+          innerGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          innerGroup.classList.add('gif-inner-content');
+          innerGroup.setAttribute('data-name', 'Gif Content');
+          liveElement.appendChild(innerGroup);
+        }
+
+        // Apply clip paths that might be stuck on liveElement to innerGroup
+        const currentClip = liveElement.style.getPropertyValue('clip-path') || liveElement.getAttribute('clip-path');
+        if (currentClip && currentClip !== 'none') {
+          innerGroup.style.setProperty('clip-path', currentClip, 'important');
+          innerGroup.setAttribute('clip-path', liveElement.getAttribute('clip-path') || '');
+          liveElement.style.removeProperty('clip-path');
+          liveElement.removeAttribute('clip-path');
+        }
+
         if (dropShadow) { dropShadow.setAttribute('data-name', 'Drop Shadow'); liveElement.appendChild(dropShadow); }
-        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); liveElement.appendChild(fillLayer); }
-        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); liveElement.appendChild(innerShadow); }
-        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); liveElement.appendChild(stroke); }
+
+        liveElement.appendChild(innerGroup);
+
+        if (fillLayer) { fillLayer.setAttribute('data-name', 'Fill Color'); innerGroup.appendChild(fillLayer); }
+
+        if (svgImageEl) {
+          const imageNode = svgImageEl.closest('svg.svg-crop-wrapper') ||
+            svgImageEl.closest('rect') ||
+            svgImageEl;
+          if (imageNode && (imageNode.parentNode === liveElement || imageNode.parentNode === innerGroup)) {
+            innerGroup.appendChild(imageNode);
+          }
+        }
+
+        if (innerShadow) { innerShadow.setAttribute('data-name', 'Inner Shadow'); innerGroup.appendChild(innerShadow); }
+        if (stroke) { stroke.setAttribute('data-name', 'Stroke'); innerGroup.appendChild(stroke); }
       }
 
       if (onUpdateRef.current) {
