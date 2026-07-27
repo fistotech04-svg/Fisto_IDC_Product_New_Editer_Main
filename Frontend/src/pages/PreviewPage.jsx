@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import FlipbookPreview from '../components/TemplateEditor/FlipbookPreview';
 import { getFromDB } from '../utils/dbUtils';
-import { rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
+import { resolveUploadsPath, rewriteHtmlUploadsToSupabase } from '../utils/supabaseUtils';
 
 const PreviewPage = () => {
 
@@ -14,6 +14,10 @@ const PreviewPage = () => {
     const loadData = async () => {
       const searchParams = new URLSearchParams(location.search);
       const shareId = searchParams.get('shareId');
+
+      const userStr = localStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      const currentUserEmail = user?.emailId || user?.email;
 
       if (shareId) {
         try {
@@ -28,13 +32,11 @@ const PreviewPage = () => {
               return 'http://localhost:5000';
           };
           const backendUrl = getBackendUrl();
-          const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`);
+          const params = currentUserEmail ? { emailId: currentUserEmail } : {};
+          const res = await axios.get(`${backendUrl}/api/flipbook/public/get/${shareId}`, { params });
           
-          if (res.data && res.data.pages) {
+          if (res.data && res.data.pages && res.data.pages.length > 0) {
             let processedData = res.data;
-            const userStr = localStorage.getItem('user');
-            const user = userStr ? JSON.parse(userStr) : null;
-            const currentUserEmail = user?.emailId || user?.email;
             
             if (currentUserEmail) {
                 try {
@@ -62,28 +64,21 @@ const PreviewPage = () => {
                 return { ...p, html };
             });
 
-
-            // Extra 3s loading time to match preview behavior
-            await new Promise(resolve => setTimeout(resolve, 3000));
-
             setData({
                 ...processedData,
                 projectBaseUrl: bUrl,
                 settings: processedData.settings || {},
                 pageName: processedData.meta?.flipbookName || 'Preview'
             });
-          } else {
-            setData({ error: true });
+            return;
           }
         } catch (err) {
-          console.error(err);
-          setData({ error: true });
+          console.error("Failed to fetch public preview from backend, falling back to local storage...", err);
         }
-        return;
       }
 
       const saved = await getFromDB('editor_autosave');
-      if (saved && saved.pages) {
+      if (saved && saved.pages && saved.pages.length > 0) {
         // Deep Pre-caching: Wait for all background images to load before hiding the main spinner
         const imageUrls = [];
         const pBaseUrl = saved.projectBaseUrl || '';
@@ -118,16 +113,13 @@ const PreviewPage = () => {
           }));
         }
 
-        // Extra 3s loading time as requested
-        await new Promise(resolve => setTimeout(resolve, 5000));
-
         setData(saved);
       } else {
-        setData({ error: true });
+        setData({ error: true, errorMessage: "No preview data found. Please return to the editor." });
       }
     };
     loadData();
-  }, []);
+  }, [location.search]);
 
   if (!data) {
     return (

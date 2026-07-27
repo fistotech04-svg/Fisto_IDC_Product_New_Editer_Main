@@ -1739,8 +1739,9 @@ router.get("/public/get/:shareId", async (req, res) => {
     const dbDoc = await Flipbook.findOne({ "share.shareId": shareId });
     if (!dbDoc) return res.status(404).json({ message: "Flipbook not found" });
 
-    // Check if the flipbook is private
-    if (dbDoc.share?.access === 'private') {
+    // Check if the flipbook is private (allow access if requested by the book owner)
+    const reqEmail = req.query.emailId;
+    if (dbDoc.share?.access === 'private' && (!reqEmail || reqEmail !== dbDoc.userEmail)) {
       return res.status(403).json({ message: "This flipbook is private" });
     }
 
