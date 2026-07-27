@@ -4,6 +4,7 @@ import axios from "axios";
 import { textureData } from "../../data/textureData";
 import AddMaterial from "./Components/AddMaterial";
 import AlertModal from "../AlertModal";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
 export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, selectedTextureId, onAddMaterialClick, refreshTrigger }) {
     const scrollRef = React.useRef(null);
@@ -500,13 +501,7 @@ export default function TextureGalleryBar({ isOpen, setIsOpen, onSelectTexture, 
                             {filteredTextures.map((tex, idx) => {
                                 const isActive = selectedTextureId === tex.id || (!selectedTextureId && localSelected === (tex.id || tex.name));
                                 
-                                // Resolve the image source
-                                let imageSrc = tex.thumb || tex.preview;
-                                if (imageSrc?.startsWith('/uploads')) {
-                                    imageSrc = `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${imageSrc}`;
-                                } else if (imageSrc?.startsWith('Texture/')) {
-                                    // Handle predefined paths if they start with Texture/ but aren't URLs
-                                }
+                                let imageSrc = resolveUploadsPath(tex.thumb || tex.preview);
 
                                 return (
                                     <div 

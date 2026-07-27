@@ -5,6 +5,7 @@ import { GLTFExporter } from "three-stdlib";
 import { OBJExporter } from "three-stdlib";
 import { STLExporter } from "three-stdlib";
 import * as BufferGeometryUtils from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
 // Global cache and shared loader to prevent redundant network requests and decoding
 // We use a private LoadingManager to avoid triggering the global useProgress spinner
@@ -112,10 +113,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
      const resolveUrl = (url) => {
         if (!url) return null;
         if (typeof url !== 'string') return url;
-        if (url.startsWith('/uploads')) {
-            return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
-        }
-        return url;
+        return resolveUploadsPath(url);
      };
 
      const loadMap = (url, isColor = false) => {
@@ -272,10 +270,7 @@ const GenericModel = React.memo(React.forwardRef(({ scene, wireframe, setModelSt
     const resolveUrlLocal = (url) => {
         if (!url) return null;
         if (typeof url !== 'string') return url;
-        if (url.startsWith('/uploads')) {
-            return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
-        }
-        return url;
+        return resolveUploadsPath(url);
     };
 
     const loadMapManual = (url, isColor = false) => {

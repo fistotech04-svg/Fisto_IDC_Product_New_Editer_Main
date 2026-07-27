@@ -23,6 +23,7 @@ import { STLExporter } from "three-stdlib";
 import { MeshoptEncoder } from "meshoptimizer";
 import CameraModal from "./Components/CameraModal";
 import AddMaterial from "./Components/AddMaterial";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import { useOutletContext } from "react-router-dom";
 import axios from "axios";
 import { useToast } from "../../components/CustomToast";
@@ -213,9 +214,7 @@ export default function ThreedEditor() {
           try {
             const res = await axios.get(`${backendUrl}/api/3d-models/get-model/${urlModelId}`);
             if (res.data) {
-              const fullUrl = (modelData.url && (modelData.url.startsWith('http://') || modelData.url.startsWith('https://')))
-                ? modelData.url
-                : `${backendUrl}${modelData.url}`;
+              const fullUrl = resolveUploadsPath(modelData.url);
 
               const newModel = {
                 id: Date.now().toString(),
@@ -1713,7 +1712,7 @@ export default function ThreedEditor() {
                    Object.entries(finalMaps).forEach(([key, url]) => {
                        if (!url) return;
                        const targetKey = keyMapping[key] || key;
-                       const fullUrl = (typeof url === 'string' && url.startsWith('/uploads')) ? `${backendUrl}${url}` : url;
+                       const fullUrl = resolveUploadsPath(url);
                        mapped[targetKey] = fullUrl;
                    });
                    finalMaps = mapped;

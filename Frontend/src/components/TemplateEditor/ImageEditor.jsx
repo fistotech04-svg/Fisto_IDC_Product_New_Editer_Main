@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Icon } from '@iconify/react';
 import ReactDOM from 'react-dom';
 import axios from 'axios';
+import { resolveUploadsPath } from '../../utils/supabaseUtils';
 import { getVisualBBox } from './MainEditor';
 import { getSvgImageEl, syncGradient } from './editorUtils';
 import {
@@ -325,7 +326,7 @@ const ImageEditor = ({
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
             const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
             if (res.data.url) {
-              const serverUrl = `${backendUrl}${res.data.url}`;
+              const serverUrl = resolveUploadsPath(res.data.url);
               const svgImgSrv = getSvgImageEl(selectedElement);
               if (svgImgSrv) {
                 svgImgSrv.setAttribute('href', serverUrl);
@@ -885,6 +886,10 @@ const ImageEditor = ({
               if (!svgFilt) {
                 svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
                 svgFilt.id = shadowFilterId;
+                svgFilt.setAttribute('x', '-50%');
+                svgFilt.setAttribute('y', '-50%');
+                svgFilt.setAttribute('width', '200%');
+                svgFilt.setAttribute('height', '200%');
                 defs.appendChild(svgFilt);
               }
               // Safely set innerHTML to generate only the shadow (hollowed out by SourceAlpha)
@@ -1930,6 +1935,10 @@ const ImageEditor = ({
             if (!filterEl) {
               filterEl = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
               filterEl.id = filterId;
+              filterEl.setAttribute('x', '-50%');
+              filterEl.setAttribute('y', '-50%');
+              filterEl.setAttribute('width', '200%');
+              filterEl.setAttribute('height', '200%');
               svgDefs.appendChild(filterEl);
             }
 
@@ -2326,6 +2335,84 @@ const ImageEditor = ({
               strokeOverlay.style.rotate = targetEl.style.rotate;
               strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
               strokeOverlay.style.opacity = targetEl.style.opacity;
+
+              let targetElForStrokeSync = svgImageEl || liveElement;
+              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+                targetElForStrokeSync = svgImageEl.parentNode;
+              }
+
+              let bBox = { x: 0, y: 0, width: 100, height: 100 };
+              try { bBox = targetElForStrokeSync.getBBox(); } catch (e) { }
+
+              let bxStr = targetElForStrokeSync.getAttribute('x') || '0';
+              let byStr = targetElForStrokeSync.getAttribute('y') || '0';
+              let bwStr = targetElForStrokeSync.getAttribute('width') || '100%';
+              let bhStr = targetElForStrokeSync.getAttribute('height') || '100%';
+
+              let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+              let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+              let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+              let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+              const cropStrStroke = targetElForStrokeSync.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+              if (cropStrStroke && cropStrStroke !== 'null') {
+                try {
+                  const crop = JSON.parse(cropStrStroke);
+                  bx = bx + (parseFloat(crop.left) / 100) * bw;
+                  by = by + (parseFloat(crop.top) / 100) * bh;
+                  bw = bw * (parseFloat(crop.width) / 100);
+                  bh = bh * (parseFloat(crop.height) / 100);
+                } catch (e) { }
+              }
+
+              let scaleX = 1;
+              let scaleY = 1;
+              try {
+                const ctm = targetElForStrokeSync.getScreenCTM();
+                if (ctm) {
+                  scaleX = Math.abs(ctm.a) || 1;
+                  scaleY = Math.abs(ctm.d) || 1;
+                }
+              } catch(e) {}
+
+              const swSync = backgroundColor.strokeWeight || 0;
+              const posSync = backgroundColor.strokePosition || 'Center';
+              const offsetX = (swSync / 2) / scaleX;
+              const offsetY = (swSync / 2) / scaleY;
+
+              let ox = bx, oy = by, ow = bw, oh = bh;
+              if (posSync === 'Inside') {
+                ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
+              } else if (posSync === 'Outside') {
+                ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
+              }
+
+              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+              let adjR = maxR;
+              if (posSync === 'Inside') {
+                adjR = Math.max(0, maxR - offsetX);
+              } else if (posSync === 'Outside') {
+                adjR = maxR > 0 ? maxR + offsetX : 0;
+              }
+
+              const c_tl = Math.max(0, Math.min(radius.tl || 0, adjR));
+              const c_tr = Math.max(0, Math.min(radius.tr || 0, adjR));
+              const c_br = Math.max(0, Math.min(radius.br || 0, adjR));
+              const c_bl = Math.max(0, Math.min(radius.bl || 0, adjR));
+
+              const getPathDLocal = (x, y, w, h, tlv, trv, brv, blv) => {
+                return `M ${x + tlv} ${y}
+                  H ${x + w - trv}
+                  A ${trv} ${trv} 0 0 1 ${x + w} ${y + trv}
+                  V ${y + h - brv}
+                  A ${brv} ${brv} 0 0 1 ${x + w - brv} ${y + h}
+                  H ${x + blv}
+                  A ${blv} ${blv} 0 0 1 ${x} ${y + h - blv}
+                  V ${y + tlv}
+                  A ${tlv} ${tlv} 0 0 1 ${x + tlv} ${y} Z`;
+              };
+
+              strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
             };
             const obs = new MutationObserver(syncOverlay);
             obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
@@ -3271,7 +3358,7 @@ const ImageEditor = ({
                     const formData = new FormData();
                     formData.append('emailId', user.emailId);
                     if (flipbookVId) formData.append('v_id', flipbookVId);
-                    formData.append('folderName', folderName || 'My Flipbooks');
+                    formData.append('folderName', folderName || 'My_Flipbooks');
                     formData.append('flipbookName', flipbookName || 'Untitled Document');
                     formData.append('type', 'image');
                     formData.append('assetType', 'Image');
@@ -3286,7 +3373,7 @@ const ImageEditor = ({
                     const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
 
                     if (res.data.url) {
-                      const serverUrl = `${backendUrl}${res.data.url}`;
+                      const serverUrl = resolveUploadsPath(res.data.url);
 
                       const finalTarget = getSvgImageEl(liveElement) || liveElement;
                       if (finalTarget.tagName?.toLowerCase() === 'image') {

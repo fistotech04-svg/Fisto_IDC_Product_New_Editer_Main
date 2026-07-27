@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import ReactDOM from 'react-dom';
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import {
   Image as ImageIcon,
   Upload,
@@ -82,7 +83,7 @@ const GifEditor = ({
   const [activeSection, setActiveSection] = useState('main');
   const [showGallery, setShowGallery] = useState(false);
   const [opacity, setOpacity] = useState(100);
-  const [imageType, setImageType] = useState('Fit');
+  const [imageType, setImageType] = useState('Fill');
   const [showImageTypeDropdown, setShowImageTypeDropdown] = useState(false);
   const [openSubSection, setOpenSubSection] = useState(null);
   const [activePopup, setActivePopup] = useState(null);
@@ -204,9 +205,10 @@ const GifEditor = ({
     }
 
     // Image Type
-    const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop', 'fill': 'Fit' };
-    const currentFit = (svgImageEl || selectedElement).style.objectFit || 'contain';
-    setImageType(fitMapRev[currentFit] || 'Fit');
+    const target = (svgImageEl || selectedElement);
+    const fitMapRev = { 'contain': 'Fit', 'cover': 'Fill', 'none': 'Crop', 'fill': 'Stretch' };
+    const rawFit = target.getAttribute('data-object-fit') || target.style.objectFit || 'cover';
+    setImageType(fitMapRev[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
 
     // Filters & Effects
     if (selectedElement.hasAttribute('data-active-effects')) {
@@ -439,10 +441,24 @@ const GifEditor = ({
       targetElForPath.setAttribute('data-radius', JSON.stringify(radius));
       targetElForPath.style.overflow = 'hidden';
 
-      if (anyR || forceClip) {
-        targetElForPath.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-        if (forceClip) {
-          if (isSvgEl) {
+      if (isSvgEl) {
+        const hasClip = anyR || forceClip || imageType === 'Crop';
+
+        if (hasClip) {
+          let cropInset = '0% 0% 0% 0%';
+          if (imageType === 'Crop') {
+            const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100}';
+            try {
+              const crop = JSON.parse(cropStr);
+              const insetTop = crop.top;
+              const insetRight = 100 - (parseFloat(crop.left) + parseFloat(crop.width));
+              const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height));
+              const insetLeft = crop.left;
+              cropInset = `${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%`;
+            } catch(e) {}
+          }
+          
+          if (forceClip) {
             let clipId = `clip-content-${liveElement.id || 'gif'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
             if (!defs && liveElement.ownerSVGElement) {
@@ -459,35 +475,17 @@ const GifEditor = ({
                 defs.appendChild(clipNode);
               }
               const rect = clipNode.firstChild;
-
-              let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = targetElForPath.getBBox(); } catch (e) { }
-              let bxStr = targetElForPath.getAttribute('x') || '0';
-              let byStr = targetElForPath.getAttribute('y') || '0';
-              let bwStr = targetElForPath.getAttribute('width') || '100%';
-              let bhStr = targetElForPath.getAttribute('height') || '100%';
-              let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-              let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-              let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-              let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
-
-              rect.setAttribute('x', bx);
-              rect.setAttribute('y', by);
-              rect.setAttribute('width', Math.max(0, bw));
-              rect.setAttribute('height', Math.max(0, bh));
-              rect.setAttribute('transform', targetElForPath.getAttribute('transform') || '');
+              rect.setAttribute('x', svgImageEl ? svgImageEl.getAttribute('x') || '0' : '0');
+              rect.setAttribute('y', svgImageEl ? svgImageEl.getAttribute('y') || '0' : '0');
+              rect.setAttribute('width', svgImageEl ? svgImageEl.getAttribute('width') || '100%' : '100%');
+              rect.setAttribute('height', svgImageEl ? svgImageEl.getAttribute('height') || '100%' : '100%');
+              rect.setAttribute('transform', svgImageEl ? svgImageEl.getAttribute('transform') || '' : '');
               const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
               if (maxR > 0) rect.setAttribute('rx', maxR.toString());
               else rect.removeAttribute('rx');
 
-              if (svgImageEl) {
-                let clipperGroup = svgImageEl.parentNode;
-                if (!clipperGroup.classList.contains('svg-image-clipper')) {
-                  clipperGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                  clipperGroup.classList.add('svg-image-clipper');
-                  svgImageEl.parentNode.insertBefore(clipperGroup, svgImageEl);
-                  clipperGroup.appendChild(svgImageEl);
-                }
+              const clipperGroup = svgImageEl.parentNode;
+              if (clipperGroup && clipperGroup.classList.contains('svg-image-clipper')) {
                 clipperGroup.style.setProperty('clip-path', `url(#${clipId})`, 'important');
                 clipperGroup.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
 
@@ -501,7 +499,7 @@ const GifEditor = ({
               }
             }
           } else {
-            liveElement.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+            liveElement.style.setProperty('clip-path', `inset(${cropInset} round ${radiusStr})`, 'important');
           }
         } else {
           liveElement.style.removeProperty('clip-path');
@@ -576,6 +574,10 @@ const GifEditor = ({
               if (!svgFilt) {
                 svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
                 svgFilt.id = shadowFilterId;
+                svgFilt.setAttribute('x', '-50%');
+                svgFilt.setAttribute('y', '-50%');
+                svgFilt.setAttribute('width', '200%');
+                svgFilt.setAttribute('height', '200%');
                 defs.appendChild(svgFilt);
               }
               // Safely set innerHTML to generate only the shadow, hollowed out by SourceAlpha
@@ -1148,6 +1150,10 @@ const GifEditor = ({
             if (!filterEl) {
               filterEl = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
               filterEl.id = filterId;
+              filterEl.setAttribute('x', '-50%');
+              filterEl.setAttribute('y', '-50%');
+              filterEl.setAttribute('width', '200%');
+              filterEl.setAttribute('height', '200%');
               svgDefs.appendChild(filterEl);
             }
 
@@ -1451,7 +1457,7 @@ const GifEditor = ({
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             setSrc(targetImg, serverUrl);
             liveElement.dataset.fileVid = res.data.file_v_id;
             onUpdateRef.current?.();
@@ -1487,23 +1493,7 @@ const GifEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
-      <div className="flex items-center gap-[0.5vw] flex-1">
-        <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Image fix type</span>
-        <div className="h-[0px] flex-1 border-t border-dashed border-gray-300 mx-[0.25vw]" />
-        <div className="relative">
-          <button onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)} className="flex items-center justify-between w-[6.5vw] px-[0.75vw] py-[0.55vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-sm hover:bg-gray-50 transition-colors">
-            <span className="text-[0.85vw] font-normal text-gray-700">{imageType}</span>
-            <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showImageTypeDropdown ? 'rotate-180' : ''}`} />
-          </button>
-          {showImageTypeDropdown && (
-            <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl z-[100] flex flex-col py-[0.2vw]">
-              {['Fit', 'Fill', 'Stretch'].map((type) => (
-                <button key={type} onClick={() => { setImageType(type); setShowImageTypeDropdown(false); }} className="px-[1vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-[#4D47FF] text-left transition-colors">{type}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+
 
       {/* Upload/Replace Row */}
       <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">

@@ -1,6 +1,6 @@
 // TemplateModal.jsx - HTML Template Selection
-import React, { useState, useMemo } from 'react';
-import { Search, X } from 'lucide-react';
+import React, { useState, useMemo, useRef } from 'react';
+import { Search, X, Upload, AlertCircle } from 'lucide-react';
 
 // Import SVG templates as URLs
 import TemplateSVG1 from "../../assets/Templates/Template_1.svg?url";
@@ -24,11 +24,20 @@ const templateCache = {};
 const TemplateCard = ({ template, onClick }) => {
   const [htmlContent, setHtmlContent] = React.useState('');
   const [loading, setLoading] = React.useState(true);
-  const iframeRef = React.useRef(null);
 
   React.useEffect(() => {
+    if (template.rawSvg) {
+      templateCache[template.id] = template.rawSvg;
+      setHtmlContent(template.rawSvg);
+      setLoading(false);
+      return;
+    }
     if (templateCache[template.id]) {
       setHtmlContent(templateCache[template.id]);
+      setLoading(false);
+      return;
+    }
+    if (!template.src) {
       setLoading(false);
       return;
     }
@@ -43,7 +52,7 @@ const TemplateCard = ({ template, onClick }) => {
         console.error('Failed to load template preview:', err);
         setLoading(false);
       });
-  }, [template.src, template.id]);
+  }, [template.src, template.id, template.rawSvg]);
 
   const detectedFonts = React.useMemo(() => {
     if (!htmlContent) return [];
@@ -117,12 +126,16 @@ const TemplateCard = ({ template, onClick }) => {
           </button>
         </div>
 
-
       </div>
 
       {/* Card Details */}
-      <div className="p-[1vw] border-t border-gray-50 bg-white relative z-20">
+      <div className="p-[1vw] border-t border-gray-50 bg-white relative z-20 flex items-center justify-between">
         <h4 className="font-semibold text-gray-800 text-[0.75vw] truncate group-hover:text-black transition-colors">{template.name}</h4>
+        {template.category === 'Uploaded' && (
+          <span className="px-[0.4vw] py-[0.15vw] bg-blue-50 text-blue-600 text-[0.6vw] font-semibold rounded-[0.3vw] uppercase tracking-wider">
+            Custom
+          </span>
+        )}
       </div>
     </div>
   );
@@ -132,7 +145,11 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isApplying, setIsApplying] = useState(false);
-
+  const [uploadedTemplates, setUploadedTemplates] = useState([]);
+  const [uploadError, setUploadError] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const fileInputRef = useRef(null);
 
   // SVG Template data
   const templates = [
@@ -242,20 +259,107 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
     }
   ];
 
-  const categories = [
-    'All', 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio', 'Car'
-  ];
+  const categories = useMemo(() => {
+    const baseCategories = ['All'];
+    if (uploadedTemplates.length > 0) {
+      baseCategories.push('Uploaded');
+    }
+    return [...baseCategories, 'Business', 'Report', 'Presentation', 'Marketing', 'Portfolio', 'Car'];
+  }, [uploadedTemplates.length]);
 
-  // Filter templates
+  // Filter templates (including user-uploaded ones)
   const filteredTemplates = useMemo(() => {
-    const allTemplates = [...templates];
+    const allTemplates = [...uploadedTemplates, ...templates];
     return allTemplates.filter(t => 
       (activeTab === 'All' || t.category === activeTab) &&
       t.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
-  }, [activeTab, searchQuery]);
+  }, [activeTab, searchQuery, uploadedTemplates, templates]);
 
-  // Load HTML template
+  // Handle uploading a custom SVG file
+  const handleSvgFileUpload = async (file) => {
+    if (!file) return;
+    setUploadError(null);
+
+    const isSvgExt = file.name.toLowerCase().endsWith('.svg');
+    const isSvgMime = file.type === 'image/svg+xml' || file.type.includes('svg');
+
+    if (!isSvgExt && !isSvgMime) {
+      setUploadError('Invalid file format. Please select an SVG file (.svg).');
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      if (!text || !text.toLowerCase().includes('<svg')) {
+        setUploadError('The selected file does not contain valid SVG content.');
+        return;
+      }
+
+      setIsApplying(true);
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      if (typeof clearCanvas === 'function') {
+        clearCanvas();
+      }
+
+      const newTemplate = {
+        id: `upload-${Date.now()}`,
+        name: file.name.replace(/\.svg$/i, '') || 'Uploaded SVG',
+        category: 'Uploaded',
+        src: null,
+        rawSvg: text,
+        type: 'svg',
+        description: 'Uploaded SVG template'
+      };
+
+      templateCache[newTemplate.id] = text;
+      setUploadedTemplates(prev => [newTemplate, ...prev]);
+
+      await loadTemplate(null, text);
+
+      setIsApplying(false);
+      setShowTemplateModal(false);
+    } catch (err) {
+      console.error('Error uploading SVG template:', err);
+      setUploadError('Failed to read or parse the SVG file.');
+      setIsApplying(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) {
+      handleSvgFileUpload(file);
+    }
+    e.target.value = '';
+  };
+
+  // Drag and Drop handlers
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      handleSvgFileUpload(file);
+    }
+  };
+
+  // Load HTML/SVG template
   const handleLoadTemplate = async (template) => {
     setIsApplying(true);
     // Yield to browser paint thread so the loading overlay actually renders before heavy parsing
@@ -266,26 +370,36 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
       if (typeof clearCanvas === 'function') {
         clearCanvas();
       }
-      // Pass cached content to avoid re-fetching
-      await loadTemplate(template.src, templateCache[template.id]);
+      const prefetched = template.rawSvg || templateCache[template.id];
+      await loadTemplate(template.src, prefetched);
     }
     setIsApplying(false);
     setShowTemplateModal(false);
   };
 
-
-
-
-
   return (
     <div
       className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-[1.5vw] backdrop-blur-sm transition-opacity duration-300 animate-in fade-in"
       onClick={() => setShowTemplateModal(false)}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div
         className="bg-white rounded-[1.2vw] shadow-2xl w-full max-w-[80vw] h-[85vh] flex flex-col overflow-hidden transform transition-all scale-100 animate-in zoom-in-95 duration-200 relative"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Drag & Drop Visual Overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-[350] bg-black/75 backdrop-blur-md flex flex-col items-center justify-center border-4 border-dashed border-white/80 rounded-[1.2vw] transition-all animate-in fade-in duration-200">
+            <div className="w-[4.5vw] h-[4.5vw] rounded-full bg-white/20 flex items-center justify-center mb-[1vw] text-white animate-bounce">
+              <Upload size="2.2vw" />
+            </div>
+            <p className="text-white text-[1.4vw] font-bold">Drop your SVG template here</p>
+            <p className="text-white/80 text-[0.85vw] mt-[0.3vw]">It will be automatically parsed and loaded onto the canvas</p>
+          </div>
+        )}
+
         {/* Loading Overlay */}
         {isApplying && (
           <div className="absolute inset-0 z-[300] bg-white flex flex-col items-center justify-center">
@@ -298,9 +412,25 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         <div className="px-[2vw] py-[1.5vw] border-b border-gray-100 flex items-center justify-between flex-shrink-0 bg-white">
           <div>
             <h2 className="text-[1.5vw] font-bold text-gray-900 tracking-tight">Template Gallery</h2>
-            <p className="text-[0.8vw] text-gray-500 mt-[0.2vw]">Select a professionally designed template to get started</p>
+            <p className="text-[0.8vw] text-gray-500 mt-[0.2vw]">Select a template or upload your own SVG template</p>
           </div>
           <div className="flex items-center gap-[1vw]">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".svg,image/svg+xml"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-[0.5vw] px-[1vw] py-[0.6vw] bg-black text-white hover:bg-gray-800 active:scale-95 rounded-[0.8vw] text-[0.8vw] font-medium transition-all shadow-sm cursor-pointer whitespace-nowrap"
+              title="Upload SVG File"
+            >
+              <Upload size="1.1vw" />
+              <span>Upload SVG</span>
+            </button>
+
             <div className="flex items-center gap-[0.8vw]">
               <div className="relative group">
                 <Search size="1.1vw" className="absolute left-[0.8vw] top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-black transition-colors" />
@@ -312,8 +442,6 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
                   className="pl-[2.5vw] pr-[1vw] py-[0.6vw] bg-gray-50 border-gray-200 rounded-[0.8vw] text-[0.8vw] w-[15vw] focus:outline-none focus:bg-white focus:ring-2 focus:ring-gray-200 focus:border-black transition-all"
                 />
               </div>
-
-
             </div>
             <button
               onClick={() => setShowTemplateModal(false)}
@@ -323,6 +451,22 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
             </button>
           </div>
         </div>
+
+        {/* Error Notification */}
+        {uploadError && (
+          <div className="mx-[2vw] mt-[1vw] p-[0.8vw] bg-red-50 border border-red-200 text-red-700 rounded-[0.6vw] flex items-center justify-between text-[0.8vw] animate-in fade-in slide-in-from-top-2 flex-shrink-0">
+            <div className="flex items-center gap-[0.5vw]">
+              <AlertCircle size="1.1vw" className="text-red-500 flex-shrink-0" />
+              <span>{uploadError}</span>
+            </div>
+            <button
+              onClick={() => setUploadError(null)}
+              className="p-[0.2vw] hover:bg-red-100 rounded-full transition-colors"
+            >
+              <X size="1vw" />
+            </button>
+          </div>
+        )}
 
         {/* Category Tabs */}
         <div className="px-[2vw] py-[1vw] flex gap-[0.8vw] overflow-x-auto border-b border-gray-100 flex-shrink-0 bg-white/50 backdrop-blur-sm">
@@ -335,7 +479,7 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
                   ? 'bg-black text-white shadow-md shadow-gray-400'
                   : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
             >
-              {cat}
+              {cat} {cat === 'Uploaded' && `(${uploadedTemplates.length})`}
             </button>
           ))}
         </div>
@@ -343,8 +487,30 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
         {/* Template Grid */}
         <div className="flex-1 overflow-y-auto p-[2vw] bg-gray-50/50">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[2vw] pb-[2.5vw]">
-
-
+            {/* Upload SVG Card (Shown when search is empty and tab is All or Uploaded) */}
+            {(activeTab === 'All' || activeTab === 'Uploaded') && !searchQuery && (
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="group bg-gray-50 border-2 border-dashed border-gray-300 hover:border-black hover:bg-gray-100/80 rounded-[0.8vw] overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-md hover:-translate-y-[0.3vw] relative flex flex-col items-center justify-center"
+              >
+                <div className="relative w-full pt-[141.4%] flex flex-col items-center justify-center">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center p-[1.5vw] text-center">
+                    <div className="w-[3.5vw] h-[3.5vw] rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-700 group-hover:text-black group-hover:scale-110 group-hover:border-black transition-all duration-300 mb-[1vw]">
+                      <Upload size="1.6vw" />
+                    </div>
+                    <h4 className="font-bold text-gray-800 text-[0.85vw] group-hover:text-black transition-colors">
+                      Upload Custom SVG
+                    </h4>
+                    <p className="text-[0.7vw] text-gray-500 mt-[0.3vw] leading-relaxed max-w-[85%]">
+                      Click to browse or drop your SVG file here
+                    </p>
+                    <span className="mt-[1vw] px-[0.8vw] py-[0.3vw] bg-black text-white text-[0.65vw] font-medium rounded-[0.4vw] shadow-sm opacity-90 group-hover:opacity-100 transition-opacity">
+                      Browse Files
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Dynamic Template Cards */}
             {filteredTemplates.map((template) => (
@@ -373,3 +539,4 @@ const TemplateModal = ({ showTemplateModal, setShowTemplateModal, clearCanvas, l
 };
 
 export default TemplateModal;
+

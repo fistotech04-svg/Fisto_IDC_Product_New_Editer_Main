@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import { Upload, X, Check, Replace } from "lucide-react";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 
 export default function GalleryImage({ onClose, onUpdate, onSelect, selectedElement, selectedLayerId, activePageIndex, currentPageVId, flipbookVId, folderName, flipbookName }) {
   const [tempSelectedImage, setTempSelectedImage] = useState(null);
@@ -28,7 +29,7 @@ export default function GalleryImage({ onClose, onUpdate, onSelect, selectedElem
           const formattedAssets = res.data.assets.map(asset => ({
             id: asset.name,
             name: asset.name.replace(/\.[^/.]+$/, ''),
-            url: `${backendUrl}${asset.url}`,
+            url: resolveUploadsPath(asset.url),
             type: asset.type,
             uploadedAt: asset.uploadedAt
           }));
@@ -84,7 +85,7 @@ export default function GalleryImage({ onClose, onUpdate, onSelect, selectedElem
             const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
 
             if (res.data.url) {
-                const serverUrl = `${backendUrl}${res.data.url}`;
+                const serverUrl = resolveUploadsPath(res.data.url);
                 setUploadedImages((prev) => prev.map(v => v.id === newImageData.id ? { ...v, url: serverUrl, file_v_id: res.data.file_v_id } : v));
                 setTempSelectedImage(prev => prev && prev.id === newImageData.id ? { ...prev, url: serverUrl, file_v_id: res.data.file_v_id } : prev);
                 console.log("Gallery Image uploaded:", serverUrl);
@@ -164,7 +165,7 @@ export default function GalleryImage({ onClose, onUpdate, onSelect, selectedElem
         const formData = new FormData();
         formData.append('emailId', user.emailId);
         if (flipbookVId) formData.append('v_id', flipbookVId);
-        formData.append('folderName', folderName || 'My Flipbooks');
+        formData.append('folderName', folderName || 'My_Flipbooks');
         formData.append('flipbookName', flipbookName || 'Untitled Document');
         formData.append('type', 'image');
         formData.append('assetType', 'Image');
@@ -177,7 +178,7 @@ export default function GalleryImage({ onClose, onUpdate, onSelect, selectedElem
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             if (targetImg.tagName.toLowerCase() === 'image') {
               targetImg.setAttribute('href', serverUrl);
               targetImg.setAttribute('xlink:href', serverUrl);

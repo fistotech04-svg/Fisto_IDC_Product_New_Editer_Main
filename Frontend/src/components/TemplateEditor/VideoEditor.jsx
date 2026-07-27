@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { resolveUploadsPath } from "../../utils/supabaseUtils";
 import { Icon } from "@iconify/react";
 
 import {
@@ -948,11 +949,15 @@ const VideoEditor = ({
           }
           if (defs) {
             let svgFilt = defs.querySelector(`#${shadowFilterId}`);
-            if (!svgFilt) {
-              svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-              svgFilt.id = shadowFilterId;
-              defs.appendChild(svgFilt);
-            }
+              if (!svgFilt) {
+                svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                svgFilt.id = shadowFilterId;
+                svgFilt.setAttribute('x', '-50%');
+                svgFilt.setAttribute('y', '-50%');
+                svgFilt.setAttribute('width', '200%');
+                svgFilt.setAttribute('height', '200%');
+                defs.appendChild(svgFilt);
+              }
             svgFilt.innerHTML = `
               <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
               <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
@@ -1018,6 +1023,10 @@ const VideoEditor = ({
             if (!filterEl) {
               filterEl = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
               filterEl.id = filterId;
+              filterEl.setAttribute('x', '-50%');
+              filterEl.setAttribute('y', '-50%');
+              filterEl.setAttribute('width', '200%');
+              filterEl.setAttribute('height', '200%');
               svgDefs.appendChild(filterEl);
             }
 
@@ -1521,7 +1530,7 @@ const VideoEditor = ({
           const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
           const res = await axios.post(`${backendUrl}/api/flipbook/upload-asset`, formData);
           if (res.data.url) {
-            const serverUrl = `${backendUrl}${res.data.url}`;
+            const serverUrl = resolveUploadsPath(res.data.url);
             target.src = serverUrl;
             if (source) source.src = serverUrl;
             debouncedUpdate();
@@ -1637,7 +1646,7 @@ const VideoEditor = ({
   }, [selectedElement, selectedLayerId, activePageIndex, debouncedUpdate]);
 
   const replaceTemplateWithUrl = (url) => {
-    if (!selectedLayerId || !url) return;
+    if (!url) return;
 
     const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
     const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
@@ -1655,17 +1664,20 @@ const VideoEditor = ({
     if (!target) return;
 
     const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+    let finalUrl = url;
+
+    if (isYouTube) {
+      let videoId = "";
+      if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1]?.split("?")[0];
+      else if (url.includes("watch?v=")) videoId = url.split("v=")[1]?.split("&")[0];
+      else if (url.includes("shorts/")) videoId = url.split("shorts/")[1]?.split("?")[0];
+      else if (url.includes("embed/")) videoId = url.split("embed/")[1]?.split("?")[0];
+      
+      if (videoId) finalUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`;
+    }
 
     // If the target is already the correct type, just update its src
     if ((isYouTube && target.tagName === "IFRAME") || (!isYouTube && target.tagName === "VIDEO")) {
-      let finalUrl = url;
-      if (isYouTube) {
-        if (url.includes("watch?v=")) finalUrl = `https://www.youtube.com/embed/${url.split("v=")[1]}`;
-        if (url.includes("youtu.be")) finalUrl = `https://www.youtube.com/embed/${url.split("/").pop()}`;
-        if (!finalUrl.includes("autoplay=1")) {
-          finalUrl += finalUrl.includes("?") ? "&autoplay=1&mute=1" : "?autoplay=1&mute=1";
-        }
-      }
       target.src = finalUrl;
       target.setAttribute("src", finalUrl);
       if (!isYouTube) {
@@ -1675,6 +1687,7 @@ const VideoEditor = ({
         target.setAttribute("muted", "");
       }
       setAutoplay(true);
+      setPreviewSrc(finalUrl);
       debouncedUpdate();
       return;
     }
@@ -1682,19 +1695,15 @@ const VideoEditor = ({
     // Otherwise, create a new element of the correct type and swap it
     let newElement;
     if (isYouTube) {
-      let embedUrl = url;
-      if (url.includes("watch?v=")) embedUrl = `https://www.youtube.com/embed/${url.split("v=")[1]}`;
-      if (url.includes("youtu.be")) embedUrl = `https://www.youtube.com/embed/${url.split("/").pop()}`;
-      if (!embedUrl.includes("autoplay=1")) {
-        embedUrl += embedUrl.includes("?") ? "&autoplay=1&mute=1" : "?autoplay=1&mute=1";
-      }
       newElement = document.createElement("iframe");
-      newElement.src = embedUrl;
+      newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+      newElement.src = finalUrl;
       newElement.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
       newElement.allowFullscreen = true;
     } else {
       newElement = document.createElement("video");
-      newElement.src = url;
+      newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
+      newElement.src = finalUrl;
       newElement.controls = true;
       newElement.autoplay = true;
       newElement.muted = true;
@@ -1702,7 +1711,9 @@ const VideoEditor = ({
       newElement.setAttribute("muted", "");
     }
 
-    newElement.id = target.id || selectedLayerId;
+    if (target.id) {
+      newElement.id = target.id;
+    }
     newElement.style.cssText = target.style.cssText;
 
     // Preserve layout and data attributes
@@ -1714,6 +1725,7 @@ const VideoEditor = ({
 
     target.replaceWith(newElement);
     setAutoplay(true);
+    setPreviewSrc(finalUrl);
     debouncedUpdate();
   };
 
@@ -1768,36 +1780,7 @@ const VideoEditor = ({
           <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}> </div>
         </div>
 
-        {/* Video Fix Type */}
-        <div className="flex items-center justify-between relative px-[0.5vw]">
-          <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">Video Fit type</span>
-          <div className="flex-1 mx-[1vw] border-t border-dashed border-gray-300" />
-          <div className="relative">
-            <button
-              onClick={() => setShowVideoTypeDropdown(!showVideoTypeDropdown)}
-              className="flex items-center justify-between w-[6vw] px-[0.75vw] py-[0.55vw] bg-white border border-gray-200 rounded-[0.6vw] shadow-sm hover:bg-gray-50 transition-colors"
-            >
-              <span className="text-[0.85vw] font-normal text-gray-700 capitalize">{videoType}</span>
-              <ChevronDown size="0.9vw" className={`text-gray-400 transition-transform ${showVideoTypeDropdown ? 'rotate-180' : ''}`} />
-            </button>
-            {showVideoTypeDropdown && (
-              <div className="absolute right-0 top-full mt-[0.5vw]  w-full bg-white border border-gray-100 rounded-[0.6vw] shadow-xl z-50 overflow-hidden py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                {["Fit", "Fill", "Stretch"].map((type) => (
-                  <div
-                    key={type}
-                    onClick={() => {
-                      updateElementAttribute('videoType', type);
-                      setShowVideoTypeDropdown(false);
-                    }}
-                    className="px-[0.5vw] py-[0.5vw] items-center justify-center text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-indigo-600 cursor-pointer"
-                  >
-                    {type}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+
 
         {/* Upload/Replace Row */}
         <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">

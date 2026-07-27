@@ -627,10 +627,13 @@ const RightSidebar = ({
         const lowerId = selectedLayerId?.toLowerCase() || '';
         const lowerDataName = dataName?.toLowerCase() || '';
         const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || '';
-        const isGifFile = src.toLowerCase().endsWith('.gif') || dataType === 'gif';
+        const urlWithoutQuery = src.split('?')[0].toLowerCase();
+        const isGifFile = urlWithoutQuery.endsWith('.gif') || dataType === 'gif' || src.toLowerCase().startsWith('data:image/gif');
 
         const isPdfBackground = lowerDataName.includes('pdf background') || lowerId.includes('background') || dataType === 'pdf-background';
         
+        const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif') || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif';
+
         const isImage = (lowerTagName.includes('image') || 
                         lowerTagName === 'img' || 
                         dataType === 'image' ||
@@ -638,10 +641,9 @@ const RightSidebar = ({
                         lowerId.includes('image') || 
                         !!(el.getAttribute('href') || el.getAttribute('xlink:href')) ||
                         (lowerTagName === 'g' && hasImageChild) ||
-                        isPatternImage) && !isGifFile && !isPdfBackground;
+                        isPatternImage) && !isGif && !isPdfBackground;
 
         const isVideo = lowerTagName === 'video' || lowerTagName === 'iframe' || dataType === 'video' || lowerDataName.includes('video') || lowerId.includes('video') || (lowerTagName === 'foreignobject' && el.querySelector('video, iframe'));
-        const isGif = isGifFile || lowerDataName.includes('gif') || lowerId.includes('gif');
         const isText = (lowerTagName === 'text' || lowerTagName === 'tspan' || (lowerTagName === 'foreignobject' && !isVideo)) || dataType === 'text' || lowerDataName.includes('text') || lowerId.includes('text');
         const isIcon = dataType === 'icon' || lowerDataName.includes('icon') || lowerId.includes('icon') || lowerTagName.includes('lucide') || el.classList.contains('lucide') || el.classList.contains('iconify');
 
@@ -1130,7 +1132,7 @@ const RightSidebar = ({
                           }}
                           pages={pages}
                           currentPageVId={pages[activePageIndex]?.v_id || pages[activePageIndex]?.id || ''}
-                          folderName="My Flipbooks"
+                          folderName="My_Flipbooks"
                           flipbookName="Untitled"
                           onDeleteLayer={() => deleteLayer?.(activePageIndex, selectedLayerId)}
                         />
