@@ -775,7 +775,7 @@ const ExportModal = ({ isOpen, onClose, currentBook, pages = [], currentPageInde
     const emailId = user?.emailId || user?.email;
 
     if (emailId && currentBook) {
-      const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder || 'My Flipbooks');
+      const folderName = Array.isArray(currentBook.folderName) ? currentBook.folderName[0] : (currentBook.folderName || currentBook.folder || 'My_Flipbooks');
       const bookName = currentBook.flipbookName || currentBook.title;
       const sanitizedEmail = emailId.replace(/[@.]/g, "_");
       let pBaseUrl = getSupabaseBaseUrl(

@@ -10,7 +10,7 @@ import { convertPdfToImages, getPdfPageCount, generatePdfPageSvg } from '../util
 import PdfProcessingLoader from '../components/PdfProcessingLoader';
 import ShareModal from '../components/ShareModal';
 import ExportModal from '../components/ExportModal';
-import { getSupabaseBaseUrl } from '../utils/supabaseUtils';
+import { getSupabaseBaseUrl, resolveUploadsPath } from '../utils/supabaseUtils';
 
 
 // Lazy-load preview iframe: only fetches HTML when card is visible in viewport
@@ -116,7 +116,7 @@ const LazyPreview = ({ v_id, emailId, backendUrl, iframeBaseUrl, title, imageUrl
                 />
             ) : loaded && imageUrl ? (
                 // Fallback: asset image if no HTML was found
-                <img src={`${backendUrl}${imageUrl}`} alt={title} className="w-full h-full object-contain" />
+                <img src={resolveUploadsPath(imageUrl)} alt={title} className="w-full h-full object-contain" />
             ) : loaded && !html ? (
                 // Loaded but nothing available
                 <div className="flex flex-col items-center justify-center text-gray-400 w-full h-full">
@@ -389,7 +389,7 @@ export default function MyFlipbooks() {
             const now = new Date();
             const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
             const uniqueName = customName || `PDF_Flipbook_${timeString}`;
-            const targetFolder = activeFolder === 'Recent Book' ? 'My Flipbooks' : activeFolder;
+            const targetFolder = activeFolder === 'Recent Book' ? 'My_Flipbooks' : activeFolder;
 
             // Step 2 — Create the flipbook record with placeholder pages to get a v_id
             setProcessingProgress({ current: 0, total: allImages.length, message: 'Creating flipbook...' });
@@ -484,7 +484,7 @@ export default function MyFlipbooks() {
             const now = new Date();
             const timeString = now.toISOString().replace(/[-:T.]/g, '').slice(0, 14);
             const uniqueName = templateData.flipbookName || `Flipbook_${timeString}`;
-            const targetFolder = activeFolder === 'Recent Book' ? 'My Flipbooks' : activeFolder;
+            const targetFolder = activeFolder === 'Recent Book' ? 'My_Flipbooks' : activeFolder;
 
             console.log(`Saving new flipbook "${uniqueName}" to "${targetFolder}"...`);
             const res = await axios.post(`${backendUrl}/api/flipbook/save`, {
@@ -2061,7 +2061,7 @@ export default function MyFlipbooks() {
                 isOpen={isShareModalOpen}
                 onClose={() => setIsShareModalOpen(false)}
                 currentBook={selectedFlipbook}
-                flipbookThumbnail={selectedFlipbook?.image ? `${backendUrl}${selectedFlipbook.image}` : null}
+                flipbookThumbnail={selectedFlipbook?.image ? resolveUploadsPath(selectedFlipbook.image) : null}
             />
 
             {/* Export Modal */}

@@ -148,21 +148,12 @@ export const updateTexture = async (req, res) => {
         texture.materialCategory = categoryId;
     }
     if (maps) {
-        // If maps are updated, remove the OLD files from the backend if possible
         for (const key in maps) {
             const oldValue = texture.maps[key];
             const newValue = maps[key];
             
-            // Only delete if the URL has changed, it exists, and it's an internal path
-            if (oldValue && oldValue !== newValue && oldValue.startsWith('/uploads')) {
-                try {
-                    const filePath = path.join(__dirname, "../..", oldValue);
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                    }
-                } catch (e) {
-                    console.warn(`Could not delete old map file ${oldValue}:`, e);
-                }
+            if (oldValue && oldValue !== newValue) {
+                deleteFileFromSupabase(oldValue).catch(e => console.warn(`Could not delete old map file from Supabase ${oldValue}:`, e));
             }
             
             texture.maps[key] = newValue;
@@ -183,14 +174,9 @@ export const deleteTexture = async (req, res) => {
     const texture = await Texture.findById(id);
     if (!texture) return res.status(404).json({ message: "Texture not found" });
 
-    // Try to delete physical folder if possible
     try {
         const sanitizedEmail = texture.userEmail.replace(/[@.]/g, "_");
         const sanitizedMaterialName = texture.materialName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const targetDir = path.join(__dirname, "../../uploads", sanitizedEmail, "Texture", sanitizedMaterialName);
-        if (fs.existsSync(targetDir)) {
-            fs.rmSync(targetDir, { recursive: true, force: true });
-        }
 
         // Delete map files and folder from Supabase Storage
         const texturePrefix = `${sanitizedEmail}/Texture/${sanitizedMaterialName}`;
@@ -205,7 +191,7 @@ export const deleteTexture = async (req, res) => {
         }
 
     } catch (e) {
-        console.warn("Could not delete physical or Supabase files:", e);
+        console.warn("Could not delete Supabase files:", e);
     }
 
 

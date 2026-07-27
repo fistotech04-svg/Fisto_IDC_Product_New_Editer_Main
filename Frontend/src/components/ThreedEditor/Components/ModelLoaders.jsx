@@ -9,18 +9,13 @@ import initOCCT from "occt-import-js";
 
 import GenericModel from "./GenericModel";
 import { LoadingSpinner } from "./GlobalLoader";
+import { resolveUploadsPath } from "../../../utils/supabaseUtils";
 
 // URL Resolver Helper
 const resolveUrl = (url) => {
     if (!url) return null;
     if (typeof url !== 'string') return url;
-    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
-        return url;
-    }
-    if (url.startsWith('/uploads')) {
-        return `${import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000'}${url}`;
-    }
-    return url;
+    return resolveUploadsPath(url);
 };
 
 
