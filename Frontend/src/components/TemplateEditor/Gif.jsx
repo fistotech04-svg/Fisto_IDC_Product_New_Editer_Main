@@ -1529,7 +1529,7 @@ const GifEditor = ({
       <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
         {/* Current Preview */}
         <div className="flex flex-col items-center gap-[0.35vw]">
-          <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white flex items-center justify-center group" style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='8' ry='8' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}>
+          <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors">
             {getSrc(getSvgImageEl(selectedElement) || selectedElement) ? (
               <img src={getSrc(getSvgImageEl(selectedElement) || selectedElement)} className="w-full h-full rounded-[0.3vw] object-contain" alt="Current GIF" />
             ) : (<ImageIcon size="1.2vw" className="text-gray-300" />)}
@@ -1556,8 +1556,7 @@ const GifEditor = ({
         <div className="flex flex-col items-center gap-[0.35vw] flex-1">
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="flex-1 w-full h-[5vw] rounded-[0.75vw] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:opacity-80 transition-opacity"
-            style={{ backgroundImage: "url(\"data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='12' ry='12' stroke='%239ca3af' stroke-width='2' stroke-dasharray='6%2c4' stroke-linecap='square'/%3e%3c/svg%3e\")" }}
+            className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
             onDragOver={(e) => {
               e.preventDefault();
               e.stopPropagation();

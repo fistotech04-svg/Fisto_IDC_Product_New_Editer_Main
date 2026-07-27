@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SquarePlay, Image as ImageIcon, CloudUpload, Minus, Plus, ChevronLeft, ChevronRight, Upload, Link, Check, FileText, Video } from 'lucide-react';
 import { Icon } from '@iconify/react';
 import ShapeProperties from './ShapeProperties';
 import ImageEditor from './ImageEditor';
@@ -11,6 +11,7 @@ import AnimationPanel from './AnimationPanel';
 import InteractionPanel from './InteractionPanel';
 import PopupTemplateSelection from './PopupTemplateSelection';
 import Model3DEditor from './Model3DEditor';
+import ImportViaUrlModal from './ImportViaUrlModal';
 import ColorPicker, { parseGradient } from './ColorPicker';
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
 import { createPortal } from 'react-dom';
@@ -77,6 +78,38 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
 
   const displayValue = isEditing ? localVal : (liveVal !== null ? liveVal : value);
 
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.target.blur();
+      return;
+    }
+    const allowedControlKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+    if (allowedControlKeys.includes(e.key) || e.ctrlKey || e.metaKey) {
+      return;
+    }
+    if (e.key === '-' && (targetAttr === 'x' || targetAttr === 'y')) {
+      if (e.target.value.includes('-')) e.preventDefault();
+      return;
+    }
+    if (e.key === '.') {
+      if (e.target.value.includes('.')) e.preventDefault();
+      return;
+    }
+    if (!/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+    }
+  };
+
+  const handleChange = (e) => {
+    let val = e.target.value;
+    if (targetAttr === 'x' || targetAttr === 'y') {
+      val = val.replace(/[^0-9.-]/g, '');
+    } else {
+      val = val.replace(/[^0-9.]/g, '');
+    }
+    setLocalVal(val);
+  };
+
   return (
     <input
       className={className}
@@ -88,17 +121,12 @@ const DimensionInput = ({ targetId, targetAttr, value, readOnly, onChange, class
       }}
       onBlur={() => {
         setIsEditing(false);
-        // Only trigger onChange if the user actually typed a different value from what was live
         if (localVal !== '' && localVal !== (liveVal !== null ? liveVal : value).toString()) {
            onChange(localVal);
         }
       }}
-      onChange={(e) => setLocalVal(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          e.target.blur();
-        }
-      }}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
     />
   );
 };
@@ -153,6 +181,7 @@ const RightSidebar = ({
   const location = useLocation();
   const [activePreviewDevice, setActivePreviewDevice] = useState(localStorage.getItem('previewDevice') || 'Desktop');
   const [dimensionUnit, setDimensionUnit] = useState('mm');
+  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [isPageBgPickerOpen, setIsPageBgPickerOpen] = useState(false);
   const unitRef = useRef(null);
@@ -364,6 +393,16 @@ const RightSidebar = ({
     '#fef2f2', '#fee2e2', '#fecaca', '#fca5a5', '#f87171', '#ef4444', '#dc2626', '#b91c1c'
   ];
 
+  const [showUrlImport, setShowUrlImport] = useState(false);
+  const [urlInputText, setUrlInputText] = useState('');
+
+  const handleUrlImportSubmit = () => {
+    if (!urlInputText.trim()) return;
+    alert("Importing media from URL: " + urlInputText);
+    setUrlInputText('');
+    setShowUrlImport(false);
+  };
+
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
@@ -408,9 +447,26 @@ const RightSidebar = ({
       }
 
       if (isVideo) {
-        window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
-          detail: { videoUrl: finalUrl, pageIndex: activePageIndex, file, isTemporary: true }
-        }));
+        const tempVid = document.createElement('video');
+        tempVid.onloadedmetadata = () => {
+          window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+            detail: { 
+              videoUrl: finalUrl, 
+              pageIndex: activePageIndex, 
+              file, 
+              isTemporary: true,
+              videoWidth: tempVid.videoWidth,
+              videoHeight: tempVid.videoHeight,
+              isPortrait: tempVid.videoHeight > tempVid.videoWidth
+            }
+          }));
+        };
+        tempVid.onerror = () => {
+          window.dispatchEvent(new CustomEvent('upload-video-to-editor', {
+            detail: { videoUrl: finalUrl, pageIndex: activePageIndex, file, isTemporary: true }
+          }));
+        };
+        tempVid.src = finalUrl;
       } else {
         // Dispatch event to MainEditor
         window.dispatchEvent(new CustomEvent('upload-image-to-editor', {
@@ -708,47 +764,12 @@ const RightSidebar = ({
           </div>
         </div>
       )}
-      {/* ================= Display Controls (Header Section) ================= */}
-      {!isPopupEditor && !is3DModalOpen && (
-      <div className="border-b border-gray-100 bg-gray-50 flex-shrink-0 flex flex-col justify-center px-[1.5vw] space-y-[0.5vh]" style={{ height: '8.5vh' }}>
-         {/* Double Page & Ruler Toggle Row */}
-          <div className="flex items-center justify-between w-full">
-              <div className="flex items-center gap-[0.6vw]">
-                  <div 
-                     onClick={() => setIsDoublePage(!isDoublePage)}
-                     className={`w-[2.6vw] h-[1.4vw] rounded-full relative cursor-pointer transition-colors duration-300 ${isDoublePage ? 'bg-[#5145F6]' : 'bg-gray-200'} border-[0.1vw] border-transparent scale-90`}
-                  >
-                     <div className={`absolute top-[0.1vw] w-[1.1vw] h-[1.1vw] bg-white rounded-full transition-all duration-300 shadow-sm ${isDoublePage ? 'left-[1.3vw]' : 'left-[0.1vw]'}`}></div>
-                  </div>
-                  <span className="text-gray-700 font-medium text-[0.8vw]">Double Page</span>
-              </div>
-              <div className="flex items-center gap-[0.6vw]">
-                  <div 
-                     onClick={() => setIsRulerEnabled(!isRulerEnabled)}
-                     className={`w-[2.6vw] h-[1.4vw] rounded-full relative cursor-pointer transition-colors duration-300 ${isRulerEnabled ? 'bg-[#5145F6]' : 'bg-gray-200'} border-[0.1vw] border-transparent scale-90`}
-                  >
-                     <div className={`absolute top-[0.1vw] w-[1.1vw] h-[1.1vw] bg-white rounded-full transition-all duration-300 shadow-sm ${isRulerEnabled ? 'left-[1.3vw]' : 'left-[0.1vw]'}`}></div>
-                  </div>
-                  <span className="text-gray-700 font-medium text-[0.8vw]">Ruler</span>
-              </div>
-         </div>
-      </div>
-      )}
 
       {/* Persistent Dimension Section (Common for all) */}
       {!is3DModalOpen && (
-        <div className="bg-[#f6f6f6] px-[1.5vw] py-[0.8vw] border-b border-gray-100 flex-shrink-0">
+        <div className="bg-white px-[1.5vw] pt-[1.4vw] pb-[1vw] border-b border-gray-100 flex-shrink-0">
           <div className="space-y-[0.8vw]">
-            <div className="flex items-center gap-[0.4vw]">
-               <div className="relative" ref={unitRef}>
-                  <div className="flex items-center gap-[0.3vw] rounded-[0.3vw]">
-                     <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Dimension in mm</span>
-                  </div>
-                </div>
-                <div className="h-px flex-grow bg-gray-200"></div>
-             </div>
-
-            <div className="flex flex-col gap-[1vw] pl-[1vw]">
+            <div className="flex flex-col gap-[1vw]">
                {/* Position Row */}
                <div className="flex items-center gap-[2vw]">
                   <span className="text-[0.9vw] font-medium text-gray-800 whitespace-nowrap w-[4vw]">Position :</span>
@@ -767,12 +788,12 @@ const RightSidebar = ({
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'bg-gray-100' : 'bg-white'}`}>
+                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">X</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="x"
-                                className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
                                 value={convertValue(selectedElementProps?.x || 0)}
                                 readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
                                 onChange={(val) => updatePosition(val, 'x')}
@@ -806,12 +827,12 @@ const RightSidebar = ({
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'bg-gray-100' : 'bg-white'}`}>
+                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">Y</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="y"
-                                className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
                                 value={convertValue(selectedElementProps?.y || 0)}
                                 readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
                                 onChange={(val) => updatePosition(val, 'y')}
@@ -851,12 +872,12 @@ const RightSidebar = ({
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'bg-gray-100' : 'bg-white'}`}>
+                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">W</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="width"
-                                className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
                                 value={convertValue(selectedElementProps?.w || flipbookDimensions.width)}
                                 readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
                                 onChange={(val) => updateDimensionWithScale(val, 'width')}
@@ -890,12 +911,12 @@ const RightSidebar = ({
                           ) : (
                              <ChevronLeft size="0.85vw" className="text-transparent" />
                           )}
-                          <div className={`w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'bg-gray-100' : 'bg-white'}`}>
+                          <div className="w-[4.5vw] h-[1.8vw] border border-gray-300 rounded-[0.4vw] flex items-center shadow-sm bg-white">
                              <span className="text-gray-500 font-medium text-[0.8vw] ml-[0.5vw]">H</span>
                              <DimensionInput 
                                 targetId={selectedLayerId}
                                 targetAttr="height"
-                                className={`w-full text-center bg-transparent outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
+                                className={`w-full text-center bg-white outline-none text-[0.85vw] font-semibold ${(!selectedElementProps || selectedElementProps.isPdfBackground) ? 'text-gray-400 cursor-not-allowed' : 'text-[#111827]'}`}
                                 value={convertValue(selectedElementProps?.h || flipbookDimensions.height)}
                                 readOnly={!selectedElementProps || selectedElementProps.isPdfBackground}
                                 onChange={(val) => updateDimensionWithScale(val, 'height')}
@@ -943,12 +964,16 @@ const RightSidebar = ({
           </div>
         ) : activeTopTool === 'editor' ? (
           activeMainTool === 'upload' ? (
-            <div className="p-[1.5vw] flex flex-col gap-[3.5vh]">
-              <div className="flex flex-col gap-[2.5vh]">
-                <div className="flex items-center gap-[0.75vw]">
-                  <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap tracking-wider">Upload Files</span>
-                  <div className="h-[0.1vw] flex-1 bg-gray-300 opacity-50"></div>
+            <div className="p-[1.5vw] flex flex-col gap-[0.75vw] overflow-y-auto no-scrollbar h-full justify-between">
+              {/* Top Content */}
+              <div className="flex flex-col gap-[0.75vw]">
+                {/* Header */}
+                <div className="flex items-center gap-[0.5vw] mb-[0.1vw]">
+                  <h2 className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Upload Files</h2>
+                  <div className="h-[0.0925vw] bg-gray-200 flex-1" style={{ marginRight: '-1.5vw' }}></div>
                 </div>
+
+                {/* Drag & Drop Box */}
                 <div
                   onClick={handleUploadClick}
                   onDragOver={(e) => {
@@ -963,25 +988,118 @@ const RightSidebar = ({
                       handleFileChange({ target: { files: files } });
                     }
                   }}
-                  className="w-full h-[10vw] border-2 border-dashed rounded-[1.25vw] bg-white flex flex-col items-center justify-center p-[1vw] transition-all group shadow-sm border-gray-300 cursor-pointer hover:border-blue-500 hover:shadow-md"
+                  className="w-full border-2 border-dashed border-gray-400 rounded-[0.75vw] bg-white p-[0.9vw] flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:border-[#4c5add] hover:bg-gray-50/50 group shadow-sm"
                 >
                   <input 
                     type="file" 
                     ref={fileInputRef} 
                     className="hidden" 
-                    accept="image/*,video/*,audio/*,.gif,.svg" 
+                    accept="image/*,video/*,.gif,.svg" 
                     onChange={handleFileChange} 
                   />
-                  <div className="text-[0.75vw] font-semibold text-gray-500 mb-[1.5vw] tracking-tight">
-                    Drag & Drop or <span className="text-blue-600 font-bold">Upload</span>
+                  <div className="text-[0.75vw] font-medium text-gray-700 mb-[0.5vw]">
+                    Drag & Drop or <span className="text-[#4c5add] font-bold">Upload</span>
                   </div>
-                  <div className="mb-[1.5vw] transition-colors text-gray-400 group-hover:text-blue-500">
-                    <Icon icon="heroicons:arrow-up-tray" width="2vw" />
+                  <div className="mb-[0.5vw] text-gray-400 group-hover:text-[#4c5add] transition-colors">
+                    <Upload size="1.3vw" strokeWidth={1.5} />
                   </div>
                   <div className="text-center">
-                    <div className="text-[0.65vw] font-bold text-gray-600 uppercase tracking-wide mb-[0.25vw]">Supported File</div>
-                    <div className="text-[0.55vw] text-gray-400 leading-relaxed uppercase max-w-[12vw] font-medium text-center">Image, Video, Audio, GIF, SVG</div>
+                    <div className="text-[0.65vw] font-semibold text-gray-600 mb-[0.05vw]">Supported File</div>
+                    <div className="text-[0.58vw] text-gray-400 font-normal">Image, Video, GIF, SVG</div>
                   </div>
+                </div>
+
+                {/* OR Divider */}
+                <div className="text-[0.6vw] font-medium text-gray-400 text-center uppercase tracking-wider my-[0.15vw]">
+                  OR
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-col gap-[0.5vw]">
+                  {/* Browse by Gallery */}
+                  <button
+                    onClick={() => {
+                      if (setActiveMainTool) setActiveMainTool('elements');
+                    }}
+                    className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#0c0f17] hover:bg-black text-white flex items-center justify-between shadow-md cursor-pointer transition-all border border-gray-800 group relative overflow-hidden"
+                  >
+                    <div className="flex items-center gap-[0.6vw]">
+                      <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-white text-gray-900 flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <ImageIcon size="0.95vw" />
+                      </div>
+                      <span className="text-[0.75vw] font-semibold text-white tracking-wide">Browse by Gallery</span>
+                    </div>
+                    <ChevronRight size="0.8vw" className="text-gray-400 group-hover:text-white transition-colors" />
+                  </button>
+
+                  {/* Import via URL */}
+                  <button
+                    onClick={() => setIsUrlModalOpen(true)}
+                    className="w-full rounded-[0.65vw] p-[0.6vw] px-[0.75vw] bg-[#3195ff] hover:bg-[#2087f5] text-white flex items-center justify-between shadow-md cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-[0.6vw]">
+                      <div className="w-[1.8vw] h-[1.8vw] rounded-[0.45vw] bg-white text-[#3195ff] flex items-center justify-center flex-shrink-0 shadow-sm">
+                        <Link size="0.95vw" />
+                      </div>
+                      <span className="text-[0.75vw] font-semibold text-white tracking-wide">Import via URL</span>
+                    </div>
+                    <ChevronRight size="0.8vw" className="text-white/80 group-hover:text-white transition-colors" />
+                  </button>
+                </div>
+              </div>
+
+              {/* URL Import Card (Pushed to bottom) */}
+              <div className="mt-auto border border-gray-100 rounded-[0.75vw] p-[0.75vw] shadow-sm bg-white flex flex-col gap-[0.45vw]">
+                <div className="flex items-center gap-[0.4vw]">
+                  <Link size="0.9vw" className="text-[#3195ff]" />
+                  <span className="text-[0.78vw] font-bold text-[#3195ff]">URL Import</span>
+                </div>
+                <p className="text-[0.6vw] text-gray-500 font-normal">
+                  You can import the following from a URL:
+                </p>
+
+                {/* 3 Horizontal Mini Cards */}
+                <div className="grid grid-cols-3 gap-[0.35vw] my-[0.1vw]">
+                  {/* Images */}
+                  <div className="bg-gray-50/70 border border-gray-200/80 rounded-[0.45vw] p-[0.35vw] flex items-center gap-[0.3vw]">
+                    <div className="w-[1.3vw] h-[1.3vw] rounded-[0.3vw] bg-blue-100/60 text-blue-600 flex items-center justify-center flex-shrink-0">
+                      <ImageIcon size="0.7vw" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[0.55vw] font-bold text-gray-800 leading-tight">Images</span>
+                      <span className="text-[0.45vw] text-gray-400 font-normal truncate">JPG, PNG, SVG</span>
+                    </div>
+                  </div>
+
+                  {/* PDF */}
+                  <div className="bg-gray-50/70 border border-gray-200/80 rounded-[0.45vw] p-[0.35vw] flex items-center gap-[0.3vw]">
+                    <div className="w-[1.3vw] h-[1.3vw] rounded-[0.3vw] bg-red-100/60 text-red-500 flex items-center justify-center flex-shrink-0">
+                      <FileText size="0.7vw" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[0.55vw] font-bold text-gray-800 leading-tight">PDF</span>
+                      <span className="text-[0.45vw] text-gray-400 font-normal truncate">PDF Documents</span>
+                    </div>
+                  </div>
+
+                  {/* Videos */}
+                  <div className="bg-gray-50/70 border border-gray-200/80 rounded-[0.45vw] p-[0.35vw] flex items-center gap-[0.3vw]">
+                    <div className="w-[1.3vw] h-[1.3vw] rounded-[0.3vw] bg-amber-100/60 text-amber-500 flex items-center justify-center flex-shrink-0">
+                      <Video size="0.7vw" />
+                    </div>
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[0.55vw] font-bold text-gray-800 leading-tight">Videos</span>
+                      <span className="text-[0.45vw] text-gray-400 font-normal truncate">YouTube, Vimeo</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bottom Note Banner */}
+                <div className="bg-blue-50/70 border border-blue-100 rounded-[0.4vw] p-[0.35vw] px-[0.5vw] flex items-center gap-[0.35vw]">
+                  <Icon icon="lucide:info" className="w-[0.7vw] h-[0.7vw] text-blue-500 flex-shrink-0" />
+                  <p className="text-[0.55vw] text-gray-600 leading-tight">
+                    <strong className="font-bold text-blue-600">Note:</strong> Use direct, publicly accessible links for best results.
+                  </p>
                 </div>
               </div>
             </div>
@@ -1363,6 +1481,13 @@ const RightSidebar = ({
           </div>
         )}
       </div>
+
+      {/* Import Via URL Modal */}
+      <ImportViaUrlModal
+        isOpen={isUrlModalOpen}
+        onClose={() => setIsUrlModalOpen(false)}
+        activePageIndex={activePageIndex}
+      />
     </div>
   );
 };
