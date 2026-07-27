@@ -750,10 +750,10 @@ const syncDOM = (oldNode, newNode) => {
     }
     return;
   }
-  
+
   const oldAttrs = oldNode.attributes;
   const newAttrs = newNode.attributes;
-  
+
   if (oldAttrs && newAttrs) {
     for (let i = oldAttrs.length - 1; i >= 0; i--) {
       const name = oldAttrs[i].name;
@@ -1843,7 +1843,7 @@ const MainEditor = ({
             marginBottom: '1%',
             pointerEvents: 'none',
           });
-          
+
           timeDisplay.innerHTML = `<svg viewBox="0 0 100 15" width="100%" preserveAspectRatio="xMinYMid meet"><text x="0" y="12" fill="white" font-family="Inter, sans-serif" font-size="12" opacity="0.9">00:00 / 00:00</text></svg>`;
           const timeTextEl = timeDisplay.querySelector('text');
 
@@ -2923,13 +2923,13 @@ const MainEditor = ({
           const overlayInverse = overlayCtm.inverse();
           const pt = overlay.createSVGPoint();
 
-          pt.x = clientRect.left;  pt.y = clientRect.top;
+          pt.x = clientRect.left; pt.y = clientRect.top;
           const overlayTL = pt.matrixTransform(overlayInverse);
           pt.x = clientRect.right; pt.y = clientRect.top;
           const overlayTR = pt.matrixTransform(overlayInverse);
           pt.x = clientRect.right; pt.y = clientRect.bottom;
           const overlayBR = pt.matrixTransform(overlayInverse);
-          pt.x = clientRect.left;  pt.y = clientRect.bottom;
+          pt.x = clientRect.left; pt.y = clientRect.bottom;
           const overlayBL = pt.matrixTransform(overlayInverse);
 
           const mapped = [overlayTL, overlayTR, overlayBR, overlayBL];
@@ -5456,9 +5456,11 @@ const MainEditor = ({
               if (imgEl) {
                 const dataType = el.getAttribute('data-type');
                 if (dataType === 'image') {
+                  // Standard images crop by default
                   imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
                 } else {
-                  imgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                  // Video and GIF should stretch (adjust without cutting or scaling proportionally)
+                  imgEl.setAttribute('preserveAspectRatio', 'none');
                 }
               }
             }
@@ -6042,7 +6044,7 @@ const MainEditor = ({
 
                         const isCtrlPressedMoveInner = event.ctrlKey || (event.sourceEvent && event.sourceEvent.ctrlKey) || isCtrlPressedRef.current;
                         const isImageOrMediaTag = (tag === 'image' || tag === 'video' || tag === 'svg' || tag === 'g' || child === el);
-                        if (isImageOrMediaTag && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner) {
+                        if (isImageOrMediaTag && state.isImageGroupResize && state.initialImgState && isCtrlPressedMoveInner && !isGif) {
                           // Keep the element exactly as it was, do not resize it!
                           imgX = child.getAttribute('x') || 0;
                           imgY = child.getAttribute('y') || 0;
