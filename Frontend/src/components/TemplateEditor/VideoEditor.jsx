@@ -31,7 +31,7 @@ import Adjustment from './Adjustment';
 import Effect from './Effect';
 import ColorPicker, { parseGradient } from "./ColorPicker";
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import { syncGradient } from './editorUtils';
+import { syncGradient, getEmbedVideoUrl, detectMediaType } from './editorUtils';
 import { createPortal } from "react-dom";
 
 // Switch toggle component (matches SlideshowProperties style)
@@ -304,12 +304,11 @@ const VideoEditor = ({
       const src = target.currentSrc || target.src || target.querySelector("source")?.src || null;
       setPreviewSrc(src);
 
-      if (src && src.startsWith("http") && !src.includes("blob:")) {
-        setInputUrl(src);
-        setIsUrlAdded(true);
-      } else {
-        setInputUrl("");
-        setIsUrlAdded(false);
+      const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
+      const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
+      if (!isFocused) {
+        setInputUrl(origUrl);
+        setIsUrlAdded(!!origUrl);
       }
 
       const poster = target.getAttribute('poster') || target.poster || null;
@@ -334,13 +333,14 @@ const VideoEditor = ({
       setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
-      if (target.src && target.src.startsWith("http")) {
-        setInputUrl(target.src);
-        setIsUrlAdded(true);
-      } else {
-        setInputUrl("");
-        setIsUrlAdded(false);
+      
+      const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
+      const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
+      if (!isFocused) {
+        setInputUrl(origUrl);
+        setIsUrlAdded(!!origUrl);
       }
+
       setPosterSrc(null);
       setCoverOption('auto');
     }
@@ -1625,24 +1625,22 @@ const VideoEditor = ({
 
     if (!target) return;
 
-    const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
-    let finalUrl = url;
-
-    if (isYouTube) {
-      let videoId = "";
-      if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1]?.split("?")[0];
-      else if (url.includes("watch?v=")) videoId = url.split("v=")[1]?.split("&")[0];
-      else if (url.includes("shorts/")) videoId = url.split("shorts/")[1]?.split("?")[0];
-      else if (url.includes("embed/")) videoId = url.split("embed/")[1]?.split("?")[0];
-      
-      if (videoId) finalUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`;
-    }
+    const finalUrl = getEmbedVideoUrl(url);
+    const urlLower = url.toLowerCase();
+    
+    // Check if it's an iframe-based embed
+    const isIframeTarget = urlLower.includes('youtube') || urlLower.includes('youtu.be') || 
+                           urlLower.includes('vimeo') || urlLower.includes('dailymotion') || 
+                           urlLower.includes('dai.ly') || urlLower.includes('loom.com') || 
+                           urlLower.includes('wistia') || urlLower.includes('drive.google.com') || 
+                           urlLower.includes('embed') || urlLower.includes('player');
 
     // If the target is already the correct type, just update its src
-    if ((isYouTube && target.tagName === "IFRAME") || (!isYouTube && target.tagName === "VIDEO")) {
+    if ((isIframeTarget && target.tagName === "IFRAME") || (!isIframeTarget && target.tagName === "VIDEO")) {
       target.src = finalUrl;
       target.setAttribute("src", finalUrl);
-      if (!isYouTube) {
+      target.setAttribute("data-original-url", url);
+      if (!isIframeTarget) {
         target.autoplay = true;
         target.muted = true;
         target.setAttribute("autoplay", "");
@@ -1656,7 +1654,7 @@ const VideoEditor = ({
 
     // Otherwise, create a new element of the correct type and swap it
     let newElement;
-    if (isYouTube) {
+    if (isIframeTarget) {
       newElement = document.createElement("iframe");
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
       newElement.src = finalUrl;
@@ -1676,6 +1674,7 @@ const VideoEditor = ({
     if (target.id) {
       newElement.id = target.id;
     }
+    newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
     // Preserve layout and data attributes
@@ -1693,6 +1692,13 @@ const VideoEditor = ({
 
   const handleAddUrl = () => {
     if (!inputUrl) return;
+    
+    const type = detectMediaType(inputUrl);
+    if (type !== 'video') {
+      alert("Please provide a valid video URL.");
+      return;
+    }
+
     setIsAddingUrl(true);
     setUrlAddProgress(0);
     setIsUrlAdded(false);
@@ -1825,6 +1831,7 @@ const VideoEditor = ({
           <div className="flex-1 flex items-center border border-gray-300 rounded-[0.6vw] overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-indigo-100 transition-all pr-[0.3vw]">
 
             <input
+              id="video-url-input"
               type="text"
               placeholder="https://"
               value={inputUrl}

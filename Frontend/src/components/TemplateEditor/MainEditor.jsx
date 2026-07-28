@@ -2324,6 +2324,7 @@ const MainEditor = ({
       fo.setAttribute('data-name', 'Video');
       fo.setAttribute('data-object-fit', 'Fill');
       if (file) fo.setAttribute('data-filename', file.name);
+      if (originalUrl) fo.setAttribute('data-original-url', originalUrl);
 
       if (isIframe) {
         const iframe = document.createElement('iframe');
@@ -2338,6 +2339,7 @@ const MainEditor = ({
         iframe.style.height = '100%';
         iframe.style.border = 'none';
         iframe.style.display = 'block';
+        if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
       } else {
         const video = document.createElement('video');
@@ -2352,6 +2354,7 @@ const MainEditor = ({
         video.style.display = 'block';
         video.style.width = '100%';
         video.style.height = '100%';
+        if (originalUrl) video.setAttribute('data-original-url', originalUrl);
         fo.appendChild(video);
 
         // Dynamically probe video file metadata to adjust frame to exact original aspect ratio
