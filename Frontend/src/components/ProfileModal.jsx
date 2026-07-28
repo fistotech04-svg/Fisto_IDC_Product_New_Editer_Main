@@ -1,196 +1,235 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Crown, LogOut } from 'lucide-react';
+import { X, Save, BookOpen, Library, Settings, ChevronRight, ArrowRight, LogOut } from 'lucide-react';
 
 export default function ProfileModal({ isOpen, onClose, isAutoSaveEnabled, onToggleAutoSave }) {
-  const [user, setUser] = useState({ name: 'Guest', email: 'guest@example.com', picture: null });
+  const [user, setUser] = useState({ name: 'User', email: '', picture: null });
   const [storage, setStorage] = useState({ used: 0, total: 300 * 1024 * 1024 });
+  const [isLoadingStorage, setIsLoadingStorage] = useState(false);
+  const [autoSave, setAutoSave] = useState(() => {
+    const saved = localStorage.getItem('isAutoSaveEnabled');
+    return saved !== null ? JSON.parse(saved) : (isAutoSaveEnabled !== undefined ? isAutoSaveEnabled : true);
+  });
+
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isAutoSaveEnabled !== undefined) {
+      setAutoSave(isAutoSaveEnabled);
+    }
+  }, [isAutoSaveEnabled]);
+
+  const handleToggleAutoSave = () => {
+    const nextState = !autoSave;
+    setAutoSave(nextState);
+    localStorage.setItem('isAutoSaveEnabled', JSON.stringify(nextState));
+    if (onToggleAutoSave) {
+      onToggleAutoSave(nextState);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('user');
     localStorage.removeItem('last_active_folder');
-    
-    // Disable Google One Tap auto-selection for the next visit
     if (window.google?.accounts?.id) {
       window.google.accounts.id.disableAutoSelect();
     }
-    
     navigate('/');
     onClose();
   };
 
   useEffect(() => {
-    const fetchSettings = async () => {
-      if (user.email && user.email !== 'No Email' && user.email !== 'guest@example.com') {
-        try {
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
-          const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${user.email}`);
-          
-          if (!response.ok) {
-            throw new Error(`Server responded with ${response.status}`);
-          }
-          
+    if (!isOpen) return;
+
+    let targetEmail = '';
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        targetEmail = parsedUser.emailId || parsedUser.email || '';
+        setUser({
+          name: parsedUser.name || (targetEmail ? targetEmail.split('@')[0] : 'User'),
+          email: targetEmail || 'No Email',
+          picture: parsedUser.picture || null
+        });
+      } catch (e) {
+        console.error("Failed to parse user data", e);
+      }
+    }
+
+    const fetchLiveStorageSettings = async (emailToFetch) => {
+      if (!emailToFetch || emailToFetch === 'No Email' || emailToFetch === 'guest@example.com') return;
+
+      setIsLoadingStorage(true);
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || '';
+        const response = await fetch(`${backendUrl}/api/usersetting/get-settings?emailId=${encodeURIComponent(emailToFetch)}`);
+        if (response.ok) {
           const data = await response.json();
           if (data) {
             setStorage({
-                used: data.usedStorage || 0,
-                total: data.maxStorage || 300 * 1024 * 1024
+              used: typeof data.usedStorage === 'number' ? data.usedStorage : 0,
+              total: typeof data.maxStorage === 'number' ? data.maxStorage : 300 * 1024 * 1024
             });
+            if (data.isAutoSaveEnabled !== undefined) {
+              setAutoSave(data.isAutoSaveEnabled);
+            }
           }
-        } catch (error) {
-          console.error("Error fetching storage settings:", error);
         }
+      } catch (error) {
+        console.error("Error fetching live storage settings:", error);
+      } finally {
+        setIsLoadingStorage(false);
       }
     };
 
-    if (isOpen) {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          setUser({
-            name: parsedUser.name || parsedUser.emailId?.split('@')[0] || 'User',
-            email: parsedUser.emailId || 'No Email',
-            picture: parsedUser.picture || null
-          });
-        } catch (e) {
-            console.error("Failed to parse user data", e);
-        }
-      }
-      fetchSettings();
+    if (targetEmail) {
+      fetchLiveStorageSettings(targetEmail);
     }
-  }, [isOpen, user.email]);
+  }, [isOpen]);
 
-  const getInitial = () => {
-    return user.name.charAt(0).toUpperCase();
-  };
-
-  const getRandomColor = (name) => {
-    const colors = [
-      'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500', 
-      'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
-      'bg-orange-500', 'bg-cyan-500'
-    ];
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
-
-  const formatBytes = (bytes) => {
-    if (bytes <= 0) return '0MB';
+  const formatMB = (bytes) => {
+    if (!bytes || bytes <= 0) return '0 MB';
     const mb = bytes / (1024 * 1024);
-    if (mb < 1) return '1MB';
-    return `${Math.round(mb)}MB`;
+    if (mb < 0.1) return '0.1 MB';
+    if (mb < 10) return `${mb.toFixed(1)} MB`;
+    return `${Math.round(mb)} MB`;
   };
 
-  const getBarColor = () => {
-    const percentage = (storage.used / storage.total) * 100;
-    if (percentage >= 85) return 'bg-red-500';
-    if (percentage >= 50) return 'bg-yellow-500';
-    return 'bg-indigo-600';
-  };
+  const usedFormatted = formatMB(storage.used);
+  const totalFormatted = `${Math.round(storage.total / (1024 * 1024))}MB`;
+  const percentage = storage.total > 0 ? Math.min(100, Math.round((storage.used / storage.total) * 100)) : 0;
 
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Invisible Backdrop to handle click-outside */}
-      <div className="fixed inset-0 z-[55] cursor-default" onClick={onClose}></div>
+      {/* Light Dark Backdrop without blur */}
+      <div className="fixed inset-0 z-[150] cursor-default bg-black/15" onClick={onClose}></div>
 
-      {/* Popup Card */}
-      <div className="fixed top-[4.5vw] right-[2vw] z-[60] w-[20vw] bg-white rounded-[1vw] shadow-2xl border-2 border-gray-500 overflow-hidden p-[1.5vw] animate-in hover:animate-none fade-in slide-in-from-top-2 duration-200">
-      
+      {/* Popup Modal Card */}
+      <div className="fixed top-[4.5vw] right-[2vw] z-[160] w-[21vw] min-w-[290px] max-w-[350px] bg-white rounded-[1.25vw] shadow-2xl border border-gray-100 overflow-hidden p-[1.25vw] animate-in fade-in zoom-in-95 duration-150 select-none">
+        
         {/* Header */}
-        <div className="flex items-center justify-between mb-[1.25vw]">
-            <h2 className="text-[1.1vw] font-bold text-gray-900 flex items-center gap-[0.75vw] w-full">
-                Profile
-                <span className="flex-1 h-[0.1vw] bg-gray-100 rounded-full mt-[0.15vw]"></span>
-            </h2>
-            <button 
-                onClick={onClose}
-                className="text-gray-400 cursor-pointer hover:text-gray-600 transition-colors ml-[0.75vw]"
-            >
-                <X size="1.1vw" />
-            </button>
+        <div className="flex items-center justify-between mb-[1vw]">
+          <div className="flex items-center flex-1 mr-[0.75vw]">
+            <h2 className="text-[1.25vw] font-bold text-gray-900 tracking-tight pr-[0.5vw]">Profile</h2>
+            <div className="flex-1 h-[1px] bg-gray-200 mt-[0.1vw]"></div>
+          </div>
+          {/* Red Close Button */}
+          <button
+            onClick={onClose}
+            className="text-red-500 border border-red-300 hover:bg-red-50 transition-colors p-[0.25vw] rounded-[0.4vw] cursor-pointer flex items-center justify-center"
+          >
+            <X size="1.0vw" strokeWidth={2} />
+          </button>
         </div>
 
-        {/* User Info */}
-        <div className="flex items-center gap-[1vw] mb-[1.5vw]">
-            <div className={`w-[3vw] h-[3vw] rounded-[0.75vw] overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 flex items-center justify-center text-white font-bold text-[1.2vw] ${!user.picture ? getRandomColor(user.name) : ''}`}>
-                {user.picture ? (
-                    <img 
-                        src={user.picture} 
-                        alt="Profile" 
-                        className="w-full h-full object-cover"
-                    />
-                ) : (
-                    getInitial()
-                )}
-            </div>
-            <div className="flex flex-col min-w-0">
-                <h3 className="text-[0.9vw] font-bold text-gray-900 truncate">{user.name}</h3>
-                <p className="text-[0.75vw] text-gray-500 font-semibold truncate">{user.email}</p>
-            </div>
+        {/* User Info Card with Free Ribbon */}
+        <div className="relative border border-gray-100 rounded-[0.8vw] p-[0.85vw] shadow-sm bg-white flex items-center gap-[0.85vw] mb-[1vw]">
+          {/* Free Badge Ribbon */}
+          <div className="absolute top-0 right-0 bg-[#0066ff] text-white text-[0.62vw] font-bold px-[0.75vw] py-[0.2vw] rounded-bl-[0.4vw] rounded-tr-[0.8vw] shadow-sm">
+            Free
+          </div>
+
+          {/* Avatar */}
+          <div className="w-[3.2vw] h-[3.2vw] rounded-full overflow-hidden border border-gray-100 shadow-sm flex-shrink-0 flex items-center justify-center bg-gray-100">
+            {user.picture ? (
+              <img src={user.picture} alt={user.name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[1.2vw] font-bold text-[#383e93]">{user.name.charAt(0).toUpperCase()}</span>
+            )}
+          </div>
+
+          {/* User Details */}
+          <div className="flex flex-col min-w-0 pr-[2vw]">
+            <h3 className="text-[0.95vw] font-bold text-gray-900 truncate leading-tight">{user.name}</h3>
+            <p className="text-[0.65vw] text-gray-500 font-normal truncate mt-[0.1vw]">{user.email}</p>
+            <span className="text-[0.65vw] text-gray-400 font-normal mt-[0.1vw]">Free Plan</span>
+          </div>
         </div>
 
-        <div className="h-[0.1vw] w-full bg-gray-50 mb-[1.25vw]"></div>
 
-        {/* Plan Info */}
-        <div className="flex items-center justify-between gap-[0.5vw] mb-[1.5vw] px-[0.25vw]">
-            <div className="flex items-center gap-[0.5vw]">
-                <Crown size="1.25vw" className="text-yellow-400 fill-yellow-400" />
-                <span className="text-[0.85vw] font-semibold text-gray-700">Your Current Plan</span>
-            </div>
-            <div className="px-[0.75vw] py-[0.25vw] rounded-[0.25vw] bg-gradient-to-r from-green-500 to-green-600 text-white text-[0.65vw] font-semibold uppercase tracking-wider shadow-sm">
-                Free
-            </div>
+        {/* Storage Progress Section */}
+        <div className="mb-[1vw] px-[0.1vw]">
+          <div className="flex justify-between items-center mb-[0.3vw]">
+            <span className="text-[0.8vw] font-bold text-gray-900">Storage</span>
+            <span className="text-[0.65vw] text-gray-500 font-medium">
+              {isLoadingStorage ? 'Calculating...' : `${usedFormatted} / ${totalFormatted}`}
+            </span>
+          </div>
+          <div className="w-full h-[0.35vw] bg-gray-100 rounded-full overflow-hidden mb-[0.25vw]">
+            <div
+              className="h-full bg-[#4c5add] transition-all duration-500 ease-out rounded-full"
+              style={{ width: `${percentage}%` }}
+            ></div>
+          </div>
+          <span className="text-[0.6vw] text-gray-400 font-normal">{percentage}% used</span>
         </div>
 
-        {/* Auto Save Toggle */}
-        <div className="flex items-center justify-between mb-[1.5vw] px-[0.25vw]">
-            <span className="text-[0.85vw] font-semibold text-gray-700">Auto Save</span>
-            <button 
-                onClick={() => onToggleAutoSave(!isAutoSaveEnabled)}
-                className={`w-[2.75vw] h-[1.5vw] flex items-center rounded-full p-[0.25vw] cursor-pointer transition-colors duration-200 ease-in-out ${isAutoSaveEnabled ? 'bg-green-500' : 'bg-gray-300'}`}
-                title={isAutoSaveEnabled ? "Disable Auto Save" : "Enable Auto Save"}
-            >
-                <div className={`bg-white w-[1vw] h-[1vw] rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${isAutoSaveEnabled ? 'translate-x-[1.25vw]' : 'translate-x-0'}`}></div>
-            </button>
+        {/* Navigation Options */}
+        <div className="border-t border-b border-gray-100 divide-y divide-gray-100 mb-[1vw]">
+          {/* My Flipbooks */}
+          <div
+            onClick={() => { navigate('/my-flipbooks'); onClose(); }}
+            className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
+          >
+            <div className="flex items-center gap-[0.75vw]">
+              <div className="w-[2vw] h-[2vw] rounded-[0.4vw] bg-[#eef0fe] text-[#4c5add] flex items-center justify-center">
+                <BookOpen size="0.95vw" />
+              </div>
+              <span className="text-[0.78vw] font-semibold text-gray-800 group-hover:text-[#4c5add] transition-colors">
+                My Flipbooks
+              </span>
+            </div>
+            <ChevronRight size="0.85vw" className="text-gray-400 group-hover:text-[#4c5add] transition-colors" />
+          </div>
+
+          {/* Go to Shelf */}
+          <div
+            onClick={() => { navigate('/shelf'); onClose(); }}
+            className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
+          >
+            <div className="flex items-center gap-[0.75vw]">
+              <div className="w-[2vw] h-[2vw] rounded-[0.4vw] bg-rose-50 text-rose-500 flex items-center justify-center">
+                <Library size="0.95vw" />
+              </div>
+              <span className="text-[0.78vw] font-semibold text-gray-800 group-hover:text-rose-500 transition-colors">
+                Go to Shelf
+              </span>
+            </div>
+            <ChevronRight size="0.85vw" className="text-gray-400 group-hover:text-rose-500 transition-colors" />
+          </div>
+
+          {/* Settings */}
+          <div
+            onClick={() => { navigate('/settings'); onClose(); }}
+            className="flex items-center justify-between py-[0.65vw] px-[0.25vw] hover:bg-gray-50 rounded-[0.4vw] cursor-pointer transition-colors group"
+          >
+            <div className="flex items-center gap-[0.75vw]">
+              <div className="w-[2vw] h-[2vw] rounded-[0.4vw] bg-gray-100 text-gray-700 flex items-center justify-center">
+                <Settings size="0.95vw" />
+              </div>
+              <span className="text-[0.78vw] font-semibold text-gray-800 group-hover:text-gray-900 transition-colors">
+                Settings
+              </span>
+            </div>
+            <ChevronRight size="0.85vw" className="text-gray-400 group-hover:text-gray-900 transition-colors" />
+          </div>
         </div>
 
-        {/* Storage Info */}
-        <div className="mb-[1.5vw] px-[0.25vw]">
-            <div className="flex justify-between items-center mb-[0.5vw]">
-                <span className="text-[0.85vw] font-semibold text-gray-900">Storage</span>
-                <span className="text-[0.75vw] text-gray-500">
-                    {formatBytes(storage.used)} / {formatBytes(storage.total)}
-                </span>
-            </div>
-            <div className="w-full h-[0.65vw] bg-gray-100 rounded-full overflow-hidden">
-                <div 
-                    className={`h-full transition-all duration-500 ease-out rounded-full ${getBarColor()}`}
-                    style={{ width: `${Math.min(100, (storage.used / storage.total) * 100)}%` }}
-                ></div>
-            </div>
-        </div>
-
-        {/* Subscribe Button */}
-        <button className="w-full bg-black text-white text-[0.85vw] font-semibold py-[0.85vw] rounded-[0.75vw] hover:bg-zinc-800 cursor-pointer transition-colors shadow-lg mb-[0.75vw]">
-            399/- Subscribe Now
+        {/* Upgrade Profile Button */}
+        <button className="w-full bg-[#18181b] hover:bg-black text-white py-[0.65vw] px-[1vw] rounded-[0.75vw] text-[0.8vw] font-bold flex items-center justify-center gap-[0.4vw] shadow-md transition-all cursor-pointer mb-[0.4vw]">
+          Upgrade Profile <ArrowRight size="0.9vw" />
         </button>
 
-        {/* Logout Button */}
-        <button 
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-[0.5vw] text-red-500 hover:text-white border border-red-100 hover:bg-red-500 hover:border-red-500 cursor-pointer transition-all duration-200 rounded-[0.75vw] py-[0.6vw] text-[0.85vw] font-semibold group"
+        {/* Logout Link */}
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-[0.4vw] text-red-500 hover:text-red-600 py-[0.25vw] text-[0.72vw] font-semibold cursor-pointer transition-colors"
         >
-            <LogOut size="1vw" className="group-hover:text-white transition-colors" />
-            Logout
+          <LogOut size="0.8vw" /> Logout
         </button>
-
       </div>
     </>
   );

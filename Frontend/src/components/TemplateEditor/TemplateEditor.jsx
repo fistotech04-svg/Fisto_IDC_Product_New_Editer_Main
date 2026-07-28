@@ -233,6 +233,7 @@ const TemplateEditor = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isDoublePage, setIsDoublePage] = useState(false);
   const [isRulerEnabled, setIsRulerEnabled] = useState(true);
+  const [isTrimView, setIsTrimView] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [templateTargetIndex, setTemplateTargetIndex] = useState(null);
@@ -244,6 +245,35 @@ const TemplateEditor = () => {
   const [activeTopTool, setActiveTopTool] = useState('editor');
   const [popupEditContext, setPopupEditContext] = useState(null);
   const [showPopupTemplateChange, setShowPopupTemplateChange] = useState(false);
+
+  // Global Settings Sync
+  useEffect(() => {
+    const handleToggleDoublePage = (e) => {
+      setIsDoublePage(prev => e.detail !== undefined ? e.detail : !prev);
+    };
+    const handleToggleRuler = (e) => {
+      setIsRulerEnabled(prev => e.detail !== undefined ? e.detail : !prev);
+    };
+    const handleToggleTrimView = (e) => {
+      setIsTrimView(prev => e.detail !== undefined ? e.detail : !prev);
+    };
+
+    window.addEventListener('editor_toggleDoublePage', handleToggleDoublePage);
+    window.addEventListener('editor_toggleRuler', handleToggleRuler);
+    window.addEventListener('editor_toggleTrimView', handleToggleTrimView);
+
+    return () => {
+      window.removeEventListener('editor_toggleDoublePage', handleToggleDoublePage);
+      window.removeEventListener('editor_toggleRuler', handleToggleRuler);
+      window.removeEventListener('editor_toggleTrimView', handleToggleTrimView);
+    };
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('editor_settings_changed', {
+      detail: { isDoublePage, isRulerEnabled, isTrimView }
+    }));
+  }, [isDoublePage, isRulerEnabled, isTrimView]);
 
   // Automatically switch to the Properties panel ('select' tool) when an element 
   // is selected while the Uploads panel is active.
@@ -906,12 +936,26 @@ const TemplateEditor = () => {
   }, [setSaveHandler]);
 
   // Register Preview Handler to Navbar
-  const stablePreviewHandler = useCallback(() => {
+  const stablePreviewHandler = useCallback(async () => {
     // Force save first
     if (document.activeElement && document.activeElement.blur) {
       document.activeElement.blur();
     }
     window.dispatchEvent(new CustomEvent('trigger-manual-save'));
+
+    if (pages && pages.length > 0) {
+      try {
+        await saveToDB('editor_autosave', {
+          v_id: v_id,
+          pages: popupEditContext ? popupEditContext.backup.pages : pages,
+          activePageIndex: popupEditContext ? popupEditContext.backup.activePageIndex : activePageIndex,
+          pageName: currentBook?.flipbookName || location.state?.flipbookName || 'Untitled Flipbook',
+          timestamp: Date.now()
+        });
+      } catch (err) {
+        console.error("Failed to save preview state to IndexedDB:", err);
+      }
+    }
 
     setTimeout(() => {
       const shareId = currentBook?.shareId || currentBook?.share?.shareId;
@@ -920,8 +964,8 @@ const TemplateEditor = () => {
       } else {
         window.open('/preview', '_blank');
       }
-    }, 500); // Give save a moment to complete
-  }, [currentBook]);
+    }, 400);
+  }, [currentBook, pages, popupEditContext, activePageIndex, v_id, location.state]);
 
   useEffect(() => {
     if (setPreviewHandler) {

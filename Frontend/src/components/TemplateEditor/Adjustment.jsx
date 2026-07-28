@@ -23,8 +23,8 @@ export const AdjustmentSlider = ({ label, value, onChange, onReset, min = -100, 
         .invisible-range::before {
           content: "";
           position: absolute;
-          top: -0.75vw;
-          bottom: -0.75vw;
+          top: -0.2vw;
+          bottom: -0.2vw;
           left: 0;
           right: 0;
           cursor: pointer;
@@ -131,7 +131,21 @@ const Adjustment = ({
     handleUpdate(page, layer, attr, val);
   };
 
-
+  const handleResetAll = (e) => {
+    e.stopPropagation();
+    if (setFilters) {
+      setFilters(p => ({
+        ...p,
+        exposure: 0,
+        contrast: 0,
+        saturation: 0,
+        temperature: 0,
+        tint: 0,
+        highlights: 0,
+        shadows: 0
+      }));
+    }
+  };
 
   return (
     <div ref={containerRef} className="flex flex-col space-y-[0.60vw] font-sans mt-[0.4vw]">
@@ -143,7 +157,18 @@ const Adjustment = ({
           <div className="flex items-center gap-[0.5vw]">
             <span className={`font-semibold text-[0.85vw] ${openSubSection === 'adjustment' ? 'text-gray-900' : 'text-gray-500'}`}>Adjustment</span>
           </div>
-          <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'adjustment' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          <div className="flex items-center gap-[0.5vw]">
+            {openSubSection === 'adjustment' && (
+              <button
+                onClick={handleResetAll}
+                className="text-gray-600 hover:text-gray-900 transition-colors p-[0.1vw] cursor-pointer flex items-center justify-center"
+                title="Reset All"
+              >
+                <Icon icon="ix:reset" width="1.1vw" height="1.1vw" style={{ strokeWidth: 2.5 }} />
+              </button>
+            )}
+            <ChevronUp size="1vw" className={`transition-transform duration-200 ${openSubSection === 'adjustment' ? 'text-gray-900' : 'rotate-180 text-gray-500'}`} />
+          </div>
         </div>
 
         <div className={`grid transition-all duration-300 ease-in-out ${openSubSection === 'adjustment' ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
