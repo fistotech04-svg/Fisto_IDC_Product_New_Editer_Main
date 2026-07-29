@@ -219,6 +219,7 @@ export const initAnimationRunner = function(doc) {
                     el.style.cursor = 'pointer';
                     el.addEventListener('click', (e) => {
                         if (el.getAttribute('data-animation-trigger') !== 'On Page' || el.getAttribute('data-animation-action') !== 'Click') return;
+                        if (el.__currentAnimation && el.__currentAnimation.playState === 'running') return;
                         e.stopPropagation();
                         const type = el.getAttribute('data-animation-interact-type');
                         runAnim(el, type, {
@@ -234,6 +235,7 @@ export const initAnimationRunner = function(doc) {
                     el.__hoverBound = true;
                     el.addEventListener('mouseenter', () => {
                         if (el.getAttribute('data-animation-trigger') !== 'On Page' || el.getAttribute('data-animation-action') !== 'Hover') return;
+                        if (el.__currentAnimation && el.__currentAnimation.playState === 'running') return;
                         const type = el.getAttribute('data-animation-interact-type');
                         runAnim(el, type, {
                             duration: el.getAttribute('data-animation-interact-duration'),

@@ -356,7 +356,7 @@ const Effect = ({
                             style={{ backgroundImage: `linear-gradient(to right, #4D47FF 0%, #4D47FF ${pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%, #E2E8F0 ${pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%, #E2E8F0 100%)` }}
                           />
                         </div>
-                        <span className="text-[0.75vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0">
+                        <span className="text-[0.75vw] font-semibold text-gray-800 min-w-[2vw] text-left whitespace-nowrap flex-shrink-0 select-none">
                           {pseudoProps[`data-effect-${activeEffectPopupId}-opacity`] ?? 35}%
                         </span>
                       </div>

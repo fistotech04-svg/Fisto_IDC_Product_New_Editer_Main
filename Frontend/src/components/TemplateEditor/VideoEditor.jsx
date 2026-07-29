@@ -31,7 +31,7 @@ import Adjustment from './Adjustment';
 import Effect from './Effect';
 import ColorPicker, { parseGradient } from "./ColorPicker";
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import { syncGradient } from './editorUtils';
+import { syncGradient, getEmbedVideoUrl, detectMediaType } from './editorUtils';
 import { createPortal } from "react-dom";
 
 // Switch toggle component (matches SlideshowProperties style)
@@ -98,6 +98,7 @@ const VideoEditor = ({
   const [loop, setLoop] = useState(false);
   const [controls, setControls] = useState(true);
   const [controlsSize, setControlsSize] = useState(100);
+  const [muted, setMuted] = useState(false);
 
   const [opacity, setOpacity] = useState(100);
   const [coverOption, setCoverOption] = useState("auto"); // "upload" or "auto"
@@ -303,12 +304,11 @@ const VideoEditor = ({
       const src = target.currentSrc || target.src || target.querySelector("source")?.src || null;
       setPreviewSrc(src);
 
-      if (src && src.startsWith("http") && !src.includes("blob:")) {
-        setInputUrl(src);
-        setIsUrlAdded(true);
-      } else {
-        setInputUrl("");
-        setIsUrlAdded(false);
+      const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
+      const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
+      if (!isFocused) {
+        setInputUrl(origUrl);
+        setIsUrlAdded(!!origUrl);
       }
 
       const poster = target.getAttribute('poster') || target.poster || null;
@@ -324,6 +324,7 @@ const VideoEditor = ({
       setAutoplay(target.autoplay || target.hasAttribute('autoplay'));
       setLoop(target.loop || target.hasAttribute('loop'));
       setControls(target.controls || !target.classList.contains('hide-controls'));
+      setMuted(target.muted || target.hasAttribute('muted'));
       const rawCtrlSize = target.getAttribute('data-controls-size');
       const ctrlSize = rawCtrlSize ? parseInt(rawCtrlSize) : 100;
       setControlsSize(isNaN(ctrlSize) ? 100 : Math.max(0, Math.min(100, ctrlSize)));
@@ -332,13 +333,14 @@ const VideoEditor = ({
       setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
-      if (target.src && target.src.startsWith("http")) {
-        setInputUrl(target.src);
-        setIsUrlAdded(true);
-      } else {
-        setInputUrl("");
-        setIsUrlAdded(false);
+      
+      const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
+      const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
+      if (!isFocused) {
+        setInputUrl(origUrl);
+        setIsUrlAdded(!!origUrl);
       }
+
       setPosterSrc(null);
       setCoverOption('auto');
     }
@@ -466,6 +468,11 @@ const VideoEditor = ({
         visualTarget.style.opacity = '';
         visualTarget.removeAttribute('opacity');
         visualTarget.removeAttribute('data-opacity');
+      }
+      if (liveElement !== target) {
+        liveElement.style.opacity = '';
+        liveElement.removeAttribute('opacity');
+        liveElement.removeAttribute('data-opacity');
       }
 
       // Styling
@@ -805,63 +812,32 @@ const VideoEditor = ({
       const forceClip = activeEffects.includes('Blur') && effectSettings['Blur']?.clipContent;
       const radiusStr = `${radius.tl}px ${radius.tr}px ${radius.br}px ${radius.bl}px`;
 
-      visualTarget.style.borderRadius = radiusStr;
-      visualTarget.setAttribute('data-radius', JSON.stringify(radius));
-      visualTarget.style.overflow = 'hidden';
+      target.style.borderRadius = radiusStr;
+      target.setAttribute('data-radius', JSON.stringify(radius));
+      target.style.overflow = 'hidden';
+
+      if (visualTarget !== target) {
+        visualTarget.style.borderRadius = '';
+        visualTarget.removeAttribute('data-radius');
+        visualTarget.style.overflow = '';
+      }
 
       if (anyR || forceClip) {
-        visualTarget.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-        if (forceClip) {
-          if (isSvgEl) {
-            let clipId = `clip-content-${liveElement.id || 'video'}`;
-            let defs = liveElement.ownerSVGElement?.querySelector('defs');
-            if (!defs && liveElement.ownerSVGElement) {
-              defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-              liveElement.ownerSVGElement.prepend(defs);
-            }
-            if (defs) {
-              let clipNode = defs.querySelector(`#${clipId}`);
-              if (!clipNode) {
-                clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
-                clipNode.id = clipId;
-                const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                clipNode.appendChild(clipPathEl);
-                defs.appendChild(clipNode);
-              }
-              const rect = clipNode.firstChild;
-              rect.setAttribute('x', visualTarget.getAttribute('x') || '0');
-              rect.setAttribute('y', visualTarget.getAttribute('y') || '0');
-              rect.setAttribute('width', visualTarget.getAttribute('width') || '100%');
-              rect.setAttribute('height', visualTarget.getAttribute('height') || '100%');
-              rect.setAttribute('transform', visualTarget.getAttribute('transform') || '');
-              const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
-              if (maxR > 0) rect.setAttribute('rx', maxR.toString());
-              else rect.removeAttribute('rx');
+        target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+        target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
 
-              const foreignObj = liveElement.querySelector('foreignObject');
-              if (foreignObj) {
-                foreignObj.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-                foreignObj.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
-                liveElement.style.removeProperty('clip-path');
-                liveElement.style.removeProperty('-webkit-clip-path');
-              } else {
-                liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-                liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
-              }
-            }
-          } else {
-            liveElement.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-          }
-        } else {
-          liveElement.style.removeProperty('clip-path');
-          liveElement.style.removeProperty('-webkit-clip-path');
-          const foreignObj = liveElement.querySelector('foreignObject');
-          if (foreignObj) {
-            foreignObj.style.removeProperty('clip-path');
-            foreignObj.style.removeProperty('-webkit-clip-path');
-          }
+        visualTarget.style.removeProperty('clip-path');
+        visualTarget.style.removeProperty('-webkit-clip-path');
+        liveElement.style.removeProperty('clip-path');
+        liveElement.style.removeProperty('-webkit-clip-path');
+        const foreignObj = liveElement.querySelector('foreignObject');
+        if (foreignObj) {
+          foreignObj.style.removeProperty('clip-path');
+          foreignObj.style.removeProperty('-webkit-clip-path');
         }
       } else {
+        target.style.removeProperty('clip-path');
+        target.style.removeProperty('-webkit-clip-path');
         visualTarget.style.removeProperty('clip-path');
         liveElement.style.removeProperty('clip-path');
         liveElement.style.removeProperty('-webkit-clip-path');
@@ -1139,7 +1115,10 @@ const VideoEditor = ({
         }
       }
 
-      visualTarget.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+      target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+      if (visualTarget !== target) {
+        visualTarget.style.filter = 'none';
+      }
       liveElement.style.removeProperty('filter');
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
@@ -1182,13 +1161,20 @@ const VideoEditor = ({
         if (autoplay) {
           target.setAttribute('autoplay', '');
           target.autoplay = true;
-          target.muted = true;
-          target.setAttribute('muted', '');
           target.play().catch(e => console.warn("Video autoplay failed:", e));
         } else {
           target.removeAttribute('autoplay');
           target.autoplay = false;
         }
+
+        if (muted) {
+          target.muted = true;
+          target.setAttribute('muted', '');
+        } else {
+          target.muted = false;
+          target.removeAttribute('muted');
+        }
+
         if (loop) {
           target.setAttribute('loop', '');
           target.loop = true;
@@ -1218,9 +1204,13 @@ const VideoEditor = ({
             const currentAutoplay = urlObj.searchParams.get("autoplay") === "1";
             const currentControls = urlObj.searchParams.get("controls") !== "0"; // default is 1
             const currentLoop = urlObj.searchParams.get("loop") === "1";
+            const currentMute = urlObj.searchParams.get("mute") === "1";
 
-            if (autoplay && !currentAutoplay) { urlObj.searchParams.set("autoplay", "1"); urlObj.searchParams.set("mute", "1"); changed = true; }
-            if (!autoplay && currentAutoplay) { urlObj.searchParams.delete("autoplay"); urlObj.searchParams.delete("mute"); changed = true; }
+            if (autoplay && !currentAutoplay) { urlObj.searchParams.set("autoplay", "1"); changed = true; }
+            if (!autoplay && currentAutoplay) { urlObj.searchParams.delete("autoplay"); changed = true; }
+
+            if (muted && !currentMute) { urlObj.searchParams.set("mute", "1"); changed = true; }
+            if (!muted && currentMute) { urlObj.searchParams.delete("mute"); changed = true; }
 
             if (controls && !currentControls) { urlObj.searchParams.delete("controls"); changed = true; }
             if (!controls && currentControls) { urlObj.searchParams.set("controls", "0"); changed = true; }
@@ -1285,7 +1275,7 @@ const VideoEditor = ({
     } catch (e) {
       console.error("Error applying video visuals:", e);
     }
-  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, debouncedUpdate]);
+  }, [selectedElement, selectedLayerId, activePageIndex, opacity, backgroundColor, filters, radius, videoType, activeEffects, effectSettings, autoplay, loop, controls, controlsSize, muted, debouncedUpdate]);
 
   useEffect(() => {
     applyVisuals();
@@ -1439,6 +1429,7 @@ const VideoEditor = ({
     else if (attr === 'loop') setLoop(value);
     else if (attr === 'controls') setControls(value);
     else if (attr === 'controlsSize') setControlsSize(value);
+    else if (attr === 'muted') setMuted(value);
   };
 
   const handleVideoUpload = async (e) => {
@@ -1546,6 +1537,10 @@ const VideoEditor = ({
   const handleCoverUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file || !selectedLayerId) return;
+    if (!file.type.startsWith('image/')) {
+      alert("Please upload a valid image file (JPG, PNG).");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       const result = event.target.result;
@@ -1570,6 +1565,12 @@ const VideoEditor = ({
         target.poster = result;
         target.setAttribute("poster", result);
         target.setAttribute("data-poster-type", "upload");
+        
+        // Force the poster to show by replacing the video element with a clone
+        const clone = target.cloneNode(true);
+        clone.removeAttribute('data-custom-ctrl-active');
+        target.parentNode.replaceChild(clone, target);
+        
         setPosterSrc(result);
         debouncedUpdate({ poster: result });
       }
@@ -1592,57 +1593,18 @@ const VideoEditor = ({
     }
     if (!target) return;
 
-    // Always clear any previously uploaded poster first
+    // Clear any previously uploaded poster so the video natively shows its first frame
     target.poster = '';
     target.removeAttribute('poster');
     target.setAttribute('data-poster-type', 'auto');
     setPosterSrc(null);
 
-    // If video has no source or isn't loaded yet, wait for it
-    if (!target.src && !target.querySelector?.('source')?.src) {
-      // No video source — just clear the poster and done
-      debouncedUpdate({ poster: '' });
-      return;
-    }
+    // Force the video to reload without a poster
+    const clone = target.cloneNode(true);
+    clone.removeAttribute('data-custom-ctrl-active');
+    target.parentNode.replaceChild(clone, target);
 
-    if (target.readyState < 2) {
-      // Video not loaded yet — wait until data is available, then capture
-      target.onloadeddata = () => {
-        try {
-          const canvas = document.createElement("canvas");
-          canvas.width = target.videoWidth || 320;
-          canvas.height = target.videoHeight || 180;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(target, 0, 0, canvas.width, canvas.height);
-          const thumbnail = canvas.toDataURL("image/png");
-          target.poster = thumbnail;
-          target.setAttribute("data-poster-type", "auto");
-          setPosterSrc(thumbnail);
-          debouncedUpdate({ poster: thumbnail });
-        } catch (e) {
-          // Canvas capture failed (e.g. CORS) — leave poster cleared
-          debouncedUpdate({ poster: '' });
-        }
-      };
-      return;
-    }
-
-    // Video is ready — capture current frame immediately
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = target.videoWidth || 320;
-      canvas.height = target.videoHeight || 180;
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(target, 0, 0, canvas.width, canvas.height);
-      const thumbnail = canvas.toDataURL("image/png");
-      target.poster = thumbnail;
-      target.setAttribute("data-poster-type", "auto");
-      setPosterSrc(thumbnail);
-      debouncedUpdate({ poster: thumbnail });
-    } catch (e) {
-      // Canvas capture failed — leave poster cleared
-      debouncedUpdate({ poster: '' });
-    }
+    debouncedUpdate({ poster: '' });
   }, [selectedElement, selectedLayerId, activePageIndex, debouncedUpdate]);
 
   const replaceTemplateWithUrl = (url) => {
@@ -1663,24 +1625,22 @@ const VideoEditor = ({
 
     if (!target) return;
 
-    const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
-    let finalUrl = url;
-
-    if (isYouTube) {
-      let videoId = "";
-      if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1]?.split("?")[0];
-      else if (url.includes("watch?v=")) videoId = url.split("v=")[1]?.split("&")[0];
-      else if (url.includes("shorts/")) videoId = url.split("shorts/")[1]?.split("?")[0];
-      else if (url.includes("embed/")) videoId = url.split("embed/")[1]?.split("?")[0];
-      
-      if (videoId) finalUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`;
-    }
+    const finalUrl = getEmbedVideoUrl(url);
+    const urlLower = url.toLowerCase();
+    
+    // Check if it's an iframe-based embed
+    const isIframeTarget = urlLower.includes('youtube') || urlLower.includes('youtu.be') || 
+                           urlLower.includes('vimeo') || urlLower.includes('dailymotion') || 
+                           urlLower.includes('dai.ly') || urlLower.includes('loom.com') || 
+                           urlLower.includes('wistia') || urlLower.includes('drive.google.com') || 
+                           urlLower.includes('embed') || urlLower.includes('player');
 
     // If the target is already the correct type, just update its src
-    if ((isYouTube && target.tagName === "IFRAME") || (!isYouTube && target.tagName === "VIDEO")) {
+    if ((isIframeTarget && target.tagName === "IFRAME") || (!isIframeTarget && target.tagName === "VIDEO")) {
       target.src = finalUrl;
       target.setAttribute("src", finalUrl);
-      if (!isYouTube) {
+      target.setAttribute("data-original-url", url);
+      if (!isIframeTarget) {
         target.autoplay = true;
         target.muted = true;
         target.setAttribute("autoplay", "");
@@ -1694,7 +1654,7 @@ const VideoEditor = ({
 
     // Otherwise, create a new element of the correct type and swap it
     let newElement;
-    if (isYouTube) {
+    if (isIframeTarget) {
       newElement = document.createElement("iframe");
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
       newElement.src = finalUrl;
@@ -1714,6 +1674,7 @@ const VideoEditor = ({
     if (target.id) {
       newElement.id = target.id;
     }
+    newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
     // Preserve layout and data attributes
@@ -1731,6 +1692,13 @@ const VideoEditor = ({
 
   const handleAddUrl = () => {
     if (!inputUrl) return;
+    
+    const type = detectMediaType(inputUrl);
+    if (type !== 'video') {
+      alert("Please provide a valid video URL.");
+      return;
+    }
+
     setIsAddingUrl(true);
     setUrlAddProgress(0);
     setIsUrlAdded(false);
@@ -1863,6 +1831,7 @@ const VideoEditor = ({
           <div className="flex-1 flex items-center border border-gray-300 rounded-[0.6vw] overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-indigo-100 transition-all pr-[0.3vw]">
 
             <input
+              id="video-url-input"
               type="text"
               placeholder="https://"
               value={inputUrl}
@@ -1978,16 +1947,34 @@ const VideoEditor = ({
           </div>
 
           <div
-            onClick={() => coverInputRef.current?.click()}
-            className="w-[8vw] h-[5vw] border-2 border-dashed border-gray-200 rounded-[0.8vw] flex flex-col items-center justify-center bg-gray-50/30 hover:border-indigo-400 hover:bg-white transition-all overflow-hidden"
+            onClick={() => {
+              if (coverOption === 'upload') coverInputRef.current?.click();
+            }}
+            className={`w-[8vw] h-[5vw] rounded-[0.8vw] flex flex-col items-center justify-center overflow-hidden transition-all ${
+              coverOption === 'upload'
+                ? 'border-2 border-dashed border-gray-200 bg-gray-50/30 hover:border-indigo-400 hover:bg-white cursor-pointer'
+                : 'border border-gray-200 bg-gray-50'
+            }`}
           >
-            {posterSrc ? (
+            {posterSrc && coverOption === 'upload' ? (
               <img src={posterSrc} className="w-full h-full object-cover" />
-            ) : (
+            ) : coverOption === 'upload' ? (
               <>
                 <Upload size="1vw" className="text-gray-300 mb-[0.2vw]" />
                 <div className="text-[0.6vw] text-gray-400 text-center px-[0.5vw]">File Format : JPG, PNG</div>
               </>
+            ) : (
+              previewSrc ? (
+                previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
+                  <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" />
+                ) : (
+                  <video src={previewSrc} className="w-full h-full object-cover pointer-events-none" muted />
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center opacity-50">
+                  <Icon icon="material-symbols:smart-display-outline" className="w-[1.2vw] h-[1.2vw] text-gray-400 mb-[0.2vw]" />
+                </div>
+              )
             )}
           </div>
         </div>
@@ -2002,13 +1989,30 @@ const VideoEditor = ({
 
         <div className="space-y-[0.8vw] px-[0.5vw]">
           {[
-            { label: "Disable Video Controls", value: !controls, onChange: (v) => updateElementAttribute('controls', !v) },
-            { label: "Autoplay (Play video automatically)", value: autoplay, onChange: (v) => {
-                updateElementAttribute('autoplay', v);
-                if (!v && loop) updateElementAttribute('loop', false);
+            { 
+              label: "Disable Video Controls", 
+              value: !controls, 
+              onChange: (v) => {
+                updateElementAttribute('controls', !v);
+                if (v) {
+                  updateElementAttribute('autoplay', true);
+                }
+              } 
+            },
+            { 
+              label: "Autoplay (Play video automatically)", 
+              value: !controls ? true : autoplay, 
+              disabled: !controls,
+              onChange: (v) => updateElementAttribute('autoplay', v) 
+            },
+            { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
+                updateElementAttribute('loop', v);
+                if (v) {
+                  updateElementAttribute('autoplay', true);
+                }
               }
             },
-            { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => updateElementAttribute('loop', v), disabled: !autoplay }
+            { label: "Muted", value: muted, onChange: (v) => updateElementAttribute('muted', v) }
           ].map((item, i) => (
             <div key={i} className={`flex items-center justify-between ${item.disabled ? 'opacity-50' : ''}`}>
               <span className="text-[0.75vw] font-medium text-gray-800">{item.label}</span>
@@ -2067,7 +2071,7 @@ const VideoEditor = ({
 
       {/* Hidden Inputs */}
       <input ref={fileInputRef} type="file" accept="video/mp4" className="hidden" onChange={handleVideoUpload} />
-      <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+      <input ref={coverInputRef} type="file" accept="image/jpeg, image/png" className="hidden" onChange={handleCoverUpload} />
 
       {/* Gallery Modal */}
       {openGallery && (

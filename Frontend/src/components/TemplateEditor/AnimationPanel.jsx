@@ -303,7 +303,7 @@ const SingleAnimationEditor = ({ element, elements, onUpdate, onDelete, onOpenGa
       duration: parseFloat(primaryElement.getAttribute(`data-animation-${newPrefix}-duration`)) || 1,
       speed: parseFloat(primaryElement.getAttribute(`data-animation-${newPrefix}-speed`)) || 1,
       easing: primaryElement.getAttribute(`data-animation-${newPrefix}-easing`) || 'Linear',
-      everyVisit: primaryElement.getAttribute(`data-animation-${newPrefix}-every-visit`) === 'true'
+      everyVisit: primaryElement.getAttribute(`data-animation-${newPrefix}-every-visit`) !== 'false'
     });
     
     targetList.forEach(el => {
