@@ -15,66 +15,94 @@ const TYPE_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/
 const BENDING_CURSOR = `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><path fill='%23000' d='M5.5 3.483c0-1.248 1.436-1.95 2.421-1.184l13.514 10.513c1.128.877.508 2.684-.92 2.684h-6.853c-.505 0-.981.23-1.294.626l-4.191 5.3c-.882 1.116-2.677.492-2.677-.93zm15.014 10.513L7 3.483v17.009l4.191-5.3a3.15 3.15 0 0 1 2.47-1.196z' /></svg>") 5 3, auto`;
 const DIRECT_CURSOR = `url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="-20 -20 300 300"><path d="M238.448 92.6028L0 0L90.103 241.348C90.7404 243.045 91.8924 244.501 93.3985 245.514C94.9045 246.526 96.6895 247.045 98.5048 246.997C100.32 246.949 102.075 246.337 103.525 245.246C104.976 244.156 106.049 242.641 106.596 240.913L130.069 164.711L209.652 242.219C211.287 243.841 213.498 244.751 215.804 244.751C218.109 244.751 220.321 243.841 221.956 242.219L242.462 221.753C244.088 220.122 245 217.914 245 215.614C245 213.313 244.088 211.106 242.462 209.474L163.141 132.315L238.448 109.062C240.163 108.47 241.65 107.359 242.703 105.884C243.755 104.409 244.321 102.643 244.321 100.833C244.321 99.0218 243.755 97.256 242.703 95.781C241.65 94.306 240.163 93.195 238.448 92.6028Z" fill="black" transform="rotate(18, 0, 0)"/></svg>') 1 1, auto`;
 
+export const isElementCropped = (el) => {
+  if (!el || typeof el.getAttribute !== 'function') return false;
+  const type = el.getAttribute('data-type');
+  const name = el.getAttribute('data-name');
+  if (type === 'frame' || type === 'background' || name === 'Overlay') return false;
+
+  const hasCropData = el.getAttribute('data-crop-data') && el.getAttribute('data-crop-data') !== 'null';
+  const hasObjectFitCrop = el.getAttribute('data-object-fit') === 'Crop';
+  const hasCropInset = el.hasAttribute('data-effect-crop-inset');
+  const clipAttr = el.getAttribute('clip-path') || '';
+  const hasCropClip = clipAttr.includes('crop-');
+
+  if (hasCropData || hasObjectFitCrop || hasCropInset || hasCropClip) return true;
+
+  if (typeof el.querySelector === 'function') {
+    const croppedChild = el.querySelector('[data-crop-data]:not([data-crop-data="null"]), [data-object-fit="Crop"], [clip-path*="crop-"]');
+    if (croppedChild) return true;
+  }
+
+  return false;
+};
+
 export const getVisualBBox = (el) => {
   if (!el || typeof el.getBBox !== 'function') return { x: 0, y: 0, width: 0, height: 0 };
 
+  const targetCropEl = (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
+    (typeof el.querySelector === 'function' ? el.querySelector('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
+    (isElementCropped(el) ? el : null);
 
-  const cropStr = el.getAttribute('data-crop-data');
-  if (cropStr && cropStr !== 'null') {
-    // ── PRIORITY: Read from the live SVG clipPath rect (crop-group-clip-{id}) ──
-    // applyVisuals and the live resize sync always keep this rect accurate.
-    const clipAttrCrop = el.getAttribute('clip-path') || '';
-    const clipMatchCrop = clipAttrCrop.match(/url\(['"']?#([^)'"]+)['"']?\)/);
-    if (clipMatchCrop && clipMatchCrop[1]) {
-      const clipElId = clipMatchCrop[1];
-      if (clipElId.startsWith('crop-group-clip-') || clipElId.startsWith('crop-clip-')) {
-        const clipEl = el.ownerSVGElement?.querySelector(`[id="${clipElId}"]`) || document.getElementById(clipElId);
-        if (clipEl && clipEl.firstElementChild) {
-          try {
-            const r = clipEl.firstElementChild;
-            const rx = parseFloat(r.getAttribute('x') || '0');
-            const ry = parseFloat(r.getAttribute('y') || '0');
-            const rw = parseFloat(r.getAttribute('width') || '0');
-            const rh = parseFloat(r.getAttribute('height') || '0');
-            if (rw > 0 && rh > 0) {
-              // The clip rect is in userSpaceOnUse (absolute SVG coords / parent space).
-              // getVisualBBox must return coords in el's OWN local space.
-              let lx = rx, ly = ry;
-              return { x: lx, y: ly, width: rw, height: rh };
-            }
-          } catch (e) { }
+  if (targetCropEl) {
+    const cropStr = targetCropEl.getAttribute('data-crop-data');
+    const svgRoot = targetCropEl.ownerSVGElement || targetCropEl.closest?.('svg') || document;
+    let clipId = null;
+    const clipAttr = targetCropEl.getAttribute('clip-path') || el.getAttribute('clip-path') || '';
+    const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
+    if (clipMatch) clipId = clipMatch[1];
+
+    const clipEl = clipId ? svgRoot?.querySelector?.(`[id="${clipId}"]`) :
+      svgRoot?.querySelector?.(`[id="crop-group-clip-${targetCropEl.id}"], [id="crop-group-clip-${el.id}"]`);
+
+    if (clipEl && clipEl.firstElementChild) {
+      try {
+        const r = clipEl.firstElementChild;
+        const rx = parseFloat(r.getAttribute('x') || '0');
+        const ry = parseFloat(r.getAttribute('y') || '0');
+        const rw = parseFloat(r.getAttribute('width') || '0');
+        const rh = parseFloat(r.getAttribute('height') || '0');
+        if (rw > 0 && rh > 0) {
+          return { x: rx, y: ry, width: rw, height: rh };
         }
-      }
+      } catch (e) { }
     }
 
-    // ── FALLBACK: Compute from stored orig dims + crop percentages ──
-    let bboxW = 0, bboxH = 0, bboxX = 0, bboxY = 0;
-    if (el.hasAttribute('data-crop-orig-w')) {
-      bboxW = parseFloat(el.getAttribute('data-crop-orig-w'));
-      bboxH = parseFloat(el.getAttribute('data-crop-orig-h'));
-      bboxX = parseFloat(el.getAttribute('data-crop-orig-x'));
-      bboxY = parseFloat(el.getAttribute('data-crop-orig-y'));
-    } else {
-      const bbox = el.getBBox();
-      bboxW = bbox.width; bboxH = bbox.height; bboxX = bbox.x; bboxY = bbox.y;
+    if (cropStr && cropStr !== 'null') {
+      let bboxW = 0, bboxH = 0, bboxX = 0, bboxY = 0;
+      if (targetCropEl.hasAttribute('data-crop-orig-w')) {
+        bboxW = parseFloat(targetCropEl.getAttribute('data-crop-orig-w') || '0');
+        bboxH = parseFloat(targetCropEl.getAttribute('data-crop-orig-h') || '0');
+        bboxX = parseFloat(targetCropEl.getAttribute('data-crop-orig-x') || '0');
+        bboxY = parseFloat(targetCropEl.getAttribute('data-crop-orig-y') || '0');
+      } else {
+        try {
+          const bbox = targetCropEl.getBBox();
+          bboxW = bbox.width; bboxH = bbox.height; bboxX = bbox.x; bboxY = bbox.y;
+        } catch (e) { }
+      }
+      try {
+        const crop = JSON.parse(cropStr);
+        if (bboxW > 0 && bboxH > 0) {
+          return {
+            x: bboxX + (parseFloat(crop.left || 0) / 100) * bboxW,
+            y: bboxY + (parseFloat(crop.top || 0) / 100) * bboxH,
+            width: bboxW * (parseFloat(crop.width || 100) / 100),
+            height: bboxH * (parseFloat(crop.height || 100) / 100)
+          };
+        }
+      } catch (e) { }
     }
-    try {
-      const crop = JSON.parse(cropStr);
-      return {
-        x: bboxX + (parseFloat(crop.left) / 100) * bboxW,
-        y: bboxY + (parseFloat(crop.top) / 100) * bboxH,
-        width: bboxW * (parseFloat(crop.width) / 100),
-        height: bboxH * (parseFloat(crop.height) / 100)
-      };
-    } catch (e) { }
   }
 
   const clipAttr = el.getAttribute('clip-path') || el.style.clipPath || '';
-  const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
-  if (clipMatch && clipMatch[1]) {
-    const clipEl = document.getElementById(clipMatch[1]);
-    if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
-      try { return clipEl.firstElementChild.getBBox(); } catch (e) { }
+  if (clipAttr.includes('crop-')) {
+    const clipMatch = clipAttr.match(/url\(['"']?#([^)'"]+)['"']?\)/);
+    if (clipMatch && clipMatch[1]) {
+      const clipEl = document.getElementById(clipMatch[1]);
+      if (clipEl && clipEl.firstElementChild && typeof clipEl.firstElementChild.getBBox === 'function') {
+        try { return clipEl.firstElementChild.getBBox(); } catch (e) { }
+      }
     }
   }
 
@@ -2555,14 +2583,6 @@ const MainEditor = ({
         overlay.appendChild(dummy);
       }
 
-      const ctm = overlay.getScreenCTM();
-      if (!ctm) return;
-
-      const pt1 = overlay.createSVGPoint(); pt1.x = minX; pt1.y = minY;
-      const pt2 = overlay.createSVGPoint(); pt2.x = maxX; pt2.y = maxY;
-
-      // minX and minY are already in overlay coordinates!
-      // So we don't need to transform them again.
       dummy.setAttribute('x', minX);
       dummy.setAttribute('y', minY);
       dummy.setAttribute('width', maxX - minX);
@@ -2570,12 +2590,315 @@ const MainEditor = ({
 
       drawOverlayHighlight(dummy, type);
 
-      // Draw dotted outline on individual elements in the multi-selection
       elements.forEach(el => {
         drawOverlayHighlight(el, 'multi-child-selected');
       });
     });
   };
+
+  // ── IN-PLACE CROP PAN & ZOOM OVERLAY CONTROLLER ────────────────────────────
+  const [activeCropId, setActiveCropId] = useState(null);
+  const activeCropIdRef = useRef(null);
+  activeCropIdRef.current = activeCropId;
+
+  useEffect(() => {
+    const handleEnterCropMode = (e) => {
+      const { elementId } = e.detail || {};
+      if (elementId) {
+        setActiveCropId(elementId);
+        activeCropIdRef.current = elementId;
+      }
+    };
+    window.addEventListener('enter-crop-mode', handleEnterCropMode);
+    return () => window.removeEventListener('enter-crop-mode', handleEnterCropMode);
+  }, []);
+
+  // Listen for mouse drag (pan) & wheel scroll (zoom) when activeCropId is active
+  useEffect(() => {
+    if (!activeCropId) return;
+
+    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+    if (!pageContainer) return;
+    const svg = pageContainer.querySelector('svg');
+    if (!svg) return;
+    const cropEl = svg.querySelector(`[id="${activeCropId}"]`);
+    if (!cropEl) return;
+    const imgEl = cropEl.querySelector('image, video') || (cropEl.tagName?.toLowerCase() === 'image' ? cropEl : null);
+    if (!imgEl) return;
+
+    // Temporarily unclip group AND all inner child elements so full uncropped image shows
+    const unclipElements = [];
+    const clipNodes = [cropEl, ...cropEl.querySelectorAll('[clip-path]')];
+    clipNodes.forEach(node => {
+      const c = node.getAttribute('clip-path');
+      if (c) {
+        node.setAttribute('data-saved-clip-path', c);
+        node.removeAttribute('clip-path');
+        unclipElements.push(node);
+      }
+    });
+
+    const overlay = pageContainer.querySelector(`#highlight-overlay-${activePageIndex}`);
+
+    const getCropData = () => {
+      try {
+        return JSON.parse(cropEl.getAttribute('data-crop-data') || '{}');
+      } catch (e) {
+        return { left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 };
+      }
+    };
+
+    const renderMaskCutout = () => {
+      if (!overlay) return;
+      let maskGroup = overlay.querySelector('#crop-mode-mask-group');
+      if (!maskGroup) {
+        maskGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        maskGroup.id = 'crop-mode-mask-group';
+        maskGroup.setAttribute('pointer-events', 'none');
+        overlay.appendChild(maskGroup);
+      }
+
+      // Calculate crop cutout box bounds in overlay coordinates
+      const targetCropEl = cropEl;
+      const ctm = targetCropEl.getScreenCTM();
+      const overlayCtm = overlay.getScreenCTM();
+      if (!ctm || !overlayCtm) return;
+
+      const svgMatrix = overlayCtm.inverse().multiply(ctm);
+      const bbox = getVisualBBox(cropEl);
+
+      const pts = [
+        { x: bbox.x, y: bbox.y },
+        { x: bbox.x + bbox.width, y: bbox.y },
+        { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
+        { x: bbox.x, y: bbox.y + bbox.height }
+      ];
+
+      const mapped = pts.map(p => {
+        const pt = overlay.createSVGPoint();
+        pt.x = p.x; pt.y = p.y;
+        return pt.matrixTransform(svgMatrix);
+      });
+
+      const xs = mapped.map(p => p.x);
+      const ys = mapped.map(p => p.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const cWidth = maxX - minX;
+      const cHeight = maxY - minY;
+
+      const maskId = `crop-edit-mask-${activePageIndex}`;
+
+      // Calculate full uncropped transformed image bounds in overlay space
+      const cd = getCropData();
+      const origW = parseFloat(cropEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100');
+      const origH = parseFloat(cropEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100');
+      const origX = parseFloat(cropEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0');
+      const origY = parseFloat(cropEl.getAttribute('data-crop-orig-y') || imgEl.getAttribute('y') || '0');
+
+      const centerX = origX + (origW / 2);
+      const centerY = origY + (origH / 2);
+      const panX = (origW * (cd.offX || 0)) / 100;
+      const panY = (origH * (cd.offY || 0)) / 100;
+      const sc = parseFloat(cd.scale) || 1;
+
+      const fullImgX = centerX + panX - (origW * sc / 2);
+      const fullImgY = centerY + panY - (origH * sc / 2);
+      const fullImgW = origW * sc;
+      const fullImgH = origH * sc;
+
+      const ghostPts = [
+        { x: fullImgX, y: fullImgY },
+        { x: fullImgX + fullImgW, y: fullImgY },
+        { x: fullImgX + fullImgW, y: fullImgY + fullImgH },
+        { x: fullImgX, y: fullImgY + fullImgH }
+      ];
+      const ghostMapped = ghostPts.map(p => {
+        const pt = overlay.createSVGPoint();
+        pt.x = p.x; pt.y = p.y;
+        return pt.matrixTransform(svgMatrix);
+      });
+      const gXs = ghostMapped.map(p => p.x);
+      const gYs = ghostMapped.map(p => p.y);
+      const gMinX = Math.min(...gXs);
+      const gMaxX = Math.max(...gXs);
+      const gMinY = Math.min(...gYs);
+      const gMaxY = Math.max(...gYs);
+      const gWidth = Math.max(0, gMaxX - gMinX);
+      const gHeight = Math.max(0, gMaxY - gMinY);
+
+      const imgSrc = imgEl.getAttribute('href') || imgEl.getAttribute('xlink:href') || imgEl.getAttribute('src') || '';
+      const imgPreserve = imgEl.getAttribute('preserveAspectRatio') || 'xMidYMid slice';
+
+      maskGroup.innerHTML = `
+        <defs>
+          <mask id="${maskId}">
+            <!-- Full White Mask over Outer Image area -->
+            <rect x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="white" />
+            <!-- Cutout Hole over Crop Box area -->
+            <rect x="${minX}" y="${minY}" width="${cWidth}" height="${cHeight}" fill="black" />
+          </mask>
+        </defs>
+
+        <!-- Full Uncropped Ghost Image rendered under black transparent shade -->
+        ${imgSrc ? `<image href="${imgSrc}" x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" preserveAspectRatio="${imgPreserve}" style="pointer-events: none;" />` : ''}
+
+        <!-- Black Transparent Shade ON OUTER UNCROPPED IMAGE ONLY -->
+        <rect x="${gMinX}" y="${gMinY}" width="${gWidth}" height="${gHeight}" fill="rgba(0, 0, 0, 0.65)" mask="url(#${maskId})" pointer-events="none" />
+
+        <!-- 3x3 Rule-of-Thirds Grid Lines Inside Crop Frame -->
+        <line x1="${minX + cWidth / 3}" y1="${minY}" x2="${minX + cWidth / 3}" y2="${minY + cHeight}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+        <line x1="${minX + (cWidth * 2) / 3}" y1="${minY}" x2="${minX + (cWidth * 2) / 3}" y2="${minY + cHeight}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+        <line x1="${minX}" y1="${minY + cHeight / 3}" x2="${minX + cWidth}" y2="${minY + cHeight / 3}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+        <line x1="${minX}" y1="${minY + (cHeight * 2) / 3}" x2="${minX + cWidth}" y2="${minY + (cHeight * 2) / 3}" stroke="rgba(255, 255, 255, 0.75)" stroke-width="1" pointer-events="none" />
+      `;
+    };
+
+    renderMaskCutout();
+
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let startOffX = 0, startOffY = 0;
+
+    const updateTransform = (cd) => {
+      const origW = parseFloat(cropEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100');
+      const origH = parseFloat(cropEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100');
+      const origX = parseFloat(cropEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0');
+      const origY = parseFloat(cropEl.getAttribute('data-crop-orig-y') || imgEl.getAttribute('y') || '0');
+
+      const centerX = origX + (origW / 2);
+      const centerY = origY + (origH / 2);
+      const panX = (origW * (cd.offX || 0)) / 100;
+      const panY = (origH * (cd.offY || 0)) / 100;
+      const sc = parseFloat(cd.scale) || 1;
+
+      imgEl.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${sc}) translate(${-centerX} ${-centerY})`);
+      cropEl.setAttribute('data-crop-data', JSON.stringify(cd));
+      drawOverlayHighlight(cropEl, 'selected');
+      renderMaskCutout();
+    };
+
+    const onPointerDown = (e) => {
+      if (e.button !== 0) return;
+      
+      const clickX = e.clientX;
+      const clickY = e.clientY;
+
+      // Direct hit check on cropEl, imgEl, mask group or handles
+      const isDirectHit = (
+        cropEl.contains(e.target) ||
+        (imgEl && imgEl.contains(e.target)) ||
+        Boolean(e.target.closest('#crop-mode-mask-group')) ||
+        Boolean(e.target.closest('.resize-handle')) ||
+        Boolean(e.target.closest('[id^="overlay-poly-"]'))
+      );
+
+      // Geometric bounding box check of cropEl
+      const targetBBox = cropEl.getBoundingClientRect();
+      const isInsideBBox = (
+        clickX >= targetBBox.left - 15 &&
+        clickX <= targetBBox.right + 15 &&
+        clickY >= targetBBox.top - 15 &&
+        clickY <= targetBBox.bottom + 15
+      );
+
+      if (!isDirectHit && !isInsideBBox) {
+        // User clicked outside image area -> exit Overlay mode
+        setActiveCropId(null);
+        activeCropIdRef.current = null;
+        return;
+      }
+
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const cd = getCropData();
+      startOffX = parseFloat(cd.offX) || 0;
+      startOffY = parseFloat(cd.offY) || 0;
+      pageContainer.style.cursor = 'grabbing';
+      e.stopPropagation();
+    };
+
+    const onPointerMove = (e) => {
+      if (!isDragging) return;
+      e.stopPropagation();
+      const zoomScale = (zoom || 100) / 100;
+      const dxScreen = (e.clientX - startX) / zoomScale;
+      const dyScreen = (e.clientY - startY) / zoomScale;
+
+      const origW = parseFloat(cropEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100');
+      const origH = parseFloat(cropEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100');
+
+      if (origW > 0 && origH > 0) {
+        const dOffX = (dxScreen / origW) * 100;
+        const dOffY = (dyScreen / origH) * 100;
+
+        const cd = getCropData();
+        cd.offX = startOffX + dOffX;
+        cd.offY = startOffY + dOffY;
+        updateTransform(cd);
+      }
+    };
+
+    const onPointerUp = () => {
+      if (isDragging) {
+        isDragging = false;
+        pageContainer.style.cursor = '';
+        saveModifiedPageHtml(activePageIndex, svg);
+      }
+    };
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const cd = getCropData();
+      const currentScale = parseFloat(cd.scale) || 1;
+      const delta = e.deltaY < 0 ? 0.08 : -0.08;
+      const newScale = Math.min(Math.max(1.0, currentScale + delta), 5.0);
+      cd.scale = Math.round(newScale * 100) / 100;
+      updateTransform(cd);
+      saveModifiedPageHtml(activePageIndex, svg);
+    };
+
+    // Exit overlay mode on Enter or Escape key press
+    const onKeyDown = (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveCropId(null);
+        activeCropIdRef.current = null;
+      }
+    };
+
+    pageContainer.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    pageContainer.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      pageContainer.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      pageContainer.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKeyDown);
+
+      // Restore clip-paths when exiting crop edit mode
+      unclipElements.forEach(node => {
+        const saved = node.getAttribute('data-saved-clip-path');
+        if (saved) {
+          node.setAttribute('clip-path', saved);
+          node.removeAttribute('data-saved-clip-path');
+        }
+      });
+      if (overlay) {
+        const maskGroup = overlay.querySelector('#crop-mode-mask-group');
+        if (maskGroup) maskGroup.remove();
+      }
+    };
+  }, [activeCropId, activePageIndex, zoom]);
 
   const clearMeasurementOverlay = () => {
     document.querySelectorAll('.measurement-overlay-group').forEach(el => el.remove());
@@ -2623,7 +2946,7 @@ const MainEditor = ({
       measureTargetArray = targetEl;
       measureTarget = firstTarget;
     } else {
-      if (targetEl && targetEl !== svg && targetEl.id && targetEl.id !== selectedLayerIdRef.current) {
+      if (targetEl && targetEl !== svg && targetEl.id && targetEl.id !== selectedLayerIdRef.current && !selectedEl.contains(targetEl)) {
         const isOverlay = targetEl.getAttribute('data-name') === 'Overlay' ||
           targetEl.getAttribute('data-type') === 'background' ||
           (targetEl.getAttribute('class') && targetEl.getAttribute('class').includes('overlay'));
@@ -2633,37 +2956,81 @@ const MainEditor = ({
       if (!measureTarget) {
         measureTarget = (selectedEl.parentElement && selectedEl.parentElement.closest('[data-type="frame"]')) || svg.querySelector('[data-type="background"]');
       }
-      if (!measureTarget || measureTarget === selectedEl) return;
+      if (!measureTarget || measureTarget === selectedEl || selectedEl.contains(measureTarget)) return;
     }
 
     const overlay = getOverlayForElement(selectedEl);
     if (!overlay) return;
 
     const getOverlayRect = (el) => {
+      if (!el) return null;
+      const isFrameOrBg = el.getAttribute('data-type') === 'frame' || el.getAttribute('data-type') === 'background' || el.getAttribute('data-name') === 'Overlay';
+      if (isFrameOrBg) {
+        const clientRect = el.getBoundingClientRect();
+        const overlayInverse = overlay.getScreenCTM()?.inverse();
+        if (overlayInverse && clientRect.width > 0) {
+          const pt = overlay.createSVGPoint();
+          pt.x = clientRect.left; pt.y = clientRect.top;
+          const tl = pt.matrixTransform(overlayInverse);
+          pt.x = clientRect.right; pt.y = clientRect.bottom;
+          const br = pt.matrixTransform(overlayInverse);
+          return {
+            left: Math.min(tl.x, br.x),
+            right: Math.max(tl.x, br.x),
+            top: Math.min(tl.y, br.y),
+            bottom: Math.max(tl.y, br.y),
+            width: Math.abs(br.x - tl.x),
+            height: Math.abs(br.y - tl.y)
+          };
+        }
+      }
+
+      const targetCropEl = (typeof el.closest === 'function' ? el.closest('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
+        (typeof el.querySelector === 'function' ? el.querySelector('[data-crop-data], [data-object-fit="Crop"], [clip-path*="crop-"]') : null) ||
+        (typeof el.getAttribute === 'function' && (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-crop-data') || el.hasAttribute('clip-path')) ? el : null);
+      const ctmNode = targetCropEl || el;
+
       let bbox = getVisualBBox(el);
       if (!bbox || (bbox.width === 0 && bbox.height === 0)) {
-        const rect = el.getBoundingClientRect();
+        const rect = ctmNode.getBoundingClientRect();
         if (rect.width > 0) {
           bbox = { x: 0, y: 0, width: rect.width, height: rect.height };
         }
       }
 
-      const ctm = el.getScreenCTM();
+      const ctm = ctmNode.getScreenCTM();
       const overlayCtm = overlay.getScreenCTM();
       if (!ctm || !overlayCtm) return null;
 
       const svgMatrix = overlayCtm.inverse().multiply(ctm);
-      const pt1 = overlay.createSVGPoint(); pt1.x = bbox.x; pt1.y = bbox.y;
-      const pt2 = overlay.createSVGPoint(); pt2.x = bbox.x + bbox.width; pt2.y = bbox.y + bbox.height;
-      const p1 = pt1.matrixTransform(svgMatrix);
-      const p2 = pt2.matrixTransform(svgMatrix);
+      const pts = [
+        { x: bbox.x, y: bbox.y },
+        { x: bbox.x + bbox.width, y: bbox.y },
+        { x: bbox.x + bbox.width, y: bbox.y + bbox.height },
+        { x: bbox.x, y: bbox.y + bbox.height }
+      ];
+
+      const mapped = pts.map(p => {
+        const pt = overlay.createSVGPoint();
+        pt.x = p.x;
+        pt.y = p.y;
+        return pt.matrixTransform(svgMatrix);
+      });
+
+      const xs = mapped.map(p => p.x);
+      const ys = mapped.map(p => p.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+
       return {
-        left: Math.min(p1.x, p2.x),
-        right: Math.max(p1.x, p2.x),
-        top: Math.min(p1.y, p2.y),
-        bottom: Math.max(p1.y, p2.y),
-        width: Math.abs(p2.x - p1.x),
-        height: Math.abs(p2.y - p1.y)
+        left: minX,
+        right: maxX,
+        top: minY,
+        bottom: maxY,
+        width: maxX - minX,
+        height: maxY - minY
       };
     };
 
@@ -3025,13 +3392,13 @@ const MainEditor = ({
       const isFreeFrame = el.getAttribute('data-name') === 'Free Frame';
       const tagLower = el.tagName.toLowerCase();
       const isLine = tagLower === 'line';
+      const isCropModeEl = isElementCropped(el);
 
       // ── PIXEL-PERFECT PATH for non-frame, non-line, non-FreeFrame elements ──
       // Use getBoundingClientRect() to get actual screen-space visual bounds, then
       // map 4 corners directly to overlay coordinates via a single matrix inverse.
-      // Lines and Free Frames are excluded: Lines need directional handle coords,
-      // and Free Frames need L-bracket corner rendering via the matrix path.
-      if (!isFrame && !isLine && !isFreeFrame) {
+      // Lines, Free Frames, and Cropped elements are excluded: Cropped elements need clipPath bbox coords.
+      if (!isFrame && !isLine && !isFreeFrame && !isCropModeEl) {
         const clientRect = el.getBoundingClientRect();
         if (clientRect.width > 0 && clientRect.height > 0) {
           el.dataset.overlayRetries = '0';
@@ -3326,7 +3693,7 @@ const MainEditor = ({
 
         if (!hideHandles) {
           const useLBrackets = !isLine && (activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation' || isFreeFrame);
-          const handleSize = useLBrackets ? 14 : 9.5; // Slightly larger for interaction mode corners, increased for better sensitivity
+          const handleSize = useLBrackets ? 14 : 7.5; // Consistently 7.5px for normal corner handles
 
           let handleNames, allPts;
 
@@ -4331,35 +4698,41 @@ const MainEditor = ({
       const imgWidth = i.width || 100;
       const imgHeight = i.height || 100;
 
-      // Scale to fit page width roughly
-      let displayWidth = Math.min(imgWidth, 150); // Default to a reasonable size
-      let displayHeight = (imgHeight / imgWidth) * displayWidth;
-
-      // Ensure it's not taller than the page
-      if (displayHeight > 250) {
-        displayHeight = 250;
-        displayWidth = (imgWidth / imgHeight) * displayHeight;
-      }
-
       // Append to root frame
       const topFrames = getTopLevelFrames(svg);
       const rootFrame = topFrames[0] || svg.querySelector('g');
 
       if (rootFrame) {
         try {
-          // Try to center in the root frame (usually the A4 page container)
-          let cx = 105, cy = 148.5; // Default A4 center
+          // Determine full page container bounds
+          let pWidth = 210, pHeight = 297;
+          let pX = 0, pY = 0;
 
           try {
             const bbox = rootFrame.getBBox();
             if (bbox.width > 0 && bbox.height > 0) {
-              cx = bbox.x + bbox.width / 2;
-              cy = bbox.y + bbox.height / 2;
+              pWidth = bbox.width;
+              pHeight = bbox.height;
+              pX = bbox.x;
+              pY = bbox.y;
             }
-          } catch (e) {
-            // If getBBox fails (e.g. detached node), keep defaults
+          } catch (e) { }
+
+          // Scale image to a clean initial size centered on the page (approx 35-40% of page width)
+          const targetInitialSize = Math.min(pWidth * 0.4, 90);
+          let displayWidth = targetInitialSize;
+          let displayHeight = (imgHeight / imgWidth) * displayWidth;
+
+          if (displayHeight > targetInitialSize) {
+            displayHeight = targetInitialSize;
+            displayWidth = (imgWidth / imgHeight) * displayHeight;
           }
 
+          const cx = pX + pWidth / 2;
+          const cy = pY + pHeight / 2;
+
+          newGroup.setAttribute('data-object-fit', 'Fit');
+          newImg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
           newImg.setAttribute('x', (cx - displayWidth / 2).toString());
           newImg.setAttribute('y', (cy - displayHeight / 2).toString());
           newImg.setAttribute('width', displayWidth.toString());
@@ -4740,14 +5113,16 @@ const MainEditor = ({
   const hitTest = (el, clientX, clientY, buffer = 0) => {
     if (!el) return false;
 
-    // 1. Pixel-perfect fast check: native browser hit testing
-    // Handles thin lines, complex strokes, and accurately painted bounds natively
-    const hitElements = document.elementsFromPoint(clientX, clientY);
-    if (hitElements.includes(el)) return true;
+    const isCroppedEl = isElementCropped(el);
 
-    // 2. Extrapolated local Bounding Box hit testing
-    // Handles hitting transparent gaps, transparent shape areas, or hitting areas expanded by exact buffers
-    if (typeof el.getScreenCTM === 'function' && typeof el.getBBox === 'function') {
+    // 1. Pixel-perfect fast check: native browser hit testing
+    const hitElements = document.elementsFromPoint(clientX, clientY);
+    if (hitElements.includes(el) || (typeof el.contains === 'function' && hitElements.some(he => el.contains(he)))) {
+      if (!isCroppedEl) return true;
+    }
+
+    // 2. Extrapolated local Bounding Box hit testing using visual bounds (excludes cropped gaps)
+    if (typeof el.getScreenCTM === 'function') {
       const svg = el.ownerSVGElement || (el.tagName && el.tagName.toLowerCase() === 'svg' ? el : null);
       if (svg && typeof svg.createSVGPoint === 'function') {
         const pt = svg.createSVGPoint();
@@ -4757,7 +5132,6 @@ const MainEditor = ({
           const ctm = el.getScreenCTM();
           if (ctm) {
             const localPt = pt.matrixTransform(ctm.inverse());
-            // Calculate scale from CTM to convert screen buffer into local coordinate units
             const scale = Math.sqrt(ctm.a * ctm.a + ctm.b * ctm.b) || 1;
 
             if (el.tagName && el.tagName.toLowerCase() === 'line') {
@@ -4776,12 +5150,14 @@ const MainEditor = ({
               const projY = y1 + t * (y2 - y1);
               const dist = Math.sqrt((localPt.x - projX) * (localPt.x - projX) + (localPt.y - projY) * (localPt.y - projY));
 
-              const lineBuffer = 6 / scale; // 6px screen buffer for mild padding
+              const lineBuffer = 6 / scale;
               const strokeWidth = parseFloat(el.getAttribute('stroke-width')) || 1;
               return dist <= (strokeWidth / 2) + lineBuffer;
             }
 
-            const bbox = el.getBBox();
+            const bbox = getVisualBBox(el);
+            if (!bbox || (bbox.width === 0 && bbox.height === 0)) return false;
+
             const localBuffer = buffer / scale;
 
             return localPt.x >= (bbox.x - localBuffer) && localPt.x <= (bbox.x + bbox.width + localBuffer) &&
@@ -4790,6 +5166,26 @@ const MainEditor = ({
         } catch (e) { }
       }
     }
+
+    // 3. Fallback check using visual bbox mapped to screen coordinates if getScreenCTM fails
+    try {
+      const bbox = getVisualBBox(el);
+      const ctm = el.getScreenCTM ? el.getScreenCTM() : null;
+      if (ctm && bbox && bbox.width > 0 && bbox.height > 0) {
+        const pt1 = new DOMPoint(bbox.x, bbox.y).matrixTransform(ctm);
+        const pt2 = new DOMPoint(bbox.x + bbox.width, bbox.y).matrixTransform(ctm);
+        const pt3 = new DOMPoint(bbox.x + bbox.width, bbox.y + bbox.height).matrixTransform(ctm);
+        const pt4 = new DOMPoint(bbox.x, bbox.y + bbox.height).matrixTransform(ctm);
+        const minX = Math.min(pt1.x, pt2.x, pt3.x, pt4.x);
+        const maxX = Math.max(pt1.x, pt2.x, pt3.x, pt4.x);
+        const minY = Math.min(pt1.y, pt2.y, pt3.y, pt4.y);
+        const maxY = Math.max(pt1.y, pt2.y, pt3.y, pt4.y);
+
+        return clientX >= minX - buffer && clientX <= maxX + buffer &&
+          clientY >= minY - buffer && clientY <= maxY + buffer;
+      }
+    } catch (e) { }
+
     const rect = el.getBoundingClientRect();
     return clientX >= rect.left - buffer && clientX <= rect.right + buffer &&
       clientY >= rect.top - buffer && clientY <= rect.bottom + buffer;
@@ -4882,10 +5278,45 @@ const MainEditor = ({
     return null;
   };
 
+  const safeRectChecker = (element) => {
+    if (element && typeof element.getBoundingClientRect === 'function') {
+      try {
+        const rect = element.getBoundingClientRect();
+        if (rect) {
+          return {
+            left: rect.left || 0,
+            top: rect.top || 0,
+            right: rect.right || 0,
+            bottom: rect.bottom || 0,
+            width: rect.width || 0,
+            height: rect.height || 0,
+            x: rect.x || rect.left || 0,
+            y: rect.y || rect.top || 0,
+          };
+        }
+      } catch (e) {}
+    }
+    return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
+  };
+
+  const safeStopInteraction = (interaction) => {
+    if (!interaction) return;
+    if (!interaction.rect) {
+      interaction.rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
+    }
+    try {
+      interaction.stop();
+    } catch (e) {}
+    if (!interaction.rect) {
+      interaction.rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
+    }
+  };
+
   useEffect(() => {
     // Setup interactjs for elements within the SVG - targeting both elements and the background
     const interactable = interact('.page-svg-container svg, .page-svg-container svg *')
       .styleCursor(false) // Prevents interact.js from dynamically setting cursors on hover
+      .rectChecker(safeRectChecker)
       .draggable({
         ignoreFrom: '.resize-handle, .text-edit-box, [data-editing="true"]',
         cursorChecker: () => null, // Second layer of prevention just in case
@@ -4904,7 +5335,7 @@ const MainEditor = ({
             const isEditing = target.closest('[data-editing="true"]') || (document.activeElement && document.activeElement.getAttribute('contenteditable') === 'true');
             // If Ctrl is held or not in selection mode, stop interact.js drag
             if (!['select', 'upload', 'grid'].includes(activeMainToolRef.current) || isEditing || event.ctrlKey) {
-              event.interaction.stop();
+              safeStopInteraction(event.interaction);
               return;
             }
 
@@ -4917,7 +5348,7 @@ const MainEditor = ({
                 const isScrollbarClick = event.clientX > rect.left + target.clientLeft + target.clientWidth ||
                   event.clientY > rect.top + target.clientTop + target.clientHeight;
                 if (isScrollbarClick) {
-                  event.interaction.stop();
+                  safeStopInteraction(event.interaction);
                   return;
                 }
               }
@@ -4925,7 +5356,7 @@ const MainEditor = ({
 
             const startPoint = getSvgPoint(svgElement, event.clientX, event.clientY);
             if (!startPoint) {
-              event.interaction.stop();
+              safeStopInteraction(event.interaction);
               return;
             }
 
@@ -4973,7 +5404,7 @@ const MainEditor = ({
 
             // If background (SVG or Overlay), stop drag completely
             if (target === svgElement || target.getAttribute('data-name') === 'Overlay') {
-              event.interaction.stop();
+              safeStopInteraction(event.interaction);
               return;
             }
 
@@ -5063,7 +5494,7 @@ const MainEditor = ({
               elementToDrag.getAttribute('data-hidden') === 'true' ||
               elementToDrag.getAttribute('data-locked') === 'true' ||
               elementToDrag.getAttribute('data-name') === 'Overlay') {
-              event.interaction.stop();
+              safeStopInteraction(event.interaction);
               return;
             }
 
@@ -5071,7 +5502,7 @@ const MainEditor = ({
             // Block dragging in Interaction/Animation mode UNLESS it's a Free Frame
             if ((activeTopToolRef.current === 'interaction' || activeTopToolRef.current === 'animation') && elementToDrag.getAttribute('data-name') !== 'Free Frame') {
               allowDrag = false;
-              event.interaction.stop();
+              safeStopInteraction(event.interaction);
               // We STILL want to allow auto-select to run below, so we don't return here.
             }
 
@@ -5445,6 +5876,7 @@ const MainEditor = ({
   useEffect(() => {
     const interactable = interact('.resize-handle')
       .styleCursor(false)
+      .rectChecker(safeRectChecker)
       .draggable({
         cursorChecker: () => null,
         listeners: {
@@ -5559,24 +5991,15 @@ const MainEditor = ({
 
             const worldAnchor = new DOMPoint(localAnchor.x, localAnchor.y).matrixTransform(matrix);
 
-            const isImageGroup = el.tagName?.toLowerCase() === 'g' && (el.getAttribute('data-type') === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif');
-            if (isImageGroup && ['n', 's', 'e', 'w'].includes(dir)) {
-              el.setAttribute('data-object-fit', 'Crop');
+            const isImageOrGroup = !!(
+              el.tagName?.toLowerCase() === 'image' ||
+              el.getAttribute('data-type') === 'image' ||
+              el.getAttribute('data-is-image-group') === 'true' ||
+              (el.getAttribute('data-name') || '').toLowerCase().includes('image') ||
+              (el.tagName?.toLowerCase() === 'g' && el.querySelector('image, video'))
+            );
 
-              // We must use centered slice to avoid DOM wrappers, as pure SVG <image> 
-              // cannot do pinned side-crops without an <svg> wrapper or percentages.
-              el.setAttribute('data-crop-align', 'xMidYMid');
 
-              const imgEl = el.querySelector('image, video');
-              if (imgEl) {
-                const dataType = el.getAttribute('data-type');
-                if (dataType === 'image') {
-                  imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
-                } else {
-                  imgEl.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-                }
-              }
-            }
 
             let childrenData = null;
             const isGroupOrImageEl = isMulti || (el.tagName && (
@@ -5794,8 +6217,10 @@ const MainEditor = ({
             if (dir === 'e' || dir === 'w') scaleY = 1;
 
             // Maintain Aspect Ratio for images, text, or if Shift key is held (only for corners, but force for text on all handles to prevent distortion)
-            const isImage = el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif';
             const childImage = el.tagName?.toLowerCase() === 'g' ? el.querySelector('image, img') : null;
+            const isImage = el.getAttribute('data-type') === 'image' || el.tagName?.toLowerCase() === 'image' || el.getAttribute('data-type') === 'video' || el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-image-group') === 'true' || (el.getAttribute('data-name') || '').toLowerCase().includes('image') || !!childImage;
+            const isElementInCropMode = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
+            const isScaledImage = isImage && !isElementInCropMode;
             const src = el.getAttribute('href') || el.getAttribute('xlink:href') || el.getAttribute('src') || (childImage ? (childImage.getAttribute('href') || childImage.getAttribute('xlink:href') || childImage.getAttribute('src')) : '') || '';
             const isGif = el.getAttribute('data-type') === 'gif' || el.getAttribute('data-is-gif-group') === 'true' || el.dataset?.mediaType === 'gif' || src.split('?')[0].toLowerCase().endsWith('.gif') || src.toLowerCase().startsWith('data:image/gif') || (el.getAttribute('data-name') || '').toLowerCase().includes('gif') || el.id.toLowerCase().includes('gif');
             const isText = el.getAttribute('data-type') === 'text' || el.tagName?.toLowerCase() === 'text';
@@ -5849,7 +6274,7 @@ const MainEditor = ({
                   }
                 }
               }
-            } else if ((isCorner && (isImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
+            } else if ((isCorner && (isScaledImage || isShape || (isText && !isForeignObject))) || (!isCorner && (isText && !isForeignObject))) {
               const s = Math.max(Math.abs(scaleX), Math.abs(scaleY)) * (Math.sign(scaleX) || 1);
               if (!isCorner && (isText && !isForeignObject)) {
                 const sSide = (dir === 'n' || dir === 's') ? scaleY : scaleX;
@@ -6145,6 +6570,56 @@ const MainEditor = ({
                         let imgW = newLocW;
                         let imgH = newLocH;
 
+                        const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
+                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+
+                        if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
+                          let origX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('data-crop-orig-x') || child.getAttribute('x') || '0');
+                          let origY = parseFloat(el.getAttribute('data-crop-orig-y') || child.getAttribute('data-crop-orig-y') || child.getAttribute('y') || '0');
+                          let origW = parseFloat(el.getAttribute('data-crop-orig-w') || child.getAttribute('data-crop-orig-w') || child.getAttribute('width') || '100');
+                          let origH = parseFloat(el.getAttribute('data-crop-orig-h') || child.getAttribute('data-crop-orig-h') || child.getAttribute('height') || '100');
+
+                          if (!el.hasAttribute('data-crop-orig-w') || parseFloat(el.getAttribute('data-crop-orig-w')) <= 0) {
+                            el.setAttribute('data-crop-orig-x', origX);
+                            el.setAttribute('data-crop-orig-y', origY);
+                            el.setAttribute('data-crop-orig-w', origW);
+                            el.setAttribute('data-crop-orig-h', origH);
+                          }
+
+                          if (isSideHandleDrag) {
+                            imgX = origX;
+                            imgY = origY;
+                            imgW = origW;
+                            imgH = origH;
+                          } else {
+                            const cropDataStr = el.getAttribute('data-crop-data');
+                            let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
+                            if (cropDataStr && cropDataStr !== 'null') {
+                              try {
+                                const cd = JSON.parse(cropDataStr);
+                                cLeft = parseFloat(cd.left) || 0;
+                                cTop = parseFloat(cd.top) || 0;
+                                cWidth = parseFloat(cd.width) || 100;
+                                cHeight = parseFloat(cd.height) || 100;
+                              } catch (e) { }
+                            }
+                            const newOrigW = cWidth > 0 ? (newLocW / (cWidth / 100)) : newLocW;
+                            const newOrigH = cHeight > 0 ? (newLocH / (cHeight / 100)) : newLocH;
+                            const newOrigX = newLocX - (newOrigW * (cLeft / 100));
+                            const newOrigY = newLocY - (newOrigH * (cTop / 100));
+
+                            el.setAttribute('data-crop-orig-x', newOrigX);
+                            el.setAttribute('data-crop-orig-y', newOrigY);
+                            el.setAttribute('data-crop-orig-w', newOrigW);
+                            el.setAttribute('data-crop-orig-h', newOrigH);
+
+                            imgX = newOrigX;
+                            imgY = newOrigY;
+                            imgW = newOrigW;
+                            imgH = newOrigH;
+                          }
+                        }
+
                         child.setAttribute('x', imgX);
                         child.setAttribute('y', imgY);
                         child.setAttribute('width', imgW);
@@ -6193,8 +6668,80 @@ const MainEditor = ({
                       }
                     } else {
                       // g, path, polygon, etc — scale via matrix in <g> local space
-                      const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
-                      child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
+                      // SPECIAL CASE: image-inner-content wrapper — update inner <image> directly
+                      const isImageInnerContent = child.classList && child.classList.contains('image-inner-content');
+                      if (isImageInnerContent) {
+                        const innerImg = child.querySelector('image, video');
+                        if (innerImg) {
+                          // Clear any transform on the wrapper — use direct attributes on <image>
+                          child.removeAttribute('transform');
+                          let imgX = newLocX;
+                          let imgY = newLocY;
+                          let imgW = newLocW;
+                          let imgH = newLocH;
+
+                          const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
+                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+
+                          if (isCropModeThisEl) {
+                            let origX = parseFloat(el.getAttribute('data-crop-orig-x') || innerImg.getAttribute('data-crop-orig-x') || innerImg.getAttribute('x') || '0');
+                            let origY = parseFloat(el.getAttribute('data-crop-orig-y') || innerImg.getAttribute('data-crop-orig-y') || innerImg.getAttribute('y') || '0');
+                            let origW = parseFloat(el.getAttribute('data-crop-orig-w') || innerImg.getAttribute('data-crop-orig-w') || innerImg.getAttribute('width') || '100');
+                            let origH = parseFloat(el.getAttribute('data-crop-orig-h') || innerImg.getAttribute('data-crop-orig-h') || innerImg.getAttribute('height') || '100');
+
+                            if (!el.hasAttribute('data-crop-orig-w') || parseFloat(el.getAttribute('data-crop-orig-w')) <= 0) {
+                              el.setAttribute('data-crop-orig-x', origX);
+                              el.setAttribute('data-crop-orig-y', origY);
+                              el.setAttribute('data-crop-orig-w', origW);
+                              el.setAttribute('data-crop-orig-h', origH);
+                            }
+
+                            if (isSideHandleDrag) {
+                              imgX = origX;
+                              imgY = origY;
+                              imgW = origW;
+                              imgH = origH;
+                            } else {
+                              const cropDataStr = el.getAttribute('data-crop-data');
+                              let cLeft = 0, cTop = 0, cWidth = 100, cHeight = 100;
+                              if (cropDataStr && cropDataStr !== 'null') {
+                                try {
+                                  const cd = JSON.parse(cropDataStr);
+                                  cLeft = parseFloat(cd.left) || 0;
+                                  cTop = parseFloat(cd.top) || 0;
+                                  cWidth = parseFloat(cd.width) || 100;
+                                  cHeight = parseFloat(cd.height) || 100;
+                                } catch (e) { }
+                              }
+                              const newOrigW = cWidth > 0 ? (newLocW / (cWidth / 100)) : newLocW;
+                              const newOrigH = cHeight > 0 ? (newLocH / (cHeight / 100)) : newLocH;
+                              const newOrigX = newLocX - (newOrigW * (cLeft / 100));
+                              const newOrigY = newLocY - (newOrigH * (cTop / 100));
+
+                              el.setAttribute('data-crop-orig-x', newOrigX);
+                              el.setAttribute('data-crop-orig-y', newOrigY);
+                              el.setAttribute('data-crop-orig-w', newOrigW);
+                              el.setAttribute('data-crop-orig-h', newOrigH);
+
+                              imgX = newOrigX;
+                              imgY = newOrigY;
+                              imgW = newOrigW;
+                              imgH = newOrigH;
+                            }
+                          }
+
+                          innerImg.setAttribute('x', imgX);
+                          innerImg.setAttribute('y', imgY);
+                          innerImg.setAttribute('width', imgW);
+                          innerImg.setAttribute('height', imgH);
+                        } else {
+                          const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
+                          child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
+                        }
+                      } else {
+                        const sm = new DOMMatrix().translate(la.x, la.y).scale(scaleX, scaleY).translate(-la.x, -la.y);
+                        child.setAttribute('transform', matrixToTransform(sm.multiply(initialMatrix)));
+                      }
                     }
                   });
                 }
@@ -6207,6 +6754,96 @@ const MainEditor = ({
 
               const nextMatrix = scaleMatrix.multiply(matrix);
               el.setAttribute('transform', matrixToTransform(nextMatrix));
+            }
+
+            // ── LIVE CROP CLIP SYNC DURING RESIZE DRAG ─────────────────────────────
+            // For cropped image groups, update the SVG clipPath rects in real-time
+            // so the crop boundary stays in sync with the element while dragging.
+            const isCropModeSync = el && typeof el.getAttribute === 'function' && (
+              el.getAttribute('data-object-fit') === 'Crop' ||
+              el.hasAttribute('data-effect-crop-inset') ||
+              (el.getAttribute('data-crop-data') && el.getAttribute('data-crop-data') !== 'null')
+            );
+            if (isCropModeSync && state.childrenData) {
+              try {
+                const imgElLive = el.querySelector('image, video') || (el.tagName?.toLowerCase() === 'image' ? el : null);
+                if (imgElLive) {
+                  const targetCData = state.childrenData.find(c => c.child === imgElLive || c.child.contains?.(imgElLive)) || state.childrenData[0];
+                  if (targetCData) {
+                    const la = state.localAnchor;
+                    const bound = targetCData.bound;
+                    const newMinX = la.x + (bound.x - la.x) * scaleX;
+                    const newMinY = la.y + (bound.y - la.y) * scaleY;
+                    const newMaxX = la.x + (bound.x + bound.width - la.x) * scaleX;
+                    const newMaxY = la.y + (bound.y + bound.height - la.y) * scaleY;
+                    const cropLocX = Math.min(newMinX, newMaxX);
+                    const cropLocY = Math.min(newMinY, newMaxY);
+                    const cropLocW = Math.abs(newMaxX - newMinX);
+                    const cropLocH = Math.abs(newMaxY - newMinY);
+
+                    const origX = parseFloat(el.getAttribute('data-crop-orig-x') || imgElLive.getAttribute('x') || '0');
+                    const origY = parseFloat(el.getAttribute('data-crop-orig-y') || imgElLive.getAttribute('y') || '0');
+                    const origW = parseFloat(el.getAttribute('data-crop-orig-w') || imgElLive.getAttribute('width') || '100');
+                    const origH = parseFloat(el.getAttribute('data-crop-orig-h') || imgElLive.getAttribute('height') || '100');
+
+                    if (origW > 0 && origH > 0) {
+                      const svgRootLive = el.ownerSVGElement || imgElLive.ownerSVGElement;
+                      if (svgRootLive) {
+                        let defs = svgRootLive.querySelector('defs');
+                        if (!defs) {
+                          defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                          svgRootLive.insertBefore(defs, svgRootLive.firstChild);
+                        }
+
+                        const groupClipId = `crop-group-clip-${el.id}`;
+                        let grpClipPath = defs.querySelector(`[id="${groupClipId}"]`);
+                        if (!grpClipPath) {
+                          grpClipPath = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+                          grpClipPath.id = groupClipId;
+                          grpClipPath.setAttribute('clipPathUnits', 'userSpaceOnUse');
+                          const groupRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                          grpClipPath.appendChild(groupRect);
+                          defs.appendChild(grpClipPath);
+                        }
+
+                        const gr = grpClipPath.querySelector('rect');
+                        if (gr) {
+                          gr.setAttribute('x', cropLocX);
+                          gr.setAttribute('y', cropLocY);
+                          gr.setAttribute('width', Math.max(0, cropLocW));
+                          gr.setAttribute('height', Math.max(0, cropLocH));
+                        }
+                        el.setAttribute('clip-path', `url(#${groupClipId})`);
+
+                        const imgClipPath = svgRootLive.querySelector(`[id="crop-clip-${el.id}"]`);
+                        if (imgClipPath) {
+                          const r = imgClipPath.querySelector('rect');
+                          if (r) {
+                            r.setAttribute('x', cropLocX);
+                            r.setAttribute('y', cropLocY);
+                            r.setAttribute('width', Math.max(0, cropLocW));
+                            r.setAttribute('height', Math.max(0, cropLocH));
+                          }
+                        }
+
+                        const isSideHandleSync = ['n', 's', 'e', 'w'].includes(dir);
+                        if (isSideHandleSync) {
+                          const cLeft = ((cropLocX - origX) / origW) * 100;
+                          const cTop = ((cropLocY - origY) / origH) * 100;
+                          const cWidth = (cropLocW / origW) * 100;
+                          const cHeight = (cropLocH / origH) * 100;
+                          el.setAttribute('data-crop-data', JSON.stringify({
+                            left: Math.max(0, cLeft),
+                            top: Math.max(0, cTop),
+                            width: Math.max(0, cWidth),
+                            height: Math.max(0, cHeight)
+                          }));
+                        }
+                      }
+                    }
+                  }
+                }
+              } catch (_e) { /* non-critical */ }
             }
 
             // Sync shape stroke overlays dynamically
@@ -6250,57 +6887,6 @@ const MainEditor = ({
               const highlightType = (currentFrameIdRef.current && el.id !== currentFrameIdRef.current) ? 'child-selected' : 'selected';
               drawOverlayHighlight(el, highlightType);
             }
-
-            // ── LIVE CROP CLIP SYNC DURING RESIZE DRAG ─────────────────────────────
-            // For cropped image groups, update the SVG clipPath rects in real-time
-            // so the crop boundary stays in sync with the element while dragging.
-            if (
-              el &&
-              typeof el.getAttribute === 'function' &&
-              el.getAttribute('data-crop-data') &&
-              el.getAttribute('data-crop-data') !== 'null' &&
-              (el.getAttribute('data-object-fit') === 'Crop' || el.hasAttribute('data-effect-crop-inset')) &&
-              state.childrenData
-            ) {
-              try {
-                const imgElLive = el.querySelector('image, video');
-                if (imgElLive) {
-                  const liveW = parseFloat(imgElLive.getAttribute('width') || '0');
-                  const liveH = parseFloat(imgElLive.getAttribute('height') || '0');
-                  const liveX = parseFloat(imgElLive.getAttribute('x') || '0');
-                  const liveY = parseFloat(imgElLive.getAttribute('y') || '0');
-                  if (liveW > 0 && liveH > 0) {
-                    const cropDataStr = el.getAttribute('data-crop-data');
-                    const cropData = JSON.parse(cropDataStr);
-                    const cLeft = parseFloat(cropData.left) || 0;
-                    const cTop = parseFloat(cropData.top) || 0;
-                    const cWidth = parseFloat(cropData.width) || 100;
-                    const cHeight = parseFloat(cropData.height) || 100;
-                    const clipX = liveX + (liveW * cLeft) / 100;
-                    const clipY = liveY + (liveH * cTop) / 100;
-                    const clipW = (liveW * cWidth) / 100;
-                    const clipH = (liveH * cHeight) / 100;
-                    const svgRootLive = el.ownerSVGElement || imgElLive.ownerSVGElement;
-                    if (svgRootLive) {
-                      const imgClipPath = svgRootLive.querySelector(`[id="crop-clip-${el.id}"]`);
-                      if (imgClipPath) {
-                        const r = imgClipPath.querySelector('rect');
-                        if (r) { r.setAttribute('x', clipX); r.setAttribute('y', clipY); r.setAttribute('width', Math.max(0, clipW)); r.setAttribute('height', Math.max(0, clipH)); }
-                      }
-                      const grpClipPath = svgRootLive.querySelector(`[id="crop-group-clip-${el.id}"]`);
-                      if (grpClipPath) {
-                        const gr = grpClipPath.querySelector('rect');
-                        if (gr) {
-                          gr.setAttribute('x', clipX);
-                          gr.setAttribute('y', clipY);
-                          gr.setAttribute('width', Math.max(0, clipW)); gr.setAttribute('height', Math.max(0, clipH));
-                        }
-                      }
-                    }
-                  }
-                }
-              } catch (_e) { /* non-critical */ }
-            }
           },
           end(event) {
             // Unlock cursor back to default
@@ -6309,12 +6895,14 @@ const MainEditor = ({
             document.documentElement.style.removeProperty('--resizing-cursor');
 
             const state = event.interaction.resizeState;
-            if (state && updatePageHtmlRef.current) {
-              // state.el may be a fake object for multi-selection, use state.svg's container
-              const container = state.svg?.closest?.('.page-svg-container') ||
-                (state.el?.closest ? state.el.closest('.page-svg-container') : null);
-              const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
-              saveModifiedPageHtml(pageIdx, state.svg);
+            if (state) {
+              if (updatePageHtmlRef.current) {
+                // state.el may be a fake object for multi-selection, use state.svg's container
+                const container = state.svg?.closest?.('.page-svg-container') ||
+                  (state.el?.closest ? state.el.closest('.page-svg-container') : null);
+                const pageIdx = container ? parseInt(container.getAttribute('data-page-index')) : activePageIndex;
+                saveModifiedPageHtml(pageIdx, state.svg);
+              }
             }
             delete event.interaction.resizeState;
             setTimeout(() => {
@@ -8778,6 +9366,26 @@ const MainEditor = ({
       return;
     }
 
+    // Double-click on an image ONLY opens in-place Crop Overlay mode if element is ALREADY in Crop mode
+    const isCropModeImage = target && (
+      target.getAttribute('data-object-fit') === 'Crop' ||
+      target.closest?.('[data-object-fit="Crop"]')
+    );
+
+    if (isCropModeImage) {
+      const cropLayer = target.closest?.('[data-object-fit="Crop"]') || target;
+      if (cropLayer && cropLayer.id) {
+        if (setSelectedLayerId) {
+          setSelectedLayerId(cropLayer.id);
+          selectedLayerIdRef.current = cropLayer.id;
+        }
+
+        const evt = new CustomEvent('enter-crop-mode', { detail: { elementId: cropLayer.id } });
+        window.dispatchEvent(evt);
+        return;
+      }
+    }
+
     // On double-click a frame: enter it immediately
     const frameId = currentFrameIdRef.current;
     const selId = selectedLayerIdRef.current;
@@ -10045,6 +10653,37 @@ const MainEditor = ({
                               display: 'none'
                             }}
                           />
+
+                          {/* In-Place Crop Mode Banner & Floating Overlay */}
+                          {activeCropId && activePageIndex === displayIndex && (
+                            <div className="absolute inset-0 pointer-events-none z-[2500]">
+                              {/* Semi-transparent white backdrop */}
+                              <div className="absolute inset-0 bg-white/40 backdrop-blur-[0.5px] pointer-events-none" />
+                              {/* Floating action banner */}
+                              <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto bg-[#181825] text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-4 border border-white/20 animate-in fade-in slide-in-from-top-4 duration-200">
+                                <div className="flex items-center gap-2.5 text-xs font-medium">
+                                  <span className="bg-indigo-500/30 text-indigo-300 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border border-indigo-400/30">
+                                    Crop Mode
+                                  </span>
+                                  <span className="text-gray-200 text-xs">Drag image to move • Scroll mouse wheel to zoom</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveCropId(null);
+                                    activeCropIdRef.current = null;
+                                  }}
+                                  className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3.5 py-1 rounded-full font-semibold transition-all active:scale-95 shadow-md flex items-center gap-1.5 cursor-pointer"
+                                >
+                                  <span>Done</span>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          )}
 
                           {isPageEmpty && (
                             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none bg-transparent opacity-60">
