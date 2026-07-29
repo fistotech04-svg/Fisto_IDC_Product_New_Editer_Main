@@ -656,17 +656,34 @@ const ImageEditor = ({
       setBackgroundColor(newBg);
     }
 
-    if (force) setTimeout(() => { isHydrating.current = false; }, 50);
+    if (force) {
+      // Clear isHydrating after a short delay - but NOT before the current call completes
+      setTimeout(() => { isHydrating.current = false; }, 50);
+    }
   }, [selectedElement, activePageIndex, selectedLayerId]);
 
   useEffect(() => {
     if (!selectedElement) return;
     const observer = new MutationObserver((mutations) => {
+      const isObjectFitMutation = mutations.some(m => m.type === 'attributes' && (
+        m.attributeName === 'data-object-fit'
+      ));
+
+      if (isObjectFitMutation) {
+        // Directly update state without setting isHydrating (which would block applyVisuals)
+        const newFit = selectedElement.getAttribute('data-object-fit');
+        if (newFit && newFit !== stateRef.current.imageType) {
+          setImageType(newFit);
+          stateRef.current.imageType = newFit;
+        }
+        return;
+      }
+
       if (isUpdatingDOM.current) return;
       const relevantMutation = mutations.some(m => m.type === 'attributes' && (
         m.attributeName === 'src' || m.attributeName === 'href' ||
         m.attributeName === 'opacity' || m.attributeName === 'style' ||
-        m.attributeName === 'data-slideshow' || m.attributeName === 'preserveAspectRatio' ||
+        m.attributeName === 'data-slideshow' ||
         m.attributeName === 'data-fill-color' || m.attributeName === 'data-stroke-color' || m.attributeName === 'data-stroke-width'
       ));
       if (relevantMutation) syncStateFromDOM();
@@ -680,7 +697,10 @@ const ImageEditor = ({
   }, [selectedElement, syncStateFromDOM]);
 
   const applyVisuals = useCallback(() => {
-    // 0. Skip if we are still hydrating state from the DOM to avoid overwriting current values with defaults
+    // 0. Skip only during initial mount hydration from DOM, not during user interactions
+    // isHydrating is set to true by syncStateFromDOM(true) during initial mount,
+    // and we skip applyVisuals to avoid overwriting synced DOM values with stale defaults.
+    // However, direct user interactions (like clicking Fit/Fill) clear isHydrating first.
     if (isHydrating.current) return;
 
     // 1. Re-resolve the live element from the active page container to ensure we are 
@@ -1204,19 +1224,22 @@ const ImageEditor = ({
       if (isSvgEl) {
         // --- SVG: Image fit via preserveAspectRatio ---
         const parMap = { 'Fit': 'meet', 'Fill': 'slice', 'Crop': 'slice', 'Stretch': 'none' };
+        const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Crop': 'cover', 'Stretch': 'fill' };
         let meetOrSlice = parMap[effectiveImageType] || 'meet';
-        if (effectiveImageType === 'Crop') {
-          const savedFit = liveElement.getAttribute('data-previous-object-fit') || liveElement.getAttribute('data-object-fit');
-          if (savedFit && savedFit !== 'Crop' && parMap[savedFit]) {
-            meetOrSlice = parMap[savedFit];
-          }
+        let fitCss = fitCssMap[effectiveImageType] || 'contain';
+
+        if (effectiveImageType === 'Crop' || liveElement.getAttribute('data-object-fit') === 'Crop') {
+          meetOrSlice = 'slice';
+          fitCss = 'cover';
         }
         let parAlign = liveElement.getAttribute('data-crop-align') || 'xMidYMid';
         if (meetOrSlice === 'meet') parAlign = 'xMidYMid'; // Standard center for Fit
         if (svgImageEl) {
           if (meetOrSlice === 'none') svgImageEl.setAttribute('preserveAspectRatio', 'none');
           else svgImageEl.setAttribute('preserveAspectRatio', `${parAlign} ${meetOrSlice}`);
+          svgImageEl.style.setProperty('object-fit', fitCss, 'important');
         }
+        liveElement.style.setProperty('object-fit', fitCss, 'important');
 
         // --- SVG: Corner radius OR Crop via CSS clip-path inset() ---
         const cropData = {
@@ -1231,7 +1254,7 @@ const ImageEditor = ({
         const maxR = Math.min(Math.max(...Object.values(radius)), 50);
         const radiusStr = (anyR || forceClip) ? ` round ${radius.tl || 0}px ${radius.tr || 0}px ${radius.br || 0}px ${radius.bl || 0}px` : '';
 
-        if (effectiveImageType === 'Crop' && (cropData.inset || liveElement.getAttribute('data-effect-crop-inset') || liveElement.getAttribute('data-saved-crop-data'))) {
+        if (effectiveImageType === 'Crop' || liveElement.getAttribute('data-object-fit') === 'Crop' || (cropData.inset || liveElement.getAttribute('data-effect-crop-inset') || liveElement.getAttribute('data-saved-crop-data'))) {
           const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data') || '{"left":0,"top":0,"width":100,"height":100}';
           const crop = JSON.parse(cropStr);
           if (liveElement.hasAttribute('data-saved-crop-data')) {
@@ -1283,7 +1306,7 @@ const ImageEditor = ({
             const svgClipVal = `inset(${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%${radiusStr})`;
             liveElement.style.setProperty('clip-path', svgClipVal, 'important');
 
-          } else if (svgImageEl && svgImageEl !== liveElement) {
+          } else if (svgImageEl) {
             // --- SVG PATH (Container with inner image) ---
             let targetEl = liveElement;
             let imgEl = svgImageEl;
@@ -1329,8 +1352,8 @@ const ImageEditor = ({
             imgEl.setAttribute('height', origH);
             imgEl.setAttribute('x', origX.toString() + (isXPercent ? '%' : ''));
             imgEl.setAttribute('y', origY.toString() + (isYPercent ? '%' : ''));
-            const underlyingFit = liveElement.getAttribute('data-crop-underlying-fit') || 'none';
-            const meetOrSliceCrop = underlyingFit === 'Fill' ? 'xMidYMid slice' : underlyingFit === 'Stretch' ? 'none' : 'xMidYMid meet';
+            const underlyingFit = liveElement.getAttribute('data-crop-underlying-fit') || 'Fit';
+            const meetOrSliceCrop = underlyingFit === 'Stretch' ? 'none' : underlyingFit === 'Fit' ? 'xMidYMid meet' : 'xMidYMid slice';
             imgEl.setAttribute('preserveAspectRatio', meetOrSliceCrop);
 
             // Resolve actual rendered SVG dimensions. If origW/H are percentages (e.g. "100%"),
@@ -1693,49 +1716,69 @@ const ImageEditor = ({
           }
 
           if (targetImgForFrame) {
-            const origWStr = liveElement.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('width') || '100';
-            const origHStr = liveElement.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('height') || '100';
-            const origXStr = liveElement.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('x') || '0';
-            const origYStr = liveElement.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('y') || '0';
+            let targetW, targetH, targetX, targetY;
+            let isWPercent = false, isHPercent = false, isXPercent = false, isYPercent = false;
 
-            const origW = parseFloat(origWStr);
-            const origH = parseFloat(origHStr);
-            const origX = parseFloat(origXStr);
-            const origY = parseFloat(origYStr);
-            const isWPercent = origWStr.toString().includes('%');
-            const isHPercent = origHStr.toString().includes('%');
-            const isXPercent = origXStr.toString().includes('%');
-            const isYPercent = origYStr.toString().includes('%');
+            if (effectiveImageType !== 'Crop') {
+              liveElement.removeAttribute('data-crop-orig-w');
+              liveElement.removeAttribute('data-crop-orig-h');
+              liveElement.removeAttribute('data-crop-orig-x');
+              liveElement.removeAttribute('data-crop-orig-y');
+              liveElement.removeAttribute('data-crop-data');
+              liveElement.removeAttribute('data-saved-crop-data');
 
-            let targetW = origW;
-            let targetH = origH;
-            let targetX = origX;
-            let targetY = origY;
+              const wAttr = targetImgForFrame.getAttribute('width') || '100';
+              const hAttr = targetImgForFrame.getAttribute('height') || '100';
+              const xAttr = targetImgForFrame.getAttribute('x') || '0';
+              const yAttr = targetImgForFrame.getAttribute('y') || '0';
 
-            const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data');
-            if (cropStr && cropStr !== 'null') {
-              try {
-                const crop = JSON.parse(cropStr);
-                const cropX = origX + (origW * parseFloat(crop.left) / 100);
-                const cropY = origY + (origH * parseFloat(crop.top) / 100);
-                const cropW = origW * (parseFloat(crop.width) / 100);
-                const cropH = origH * (parseFloat(crop.height) / 100);
+              isWPercent = wAttr.includes('%');
+              isHPercent = hAttr.includes('%');
+              isXPercent = xAttr.includes('%');
+              isYPercent = yAttr.includes('%');
 
-                if (effectiveImageType === 'Original') {
-                  targetX = cropX;
-                  targetY = cropY;
-                  targetW = origW;
-                  targetH = origH;
-                } else {
+              targetW = parseFloat(wAttr);
+              targetH = parseFloat(hAttr);
+              targetX = parseFloat(xAttr);
+              targetY = parseFloat(yAttr);
+            } else {
+              const origWStr = liveElement.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('data-crop-orig-w') || targetImgForFrame.getAttribute('width') || '100';
+              const origHStr = liveElement.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('data-crop-orig-h') || targetImgForFrame.getAttribute('height') || '100';
+              const origXStr = liveElement.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('data-crop-orig-x') || targetImgForFrame.getAttribute('x') || '0';
+              const origYStr = liveElement.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('data-crop-orig-y') || targetImgForFrame.getAttribute('y') || '0';
+
+              const origW = parseFloat(origWStr);
+              const origH = parseFloat(origHStr);
+              const origX = parseFloat(origXStr);
+              const origY = parseFloat(origYStr);
+              isWPercent = origWStr.toString().includes('%');
+              isHPercent = origHStr.toString().includes('%');
+              isXPercent = origXStr.toString().includes('%');
+              isYPercent = origYStr.toString().includes('%');
+
+              targetW = origW;
+              targetH = origH;
+              targetX = origX;
+              targetY = origY;
+
+              const cropStr = liveElement.getAttribute('data-crop-data') || liveElement.getAttribute('data-saved-crop-data');
+              if (cropStr && cropStr !== 'null') {
+                try {
+                  const crop = JSON.parse(cropStr);
+                  const cropX = origX + (origW * parseFloat(crop.left) / 100);
+                  const cropY = origY + (origH * parseFloat(crop.top) / 100);
+                  const cropW = origW * (parseFloat(crop.width) / 100);
+                  const cropH = origH * (parseFloat(crop.height) / 100);
+
                   targetX = cropX;
                   targetY = cropY;
                   targetW = cropW;
                   targetH = cropH;
-                }
 
-                liveElement.setAttribute('data-saved-crop-data', cropStr);
-                liveElement.removeAttribute('data-crop-data');
-              } catch (e) { }
+                  liveElement.setAttribute('data-saved-crop-data', cropStr);
+                  liveElement.removeAttribute('data-crop-data');
+                } catch (e) { }
+              }
             }
 
             targetImgForFrame.style.removeProperty('display');
@@ -3110,24 +3153,216 @@ const ImageEditor = ({
                     <>
                       <div className="fixed inset-0 z-[90]" onClick={() => setShowImageTypeDropdown(false)} />
                       <div className="absolute right-0 top-full mt-[0.5vw] w-[6.5vw] bg-white border border-gray-100 rounded-[0.5vw] shadow-2xl overflow-hidden z-[100] flex flex-col py-[0.25vw] animate-in fade-in zoom-in-95 duration-150">
-                        {['Fit', 'Fill', 'Stretch'].map((type) => (
+                        {['Fit', 'Fill', 'Stretch', 'Crop'].map((type) => (
                           <button
                             key={type}
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               setShowImageTypeDropdown(false);
-                              setImageType(type);
-                              stateRef.current.imageType = type;
 
-                              if (selectedElement) {
-                                selectedElement.setAttribute('data-object-fit', type);
+                              // Clear isHydrating immediately so applyVisuals won't be blocked
+                              isHydrating.current = false;
+
+                              if (type === 'Crop') {
                                 const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-                                const liveEl = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || selectedElement;
-                                if (liveEl && liveEl !== selectedElement) {
-                                  liveEl.setAttribute('data-object-fit', type);
+                                const liveEl = (selectedLayerId && pageContainer)
+                                  ? pageContainer.querySelector(`[id="${selectedLayerId}"]`)
+                                  : selectedElement;
+                                if (liveEl) {
+                                  const previousFit = (liveEl.getAttribute('data-object-fit') && liveEl.getAttribute('data-object-fit') !== 'Crop')
+                                    ? liveEl.getAttribute('data-object-fit')
+                                    : (imageType !== 'Crop' ? imageType : (liveEl.getAttribute('data-crop-underlying-fit') || 'Fit'));
+
+                                  liveEl.setAttribute('data-object-fit', 'Crop');
+                                  liveEl.setAttribute('data-crop-underlying-fit', previousFit);
+
+                                  const imgEl = getSvgImageEl(liveEl) || liveEl.querySelector('image, video');
+                                  if (imgEl) {
+                                    const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none' };
+                                    const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
+                                    const parVal = parMap[previousFit] || 'xMidYMid meet';
+                                    const cssVal = fitCssMap[previousFit] || 'contain';
+
+                                    imgEl.setAttribute('preserveAspectRatio', parVal);
+                                    imgEl.style.setProperty('object-fit', cssVal, 'important');
+                                    const origW = liveEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100';
+                                    const origH = liveEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100';
+                                    const origX = liveEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0';
+                                    const origY = liveEl.getAttribute('data-crop-orig-y') || imgEl.getAttribute('y') || '0';
+                                    liveEl.setAttribute('data-crop-orig-w', origW);
+                                    liveEl.setAttribute('data-crop-orig-h', origH);
+                                    liveEl.setAttribute('data-crop-orig-x', origX);
+                                    liveEl.setAttribute('data-crop-orig-y', origY);
+                                    if (!liveEl.hasAttribute('data-crop-data')) {
+                                      liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));
+                                    }
+                                  }
+                                }
+                                setImageType('Crop');
+                                stateRef.current.imageType = 'Crop';
+                                applyVisuals();
+                                return;
+                              }
+
+                              // If switching AWAY from Crop, keep current cropped bounding box size and clear crop attributes
+                              if (imageType === 'Crop') {
+                                const pageContainerTmp = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                                const liveElTmp = (selectedLayerId && pageContainerTmp)
+                                  ? pageContainerTmp.querySelector(`[id="${selectedLayerId}"]`)
+                                  : selectedElement;
+                                if (liveElTmp) {
+                                  const svgRoot = liveElTmp.ownerSVGElement;
+                                  const clipEl = svgRoot?.querySelector(`[id="crop-group-clip-${liveElTmp.id}"], [id="crop-clip-${liveElTmp.id}"]`);
+                                  let croppedX = null, croppedY = null, croppedW = null, croppedH = null;
+
+                                  if (clipEl && clipEl.firstElementChild) {
+                                    const r = clipEl.firstElementChild;
+                                    croppedX = parseFloat(r.getAttribute('x'));
+                                    croppedY = parseFloat(r.getAttribute('y'));
+                                    croppedW = parseFloat(r.getAttribute('width'));
+                                    croppedH = parseFloat(r.getAttribute('height'));
+                                  }
+
+                                  if (!croppedW || !croppedH || isNaN(croppedW) || isNaN(croppedH)) {
+                                    const origW = parseFloat(liveElTmp.getAttribute('data-crop-orig-w') || '100');
+                                    const origH = parseFloat(liveElTmp.getAttribute('data-crop-orig-h') || '100');
+                                    const origX = parseFloat(liveElTmp.getAttribute('data-crop-orig-x') || '0');
+                                    const origY = parseFloat(liveElTmp.getAttribute('data-crop-orig-y') || '0');
+                                    const cropStr = liveElTmp.getAttribute('data-crop-data');
+                                    if (cropStr) {
+                                      try {
+                                        const cd = JSON.parse(cropStr);
+                                        croppedX = origX + (origW * (cd.left || 0)) / 100;
+                                        croppedY = origY + (origH * (cd.top || 0)) / 100;
+                                        croppedW = origW * (cd.width || 100) / 100;
+                                        croppedH = origH * (cd.height || 100) / 100;
+                                      } catch (e) {}
+                                    }
+                                  }
+
+                                  const imgEl = getSvgImageEl(liveElTmp) || liveElTmp.querySelector('image, video');
+                                  if (croppedW > 0 && croppedH > 0) {
+                                    if (imgEl) {
+                                      imgEl.removeAttribute('transform');
+                                      imgEl.style.removeProperty('transform');
+                                      imgEl.style.removeProperty('transform-origin');
+                                      imgEl.style.removeProperty('transform-box');
+                                      imgEl.setAttribute('x', croppedX);
+                                      imgEl.setAttribute('y', croppedY);
+                                      imgEl.setAttribute('width', croppedW);
+                                      imgEl.setAttribute('height', croppedH);
+                                    }
+                                    if (typeof liveElTmp.setAttribute === 'function' && liveElTmp.tagName?.toLowerCase() !== 'g') {
+                                      liveElTmp.setAttribute('x', croppedX);
+                                      liveElTmp.setAttribute('y', croppedY);
+                                      liveElTmp.setAttribute('width', croppedW);
+                                      liveElTmp.setAttribute('height', croppedH);
+                                    }
+
+                                    const innerGroup = liveElTmp.querySelector('.image-inner-content, .svg-crop-wrapper');
+                                    if (innerGroup) {
+                                      innerGroup.removeAttribute('transform');
+                                      innerGroup.style.removeProperty('transform');
+                                    }
+
+                                    liveElTmp.setAttribute('data-crop-orig-x', croppedX);
+                                    liveElTmp.setAttribute('data-crop-orig-y', croppedY);
+                                    liveElTmp.setAttribute('data-crop-orig-w', croppedW);
+                                    liveElTmp.setAttribute('data-crop-orig-h', croppedH);
+                                  }
+
+                                  liveElTmp.style.removeProperty('clip-path');
+                                  liveElTmp.style.removeProperty('-webkit-clip-path');
+                                  liveElTmp.removeAttribute('clip-path');
+                                  liveElTmp.removeAttribute('data-crop-data');
+                                  liveElTmp.removeAttribute('data-effect-crop-inset');
+                                  liveElTmp.removeAttribute('data-directional-crop');
+                                  if (svgRoot) {
+                                    const clip1 = svgRoot.querySelector(`[id="crop-clip-${liveElTmp.id}"]`);
+                                    if (clip1) clip1.remove();
+                                    const clip2 = svgRoot.querySelector(`[id="crop-group-clip-${liveElTmp.id}"]`);
+                                    if (clip2) clip2.remove();
+                                  }
                                 }
                               }
+
+                              const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none' };
+                              const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
+                              const parVal = parMap[type] || 'xMidYMid meet';
+                              const cssVal = fitCssMap[type] || 'contain';
+
+                              const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+                              const liveEl = (selectedLayerId && pageContainer)
+                                ? pageContainer.querySelector(`[id="${selectedLayerId}"]`)
+                                : selectedElement;
+
+                              // Directly apply to DOM - bypass applyVisuals/isHydrating
+                              const applyFitToNode = (node) => {
+                                if (!node) return;
+                                node.setAttribute('data-object-fit', type);
+                                node.style.setProperty('object-fit', cssVal, 'important');
+
+                                // Clear any stale transform on image-inner-content wrapper
+                                // (old resize path applied transforms to wrapper instead of image attrs)
+                                const innerContentGroup = node.querySelector('.image-inner-content');
+                                if (innerContentGroup) {
+                                  const existingTransform = innerContentGroup.getAttribute('transform');
+                                  if (existingTransform && existingTransform !== 'matrix(1 0 0 1 0 0)') {
+                                    // Apply the transform to the inner image directly, then clear it from the group
+                                    const innerImg = innerContentGroup.querySelector('image, video');
+                                    if (innerImg) {
+                                      // Get the actual rendered bounding box of the inner image (in local space)
+                                      try {
+                                        const imgBbox = innerImg.getBBox();
+                                        const groupCTM = innerContentGroup.getScreenCTM();
+                                        const nodeInv = node.getScreenCTM()?.inverse();
+                                        if (groupCTM && nodeInv) {
+                                          // Convert image corners from screen to <g> local space
+                                          const tl = new DOMPoint(imgBbox.x, imgBbox.y).matrixTransform(innerImg.getScreenCTM()).matrixTransform(nodeInv);
+                                          const br = new DOMPoint(imgBbox.x + imgBbox.width, imgBbox.y + imgBbox.height).matrixTransform(innerImg.getScreenCTM()).matrixTransform(nodeInv);
+                                          innerContentGroup.removeAttribute('transform');
+                                          innerImg.setAttribute('x', Math.min(tl.x, br.x));
+                                          innerImg.setAttribute('y', Math.min(tl.y, br.y));
+                                          innerImg.setAttribute('width', Math.abs(br.x - tl.x));
+                                          innerImg.setAttribute('height', Math.abs(br.y - tl.y));
+                                        }
+                                      } catch(e) {
+                                        // Fallback: just remove the transform
+                                        innerContentGroup.removeAttribute('transform');
+                                      }
+                                    }
+                                  }
+                                }
+
+                                // For Fit mode: remove clip-path on the group so letterbox space is visible
+                                // For Fill/Stretch: clip-path is fine (image fills the box)
+                                if (type === 'Fit') {
+                                  node.style.removeProperty('clip-path');
+                                  node.style.removeProperty('overflow');
+                                  node.removeAttribute('clip-path');
+                                }
+
+                                const svgImg = getSvgImageEl(node);
+                                if (svgImg) {
+                                  svgImg.setAttribute('preserveAspectRatio', parVal);
+                                  svgImg.style.setProperty('object-fit', cssVal, 'important');
+                                  // For Fit: image may not fill the full box - ensure overflow visible
+                                  if (type === 'Fit') {
+                                    svgImg.style.removeProperty('clip-path');
+                                    svgImg.style.removeProperty('overflow');
+                                  }
+                                }
+                              };
+
+                              applyFitToNode(liveEl);
+                              if (selectedElement && selectedElement !== liveEl) {
+                                applyFitToNode(selectedElement);
+                              }
+
+                              // Update React state directly, no applyVisuals needed
+                              setImageType(type);
+                              stateRef.current.imageType = type;
                             }}
                             className="px-[1vw] py-[0.5vw] text-[0.8vw] font-medium text-gray-600 hover:bg-gray-50 hover:text-[#4D47FF] transition-colors text-left"
                           >
