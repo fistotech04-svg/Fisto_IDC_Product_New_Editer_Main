@@ -114,7 +114,7 @@ const parseLayersFromSVG = (element) => {
  * TemplateEditor Layout Component
  * Integrates the various sub-components into a single editor interface.
  */
-export const syncGradient = (doc, element, baseAttr) => {
+const syncGradient = (doc, element, baseAttr) => {
     const type = element.getAttribute(`${baseAttr}-type`); // 'solid' or 'gradient'
     const currentValue = element.getAttribute(baseAttr);
     const isUrl = currentValue && currentValue.startsWith('url(#');
