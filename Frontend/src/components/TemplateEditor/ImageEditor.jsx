@@ -3179,13 +3179,6 @@ const ImageEditor = ({
 
                                   const imgEl = getSvgImageEl(liveEl) || liveEl.querySelector('image, video');
                                   if (imgEl) {
-                                    const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none' };
-                                    const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
-                                    const parVal = parMap[previousFit] || 'xMidYMid meet';
-                                    const cssVal = fitCssMap[previousFit] || 'contain';
-
-                                    imgEl.setAttribute('preserveAspectRatio', parVal);
-                                    imgEl.style.setProperty('object-fit', cssVal, 'important');
                                     const origW = liveEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100';
                                     const origH = liveEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100';
                                     const origX = liveEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0';
@@ -3194,8 +3187,74 @@ const ImageEditor = ({
                                     liveEl.setAttribute('data-crop-orig-h', origH);
                                     liveEl.setAttribute('data-crop-orig-x', origX);
                                     liveEl.setAttribute('data-crop-orig-y', origY);
-                                    if (!liveEl.hasAttribute('data-crop-data')) {
+
+                                    if (previousFit === 'Fill' && (!liveEl.hasAttribute('data-crop-data') || liveEl.getAttribute('data-crop-data') === 'null')) {
+                                      const url = imgEl.getAttribute('href') || imgEl.getAttribute('src');
+                                      if (url) {
+                                        const tempImg = new window.Image();
+                                        tempImg.onload = () => {
+                                          const nw = tempImg.naturalWidth;
+                                          const nh = tempImg.naturalHeight;
+                                          if (nw > 0 && nh > 0) {
+                                            const boxW = parseFloat(origW);
+                                            const boxH = parseFloat(origH);
+                                            const boxAspect = boxW / boxH;
+                                            const imgAspect = nw / nh;
+                                            
+                                            let scaledW = boxW;
+                                            let scaledH = boxH;
+                                            if (imgAspect > boxAspect) {
+                                              scaledH = boxH;
+                                              scaledW = boxH * imgAspect;
+                                            } else {
+                                              scaledW = boxW;
+                                              scaledH = boxW / imgAspect;
+                                            }
+                                            
+                                            const offX = (scaledW - boxW) / 2;
+                                            const offY = (scaledH - boxH) / 2;
+                                            
+                                            liveEl.setAttribute('data-crop-orig-w', scaledW);
+                                            liveEl.setAttribute('data-crop-orig-h', scaledH);
+                                            liveEl.setAttribute('data-crop-orig-x', parseFloat(origX) - offX);
+                                            liveEl.setAttribute('data-crop-orig-y', parseFloat(origY) - offY);
+                                            
+                                            imgEl.setAttribute('width', scaledW);
+                                            imgEl.setAttribute('height', scaledH);
+                                            imgEl.setAttribute('x', parseFloat(origX) - offX);
+                                            imgEl.setAttribute('y', parseFloat(origY) - offY);
+                                            
+                                            const leftPct = (offX / scaledW) * 100;
+                                            const topPct = (offY / scaledH) * 100;
+                                            const widthPct = (boxW / scaledW) * 100;
+                                            const heightPct = (boxH / scaledH) * 100;
+                                            
+                                            imgEl.setAttribute('preserveAspectRatio', 'none');
+                                            imgEl.style.setProperty('object-fit', 'fill', 'important');
+                                            
+                                            liveEl.setAttribute('data-crop-data', JSON.stringify({
+                                              left: leftPct, top: topPct, width: widthPct, height: heightPct, offX: 0, offY: 0, scale: 1
+                                            }));
+                                            
+                                            window.dispatchEvent(new CustomEvent('force-crop-update', { detail: { id: liveEl.id } }));
+                                          }
+                                        };
+                                        tempImg.src = url;
+                                      }
+                                      
+                                      imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                                      imgEl.style.setProperty('object-fit', 'cover', 'important');
                                       liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));
+                                    } else {
+                                      const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none' };
+                                      const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
+                                      const parVal = parMap[previousFit] || 'xMidYMid meet';
+                                      const cssVal = fitCssMap[previousFit] || 'contain';
+                                      imgEl.setAttribute('preserveAspectRatio', parVal);
+                                      imgEl.style.setProperty('object-fit', cssVal, 'important');
+                                      if (!liveEl.hasAttribute('data-crop-data') || liveEl.getAttribute('data-crop-data') === 'null') {
+                                        liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));
+                                      }
                                     }
                                   }
                                 }
