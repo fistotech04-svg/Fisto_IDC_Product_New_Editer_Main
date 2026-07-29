@@ -42,6 +42,7 @@ import Color from './Color';
 import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
+import ReplaceMediaModal from './ReplaceMediaModal';
 
 const ImageEditor = ({
   selectedElement,
@@ -100,6 +101,84 @@ const ImageEditor = ({
     const imgEl = getSvgImageEl(selectedElement);
     return imgEl?.getAttribute?.('href') || imgEl?.getAttribute?.('xlink:href') || imgEl?.src || '';
   });
+
+  const displayImageName = useMemo(() => {
+    let nameFromLayer = null;
+    if (pages && pages[activePageIndex] && selectedLayerId) {
+      const findName = (layers) => {
+        for (const layer of layers) {
+          if (layer.id === selectedLayerId) return layer.name;
+          if (layer.children) {
+            const found = findName(layer.children);
+            if (found !== null) return found;
+          }
+        }
+        return null;
+      };
+      nameFromLayer = findName(pages[activePageIndex].layers);
+    }
+    
+    if (nameFromLayer) return nameFromLayer;
+    
+    const dataName = selectedElement?.getAttribute('data-name');
+    if (dataName) return dataName;
+
+    return 'Image';
+  }, [pages, activePageIndex, selectedLayerId, selectedElement]);
+
+  const [imageResolution, setImageResolution] = useState('');
+  const [imageFileSize, setImageFileSize] = useState('');
+
+  useEffect(() => {
+    if (!previewSrc) {
+      setImageResolution('');
+      setImageFileSize('');
+      return;
+    }
+
+    const img = new Image();
+    img.src = previewSrc;
+    img.onload = () => {
+      setImageResolution(`${img.naturalWidth} x ${img.naturalHeight}`);
+    };
+
+    const formatBytes = (bytes, decimals = 2) => {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
+    if (previewSrc.startsWith('data:')) {
+      const base64str = previewSrc.split(',')[1];
+      if (base64str) {
+        const bytes = Math.round(base64str.length * (3 / 4));
+        setImageFileSize(formatBytes(bytes, 1));
+      }
+    } else {
+      fetch(previewSrc, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            const contentLength = res.headers.get('content-length');
+            if (contentLength) {
+              setImageFileSize(formatBytes(parseInt(contentLength, 10), 1));
+            } else {
+              setImageFileSize('Unknown Size');
+            }
+          } else {
+            setImageFileSize('Unknown Size');
+          }
+        })
+        .catch(() => {
+          setImageFileSize('Unknown Size');
+        });
+    }
+  }, [previewSrc]);
+
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
+
   const [imageType, setImageType] = useState('Fit');
   const [opacity, setOpacity] = useState(100);
   const [activePopup, setActivePopup] = useState(null);
@@ -3296,66 +3375,58 @@ const ImageEditor = ({
                 </div>
               </div>
 
-
-
-              <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
-                {/* Current Image */}
-                <div className="flex flex-col items-center gap-[0.35vw]">
-                  <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors">
-                    <img
-                      src={previewSrc || ''}
-                      alt="Thumbnail"
-                      className="w-full h-full rounded-[0.3vw] object-contain"
-                    />
-                    <div
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
-                      onClick={() => onDeleteLayer && onDeleteLayer()}
-                    >
-                      <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
-                      <span className="text-[0.5vw] text-white font-semibold">Remove</span>
-                    </div>
-                  </div>
-                  <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
+              <div 
+                className="flex items-center gap-[1vw] pt-[0.5vw]"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+                      handleFileUpload({ target: { files: e.dataTransfer.files } });
+                    }
+                  }
+                }}
+              >
+                {/* Thumbnail */}
+                <div className="relative w-[7vw] h-[5vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
+                  <img
+                    src={previewSrc || ''}
+                    alt="Thumbnail"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
 
-                {/* Replace Arrow */}
-                <label
-                  htmlFor="image-editor-upload-input"
-                  className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
-                >
-                  <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
-                </label>
+                {/* Info & Actions */}
+                <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw]">
+                  <div className="flex flex-col">
+                    <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={displayImageName}>
+                      {displayImageName}
+                    </span>
+                    <span className="text-[0.6vw] text-gray-400">
+                      {imageResolution ? `${imageResolution} • ` : ''}{imageFileSize || 'Unknown Size'}
+                    </span>
+                  </div>
 
-                {/* Upload Box */}
-                <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-                  <label
-                    htmlFor="image-editor-upload-input"
-                    className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        const file = e.dataTransfer.files[0];
-                        if (file.type.startsWith('image/') && file.type !== 'image/gif') {
-                          handleFileUpload({ target: { files: e.dataTransfer.files } });
-                        }
-                      }
-                    }}
-                  >
-                    <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
-                      Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
-                    </p>
-                    <Icon icon="lucide:upload" className="w-[1.1vw] h-[1.1vw] text-gray-400 mb-[0.2vw]" />
-                    <div className="flex flex-col items-center">
-                      <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
-                      <span className="text-[0.5vw] font-semibold text-gray-500">JPG, PNG</span>
-                    </div>
-                  </label>
-                  <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
+                  <div className="flex items-center gap-[0.5vw]">
+                    <button
+                      onClick={() => setShowReplaceModal(true)}
+                      className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+                    >
+                      Replace media
+                    </button>
+                    <button
+                      onClick={() => onDeleteLayer && onDeleteLayer()}
+                      className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+                      title="Delete"
+                    >
+                      <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -3381,19 +3452,7 @@ const ImageEditor = ({
                 </div>
               </div>
 
-              {/* Image Gallery */}
-              <div onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">
-                <div className="absolute inset-0 flex gap-[0.2vw] opacity-20 group-hover:opacity-40 transition-opacity">
-                  <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }} />
-                  <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=300&auto=format&fit=crop')" }} />
-                  <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=300&auto=format&fit=crop')" }} />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-gray/10 via-gray/20 to-gray/40 group-hover:via-gray/20 transition-all" />
-                <div className="relative z-10 flex items-center gap-[0.75vw]">
-                  <Icon icon="clarity:image-gallery-solid" className="w-[1vw] h-[1.2vw] text-white" />
-                  <span className="text-[0.95vw] font-semibold text-white">Image Gallery</span>
-                </div>
-              </div>
+
             </>
           )}
 
@@ -3587,6 +3646,13 @@ const ImageEditor = ({
 
         </div>
       )}
+
+      {/* Replace Media Modal Popup */}
+      <ReplaceMediaModal
+        show={showReplaceModal}
+        onClose={() => setShowReplaceModal(false)}
+        onReplace={(file) => handleFileUpload({ target: { files: [file] } })}
+      />
 
     </div>
   );
