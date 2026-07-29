@@ -347,7 +347,7 @@ const ShapeProperties = ({
           colorsOnPage={colorsOnPage}
           showDetailedPicker={showDetailedPicker}
           setShowDetailedPicker={setShowDetailedPicker}
-          hideFill={shapeType === 'line' || shapeType === 'path'}
+          hideFill={shapeType === 'line'}
         />
       </div>
 

@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import VideoGalleryModal from "./VideoGalleryModal";
+import ReplaceMediaModal from "./ReplaceMediaModal";
 import Color from './Color';
 
 import Adjustment from './Adjustment';
@@ -94,6 +95,7 @@ const VideoEditor = ({
   const [posterSrc, setPosterSrc] = useState(null);
   const [videoType, setVideoType] = useState("Fill");
   const [showVideoTypeDropdown, setShowVideoTypeDropdown] = useState(false);
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [autoplay, setAutoplay] = useState(false);
   const [loop, setLoop] = useState(false);
   const [controls, setControls] = useState(true);
@@ -1743,136 +1745,77 @@ const VideoEditor = ({
         </div>
 
 
-
-        {/* Upload/Replace Row */}
-        <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
-          {/* Current Video Preview */}
-          <div className="flex flex-col items-center gap-[0.35vw]">
-            <div
-              className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors"
+        {/* Video fix type */}
+        <div className="flex items-center gap-[0.5vw] mt-[0.5vw]">
+          <span className="text-[0.8vw] font-medium text-gray-800">Video fix type :</span>
+          <div className="relative">
+            <div 
+              className="flex items-center justify-between w-[8vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
+              onClick={() => setShowVideoTypeDropdown(!showVideoTypeDropdown)}
             >
-              {previewSrc ? (
-                previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
-                  <iframe src={previewSrc} className="w-full h-full object-cover rounded-[0.3vw] pointer-events-none" frameBorder="0" allowFullScreen />
-                ) : (
-                  <video src={previewSrc} className="w-full h-full object-cover rounded-[0.3vw]" muted />
-                )
+              <span className="text-[0.75vw] text-gray-600">{videoType || "Fit"}</span>
+              <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] text-gray-500" />
+            </div>
+            {showVideoTypeDropdown && (
+              <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.3vw]">
+                {["Fit", "Fill", "Stretch"].map((type) => (
+                  <div
+                    key={type}
+                    className="px-[0.6vw] py-[0.4vw] text-[0.75vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setVideoType(type);
+                      setShowVideoTypeDropdown(false);
+                      debouncedUpdate();
+                    }}
+                  >
+                    {type}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Video Info Row */}
+        <div className="flex items-start gap-[0.8vw] pt-[0.5vw]">
+          <div className="w-[7vw] h-[4.5vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
+            {previewSrc ? (
+              previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
+                <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
               ) : (
-                <VideoIcon size="1.2vw" className="text-gray-300" />
-              )}
-              <div
-                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
-                onClick={() => onDeleteLayer && onDeleteLayer()}
+                <video src={previewSrc} className="w-full h-full object-cover" muted />
+              )
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center">
+                 <VideoIcon size="1.2vw" className="text-gray-300" />
+              </div>
+            )}
+          </div>
+          
+          <div className="flex flex-col flex-1">
+            <span className="text-[0.75vw] font-medium text-gray-700 mb-[0.3vw]">Video Name .mp4</span>
+            <div className="text-[0.55vw] text-gray-400 mb-[0.6vw] flex items-center gap-[0.3vw]">
+              <span>02:52 Mins</span>
+              <span>•</span>
+              <span>1920 x 1080</span>
+              <span>•</span>
+              <span>24MB</span>
+            </div>
+            
+            <div className="flex items-center gap-[0.4vw]">
+              <button 
+                onClick={() => setShowReplaceModal(true)}
+                className="px-[0.6vw] py-[0.3vw] bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 text-[0.6vw] font-medium rounded-[0.2vw] transition-colors"
               >
-                <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
-                <span className="text-[0.5vw] text-white font-semibold">Remove</span>
-              </div>
+                Replace video
+              </button>
+              <button 
+                onClick={() => onDeleteLayer && onDeleteLayer()}
+                className="p-[0.3vw] bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 rounded-[0.2vw] transition-colors flex items-center justify-center"
+              >
+                <Icon icon="lucide:trash-2" className="w-[0.8vw] h-[0.8vw]" />
+              </button>
             </div>
-            <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
-          </div>
-
-          {/* Replace Icon */}
-          <div
-            className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
-          </div>
-
-          {/* Upload Box */}
-          <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                  const file = e.dataTransfer.files[0];
-                  if (file.type === 'video/mp4') {
-                    handleVideoUpload({ target: { files: e.dataTransfer.files } });
-                  }
-                }
-              }}
-            >
-              <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
-                Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
-              </p>
-              <Upload size="1.1vw" className="text-gray-400 mb-[0.2vw]" />
-              <div className="flex flex-col items-center">
-                <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
-                <span className="text-[0.5vw] font-semibold text-gray-500">MP4</span>
-              </div>
-            </div>
-            <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
-          </div>
-        </div>
-
-        {/* OR Divider */}
-        <div className="flex items-center gap-[1vw] py-[0.25vw]">
-          <div className="h-px flex-1 bg-gray-200" />
-          <span className="text-[0.7vw] font-semibold text-gray-400">OR</span>
-          <div className="h-px flex-1 bg-gray-200" />
-        </div>
-
-        {/* URL Input */}
-        <div className="flex items-center gap-[0.5vw] px-[0.5vw]">
-          <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">URL :</span>
-          <div className="flex-1 flex items-center border border-gray-300 rounded-[0.6vw] overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-indigo-100 transition-all pr-[0.3vw]">
-
-            <input
-              type="text"
-              placeholder="https://"
-              value={inputUrl}
-              onChange={(e) => {
-                setInputUrl(e.target.value);
-                setIsUrlAdded(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddUrl();
-              }}
-              className="flex-1 px-[0.75vw] py-[0.55vw] text-[0.85vw] text-gray-700 outline-none bg-transparent"
-            />
-            <button
-              onClick={handleAddUrl}
-              disabled={isAddingUrl || !inputUrl}
-              className={`flex items-center justify-center h-[2vw] px-[0.8vw] rounded-[0.4vw] text-[0.75vw] font-medium transition-all ${isUrlAdded ? 'bg-green-500 text-white' :
-                isAddingUrl ? 'bg-indigo-100 text-indigo-600' :
-                  'bg-indigo-600 text-white hover:bg-indigo-700'
-                }`}
-            >
-              {isUrlAdded ? (
-                'Added'
-              ) : isAddingUrl ? (
-                <div className="flex items-center gap-[0.3vw]">
-                  <Icon icon="eos-icons:loading" className="w-[1vw] h-[1vw]" />
-                  <span>{urlAddProgress}%</span>
-                </div>
-              ) : (
-                'Add'
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Video Gallery Button */}
-        <div
-          onClick={() => setOpenGallery(true)}
-          className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5"
-        >
-          <div className="absolute inset-0 flex gap-[0.2vw] opacity-20 group-hover:opacity-40 transition-opacity">
-            {galleryPreviews.slice(0, 3).map((src, i) => (
-              <div key={i} className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />
-            ))}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-900/10 via-gray-900/20 to-gray-900/40 group-hover:via-gray-900/20 transition-all" />
-          <div className="relative z-10 flex items-center gap-[0.75vw]">
-            <Icon icon="material-symbols:video-library-outline" className="w-[1vw] h-[1.2vw] text-white" />
-            <span className="text-[0.95vw] font-semibold text-white">Video Gallery</span>
           </div>
         </div>
       </div>
@@ -2062,6 +2005,20 @@ const VideoEditor = ({
           onClose={() => setOpenGallery(false)}
         />
       )}
+
+      {/* Replace Media Modal Popup */}
+      <ReplaceMediaModal
+        show={showReplaceModal}
+        mediaType="video"
+        onClose={() => setShowReplaceModal(false)}
+        onReplace={(file) => {
+          if (file.isUrl) {
+            replaceTemplateWithUrl(file.url);
+          } else {
+            handleVideoUpload({ target: { files: [file] } });
+          }
+        }}
+      />
     </div>
   );
 };
