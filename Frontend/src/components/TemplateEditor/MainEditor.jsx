@@ -1648,7 +1648,7 @@ const MainEditor = ({
         foreignObject:hover > .custom-video-overlay,
         .custom-video-overlay:hover {
           opacity: 1 !important;
-          background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 60%, transparent 100%) !important;
+          background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.9) 100%) !important;
         }
       `;
       document.head.appendChild(ts);
@@ -1693,6 +1693,13 @@ const MainEditor = ({
           bar = null;
         }
 
+        if (bar) {
+          const repBtn = bar.querySelector('.custom-repeat-btn');
+          if (repBtn) {
+            repBtn.style.opacity = video.loop ? '1' : '0.5';
+          }
+        }
+
         if (!bar) {
 
           video.controls = false;
@@ -1712,8 +1719,8 @@ const MainEditor = ({
             window.addEventListener('pointermove', (e) => {
               document.querySelectorAll('.custom-video-overlay').forEach(b => {
                 const rect = b.getBoundingClientRect();
-                const isInside = e.clientX >= rect.left && e.clientX <= rect.right && 
-                                 e.clientY >= rect.top && e.clientY <= rect.bottom;
+                const isInside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                  e.clientY >= rect.top && e.clientY <= rect.bottom;
                 if (isInside) {
                   b.classList.add('video-is-hovered');
                 } else {
@@ -1736,11 +1743,11 @@ const MainEditor = ({
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
-            padding: '5%',
+            padding: '2% 3%',
             boxSizing: 'border-box',
             zIndex: '9999',
             pointerEvents: 'none',
-            filter: 'drop-shadow(0px 0px 4px rgba(0,0,0,0.8))',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.9) 100%, rgba(0,0,0,0) 25%, rgba(0,0,0,0) 70%, rgba(0,0,0,0.9) 100%)',
           });
 
           // Establish a base font-size linked to width for proportional scaling
@@ -1752,7 +1759,7 @@ const MainEditor = ({
               }
             }
           });
-          ro.observe(mountPoint);
+          ro.observe(bar);
 
           // Top Right: Volume
           const topContainer = document.createElement('div');
@@ -1760,6 +1767,7 @@ const MainEditor = ({
             display: 'flex',
             justifyContent: 'flex-end',
             width: '100%',
+            pointerEvents: 'none',
           });
 
           const volumeBtn = document.createElement('button');
@@ -1769,15 +1777,14 @@ const MainEditor = ({
             color: 'white',
             cursor: 'pointer',
             padding: '0',
-            width: '8%',
-            height: 'auto',
-            aspectRatio: '1',
+            width: '7em',
+            height: '7em',
             pointerEvents: 'auto',
             opacity: '0.8',
           });
 
-          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
-          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+          const VOL_ON_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>`;
+          const VOL_OFF_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
 
           const updateVolumeIcon = () => {
             volumeBtn.innerHTML = (video.muted || video.volume === 0) ? VOL_OFF_SVG : VOL_ON_SVG;
@@ -1796,44 +1803,100 @@ const MainEditor = ({
             updateVolumeIcon();
             if (setSelectedLayerId) setSelectedLayerId(layerId);
           };
+          video.addEventListener('volumechange', updateVolumeIcon);
           topContainer.appendChild(volumeBtn);
 
-          // Center: Rewind, Play/Pause, Forward
+          // Center: Rewind 3s, Forward 3s
           const centerContainer = document.createElement('div');
           Object.assign(centerContainer.style, {
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10%',
-            width: '65%',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '0 2%',
+            flexGrow: '1',
             pointerEvents: 'none',
+            boxSizing: 'border-box'
           });
 
-          const REWIND_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
-          const FORWARD_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="15" text-anchor="middle" font-size="7" font-family="sans-serif" stroke="none" fill="currentColor">10</text></svg>`;
-          const PLAY_SVG = `<svg width="50%" height="50%" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
-          const PAUSE_SVG = `<svg width="50%" height="50%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+          const REWIND_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="11 17 6 12 11 7"></polyline><polyline points="18 17 13 12 18 7"></polyline></svg>`;
+          const FORWARD_ICON = `<svg width="5em" height="5em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polyline points="13 17 18 12 13 7"></polyline><polyline points="6 17 11 12 6 7"></polyline></svg>`;
 
           const rewindBtn = document.createElement('button');
           Object.assign(rewindBtn.style, {
-            background: 'none', border: 'none', color: 'white',
-            cursor: 'pointer', padding: '0', width: '10%', height: 'auto', aspectRatio: '1',
-            pointerEvents: 'auto', opacity: '0.9'
+            background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', pointerEvents: 'auto', opacity: '0.9', whiteSpace: 'nowrap', position: 'relative'
           });
-          rewindBtn.innerHTML = REWIND_SVG;
-          rewindBtn.onclick = (e) => { e.stopPropagation(); video.currentTime -= 10; if (setSelectedLayerId) setSelectedLayerId(layerId); };
+          const rewindTextWrapper = document.createElement('div');
+          Object.assign(rewindTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginLeft: '0.5em' });
+          const rewindText = document.createElement('div');
+          rewindText.textContent = "3s";
+          Object.assign(rewindText.style, { 
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: 'max-content',
+            fontSize: '10em', 
+            transform: 'translate(-50%, -50%) scale(0.35)', 
+            transformOrigin: 'center center',
+            fontFamily: 'Inter, sans-serif', 
+            color: 'white', 
+            whiteSpace: 'nowrap', 
+            pointerEvents: 'none' 
+          });
+          rewindTextWrapper.appendChild(rewindText);
+          rewindBtn.innerHTML = REWIND_ICON;
+          rewindBtn.appendChild(rewindTextWrapper);
+          rewindBtn.onclick = (e) => { e.stopPropagation(); video.currentTime -= 3; if (setSelectedLayerId) setSelectedLayerId(layerId); };
+
+          const forwardBtn = document.createElement('button');
+          Object.assign(forwardBtn.style, {
+            background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', display: 'flex', alignItems: 'center', pointerEvents: 'auto', opacity: '0.9', whiteSpace: 'nowrap', position: 'relative'
+          });
+          const forwardTextWrapper = document.createElement('div');
+          Object.assign(forwardTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginRight: '0.5em' });
+          const forwardText = document.createElement('div');
+          forwardText.textContent = "3s";
+          Object.assign(forwardText.style, { 
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: 'max-content',
+            fontSize: '10em', 
+            transform: 'translate(-50%, -50%) scale(0.35)', 
+            transformOrigin: 'center center',
+            fontFamily: 'Inter, sans-serif', 
+            color: 'white', 
+            whiteSpace: 'nowrap', 
+            pointerEvents: 'none' 
+          });
+          forwardTextWrapper.appendChild(forwardText);
+          forwardBtn.appendChild(forwardTextWrapper);
+          forwardBtn.insertAdjacentHTML('beforeend', FORWARD_ICON);
+          forwardBtn.onclick = (e) => { e.stopPropagation(); video.currentTime += 3; if (setSelectedLayerId) setSelectedLayerId(layerId); };
+
+          centerContainer.appendChild(rewindBtn);
+          centerContainer.appendChild(forwardBtn);
+
+          // Bottom: Play, Progress, Time, Repeat, Fullscreen
+          const bottomContainer = document.createElement('div');
+          Object.assign(bottomContainer.style, {
+            display: 'flex',
+            alignItems: 'center',
+            width: '100%',
+            gap: '2em',
+            pointerEvents: 'none',
+            paddingBottom: '2%',
+            paddingLeft: '2%',
+            paddingRight: '2%',
+            boxSizing: 'border-box'
+          });
+
+          const PLAY_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+          const PAUSE_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
 
           const playBtn = document.createElement('button');
           Object.assign(playBtn.style, {
-            background: 'rgba(0, 0, 0, 0.4)', border: '0.3em solid white', color: 'white',
-            boxShadow: '0 0 0 0.15em rgba(0,0,0,0.8)', // Creates the black outer ring
-            cursor: 'pointer', padding: '0', width: '15%', height: 'auto', aspectRatio: '1',
-            borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            pointerEvents: 'auto'
+            background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: "8em", height: "8em", pointerEvents: 'auto', flexShrink: '0',
           });
 
           const onPlay = () => { playBtn.innerHTML = PAUSE_SVG; bar.classList.remove('is-paused'); };
@@ -1842,7 +1905,6 @@ const MainEditor = ({
 
           video.addEventListener('play', onPlay);
           video.addEventListener('pause', onPause);
-          video.addEventListener('volumechange', updateVolumeIcon);
 
           playBtn.onclick = (e) => {
             e.stopPropagation();
@@ -1850,39 +1912,43 @@ const MainEditor = ({
             if (setSelectedLayerId) setSelectedLayerId(layerId);
           };
 
-          const forwardBtn = document.createElement('button');
-          Object.assign(forwardBtn.style, {
-            background: 'none', border: 'none', color: 'white',
-            cursor: 'pointer', padding: '0', width: '10%', height: 'auto', aspectRatio: '1',
-            pointerEvents: 'auto', opacity: '0.9'
+          const progContainer = document.createElement('div');
+          Object.assign(progContainer.style, {
+            flexGrow: '1', height: '1.2em', background: 'rgba(255,255,255,0.3)', position: 'relative', cursor: 'pointer', pointerEvents: 'auto', borderRadius: '0.2em',
           });
-          forwardBtn.innerHTML = FORWARD_SVG;
-          forwardBtn.onclick = (e) => { e.stopPropagation(); video.currentTime += 10; if (setSelectedLayerId) setSelectedLayerId(layerId); };
 
-          centerContainer.appendChild(rewindBtn);
-          centerContainer.appendChild(playBtn);
-          centerContainer.appendChild(forwardBtn);
-
-          // Bottom: Progress and Time
-          const bottomContainer = document.createElement('div');
-          Object.assign(bottomContainer.style, {
-            display: 'flex',
-            flexDirection: 'column',
-            width: '100%',
-            gap: '1em',
-            containerType: 'inline-size',
+          const timeWrapper = document.createElement('div');
+          Object.assign(timeWrapper.style, {
+            position: 'relative',
+            width: '28em',
+            height: '8em',
+            flexShrink: '0',
+            marginLeft: '1em'
           });
 
           const timeDisplay = document.createElement('div');
           Object.assign(timeDisplay.style, {
-            alignSelf: 'flex-start',
-            width: '40%',
-            marginBottom: '1%',
-            pointerEvents: 'none',
+            position: 'absolute',
+            top: '50%',
+            left: '0',
+            width: 'max-content',
+            fontSize: '10em',
+            transform: 'translateY(-50%) scale(0.35)',
+            transformOrigin: 'left center',
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
+          timeDisplay.textContent = "00:00 / 00:00";
+          timeWrapper.appendChild(timeDisplay);
 
-          timeDisplay.innerHTML = `<svg viewBox="0 0 100 15" width="100%" preserveAspectRatio="xMinYMid meet"><text x="0" y="12" fill="white" font-family="Inter, sans-serif" font-size="12" opacity="0.9">00:00 / 00:00</text></svg>`;
-          const timeTextEl = timeDisplay.querySelector('text');
+          const progFill = document.createElement('div');
+          Object.assign(progFill.style, {
+            position: 'absolute', top: '0', left: '0', bottom: '0', width: '0%', background: 'white', pointerEvents: 'none', borderRadius: '0.2em',
+          });
+          progContainer.appendChild(progFill);
+
 
           const formatTime = (sec) => {
             if (isNaN(sec)) return "00:00";
@@ -1891,44 +1957,11 @@ const MainEditor = ({
             return `${m}:${s}`;
           };
 
-          const progContainer = document.createElement('div');
-          Object.assign(progContainer.style, {
-            width: '100%',
-            height: '1.5em',
-            minHeight: '2px',
-            background: 'transparent',
-            position: 'relative',
-            cursor: 'pointer',
-            pointerEvents: 'auto',
-          });
-
-          const progTrack = document.createElement('div');
-          Object.assign(progTrack.style, {
-            position: 'absolute',
-            top: '0', left: '0', right: '0', bottom: '0',
-            background: 'white',
-            opacity: '0.3',
-            pointerEvents: 'none',
-          });
-          progContainer.appendChild(progTrack);
-
-          const progFill = document.createElement('div');
-          Object.assign(progFill.style, {
-            position: 'absolute',
-            top: '0', left: '0', bottom: '0',
-            width: '0%',
-            background: 'white',
-            pointerEvents: 'none',
-          });
-          progContainer.appendChild(progFill);
-
           const onTimeUpdate = () => {
             if (video.duration) {
               const pct = (video.currentTime / video.duration) * 100;
               progFill.style.width = `${pct}%`;
-              const t = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
-              if (timeTextEl) timeTextEl.textContent = t;
-              else timeDisplay.textContent = t;
+              if (timeDisplay) timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
             }
           };
           video.addEventListener('timeupdate', onTimeUpdate);
@@ -1955,8 +1988,146 @@ const MainEditor = ({
             if (setSelectedLayerId) setSelectedLayerId(layerId);
           };
 
-          bottomContainer.appendChild(timeDisplay);
+          const REPEAT_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>`;
+          const repeatBtn = document.createElement('button');
+          repeatBtn.className = 'custom-repeat-btn';
+          Object.assign(repeatBtn.style, {
+            background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0', opacity: video.loop ? '1' : '0.5',
+          });
+          repeatBtn.innerHTML = REPEAT_SVG;
+          repeatBtn.onclick = (e) => {
+            e.stopPropagation();
+            video.loop = !video.loop;
+            if (video.loop) video.setAttribute('loop', ''); else video.removeAttribute('loop');
+            repeatBtn.style.opacity = video.loop ? '1' : '0.5';
+            if (setSelectedLayerId) setSelectedLayerId(layerId);
+            if (typeof updateElementAttribute === 'function') {
+              const pageContainer = video.closest('.page-svg-container');
+              const pIdx = pageContainer ? parseInt(pageContainer.getAttribute('data-page-index')) : (typeof activePageIndex !== 'undefined' ? activePageIndex : 0);
+              updateElementAttribute(pIdx, layerId, { loop: video.loop });
+            }
+          };
+
+          const FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>`;
+          const EXIT_FS_SVG = `<svg width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path></svg>`;
+
+          const fsBtn = document.createElement('button');
+          Object.assign(fsBtn.style, {
+            background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '0', width: '5em', height: '5em', pointerEvents: 'auto', flexShrink: '0',
+          });
+
+          const updateFsIcon = () => {
+            fsBtn.innerHTML = document.fullscreenElement ? EXIT_FS_SVG : FS_SVG;
+          };
+          updateFsIcon();
+          document.addEventListener('fullscreenchange', updateFsIcon);
+
+          const fsStyleId = 'custom-fs-style';
+          if (!document.getElementById(fsStyleId)) {
+            const style = document.createElement('style');
+            style.id = fsStyleId;
+            style.innerHTML = `
+              foreignObject:fullscreen, foreignObject:-webkit-full-screen, foreignObject:-moz-full-screen {
+                width: 100vw !important;
+                height: 100vh !important;
+                background: black !important;
+                transform: none !important;
+              }
+              foreignObject:fullscreen video, foreignObject:-webkit-full-screen video, foreignObject:-moz-full-screen video {
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: contain !important;
+                
+              }
+              #temp-fs-wrapper .custom-video-overlay {
+                font-size: 0.3vw !important;
+              }
+              #temp-fs-wrapper .custom-video-overlay svg {
+                stroke-width: 2.5 !important;
+                
+              }
+              #temp-fs-wrapper .custom-video-overlay .time-display {
+                margin-right: 0 !important;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+
+          fsBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (!document.fullscreenElement) {
+              const fsWrapper = document.createElement('div');
+              fsWrapper.id = 'temp-fs-wrapper';
+              Object.assign(fsWrapper.style, {
+                position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh',
+                background: 'black', zIndex: '999999', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              });
+
+              const vPlaceholder = document.createComment('video-placeholder');
+              const bPlaceholder = document.createComment('bar-placeholder');
+
+              video.parentElement.insertBefore(vPlaceholder, video);
+              bar.parentElement.insertBefore(bPlaceholder, bar);
+
+              const wasPlaying = !video.paused;
+
+              fsWrapper.appendChild(video);
+              fsWrapper.appendChild(bar);
+              document.body.appendChild(fsWrapper);
+
+              fsWrapper._vPlaceholder = vPlaceholder;
+              fsWrapper._bPlaceholder = bPlaceholder;
+
+              const reqFs = fsWrapper.requestFullscreen || fsWrapper.webkitRequestFullscreen;
+              if (reqFs) {
+                reqFs.call(fsWrapper).then(() => {
+                  if (wasPlaying) video.play().catch(() => { });
+                }).catch(err => {
+                  console.error(err);
+                  if (vPlaceholder.parentNode) vPlaceholder.parentNode.insertBefore(video, vPlaceholder);
+                  if (bPlaceholder.parentNode) bPlaceholder.parentNode.insertBefore(bar, bPlaceholder);
+                  vPlaceholder.remove();
+                  bPlaceholder.remove();
+                  fsWrapper.remove();
+                });
+              }
+            } else {
+              if (document.exitFullscreen) document.exitFullscreen();
+              else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            }
+          };
+
+          const handleFsChange = () => {
+            const isFs = !!document.fullscreenElement;
+            fsBtn.innerHTML = isFs ? EXIT_FS_SVG : FS_SVG;
+            if (!isFs) {
+              const fsWrapper = document.getElementById('temp-fs-wrapper');
+              if (fsWrapper) {
+                const wasPlaying = !video.paused;
+                const vp = fsWrapper._vPlaceholder;
+                const bp = fsWrapper._bPlaceholder;
+                if (vp && vp.parentNode) {
+                  vp.parentNode.insertBefore(video, vp);
+                  vp.remove();
+                }
+                if (bp && bp.parentNode) {
+                  bp.parentNode.insertBefore(bar, bp);
+                  bp.remove();
+                }
+                fsWrapper.remove();
+                if (wasPlaying) video.play().catch(() => { });
+              }
+            }
+          };
+          handleFsChange();
+          document.addEventListener('fullscreenchange', handleFsChange);
+          document.addEventListener('webkitfullscreenchange', handleFsChange);
+
+          bottomContainer.appendChild(playBtn);
           bottomContainer.appendChild(progContainer);
+          bottomContainer.appendChild(timeWrapper);
+          bottomContainer.appendChild(repeatBtn);
+          bottomContainer.appendChild(fsBtn);
 
           bar.appendChild(topContainer);
           bar.appendChild(centerContainer);
@@ -1965,6 +2136,8 @@ const MainEditor = ({
           mountPoint.appendChild(bar);
 
           bar._cleanup = () => {
+            document.removeEventListener('fullscreenchange', handleFsChange);
+            document.removeEventListener('webkitfullscreenchange', handleFsChange);
             if (ro) ro.disconnect();
             video.removeEventListener('play', onPlay);
             video.removeEventListener('pause', onPause);
@@ -2272,13 +2445,13 @@ const MainEditor = ({
 
       const newId = `video-${Date.now()}`;
 
-      const isPortrait = e.detail?.isPortrait || 
-                         rawUrl.toLowerCase().includes('shorts') || 
-                         rawUrl.toLowerCase().includes('reel') || 
-                         rawUrl.toLowerCase().includes('tiktok') ||
-                         rawUrl.toLowerCase().includes('portrait') ||
-                         rawUrl.toLowerCase().includes('vertical') ||
-                         (e.detail?.videoWidth && e.detail?.videoHeight && e.detail.videoHeight > e.detail.videoWidth);
+      const isPortrait = e.detail?.isPortrait ||
+        rawUrl.toLowerCase().includes('shorts') ||
+        rawUrl.toLowerCase().includes('reel') ||
+        rawUrl.toLowerCase().includes('tiktok') ||
+        rawUrl.toLowerCase().includes('portrait') ||
+        rawUrl.toLowerCase().includes('vertical') ||
+        (e.detail?.videoWidth && e.detail?.videoHeight && e.detail.videoHeight > e.detail.videoWidth);
 
       // Calculate dynamic view width and height relative to canvas page dimensions
       const svgW = parseFloat(svg.getAttribute('width')) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
@@ -2324,6 +2497,7 @@ const MainEditor = ({
       fo.setAttribute('data-name', 'Video');
       fo.setAttribute('data-object-fit', 'Fill');
       if (file) fo.setAttribute('data-filename', file.name);
+      if (originalUrl) fo.setAttribute('data-original-url', originalUrl);
 
       if (isIframe) {
         const iframe = document.createElement('iframe');
@@ -2338,6 +2512,7 @@ const MainEditor = ({
         iframe.style.height = '100%';
         iframe.style.border = 'none';
         iframe.style.display = 'block';
+        if (originalUrl) iframe.setAttribute('data-original-url', originalUrl);
         fo.appendChild(iframe);
       } else {
         const video = document.createElement('video');
@@ -2352,6 +2527,7 @@ const MainEditor = ({
         video.style.display = 'block';
         video.style.width = '100%';
         video.style.height = '100%';
+        if (originalUrl) video.setAttribute('data-original-url', originalUrl);
         fo.appendChild(video);
 
         // Dynamically probe video file metadata to adjust frame to exact original aspect ratio

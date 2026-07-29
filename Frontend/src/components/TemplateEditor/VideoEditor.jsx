@@ -32,7 +32,7 @@ import Adjustment from './Adjustment';
 import Effect from './Effect';
 import ColorPicker, { parseGradient } from "./ColorPicker";
 import { generateGradientString } from "../CustomizedEditor/AppearanceShared";
-import { syncGradient } from './editorUtils';
+import { syncGradient, getEmbedVideoUrl, detectMediaType } from './editorUtils';
 import { createPortal } from "react-dom";
 
 // Switch toggle component (matches SlideshowProperties style)
@@ -306,12 +306,11 @@ const VideoEditor = ({
       const src = target.currentSrc || target.src || target.querySelector("source")?.src || null;
       setPreviewSrc(src);
 
-      if (src && src.startsWith("http") && !src.includes("blob:")) {
-        setInputUrl(src);
-        setIsUrlAdded(true);
-      } else {
-        setInputUrl("");
-        setIsUrlAdded(false);
+      const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
+      const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
+      if (!isFocused) {
+        setInputUrl(origUrl);
+        setIsUrlAdded(!!origUrl);
       }
 
       const poster = target.getAttribute('poster') || target.poster || null;
@@ -336,13 +335,14 @@ const VideoEditor = ({
       setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
-      if (target.src && target.src.startsWith("http")) {
-        setInputUrl(target.src);
-        setIsUrlAdded(true);
-      } else {
-        setInputUrl("");
-        setIsUrlAdded(false);
+      
+      const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
+      const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
+      if (!isFocused) {
+        setInputUrl(origUrl);
+        setIsUrlAdded(!!origUrl);
       }
+
       setPosterSrc(null);
       setCoverOption('auto');
     }
@@ -1627,24 +1627,22 @@ const VideoEditor = ({
 
     if (!target) return;
 
-    const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
-    let finalUrl = url;
-
-    if (isYouTube) {
-      let videoId = "";
-      if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1]?.split("?")[0];
-      else if (url.includes("watch?v=")) videoId = url.split("v=")[1]?.split("&")[0];
-      else if (url.includes("shorts/")) videoId = url.split("shorts/")[1]?.split("?")[0];
-      else if (url.includes("embed/")) videoId = url.split("embed/")[1]?.split("?")[0];
-      
-      if (videoId) finalUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`;
-    }
+    const finalUrl = getEmbedVideoUrl(url);
+    const urlLower = url.toLowerCase();
+    
+    // Check if it's an iframe-based embed
+    const isIframeTarget = urlLower.includes('youtube') || urlLower.includes('youtu.be') || 
+                           urlLower.includes('vimeo') || urlLower.includes('dailymotion') || 
+                           urlLower.includes('dai.ly') || urlLower.includes('loom.com') || 
+                           urlLower.includes('wistia') || urlLower.includes('drive.google.com') || 
+                           urlLower.includes('embed') || urlLower.includes('player');
 
     // If the target is already the correct type, just update its src
-    if ((isYouTube && target.tagName === "IFRAME") || (!isYouTube && target.tagName === "VIDEO")) {
+    if ((isIframeTarget && target.tagName === "IFRAME") || (!isIframeTarget && target.tagName === "VIDEO")) {
       target.src = finalUrl;
       target.setAttribute("src", finalUrl);
-      if (!isYouTube) {
+      target.setAttribute("data-original-url", url);
+      if (!isIframeTarget) {
         target.autoplay = true;
         target.muted = true;
         target.setAttribute("autoplay", "");
@@ -1658,7 +1656,7 @@ const VideoEditor = ({
 
     // Otherwise, create a new element of the correct type and swap it
     let newElement;
-    if (isYouTube) {
+    if (isIframeTarget) {
       newElement = document.createElement("iframe");
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
       newElement.src = finalUrl;
@@ -1678,6 +1676,7 @@ const VideoEditor = ({
     if (target.id) {
       newElement.id = target.id;
     }
+    newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
     // Preserve layout and data attributes
@@ -1695,6 +1694,13 @@ const VideoEditor = ({
 
   const handleAddUrl = () => {
     if (!inputUrl) return;
+    
+    const type = detectMediaType(inputUrl);
+    if (type !== 'video') {
+      alert("Please provide a valid video URL.");
+      return;
+    }
+
     setIsAddingUrl(true);
     setUrlAddProgress(0);
     setIsUrlAdded(false);
@@ -1816,6 +1822,112 @@ const VideoEditor = ({
                 <Icon icon="lucide:trash-2" className="w-[0.8vw] h-[0.8vw]" />
               </button>
             </div>
+            <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
+          </div>
+
+          {/* Replace Icon */}
+          <div
+            className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
+          </div>
+
+          {/* Upload Box */}
+          <div className="flex flex-col items-center gap-[0.35vw] flex-1">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  const file = e.dataTransfer.files[0];
+                  if (file.type === 'video/mp4') {
+                    handleVideoUpload({ target: { files: e.dataTransfer.files } });
+                  }
+                }
+              }}
+            >
+              <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
+                Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
+              </p>
+              <Upload size="1.1vw" className="text-gray-400 mb-[0.2vw]" />
+              <div className="flex flex-col items-center">
+                <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
+                <span className="text-[0.5vw] font-semibold text-gray-500">MP4</span>
+              </div>
+            </div>
+            <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
+          </div>
+        </div>
+
+        {/* OR Divider */}
+        <div className="flex items-center gap-[1vw] py-[0.25vw]">
+          <div className="h-px flex-1 bg-gray-200" />
+          <span className="text-[0.7vw] font-semibold text-gray-400">OR</span>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+
+        {/* URL Input */}
+        <div className="flex items-center gap-[0.5vw] px-[0.5vw]">
+          <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">URL :</span>
+          <div className="flex-1 flex items-center border border-gray-300 rounded-[0.6vw] overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-indigo-100 transition-all pr-[0.3vw]">
+
+            <input
+              id="video-url-input"
+              type="text"
+              placeholder="https://"
+              value={inputUrl}
+              onChange={(e) => {
+                setInputUrl(e.target.value);
+                setIsUrlAdded(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddUrl();
+              }}
+              className="flex-1 px-[0.75vw] py-[0.55vw] text-[0.85vw] text-gray-700 outline-none bg-transparent"
+            />
+            <button
+              onClick={handleAddUrl}
+              disabled={isAddingUrl || !inputUrl}
+              className={`flex items-center justify-center h-[2vw] px-[0.8vw] rounded-[0.4vw] text-[0.75vw] font-medium transition-all ${isUrlAdded ? 'bg-green-500 text-white' :
+                isAddingUrl ? 'bg-indigo-100 text-indigo-600' :
+                  'bg-indigo-600 text-white hover:bg-indigo-700'
+                }`}
+            >
+              {isUrlAdded ? (
+                'Added'
+              ) : isAddingUrl ? (
+                <div className="flex items-center gap-[0.3vw]">
+                  <Icon icon="eos-icons:loading" className="w-[1vw] h-[1vw]" />
+                  <span>{urlAddProgress}%</span>
+                </div>
+              ) : (
+                'Add'
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Video Gallery Button */}
+        <div
+          onClick={() => setOpenGallery(true)}
+          className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5"
+        >
+          <div className="absolute inset-0 flex gap-[0.2vw] opacity-20 group-hover:opacity-40 transition-opacity">
+            {galleryPreviews.slice(0, 3).map((src, i) => (
+              <div key={i} className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />
+            ))}
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-900/10 via-gray-900/20 to-gray-900/40 group-hover:via-gray-900/20 transition-all" />
+          <div className="relative z-10 flex items-center gap-[0.75vw]">
+            <Icon icon="material-symbols:video-library-outline" className="w-[1vw] h-[1.2vw] text-white" />
+            <span className="text-[0.95vw] font-semibold text-white">Video Gallery</span>
           </div>
         </div>
       </div>
@@ -1925,8 +2037,22 @@ const VideoEditor = ({
 
         <div className="space-y-[0.8vw] px-[0.5vw]">
           {[
-            { label: "Disable Video Controls", value: !controls, onChange: (v) => updateElementAttribute('controls', !v) },
-            { label: "Autoplay (Play video automatically)", value: autoplay, onChange: (v) => updateElementAttribute('autoplay', v) },
+            { 
+              label: "Disable Video Controls", 
+              value: !controls, 
+              onChange: (v) => {
+                updateElementAttribute('controls', !v);
+                if (v) {
+                  updateElementAttribute('autoplay', true);
+                }
+              } 
+            },
+            { 
+              label: "Autoplay (Play video automatically)", 
+              value: !controls ? true : autoplay, 
+              disabled: !controls,
+              onChange: (v) => updateElementAttribute('autoplay', v) 
+            },
             { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
                 updateElementAttribute('loop', v);
                 if (v) {

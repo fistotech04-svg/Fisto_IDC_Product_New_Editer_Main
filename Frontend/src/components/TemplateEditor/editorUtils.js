@@ -158,3 +158,111 @@ export const getSvgImageEl = (el) => {
 
   return null;
 };
+
+export const getEmbedVideoUrl = (rawUrl) => {
+  if (!rawUrl) return '';
+  const url = rawUrl.trim();
+  const lower = url.toLowerCase();
+
+  // YouTube
+  if (lower.includes("youtube.com") || lower.includes("youtu.be")) {
+    let videoId = "";
+    if (url.includes("youtu.be/")) videoId = url.split("youtu.be/")[1]?.split("?")[0]?.split("&")[0];
+    else if (url.includes("watch?v=")) videoId = url.split("v=")[1]?.split("&")[0];
+    else if (url.includes("shorts/")) videoId = url.split("shorts/")[1]?.split("?")[0]?.split("&")[0];
+    else if (url.includes("embed/")) videoId = url.split("embed/")[1]?.split("?")[0]?.split("&")[0];
+    if (videoId) return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1`;
+  }
+
+  // Vimeo
+  if (lower.includes("vimeo.com")) {
+    let videoId = url.split("vimeo.com/")[1]?.split("?")[0]?.split("/")[0];
+    if (videoId && !isNaN(videoId)) return `https://player.vimeo.com/video/${videoId}`;
+  }
+
+  // Dailymotion
+  if (lower.includes("dailymotion.com") || lower.includes("dai.ly")) {
+    let videoId = "";
+    if (url.includes("dai.ly/")) videoId = url.split("dai.ly/")[1]?.split("?")[0];
+    else if (url.includes("video/")) videoId = url.split("video/")[1]?.split("?")[0];
+    if (videoId) return `https://www.dailymotion.com/embed/video/${videoId}`;
+  }
+
+  // Loom
+  if (lower.includes("loom.com")) {
+    let videoId = url.split("share/")[1]?.split("?")[0];
+    if (videoId) return `https://www.loom.com/embed/${videoId}`;
+  }
+
+  // Wistia
+  if (lower.includes("wistia.com")) {
+    let videoId = url.split("medias/")[1]?.split("?")[0];
+    if (videoId) return `https://fast.wistia.net/embed/iframe/${videoId}`;
+  }
+
+  // Google Drive
+  if (lower.includes("drive.google.com")) {
+    const match = url.match(/\/d\/([^\/]+)/);
+    if (match && match[1]) return `https://drive.google.com/file/d/${match[1]}/preview`;
+  }
+
+  return url;
+};
+
+export const detectMediaType = (inputUrl) => {
+  if (!inputUrl) return 'image';
+  const lower = inputUrl.toLowerCase().trim();
+
+  // Direct Image Extensions
+  if (
+    lower.endsWith('.jpg') || 
+    lower.endsWith('.jpeg') || 
+    lower.endsWith('.png') || 
+    lower.endsWith('.svg') || 
+    lower.endsWith('.webp') || 
+    lower.endsWith('.avif') || 
+    lower.endsWith('.ico')
+  ) {
+    return 'image';
+  }
+
+  // Direct PDF Extension
+  if (lower.endsWith('.pdf')) {
+    return 'pdf';
+  }
+
+  // Video Platforms or Video Extensions / Keywords
+  if (
+    lower.endsWith('.mp4') || 
+    lower.endsWith('.webm') || 
+    lower.endsWith('.mov') || 
+    lower.endsWith('.mkv') || 
+    lower.endsWith('.avi') || 
+    lower.endsWith('.m3u8') || 
+    lower.endsWith('.flv') || 
+    lower.endsWith('.wmv') || 
+    lower.includes('youtube') || 
+    lower.includes('youtu.be') || 
+    lower.includes('vimeo') ||
+    lower.includes('dailymotion') ||
+    lower.includes('dai.ly') ||
+    lower.includes('loom.com') ||
+    lower.includes('wistia') ||
+    lower.includes('tiktok') ||
+    lower.includes('facebook.com/watch') ||
+    lower.includes('fb.watch') ||
+    lower.includes('video') ||
+    lower.includes('embed') ||
+    lower.includes('stream') ||
+    lower.includes('player') ||
+    lower.includes('v=') ||
+    lower.includes('watch') ||
+    lower.includes('shorts') ||
+    lower.includes('reel') ||
+    lower.includes('clip')
+  ) {
+    return 'video';
+  }
+
+  return 'image';
+};
