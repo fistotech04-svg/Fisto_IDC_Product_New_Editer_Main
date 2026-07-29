@@ -1989,8 +1989,22 @@ const VideoEditor = ({
 
         <div className="space-y-[0.8vw] px-[0.5vw]">
           {[
-            { label: "Disable Video Controls", value: !controls, onChange: (v) => updateElementAttribute('controls', !v) },
-            { label: "Autoplay (Play video automatically)", value: autoplay, onChange: (v) => updateElementAttribute('autoplay', v) },
+            { 
+              label: "Disable Video Controls", 
+              value: !controls, 
+              onChange: (v) => {
+                updateElementAttribute('controls', !v);
+                if (v) {
+                  updateElementAttribute('autoplay', true);
+                }
+              } 
+            },
+            { 
+              label: "Autoplay (Play video automatically)", 
+              value: !controls ? true : autoplay, 
+              disabled: !controls,
+              onChange: (v) => updateElementAttribute('autoplay', v) 
+            },
             { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
                 updateElementAttribute('loop', v);
                 if (v) {
