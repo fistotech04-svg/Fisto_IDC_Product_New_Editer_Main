@@ -467,12 +467,14 @@ const getAnimationScript = (pageNumber) => `
             el.style.cursor = 'pointer'; el.style.pointerEvents = 'auto';
             el.addEventListener('click', function(ev) {
               ev.stopPropagation();
+              if (el.__currentAnimation && el.__currentAnimation.playState === 'running') return;
               runAnim(el, el.getAttribute('data-animation-interact-type'), Object.assign({}, s, { everyVisit: true }));
             });
           } else if (action === 'Hover' && !el.__hoverBound) {
             el.__hoverBound = true;
             el.style.pointerEvents = 'auto';
             el.addEventListener('mouseenter', function() {
+              if (el.__currentAnimation && el.__currentAnimation.playState === 'running') return;
               runAnim(el, el.getAttribute('data-animation-interact-type'), Object.assign({}, s, { everyVisit: true }));
             });
           }
