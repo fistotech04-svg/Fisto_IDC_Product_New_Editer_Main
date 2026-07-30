@@ -235,6 +235,43 @@ const GifEditor = ({
       });
     }
 
+    const effectSettingsUpdates = {};
+
+    if (selectedElement.hasAttribute('data-effect-drop-shadow-color')) {
+      effectSettingsUpdates['Drop Shadow'] = {
+        color: selectedElement.getAttribute('data-effect-drop-shadow-color') || '#000000',
+        opacity: parseFloat(selectedElement.getAttribute('data-effect-drop-shadow-opacity') || '35'),
+        x: parseFloat(selectedElement.getAttribute('data-effect-drop-shadow-x') || '2'),
+        y: parseFloat(selectedElement.getAttribute('data-effect-drop-shadow-y') || '2'),
+        blur: parseFloat(selectedElement.getAttribute('data-effect-drop-shadow-blur') || '1'),
+        spread: 0
+      };
+    }
+
+    if (selectedElement.hasAttribute('data-effect-inner-shadow-color')) {
+      effectSettingsUpdates['Inner Shadow'] = {
+        color: selectedElement.getAttribute('data-effect-inner-shadow-color') || '#000000',
+        opacity: parseFloat(selectedElement.getAttribute('data-effect-inner-shadow-opacity') || '35'),
+        x: parseFloat(selectedElement.getAttribute('data-effect-inner-shadow-x') || '2'),
+        y: parseFloat(selectedElement.getAttribute('data-effect-inner-shadow-y') || '2'),
+        blur: parseFloat(selectedElement.getAttribute('data-effect-inner-shadow-blur') || '1'),
+        spread: 0
+      };
+    }
+
+    if (selectedElement.hasAttribute('data-effect-blur-value')) {
+      effectSettingsUpdates['Blur'] = {
+        blur: parseFloat(selectedElement.getAttribute('data-effect-blur-value') || '0.5'),
+        clipContent: selectedElement.getAttribute('data-effect-blur-clip') === 'true',
+        spread: 0
+      };
+    }
+
+    if (Object.keys(effectSettingsUpdates).length > 0) {
+      setEffectSettings(prev => ({ ...prev, ...effectSettingsUpdates }));
+    }
+
+
     // Background & Stroke
     let fill = selectedElement.getAttribute('data-fill-color');
     if (!fill) {
