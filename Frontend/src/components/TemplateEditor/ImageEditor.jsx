@@ -1204,9 +1204,8 @@ const ImageEditor = ({
 
       // --- Opacity (works for both; also persist via SVG attribute) ---
       const opacityVal = (opacity / 100).toString();
-      const isImageGroup = isSvgEl && liveElement.getAttribute('data-is-image-group') === 'true';
 
-      if (isImageGroup && svgImageEl) {
+      if (isSvgEl && svgImageEl && svgImageEl !== liveElement) {
         liveElement.style.removeProperty('opacity');
         liveElement.removeAttribute('opacity');
         liveElement.setAttribute('data-effect-opacity', opacity.toString());
