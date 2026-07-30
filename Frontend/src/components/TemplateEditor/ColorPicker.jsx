@@ -71,11 +71,8 @@ export const generateGradientString = (type, stops, angle = 0, radius = 100) => 
 };
 
 export const solidPalette = [
-  '#DADBE8', '#ffe0ffff', '#FFD1DC', '#F8C8DC', '#FFB7C5', '#FFFACD', '#FFF4B5',
-  '#FFE5B4', '#FFD8B1', '#FFCBA4',
-  '#e0ffd0ff', '#c9fcceff', '#C1F0C1',
-  '#dceaf8ff', '#B3E5FC', '#d3d2fdff', '#dfd1ffff', '#E0BBE4',
-  '#FFFFFF', '#E0E0E0', '#9E9E9E', '#424242', '#000000',
+  '#FF0000', '#FF4500', '#FFA500', '#FFFF00', '#008000',
+  '#0000FF', '#8A2BE2', '#800080', '#C71585', '#000000', '#FFFFFF'
 ];
 
 export const parseGradient = (gradientStr) => {

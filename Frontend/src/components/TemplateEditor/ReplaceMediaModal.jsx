@@ -36,7 +36,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
   }, [replaceModalFile]);
 
   useEffect(() => {
-    const galleryTabName = mediaType === 'video' ? 'Video Gallery' : 'Image Gallery';
+    const galleryTabName = mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery';
     if (show && replaceModalTab === galleryTabName && galleryAssets.length === 0) {
       const fetchAssets = async () => {
         const storedUser = localStorage.getItem('user');
@@ -65,11 +65,13 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
   if (!show) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]">
-      <div className="bg-white rounded-[0.8vw] w-[400px] shadow-xl flex flex-col font-sans relative">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-[2px] p-[2vw]" onClick={onClose}>
+      <div className="bg-white rounded-[0.8vw] w-[400px] shadow-xl flex flex-col font-sans relative" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between p-[1.5vw] pb-[0.5vw]">
-          <h2 className="text-[1.1vw] font-bold text-gray-900 mr-[1vw]">Replace Media</h2>
+          <h2 className="text-[1.1vw] font-bold text-gray-900 mr-[1vw]">
+            {mediaType === 'video' ? 'Replace Video' : mediaType === 'gif' ? 'Replace Gif' : 'Replace Image'}
+          </h2>
           <div className="flex-1 h-px bg-gray-200 mx-[0.5vw]"></div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <Icon icon="lucide:x" className="w-[1vw] h-[1vw]" />
@@ -78,7 +80,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
         
         {/* Tabs */}
         <div className="flex w-full px-[1.5vw] border-b border-gray-100">
-          {['Upload', mediaType === 'video' ? 'Video Gallery' : 'Image Gallery', 'Import via URL'].map(tab => (
+          {['Upload', mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery', 'Import via URL'].map(tab => (
             <button 
               key={tab} 
               onClick={() => setReplaceModalTab(tab)}
@@ -93,7 +95,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
         <div className="px-[1.5vw] pb-[1.5vw] pt-[0.5vw] h-[20vw] flex flex-col">
           {replaceModalTab === 'Upload' && (
             <>
-              {replaceModalFile ? (
+              {(replaceModalFile && !replaceModalFile.isUrl && !replaceModalFile.isGalleryItem) ? (
                 <div className="flex-1 flex flex-col min-h-0 w-[95%] mx-auto mt-[0.5vw]">
                   <div className="w-full aspect-video relative overflow-hidden bg-gray-100 group flex items-center justify-center shrink-0">
                     {mediaType === 'video' ? (
@@ -115,7 +117,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
               ) : (
                 <>
                   <div 
-                    className="flex-1 mt-[1vw] w-[92%] mx-auto border-2 border-dashed border-gray-400/70 rounded-[1vw] bg-[#F8F9FA] flex flex-col items-center justify-center py-[1vw] px-[2vw] text-center"
+                    className="flex-1 mt-[1vw] w-[92%] mx-auto border-2 border-dashed border-gray-400/70 rounded-[1vw] bg-[#F8F9FA] flex flex-col items-center justify-center py-[1vw] px-[2vw] text-center cursor-pointer transition-colors hover:bg-gray-100"
+                    onClick={() => fileInputRefUpload.current?.click()}
                     onDragOver={e => e.preventDefault()}
                     onDrop={e => {
                       e.preventDefault();
@@ -130,8 +133,8 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                       <span className="text-[0.75vw] text-gray-400 mb-[0.3vw]">or</span>
                       <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.1vw] shadow-sm transition-colors cursor-pointer inline-block">
                         <div 
-                          className="flex items-center justify-center gap-[0.3vw] cursor-pointer text-white text-[0.7vw] font-medium px-[0.6vw] py-[0.15vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white"
-                          onClick={() => fileInputRefUpload.current?.click()}
+                          className="flex items-center justify-center gap-[0.3vw] cursor-pointer text-white text-[0.7vw] font-medium px-[0.6vw] py-[0.3vw] rounded-[0.3vw]"
+                          onClick={(e) => { e.stopPropagation(); fileInputRefUpload.current?.click(); }}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={(e) => {
                             e.preventDefault();
@@ -150,19 +153,19 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-[1vw] text-[0.7vw] text-gray-500 space-y-[0.2vw] shrink-0">
-                    <p>Supported File : JPG, PNG, WEBP, MP4, SVG, MKV,</p>
+                  <div className="mt-[1.5vw] text-[0.7vw] text-gray-500 space-y-[0.2vw] shrink-0">
+                    <p>Supported File : {mediaType === 'video' ? 'MP4, MKV, WEBM' : mediaType === 'gif' ? 'GIF' : 'JPG, PNG, WEBP, SVG'}</p>
                     <p>Max file size : 50MB</p>
                   </div>
                 </>
               )}
             </>
           )}
-          {replaceModalTab === (mediaType === 'video' ? 'Video Gallery' : 'Image Gallery') && (
+          {replaceModalTab === (mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery') && (
             <div className="flex flex-col flex-1 min-h-0" onClick={() => setActiveGalleryDropdown(null)}>
               {/* Toolbar */}
               <div className="flex items-center justify-between mt-[1vw] mb-[1vw] shrink-0">
-                <h3 className="text-[0.85vw] font-semibold text-gray-800">{mediaType === 'video' ? 'Video Gallery' : 'Image Gallery'}</h3>
+                <h3 className="text-[0.85vw] font-semibold text-gray-800">{mediaType === 'video' ? 'Video Gallery' : mediaType === 'gif' ? 'GIF Gallery' : 'Image Gallery'}</h3>
                 <div className="bg-[#4D47FF] hover:bg-[#3D38CC] rounded-[0.4vw] p-[0.15vw] shadow-sm transition-colors cursor-pointer inline-block">
                   <div 
                     className="flex items-center justify-center gap-[0.5vw] cursor-pointer text-white px-[0.85vw] py-[0.25vw] rounded-[0.3vw] border-[1.5px] border-dashed border-white"
@@ -188,13 +191,16 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     <span className="text-[0.85vw] font-medium">Browse Files</span>
                     <input type="file" ref={fileInputRefGallery} className="hidden" accept={mediaType === 'video' ? 'video/mp4' : 'image/*'} multiple onChange={e => {
                       if (e.target.files?.length) {
-                        const newAssets = Array.from(e.target.files).map(newFile => ({
-                          id: URL.createObjectURL(newFile),
-                          name: newFile.name.replace(/\.[^/.]+$/, ''),
-                          url: URL.createObjectURL(newFile),
-                          isLocal: true,
-                          file: newFile
-                        }));
+                        const newAssets = Array.from(e.target.files).map(newFile => {
+                          const objectUrl = URL.createObjectURL(newFile);
+                          return {
+                            id: objectUrl,
+                            name: newFile.name.replace(/\.[^/.]+$/, ''),
+                            url: objectUrl,
+                            isLocal: true,
+                            file: newFile
+                          };
+                        });
                         setGalleryAssets(prev => [...newAssets, ...prev]);
                         setReplaceModalFile({ ...newAssets[0], isGalleryItem: true });
                       }
@@ -226,18 +232,18 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
               {/* Grid */}
               <div className="flex-1 grid grid-cols-4 gap-[1vw] overflow-y-auto min-h-0 pr-[0.5vw]">
                 {galleryAssets.length > 0 ? galleryAssets.map((item, idx) => (
-                  <div key={idx} className="flex flex-col gap-[0.4vw] cursor-pointer group relative" onClick={() => { setReplaceModalFile({ ...item, isGalleryItem: true }); setActiveGalleryDropdown(null); }}>
-                    <div className={`w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm transition-all ${replaceModalFile?.id === item.id ? 'ring-[0.15vw] ring-[#4D47FF] ring-inset' : 'border border-gray-200 group-hover:shadow-md'}`}>
+                  <div key={item.id || idx} className="flex flex-col gap-[0.4vw] cursor-pointer group relative" onClick={() => { setReplaceModalFile({ ...item, isGalleryItem: true }); setActiveGalleryDropdown(null); }}>
+                    <div className={`w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${replaceModalFile?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}>
                       {mediaType === 'video' ? (
                         <video src={item.url} className="w-full h-full object-cover" />
                       ) : (
                         <img src={item.url} alt={item.name} className="w-full h-full object-cover" />
                       )}
-                      <div className={`absolute inset-0 transition-colors ${replaceModalFile?.id === item.id ? 'bg-[#4D47FF]/10' : 'bg-black/0 group-hover:bg-black/5'}`} />
+                      <div className={`absolute inset-0 ${replaceModalFile?.id === item.id ? 'bg-[#4D47FF]/10' : 'bg-black/0 group-hover:bg-black/5'}`} />
                       
                       {/* Hover Three Dots */}
                       <div 
-                        className={`absolute top-[0.3vw] right-[0.3vw] transition-opacity bg-white/90 rounded-[0.2vw] p-[0.2vw] shadow-sm hover:bg-white z-10 ${activeGalleryDropdown === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                        className={`absolute top-[0.3vw] right-[0.3vw] bg-white/90 rounded-[0.2vw] p-[0.2vw] shadow-sm hover:bg-white z-10 ${activeGalleryDropdown === item.id ? 'block' : 'hidden group-hover:block'}`}
                         onClick={(e) => { 
                           e.stopPropagation(); 
                           setActiveGalleryDropdown(activeGalleryDropdown === item.id ? null : item.id); 
@@ -259,7 +265,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                             setActiveGalleryDropdown(null);
                           }}
                         >
-                          Replace {mediaType === 'video' ? 'Video' : 'Image'}
+                          Replace {mediaType === 'video' ? 'Video' : mediaType === 'gif' ? 'Gif' : 'Image'}
                         </button>
                         <button 
                           className="text-[0.7vw] font-medium text-red-600 hover:bg-red-50 text-left px-[0.5vw] py-[0.3vw]"
@@ -280,7 +286,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                   </div>
                 )) : (
                   <div className="col-span-4 flex items-center justify-center text-center text-gray-400 py-[2vw] text-[0.8vw]">
-                    No {mediaType === 'video' ? 'videos' : 'images'} found in your gallery.
+                    No {mediaType === 'video' ? 'videos' : mediaType === 'gif' ? 'gifs' : 'images'} found in your gallery.
                   </div>
                 )}
               </div>
@@ -295,17 +301,19 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                           <iframe 
                             src={replaceModalFile.ytVideoId ? `https://www.youtube.com/embed/${replaceModalFile.ytVideoId}` : (replaceModalFile.url.includes('watch?v=') ? replaceModalFile.url.replace('watch?v=', 'embed/') : replaceModalFile.url)} 
                             className="w-full h-full object-contain" 
+                            style={{ display: 'none' }}
                             frameBorder="0" 
                             allowFullScreen
-                            onLoad={(e) => { e.target.style.display = 'block'; e.target.nextSibling.style.display = 'none'; }}
+                            onLoad={(e) => { e.target.style.display = 'block'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'none'; }}
                           />
                         ) : (
                           <video 
                             src={replaceModalFile.url} 
                             className="w-full h-full object-contain" 
+                            style={{ display: 'none' }}
                             controls
-                            onLoadedData={(e) => { e.target.style.display = 'block'; e.target.nextSibling.style.display = 'none'; }}
-                            onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'block'; }}
+                            onLoadedData={(e) => { e.target.style.display = 'block'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'none'; }}
+                            onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) { e.target.nextSibling.style.display = 'block'; e.target.nextSibling.innerText = 'Failed to load preview'; e.target.nextSibling.classList.remove('animate-pulse'); } }}
                           />
                         )
                       ) : (
@@ -313,28 +321,33 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                           src={replaceModalFile.url} 
                           alt="Preview" 
                           className="w-full h-full object-contain" 
-                          onLoad={(e) => { e.target.style.display = 'block'; e.target.nextSibling.style.display = 'none'; }}
+                          style={{ display: 'none' }}
+                          onLoad={(e) => { e.target.style.display = 'block'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'none'; }}
                           onError={(e) => { 
                             if (e.target.src.includes('maxresdefault.jpg')) {
                               e.target.src = e.target.src.replace('maxresdefault.jpg', 'hqdefault.jpg');
                               if (replaceModalFile) replaceModalFile.url = e.target.src;
                             } else {
                               e.target.style.display = 'none'; 
-                              e.target.nextSibling.style.display = 'block'; 
+                              if (e.target.nextSibling) {
+                                e.target.nextSibling.style.display = 'block'; 
+                                e.target.nextSibling.innerText = 'Failed to load preview';
+                                e.target.nextSibling.classList.remove('animate-pulse');
+                              }
                             }
                           }} 
                         />
                       )
                     ) : null}
-                    <span className={`text-[0.85vw] text-gray-400 ${replaceModalFile?.url ? 'hidden' : 'block'}`}>Preview</span>
+                    <span className={`text-[0.85vw] text-gray-400 font-medium ${replaceModalFile?.url ? 'animate-pulse block' : 'block'}`}>{replaceModalFile?.url ? 'Loading preview...' : 'Preview'}</span>
                   </div>
               <div className="mt-[0.5vw] flex flex-col gap-[0.4vw] shrink-0">
-                <label className="text-[0.85vw] font-semibold text-gray-900">Paste URL</label>
+                <label className="text-[0.85vw] font-semibold text-gray-900">{mediaType === 'video' ? 'Paste Video URL' : mediaType === 'gif' ? 'Paste Gif URL' : 'Paste Image URL'}</label>
                 <div className="flex items-center gap-[0.5vw] border border-gray-200 rounded-[0.5vw] px-[0.75vw] py-[0.5vw] bg-white">
                   <Icon icon="lucide:link" className="w-[1vw] h-[1vw] text-[#4D47FF]" />
                   <input 
                     type="text" 
-                    placeholder={mediaType === 'video' ? "Enter Video URL" : "Enter Image URL"} 
+                    placeholder="https://" 
                     className="flex-1 bg-transparent outline-none text-[0.85vw] text-gray-700 placeholder-gray-400"
                     value={importUrl}
                     onChange={(e) => {
@@ -347,12 +360,21 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                         const isVideo = ytMatch || /\.(mp4|webm|ogg|mkv)(\?.*)?$/i.test(finalUrl);
 
                         if (mediaType === 'video') {
-                          if (isImage && !isVideo) {
-                            setImportUrlError('Image links are not supported here. Please enter a video URL.');
+                          if (ytMatch || isVideo) {
+                            setImportUrlError('');
+                            setReplaceModalFile({ url: finalUrl, name: 'url_video', isUrl: true, isYouTube: !!ytMatch, ytVideoId: ytMatch ? ytMatch[1] : null });
+                          } else {
+                            setImportUrlError('Please enter a valid video URL or YouTube link.');
+                            setReplaceModalFile(null);
+                          }
+                        } else if (mediaType === 'gif') {
+                          const isGif = /\.gif(\?.*)?$/i.test(finalUrl);
+                          if (!isGif) {
+                            setImportUrlError('Please enter a valid GIF URL.');
                             setReplaceModalFile(null);
                           } else {
                             setImportUrlError('');
-                            setReplaceModalFile({ url: finalUrl, name: 'url_video', isUrl: true, isYouTube: !!ytMatch, ytVideoId: ytMatch ? ytMatch[1] : null });
+                            setReplaceModalFile({ url: finalUrl, name: 'url_gif', isUrl: true });
                           }
                         } else {
                           if (ytMatch || isVideo) {
@@ -403,7 +425,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     } else {
                       const response = await fetch(replaceModalFile.url);
                       const blob = await response.blob();
-                      const file = new File([blob], replaceModalFile.name + (mediaType === 'video' ? '.mp4' : '.png'), { type: blob.type || (mediaType === 'video' ? 'video/mp4' : 'image/png') });
+                      const file = new File([blob], replaceModalFile.name + (mediaType === 'video' ? '.mp4' : mediaType === 'gif' ? '.gif' : '.png'), { type: blob.type || (mediaType === 'video' ? 'video/mp4' : mediaType === 'gif' ? 'image/gif' : 'image/png') });
                       onReplace(file);
                     }
                   } catch (e) {
@@ -423,7 +445,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
             }}
             className={`flex-1 py-[0.5vw] rounded-[0.3vw] text-white text-[0.8vw] font-medium transition-colors ${replaceModalFile ? 'bg-black hover:bg-gray-800' : 'bg-[#B1B1B1] cursor-not-allowed'}`}
           >
-            Replace {mediaType === 'video' ? 'Video' : 'Image'}
+            Replace {mediaType === 'video' ? 'Video' : mediaType === 'gif' ? 'Gif' : 'Image'}
           </button>
         </div>
       </div>

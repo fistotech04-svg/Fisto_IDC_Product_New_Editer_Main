@@ -117,9 +117,9 @@ const ImageEditor = ({
       };
       nameFromLayer = findName(pages[activePageIndex].layers);
     }
-    
+
     if (nameFromLayer) return nameFromLayer;
-    
+
     const dataName = selectedElement?.getAttribute('data-name');
     if (dataName) return dataName;
 
@@ -946,9 +946,9 @@ const ImageEditor = ({
             if (maxR > 0) shadowCaster.setAttribute('rx', maxR.toString());
             else shadowCaster.removeAttribute('rx');
 
-            const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
+            const effSet = effectSettings['Drop Shadow'] || { x: 0, y: 0, blur: 0, color: '#000', opacity: 0 };
             const totalBlur = effSet.blur / 2;
-            
+
             let shadowFilterId = `ds-only-${liveElement.id || 'img'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
             if (!defs && liveElement.ownerSVGElement) {
@@ -978,7 +978,7 @@ const ImageEditor = ({
             } else {
               shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
             }
-            
+
             shadowCaster.style.setProperty('display', 'block', 'important');
           }
         } else if (shadowCaster) {
@@ -1385,7 +1385,7 @@ const ImageEditor = ({
             const finalScale = parseFloat(crop.scale) || 1;
 
             imgEl.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${finalScale}) translate(${-centerX} ${-centerY})`);
-            
+
             imgEl.style.removeProperty('transform');
             imgEl.style.removeProperty('transform-origin');
             imgEl.style.removeProperty('transform-box');
@@ -1428,12 +1428,12 @@ const ImageEditor = ({
               rect.setAttribute('width', clipW);
               rect.setAttribute('height', clipH);
               if (anyR) {
-                 rect.setAttribute('rx', radius.tl || radius.tr || radius.bl || radius.br || 0);
+                rect.setAttribute('rx', radius.tl || radius.tr || radius.bl || radius.br || 0);
               } else {
-                 rect.removeAttribute('rx');
-                 rect.removeAttribute('ry');
+                rect.removeAttribute('rx');
+                rect.removeAttribute('ry');
               }
-              
+
               // DO NOT apply clip to the inner imgEl because its local space is transformed (panned/scaled).
               // The parent group clip is sufficient and operates in the correct stable local coordinate space.
 
@@ -1449,7 +1449,7 @@ const ImageEditor = ({
                 defs.appendChild(groupClipPath);
               }
               const groupClipRect = groupClipPath.querySelector('rect');
-              
+
               // Apply crop bounds directly in liveElement's local coordinate space.
               // No parent CTM conversion is needed because the clip-path is evaluated 
               // in the local space of the element it's applied to.
@@ -2470,7 +2470,7 @@ const ImageEditor = ({
                   scaleX = Math.abs(ctm.a) || 1;
                   scaleY = Math.abs(ctm.d) || 1;
                 }
-              } catch(e) {}
+              } catch (e) { }
 
               const swSync = backgroundColor.strokeWeight || 0;
               const posSync = backgroundColor.strokePosition || 'Center';
@@ -2562,7 +2562,7 @@ const ImageEditor = ({
               scaleX = Math.abs(ctm.a) || 1;
               scaleY = Math.abs(ctm.d) || 1;
             }
-          } catch(e) {}
+          } catch (e) { }
 
           const offsetX = (sw / 2) / scaleX;
           const offsetY = (sw / 2) / scaleY;
@@ -2656,7 +2656,7 @@ const ImageEditor = ({
 
           strokeOverlay.setAttribute('data-img-stroke-position', pos); // Renamed to avoid MainEditor syncOverlays
           strokeOverlay.removeAttribute('data-stroke-position');
-          
+
           // Forcefully cleanup any orphaned MainEditor overlays that might have been applied previously
           if (liveElement.parentElement) {
             const orphans = liveElement.parentElement.querySelectorAll(`.svg-shape-stroke-overlay[data-target="${liveElement.id}"], .svg-shape-stroke-overlay[data-target=""]`);
@@ -3237,7 +3237,7 @@ const ImageEditor = ({
                                         croppedY = origY + (origH * (cd.top || 0)) / 100;
                                         croppedW = origW * (cd.width || 100) / 100;
                                         croppedH = origH * (cd.height || 100) / 100;
-                                      } catch (e) {}
+                                      } catch (e) { }
                                     }
                                   }
 
@@ -3327,7 +3327,7 @@ const ImageEditor = ({
                                           innerImg.setAttribute('width', Math.abs(br.x - tl.x));
                                           innerImg.setAttribute('height', Math.abs(br.y - tl.y));
                                         }
-                                      } catch(e) {
+                                      } catch (e) {
                                         // Fallback: just remove the transform
                                         innerContentGroup.removeAttribute('transform');
                                       }
@@ -3375,7 +3375,7 @@ const ImageEditor = ({
                 </div>
               </div>
 
-              <div 
+              <div
                 className="flex items-center gap-[1vw] pt-[0.5vw]"
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -3393,7 +3393,7 @@ const ImageEditor = ({
                 }}
               >
                 {/* Thumbnail */}
-                <div className="relative w-[7vw] h-[5vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
+                <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
                   <img
                     src={previewSrc || ''}
                     alt="Thumbnail"
@@ -3402,7 +3402,7 @@ const ImageEditor = ({
                 </div>
 
                 {/* Info & Actions */}
-                <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw]">
+                <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.5vw]">
                   <div className="flex flex-col">
                     <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={displayImageName}>
                       {displayImageName}
@@ -3417,7 +3417,7 @@ const ImageEditor = ({
                       onClick={() => setShowReplaceModal(true)}
                       className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
                     >
-                      Replace media
+                      Replace image
                     </button>
                     <button
                       onClick={() => onDeleteLayer && onDeleteLayer()}

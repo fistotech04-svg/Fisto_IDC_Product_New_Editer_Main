@@ -1754,8 +1754,39 @@ const TextEditor = ({
 
     if (property === 'listStyleType') {
       setListStyleType(value);
+      
+      let latestText = textContent;
+      const el = document.getElementById(selectedLayerId);
+      if (el) {
+        const svgRoot = el.ownerSVGElement || el.closest('svg');
+        const overlay = svgRoot?.querySelector('foreignObject[data-editing="true"] [contenteditable]');
+        if (overlay) {
+          latestText = overlay.innerText || overlay.textContent || latestText;
+        } else if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
+          latestText = el.firstElementChild.innerText || el.firstElementChild.textContent || latestText;
+        } else if (el.tagName.toLowerCase() === 'text') {
+          const tspans = Array.from(el.querySelectorAll('tspan'));
+          if (tspans.length > 0) {
+            let res = '';
+            let lastY = null;
+            tspans.forEach((t, i) => {
+              const y = t.getAttribute('y');
+              const dy = t.getAttribute('dy');
+              if (i > 0 && (dy || (y !== null && lastY !== null && Math.abs(parseFloat(y) - parseFloat(lastY)) > 2))) {
+                res += '\n';
+              }
+              if (y !== null) lastY = y;
+              res += t.textContent;
+            });
+            latestText = res || latestText;
+          } else {
+            latestText = el.textContent || latestText;
+          }
+        }
+      }
+
       // Transform text content to list
-      let lines = textContent.split('\n').map(l => l.trim());
+      let lines = latestText.split('\n').map(l => l.trim());
       if (value === 'disc') {
         lines = lines.map(line => {
           if (line.startsWith('• ')) return line;
@@ -1776,14 +1807,13 @@ const TextEditor = ({
       setTextContent(newText);
 
       // Live DOM Update for instant feedback
-      const el = document.getElementById(selectedLayerId);
       if (el) {
         if (el.tagName.toLowerCase() === 'foreignobject' && el.firstElementChild) {
           el.firstElementChild.innerHTML = newText.replace(/\n/g, '<br/>');
         } else if (el.tagName.toLowerCase() === 'text') {
           // Triggering a local update will rebuild tspans
           updateElementAttributeLocal(activePageIndex, selectedLayerId, 'innerText', newText);
-        }
+      }
       }
 
       if (selectedLayerId && el?.tagName.toLowerCase() !== 'text') {
