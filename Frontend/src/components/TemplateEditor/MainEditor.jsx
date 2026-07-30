@@ -1858,18 +1858,18 @@ const MainEditor = ({
           Object.assign(rewindTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginLeft: '0.5em' });
           const rewindText = document.createElement('div');
           rewindText.textContent = "3s";
-          Object.assign(rewindText.style, { 
+          Object.assign(rewindText.style, {
             position: 'absolute',
             top: '50%',
             left: '50%',
             width: 'max-content',
-            fontSize: '10em', 
-            transform: 'translate(-50%, -50%) scale(0.35)', 
+            fontSize: '10em',
+            transform: 'translate(-50%, -50%) scale(0.35)',
             transformOrigin: 'center center',
-            fontFamily: 'Inter, sans-serif', 
-            color: 'white', 
-            whiteSpace: 'nowrap', 
-            pointerEvents: 'none' 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
           rewindTextWrapper.appendChild(rewindText);
           rewindBtn.innerHTML = REWIND_ICON;
@@ -1884,18 +1884,18 @@ const MainEditor = ({
           Object.assign(forwardTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginRight: '0.5em' });
           const forwardText = document.createElement('div');
           forwardText.textContent = "3s";
-          Object.assign(forwardText.style, { 
+          Object.assign(forwardText.style, {
             position: 'absolute',
             top: '50%',
             left: '50%',
             width: 'max-content',
-            fontSize: '10em', 
-            transform: 'translate(-50%, -50%) scale(0.35)', 
+            fontSize: '10em',
+            transform: 'translate(-50%, -50%) scale(0.35)',
             transformOrigin: 'center center',
-            fontFamily: 'Inter, sans-serif', 
-            color: 'white', 
-            whiteSpace: 'nowrap', 
-            pointerEvents: 'none' 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
           forwardTextWrapper.appendChild(forwardText);
           forwardBtn.appendChild(forwardTextWrapper);
@@ -2974,7 +2974,7 @@ const MainEditor = ({
 
     const onPointerDown = (e) => {
       if (e.button !== 0) return;
-      
+
       const clickX = e.clientX;
       const clickY = e.clientY;
 
@@ -5486,7 +5486,7 @@ const MainEditor = ({
             y: rect.y || rect.top || 0,
           };
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
   };
@@ -5498,7 +5498,7 @@ const MainEditor = ({
     }
     try {
       interaction.stop();
-    } catch (e) {}
+    } catch (e) { }
     if (!interaction.rect) {
       interaction.rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
     }
@@ -6425,7 +6425,7 @@ const MainEditor = ({
 
             if (event.shiftKey) {
               let targetRatio = null;
-              if (el.hasAttribute('data-original-aspect-ratio')) {
+              if (el.hasAttribute('data-original-aspect-ratio') && !isElementInCropMode) {
                 targetRatio = parseFloat(el.getAttribute('data-original-aspect-ratio'));
               } else {
                 const shapeName = el.getAttribute('data-name') || '';
@@ -6763,7 +6763,7 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
-                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                         if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
                           let origX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('data-crop-orig-x') || child.getAttribute('x') || '0');
@@ -6873,7 +6873,7 @@ const MainEditor = ({
                           let imgH = newLocH;
 
                           const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
-                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                           if (isCropModeThisEl) {
                             let origX = parseFloat(el.getAttribute('data-crop-orig-x') || innerImg.getAttribute('data-crop-orig-x') || innerImg.getAttribute('x') || '0');
@@ -6905,10 +6905,15 @@ const MainEditor = ({
                                   cHeight = parseFloat(cd.height) || 100;
                                 } catch (e) { }
                               }
-                              const newOrigW = cWidth > 0 ? (newLocW / (cWidth / 100)) : newLocW;
-                              const newOrigH = cHeight > 0 ? (newLocH / (cHeight / 100)) : newLocH;
-                              const newOrigX = newLocX - (newOrigW * (cLeft / 100));
-                              const newOrigY = newLocY - (newOrigH * (cTop / 100));
+                              const scaledCropX = la.x + (bbox.x - la.x) * scaleX;
+                              const scaledCropY = la.y + (bbox.y - la.y) * scaleY;
+                              const scaledCropW = bbox.width * scaleX;
+                              const scaledCropH = bbox.height * Math.abs(scaleY);
+
+                              const newOrigW = cWidth > 0 ? (scaledCropW / (cWidth / 100)) : scaledCropW;
+                              const newOrigH = cHeight > 0 ? (scaledCropH / (cHeight / 100)) : scaledCropH;
+                              const newOrigX = scaledCropX - (newOrigW * (cLeft / 100));
+                              const newOrigY = scaledCropY - (newOrigH * (cTop / 100));
 
                               el.setAttribute('data-crop-orig-x', newOrigX);
                               el.setAttribute('data-crop-orig-y', newOrigY);
@@ -6963,7 +6968,7 @@ const MainEditor = ({
                   const targetCData = state.childrenData.find(c => c.child === imgElLive || c.child.contains?.(imgElLive)) || state.childrenData[0];
                   if (targetCData) {
                     const la = state.localAnchor;
-                    const bound = targetCData.bound;
+                    const bound = bbox || targetCData.bound;
                     const newMinX = la.x + (bound.x - la.x) * scaleX;
                     const newMinY = la.y + (bound.y - la.y) * scaleY;
                     const newMaxX = la.x + (bound.x + bound.width - la.x) * scaleX;
