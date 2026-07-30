@@ -481,25 +481,50 @@ const GifEditor = ({
                 clipNode.appendChild(clipPathEl);
                 defs.appendChild(clipNode);
               }
+              let targetToWrap = svgImageEl;
+              if (svgImageEl && svgImageEl.tagName?.toLowerCase() === 'img') {
+                targetToWrap = svgImageEl.closest('foreignObject') || svgImageEl;
+              }
+
+              const measureEl = targetToWrap || liveElement;
+              let bb = { x: 0, y: 0, width: 100, height: 100 };
+              try { bb = measureEl.getBBox(); } catch(e){}
+              
+              let cxStr = measureEl.getAttribute('x') || '0';
+              let cyStr = measureEl.getAttribute('y') || '0';
+              let cwStr = measureEl.getAttribute('width') || '100%';
+              let chStr = measureEl.getAttribute('height') || '100%';
+              
+              let cx = cxStr.includes('%') ? bb.x : parseFloat(cxStr) || 0;
+              let cy = cyStr.includes('%') ? bb.y : parseFloat(cyStr) || 0;
+              let cw = cwStr.includes('%') ? bb.width : parseFloat(cwStr) || 100;
+              let ch = chStr.includes('%') ? bb.height : parseFloat(chStr) || 100;
+
               const rect = clipNode.firstChild;
-              rect.setAttribute('x', svgImageEl ? svgImageEl.getAttribute('x') || '0' : '0');
-              rect.setAttribute('y', svgImageEl ? svgImageEl.getAttribute('y') || '0' : '0');
-              rect.setAttribute('width', svgImageEl ? svgImageEl.getAttribute('width') || '100%' : '100%');
-              rect.setAttribute('height', svgImageEl ? svgImageEl.getAttribute('height') || '100%' : '100%');
-              rect.setAttribute('transform', svgImageEl ? svgImageEl.getAttribute('transform') || '' : '');
-              const maxR = Math.max(radius.tl, radius.tr, radius.br, radius.bl);
+              rect.setAttribute('x', cx);
+              rect.setAttribute('y', cy);
+              rect.setAttribute('width', Math.max(0, cw));
+              rect.setAttribute('height', Math.max(0, ch));
+              rect.setAttribute('transform', measureEl.getAttribute('transform') || '');
+              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
               if (maxR > 0) rect.setAttribute('rx', maxR.toString());
               else rect.removeAttribute('rx');
 
-              const clipperGroup = svgImageEl.parentNode;
-              if (clipperGroup && clipperGroup.classList.contains('svg-image-clipper')) {
-                clipperGroup.style.setProperty('clip-path', `url(#${clipId})`, 'important');
-                clipperGroup.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              if (targetToWrap) {
+                // For HTML img inside foreignObject, apply clip directly to foreignObject
+                // to avoid Chrome bugs with <g> wrappers around foreignObject
+                targetToWrap.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+                targetToWrap.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
 
-                svgImageEl.style.removeProperty('clip-path');
-                svgImageEl.style.removeProperty('-webkit-clip-path');
                 liveElement.style.removeProperty('clip-path');
                 liveElement.style.removeProperty('-webkit-clip-path');
+                
+                // Remove legacy wrapper if it exists
+                if (targetToWrap.parentNode && targetToWrap.parentNode.classList.contains('svg-image-clipper')) {
+                  const parent = targetToWrap.parentNode;
+                  parent.parentNode.insertBefore(targetToWrap, parent);
+                  parent.remove();
+                }
               } else {
                 liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
                 liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
@@ -540,7 +565,34 @@ const GifEditor = ({
         if (svgImageEl) {
           let leafFilter = adjustOnlyFilter;
           if (forceClip && blurOnlyFilter !== 'none') {
-            leafFilter = `${leafFilter} ${blurStr}`.trim();
+            if (svgImageEl.tagName?.toLowerCase() === 'img') {
+              leafFilter = `${leafFilter} ${blurStr}`.trim();
+            } else {
+              const blurVal = effectSettings['Blur'].blur / 2;
+              let svgFiltId = `tight-blur-${liveElement.id || 'gif'}`;
+              let defs = liveElement.ownerSVGElement?.querySelector('defs');
+              if (!defs && liveElement.ownerSVGElement) {
+                defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                liveElement.ownerSVGElement.prepend(defs);
+              }
+              if (defs) {
+                let f = defs.querySelector(`#${svgFiltId}`);
+                if (!f) {
+                  f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                  f.id = svgFiltId;
+                  defs.appendChild(f);
+                }
+                f.setAttribute('x', '0%');
+                f.setAttribute('y', '0%');
+                f.setAttribute('width', '100%');
+                f.setAttribute('height', '100%');
+                f.innerHTML = `<feGaussianBlur stdDeviation="${blurVal}"/>`;
+                
+                leafFilter = `${adjustOnlyFilter} url(#${svgFiltId})`.trim();
+              } else {
+                leafFilter = `${leafFilter} ${blurStr}`.trim();
+              }
+            }
           }
           svgImageEl.style.setProperty('filter', leafFilter, 'important');
         }
@@ -588,11 +640,17 @@ const GifEditor = ({
                 defs.appendChild(svgFilt);
               }
               // Safely set innerHTML to generate only the shadow, hollowed out by SourceAlpha
+              let blurStep = "";
+              if (!forceClip && activeEffects.includes('Blur')) {
+                const extraBlur = effectSettings['Blur'].blur;
+                blurStep = `<feGaussianBlur in="shadow" stdDeviation="${extraBlur}" result="shadow"/>`;
+              }
               svgFilt.innerHTML = `
                 <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
                 <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
                 <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
                 <feComposite in2="offsetBlur" operator="in" result="shadow"/>
+                ${blurStep}
                 <feComposite in="shadow" in2="SourceAlpha" operator="out"/>
               `;
               shadowCaster.style.setProperty('filter', `url(#${shadowFilterId})`, 'important');
