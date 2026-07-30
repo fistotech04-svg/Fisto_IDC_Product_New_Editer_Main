@@ -883,9 +883,9 @@ const ImageEditor = ({
         const useShadowCaster = true;
 
         if (shadowOnlyFilter !== 'none' && useShadowCaster) {
-          if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'rect') {
+          if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'path') {
             if (shadowCaster) shadowCaster.remove();
-            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             shadowCaster.classList.add('svg-drop-shadow-caster');
             shadowCaster.style.pointerEvents = 'none';
           }
@@ -931,20 +931,29 @@ const ImageEditor = ({
             }
 
             const trans = targetElForShadow.getAttribute('transform') || '';
-            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+            const maxR = Math.min(cw, ch) / 2;
+            const tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+            const tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+            const br = Math.max(0, Math.min(radius.br || 0, maxR));
+            const bl = Math.max(0, Math.min(radius.bl || 0, maxR));
 
-            shadowCaster.setAttribute('x', cx);
-            shadowCaster.setAttribute('y', cy);
-            shadowCaster.setAttribute('width', Math.max(0, cw));
-            shadowCaster.setAttribute('height', Math.max(0, ch));
+            let d = `M ${cx + tl} ${cy}`;
+            d += ` L ${cx + cw - tr} ${cy}`;
+            if (tr > 0) d += ` A ${tr} ${tr} 0 0 1 ${cx + cw} ${cy + tr}`;
+            d += ` L ${cx + cw} ${cy + ch - br}`;
+            if (br > 0) d += ` A ${br} ${br} 0 0 1 ${cx + cw - br} ${cy + ch}`;
+            d += ` L ${cx + bl} ${cy + ch}`;
+            if (bl > 0) d += ` A ${bl} ${bl} 0 0 1 ${cx} ${cy + ch - bl}`;
+            d += ` L ${cx} ${cy + tl}`;
+            if (tl > 0) d += ` A ${tl} ${tl} 0 0 1 ${cx + tl} ${cy}`;
+            d += ` Z`;
+
+            shadowCaster.setAttribute('d', d);
             shadowCaster.setAttribute('transform', trans);
 
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', (opacity / 100).toString());
             shadowCaster.style.removeProperty('clip-path');
-
-            if (maxR > 0) shadowCaster.setAttribute('rx', maxR.toString());
-            else shadowCaster.removeAttribute('rx');
 
             const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
             const totalBlur = effSet.blur / 2;
@@ -967,16 +976,22 @@ const ImageEditor = ({
                 defs.appendChild(svgFilt);
               }
               // Safely set innerHTML to generate only the shadow (hollowed out by SourceAlpha)
+              let blurStep = "";
+              if (!forceClip && activeEffects.includes('Blur')) {
+                const extraBlur = effectSettings['Blur'].blur;
+                blurStep = `<feGaussianBlur in="shadow" stdDeviation="${extraBlur}" result="shadow"/>`;
+              }
               svgFilt.innerHTML = `
                 <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
                 <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
                 <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
                 <feComposite in2="offsetBlur" operator="in" result="shadow"/>
+                ${blurStep}
                 <feComposite in="shadow" in2="SourceAlpha" operator="out"/>
               `;
               shadowCaster.style.setProperty('filter', `url(#${shadowFilterId})`, 'important');
             } else {
-              shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+              shadowCaster.style.setProperty('filter', shadowOnlyFilter + (!forceClip ? ' ' + effectFilters : ''), 'important');
             }
             
             shadowCaster.style.setProperty('display', 'block', 'important');
@@ -994,19 +1009,61 @@ const ImageEditor = ({
           const applyToLeaf = svgImageEl && svgImageEl !== liveElement;
 
           if (applyToLeaf) {
-            liveElement.style.setProperty('filter', innerFilter, 'important');
-            const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
-            svgImageEl.style.setProperty('filter', leafFilter, 'important');
+            if (forceClip) {
+              // Blur only content, tight bounds for intrinsic clipping
+              liveElement.style.removeProperty('filter');
+              
+              if (activeEffects.includes('Blur')) {
+                const blurVal = effectSettings['Blur'].blur / 2;
+                let svgFiltId = `tight-blur-${liveElement.id || 'img'}`;
+                let defs = liveElement.ownerSVGElement?.querySelector('defs');
+                if (!defs && liveElement.ownerSVGElement) {
+                  defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                  liveElement.ownerSVGElement.prepend(defs);
+                }
+                if (defs) {
+                  let f = defs.querySelector(`#${svgFiltId}`);
+                  if (!f) {
+                    f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                    f.id = svgFiltId;
+                    defs.appendChild(f);
+                  }
+                  f.setAttribute('x', '0%');
+                  f.setAttribute('y', '0%');
+                  f.setAttribute('width', '100%');
+                  f.setAttribute('height', '100%');
+                  f.innerHTML = `<feGaussianBlur stdDeviation="${blurVal}"/>`;
+                  
+                  svgImageEl.style.setProperty('filter', `${adjustmentFilters} url(#${svgFiltId})`.trim(), 'important');
+                } else {
+                  const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+                  svgImageEl.style.setProperty('filter', leafFilter, 'important');
+                }
+              } else {
+                const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+                svgImageEl.style.setProperty('filter', leafFilter, 'important');
+              }
+            } else {
+              // Blur everything (stroke, fill) via parent, adjustments only on content
+              const outerFilter = effectFilters.trim() || 'none';
+              liveElement.style.setProperty('filter', outerFilter, 'important');
+              svgImageEl.style.setProperty('filter', innerFilter, 'important');
+            }
           } else {
-            const appliedTotalFilter = (adjustmentFilters + effectFilters + activeShadowFilter).trim() || 'none';
-            liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            if (forceClip) {
+              const appliedTotalFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+              liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            } else {
+              const appliedTotalFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+              liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            }
             if (svgImageEl) {
               svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
             }
           }
 
-          if (forceClip) {
-            let targetElForShadow = svgImageEl || liveElement;
+          if (forceClip && !applyToLeaf) {
+            let targetElForShadow = liveElement;
             let bb = { x: 0, y: 0, width: 100, height: 100 };
             try { bb = targetElForShadow.getBBox(); } catch (e) { }
             let cxStr = targetElForShadow.getAttribute('x') || '0';
@@ -1082,16 +1139,22 @@ const ImageEditor = ({
             liveElement.parentElement.style.removeProperty('-webkit-clip-path');
           }
         } else {
-          if (innerFilter !== 'none') {
-            liveElement.style.setProperty('filter', innerFilter, 'important');
-          } else {
-            liveElement.style.removeProperty('filter');
-          }
-
-          if (blurOnlyFilter !== 'none') {
-            liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
-          } else {
+          if (forceClip) {
+            // Apply blur only to the image, not the wrapper
+            const combinedInner = (adjustmentFilters + effectFilters).trim() || 'none';
+            liveElement.style.setProperty('filter', combinedInner, 'important');
             liveElement.parentElement.style.removeProperty('filter');
+          } else {
+            if (innerFilter !== 'none') {
+              liveElement.style.setProperty('filter', innerFilter, 'important');
+            } else {
+              liveElement.style.removeProperty('filter');
+            }
+            if (blurOnlyFilter !== 'none') {
+              liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
+            } else {
+              liveElement.parentElement.style.removeProperty('filter');
+            }
           }
           if (forceClip) {
             let targetElForShadow = svgImageEl || liveElement;
@@ -2220,8 +2283,9 @@ const ImageEditor = ({
       if (liveElement.getAttribute('data-is-image-group') === 'true' || isPatternShape) {
         let fillLayer = fillLayerParent.querySelector('.image-fill-layer');
         if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
-          if (!fillLayer) {
-            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!fillLayer || fillLayer.tagName.toLowerCase() !== (!isPatternShape ? 'path' : 'rect')) {
+            if (fillLayer) fillLayer.remove();
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', !isPatternShape ? 'path' : 'rect');
             fillLayer.classList.add('image-fill-layer');
             fillLayer.setAttribute('data-name', 'Fill Color');
             fillLayer.style.pointerEvents = 'none';
@@ -2263,11 +2327,30 @@ const ImageEditor = ({
             fillLayer.setAttribute('y', '0');
             fillLayer.setAttribute('width', patternEl.getAttribute('width') || '100%');
             fillLayer.setAttribute('height', patternEl.getAttribute('height') || '100%');
+            fillLayer.removeAttribute('d');
           } else {
-            fillLayer.setAttribute('x', bx.toString());
-            fillLayer.setAttribute('y', by.toString());
-            fillLayer.setAttribute('width', bw.toString());
-            fillLayer.setAttribute('height', bh.toString());
+            const maxR = Math.min(bw, bh) / 2;
+            const tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+            const tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+            const br = Math.max(0, Math.min(radius.br || 0, maxR));
+            const bl = Math.max(0, Math.min(radius.bl || 0, maxR));
+
+            let d = `M ${bx + tl} ${by}`;
+            d += ` L ${bx + bw - tr} ${by}`;
+            if (tr > 0) d += ` A ${tr} ${tr} 0 0 1 ${bx + bw} ${by + tr}`;
+            d += ` L ${bx + bw} ${by + bh - br}`;
+            if (br > 0) d += ` A ${br} ${br} 0 0 1 ${bx + bw - br} ${by + bh}`;
+            d += ` L ${bx + bl} ${by + bh}`;
+            if (bl > 0) d += ` A ${bl} ${bl} 0 0 1 ${bx} ${by + bh - bl}`;
+            d += ` L ${bx} ${by + tl}`;
+            if (tl > 0) d += ` A ${tl} ${tl} 0 0 1 ${bx + tl} ${by}`;
+            d += ` Z`;
+
+            fillLayer.setAttribute('d', d);
+            fillLayer.removeAttribute('x');
+            fillLayer.removeAttribute('y');
+            fillLayer.removeAttribute('width');
+            fillLayer.removeAttribute('height');
           }
 
           let parsedFill = null;
@@ -2307,12 +2390,7 @@ const ImageEditor = ({
           fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
 
           if (!isPatternShape) {
-            const maxR = Math.min(bw, bh) / 2;
-            if (radius.tl || radius.tr || radius.br || radius.bl) {
-              fillLayer.setAttribute('rx', Math.max(0, Math.min(Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0), maxR)).toString());
-            } else {
-              fillLayer.removeAttribute('rx');
-            }
+            fillLayer.removeAttribute('rx');
             if (targetElForFill.getAttribute('transform')) fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
           }
 
@@ -2343,6 +2421,9 @@ const ImageEditor = ({
 
         if (tagLower === 'image' && liveElement.parentElement) {
           const strokeOverlay = liveElement.parentElement.querySelector('.svg-image-stroke-overlay');
+          if (strokeOverlay) strokeOverlay.remove();
+        } else if (typeof liveElement.querySelector === 'function') {
+          const strokeOverlay = liveElement.querySelector('.svg-image-stroke-overlay');
           if (strokeOverlay) strokeOverlay.remove();
         }
 
@@ -2420,101 +2501,120 @@ const ImageEditor = ({
             } else {
               targetContainer.appendChild(strokeOverlay);
             }
+          }
 
-            const syncOverlay = () => {
-              if (!strokeOverlay.isConnected) return;
-              const targetEl = svgImageEl || liveElement;
-              strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-              strokeOverlay.style.transform = targetEl.style.transform;
-              strokeOverlay.style.translate = targetEl.style.translate;
-              strokeOverlay.style.scale = targetEl.style.scale;
-              strokeOverlay.style.rotate = targetEl.style.rotate;
-              strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
-              strokeOverlay.style.opacity = targetEl.style.opacity;
+          if (strokeOverlay._obs) {
+            strokeOverlay._obs.disconnect();
+          }
 
-              let targetElForStrokeSync = svgImageEl || liveElement;
-              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
-                targetElForStrokeSync = svgImageEl.parentNode;
-              }
+          const syncOverlay = () => {
+            if (!strokeOverlay.isConnected) return;
+            const targetEl = svgImageEl || liveElement;
+            strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+            strokeOverlay.style.transform = targetEl.style.transform;
+            strokeOverlay.style.translate = targetEl.style.translate;
+            strokeOverlay.style.scale = targetEl.style.scale;
+            strokeOverlay.style.rotate = targetEl.style.rotate;
+            strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
 
-              let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = targetElForStrokeSync.getBBox(); } catch (e) { }
-
-              let bxStr = targetElForStrokeSync.getAttribute('x') || '0';
-              let byStr = targetElForStrokeSync.getAttribute('y') || '0';
-              let bwStr = targetElForStrokeSync.getAttribute('width') || '100%';
-              let bhStr = targetElForStrokeSync.getAttribute('height') || '100%';
-
-              let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-              let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-              let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-              let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
-
-              const cropStrStroke = targetElForStrokeSync.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-              if (cropStrStroke && cropStrStroke !== 'null') {
-                try {
-                  const crop = JSON.parse(cropStrStroke);
-                  bx = bx + (parseFloat(crop.left) / 100) * bw;
-                  by = by + (parseFloat(crop.top) / 100) * bh;
-                  bw = bw * (parseFloat(crop.width) / 100);
-                  bh = bh * (parseFloat(crop.height) / 100);
-                } catch (e) { }
-              }
-
-              let scaleX = 1;
-              let scaleY = 1;
-              try {
-                const ctm = targetElForStrokeSync.getScreenCTM();
-                if (ctm) {
-                  scaleX = Math.abs(ctm.a) || 1;
-                  scaleY = Math.abs(ctm.d) || 1;
-                }
-              } catch(e) {}
-
-              const swSync = backgroundColor.strokeWeight || 0;
-              const posSync = backgroundColor.strokePosition || 'Center';
-              const offsetX = (swSync / 2) / scaleX;
-              const offsetY = (swSync / 2) / scaleY;
-
-              let ox = bx, oy = by, ow = bw, oh = bh;
-              if (posSync === 'Inside') {
-                ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
-              } else if (posSync === 'Outside') {
-                ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
-              }
-
-              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-              let adjR = maxR;
-              if (posSync === 'Inside') {
-                adjR = Math.max(0, maxR - offsetX);
-              } else if (posSync === 'Outside') {
-                adjR = maxR > 0 ? maxR + offsetX : 0;
-              }
-
-              const c_tl = Math.max(0, Math.min(radius.tl || 0, adjR));
-              const c_tr = Math.max(0, Math.min(radius.tr || 0, adjR));
-              const c_br = Math.max(0, Math.min(radius.br || 0, adjR));
-              const c_bl = Math.max(0, Math.min(radius.bl || 0, adjR));
-
-              const getPathDLocal = (x, y, w, h, tlv, trv, brv, blv) => {
-                return `M ${x + tlv} ${y}
-                  H ${x + w - trv}
-                  A ${trv} ${trv} 0 0 1 ${x + w} ${y + trv}
-                  V ${y + h - brv}
-                  A ${brv} ${brv} 0 0 1 ${x + w - brv} ${y + h}
-                  H ${x + blv}
-                  A ${blv} ${blv} 0 0 1 ${x} ${y + h - blv}
-                  V ${y + tlv}
-                  A ${tlv} ${tlv} 0 0 1 ${x + tlv} ${y} Z`;
-              };
-
-              strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
-            };
-            const obs = new MutationObserver(syncOverlay);
-            obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
-            if (svgImageEl && svgImageEl !== liveElement) {
-              obs.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            let targetElForStrokeSync = svgImageEl || liveElement;
+            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+              targetElForStrokeSync = svgImageEl.parentNode;
             }
+
+            let bBox = { x: 0, y: 0, width: 100, height: 100 };
+            try { bBox = targetElForStrokeSync.getBBox(); } catch (e) { }
+
+            let bxStr = targetElForStrokeSync.getAttribute('x') || '0';
+            let byStr = targetElForStrokeSync.getAttribute('y') || '0';
+            let bwStr = targetElForStrokeSync.getAttribute('width') || '100%';
+            let bhStr = targetElForStrokeSync.getAttribute('height') || '100%';
+
+            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+            const cropStrStroke = targetElForStrokeSync.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+            if (cropStrStroke && cropStrStroke !== 'null') {
+              try {
+                const crop = JSON.parse(cropStrStroke);
+                bx = bx + (parseFloat(crop.left) / 100) * bw;
+                by = by + (parseFloat(crop.top) / 100) * bh;
+                bw = bw * (parseFloat(crop.width) / 100);
+                bh = bh * (parseFloat(crop.height) / 100);
+              } catch (e) { }
+            }
+
+            let scaleX = 1;
+            let scaleY = 1;
+            try {
+              const ctm = targetElForStrokeSync.getScreenCTM();
+              if (ctm) {
+                scaleX = Math.abs(ctm.a) || 1;
+                scaleY = Math.abs(ctm.d) || 1;
+              }
+            } catch(e) {}
+
+            const swSync = backgroundColor.strokeWeight || 0;
+            const posSync = backgroundColor.strokePosition || 'Center';
+            const offsetX = (swSync / 2) / scaleX;
+            const offsetY = (swSync / 2) / scaleY;
+
+            let ox = bx, oy = by, ow = bw, oh = bh;
+            if (posSync === 'Inside') {
+              ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
+            } else if (posSync === 'Outside') {
+              ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
+            }
+
+            const getPathDLocal = (x, y, w, h, tlv, trv, brv, blv) => {
+              return `M ${x + tlv} ${y}
+                H ${x + w - trv}
+                A ${trv} ${trv} 0 0 1 ${x + w} ${y + trv}
+                V ${y + h - brv}
+                A ${brv} ${brv} 0 0 1 ${x + w - brv} ${y + h}
+                H ${x + blv}
+                A ${blv} ${blv} 0 0 1 ${x} ${y + h - blv}
+                V ${y + tlv}
+                A ${tlv} ${tlv} 0 0 1 ${x + tlv} ${y} Z`;
+            };
+
+            const tl_val = radius.tl || 0;
+            const tr_val = radius.tr || 0;
+            const br_val = radius.br || 0;
+            const bl_val = radius.bl || 0;
+
+            let c_tl = tl_val;
+            let c_tr = tr_val;
+            let c_br = br_val;
+            let c_bl = bl_val;
+
+            if (posSync === 'Inside') {
+              c_tl = Math.max(0, tl_val - offsetX);
+              c_tr = Math.max(0, tr_val - offsetX);
+              c_br = Math.max(0, br_val - offsetX);
+              c_bl = Math.max(0, bl_val - offsetX);
+            } else if (posSync === 'Outside') {
+              c_tl = tl_val > 0 ? tl_val + offsetX : 0;
+              c_tr = tr_val > 0 ? tr_val + offsetX : 0;
+              c_br = br_val > 0 ? br_val + offsetX : 0;
+              c_bl = bl_val > 0 ? bl_val + offsetX : 0;
+            }
+
+            const maxR = Math.min(ow, oh) / 2;
+            c_tl = Math.max(0, Math.min(c_tl, maxR));
+            c_tr = Math.max(0, Math.min(c_tr, maxR));
+            c_br = Math.max(0, Math.min(c_br, maxR));
+            c_bl = Math.max(0, Math.min(c_bl, maxR));
+
+            strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
+          };
+          
+          strokeOverlay._obs = new MutationObserver(syncOverlay);
+          strokeOverlay._obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+          if (svgImageEl && svgImageEl !== liveElement) {
+            strokeOverlay._obs.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
           }
 
           let targetElForStroke = svgImageEl || liveElement;
