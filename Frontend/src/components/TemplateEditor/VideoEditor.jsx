@@ -140,6 +140,69 @@ const VideoEditor = ({
   const isUpdatingDOMTimeoutRef = useRef(null);
   const isHydrating = useRef(true);
   const onUpdateTimerRef = useRef(null);
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+
+  const [videoResolution, setVideoResolution] = useState('');
+  const [videoFileSize, setVideoFileSize] = useState('');
+  const [videoDurationState, setVideoDurationState] = useState('');
+
+  useEffect(() => {
+    if (!previewSrc) {
+      setVideoResolution('');
+      setVideoFileSize('');
+      setVideoDurationState('');
+      return;
+    }
+
+    const formatBytes = (bytes, decimals = 2) => {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
+    if (previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be")) {
+      setVideoResolution('');
+      setVideoFileSize('URL');
+      return;
+    }
+
+    const video = document.createElement('video');
+    video.src = previewSrc;
+    video.onloadedmetadata = () => {
+      setVideoResolution(`${video.videoWidth} x ${video.videoHeight}`);
+      if (video.duration && video.duration !== Infinity) {
+        setVideoDurationState(video.duration);
+      }
+    };
+
+    if (previewSrc.startsWith('data:')) {
+      const base64str = previewSrc.split(',')[1];
+      if (base64str) {
+        const bytes = Math.round(base64str.length * (3 / 4));
+        setVideoFileSize(formatBytes(bytes, 1));
+      }
+    } else {
+      fetch(previewSrc, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            const contentLength = res.headers.get('content-length');
+            if (contentLength) {
+              setVideoFileSize(formatBytes(parseInt(contentLength, 10), 1));
+            } else {
+              setVideoFileSize('Unknown Size');
+            }
+          } else {
+            setVideoFileSize('Unknown Size');
+          }
+        })
+        .catch(() => {
+          setVideoFileSize('Unknown Size');
+        });
+    }
+  }, [previewSrc]);
 
   // Helper to get colors used on the current page
   const colorsOnPage = useMemo(() => {
@@ -1414,9 +1477,7 @@ const VideoEditor = ({
 
   const updateElementAttribute = (attr, value) => {
     // These update the local state which then triggers applyVisuals
-    if (attr === 'width') setWidth(value);
-    else if (attr === 'height') setHeight(value);
-    else if (attr === 'opacity') setOpacity(value);
+    if (attr === 'opacity') setOpacity(value);
     else if (attr === 'backgroundColor') setBackgroundColor(value);
     else if (attr === 'stroke') setBackgroundColor(prev => ({ ...prev, stroke: value }));
     else if (attr === 'strokeWeight') setBackgroundColor(prev => ({ ...prev, strokeWeight: value }));
@@ -1434,13 +1495,14 @@ const VideoEditor = ({
     else if (attr === 'muted') setMuted(value);
   };
 
+
   const handleVideoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !selectedLayerId) return;
 
     // Resolve the live element from the DOM to ensure we don't mutate a stale React reference
-    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-    const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const liveElement = editorDoc.getElementById(selectedLayerId) || selectedElement;
 
     if (!liveElement) {
       console.error("Could not resolve live element for upload");
@@ -1488,14 +1550,21 @@ const VideoEditor = ({
 
     const tempVideo = document.createElement('video');
     tempVideo.onloadedmetadata = async () => {
-      // Use standard preview size and calculate height based on original aspect ratio
-      const newW = 380;
-      const newH = (tempVideo.videoHeight / tempVideo.videoWidth) * newW || 214;
+      // Dynamically calculate size based on the SVG canvas
+      const svg = target.closest('svg');
+      const svgW = svg ? ((svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || 794) : 794;
 
-      target.setAttribute("width", newW);
-      target.setAttribute("height", newH);
-      target.style.width = newW + "px";
-      target.style.height = newH + "px";
+      const newW = Math.round(svgW * 0.9);
+      const newH = (tempVideo.videoHeight / tempVideo.videoWidth) * newW || Math.round(newW * (9 / 16));
+
+      target.setAttribute("width", "100%");
+      target.setAttribute("height", "100%");
+      target.setAttribute("data-video-width", tempVideo.videoWidth);
+      target.setAttribute("data-video-height", tempVideo.videoHeight);
+      target.setAttribute("data-video-duration", tempVideo.duration);
+      target.style.width = "100%";
+      target.style.height = "100%";
+      target.style.objectFit = "contain";
 
       if (liveElement) {
         const resizeAndCenter = (el, targetW, targetH) => {
@@ -1527,16 +1596,20 @@ const VideoEditor = ({
         }
       }
 
-      setWidth(newW);
-      setHeight(newH);
-
-
       target.src = videoURL;
       target.setAttribute("src", videoURL);
-      target.setAttribute("data-filename", file.name);
+      target.setAttribute('data-filename', file.name);
+      target.setAttribute('data-filesize', file.size);
+      target.removeAttribute('data-original-url');
+      if (liveElement && liveElement !== target) {
+        liveElement.setAttribute('data-filename', file.name);
+        liveElement.setAttribute('data-filesize', file.size);
+        liveElement.setAttribute('data-video-duration', tempVideo.duration);
+      }
       target.autoplay = false;
       target.removeAttribute("autoplay");
       setAutoplay(false);
+      setUpdateTrigger(prev => prev + 1);
       const source = target.querySelector("source");
       if (source) {
         source.src = videoURL;
@@ -1545,7 +1618,7 @@ const VideoEditor = ({
       if (target.tagName === "VIDEO") target.load();
 
       setPreviewSrc(videoURL);
-      debouncedUpdate({ newElement: wasIframe ? target : undefined });
+      onUpdateRef.current?.({ newElement: wasIframe ? target : undefined });
 
       const storedUser = localStorage.getItem('user');
       if (storedUser && (activeVId || (folderName && flipbookName))) {
@@ -1677,9 +1750,17 @@ const VideoEditor = ({
       urlLower.includes('wistia') || urlLower.includes('drive.google.com') ||
       urlLower.includes('embed') || urlLower.includes('player');
 
-    // Use a standard preview size for URLs (16:9)
-    const newW = 380;
-    const newH = 214;
+    // Dynamically calculate size based on the SVG canvas
+    const svg = target.closest('svg');
+    const svgW = svg ? ((svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || 794) : 794;
+
+    const newW = Math.round(svgW * 0.9);
+    const newH = Math.round(newW * (9 / 16)); // Standard 16:9 for URLs
+
+    const ytIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/);
+    const ytId = ytIdMatch ? ytIdMatch[1] : null;
+
+
 
     // If the target is already the correct type, just update its src
     if ((isIframeTarget && target.tagName === "IFRAME") || (!isIframeTarget && target.tagName === "VIDEO")) {
@@ -1687,10 +1768,12 @@ const VideoEditor = ({
       target.setAttribute("src", finalUrl);
       target.setAttribute("data-original-url", url);
 
-      target.setAttribute("width", newW);
-      target.setAttribute("height", newH);
-      target.style.width = newW + "px";
-      target.style.height = newH + "px";
+      target.setAttribute("width", "100%");
+      target.setAttribute("height", "100%");
+      target.style.width = "100%";
+      target.style.height = "100%";
+      target.style.transform = "none";
+      target.style.objectFit = "contain";
 
       if (liveElement) {
         const resizeAndCenter = (el, targetW, targetH) => {
@@ -1722,8 +1805,6 @@ const VideoEditor = ({
         }
       }
 
-      setWidth(newW);
-      setHeight(newH);
 
       if (!isIframeTarget) {
 
@@ -1734,7 +1815,16 @@ const VideoEditor = ({
       }
       setAutoplay(true);
       setPreviewSrc(finalUrl);
-      debouncedUpdate();
+
+      target.setAttribute("data-filename", isIframeTarget ? "YouTube Video" : "Video URL");
+      target.setAttribute("data-filesize", "URL");
+      if (liveElement && liveElement !== target) {
+        liveElement.setAttribute('data-filename', isIframeTarget ? "YouTube Video" : "Video URL");
+        liveElement.setAttribute('data-filesize', "URL");
+      }
+      setUpdateTrigger(prev => prev + 1);
+
+      onUpdateRef.current?.();
       return;
     }
 
@@ -1746,6 +1836,7 @@ const VideoEditor = ({
       newElement.src = finalUrl;
       newElement.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
       newElement.allowFullscreen = true;
+
     } else {
       newElement = document.createElement("video");
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
@@ -1763,10 +1854,12 @@ const VideoEditor = ({
     newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
-    newElement.setAttribute("width", newW);
-    newElement.setAttribute("height", newH);
-    newElement.style.width = newW + "px";
-    newElement.style.height = newH + "px";
+    newElement.setAttribute("width", "100%");
+    newElement.setAttribute("height", "100%");
+    newElement.style.width = "100%";
+    newElement.style.height = "100%";
+    newElement.style.transform = "none";
+    newElement.style.objectFit = "contain";
 
     if (liveElement) {
       const resizeAndCenter = (el, targetW, targetH) => {
@@ -1798,8 +1891,6 @@ const VideoEditor = ({
       }
     }
 
-    setWidth(newW);
-    setHeight(newH);
 
     // Preserve layout and data attributes
     Array.from(target.attributes).forEach(attr => {
@@ -1809,9 +1900,18 @@ const VideoEditor = ({
     });
 
     target.replaceWith(newElement);
+
+    newElement.setAttribute("data-filename", isIframeTarget ? "YouTube Video" : "Video URL");
+    newElement.setAttribute("data-filesize", "URL");
+    if (liveElement && liveElement !== newElement) {
+      liveElement.setAttribute('data-filename', isIframeTarget ? "YouTube Video" : "Video URL");
+      liveElement.setAttribute('data-filesize', "URL");
+    }
+    setUpdateTrigger(prev => prev + 1);
+
     setAutoplay(true);
     setPreviewSrc(finalUrl);
-    debouncedUpdate();
+    onUpdateRef.current?.();
   };
 
   const handleAddUrl = () => {
@@ -1878,7 +1978,7 @@ const VideoEditor = ({
           <span className="text-[0.8vw] font-medium text-gray-800">Video fix type :</span>
           <div className="relative">
             <div
-              className="flex items-center justify-between w-[8vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
+              className="flex items-center justify-between w-[10.5vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
               onClick={() => setShowVideoTypeDropdown(!showVideoTypeDropdown)}
             >
               <span className="text-[0.75vw] text-gray-600">{videoType || "Fit"}</span>
@@ -1906,7 +2006,7 @@ const VideoEditor = ({
 
         {/* Video Info Row */}
         <div className="flex items-start gap-[0.8vw] pt-[0.5vw]">
-          <div className="w-[7vw] h-[4.5vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
+          <div className="w-[8.5vw] h-[6vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
             {previewSrc ? (
               previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
                 <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
@@ -1920,31 +2020,50 @@ const VideoEditor = ({
             )}
           </div>
 
-          <div className="flex flex-col flex-1">
-            <span className="text-[0.75vw] font-medium text-gray-700 mb-[0.3vw]">Video Name .mp4</span>
-            <div className="text-[0.55vw] text-gray-400 mb-[0.6vw] flex items-center gap-[0.3vw]">
-              <span>02:52 Mins</span>
-              <span>•</span>
-              <span>1920 x 1080</span>
-              <span>•</span>
-              <span>24MB</span>
+          <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.5vw]">
+            <div className="flex flex-col">
+              <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}>
+                {selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}
+              </span>
+              <div className="text-[0.6vw] text-gray-400 flex items-center gap-[0.3vw] flex-wrap mt-[0.2vw]">
+                {(videoDurationState || selectedElement?.getAttribute('data-video-duration')) && (
+                  <>
+                    <span>
+                      {(() => {
+                        const d = parseFloat(videoDurationState || selectedElement.getAttribute('data-video-duration'));
+                        const m = Math.floor(d / 60).toString().padStart(2, '0');
+                        const s = Math.floor(d % 60).toString().padStart(2, '0');
+                        return (
+                          <>
+                            {m}:{s} <span className="text-[0.5vw] opacity-80">Mins</span>
+                          </>
+                        );
+                      })()}
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
+                <span>
+                  {videoResolution ? `${videoResolution} • ` : ''}{videoFileSize || 'Unknown Size'}
+                </span>
+              </div>
             </div>
 
-            <div className="flex items-center gap-[0.4vw]">
+            <div className="flex items-center gap-[0.5vw] mt-[0.2vw]">
               <button
                 onClick={() => setShowReplaceModal(true)}
-                className="px-[0.6vw] py-[0.3vw] bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 text-[0.6vw] font-medium rounded-[0.2vw] transition-colors"
+                className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
               >
                 Replace video
               </button>
               <button
                 onClick={() => onDeleteLayer && onDeleteLayer()}
-                className="p-[0.3vw] bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-500 rounded-[0.2vw] transition-colors flex items-center justify-center"
+                className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+                title="Delete"
               >
-                <Icon icon="lucide:trash-2" className="w-[0.8vw] h-[0.8vw]" />
+                <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
               </button>
             </div>
-            <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
           </div>
 
 
@@ -2020,8 +2139,8 @@ const VideoEditor = ({
               if (coverOption === 'upload') coverInputRef.current?.click();
             }}
             className={`w-[8vw] h-[5vw] rounded-[0.8vw] flex flex-col items-center justify-center overflow-hidden transition-all ${coverOption === 'upload'
-                ? 'border-2 border-dashed border-gray-200 bg-gray-50/30 hover:border-indigo-400 hover:bg-white cursor-pointer'
-                : 'border border-gray-200 bg-gray-50'
+              ? 'border-2 border-dashed border-gray-200 bg-gray-50/30 hover:border-indigo-400 hover:bg-white cursor-pointer'
+              : 'border border-gray-200 bg-gray-50'
               }`}
           >
             {posterSrc && coverOption === 'upload' ? (

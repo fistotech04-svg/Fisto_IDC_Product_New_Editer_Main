@@ -45,6 +45,7 @@ import Color from './Color';
 import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
+import ReplaceMediaModal from './ReplaceMediaModal';
 
 const galleryPreviewImages = [
   "https://media.giphy.com/media/3o7aD2saalEvTe2v0c/giphy.gif",
@@ -81,7 +82,13 @@ const GifEditor = ({
 
   const fileInputRef = useRef(null);
   const [activeSection, setActiveSection] = useState('main');
+  const [isUrlAdded, setIsUrlAdded] = useState(false);
+
+  const [gifResolution, setGifResolution] = useState('');
+  const [gifFileSize, setGifFileSize] = useState('');
+
   const [showGallery, setShowGallery] = useState(false);
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [opacity, setOpacity] = useState(100);
   const [imageType, setImageType] = useState('Fill');
   const [showImageTypeDropdown, setShowImageTypeDropdown] = useState(false);
@@ -455,9 +462,9 @@ const GifEditor = ({
               const insetBottom = 100 - (parseFloat(crop.top) + parseFloat(crop.height));
               const insetLeft = crop.left;
               cropInset = `${insetTop}% ${insetRight}% ${insetBottom}% ${insetLeft}%`;
-            } catch(e) {}
+            } catch (e) { }
           }
-          
+
           if (forceClip) {
             let clipId = `clip-content-${liveElement.id || 'gif'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
@@ -560,9 +567,9 @@ const GifEditor = ({
 
             shadowCaster.style.removeProperty('clip-path');
 
-            const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
+            const effSet = effectSettings['Drop Shadow'] || { x: 0, y: 0, blur: 0, color: '#000', opacity: 0 };
             const totalBlur = effSet.blur / 2;
-            
+
             let shadowFilterId = `ds-only-${liveElement.id || 'gif'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
             if (!defs && liveElement.ownerSVGElement) {
@@ -592,7 +599,7 @@ const GifEditor = ({
             } else {
               shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
             }
-            
+
             shadowCaster.style.setProperty('display', 'block', 'important');
           }
         } else if (shadowCaster) {
@@ -1440,10 +1447,59 @@ const GifEditor = ({
     }
   };
 
-  const getSrc = (el) => {
+  const getSrc = useCallback((el) => {
     if (!el) return "";
     return el.src || el.getAttribute("href") || el.getAttribute("xlink:href") || "";
-  };
+  }, []);
+
+  useEffect(() => {
+    const currentSrc = getSrc(getSvgImageEl(selectedElement) || selectedElement);
+    if (!currentSrc) {
+      setGifResolution('');
+      setGifFileSize('');
+      return;
+    }
+
+    const formatBytes = (bytes, decimals = 2) => {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
+    const img = new Image();
+    img.src = currentSrc;
+    img.onload = () => {
+      setGifResolution(`${img.naturalWidth} x ${img.naturalHeight}`);
+    };
+
+    if (currentSrc.startsWith('data:')) {
+      const base64str = currentSrc.split(',')[1];
+      if (base64str) {
+        const bytes = Math.round(base64str.length * (3 / 4));
+        setGifFileSize(formatBytes(bytes, 1));
+      }
+    } else {
+      fetch(currentSrc, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            const contentLength = res.headers.get('content-length');
+            if (contentLength) {
+              setGifFileSize(formatBytes(parseInt(contentLength, 10), 1));
+            } else {
+              setGifFileSize('Unknown Size');
+            }
+          } else {
+            setGifFileSize('Unknown Size');
+          }
+        })
+        .catch(() => {
+          setGifFileSize('Unknown Size');
+        });
+    }
+  }, [selectedElement, getSvgImageEl, getSrc]);
 
   const setSrc = (el, url) => {
     if (!el) return;
@@ -1466,8 +1522,27 @@ const GifEditor = ({
     const targetImg = getSvgImageEl(liveElement) || liveElement;
 
     const processUpload = async (nw, nh) => {
-      // Retain the current element's dimension size and don't recalculate based on new aspect ratio.
-      // This ensures replacing a GIF keeps the exact same size and bounding box.
+      if (imageType === 'Fit') {
+        let currentX = parseFloat(targetImg.getAttribute('x')) || 0;
+        let currentY = parseFloat(targetImg.getAttribute('y')) || 0;
+        let currentW = parseFloat(targetImg.getAttribute('width')) || 100;
+        let currentH = parseFloat(targetImg.getAttribute('height')) || 100;
+        if (targetImg.getAttribute('width')?.includes('%')) {
+          try {
+            const bBox = targetImg.getBBox();
+            currentX = bBox.x; currentY = bBox.y; currentW = bBox.width; currentH = bBox.height;
+          } catch (e) { }
+        }
+        const scale = Math.min(currentW / nw, currentH / nh);
+        const actualW = nw * scale;
+        const actualH = nh * scale;
+        const newX = currentX + (currentW - actualW) / 2;
+        const newY = currentY + (currentH - actualH) / 2;
+        targetImg.setAttribute('x', newX);
+        targetImg.setAttribute('y', newY);
+        targetImg.setAttribute('width', actualW);
+        targetImg.setAttribute('height', actualH);
+      }
 
       setSrc(targetImg, url);
       liveElement.dataset.mediaType = "gif";
@@ -1523,83 +1598,84 @@ const GifEditor = ({
         <div className="h-[0.0925vw] bg-gray-200 flex-1" > </div>
       </div>
 
-
+      <div className="flex items-center gap-[0.5vw] mt-[0.5vw] ml-[0.2vw]">
+        <span className="text-[0.8vw] font-medium text-gray-800">Gif fix type :</span>
+        <div className="relative">
+          <div
+            className="flex items-center justify-between w-[10.5vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
+            onClick={() => setShowImageTypeDropdown(!showImageTypeDropdown)}
+          >
+            <span className="text-[0.75vw] text-gray-600">{imageType || "Fit"}</span>
+            <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] text-gray-500" />
+          </div>
+          {showImageTypeDropdown && (
+            <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.3vw]">
+              {["Fit", "Fill", "Stretch"].map((type) => (
+                <div
+                  key={type}
+                  className="px-[0.6vw] py-[0.4vw] text-[0.75vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
+                  onClick={() => {
+                    setImageType(type);
+                    setShowImageTypeDropdown(false);
+                  }}
+                >
+                  {type}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Upload/Replace Row */}
-      <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
+      <div className="flex items-start gap-[0.8vw] pt-[0.5vw]">
         {/* Current Preview */}
-        <div className="flex flex-col items-center gap-[0.35vw]">
-          <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors">
-            {getSrc(getSvgImageEl(selectedElement) || selectedElement) ? (
-              <img src={getSrc(getSvgImageEl(selectedElement) || selectedElement)} className="w-full h-full rounded-[0.3vw] object-contain" alt="Current GIF" />
-            ) : (<ImageIcon size="1.2vw" className="text-gray-300" />)}
-            <div
-              className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
-              onClick={() => onDeleteLayer && onDeleteLayer()}
-            >
-              <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
-              <span className="text-[0.5vw] text-white font-semibold">Remove</span>
+        <div className="w-[8.5vw] h-[6vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
+          {getSrc(getSvgImageEl(selectedElement) || selectedElement) ? (
+            <img src={getSrc(getSvgImageEl(selectedElement) || selectedElement)} className="w-full h-full object-cover" alt="Current GIF" />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center">
+              <ImageIcon size="1.2vw" className="text-gray-300" />
             </div>
-          </div>
-          <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
+          )}
         </div>
 
-        {/* Replace Icon */}
-        <div
-          className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
-        </div>
-
-        {/* Upload Box */}
-        <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
-            onDragOver={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                const file = e.dataTransfer.files[0];
-                if (file.type === 'image/gif') {
-                  handleGifUpload({ target: { files: e.dataTransfer.files } });
-                }
-              }
-            }}
-          >
-            <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
-              Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
-            </p>
-            <Icon icon="lucide:upload" className="w-[1.1vw] h-[1.1vw] text-gray-400 mb-[0.2vw]" />
-            <div className="flex flex-col items-center">
-              <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
-              <span className="text-[0.5vw] font-semibold text-gray-500">
-                GIF
+        {/* Info & Actions */}
+        <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.5vw]">
+          <div className="flex flex-col">
+            <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Gif'}>
+              {selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Gif'}
+            </span>
+            <div className="text-[0.6vw] text-gray-400 flex items-center gap-[0.3vw] flex-wrap mt-[0.2vw]">
+              <span>
+                {gifResolution ? `${gifResolution} • ` : ''}{gifFileSize || 'Unknown Size'}
               </span>
             </div>
           </div>
-          <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
+
+          <div className="flex items-center gap-[0.5vw] mt-[0.2vw]">
+            <button
+              onClick={() => setShowReplaceModal(true)}
+              className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+            >
+              Replace gif
+            </button>
+            <button
+              onClick={() => onDeleteLayer && onDeleteLayer()}
+              className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+              title="Delete"
+            >
+              <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+            </button>
+          </div>
         </div>
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/gif" onChange={handleGifUpload} className="hidden" />
 
-      <button onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group shadow-lg flex items-center justify-center border border-white/5 transition-all hover:scale-[1.01]">
-        <div className="absolute inset-0 flex gap-[0.2vw] opacity-20 group-hover:opacity-40 transition-opacity">
-          {galleryPreviewImages.map((src, i) => (<div key={i} className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />))}
-        </div>
-        <div className="relative z-10 flex items-center gap-[0.75vw]">
-          <Grid size="1vw" className="text-white" />
-          <span className="text-[0.95vw] font-semibold text-white">GIF Gallery</span>
-        </div>
-      </button>
-
       <div className="space-y-[0.60vw] px-[0.3vw]">
+
+
         <div className="space-y-[0.5vw]">
           <div className="flex items-center gap-[0.5vw]">
             <span className="text-[0.9vw] font-semibold text-gray-900 whitespace-nowrap">Opacity</span>
@@ -1665,8 +1741,62 @@ const GifEditor = ({
       </div>
 
       {showGallery && (
-        <GalleryGif selectedElement={selectedElement} onUpdate={onUpdate} onClose={() => setShowGallery(false)} currentPageVId={currentPageVId} flipbookVId={activeVId} folderName={folderName} flipbookName={flipbookName} onSelect={async (gif) => { const optimisticUrl = gif.url; const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`); const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement; const targetImg = getSvgImageEl(liveElement) || liveElement; setSrc(targetImg, optimisticUrl); liveElement.dataset.mediaType = "gif"; onUpdateRef.current?.({ shouldRefresh: true }); setShowGallery(false); }} />
+        <GalleryGif
+          selectedElement={selectedElement}
+          onUpdate={onUpdate}
+          onClose={() => setShowGallery(false)}
+          currentPageVId={currentPageVId}
+          flipbookVId={activeVId}
+          folderName={folderName}
+          flipbookName={flipbookName}
+          onSelect={async (gif) => {
+            const optimisticUrl = gif.url;
+            const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
+            const liveElement = (selectedLayerId && pageContainer) ? pageContainer.querySelector(`[id="${selectedLayerId}"]`) : selectedElement;
+            const targetImg = getSvgImageEl(liveElement) || liveElement;
+
+            const imgObj = new window.Image();
+            imgObj.onload = () => {
+              if (imageType === 'Fit') {
+                let currentX = parseFloat(targetImg.getAttribute('x')) || 0;
+                let currentY = parseFloat(targetImg.getAttribute('y')) || 0;
+                let currentW = parseFloat(targetImg.getAttribute('width')) || 100;
+                let currentH = parseFloat(targetImg.getAttribute('height')) || 100;
+                if (targetImg.getAttribute('width')?.includes('%')) {
+                  try {
+                    const bBox = targetImg.getBBox();
+                    currentX = bBox.x; currentY = bBox.y; currentW = bBox.width; currentH = bBox.height;
+                  } catch (e) { }
+                }
+                const scale = Math.min(currentW / imgObj.naturalWidth, currentH / imgObj.naturalHeight);
+                const actualW = imgObj.naturalWidth * scale;
+                const actualH = imgObj.naturalHeight * scale;
+                const newX = currentX + (currentW - actualW) / 2;
+                const newY = currentY + (currentH - actualH) / 2;
+                targetImg.setAttribute('x', newX);
+                targetImg.setAttribute('y', newY);
+                targetImg.setAttribute('width', actualW);
+                targetImg.setAttribute('height', actualH);
+              }
+              setSrc(targetImg, optimisticUrl);
+              liveElement.dataset.mediaType = "gif";
+              onUpdateRef.current?.({ shouldRefresh: true });
+              setShowGallery(false);
+            };
+            imgObj.src = optimisticUrl;
+          }}
+        />
       )}
+
+      {/* Replace Media Modal Popup */}
+      <ReplaceMediaModal
+        show={showReplaceModal}
+        mediaType="gif"
+        onClose={() => setShowReplaceModal(false)}
+        onReplace={(file) => {
+          handleGifUpload({ target: { files: [file] } });
+        }}
+      />
     </div>
   );
 };
