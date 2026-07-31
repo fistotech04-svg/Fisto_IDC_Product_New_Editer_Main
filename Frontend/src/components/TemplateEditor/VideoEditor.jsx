@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import VideoGalleryModal from "./VideoGalleryModal";
+import ReplaceMediaModal from "./ReplaceMediaModal";
 import Color from './Color';
 
 import Adjustment from './Adjustment';
@@ -94,6 +95,7 @@ const VideoEditor = ({
   const [posterSrc, setPosterSrc] = useState(null);
   const [videoType, setVideoType] = useState("Fill");
   const [showVideoTypeDropdown, setShowVideoTypeDropdown] = useState(false);
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
   const [autoplay, setAutoplay] = useState(false);
   const [loop, setLoop] = useState(false);
   const [controls, setControls] = useState(true);
@@ -138,6 +140,69 @@ const VideoEditor = ({
   const isUpdatingDOMTimeoutRef = useRef(null);
   const isHydrating = useRef(true);
   const onUpdateTimerRef = useRef(null);
+  const [updateTrigger, setUpdateTrigger] = useState(0);
+
+  const [videoResolution, setVideoResolution] = useState('');
+  const [videoFileSize, setVideoFileSize] = useState('');
+  const [videoDurationState, setVideoDurationState] = useState('');
+
+  useEffect(() => {
+    if (!previewSrc) {
+      setVideoResolution('');
+      setVideoFileSize('');
+      setVideoDurationState('');
+      return;
+    }
+
+    const formatBytes = (bytes, decimals = 2) => {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
+    if (previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be")) {
+      setVideoResolution('');
+      setVideoFileSize('URL');
+      return;
+    }
+
+    const video = document.createElement('video');
+    video.src = previewSrc;
+    video.onloadedmetadata = () => {
+      setVideoResolution(`${video.videoWidth} x ${video.videoHeight}`);
+      if (video.duration && video.duration !== Infinity) {
+        setVideoDurationState(video.duration);
+      }
+    };
+
+    if (previewSrc.startsWith('data:')) {
+      const base64str = previewSrc.split(',')[1];
+      if (base64str) {
+        const bytes = Math.round(base64str.length * (3 / 4));
+        setVideoFileSize(formatBytes(bytes, 1));
+      }
+    } else {
+      fetch(previewSrc, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            const contentLength = res.headers.get('content-length');
+            if (contentLength) {
+              setVideoFileSize(formatBytes(parseInt(contentLength, 10), 1));
+            } else {
+              setVideoFileSize('Unknown Size');
+            }
+          } else {
+            setVideoFileSize('Unknown Size');
+          }
+        })
+        .catch(() => {
+          setVideoFileSize('Unknown Size');
+        });
+    }
+  }, [previewSrc]);
 
   // Helper to get colors used on the current page
   const colorsOnPage = useMemo(() => {
@@ -333,7 +398,7 @@ const VideoEditor = ({
       setVideoType(reverseMap[rawFit] || (rawFit.charAt(0).toUpperCase() + rawFit.slice(1)) || 'Fill');
     } else if (target.tagName === "IFRAME") {
       setPreviewSrc(target.src || null);
-      
+
       const origUrl = target.getAttribute('data-original-url') || liveElement.getAttribute('data-original-url') || "";
       const isFocused = document.activeElement && document.activeElement.id === 'video-url-input';
       if (!isFocused) {
@@ -651,7 +716,7 @@ const VideoEditor = ({
             try {
               const ctm = visualTarget.getScreenCTM();
               if (ctm) { scaleX = Math.abs(ctm.a) || 1; scaleY = Math.abs(ctm.d) || 1; }
-            } catch(e) {}
+            } catch (e) { }
 
             const offsetX = (weight / 2) / scaleX;
             const offsetY = (weight / 2) / scaleY;
@@ -706,7 +771,7 @@ const VideoEditor = ({
             scaleX = Math.abs(ctm.a) || 1;
             scaleY = Math.abs(ctm.d) || 1;
           }
-        } catch(e) {}
+        } catch (e) { }
 
         const offsetX = (weight / 2) / scaleX;
         const offsetY = (weight / 2) / scaleY;
@@ -822,29 +887,98 @@ const VideoEditor = ({
         visualTarget.style.overflow = '';
       }
 
-      if (anyR || forceClip) {
-        target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
-        target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+      if (isSvgEl) {
+        if (anyR || forceClip) {
+          let targetElForShadow = container || liveElement;
+          let bb = { x: 0, y: 0, width: 100, height: 100 };
+          try { bb = targetElForShadow.getBBox(); } catch (e) { }
+          let cxStr = targetElForShadow.getAttribute('x');
+          let cyStr = targetElForShadow.getAttribute('y');
+          let cwStr = targetElForShadow.getAttribute('width');
+          let chStr = targetElForShadow.getAttribute('height');
+          
+          let cx = cxStr ? (cxStr.includes('%') ? bb.x : parseFloat(cxStr)) : bb.x;
+          let cy = cyStr ? (cyStr.includes('%') ? bb.y : parseFloat(cyStr)) : bb.y;
+          let cw = cwStr ? (cwStr.includes('%') ? bb.width : parseFloat(cwStr)) : bb.width;
+          let ch = chStr ? (chStr.includes('%') ? bb.height : parseFloat(chStr)) : bb.height;
 
-        visualTarget.style.removeProperty('clip-path');
-        visualTarget.style.removeProperty('-webkit-clip-path');
-        liveElement.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('-webkit-clip-path');
-        const foreignObj = liveElement.querySelector('foreignObject');
-        if (foreignObj) {
-          foreignObj.style.removeProperty('clip-path');
-          foreignObj.style.removeProperty('-webkit-clip-path');
+          let clipId = `clip-content-${liveElement.id || 'video'}`;
+          let defs = liveElement.ownerSVGElement?.querySelector('defs');
+          if (!defs && liveElement.ownerSVGElement) {
+            defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            liveElement.ownerSVGElement.prepend(defs);
+          }
+          if (defs) {
+            let clipNode = defs.querySelector(`#${clipId}`);
+            if (!clipNode) {
+              clipNode = document.createElementNS('http://www.w3.org/2000/svg', 'clipPath');
+              clipNode.id = clipId;
+              const clipPathEl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+              clipNode.appendChild(clipPathEl);
+              defs.appendChild(clipNode);
+            }
+            const rect = clipNode.firstChild;
+            rect.setAttribute('x', cx);
+            rect.setAttribute('y', cy);
+            rect.setAttribute('width', Math.max(0, cw));
+            rect.setAttribute('height', Math.max(0, ch));
+            rect.setAttribute('transform', targetElForShadow.getAttribute('transform') || '');
+            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+            if (maxR > 0) rect.setAttribute('rx', maxR.toString());
+            else rect.removeAttribute('rx');
+
+            if (container && container !== liveElement) {
+              container.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              container.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.removeProperty('clip-path');
+              liveElement.style.removeProperty('-webkit-clip-path');
+            } else {
+              liveElement.style.setProperty('clip-path', `url(#${clipId})`, 'important');
+              liveElement.style.setProperty('-webkit-clip-path', `url(#${clipId})`, 'important');
+            }
+          }
+        } else {
+          liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          if (container) {
+            container.style.removeProperty('clip-path');
+            container.style.removeProperty('-webkit-clip-path');
+          }
+          if (liveElement.ownerSVGElement) {
+            const clipId = `clip-content-${liveElement.id || 'video'}`;
+            const existingClip = liveElement.ownerSVGElement.querySelector(`#${clipId}`);
+            if (existingClip) existingClip.remove();
+          }
         }
-      } else {
+        
+        // Remove CSS inset clip-path from target to avoid conflicts
         target.style.removeProperty('clip-path');
         target.style.removeProperty('-webkit-clip-path');
-        visualTarget.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('clip-path');
-        liveElement.style.removeProperty('-webkit-clip-path');
-        const foreignObj = liveElement.querySelector('foreignObject');
-        if (foreignObj) {
-          foreignObj.style.removeProperty('clip-path');
-          foreignObj.style.removeProperty('-webkit-clip-path');
+      } else {
+        if (anyR || forceClip) {
+          target.style.setProperty('clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+          target.style.setProperty('-webkit-clip-path', `inset(0% 0% 0% 0% round ${radiusStr})`, 'important');
+  
+          visualTarget.style.removeProperty('clip-path');
+          visualTarget.style.removeProperty('-webkit-clip-path');
+          liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          const foreignObj = liveElement.querySelector('foreignObject');
+          if (foreignObj) {
+            foreignObj.style.removeProperty('clip-path');
+            foreignObj.style.removeProperty('-webkit-clip-path');
+          }
+        } else {
+          target.style.removeProperty('clip-path');
+          target.style.removeProperty('-webkit-clip-path');
+          visualTarget.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('clip-path');
+          liveElement.style.removeProperty('-webkit-clip-path');
+          const foreignObj = liveElement.querySelector('foreignObject');
+          if (foreignObj) {
+            foreignObj.style.removeProperty('clip-path');
+            foreignObj.style.removeProperty('-webkit-clip-path');
+          }
         }
       }
 
@@ -914,9 +1048,9 @@ const VideoEditor = ({
 
           const alpha = Math.round((effSet.opacity / 100) * 255).toString(16).padStart(2, '0');
           const shadowOnlyFilter = `drop-shadow(${effSet.x}px ${effSet.y}px ${effSet.blur}px ${effSet.color}${alpha})`;
-          
+
           const totalBlur = effSet.blur / 2;
-          
+
           let shadowFilterId = `ds-only-${liveElement.id || 'vid'}`;
           let defs = liveElement.ownerSVGElement?.querySelector('defs');
           if (!defs && liveElement.ownerSVGElement) {
@@ -925,15 +1059,15 @@ const VideoEditor = ({
           }
           if (defs) {
             let svgFilt = defs.querySelector(`#${shadowFilterId}`);
-              if (!svgFilt) {
-                svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
-                svgFilt.id = shadowFilterId;
-                svgFilt.setAttribute('x', '-50%');
-                svgFilt.setAttribute('y', '-50%');
-                svgFilt.setAttribute('width', '200%');
-                svgFilt.setAttribute('height', '200%');
-                defs.appendChild(svgFilt);
-              }
+            if (!svgFilt) {
+              svgFilt = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+              svgFilt.id = shadowFilterId;
+              svgFilt.setAttribute('x', '-50%');
+              svgFilt.setAttribute('y', '-50%');
+              svgFilt.setAttribute('width', '200%');
+              svgFilt.setAttribute('height', '200%');
+              defs.appendChild(svgFilt);
+            }
             svgFilt.innerHTML = `
               <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
               <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
@@ -945,7 +1079,7 @@ const VideoEditor = ({
           } else {
             shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
           }
-          
+
           shadowCaster.style.setProperty('display', 'block', 'important');
         }
       } else if (shadowCaster) {
@@ -1115,11 +1249,19 @@ const VideoEditor = ({
         }
       }
 
-      target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
-      if (visualTarget !== target) {
-        visualTarget.style.filter = 'none';
+      if (activeEffects.includes('Blur') && !forceClip) {
+        liveElement.style.setProperty('filter', blurStr.trim() || 'none', 'important');
+        target.style.filter = filterStr.trim() || 'none';
+        if (visualTarget !== target) {
+          visualTarget.style.filter = 'none';
+        }
+      } else {
+        target.style.filter = (filterStr + " " + blurStr).trim() || 'none';
+        if (visualTarget !== target) {
+          visualTarget.style.filter = 'none';
+        }
+        liveElement.style.removeProperty('filter');
       }
-      liveElement.style.removeProperty('filter');
       visualTarget.style.boxShadow = boxShadowStr.trim().replace(/,$/, '');
       visualTarget.setAttribute('data-effects', JSON.stringify({ activeEffects, effectSettings }));
       liveElement.setAttribute('data-active-effects', activeEffects.join(','));
@@ -1412,9 +1554,7 @@ const VideoEditor = ({
 
   const updateElementAttribute = (attr, value) => {
     // These update the local state which then triggers applyVisuals
-    if (attr === 'width') setWidth(value);
-    else if (attr === 'height') setHeight(value);
-    else if (attr === 'opacity') setOpacity(value);
+    if (attr === 'opacity') setOpacity(value);
     else if (attr === 'backgroundColor') setBackgroundColor(value);
     else if (attr === 'stroke') setBackgroundColor(prev => ({ ...prev, stroke: value }));
     else if (attr === 'strokeWeight') setBackgroundColor(prev => ({ ...prev, strokeWeight: value }));
@@ -1432,13 +1572,14 @@ const VideoEditor = ({
     else if (attr === 'muted') setMuted(value);
   };
 
+
   const handleVideoUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !selectedLayerId) return;
 
     // Resolve the live element from the DOM to ensure we don't mutate a stale React reference
-    const pageContainer = document.querySelector(`.page-svg-container[data-page-index="${activePageIndex}"]`);
-    const liveElement = pageContainer?.querySelector(`[id="${selectedLayerId}"]`) || document.getElementById(selectedLayerId) || selectedElement;
+    const editorDoc = document.getElementById('main-flipbook-editor')?.contentDocument || document;
+    const liveElement = editorDoc.getElementById(selectedLayerId) || selectedElement;
 
     if (!liveElement) {
       console.error("Could not resolve live element for upload");
@@ -1486,15 +1627,66 @@ const VideoEditor = ({
 
     const tempVideo = document.createElement('video');
     tempVideo.onloadedmetadata = async () => {
-      // Retain the current element's dimension size and don't recalculate based on new aspect ratio.
-      // This ensures replacing a video keeps the exact same size and bounding box.
+      // Dynamically calculate size based on the SVG canvas
+      const svg = target.closest('svg');
+      const svgW = svg ? ((svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || 794) : 794;
+
+      const newW = Math.round(svgW * 0.9);
+      const newH = (tempVideo.videoHeight / tempVideo.videoWidth) * newW || Math.round(newW * (9 / 16));
+
+      target.setAttribute("width", "100%");
+      target.setAttribute("height", "100%");
+      target.setAttribute("data-video-width", tempVideo.videoWidth);
+      target.setAttribute("data-video-height", tempVideo.videoHeight);
+      target.setAttribute("data-video-duration", tempVideo.duration);
+      target.style.width = "100%";
+      target.style.height = "100%";
+      target.style.objectFit = "contain";
+
+      if (liveElement) {
+        const resizeAndCenter = (el, targetW, targetH) => {
+          const oldW = parseFloat(el.getAttribute("width") || "0");
+          const oldH = parseFloat(el.getAttribute("height") || "0");
+          if (oldW > 0 && oldH > 0) {
+            const oldX = parseFloat(el.getAttribute("x") || "0");
+            const oldY = parseFloat(el.getAttribute("y") || "0");
+            el.setAttribute("x", oldX + oldW / 2 - targetW / 2);
+            el.setAttribute("y", oldY + oldH / 2 - targetH / 2);
+          }
+          el.setAttribute("width", targetW);
+          el.setAttribute("height", targetH);
+        };
+
+        const fo = liveElement.tagName.toLowerCase() === "foreignobject" ? liveElement : (liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+        if (fo) {
+          resizeAndCenter(fo, newW, newH);
+          fo.style.width = newW + "px";
+          fo.style.height = newH + "px";
+        }
+
+        if (liveElement.tagName.toLowerCase() === "g") {
+          liveElement.setAttribute("data-width", newW);
+          liveElement.setAttribute("data-height", newH);
+          liveElement.querySelectorAll("rect").forEach(rect => {
+            if (rect.hasAttribute("width")) resizeAndCenter(rect, newW, newH);
+          });
+        }
+      }
 
       target.src = videoURL;
       target.setAttribute("src", videoURL);
-      target.setAttribute("data-filename", file.name);
+      target.setAttribute('data-filename', file.name);
+      target.setAttribute('data-filesize', file.size);
+      target.removeAttribute('data-original-url');
+      if (liveElement && liveElement !== target) {
+        liveElement.setAttribute('data-filename', file.name);
+        liveElement.setAttribute('data-filesize', file.size);
+        liveElement.setAttribute('data-video-duration', tempVideo.duration);
+      }
       target.autoplay = false;
       target.removeAttribute("autoplay");
       setAutoplay(false);
+      setUpdateTrigger(prev => prev + 1);
       const source = target.querySelector("source");
       if (source) {
         source.src = videoURL;
@@ -1503,7 +1695,7 @@ const VideoEditor = ({
       if (target.tagName === "VIDEO") target.load();
 
       setPreviewSrc(videoURL);
-      debouncedUpdate({ newElement: wasIframe ? target : undefined });
+      onUpdateRef.current?.({ newElement: wasIframe ? target : undefined });
 
       const storedUser = localStorage.getItem('user');
       if (storedUser && (activeVId || (folderName && flipbookName))) {
@@ -1565,12 +1757,12 @@ const VideoEditor = ({
         target.poster = result;
         target.setAttribute("poster", result);
         target.setAttribute("data-poster-type", "upload");
-        
+
         // Force the poster to show by replacing the video element with a clone
         const clone = target.cloneNode(true);
         clone.removeAttribute('data-custom-ctrl-active');
         target.parentNode.replaceChild(clone, target);
-        
+
         setPosterSrc(result);
         debouncedUpdate({ poster: result });
       }
@@ -1627,20 +1819,72 @@ const VideoEditor = ({
 
     const finalUrl = getEmbedVideoUrl(url);
     const urlLower = url.toLowerCase();
-    
+
     // Check if it's an iframe-based embed
-    const isIframeTarget = urlLower.includes('youtube') || urlLower.includes('youtu.be') || 
-                           urlLower.includes('vimeo') || urlLower.includes('dailymotion') || 
-                           urlLower.includes('dai.ly') || urlLower.includes('loom.com') || 
-                           urlLower.includes('wistia') || urlLower.includes('drive.google.com') || 
-                           urlLower.includes('embed') || urlLower.includes('player');
+    const isIframeTarget = urlLower.includes('youtube') || urlLower.includes('youtu.be') ||
+      urlLower.includes('vimeo') || urlLower.includes('dailymotion') ||
+      urlLower.includes('dai.ly') || urlLower.includes('loom.com') ||
+      urlLower.includes('wistia') || urlLower.includes('drive.google.com') ||
+      urlLower.includes('embed') || urlLower.includes('player');
+
+    // Dynamically calculate size based on the SVG canvas
+    const svg = target.closest('svg');
+    const svgW = svg ? ((svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || 794) : 794;
+
+    const newW = Math.round(svgW * 0.9);
+    const newH = Math.round(newW * (9 / 16)); // Standard 16:9 for URLs
+
+    const ytIdMatch = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/);
+    const ytId = ytIdMatch ? ytIdMatch[1] : null;
+
+
 
     // If the target is already the correct type, just update its src
     if ((isIframeTarget && target.tagName === "IFRAME") || (!isIframeTarget && target.tagName === "VIDEO")) {
       target.src = finalUrl;
       target.setAttribute("src", finalUrl);
       target.setAttribute("data-original-url", url);
+
+      target.setAttribute("width", "100%");
+      target.setAttribute("height", "100%");
+      target.style.width = "100%";
+      target.style.height = "100%";
+      target.style.transform = "none";
+      target.style.objectFit = "contain";
+
+      if (liveElement) {
+        const resizeAndCenter = (el, targetW, targetH) => {
+          const oldW = parseFloat(el.getAttribute("width") || "0");
+          const oldH = parseFloat(el.getAttribute("height") || "0");
+          if (oldW > 0 && oldH > 0) {
+            const oldX = parseFloat(el.getAttribute("x") || "0");
+            const oldY = parseFloat(el.getAttribute("y") || "0");
+            el.setAttribute("x", oldX + oldW / 2 - targetW / 2);
+            el.setAttribute("y", oldY + oldH / 2 - targetH / 2);
+          }
+          el.setAttribute("width", targetW);
+          el.setAttribute("height", targetH);
+        };
+
+        const fo = liveElement.tagName.toLowerCase() === "foreignobject" ? liveElement : (liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+        if (fo) {
+          resizeAndCenter(fo, newW, newH);
+          fo.style.width = newW + "px";
+          fo.style.height = newH + "px";
+        }
+
+        if (liveElement.tagName.toLowerCase() === "g") {
+          liveElement.setAttribute("data-width", newW);
+          liveElement.setAttribute("data-height", newH);
+          liveElement.querySelectorAll("rect").forEach(rect => {
+            if (rect.hasAttribute("width")) resizeAndCenter(rect, newW, newH);
+          });
+        }
+      }
+
+
       if (!isIframeTarget) {
+
         target.autoplay = true;
         target.muted = true;
         target.setAttribute("autoplay", "");
@@ -1648,7 +1892,16 @@ const VideoEditor = ({
       }
       setAutoplay(true);
       setPreviewSrc(finalUrl);
-      debouncedUpdate();
+
+      target.setAttribute("data-filename", isIframeTarget ? "YouTube Video" : "Video URL");
+      target.setAttribute("data-filesize", "URL");
+      if (liveElement && liveElement !== target) {
+        liveElement.setAttribute('data-filename', isIframeTarget ? "YouTube Video" : "Video URL");
+        liveElement.setAttribute('data-filesize', "URL");
+      }
+      setUpdateTrigger(prev => prev + 1);
+
+      onUpdateRef.current?.();
       return;
     }
 
@@ -1660,6 +1913,7 @@ const VideoEditor = ({
       newElement.src = finalUrl;
       newElement.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
       newElement.allowFullscreen = true;
+
     } else {
       newElement = document.createElement("video");
       newElement.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
@@ -1677,6 +1931,44 @@ const VideoEditor = ({
     newElement.setAttribute("data-original-url", url);
     newElement.style.cssText = target.style.cssText;
 
+    newElement.setAttribute("width", "100%");
+    newElement.setAttribute("height", "100%");
+    newElement.style.width = "100%";
+    newElement.style.height = "100%";
+    newElement.style.transform = "none";
+    newElement.style.objectFit = "contain";
+
+    if (liveElement) {
+      const resizeAndCenter = (el, targetW, targetH) => {
+        const oldW = parseFloat(el.getAttribute("width") || "0");
+        const oldH = parseFloat(el.getAttribute("height") || "0");
+        if (oldW > 0 && oldH > 0) {
+          const oldX = parseFloat(el.getAttribute("x") || "0");
+          const oldY = parseFloat(el.getAttribute("y") || "0");
+          el.setAttribute("x", oldX + oldW / 2 - targetW / 2);
+          el.setAttribute("y", oldY + oldH / 2 - targetH / 2);
+        }
+        el.setAttribute("width", targetW);
+        el.setAttribute("height", targetH);
+      };
+
+      const fo = liveElement.tagName.toLowerCase() === "foreignobject" ? liveElement : (liveElement.querySelector("foreignObject") || liveElement.querySelector("foreignobject"));
+      if (fo) {
+        resizeAndCenter(fo, newW, newH);
+        fo.style.width = newW + "px";
+        fo.style.height = newH + "px";
+      }
+
+      if (liveElement.tagName === "G") {
+        liveElement.setAttribute("data-width", newW);
+        liveElement.setAttribute("data-height", newH);
+        liveElement.querySelectorAll("rect").forEach(rect => {
+          if (rect.hasAttribute("width")) resizeAndCenter(rect, newW, newH);
+        });
+      }
+    }
+
+
     // Preserve layout and data attributes
     Array.from(target.attributes).forEach(attr => {
       if (!["src", "id", "style", "allow", "allowfullscreen", "controls"].includes(attr.name)) {
@@ -1685,14 +1977,23 @@ const VideoEditor = ({
     });
 
     target.replaceWith(newElement);
+
+    newElement.setAttribute("data-filename", isIframeTarget ? "YouTube Video" : "Video URL");
+    newElement.setAttribute("data-filesize", "URL");
+    if (liveElement && liveElement !== newElement) {
+      liveElement.setAttribute('data-filename', isIframeTarget ? "YouTube Video" : "Video URL");
+      liveElement.setAttribute('data-filesize', "URL");
+    }
+    setUpdateTrigger(prev => prev + 1);
+
     setAutoplay(true);
     setPreviewSrc(finalUrl);
-    debouncedUpdate();
+    onUpdateRef.current?.();
   };
 
   const handleAddUrl = () => {
     if (!inputUrl) return;
-    
+
     const type = detectMediaType(inputUrl);
     if (type !== 'video') {
       alert("Please provide a valid video URL.");
@@ -1749,139 +2050,103 @@ const VideoEditor = ({
         </div>
 
 
-
-        {/* Upload/Replace Row */}
-        <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
-          {/* Current Video Preview */}
-          <div className="flex flex-col items-center gap-[0.35vw]">
+        {/* Video fix type */}
+        <div className="flex items-center gap-[0.5vw] mt-[0.5vw]">
+          <span className="text-[0.8vw] font-medium text-gray-800">Video fix type :</span>
+          <div className="relative">
             <div
-              className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors"
+              className="flex items-center justify-between w-[10.5vw] h-[2vw] px-[0.6vw] border border-gray-200 rounded-[0.4vw] cursor-pointer bg-white"
+              onClick={() => setShowVideoTypeDropdown(!showVideoTypeDropdown)}
             >
-              {previewSrc ? (
-                previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
-                  <iframe src={previewSrc} className="w-full h-full object-cover rounded-[0.3vw] pointer-events-none" frameBorder="0" allowFullScreen />
-                ) : (
-                  <video src={previewSrc} className="w-full h-full object-cover rounded-[0.3vw]" muted />
-                )
+              <span className="text-[0.75vw] text-gray-600">{videoType || "Fit"}</span>
+              <Icon icon="lucide:chevron-down" className="w-[0.9vw] h-[0.9vw] text-gray-500" />
+            </div>
+            {showVideoTypeDropdown && (
+              <div className="absolute top-full left-0 mt-[0.2vw] w-full bg-white border border-gray-200 rounded-[0.4vw] shadow-lg z-50 py-[0.3vw]">
+                {["Fit", "Fill", "Stretch"].map((type) => (
+                  <div
+                    key={type}
+                    className="px-[0.6vw] py-[0.4vw] text-[0.75vw] text-gray-700 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => {
+                      setVideoType(type);
+                      setShowVideoTypeDropdown(false);
+                      debouncedUpdate();
+                    }}
+                  >
+                    {type}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Video Info Row */}
+        <div className="flex items-start gap-[0.8vw] pt-[0.5vw]">
+          <div className="w-[8.5vw] h-[6vw] bg-gray-100 rounded-[0.4vw] overflow-hidden flex-shrink-0 border border-gray-200">
+            {previewSrc ? (
+              previewSrc.includes("youtube.com") || previewSrc.includes("youtu.be") ? (
+                <iframe src={previewSrc} className="w-full h-full object-cover pointer-events-none" frameBorder="0" allowFullScreen />
               ) : (
+                <video src={previewSrc} className="w-full h-full object-cover" muted />
+              )
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center">
                 <VideoIcon size="1.2vw" className="text-gray-300" />
-              )}
-              <div
-                className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
-                onClick={() => onDeleteLayer && onDeleteLayer()}
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.5vw]">
+            <div className="flex flex-col">
+              <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}>
+                {selectedElement?.getAttribute('data-filename') || selectedElement?.getAttribute('data-name') || 'Video'}
+              </span>
+              <div className="text-[0.6vw] text-gray-400 flex items-center gap-[0.3vw] flex-wrap mt-[0.2vw]">
+                {(videoDurationState || selectedElement?.getAttribute('data-video-duration')) && (
+                  <>
+                    <span>
+                      {(() => {
+                        const d = parseFloat(videoDurationState || selectedElement.getAttribute('data-video-duration'));
+                        const m = Math.floor(d / 60).toString().padStart(2, '0');
+                        const s = Math.floor(d % 60).toString().padStart(2, '0');
+                        return (
+                          <>
+                            {m}:{s} <span className="text-[0.5vw] opacity-80">Mins</span>
+                          </>
+                        );
+                      })()}
+                    </span>
+                    <span>•</span>
+                  </>
+                )}
+                <span>
+                  {videoResolution ? `${videoResolution} • ` : ''}{videoFileSize || 'Unknown Size'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-[0.5vw] mt-[0.2vw]">
+              <button
+                onClick={() => setShowReplaceModal(true)}
+                className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
               >
-                <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
-                <span className="text-[0.5vw] text-white font-semibold">Remove</span>
-              </div>
+                Replace video
+              </button>
+              <button
+                onClick={() => onDeleteLayer && onDeleteLayer()}
+                className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+                title="Delete"
+              >
+                <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+              </button>
             </div>
-            <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
           </div>
 
-          {/* Replace Icon */}
-          <div
-            className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
-          </div>
 
-          {/* Upload Box */}
-          <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                  const file = e.dataTransfer.files[0];
-                  if (file.type === 'video/mp4') {
-                    handleVideoUpload({ target: { files: e.dataTransfer.files } });
-                  }
-                }
-              }}
-            >
-              <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
-                Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
-              </p>
-              <Upload size="1.1vw" className="text-gray-400 mb-[0.2vw]" />
-              <div className="flex flex-col items-center">
-                <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
-                <span className="text-[0.5vw] font-semibold text-gray-500">MP4</span>
-              </div>
-            </div>
-            <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
-          </div>
         </div>
 
-        {/* OR Divider */}
-        <div className="flex items-center gap-[1vw] py-[0.25vw]">
-          <div className="h-px flex-1 bg-gray-200" />
-          <span className="text-[0.7vw] font-semibold text-gray-400">OR</span>
-          <div className="h-px flex-1 bg-gray-200" />
-        </div>
 
-        {/* URL Input */}
-        <div className="flex items-center gap-[0.5vw] px-[0.5vw]">
-          <span className="text-[0.8vw] font-semibold text-gray-800 whitespace-nowrap">URL :</span>
-          <div className="flex-1 flex items-center border border-gray-300 rounded-[0.6vw] overflow-hidden bg-white shadow-sm focus-within:ring-2 focus-within:ring-indigo-100 transition-all pr-[0.3vw]">
-
-            <input
-              id="video-url-input"
-              type="text"
-              placeholder="https://"
-              value={inputUrl}
-              onChange={(e) => {
-                setInputUrl(e.target.value);
-                setIsUrlAdded(false);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddUrl();
-              }}
-              className="flex-1 px-[0.75vw] py-[0.55vw] text-[0.85vw] text-gray-700 outline-none bg-transparent"
-            />
-            <button
-              onClick={handleAddUrl}
-              disabled={isAddingUrl || !inputUrl}
-              className={`flex items-center justify-center h-[2vw] px-[0.8vw] rounded-[0.4vw] text-[0.75vw] font-medium transition-all ${isUrlAdded ? 'bg-green-500 text-white' :
-                isAddingUrl ? 'bg-indigo-100 text-indigo-600' :
-                  'bg-indigo-600 text-white hover:bg-indigo-700'
-                }`}
-            >
-              {isUrlAdded ? (
-                'Added'
-              ) : isAddingUrl ? (
-                <div className="flex items-center gap-[0.3vw]">
-                  <Icon icon="eos-icons:loading" className="w-[1vw] h-[1vw]" />
-                  <span>{urlAddProgress}%</span>
-                </div>
-              ) : (
-                'Add'
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Video Gallery Button */}
-        <div
-          onClick={() => setOpenGallery(true)}
-          className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5"
-        >
-          <div className="absolute inset-0 flex gap-[0.2vw] opacity-20 group-hover:opacity-40 transition-opacity">
-            {galleryPreviews.slice(0, 3).map((src, i) => (
-              <div key={i} className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url('${src}')` }} />
-            ))}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-900/10 via-gray-900/20 to-gray-900/40 group-hover:via-gray-900/20 transition-all" />
-          <div className="relative z-10 flex items-center gap-[0.75vw]">
-            <Icon icon="material-symbols:video-library-outline" className="w-[1vw] h-[1.2vw] text-white" />
-            <span className="text-[0.95vw] font-semibold text-white">Video Gallery</span>
-          </div>
-        </div>
       </div>
 
       {/* Opacity Section */}
@@ -1950,11 +2215,10 @@ const VideoEditor = ({
             onClick={() => {
               if (coverOption === 'upload') coverInputRef.current?.click();
             }}
-            className={`w-[8vw] h-[5vw] rounded-[0.8vw] flex flex-col items-center justify-center overflow-hidden transition-all ${
-              coverOption === 'upload'
-                ? 'border-2 border-dashed border-gray-200 bg-gray-50/30 hover:border-indigo-400 hover:bg-white cursor-pointer'
-                : 'border border-gray-200 bg-gray-50'
-            }`}
+            className={`w-[8vw] h-[5vw] rounded-[0.8vw] flex flex-col items-center justify-center overflow-hidden transition-all ${coverOption === 'upload'
+              ? 'border-2 border-dashed border-gray-200 bg-gray-50/30 hover:border-indigo-400 hover:bg-white cursor-pointer'
+              : 'border border-gray-200 bg-gray-50'
+              }`}
           >
             {posterSrc && coverOption === 'upload' ? (
               <img src={posterSrc} className="w-full h-full object-cover" />
@@ -1989,23 +2253,24 @@ const VideoEditor = ({
 
         <div className="space-y-[0.8vw] px-[0.5vw]">
           {[
-            { 
-              label: "Disable Video Controls", 
-              value: !controls, 
+            {
+              label: "Disable Video Controls",
+              value: !controls,
               onChange: (v) => {
                 updateElementAttribute('controls', !v);
                 if (v) {
                   updateElementAttribute('autoplay', true);
                 }
-              } 
+              }
             },
-            { 
-              label: "Autoplay (Play video automatically)", 
-              value: !controls ? true : autoplay, 
+            {
+              label: "Autoplay (Play video automatically)",
+              value: !controls ? true : autoplay,
               disabled: !controls,
-              onChange: (v) => updateElementAttribute('autoplay', v) 
+              onChange: (v) => updateElementAttribute('autoplay', v)
             },
-            { label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
+            {
+              label: "Loop (Repeat video continuously)", value: loop, onChange: (v) => {
                 updateElementAttribute('loop', v);
                 if (v) {
                   updateElementAttribute('autoplay', true);
@@ -2083,6 +2348,20 @@ const VideoEditor = ({
           onClose={() => setOpenGallery(false)}
         />
       )}
+
+      {/* Replace Media Modal Popup */}
+      <ReplaceMediaModal
+        show={showReplaceModal}
+        mediaType="video"
+        onClose={() => setShowReplaceModal(false)}
+        onReplace={(file) => {
+          if (file.isUrl) {
+            replaceTemplateWithUrl(file.url);
+          } else {
+            handleVideoUpload({ target: { files: [file] } });
+          }
+        }}
+      />
     </div>
   );
 };

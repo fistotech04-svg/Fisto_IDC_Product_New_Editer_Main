@@ -42,6 +42,7 @@ import Color from './Color';
 import CornerRadius from './CornerRadius';
 import Adjustment from './Adjustment';
 import Effect from './Effect';
+import ReplaceMediaModal from './ReplaceMediaModal';
 
 const ImageEditor = ({
   selectedElement,
@@ -100,6 +101,84 @@ const ImageEditor = ({
     const imgEl = getSvgImageEl(selectedElement);
     return imgEl?.getAttribute?.('href') || imgEl?.getAttribute?.('xlink:href') || imgEl?.src || '';
   });
+
+  const displayImageName = useMemo(() => {
+    let nameFromLayer = null;
+    if (pages && pages[activePageIndex] && selectedLayerId) {
+      const findName = (layers) => {
+        for (const layer of layers) {
+          if (layer.id === selectedLayerId) return layer.name;
+          if (layer.children) {
+            const found = findName(layer.children);
+            if (found !== null) return found;
+          }
+        }
+        return null;
+      };
+      nameFromLayer = findName(pages[activePageIndex].layers);
+    }
+
+    if (nameFromLayer) return nameFromLayer;
+
+    const dataName = selectedElement?.getAttribute('data-name');
+    if (dataName) return dataName;
+
+    return 'Image';
+  }, [pages, activePageIndex, selectedLayerId, selectedElement]);
+
+  const [imageResolution, setImageResolution] = useState('');
+  const [imageFileSize, setImageFileSize] = useState('');
+
+  useEffect(() => {
+    if (!previewSrc) {
+      setImageResolution('');
+      setImageFileSize('');
+      return;
+    }
+
+    const img = new Image();
+    img.src = previewSrc;
+    img.onload = () => {
+      setImageResolution(`${img.naturalWidth} x ${img.naturalHeight}`);
+    };
+
+    const formatBytes = (bytes, decimals = 2) => {
+      if (!+bytes) return '0 Bytes';
+      const k = 1024;
+      const dm = decimals < 0 ? 0 : decimals;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
+    if (previewSrc.startsWith('data:')) {
+      const base64str = previewSrc.split(',')[1];
+      if (base64str) {
+        const bytes = Math.round(base64str.length * (3 / 4));
+        setImageFileSize(formatBytes(bytes, 1));
+      }
+    } else {
+      fetch(previewSrc, { method: 'HEAD' })
+        .then(res => {
+          if (res.ok) {
+            const contentLength = res.headers.get('content-length');
+            if (contentLength) {
+              setImageFileSize(formatBytes(parseInt(contentLength, 10), 1));
+            } else {
+              setImageFileSize('Unknown Size');
+            }
+          } else {
+            setImageFileSize('Unknown Size');
+          }
+        })
+        .catch(() => {
+          setImageFileSize('Unknown Size');
+        });
+    }
+  }, [previewSrc]);
+
+  const [showReplaceModal, setShowReplaceModal] = useState(false);
+
   const [imageType, setImageType] = useState('Fit');
   const [opacity, setOpacity] = useState(100);
   const [activePopup, setActivePopup] = useState(null);
@@ -804,9 +883,9 @@ const ImageEditor = ({
         const useShadowCaster = true;
 
         if (shadowOnlyFilter !== 'none' && useShadowCaster) {
-          if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'rect') {
+          if (!shadowCaster || shadowCaster.tagName.toLowerCase() !== 'path') {
             if (shadowCaster) shadowCaster.remove();
-            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            shadowCaster = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             shadowCaster.classList.add('svg-drop-shadow-caster');
             shadowCaster.style.pointerEvents = 'none';
           }
@@ -852,24 +931,33 @@ const ImageEditor = ({
             }
 
             const trans = targetElForShadow.getAttribute('transform') || '';
-            const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
+            const maxR = Math.min(cw, ch) / 2;
+            const tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+            const tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+            const br = Math.max(0, Math.min(radius.br || 0, maxR));
+            const bl = Math.max(0, Math.min(radius.bl || 0, maxR));
 
-            shadowCaster.setAttribute('x', cx);
-            shadowCaster.setAttribute('y', cy);
-            shadowCaster.setAttribute('width', Math.max(0, cw));
-            shadowCaster.setAttribute('height', Math.max(0, ch));
+            let d = `M ${cx + tl} ${cy}`;
+            d += ` L ${cx + cw - tr} ${cy}`;
+            if (tr > 0) d += ` A ${tr} ${tr} 0 0 1 ${cx + cw} ${cy + tr}`;
+            d += ` L ${cx + cw} ${cy + ch - br}`;
+            if (br > 0) d += ` A ${br} ${br} 0 0 1 ${cx + cw - br} ${cy + ch}`;
+            d += ` L ${cx + bl} ${cy + ch}`;
+            if (bl > 0) d += ` A ${bl} ${bl} 0 0 1 ${cx} ${cy + ch - bl}`;
+            d += ` L ${cx} ${cy + tl}`;
+            if (tl > 0) d += ` A ${tl} ${tl} 0 0 1 ${cx + tl} ${cy}`;
+            d += ` Z`;
+
+            shadowCaster.setAttribute('d', d);
             shadowCaster.setAttribute('transform', trans);
 
             shadowCaster.setAttribute('fill', 'black');
             shadowCaster.setAttribute('fill-opacity', (opacity / 100).toString());
             shadowCaster.style.removeProperty('clip-path');
 
-            if (maxR > 0) shadowCaster.setAttribute('rx', maxR.toString());
-            else shadowCaster.removeAttribute('rx');
-
             const effSet = effectSettings['Drop Shadow'] || {x:0, y:0, blur:0, color:'#000', opacity:0};
             const totalBlur = effSet.blur / 2;
-            
+
             let shadowFilterId = `ds-only-${liveElement.id || 'img'}`;
             let defs = liveElement.ownerSVGElement?.querySelector('defs');
             if (!defs && liveElement.ownerSVGElement) {
@@ -888,18 +976,24 @@ const ImageEditor = ({
                 defs.appendChild(svgFilt);
               }
               // Safely set innerHTML to generate only the shadow (hollowed out by SourceAlpha)
+              let blurStep = "";
+              if (!forceClip && activeEffects.includes('Blur')) {
+                const extraBlur = effectSettings['Blur'].blur;
+                blurStep = `<feGaussianBlur in="shadow" stdDeviation="${extraBlur}" result="shadow"/>`;
+              }
               svgFilt.innerHTML = `
                 <feGaussianBlur in="SourceAlpha" stdDeviation="${totalBlur}" result="blur"/>
                 <feOffset dx="${effSet.x}" dy="${effSet.y}" result="offsetBlur"/>
                 <feFlood flood-color="${effSet.color}" flood-opacity="${effSet.opacity / 100}"/>
                 <feComposite in2="offsetBlur" operator="in" result="shadow"/>
+                ${blurStep}
                 <feComposite in="shadow" in2="SourceAlpha" operator="out"/>
               `;
               shadowCaster.style.setProperty('filter', `url(#${shadowFilterId})`, 'important');
             } else {
-              shadowCaster.style.setProperty('filter', shadowOnlyFilter, 'important');
+              shadowCaster.style.setProperty('filter', shadowOnlyFilter + (!forceClip ? ' ' + effectFilters : ''), 'important');
             }
-            
+
             shadowCaster.style.setProperty('display', 'block', 'important');
           }
         } else if (shadowCaster) {
@@ -915,19 +1009,61 @@ const ImageEditor = ({
           const applyToLeaf = svgImageEl && svgImageEl !== liveElement;
 
           if (applyToLeaf) {
-            liveElement.style.setProperty('filter', innerFilter, 'important');
-            const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
-            svgImageEl.style.setProperty('filter', leafFilter, 'important');
+            if (forceClip) {
+              // Blur only content, tight bounds for intrinsic clipping
+              liveElement.style.removeProperty('filter');
+              
+              if (activeEffects.includes('Blur')) {
+                const blurVal = effectSettings['Blur'].blur / 2;
+                let svgFiltId = `tight-blur-${liveElement.id || 'img'}`;
+                let defs = liveElement.ownerSVGElement?.querySelector('defs');
+                if (!defs && liveElement.ownerSVGElement) {
+                  defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+                  liveElement.ownerSVGElement.prepend(defs);
+                }
+                if (defs) {
+                  let f = defs.querySelector(`#${svgFiltId}`);
+                  if (!f) {
+                    f = document.createElementNS('http://www.w3.org/2000/svg', 'filter');
+                    f.id = svgFiltId;
+                    defs.appendChild(f);
+                  }
+                  f.setAttribute('x', '0%');
+                  f.setAttribute('y', '0%');
+                  f.setAttribute('width', '100%');
+                  f.setAttribute('height', '100%');
+                  f.innerHTML = `<feGaussianBlur stdDeviation="${blurVal}"/>`;
+                  
+                  svgImageEl.style.setProperty('filter', `${adjustmentFilters} url(#${svgFiltId})`.trim(), 'important');
+                } else {
+                  const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+                  svgImageEl.style.setProperty('filter', leafFilter, 'important');
+                }
+              } else {
+                const leafFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+                svgImageEl.style.setProperty('filter', leafFilter, 'important');
+              }
+            } else {
+              // Blur everything (stroke, fill) via parent, adjustments only on content
+              const outerFilter = effectFilters.trim() || 'none';
+              liveElement.style.setProperty('filter', outerFilter, 'important');
+              svgImageEl.style.setProperty('filter', innerFilter, 'important');
+            }
           } else {
-            const appliedTotalFilter = (adjustmentFilters + effectFilters + activeShadowFilter).trim() || 'none';
-            liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            if (forceClip) {
+              const appliedTotalFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+              liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            } else {
+              const appliedTotalFilter = (adjustmentFilters + effectFilters).trim() || 'none';
+              liveElement.style.setProperty('filter', appliedTotalFilter, 'important');
+            }
             if (svgImageEl) {
               svgImageEl.style.setProperty('filter', adjustOnlyFilter, 'important');
             }
           }
 
-          if (forceClip) {
-            let targetElForShadow = svgImageEl || liveElement;
+          if (forceClip && !applyToLeaf) {
+            let targetElForShadow = liveElement;
             let bb = { x: 0, y: 0, width: 100, height: 100 };
             try { bb = targetElForShadow.getBBox(); } catch (e) { }
             let cxStr = targetElForShadow.getAttribute('x') || '0';
@@ -1003,16 +1139,22 @@ const ImageEditor = ({
             liveElement.parentElement.style.removeProperty('-webkit-clip-path');
           }
         } else {
-          if (innerFilter !== 'none') {
-            liveElement.style.setProperty('filter', innerFilter, 'important');
-          } else {
-            liveElement.style.removeProperty('filter');
-          }
-
-          if (blurOnlyFilter !== 'none') {
-            liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
-          } else {
+          if (forceClip) {
+            // Apply blur only to the image, not the wrapper
+            const combinedInner = (adjustmentFilters + effectFilters).trim() || 'none';
+            liveElement.style.setProperty('filter', combinedInner, 'important');
             liveElement.parentElement.style.removeProperty('filter');
+          } else {
+            if (innerFilter !== 'none') {
+              liveElement.style.setProperty('filter', innerFilter, 'important');
+            } else {
+              liveElement.style.removeProperty('filter');
+            }
+            if (blurOnlyFilter !== 'none') {
+              liveElement.parentElement.style.setProperty('filter', blurOnlyFilter, 'important');
+            } else {
+              liveElement.parentElement.style.removeProperty('filter');
+            }
           }
           if (forceClip) {
             let targetElForShadow = svgImageEl || liveElement;
@@ -1125,9 +1267,8 @@ const ImageEditor = ({
 
       // --- Opacity (works for both; also persist via SVG attribute) ---
       const opacityVal = (opacity / 100).toString();
-      const isImageGroup = isSvgEl && liveElement.getAttribute('data-is-image-group') === 'true';
 
-      if (isImageGroup && svgImageEl) {
+      if (isSvgEl && svgImageEl && svgImageEl !== liveElement) {
         liveElement.style.removeProperty('opacity');
         liveElement.removeAttribute('opacity');
         liveElement.setAttribute('data-effect-opacity', opacity.toString());
@@ -1306,7 +1447,7 @@ const ImageEditor = ({
             const finalScale = parseFloat(crop.scale) || 1;
 
             imgEl.setAttribute('transform', `translate(${centerX + panX} ${centerY + panY}) scale(${finalScale}) translate(${-centerX} ${-centerY})`);
-            
+
             imgEl.style.removeProperty('transform');
             imgEl.style.removeProperty('transform-origin');
             imgEl.style.removeProperty('transform-box');
@@ -1349,12 +1490,12 @@ const ImageEditor = ({
               rect.setAttribute('width', clipW);
               rect.setAttribute('height', clipH);
               if (anyR) {
-                 rect.setAttribute('rx', radius.tl || radius.tr || radius.bl || radius.br || 0);
+                rect.setAttribute('rx', radius.tl || radius.tr || radius.bl || radius.br || 0);
               } else {
-                 rect.removeAttribute('rx');
-                 rect.removeAttribute('ry');
+                rect.removeAttribute('rx');
+                rect.removeAttribute('ry');
               }
-              
+
               // DO NOT apply clip to the inner imgEl because its local space is transformed (panned/scaled).
               // The parent group clip is sufficient and operates in the correct stable local coordinate space.
 
@@ -1370,7 +1511,7 @@ const ImageEditor = ({
                 defs.appendChild(groupClipPath);
               }
               const groupClipRect = groupClipPath.querySelector('rect');
-              
+
               // Apply crop bounds directly in liveElement's local coordinate space.
               // No parent CTM conversion is needed because the clip-path is evaluated 
               // in the local space of the element it's applied to.
@@ -2142,8 +2283,9 @@ const ImageEditor = ({
       if (liveElement.getAttribute('data-is-image-group') === 'true' || isPatternShape) {
         let fillLayer = fillLayerParent.querySelector('.image-fill-layer');
         if (backgroundColor.fill !== 'transparent' && backgroundColor.fill !== 'none') {
-          if (!fillLayer) {
-            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          if (!fillLayer || fillLayer.tagName.toLowerCase() !== (!isPatternShape ? 'path' : 'rect')) {
+            if (fillLayer) fillLayer.remove();
+            fillLayer = document.createElementNS('http://www.w3.org/2000/svg', !isPatternShape ? 'path' : 'rect');
             fillLayer.classList.add('image-fill-layer');
             fillLayer.setAttribute('data-name', 'Fill Color');
             fillLayer.style.pointerEvents = 'none';
@@ -2185,11 +2327,30 @@ const ImageEditor = ({
             fillLayer.setAttribute('y', '0');
             fillLayer.setAttribute('width', patternEl.getAttribute('width') || '100%');
             fillLayer.setAttribute('height', patternEl.getAttribute('height') || '100%');
+            fillLayer.removeAttribute('d');
           } else {
-            fillLayer.setAttribute('x', bx.toString());
-            fillLayer.setAttribute('y', by.toString());
-            fillLayer.setAttribute('width', bw.toString());
-            fillLayer.setAttribute('height', bh.toString());
+            const maxR = Math.min(bw, bh) / 2;
+            const tl = Math.max(0, Math.min(radius.tl || 0, maxR));
+            const tr = Math.max(0, Math.min(radius.tr || 0, maxR));
+            const br = Math.max(0, Math.min(radius.br || 0, maxR));
+            const bl = Math.max(0, Math.min(radius.bl || 0, maxR));
+
+            let d = `M ${bx + tl} ${by}`;
+            d += ` L ${bx + bw - tr} ${by}`;
+            if (tr > 0) d += ` A ${tr} ${tr} 0 0 1 ${bx + bw} ${by + tr}`;
+            d += ` L ${bx + bw} ${by + bh - br}`;
+            if (br > 0) d += ` A ${br} ${br} 0 0 1 ${bx + bw - br} ${by + bh}`;
+            d += ` L ${bx + bl} ${by + bh}`;
+            if (bl > 0) d += ` A ${bl} ${bl} 0 0 1 ${bx} ${by + bh - bl}`;
+            d += ` L ${bx} ${by + tl}`;
+            if (tl > 0) d += ` A ${tl} ${tl} 0 0 1 ${bx + tl} ${by}`;
+            d += ` Z`;
+
+            fillLayer.setAttribute('d', d);
+            fillLayer.removeAttribute('x');
+            fillLayer.removeAttribute('y');
+            fillLayer.removeAttribute('width');
+            fillLayer.removeAttribute('height');
           }
 
           let parsedFill = null;
@@ -2229,12 +2390,7 @@ const ImageEditor = ({
           fillLayer.setAttribute('fill-opacity', (backgroundColor.fillOpacity / 100).toString());
 
           if (!isPatternShape) {
-            const maxR = Math.min(bw, bh) / 2;
-            if (radius.tl || radius.tr || radius.br || radius.bl) {
-              fillLayer.setAttribute('rx', Math.max(0, Math.min(Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0), maxR)).toString());
-            } else {
-              fillLayer.removeAttribute('rx');
-            }
+            fillLayer.removeAttribute('rx');
             if (targetElForFill.getAttribute('transform')) fillLayer.setAttribute('transform', targetElForFill.getAttribute('transform'));
           }
 
@@ -2265,6 +2421,9 @@ const ImageEditor = ({
 
         if (tagLower === 'image' && liveElement.parentElement) {
           const strokeOverlay = liveElement.parentElement.querySelector('.svg-image-stroke-overlay');
+          if (strokeOverlay) strokeOverlay.remove();
+        } else if (typeof liveElement.querySelector === 'function') {
+          const strokeOverlay = liveElement.querySelector('.svg-image-stroke-overlay');
           if (strokeOverlay) strokeOverlay.remove();
         }
 
@@ -2342,101 +2501,120 @@ const ImageEditor = ({
             } else {
               targetContainer.appendChild(strokeOverlay);
             }
+          }
 
-            const syncOverlay = () => {
-              if (!strokeOverlay.isConnected) return;
-              const targetEl = svgImageEl || liveElement;
-              strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
-              strokeOverlay.style.transform = targetEl.style.transform;
-              strokeOverlay.style.translate = targetEl.style.translate;
-              strokeOverlay.style.scale = targetEl.style.scale;
-              strokeOverlay.style.rotate = targetEl.style.rotate;
-              strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
-              strokeOverlay.style.opacity = targetEl.style.opacity;
+          if (strokeOverlay._obs) {
+            strokeOverlay._obs.disconnect();
+          }
 
-              let targetElForStrokeSync = svgImageEl || liveElement;
-              if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
-                targetElForStrokeSync = svgImageEl.parentNode;
-              }
+          const syncOverlay = () => {
+            if (!strokeOverlay.isConnected) return;
+            const targetEl = svgImageEl || liveElement;
+            strokeOverlay.setAttribute('transform', targetEl.getAttribute('transform') || '');
+            strokeOverlay.style.transform = targetEl.style.transform;
+            strokeOverlay.style.translate = targetEl.style.translate;
+            strokeOverlay.style.scale = targetEl.style.scale;
+            strokeOverlay.style.rotate = targetEl.style.rotate;
+            strokeOverlay.style.transformOrigin = targetEl.style.transformOrigin;
 
-              let bBox = { x: 0, y: 0, width: 100, height: 100 };
-              try { bBox = targetElForStrokeSync.getBBox(); } catch (e) { }
-
-              let bxStr = targetElForStrokeSync.getAttribute('x') || '0';
-              let byStr = targetElForStrokeSync.getAttribute('y') || '0';
-              let bwStr = targetElForStrokeSync.getAttribute('width') || '100%';
-              let bhStr = targetElForStrokeSync.getAttribute('height') || '100%';
-
-              let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
-              let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
-              let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
-              let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
-
-              const cropStrStroke = targetElForStrokeSync.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
-              if (cropStrStroke && cropStrStroke !== 'null') {
-                try {
-                  const crop = JSON.parse(cropStrStroke);
-                  bx = bx + (parseFloat(crop.left) / 100) * bw;
-                  by = by + (parseFloat(crop.top) / 100) * bh;
-                  bw = bw * (parseFloat(crop.width) / 100);
-                  bh = bh * (parseFloat(crop.height) / 100);
-                } catch (e) { }
-              }
-
-              let scaleX = 1;
-              let scaleY = 1;
-              try {
-                const ctm = targetElForStrokeSync.getScreenCTM();
-                if (ctm) {
-                  scaleX = Math.abs(ctm.a) || 1;
-                  scaleY = Math.abs(ctm.d) || 1;
-                }
-              } catch(e) {}
-
-              const swSync = backgroundColor.strokeWeight || 0;
-              const posSync = backgroundColor.strokePosition || 'Center';
-              const offsetX = (swSync / 2) / scaleX;
-              const offsetY = (swSync / 2) / scaleY;
-
-              let ox = bx, oy = by, ow = bw, oh = bh;
-              if (posSync === 'Inside') {
-                ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
-              } else if (posSync === 'Outside') {
-                ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
-              }
-
-              const maxR = Math.max(radius.tl || 0, radius.tr || 0, radius.br || 0, radius.bl || 0);
-              let adjR = maxR;
-              if (posSync === 'Inside') {
-                adjR = Math.max(0, maxR - offsetX);
-              } else if (posSync === 'Outside') {
-                adjR = maxR > 0 ? maxR + offsetX : 0;
-              }
-
-              const c_tl = Math.max(0, Math.min(radius.tl || 0, adjR));
-              const c_tr = Math.max(0, Math.min(radius.tr || 0, adjR));
-              const c_br = Math.max(0, Math.min(radius.br || 0, adjR));
-              const c_bl = Math.max(0, Math.min(radius.bl || 0, adjR));
-
-              const getPathDLocal = (x, y, w, h, tlv, trv, brv, blv) => {
-                return `M ${x + tlv} ${y}
-                  H ${x + w - trv}
-                  A ${trv} ${trv} 0 0 1 ${x + w} ${y + trv}
-                  V ${y + h - brv}
-                  A ${brv} ${brv} 0 0 1 ${x + w - brv} ${y + h}
-                  H ${x + blv}
-                  A ${blv} ${blv} 0 0 1 ${x} ${y + h - blv}
-                  V ${y + tlv}
-                  A ${tlv} ${tlv} 0 0 1 ${x + tlv} ${y} Z`;
-              };
-
-              strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
-            };
-            const obs = new MutationObserver(syncOverlay);
-            obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
-            if (svgImageEl && svgImageEl !== liveElement) {
-              obs.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+            let targetElForStrokeSync = svgImageEl || liveElement;
+            if (svgImageEl && svgImageEl.parentNode?.tagName?.toLowerCase() === 'svg' && svgImageEl.parentNode.classList.contains('svg-crop-wrapper')) {
+              targetElForStrokeSync = svgImageEl.parentNode;
             }
+
+            let bBox = { x: 0, y: 0, width: 100, height: 100 };
+            try { bBox = targetElForStrokeSync.getBBox(); } catch (e) { }
+
+            let bxStr = targetElForStrokeSync.getAttribute('x') || '0';
+            let byStr = targetElForStrokeSync.getAttribute('y') || '0';
+            let bwStr = targetElForStrokeSync.getAttribute('width') || '100%';
+            let bhStr = targetElForStrokeSync.getAttribute('height') || '100%';
+
+            let bx = bxStr.includes('%') ? bBox.x : parseFloat(bxStr) || 0;
+            let by = byStr.includes('%') ? bBox.y : parseFloat(byStr) || 0;
+            let bw = bwStr.includes('%') ? bBox.width : parseFloat(bwStr) || 100;
+            let bh = bhStr.includes('%') ? bBox.height : parseFloat(bhStr) || 100;
+
+            const cropStrStroke = targetElForStrokeSync.getAttribute('data-crop-data') || liveElement.getAttribute('data-crop-data');
+            if (cropStrStroke && cropStrStroke !== 'null') {
+              try {
+                const crop = JSON.parse(cropStrStroke);
+                bx = bx + (parseFloat(crop.left) / 100) * bw;
+                by = by + (parseFloat(crop.top) / 100) * bh;
+                bw = bw * (parseFloat(crop.width) / 100);
+                bh = bh * (parseFloat(crop.height) / 100);
+              } catch (e) { }
+            }
+
+            let scaleX = 1;
+            let scaleY = 1;
+            try {
+              const ctm = targetElForStrokeSync.getScreenCTM();
+              if (ctm) {
+                scaleX = Math.abs(ctm.a) || 1;
+                scaleY = Math.abs(ctm.d) || 1;
+              }
+            } catch(e) {}
+
+            const swSync = backgroundColor.strokeWeight || 0;
+            const posSync = backgroundColor.strokePosition || 'Center';
+            const offsetX = (swSync / 2) / scaleX;
+            const offsetY = (swSync / 2) / scaleY;
+
+            let ox = bx, oy = by, ow = bw, oh = bh;
+            if (posSync === 'Inside') {
+              ox += offsetX; oy += offsetY; ow -= offsetX * 2; oh -= offsetY * 2;
+            } else if (posSync === 'Outside') {
+              ox -= offsetX; oy -= offsetY; ow += offsetX * 2; oh += offsetY * 2;
+            }
+
+            const getPathDLocal = (x, y, w, h, tlv, trv, brv, blv) => {
+              return `M ${x + tlv} ${y}
+                H ${x + w - trv}
+                A ${trv} ${trv} 0 0 1 ${x + w} ${y + trv}
+                V ${y + h - brv}
+                A ${brv} ${brv} 0 0 1 ${x + w - brv} ${y + h}
+                H ${x + blv}
+                A ${blv} ${blv} 0 0 1 ${x} ${y + h - blv}
+                V ${y + tlv}
+                A ${tlv} ${tlv} 0 0 1 ${x + tlv} ${y} Z`;
+            };
+
+            const tl_val = radius.tl || 0;
+            const tr_val = radius.tr || 0;
+            const br_val = radius.br || 0;
+            const bl_val = radius.bl || 0;
+
+            let c_tl = tl_val;
+            let c_tr = tr_val;
+            let c_br = br_val;
+            let c_bl = bl_val;
+
+            if (posSync === 'Inside') {
+              c_tl = Math.max(0, tl_val - offsetX);
+              c_tr = Math.max(0, tr_val - offsetX);
+              c_br = Math.max(0, br_val - offsetX);
+              c_bl = Math.max(0, bl_val - offsetX);
+            } else if (posSync === 'Outside') {
+              c_tl = tl_val > 0 ? tl_val + offsetX : 0;
+              c_tr = tr_val > 0 ? tr_val + offsetX : 0;
+              c_br = br_val > 0 ? br_val + offsetX : 0;
+              c_bl = bl_val > 0 ? bl_val + offsetX : 0;
+            }
+
+            const maxR = Math.min(ow, oh) / 2;
+            c_tl = Math.max(0, Math.min(c_tl, maxR));
+            c_tr = Math.max(0, Math.min(c_tr, maxR));
+            c_br = Math.max(0, Math.min(c_br, maxR));
+            c_bl = Math.max(0, Math.min(c_bl, maxR));
+
+            strokeOverlay.setAttribute('d', getPathDLocal(ox, oy, Math.max(0, ow), Math.max(0, oh), c_tl, c_tr, c_br, c_bl));
+          };
+          
+          strokeOverlay._obs = new MutationObserver(syncOverlay);
+          strokeOverlay._obs.observe(liveElement, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
+          if (svgImageEl && svgImageEl !== liveElement) {
+            strokeOverlay._obs.observe(svgImageEl, { attributes: true, attributeFilter: ['x', 'y', 'width', 'height', 'transform', 'style'] });
           }
 
           let targetElForStroke = svgImageEl || liveElement;
@@ -2483,7 +2661,7 @@ const ImageEditor = ({
               scaleX = Math.abs(ctm.a) || 1;
               scaleY = Math.abs(ctm.d) || 1;
             }
-          } catch(e) {}
+          } catch (e) { }
 
           const offsetX = (sw / 2) / scaleX;
           const offsetY = (sw / 2) / scaleY;
@@ -2577,7 +2755,7 @@ const ImageEditor = ({
 
           strokeOverlay.setAttribute('data-img-stroke-position', pos); // Renamed to avoid MainEditor syncOverlays
           strokeOverlay.removeAttribute('data-stroke-position');
-          
+
           // Forcefully cleanup any orphaned MainEditor overlays that might have been applied previously
           if (liveElement.parentElement) {
             const orphans = liveElement.parentElement.querySelectorAll(`.svg-shape-stroke-overlay[data-target="${liveElement.id}"], .svg-shape-stroke-overlay[data-target=""]`);
@@ -3100,13 +3278,6 @@ const ImageEditor = ({
 
                                   const imgEl = getSvgImageEl(liveEl) || liveEl.querySelector('image, video');
                                   if (imgEl) {
-                                    const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none' };
-                                    const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
-                                    const parVal = parMap[previousFit] || 'xMidYMid meet';
-                                    const cssVal = fitCssMap[previousFit] || 'contain';
-
-                                    imgEl.setAttribute('preserveAspectRatio', parVal);
-                                    imgEl.style.setProperty('object-fit', cssVal, 'important');
                                     const origW = liveEl.getAttribute('data-crop-orig-w') || imgEl.getAttribute('width') || '100';
                                     const origH = liveEl.getAttribute('data-crop-orig-h') || imgEl.getAttribute('height') || '100';
                                     const origX = liveEl.getAttribute('data-crop-orig-x') || imgEl.getAttribute('x') || '0';
@@ -3115,8 +3286,74 @@ const ImageEditor = ({
                                     liveEl.setAttribute('data-crop-orig-h', origH);
                                     liveEl.setAttribute('data-crop-orig-x', origX);
                                     liveEl.setAttribute('data-crop-orig-y', origY);
-                                    if (!liveEl.hasAttribute('data-crop-data')) {
+
+                                    if (previousFit === 'Fill' && (!liveEl.hasAttribute('data-crop-data') || liveEl.getAttribute('data-crop-data') === 'null')) {
+                                      const url = imgEl.getAttribute('href') || imgEl.getAttribute('src');
+                                      if (url) {
+                                        const tempImg = new window.Image();
+                                        tempImg.onload = () => {
+                                          const nw = tempImg.naturalWidth;
+                                          const nh = tempImg.naturalHeight;
+                                          if (nw > 0 && nh > 0) {
+                                            const boxW = parseFloat(origW);
+                                            const boxH = parseFloat(origH);
+                                            const boxAspect = boxW / boxH;
+                                            const imgAspect = nw / nh;
+                                            
+                                            let scaledW = boxW;
+                                            let scaledH = boxH;
+                                            if (imgAspect > boxAspect) {
+                                              scaledH = boxH;
+                                              scaledW = boxH * imgAspect;
+                                            } else {
+                                              scaledW = boxW;
+                                              scaledH = boxW / imgAspect;
+                                            }
+                                            
+                                            const offX = (scaledW - boxW) / 2;
+                                            const offY = (scaledH - boxH) / 2;
+                                            
+                                            liveEl.setAttribute('data-crop-orig-w', scaledW);
+                                            liveEl.setAttribute('data-crop-orig-h', scaledH);
+                                            liveEl.setAttribute('data-crop-orig-x', parseFloat(origX) - offX);
+                                            liveEl.setAttribute('data-crop-orig-y', parseFloat(origY) - offY);
+                                            
+                                            imgEl.setAttribute('width', scaledW);
+                                            imgEl.setAttribute('height', scaledH);
+                                            imgEl.setAttribute('x', parseFloat(origX) - offX);
+                                            imgEl.setAttribute('y', parseFloat(origY) - offY);
+                                            
+                                            const leftPct = (offX / scaledW) * 100;
+                                            const topPct = (offY / scaledH) * 100;
+                                            const widthPct = (boxW / scaledW) * 100;
+                                            const heightPct = (boxH / scaledH) * 100;
+                                            
+                                            imgEl.setAttribute('preserveAspectRatio', 'none');
+                                            imgEl.style.setProperty('object-fit', 'fill', 'important');
+                                            
+                                            liveEl.setAttribute('data-crop-data', JSON.stringify({
+                                              left: leftPct, top: topPct, width: widthPct, height: heightPct, offX: 0, offY: 0, scale: 1
+                                            }));
+                                            
+                                            window.dispatchEvent(new CustomEvent('force-crop-update', { detail: { id: liveEl.id } }));
+                                          }
+                                        };
+                                        tempImg.src = url;
+                                      }
+                                      
+                                      imgEl.setAttribute('preserveAspectRatio', 'xMidYMid slice');
+                                      imgEl.style.setProperty('object-fit', 'cover', 'important');
                                       liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));
+                                    } else {
+                                      const parMap = { 'Fit': 'xMidYMid meet', 'Fill': 'xMidYMid slice', 'Stretch': 'none' };
+                                      const fitCssMap = { 'Fit': 'contain', 'Fill': 'cover', 'Stretch': 'fill' };
+                                      const parVal = parMap[previousFit] || 'xMidYMid meet';
+                                      const cssVal = fitCssMap[previousFit] || 'contain';
+                                      imgEl.setAttribute('preserveAspectRatio', parVal);
+                                      imgEl.style.setProperty('object-fit', cssVal, 'important');
+                                      if (!liveEl.hasAttribute('data-crop-data') || liveEl.getAttribute('data-crop-data') === 'null') {
+                                        liveEl.setAttribute('data-crop-data', JSON.stringify({ left: 0, top: 0, width: 100, height: 100, offX: 0, offY: 0, scale: 1 }));
+                                      }
                                     }
                                   }
                                 }
@@ -3158,7 +3395,7 @@ const ImageEditor = ({
                                         croppedY = origY + (origH * (cd.top || 0)) / 100;
                                         croppedW = origW * (cd.width || 100) / 100;
                                         croppedH = origH * (cd.height || 100) / 100;
-                                      } catch (e) {}
+                                      } catch (e) { }
                                     }
                                   }
 
@@ -3248,7 +3485,7 @@ const ImageEditor = ({
                                           innerImg.setAttribute('width', Math.abs(br.x - tl.x));
                                           innerImg.setAttribute('height', Math.abs(br.y - tl.y));
                                         }
-                                      } catch(e) {
+                                      } catch (e) {
                                         // Fallback: just remove the transform
                                         innerContentGroup.removeAttribute('transform');
                                       }
@@ -3296,66 +3533,58 @@ const ImageEditor = ({
                 </div>
               </div>
 
-
-
-              <div className="flex items-start gap-[0.75vw] pt-[0.5vw]">
-                {/* Current Image */}
-                <div className="flex flex-col items-center gap-[0.35vw]">
-                  <div className="relative w-[5vw] h-[4.4vw] p-[0.2vw] rounded-[0.5vw] overflow-hidden bg-white border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex items-center justify-center group transition-colors">
-                    <img
-                      src={previewSrc || ''}
-                      alt="Thumbnail"
-                      className="w-full h-full rounded-[0.3vw] object-contain"
-                    />
-                    <div
-                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-[0.2vw] cursor-pointer rounded-[0.3vw]"
-                      onClick={() => onDeleteLayer && onDeleteLayer()}
-                    >
-                      <Icon icon="lucide:trash-2" className="w-[1.1vw] h-[1.1vw] text-white" />
-                      <span className="text-[0.5vw] text-white font-semibold">Remove</span>
-                    </div>
-                  </div>
-                  <span className="text-[0.6vw] font-semibold text-gray-400">Current</span>
+              <div
+                className="flex items-center gap-[1vw] pt-[0.5vw]"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.startsWith('image/') && file.type !== 'image/gif') {
+                      handleFileUpload({ target: { files: e.dataTransfer.files } });
+                    }
+                  }
+                }}
+              >
+                {/* Thumbnail */}
+                <div className="relative w-[8.5vw] h-[6vw] rounded-[0.4vw] overflow-hidden bg-gray-100 flex-shrink-0">
+                  <img
+                    src={previewSrc || ''}
+                    alt="Thumbnail"
+                    className="w-full h-full object-cover"
+                  />
                 </div>
 
-                {/* Replace Arrow */}
-                <label
-                  htmlFor="image-editor-upload-input"
-                  className="flex items-center justify-center shrink-0 h-[5vw] cursor-pointer hover:opacity-70 transition-opacity"
-                >
-                  <Icon icon="qlementine-icons:replace-16" className="w-[1.1vw] h-[1.1vw] text-[#9ca3af]" />
-                </label>
+                {/* Info & Actions */}
+                <div className="flex flex-col flex-1 gap-[0.4vw] py-[0.2vw] mb-[1.5vw]">
+                  <div className="flex flex-col">
+                    <span className="text-[0.8vw] font-medium text-gray-700 truncate w-[10vw]" title={displayImageName}>
+                      {displayImageName}
+                    </span>
+                    <span className="text-[0.6vw] text-gray-400">
+                      {imageResolution ? `${imageResolution} • ` : ''}{imageFileSize || 'Unknown Size'}
+                    </span>
+                  </div>
 
-                {/* Upload Box */}
-                <div className="flex flex-col items-center gap-[0.35vw] flex-1">
-                  <label
-                    htmlFor="image-editor-upload-input"
-                    className="flex-1 w-full h-[5vw] rounded-[0.75vw] border-2 border-dashed border-gray-400 hover:border-[#4c5add] flex flex-col items-center justify-center cursor-pointer bg-white py-[0.2vw] hover:bg-gray-50/50 transition-all group"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                        const file = e.dataTransfer.files[0];
-                        if (file.type.startsWith('image/') && file.type !== 'image/gif') {
-                          handleFileUpload({ target: { files: e.dataTransfer.files } });
-                        }
-                      }
-                    }}
-                  >
-                    <p className="text-[0.65vw] font-medium text-gray-600 text-center mb-[0.2vw]">
-                      Drag & Drop or <span className="text-[#4D47FF] font-semibold">Upload</span>
-                    </p>
-                    <Icon icon="lucide:upload" className="w-[1.1vw] h-[1.1vw] text-gray-400 mb-[0.2vw]" />
-                    <div className="flex flex-col items-center">
-                      <span className="text-[0.5vw] font-semibold text-gray-500">Supported File Format</span>
-                      <span className="text-[0.5vw] font-semibold text-gray-500">JPG, PNG</span>
-                    </div>
-                  </label>
-                  <span className="text-[0.6vw] font-semibold text-gray-400 cursor-default">Replace</span>
+                  <div className="flex items-center gap-[0.5vw]">
+                    <button
+                      onClick={() => setShowReplaceModal(true)}
+                      className="px-[0.6vw] py-[0.3vw] bg-gray-100 hover:bg-gray-200 text-gray-600 text-[0.7vw] font-medium rounded-[0.3vw] cursor-pointer transition-colors border border-gray-200"
+                    >
+                      Replace image
+                    </button>
+                    <button
+                      onClick={() => onDeleteLayer && onDeleteLayer()}
+                      className="p-[0.4vw] bg-gray-100 hover:bg-red-50 text-gray-500 hover:text-red-500 rounded-[0.3vw] transition-colors border border-gray-200"
+                      title="Delete"
+                    >
+                      <Icon icon="lucide:trash-2" className="w-[0.9vw] h-[0.9vw]" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -3381,19 +3610,7 @@ const ImageEditor = ({
                 </div>
               </div>
 
-              {/* Image Gallery */}
-              <div onClick={() => setShowGallery(true)} className="relative w-full h-[3.5vw] bg-black rounded-[0.9vw] overflow-hidden group transition-all hover:scale-[1.01] active:scale-[0.98] shadow-lg flex items-center justify-center border border-white/5">
-                <div className="absolute inset-0 flex gap-[0.2vw] opacity-20 group-hover:opacity-40 transition-opacity">
-                  <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1493612276216-ee3925520721?q=80&w=300&auto=format&fit=crop')" }} />
-                  <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1501785888041-af3ef285b470?q=80&w=300&auto=format&fit=crop')" }} />
-                  <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: "url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=80&w=300&auto=format&fit=crop')" }} />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-r from-gray/10 via-gray/20 to-gray/40 group-hover:via-gray/20 transition-all" />
-                <div className="relative z-10 flex items-center gap-[0.75vw]">
-                  <Icon icon="clarity:image-gallery-solid" className="w-[1vw] h-[1.2vw] text-white" />
-                  <span className="text-[0.95vw] font-semibold text-white">Image Gallery</span>
-                </div>
-              </div>
+
             </>
           )}
 
@@ -3587,6 +3804,13 @@ const ImageEditor = ({
 
         </div>
       )}
+
+      {/* Replace Media Modal Popup */}
+      <ReplaceMediaModal
+        show={showReplaceModal}
+        onClose={() => setShowReplaceModal(false)}
+        onReplace={(file) => handleFileUpload({ target: { files: [file] } })}
+      />
 
     </div>
   );

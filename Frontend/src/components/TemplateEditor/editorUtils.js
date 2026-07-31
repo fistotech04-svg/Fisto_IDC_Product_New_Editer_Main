@@ -215,12 +215,12 @@ export const detectMediaType = (inputUrl) => {
 
   // Direct Image Extensions
   if (
-    lower.endsWith('.jpg') || 
-    lower.endsWith('.jpeg') || 
-    lower.endsWith('.png') || 
-    lower.endsWith('.svg') || 
-    lower.endsWith('.webp') || 
-    lower.endsWith('.avif') || 
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.png') ||
+    lower.endsWith('.svg') ||
+    lower.endsWith('.webp') ||
+    lower.endsWith('.avif') ||
     lower.endsWith('.ico')
   ) {
     return 'image';
@@ -233,16 +233,16 @@ export const detectMediaType = (inputUrl) => {
 
   // Video Platforms or Video Extensions / Keywords
   if (
-    lower.endsWith('.mp4') || 
-    lower.endsWith('.webm') || 
-    lower.endsWith('.mov') || 
-    lower.endsWith('.mkv') || 
-    lower.endsWith('.avi') || 
-    lower.endsWith('.m3u8') || 
-    lower.endsWith('.flv') || 
-    lower.endsWith('.wmv') || 
-    lower.includes('youtube') || 
-    lower.includes('youtu.be') || 
+    lower.endsWith('.mp4') ||
+    lower.endsWith('.webm') ||
+    lower.endsWith('.mov') ||
+    lower.endsWith('.mkv') ||
+    lower.endsWith('.avi') ||
+    lower.endsWith('.m3u8') ||
+    lower.endsWith('.flv') ||
+    lower.endsWith('.wmv') ||
+    lower.includes('youtube') ||
+    lower.includes('youtu.be') ||
     lower.includes('vimeo') ||
     lower.includes('dailymotion') ||
     lower.includes('dai.ly') ||

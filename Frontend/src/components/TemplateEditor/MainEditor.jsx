@@ -1928,18 +1928,18 @@ const MainEditor = ({
           Object.assign(rewindTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginLeft: '0.5em' });
           const rewindText = document.createElement('div');
           rewindText.textContent = "3s";
-          Object.assign(rewindText.style, { 
+          Object.assign(rewindText.style, {
             position: 'absolute',
             top: '50%',
             left: '50%',
             width: 'max-content',
-            fontSize: '10em', 
-            transform: 'translate(-50%, -50%) scale(0.35)', 
+            fontSize: '10em',
+            transform: 'translate(-50%, -50%) scale(0.35)',
             transformOrigin: 'center center',
-            fontFamily: 'Inter, sans-serif', 
-            color: 'white', 
-            whiteSpace: 'nowrap', 
-            pointerEvents: 'none' 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
           rewindTextWrapper.appendChild(rewindText);
           rewindBtn.innerHTML = REWIND_ICON;
@@ -1954,18 +1954,18 @@ const MainEditor = ({
           Object.assign(forwardTextWrapper.style, { width: '2.5em', height: '5em', position: 'relative', flexShrink: '0', marginRight: '0.5em' });
           const forwardText = document.createElement('div');
           forwardText.textContent = "3s";
-          Object.assign(forwardText.style, { 
+          Object.assign(forwardText.style, {
             position: 'absolute',
             top: '50%',
             left: '50%',
             width: 'max-content',
-            fontSize: '10em', 
-            transform: 'translate(-50%, -50%) scale(0.35)', 
+            fontSize: '10em',
+            transform: 'translate(-50%, -50%) scale(0.35)',
             transformOrigin: 'center center',
-            fontFamily: 'Inter, sans-serif', 
-            color: 'white', 
-            whiteSpace: 'nowrap', 
-            pointerEvents: 'none' 
+            fontFamily: 'Inter, sans-serif',
+            color: 'white',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none'
           });
           forwardTextWrapper.appendChild(forwardText);
           forwardBtn.appendChild(forwardTextWrapper);
@@ -2552,38 +2552,11 @@ const MainEditor = ({
         (e.detail?.videoWidth && e.detail?.videoHeight && e.detail.videoHeight > e.detail.videoWidth);
 
       // Calculate dynamic view width and height relative to canvas page dimensions
-      const svgW = parseFloat(svg.getAttribute('width')) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
-      const svgH = parseFloat(svg.getAttribute('height')) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
+      const svgW = (svg.getAttribute('width') && !svg.getAttribute('width').includes('%') ? parseFloat(svg.getAttribute('width')) : 0) || (svg.viewBox?.baseVal?.width ? svg.viewBox.baseVal.width : 0) || (typeof baseWidth === 'number' ? baseWidth : parseFloat(baseWidth || 794)) || 794;
+      const svgH = (svg.getAttribute('height') && !svg.getAttribute('height').includes('%') ? parseFloat(svg.getAttribute('height')) : 0) || (svg.viewBox?.baseVal?.height ? svg.viewBox.baseVal.height : 0) || (typeof baseHeight === 'number' ? baseHeight : parseFloat(baseHeight || 1123)) || 1123;
 
-      let displayWidth, displayHeight;
-
-      if (e.detail?.videoWidth && e.detail?.videoHeight && e.detail.videoWidth > 0 && e.detail.videoHeight > 0) {
-        // Use exact natural video aspect ratio
-        const aspect = e.detail.videoWidth / e.detail.videoHeight;
-        if (aspect < 1) { // Portrait
-          displayHeight = Math.round(svgH * 0.65);
-          displayWidth = Math.round(displayHeight * aspect);
-        } else { // Landscape
-          displayWidth = Math.round(svgW * 0.75);
-          displayHeight = Math.round(displayWidth / aspect);
-        }
-      } else if (isPortrait) {
-        // 9:16 Vertical Portrait Aspect Ratio (Shorts / TikTok / Reels)
-        displayHeight = Math.round(svgH * 0.65);
-        displayWidth = Math.round(displayHeight * (9 / 16));
-        if (displayWidth > svgW * 0.65) {
-          displayWidth = Math.round(svgW * 0.65);
-          displayHeight = Math.round(displayWidth * (16 / 9));
-        }
-      } else {
-        // Standard 16:9 Landscape Aspect Ratio
-        displayWidth = Math.round(svgW * 0.75);
-        displayHeight = Math.round(displayWidth * (9 / 16));
-        if (displayHeight > svgH * 0.85) {
-          displayHeight = Math.round(svgH * 0.85);
-          displayWidth = Math.round(displayHeight * (16 / 9));
-        }
-      }
+      let displayWidth = Math.round(svgW * 0.9);
+      let displayHeight = Math.round(displayWidth * (9/16));
 
       // We use foreignObject to host the video/iframe element in SVG
       const fo = document.createElementNS('http://www.w3.org/2000/svg', 'foreignObject');
@@ -2594,7 +2567,10 @@ const MainEditor = ({
       fo.setAttribute('data-type', 'video');
       fo.setAttribute('data-name', 'Video');
       fo.setAttribute('data-object-fit', 'Fill');
-      if (file) fo.setAttribute('data-filename', file.name);
+      if (file) {
+        fo.setAttribute('data-filename', file.name);
+        fo.setAttribute('data-filesize', file.size);
+      }
       if (originalUrl) fo.setAttribute('data-original-url', originalUrl);
 
       if (isIframe) {
@@ -2619,7 +2595,7 @@ const MainEditor = ({
         video.setAttribute('width', '100%');
         video.setAttribute('height', '100%');
         video.setAttribute('controls', 'true');
-        video.style.objectFit = 'cover';
+        video.style.objectFit = 'contain';
         video.style.margin = '0';
         video.style.padding = '0';
         video.style.display = 'block';
@@ -2639,11 +2615,14 @@ const MainEditor = ({
                 newH = Math.round(svgH * 0.65);
                 newW = Math.round(newH * aspect);
               } else { // Landscape
-                newW = Math.round(svgW * 0.75);
+                newW = Math.round(svgW * 0.9);
                 newH = Math.round(newW / aspect);
               }
               fo.setAttribute('width', newW.toString());
               fo.setAttribute('height', newH.toString());
+              fo.setAttribute('data-video-width', tempVid.videoWidth);
+              fo.setAttribute('data-video-height', tempVid.videoHeight);
+              fo.setAttribute('data-video-duration', tempVid.duration);
               if (updatePageHtml) {
                 saveModifiedPageHtml(targetPageIndex, svg);
               }
@@ -3261,7 +3240,7 @@ const MainEditor = ({
 
     const onPointerDown = (e) => {
       if (e.button !== 0) return;
-      
+
       const clickX = e.clientX;
       const clickY = e.clientY;
 
@@ -6624,7 +6603,7 @@ const MainEditor = ({
             y: rect.y || rect.top || 0,
           };
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     return { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
   };
@@ -6636,7 +6615,7 @@ const MainEditor = ({
     }
     try {
       interaction.stop();
-    } catch (e) {}
+    } catch (e) { }
     if (!interaction.rect) {
       interaction.rect = { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 };
     }
@@ -7563,7 +7542,7 @@ const MainEditor = ({
 
             if (event.shiftKey) {
               let targetRatio = null;
-              if (el.hasAttribute('data-original-aspect-ratio')) {
+              if (el.hasAttribute('data-original-aspect-ratio') && !isElementInCropMode) {
                 targetRatio = parseFloat(el.getAttribute('data-original-aspect-ratio'));
               } else {
                 const shapeName = el.getAttribute('data-name') || '';
@@ -7920,7 +7899,7 @@ const MainEditor = ({
                         let imgH = newLocH;
 
                         const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
-                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+                        const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                         if (isCropModeThisEl && (tag === 'image' || tag === 'video')) {
                           let origX = parseFloat(el.getAttribute('data-crop-orig-x') || child.getAttribute('data-crop-orig-x') || child.getAttribute('x') || '0');
@@ -8030,7 +8009,7 @@ const MainEditor = ({
                           let imgH = newLocH;
 
                           const isCropModeThisEl = el.getAttribute?.('data-object-fit') === 'Crop' || el.hasAttribute?.('data-effect-crop-inset') || (el.getAttribute?.('data-crop-data') && el.getAttribute?.('data-crop-data') !== 'null');
-                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir);
+                          const isSideHandleDrag = ['n', 's', 'e', 'w'].includes(dir) && !event.shiftKey;
 
                           if (isCropModeThisEl) {
                             let origX = parseFloat(el.getAttribute('data-crop-orig-x') || innerImg.getAttribute('data-crop-orig-x') || innerImg.getAttribute('x') || '0');
@@ -8062,10 +8041,15 @@ const MainEditor = ({
                                   cHeight = parseFloat(cd.height) || 100;
                                 } catch (e) { }
                               }
-                              const newOrigW = cWidth > 0 ? (newLocW / (cWidth / 100)) : newLocW;
-                              const newOrigH = cHeight > 0 ? (newLocH / (cHeight / 100)) : newLocH;
-                              const newOrigX = newLocX - (newOrigW * (cLeft / 100));
-                              const newOrigY = newLocY - (newOrigH * (cTop / 100));
+                              const scaledCropX = la.x + (bbox.x - la.x) * scaleX;
+                              const scaledCropY = la.y + (bbox.y - la.y) * scaleY;
+                              const scaledCropW = bbox.width * scaleX;
+                              const scaledCropH = bbox.height * Math.abs(scaleY);
+
+                              const newOrigW = cWidth > 0 ? (scaledCropW / (cWidth / 100)) : scaledCropW;
+                              const newOrigH = cHeight > 0 ? (scaledCropH / (cHeight / 100)) : scaledCropH;
+                              const newOrigX = scaledCropX - (newOrigW * (cLeft / 100));
+                              const newOrigY = scaledCropY - (newOrigH * (cTop / 100));
 
                               el.setAttribute('data-crop-orig-x', newOrigX);
                               el.setAttribute('data-crop-orig-y', newOrigY);
@@ -8120,7 +8104,7 @@ const MainEditor = ({
                   const targetCData = state.childrenData.find(c => c.child === imgElLive || c.child.contains?.(imgElLive)) || state.childrenData[0];
                   if (targetCData) {
                     const la = state.localAnchor;
-                    const bound = targetCData.bound;
+                    const bound = bbox || targetCData.bound;
                     const newMinX = la.x + (bound.x - la.x) * scaleX;
                     const newMinY = la.y + (bound.y - la.y) * scaleY;
                     const newMaxX = la.x + (bound.x + bound.width - la.x) * scaleX;
@@ -10417,8 +10401,71 @@ const MainEditor = ({
       if (e.key === 'Escape') {
         e.preventDefault();
         div.blur();
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+          const range = sel.getRangeAt(0);
+          const node = range.startContainer;
+          
+          let lineText = '';
+          let walker = document.createTreeWalker(div, NodeFilter.SHOW_ALL, null, false);
+          walker.currentNode = node;
+          
+          if (node.nodeType === Node.TEXT_NODE) {
+            lineText = node.textContent.substring(0, range.startOffset);
+          }
+          
+          let prev = walker.previousNode();
+          while (prev) {
+            if (prev.nodeName === 'BR' || prev.nodeName === 'DIV' || prev.nodeName === 'P') break;
+            if (prev.nodeType === Node.TEXT_NODE) lineText = prev.textContent + lineText;
+            prev = walker.previousNode();
+          }
+          
+          const bulletMatch = lineText.match(/^\s*(•|-)\s+/);
+          const numberMatch = lineText.match(/^\s*(\d+)\.\s+/);
+          
+          if (bulletMatch || numberMatch) {
+            e.preventDefault();
+            let prefix = '';
+            let isEmpty = false;
+            
+            if (bulletMatch) {
+              if (lineText.trim() === bulletMatch[0].trim()) isEmpty = true;
+              else prefix = bulletMatch[0].trim() + ' ';
+            } else if (numberMatch) {
+              if (lineText.trim() === numberMatch[0].trim()) isEmpty = true;
+              else {
+                const nextNum = parseInt(numberMatch[1], 10) + 1;
+                prefix = nextNum + '. ';
+              }
+            }
+            
+            if (isEmpty) {
+              const deleteRange = document.createRange();
+              deleteRange.setEnd(range.startContainer, range.startOffset);
+              let startNode = node;
+              let startOffset = 0;
+              walker.currentNode = node;
+              let p = walker.previousNode();
+              while (p) {
+                if (p.nodeName === 'BR' || p.nodeName === 'DIV' || p.nodeName === 'P') break;
+                if (p.nodeType === Node.TEXT_NODE) {
+                  startNode = p;
+                  startOffset = 0;
+                }
+                p = walker.previousNode();
+              }
+              deleteRange.setStart(startNode, startOffset);
+              sel.removeAllRanges();
+              sel.addRange(deleteRange);
+              document.execCommand('delete', false);
+            } else {
+              document.execCommand('insertHTML', false, '<br>' + prefix);
+            }
+          }
+        }
       }
-      // Enter naturally inserts a <br> or newline inside the contenteditable div
     };
 
     div.addEventListener('blur', handleBlur);
