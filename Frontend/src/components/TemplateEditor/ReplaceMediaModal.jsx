@@ -153,7 +153,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                       </div>
                     </div>
                   </div>
-                  <div className="mt-[1.5vw] text-[0.7vw] text-gray-500 space-y-[0.2vw] shrink-0">
+                  <div className="mt-[1.5vw] text-[0.8vw] text-gray-500 space-y-[0.2vw] shrink-0">
                     <p>Supported File : {mediaType === 'video' ? 'MP4, MKV, WEBM' : mediaType === 'gif' ? 'GIF' : 'JPG, PNG, WEBP, SVG'}</p>
                     <p>Max file size : 50MB</p>
                   </div>
@@ -183,7 +183,6 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                           file: newFile
                         }));
                         setGalleryAssets(prev => [...newAssets, ...prev]);
-                        setReplaceModalFile({ ...newAssets[0], isGalleryItem: true });
                       }
                     }}
                   >
@@ -202,7 +201,6 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                           };
                         });
                         setGalleryAssets(prev => [...newAssets, ...prev]);
-                        setReplaceModalFile({ ...newAssets[0], isGalleryItem: true });
                       }
                     }} onClick={(e) => { e.target.value = null; }} />
                   </div>
@@ -230,16 +228,20 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
               }} onClick={(e) => { e.target.value = null; }} />
 
               {/* Grid */}
-              <div className="flex-1 grid grid-cols-4 gap-[1vw] overflow-y-auto min-h-0 pr-[0.5vw]">
+              <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pr-[0.5vw] will-change-scroll" onClick={() => setReplaceModalFile(null)}>
+                <div className="grid grid-cols-4 gap-[1vw]">
                 {galleryAssets.length > 0 ? galleryAssets.map((item, idx) => (
-                  <div key={item.id || idx} className="flex flex-col gap-[0.4vw] cursor-pointer group relative" onClick={() => { setReplaceModalFile({ ...item, isGalleryItem: true }); setActiveGalleryDropdown(null); }}>
-                    <div className={`w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${replaceModalFile?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}>
+                  <div key={item.id || idx} className="flex flex-col gap-[0.4vw] relative">
+                    <div 
+                      className={`group cursor-pointer w-full aspect-square rounded-[0.4vw] overflow-hidden bg-gray-100 relative shadow-sm ${replaceModalFile?.id === item.id ? 'border-[0.15vw] border-[#4D47FF]' : 'border border-gray-200 group-hover:shadow-md'}`}
+                      onClick={(e) => { e.stopPropagation(); replaceModalFile?.id === item.id ? setReplaceModalFile(null) : setReplaceModalFile({ ...item, isGalleryItem: true }); setActiveGalleryDropdown(null); }}
+                    >
                       {mediaType === 'video' ? (
                         <video src={item.url} className="w-full h-full object-cover" />
                       ) : (
                         <img src={item.url} alt={item.name} className="w-full h-full object-cover" />
                       )}
-                      <div className={`absolute inset-0 ${replaceModalFile?.id === item.id ? 'bg-[#4D47FF]/10' : 'bg-black/0 group-hover:bg-black/5'}`} />
+                      <div className={`absolute inset-0 bg-black/0 ${replaceModalFile?.id === item.id ? '' : 'group-hover:bg-black/5'}`} />
                       
                       {/* Hover Three Dots */}
                       <div 
@@ -289,6 +291,7 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
                     No {mediaType === 'video' ? 'videos' : mediaType === 'gif' ? 'gifs' : 'images'} found in your gallery.
                   </div>
                 )}
+                </div>
               </div>
             </div>
           )}
@@ -296,50 +299,47 @@ const ReplaceMediaModal = ({ show, onClose, onReplace, mediaType = 'image' }) =>
             <div className="flex-1 flex flex-col min-h-0 w-[95%] mx-auto mt-[0.5vw]">
                   <div className="w-full aspect-video relative overflow-hidden bg-gray-100 group flex items-center justify-center shrink-0">
                     {replaceModalFile?.url ? (
-                      mediaType === 'video' ? (
-                        replaceModalFile.isYouTube ? (
-                          <iframe 
-                            src={replaceModalFile.ytVideoId ? `https://www.youtube.com/embed/${replaceModalFile.ytVideoId}` : (replaceModalFile.url.includes('watch?v=') ? replaceModalFile.url.replace('watch?v=', 'embed/') : replaceModalFile.url)} 
-                            className="w-full h-full object-contain" 
-                            style={{ display: 'none' }}
-                            frameBorder="0" 
-                            allowFullScreen
-                            onLoad={(e) => { e.target.style.display = 'block'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'none'; }}
-                          />
+                      <>
+                        {mediaType === 'video' ? (
+                          replaceModalFile.isYouTube ? (
+                            <iframe 
+                              src={replaceModalFile.ytVideoId ? `https://www.youtube.com/embed/${replaceModalFile.ytVideoId}` : (replaceModalFile.url.includes('watch?v=') ? replaceModalFile.url.replace('watch?v=', 'embed/') : replaceModalFile.url)} 
+                              className="w-full h-full object-contain absolute inset-0 z-10 bg-gray-100" 
+                              frameBorder="0" 
+                              allowFullScreen
+                            />
+                          ) : (
+                            <video 
+                              src={replaceModalFile.url} 
+                              className="w-full h-full object-contain absolute inset-0 z-10 bg-gray-100" 
+                              controls
+                              onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) { e.target.nextSibling.style.display = 'block'; e.target.nextSibling.innerText = 'Failed to load preview'; } }}
+                            />
+                          )
                         ) : (
-                          <video 
+                          <img 
                             src={replaceModalFile.url} 
-                            className="w-full h-full object-contain" 
-                            style={{ display: 'none' }}
-                            controls
-                            onLoadedData={(e) => { e.target.style.display = 'block'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'none'; }}
-                            onError={(e) => { e.target.style.display = 'none'; if (e.target.nextSibling) { e.target.nextSibling.style.display = 'block'; e.target.nextSibling.innerText = 'Failed to load preview'; e.target.nextSibling.classList.remove('animate-pulse'); } }}
-                          />
-                        )
-                      ) : (
-                        <img 
-                          src={replaceModalFile.url} 
-                          alt="Preview" 
-                          className="w-full h-full object-contain" 
-                          style={{ display: 'none' }}
-                          onLoad={(e) => { e.target.style.display = 'block'; if (e.target.nextSibling) e.target.nextSibling.style.display = 'none'; }}
-                          onError={(e) => { 
-                            if (e.target.src.includes('maxresdefault.jpg')) {
-                              e.target.src = e.target.src.replace('maxresdefault.jpg', 'hqdefault.jpg');
-                              if (replaceModalFile) replaceModalFile.url = e.target.src;
-                            } else {
-                              e.target.style.display = 'none'; 
-                              if (e.target.nextSibling) {
-                                e.target.nextSibling.style.display = 'block'; 
-                                e.target.nextSibling.innerText = 'Failed to load preview';
-                                e.target.nextSibling.classList.remove('animate-pulse');
+                            alt="Preview" 
+                            className="w-full h-full object-contain absolute inset-0 z-10 bg-gray-100" 
+                            onError={(e) => { 
+                              if (e.target.src.includes('maxresdefault.jpg')) {
+                                e.target.src = e.target.src.replace('maxresdefault.jpg', 'hqdefault.jpg');
+                                if (replaceModalFile) replaceModalFile.url = e.target.src;
+                              } else {
+                                e.target.style.display = 'none'; 
+                                if (e.target.nextSibling) {
+                                  e.target.nextSibling.style.display = 'block'; 
+                                  e.target.nextSibling.innerText = 'Failed to load preview';
+                                }
                               }
-                            }
-                          }} 
-                        />
-                      )
-                    ) : null}
-                    <span className={`text-[0.85vw] text-gray-400 font-medium ${replaceModalFile?.url ? 'animate-pulse block' : 'block'}`}>{replaceModalFile?.url ? 'Loading preview...' : 'Preview'}</span>
+                            }} 
+                          />
+                        )}
+                        <span className="text-[0.85vw] text-gray-400 font-medium hidden relative z-0">Failed to load preview</span>
+                      </>
+                    ) : (
+                      <span className="text-[0.85vw] text-gray-400 font-medium block">Preview</span>
+                    )}
                   </div>
               <div className="mt-[0.5vw] flex flex-col gap-[0.4vw] shrink-0">
                 <label className="text-[0.85vw] font-semibold text-gray-900">{mediaType === 'video' ? 'Paste Video URL' : mediaType === 'gif' ? 'Paste Gif URL' : 'Paste Image URL'}</label>

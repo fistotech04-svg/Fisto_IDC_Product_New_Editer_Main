@@ -553,9 +553,9 @@ const Color = ({
   }, [openSubSection]);
   const pseudoProps = {
     fill: backgroundColor?.fill || '#000000',
-    opacity: (backgroundColor?.fillOpacity || 100) / 100,
+    opacity: (backgroundColor?.fillOpacity !== undefined && backgroundColor?.fillOpacity !== null ? backgroundColor.fillOpacity : 100) / 100,
     stroke: backgroundColor?.stroke || 'none',
-    'stroke-opacity': (backgroundColor?.strokeOpacity !== undefined ? backgroundColor.strokeOpacity : 100) / 100,
+    'stroke-opacity': (backgroundColor?.strokeOpacity !== undefined && backgroundColor?.strokeOpacity !== null ? backgroundColor.strokeOpacity : 100) / 100,
     'fill-type': backgroundColor?.fillType || 'solid',
     'fill-gradient-type': backgroundColor?.fillGradientType || 'linear',
     'fill-stops': backgroundColor?.fillStops,
@@ -918,11 +918,20 @@ const Color = ({
                 }
               }}
               opacity={(() => {
-                return activeColorPicker === 'fill' ? (parseFloat(pseudoProps.opacity || 1) * 100) : 100;
+                if (activeColorPicker === 'fill') {
+                  const op = pseudoProps.opacity !== undefined && pseudoProps.opacity !== '' && pseudoProps.opacity !== null ? pseudoProps.opacity : 1;
+                  return parseFloat(op) * 100;
+                } else if (activeColorPicker === 'stroke') {
+                  const op = pseudoProps['stroke-opacity'] !== undefined && pseudoProps['stroke-opacity'] !== '' && pseudoProps['stroke-opacity'] !== null ? pseudoProps['stroke-opacity'] : 1;
+                  return parseFloat(op) * 100;
+                }
+                return 100;
               })()}
               onOpacityChange={(newOpacity) => {
                 if (activeColorPicker === 'fill') {
                   updateAttr('opacity', (newOpacity / 100).toString());
+                } else if (activeColorPicker === 'stroke') {
+                  updateAttr('stroke-opacity', (newOpacity / 100).toString());
                 }
               }}
               onClose={() => setActiveColorPicker(null)}

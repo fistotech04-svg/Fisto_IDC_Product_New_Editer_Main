@@ -71,8 +71,8 @@ export const generateGradientString = (type, stops, angle = 0, radius = 100) => 
 };
 
 export const solidPalette = [
-  '#FF0000', '#FF4500', '#FFA500', '#FFFF00', '#008000',
-  '#0000FF', '#8A2BE2', '#800080', '#C71585', '#000000', '#FFFFFF'
+  '#FFFFFF', '#000000', '#FF0000', '#FF4500', '#FFA500', 
+  '#FFFF00', '#008000', '#0000FF', '#8A2BE2', '#800080', '#C71585'
 ];
 
 export const parseGradient = (gradientStr) => {
@@ -180,6 +180,59 @@ const hsvToHex = ({ h, s, v }) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
+const handleLocalScrub = (e, initialVal, updateFn, sensitivity = 5) => {
+  const sValue = parseFloat(initialVal) || 0;
+  let accumulatedDelta = 0;
+  let virtualX = e.clientX;
+  let virtualY = e.clientY;
+
+  document.body.classList.add('is-scrubbing');
+
+  if (e.pointerId !== undefined) {
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { }
+  }
+
+  const vCursor = document.createElement('div');
+  vCursor.className = 'virtual-scrub-cursor';
+  vCursor.style.left = `${virtualX}px`;
+  vCursor.style.top = `${virtualY}px`;
+  vCursor.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 15L21 12L18 9" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6 9L3 12L6 15" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 12H20" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M18 15L21 12L18 9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M6 9L3 12L6 15" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M4 12H20" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+  document.body.appendChild(vCursor);
+
+  const onMouseMove = (moveEvent) => {
+    const dx = moveEvent.movementX || 0;
+    accumulatedDelta += dx;
+
+    virtualX += dx;
+    if (virtualX < 0) virtualX = window.innerWidth;
+    if (virtualX > window.innerWidth) virtualX = 0;
+    vCursor.style.left = `${virtualX}px`;
+
+    const newVal = sValue + Math.round(accumulatedDelta / sensitivity);
+    updateFn(newVal.toString());
+  };
+
+  const onMouseUp = (moveEvent) => {
+    if (moveEvent.pointerId !== undefined) {
+      try { moveEvent.target.releasePointerCapture(moveEvent.pointerId); } catch (e) { }
+    }
+    if (vCursor.parentNode) vCursor.parentNode.removeChild(vCursor);
+    document.body.classList.remove('is-scrubbing');
+    window.removeEventListener('pointermove', onMouseMove);
+    window.removeEventListener('pointerup', onMouseUp);
+  };
+
+  window.addEventListener('pointermove', onMouseMove);
+  window.addEventListener('pointerup', onMouseUp);
+};
+
 export default function ColorPicker({ color, onChange, opacity, onOpacityChange, onClose, className, style, colorsOnPage = [], hidePalette = false, disableGradient = false, ...props }) {
   const [view, setView] = useState(hidePalette ? "custom" : "palette"); // "palette" or "custom"
   const [mode, setMode] = useState(color?.includes("gradient") && !disableGradient ? "gradient" : "solid");
@@ -206,7 +259,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
 
   const handlePopupPointerDown = (e) => {
     // Avoid dragging if the user is interacting with controls
-    const isInteractive = e.target.closest('button, input, [role="button"], .cursor-pointer, .cursor-text, .cursor-crosshair, .cursor-grab, .cursor-copy, .custom-range-slider-color');
+    const isInteractive = e.target.closest('button, input, [role="button"], .cursor-pointer, .cursor-text, .cursor-crosshair, .cursor-grab, .cursor-copy, .custom-range-slider-color, .cursor-ew-resize');
     if (isInteractive) return;
 
     let scale = 1;
@@ -250,7 +303,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   const [isCustomPopupDragging, setIsCustomPopupDragging] = useState(false);
 
   const handleCustomPopupPointerDown = (e) => {
-    const isInteractive = e.target.closest('button, input, [role="button"], .cursor-pointer, .cursor-text, .cursor-crosshair, .cursor-grab, .cursor-copy, .custom-range-slider-color');
+    const isInteractive = e.target.closest('button, input, [role="button"], .cursor-pointer, .cursor-text, .cursor-crosshair, .cursor-grab, .cursor-copy, .custom-range-slider-color, .cursor-ew-resize');
     if (isInteractive) return;
 
     e.stopPropagation();
@@ -476,7 +529,7 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
   const hexInputRef = useRef(null);
   const nativeColorRef = useRef(null);
 
-  const displayOpacity = Math.round(((opacity || 100) / 100) * 100);
+  const displayOpacity = Math.round(opacity !== undefined && opacity !== null ? opacity : 100);
   const hueColor = hsvToHex({ h: hsv.h, s: 100, v: 100 });
 
   const resetGradient = () => {
@@ -729,21 +782,64 @@ export default function ColorPicker({ color, onChange, opacity, onOpacityChange,
                   </div>
 
                   <div className="flex items-center justify-between gap-[1vw]">
-                    <span className="text-[0.75vw] font-semibold text-gray-700">Fill :</span>
-                    <div className="flex-1 flex gap-[0.5vw] items-center">
+                    <span className="text-[0.75vw] font-semibold text-gray-700 whitespace-nowrap flex-shrink-0">Fill :</span>
+                    <div className="flex-1 flex gap-[0.5vw] items-center min-w-0">
                       <div
-                        className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors"
-                        style={{ background: color }}
+                        className="w-[2vw] h-[2vw] border border-gray-300 rounded-[0.5vw] shadow-sm cursor-pointer hover:border-[#5d5efc] transition-colors overflow-hidden relative flex-shrink-0"
                         onClick={() => setView("custom")}
-                      />
-                      <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center px-[0.75vw] justify-between bg-white hover:border-[#5d5efc] transition-colors">
+                      >
+                        {(!color || color === 'none' || color === 'transparent' || color === '#') ? (
+                          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[140%] h-[1.5px] bg-red-500 rotate-45"></div>
+                        ) : (
+                          <div className="absolute inset-0" style={{ background: color, opacity: displayOpacity / 100 }} />
+                        )}
+                      </div>
+                      <div className="flex-1 h-[2vw] border border-gray-300 rounded-[0.5vw] flex items-center pl-[0.5vw] pr-[0.2vw] justify-between bg-white hover:border-[#5d5efc] transition-colors min-w-0">
                         <input
                           type="text"
-                          value={color?.toUpperCase() || ""}
+                          value={(!color || color === 'none' || color === 'transparent' || color === '#') ? 'NONE' : color.toUpperCase()}
                           onChange={(e) => onChange(e.target.value)}
-                          className="text-[0.8vw] font-medium text-gray-700 font-mono bg-transparent w-[5vw] outline-none"
+                          className="flex-1 min-w-0 text-[0.7vw] font-medium text-gray-700 font-mono bg-transparent outline-none"
                         />
-                        <span className="text-[0.8vw] font-medium text-gray-400">{displayOpacity}%</span>
+                        <div className="flex items-center gap-[0.1vw] flex-shrink-0">
+                          <div
+                            className="flex items-center gap-[0.1vw] cursor-ew-resize select-none px-[0.15vw] hover:bg-gray-50 rounded"
+                            onPointerDown={(e) => {
+                              handleLocalScrub(e, displayOpacity, (val) => {
+                                const num = parseInt(val);
+                                const clamped = Math.min(Math.max(num, 0), 100);
+                                if (onOpacityChange) onOpacityChange(clamped);
+                              });
+                            }}
+                          >
+                            <span className="text-[0.7vw] font-medium text-gray-400">{displayOpacity}%</span>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              if ('EyeDropper' in window) {
+                                const eyeDropper = new window.EyeDropper();
+                                try {
+                                  const result = await eyeDropper.open();
+                                  onChange(result.sRGBHex);
+                                } catch (e) { }
+                              } else {
+                                const fallbackInput = document.getElementById('solid-mode-color-fallback');
+                                if (fallbackInput) fallbackInput.click();
+                              }
+                            }}
+                            className="flex items-center justify-center p-[0.15vw] hover:bg-gray-100 rounded-[0.3vw] transition-colors group/btn"
+                          >
+                            <Icon icon="lucide:pipette" className="w-[0.8vw] h-[0.8vw] text-gray-400 group-hover/btn:text-gray-700" />
+                          </button>
+                          <input
+                            type="color"
+                            id="solid-mode-color-fallback"
+                            className="hidden"
+                            onChange={(e) => {
+                              onChange(e.target.value);
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
